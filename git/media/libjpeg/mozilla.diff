@@ -9,7 +9,7 @@
   * optimizations.  Most users will not need to touch this file.
   */
  
-+#include "mozilla/StandardInteger.h"
++#include "prtypes.h"
  
  /*
   * Define BITS_IN_JSAMPLE as either

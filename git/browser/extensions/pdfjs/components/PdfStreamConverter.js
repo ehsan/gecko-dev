@@ -215,22 +215,7 @@ ChromeActions.prototype = {
     var frontWindow = Cc['@mozilla.org/embedcomp/window-watcher;1'].
                          getService(Ci.nsIWindowWatcher).activeWindow;
 
-    let docIsPrivate = false;
-    try {
-      docIsPrivate = this.domWindow
-                         .QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIWebNavigation)
-                         .QueryInterface(Ci.nsILoadContext)
-                         .usePrivateBrowsing;
-    } catch (x) {
-    }
-
-    let netChannel = NetUtil.newChannel(blobUri);
-    if ('nsIPrivateBrowsingChannel' in Ci &&
-        netChannel instanceof Ci.nsIPrivateBrowsingChannel) {
-      netChannel.setPrivate(docIsPrivate);
-    }
-    NetUtil.asyncFetch(netChannel, function(aInputStream, aResult) {
+    NetUtil.asyncFetch(blobUri, function(aInputStream, aResult) {
       if (!Components.isSuccessCode(aResult)) {
         if (sendResponse)
           sendResponse(true);
@@ -243,10 +228,6 @@ ChromeActions.prototype = {
       channel.setURI(originalUri);
       channel.contentStream = aInputStream;
       channel.QueryInterface(Ci.nsIChannel);
-      if ('nsIPrivateBrowsingChannel' in Ci &&
-          channel instanceof Ci.nsIPrivateBrowsingChannel) {
-        channel.setPrivate(docIsPrivate);
-      }
 
       var listener = {
         extListener: null,

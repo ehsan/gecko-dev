@@ -10,7 +10,7 @@ import shutil
 import subprocess
 
 from automation import Automation
-from devicemanager import NetworkTools, DMError
+from devicemanager import NetworkTools
 
 class RemoteAutomation(Automation):
     _devicemanager = None
@@ -157,31 +157,19 @@ class RemoteAutomation(Automation):
 
         @property
         def pid(self):
-            pid = self.dm.processExist(self.procName)
-            # HACK: we should probably be more sophisticated about monitoring
-            # running processes for the remote case, but for now we'll assume
-            # that this method can be called when nothing exists and it is not
-            # an error
-            if pid is None:
-                return 0
-            return pid
+            hexpid = self.dm.processExist(self.procName)
+            if (hexpid == None):
+                hexpid = "0x0"
+            return int(hexpid, 0)
 
         @property
         def stdout(self):
-            if self.dm.fileExists(self.proc):
-                try:
-                    t = self.dm.pullFile(self.proc)
-                except DMError:
-                    # we currently don't retry properly in the pullFile
-                    # function in dmSUT, so an error here is not necessarily
-                    # the end of the world
-                    return ''
-                tlen = len(t)
-                retVal = t[self.stdoutlen:]
-                self.stdoutlen = tlen
-                return retVal.strip('\n').strip()
-            else:
-                return ''
+            t = self.dm.getFile(self.proc)
+            if t == None: return ''
+            tlen = len(t)
+            retVal = t[self.stdoutlen:]
+            self.stdoutlen = tlen
+            return retVal.strip('\n').strip()
 
         def wait(self, timeout = None):
             timer = 0

@@ -15,7 +15,6 @@
 #include "common_video/interface/video_image.h"
 #include "gtest/gtest.h"
 #include "testsupport/fileutils.h"
-#include "modules/interface/module_common_types.h"
 
 namespace webrtc {
 
@@ -26,7 +25,7 @@ class JpegTest: public testing::Test {
  protected:
   JpegTest()
       : input_filename_(webrtc::test::ProjectRootPath() +
-                       "data/common_video/jpeg/webrtc_logo.jpg"),
+                       "test/data/common_video/jpeg/webrtc_logo.jpg"),
         decoded_filename_(webrtc::test::OutputPath() + "TestJpegDec.yuv"),
         encoded_filename_(webrtc::test::OutputPath() + "TestJpegEnc.jpg"),
         encoded_buffer_(NULL) {}
@@ -75,38 +74,39 @@ class JpegTest: public testing::Test {
 
 TEST_F(JpegTest, Decode) {
   encoded_buffer_ = ReadEncodedImage(input_filename_);
-  VideoFrame image_buffer;
+  RawImage image_buffer;
   EXPECT_EQ(0, decoder_->Decode(*encoded_buffer_, image_buffer));
-  EXPECT_GT(image_buffer.Length(), 0u);
-  EXPECT_EQ(kImageWidth, image_buffer.Width());
-  EXPECT_EQ(kImageHeight, image_buffer.Height());
-  image_buffer.Free();
+  EXPECT_GT(image_buffer._length, 0u);
+  EXPECT_EQ(kImageWidth, image_buffer._width);
+  EXPECT_EQ(kImageHeight, image_buffer._height);
+  delete [] image_buffer._buffer;
 }
 
 TEST_F(JpegTest, EncodeInvalidInputs) {
-  VideoFrame empty;
-  empty.SetWidth(164);
-  empty.SetHeight(164);
+  RawImage empty;
+  empty._width = 164;
+  empty._height = 164;
   EXPECT_EQ(-1, encoder_->SetFileName(0));
   EXPECT_EQ(-1, encoder_->Encode(empty));
 
-  empty.VerifyAndAllocate(0);
+  empty._buffer = new WebRtc_UWord8[10];
+  empty._size = 0;
   EXPECT_EQ(-1, encoder_->Encode(empty));
 
-  empty.VerifyAndAllocate(10);
-  empty.SetHeight(0);
+  empty._size = 10;
+  empty._height = 0;
   EXPECT_EQ(-1, encoder_->Encode(empty));
 
-  empty.SetHeight(164);
-  empty.SetWidth(0);
+  empty._height = 164;
+  empty._width = 0;
   EXPECT_EQ(-1, encoder_->Encode(empty));
-  empty.Free();
+  delete[] empty._buffer;
 }
 
 TEST_F(JpegTest, Encode) {
   // Decode our input image then encode it again to a new file:
   encoded_buffer_ = ReadEncodedImage(input_filename_);
-  VideoFrame image_buffer;
+  RawImage image_buffer;
   EXPECT_EQ(0, decoder_->Decode(*encoded_buffer_, image_buffer));
 
   EXPECT_EQ(0, encoder_->SetFileName(encoded_filename_.c_str()));
@@ -114,13 +114,10 @@ TEST_F(JpegTest, Encode) {
 
   // Save decoded image to file.
   FILE* save_file = fopen(decoded_filename_.c_str(), "wb");
-  if (fwrite(image_buffer.Buffer(), 1,
-             image_buffer.Length(), save_file) != image_buffer.Length()) {
-    return;
-  }
+  fwrite(image_buffer._buffer, 1, image_buffer._length, save_file);
   fclose(save_file);
 
-  image_buffer.Free();
+  delete[] image_buffer._buffer;
 }
 
 }  // namespace webrtc

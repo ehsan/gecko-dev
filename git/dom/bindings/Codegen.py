@@ -106,8 +106,6 @@ class CGDOMJSClass(CGThing):
     def __init__(self, descriptor):
         CGThing.__init__(self)
         self.descriptor = descriptor
-        # Our current reserved slot situation is unsafe for globals. Fix bug 760095!
-        assert "Window" not in descriptor.interface.identifier.name
     def declare(self):
         return "extern DOMJSClass Class;\n"
     def define(self):
@@ -115,7 +113,7 @@ class CGDOMJSClass(CGThing):
         return """
 DOMJSClass Class = {
   { "%s",
-    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2),
+    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(1),
     %s, /* addProperty */
     JS_PropertyStub,       /* delProperty */
     JS_PropertyStub,       /* getProperty */

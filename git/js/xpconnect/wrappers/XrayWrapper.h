@@ -30,6 +30,8 @@ extern JSClass HolderClass;
 
 bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
 
+JSObject *createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent);
+
 bool
 IsTransparent(JSContext *cx, JSObject *wrapper);
 
@@ -38,21 +40,9 @@ GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 
 }
 
-class XrayTraits;
 class XPCWrappedNativeXrayTraits;
 class ProxyXrayTraits;
 class DOMXrayTraits;
-
-
-enum XrayType {
-    XrayForDOMObject,
-    XrayForDOMProxyObject,
-    XrayForWrappedNative,
-    NotXray
-};
-
-XrayType GetXrayType(JSObject *obj);
-XrayTraits* GetXrayTraits(JSObject *obj);
 
 // NB: Base *must* derive from JSProxyHandler
 template <typename Base, typename Traits = XPCWrappedNativeXrayTraits >

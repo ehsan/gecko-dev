@@ -33,7 +33,6 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/WeakPtr.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
@@ -137,7 +136,7 @@ class Decoder;
 
 class RasterImage : public Image
                   , public nsIProperties
-                  , public SupportsWeakPtr<RasterImage>
+                  , public nsSupportsWeakReference
 #ifdef DEBUG
                   , public imgIContainerDebug
 #endif
@@ -163,8 +162,7 @@ public:
   NS_IMETHOD ExtractFrame(uint32_t aWhichFrame, const nsIntRect & aRect, uint32_t aFlags, imgIContainer **_retval);
   NS_IMETHOD Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter, const gfxMatrix & aUserSpaceToImageSpace, const gfxRect & aFill, const nsIntRect & aSubimage, const nsIntSize & aViewportSize, uint32_t aFlags);
   NS_IMETHOD_(nsIFrame *) GetRootLayoutFrame(void);
-  NS_IMETHOD RequestDecode();
-  NS_IMETHOD StartDecoding();
+  NS_IMETHOD RequestDecode(void);
   NS_IMETHOD LockImage(void);
   NS_IMETHOD UnlockImage(void);
   NS_IMETHOD RequestDiscard(void);
@@ -689,11 +687,6 @@ private:
 
   void SetInUpdateImageContainer(bool aInUpdate) { mInUpdateImageContainer = aInUpdate; }
   bool IsInUpdateImageContainer() { return mInUpdateImageContainer; }
-  enum RequestDecodeType {
-      ASYNCHRONOUS,
-      SOMEWHAT_SYNCHRONOUS
-  };
-  NS_IMETHOD RequestDecodeCore(RequestDecodeType aDecodeType);
 
 private: // data
 
@@ -818,17 +811,18 @@ protected:
 class imgDecodeRequestor : public nsRunnable
 {
   public:
-    imgDecodeRequestor(RasterImage &aContainer) {
-      mContainer = aContainer.asWeakPtr();
+    imgDecodeRequestor(imgIContainer *aContainer) {
+      mContainer = do_GetWeakReference(aContainer);
     }
     NS_IMETHOD Run() {
-      if (mContainer)
-        mContainer->StartDecoding();
+      nsCOMPtr<imgIContainer> con = do_QueryReferent(mContainer);
+      if (con)
+        con->RequestDecode();
       return NS_OK;
     }
 
   private:
-    WeakPtr<RasterImage> mContainer;
+    nsWeakPtr mContainer;
 };
 
 } // namespace image

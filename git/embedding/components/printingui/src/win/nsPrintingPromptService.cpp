@@ -41,6 +41,9 @@ static const char *kPrintProgressDialogURL  = "chrome://global/content/printProg
 static const char *kPrtPrvProgressDialogURL = "chrome://global/content/printPreviewProgress.xul";
 static const char *kPageSetupDialogURL      = "chrome://global/content/printPageSetup.xul";
 
+// Static Data 
+static HINSTANCE gInstance;
+
 /****************************************************************
  ************************* ParamBlock ***************************
  ****************************************************************/
@@ -93,6 +96,7 @@ HWND
 nsPrintingPromptService::GetHWNDForDOMWindow(nsIDOMWindow *aWindow)
 {
     nsCOMPtr<nsIWebBrowserChrome> chrome;
+    HWND hWnd = NULL;
 
     // We might be embedded so check this path first
     if (mWatcher) {

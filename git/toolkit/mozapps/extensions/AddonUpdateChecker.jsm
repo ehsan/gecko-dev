@@ -266,24 +266,30 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
            createInstance(Ci.nsIRDFDataSource);
   rdfParser.parseString(ds, aRequest.channel.URI, aRequest.responseText);
 
-  // Differentiating between add-on types is deprecated
-  let extensionRes = gRDF.GetResource(PREFIX_EXTENSION + aId);
-  let themeRes = gRDF.GetResource(PREFIX_THEME + aId);
-  let itemRes = gRDF.GetResource(PREFIX_ITEM + aId);
-  let addonRes = ds.ArcLabelsOut(extensionRes).hasMoreElements() ? extensionRes
-               : ds.ArcLabelsOut(themeRes).hasMoreElements() ? themeRes
-               : itemRes;
+  switch (aType) {
+  case "extension":
+    var item = PREFIX_EXTENSION + aId;
+    break;
+  case "theme":
+    item = PREFIX_THEME + aId;
+    break;
+  default:
+    item = PREFIX_ITEM + aId;
+    break;
+  }
+
+  let extensionRes  = gRDF.GetResource(item);
 
   // If we have an update key then the update manifest must be signed
   if (aUpdateKey) {
-    let signature = getProperty(ds, addonRes, "signature");
+    let signature = getProperty(ds, extensionRes, "signature");
     if (!signature)
       throw Components.Exception("Update manifest for " + aId + " does not contain a required signature");
     let serializer = new RDFSerializer();
     let updateString = null;
 
     try {
-      updateString = serializer.serializeResource(ds, addonRes);
+      updateString = serializer.serializeResource(ds, extensionRes);
     }
     catch (e) {
       throw Components.Exception("Failed to generate signed string for " + aId + ". Serializer threw " + e,
@@ -306,7 +312,7 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
       throw Components.Exception("The signature for " + aId + " was not created by the add-on's updateKey");
   }
 
-  let updates = ds.GetTarget(addonRes, EM_R("updates"), true);
+  let updates = ds.GetTarget(extensionRes, EM_R("updates"), true);
 
   // A missing updates property doesn't count as a failure, just as no avialable
   // update information
@@ -316,7 +322,7 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
   }
 
   if (!(updates instanceof Ci.nsIRDFResource))
-    throw Components.Exception("Missing updates property for " + addonRes.Value);
+    throw Components.Exception("Missing updates property for " + extensionRes.Value);
 
   let cu = Cc["@mozilla.org/rdf/container-utils;1"].
            getService(Ci.nsIRDFContainerUtils);

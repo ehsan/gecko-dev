@@ -98,17 +98,23 @@ struct DevicePropertiesRequest
   nsString[] addresses;
 };
 
-struct ConnectRequest
+struct ConnectHeadsetRequest
 {
   nsString address;
   nsString adapterPath;
-  uint16_t profileId;
 };
 
-struct DisconnectRequest
+struct ConnectObjectPushRequest
 {
-  uint16_t profileId;
+  nsString address;
+  nsString adapterPath;
 };
+
+struct DisconnectHeadsetRequest
+{};
+
+struct DisconnectObjectPushRequest
+{};
 
 struct SendFileRequest
 {
@@ -137,8 +143,10 @@ union Request
   ConfirmAuthorizationRequest;
   DenyAuthorizationRequest;
   DevicePropertiesRequest;
-  ConnectRequest;
-  DisconnectRequest;
+  ConnectHeadsetRequest;
+  ConnectObjectPushRequest;
+  DisconnectHeadsetRequest;
+  DisconnectObjectPushRequest;
   SendFileRequest;
   StopSendingFileRequest;
 };

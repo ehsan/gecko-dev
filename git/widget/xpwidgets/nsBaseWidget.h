@@ -315,8 +315,6 @@ protected:
                       NS_MIN(mSizeConstraints.mMaxSize.height, *aHeight));
   }
 
-  virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
-
 protected:
   /**
    * Starts the OMTC compositor destruction sequence.

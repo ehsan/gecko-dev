@@ -1079,14 +1079,8 @@ class StackFrame
     void setRunningInIon() {
         flags_ |= RUNNING_IN_ION;
     }
-    void setCallingIntoIon() {
-        flags_ |= CALLING_INTO_ION;
-    }
     void clearRunningInIon() {
         flags_ &= ~RUNNING_IN_ION;
-    }
-    void clearCallingIntoIon() {
-        flags_ &= ~CALLING_INTO_ION;
     }
 };
 
@@ -1792,7 +1786,7 @@ class StackIter
     CallArgs nativeArgs() const { JS_ASSERT(isNativeCall()); return args_; }
 
     template <class Op>
-    inline void ionForEachCanonicalActualArg(Op op);
+    inline bool forEachCanonicalActualArg(Op op, unsigned start = 0, unsigned count = unsigned(-1));
 };
 
 /* A filtering of the StackIter to only stop at scripts. */

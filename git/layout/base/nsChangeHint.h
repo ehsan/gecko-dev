@@ -8,6 +8,7 @@
 #ifndef nsChangeHint_h___
 #define nsChangeHint_h___
 
+#include "prtypes.h"
 #include "nsDebug.h"
 
 // Defines for various style related constants

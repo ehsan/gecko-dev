@@ -30,7 +30,6 @@ class nsPIDOMWindow;
 #include "prtime.h"
 #include "DeviceStorage.h"
 
-#include "DeviceStorageRequestChild.h"
 
 #define POST_ERROR_EVENT_FILE_DOES_NOT_EXIST         "File location doesn't exists"
 #define POST_ERROR_EVENT_FILE_NOT_ENUMERABLE         "File location is not enumerable"
@@ -41,9 +40,7 @@ class nsPIDOMWindow;
 #define POST_ERROR_EVENT_NON_STRING_TYPE_UNSUPPORTED "Non-string type unsupported"
 #define POST_ERROR_EVENT_NOT_IMPLEMENTED             "Not implemented"
 
-using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::dom::devicestorage;
 
 class DeviceStorageTypeChecker MOZ_FINAL
 {
@@ -100,17 +97,14 @@ private:
   void AppendRelativePath();
 };
 
-class ContinueCursorEvent MOZ_FINAL : public nsRunnable
+class ContinueCursorEvent MOZ_FINAL: public nsRunnable
 {
 public:
   ContinueCursorEvent(nsRefPtr<DOMRequest>& aRequest);
   ContinueCursorEvent(DOMRequest* aRequest);
   ~ContinueCursorEvent();
-  void Continue();
-
   NS_IMETHOD Run();
 private:
-  already_AddRefed<DeviceStorageFile> GetNextFile();
   nsRefPtr<DOMRequest> mRequest;
 };
 
@@ -119,7 +113,6 @@ class nsDOMDeviceStorageCursor MOZ_FINAL
   , public DOMRequest
   , public nsIContentPermissionRequest
   , public PCOMContentPermissionRequestChild
-  , public DeviceStorageRequestChildCallback
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -140,8 +133,6 @@ public:
   virtual void IPDLRelease();
 
   void GetStorageType(nsAString & aType);
-
-  void RequestComplete();
 
 private:
   ~nsDOMDeviceStorageCursor();

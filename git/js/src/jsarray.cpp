@@ -103,7 +103,6 @@
 #include "jsarrayinlines.h"
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
-#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 #include "jsstrinlines.h"
@@ -1972,10 +1971,10 @@ struct SortComparatorFunction
 {
     JSContext          *const cx;
     const Value        &fval;
-    FastInvokeGuard    &fig;
+    InvokeArgsGuard    &ag;
 
-    SortComparatorFunction(JSContext *cx, const Value &fval, FastInvokeGuard &fig)
-      : cx(cx), fval(fval), fig(fig) { }
+    SortComparatorFunction(JSContext *cx, const Value &fval, InvokeArgsGuard &ag)
+      : cx(cx), fval(fval), ag(ag) { }
 
     bool operator()(const Value &a, const Value &b, bool *lessOrEqualp);
 };
@@ -1993,7 +1992,6 @@ SortComparatorFunction::operator()(const Value &a, const Value &b, bool *lessOrE
     if (!JS_CHECK_OPERATION_LIMIT(cx))
         return false;
 
-    InvokeArgsGuard &ag = fig.args();
     if (!ag.pushed() && !cx->stack.pushInvokeArgs(cx, 2, &ag))
         return false;
 
@@ -2002,7 +2000,7 @@ SortComparatorFunction::operator()(const Value &a, const Value &b, bool *lessOrE
     ag[0] = a;
     ag[1] = b;
 
-    if (!fig.invoke(cx))
+    if (!Invoke(cx, ag))
         return false;
 
     double cmp;
@@ -2173,9 +2171,9 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
                 result = vec.begin() + n;
             }
         } else {
-            FastInvokeGuard fig(cx, fval);
+            InvokeArgsGuard args;
             if (!MergeSort(vec.begin(), n, vec.begin() + n,
-                           SortComparatorFunction(cx, fval, fig))) {
+                           SortComparatorFunction(cx, fval, args))) {
                 return false;
             }
         }
@@ -2744,9 +2742,13 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #ifdef JS_METHODJIT
-bool
-js::array_concat_dense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObject result)
+void JS_FASTCALL
+mjit::stubs::ArrayConcatTwoArrays(VMFrame &f)
 {
+    JSObject *result = &f.regs.sp[-3].toObject();
+    JSObject *obj1 = &f.regs.sp[-2].toObject();
+    JSObject *obj2 = &f.regs.sp[-1].toObject();
+
     JS_ASSERT(result->isDenseArray() && obj1->isDenseArray() && obj2->isDenseArray());
 
     uint32_t initlen1 = obj1->getDenseArrayInitializedLength();
@@ -2755,11 +2757,11 @@ js::array_concat_dense(JSContext *cx, HandleObject obj1, HandleObject obj2, Hand
     uint32_t initlen2 = obj2->getDenseArrayInitializedLength();
     JS_ASSERT(initlen2 == obj2->getArrayLength());
 
-    /* No overflow here due to nelements limit. */
+    /* No overflow here due to nslots limit. */
     uint32_t len = initlen1 + initlen2;
 
-    if (!result->ensureElements(cx, len))
-        return false;
+    if (!result->ensureElements(f.cx, len))
+        THROW();
 
     JS_ASSERT(!result->getDenseArrayInitializedLength());
     result->setDenseArrayInitializedLength(len);
@@ -2768,18 +2770,6 @@ js::array_concat_dense(JSContext *cx, HandleObject obj1, HandleObject obj2, Hand
     result->initDenseArrayElements(initlen1, obj2->getDenseArrayElements(), initlen2);
 
     result->setDenseArrayLength(len);
-    return true;
-}
-
-void JS_FASTCALL
-mjit::stubs::ArrayConcatTwoArrays(VMFrame &f)
-{
-    RootedObject result(f.cx, &f.regs.sp[-3].toObject());
-    RootedObject obj1(f.cx, &f.regs.sp[-2].toObject());
-    RootedObject obj2(f.cx, &f.regs.sp[-1].toObject());
-
-    if (!array_concat_dense(f.cx, obj1, obj2, result))
-        THROW();
 }
 #endif /* JS_METHODJIT */
 
@@ -3100,8 +3090,7 @@ array_readonlyCommon(JSContext *cx, CallArgs &args)
 
     /* Step 7. */
     RootedValue kValue(cx);
-    FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgsGuard &ag = fig.args();
+    InvokeArgsGuard ag;
     while (k < len) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
             return false;
@@ -3120,7 +3109,7 @@ array_readonlyCommon(JSContext *cx, CallArgs &args)
             ag[0] = kValue;
             ag[1] = NumberValue(k);
             ag[2] = ObjectValue(*obj);
-            if (!fig.invoke(cx))
+            if (!Invoke(cx, ag))
                 return false;
 
             if (Behavior::shouldExit(ag.rval(), args.rval()))
@@ -3202,8 +3191,7 @@ array_map(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 8. */
     RootedValue kValue(cx);
-    FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgsGuard &ag = fig.args();
+    InvokeArgsGuard ag;
     while (k < len) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
             return false;
@@ -3222,7 +3210,7 @@ array_map(JSContext *cx, unsigned argc, Value *vp)
             ag[0] = kValue;
             ag[1] = NumberValue(k);
             ag[2] = ObjectValue(*obj);
-            if (!fig.invoke(cx))
+            if (!Invoke(cx, ag))
                 return false;
             kValue = ag.rval();
             if (!SetArrayElement(cx, arr, k, kValue))
@@ -3282,8 +3270,7 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
     uint32_t to = 0;
 
     /* Step 9. */
-    FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgsGuard &ag = fig.args();
+    InvokeArgsGuard ag;
     RootedValue kValue(cx);
     while (k < len) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
@@ -3303,7 +3290,7 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
             ag[0] = kValue;
             ag[1] = NumberValue(k);
             ag[2] = ObjectValue(*obj);
-            if (!fig.invoke(cx))
+            if (!Invoke(cx, ag))
                 return false;
 
             if (ToBoolean(ag.rval())) {
@@ -3402,8 +3389,7 @@ array_reduceCommon(JSContext *cx, CallArgs &args)
 
     /* Step 9. */
     RootedValue kValue(cx);
-    FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgsGuard &ag = fig.args();
+    InvokeArgsGuard ag;
     while (k != end) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
             return false;
@@ -3423,7 +3409,7 @@ array_reduceCommon(JSContext *cx, CallArgs &args)
             ag[1] = kValue;
             ag[2] = NumberValue(k);
             ag[3] = ObjectValue(*obj);
-            if (!fig.invoke(cx))
+            if (!Invoke(cx, ag))
                 return false;
             accumulator = ag.rval();
         }

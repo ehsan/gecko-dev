@@ -281,12 +281,6 @@ TypeInferenceOracle::propertyReadIdempotent(JSScript *script, jsbytecode *pc, Ha
 }
 
 bool
-TypeInferenceOracle::propertyReadAccessGetter(JSScript *script, jsbytecode *pc)
-{
-    return script->analysis()->getCode(pc).accessGetter;
-}
-
-bool
 TypeInferenceOracle::elementReadIsDenseArray(JSScript *script, jsbytecode *pc)
 {
     // Check whether the object is a dense array and index is int32 or double.

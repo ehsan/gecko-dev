@@ -28,8 +28,6 @@ XPIDLSRCS += \
   nsIDOMMobileConnection.idl \
   nsIMobileConnectionProvider.idl \
   nsINavigatorMobileConnection.idl \
-  nsIDOMNetworkStatsManager.idl \
-  nsIDOMNetworkStats.idl \
   $(NULL)
 endif
 

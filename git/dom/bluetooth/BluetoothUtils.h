@@ -39,10 +39,6 @@ GetObjectPathFromAddress(const nsAString& aAdapterPath,
 nsString
 GetAddressFromObjectPath(const nsAString& aObjectPath);
 
-bool
-BroadcastSystemMessage(const nsAString& aType,
-                       const InfallibleTArray<BluetoothNamedValue>& aData);
-
 END_BLUETOOTH_NAMESPACE
 
 #endif

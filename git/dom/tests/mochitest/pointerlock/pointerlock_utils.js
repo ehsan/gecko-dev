@@ -55,8 +55,5 @@ if (window.opener) {
 }
 
 addLoadEvent(function() {
-  if (typeof start !== 'undefined') {
-    SimpleTest.waitForFocus(start);
-  }
+  SimpleTest.waitForFocus(start);
 });
-

@@ -271,7 +271,6 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
       mPingSentEpoch = 1; // avoid the 0 sentinel value
     GeneratePing(mNextPingID);
     mNextPingID += 2;
-    ResumeRecv(); // read the ping reply
 
     if (mNextPingID == 0xffffffff) {
       LOG(("SpdySession3::ReadTimeoutTick %p "
@@ -1233,7 +1232,7 @@ SpdySession3::HandleGoAway(SpdySession3 *self)
   NS_ABORT_IF_FALSE(self->mFrameControlType == CONTROL_TYPE_GOAWAY,
                     "wrong control type");
 
-  if (self->mInputFrameDataSize != 8) {
+  if (self->mInputFrameDataSize != 4) {
     LOG3(("SpdySession3::HandleGoAway %p GOAWAY had wrong amount of data %d",
           self, self->mInputFrameDataSize));
     return NS_ERROR_ILLEGAL_VALUE;
@@ -1244,10 +1243,8 @@ SpdySession3::HandleGoAway(SpdySession3 *self)
     PR_ntohl(reinterpret_cast<uint32_t *>(self->mInputFrameBuffer.get())[2]);
   self->mCleanShutdown = true;
   
-  LOG3(("SpdySession3::HandleGoAway %p GOAWAY Last-Good-ID 0x%X status 0x%X\n",
-        self, self->mGoAwayID, 
-        PR_ntohl(reinterpret_cast<uint32_t *>(self->mInputFrameBuffer.get())[3])));
-
+  LOG3(("SpdySession3::HandleGoAway %p GOAWAY Last-Good-ID 0x%X.",
+        self, self->mGoAwayID));
   self->ResumeRecv();
   self->ResetDownstreamState();
   return NS_OK;

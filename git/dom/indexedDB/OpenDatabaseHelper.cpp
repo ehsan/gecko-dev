@@ -1361,7 +1361,7 @@ protected:
                                                  MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
   {
     return Success_NotSent;
   }
@@ -1435,7 +1435,7 @@ protected:
   }
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
   {
     return Success_NotSent;
   }

@@ -1534,9 +1534,6 @@ JS_WrapValue(JSContext *cx, jsval *vp)
  *
  * Second, the new identity object's contents will be those of |target|. A swap()
  * is used to make this happen if an object other than |target| is used.
- *
- * We don't have a good way to recover from failure in this function, so
- * we intentionally crash instead.
  */
 
 JS_PUBLIC_API(JSObject *)
@@ -1571,7 +1568,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         // destination's cross compartment map and that the same
         // object will continue to work.
         if (!origobj->swap(cx, target))
-            MOZ_CRASH();
+            return NULL;
         newIdentity = origobj;
     } else if (WrapperMap::Ptr p = map.lookup(origv)) {
         // There might already be a wrapper for the original object in
@@ -1585,7 +1582,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         NukeCrossCompartmentWrapper(cx, newIdentity);
 
         if (!newIdentity->swap(cx, target))
-            MOZ_CRASH();
+            return NULL;
     } else {
         // Otherwise, we use |target| for the new identity object.
         newIdentity = target;
@@ -1594,16 +1591,16 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
     // Now, iterate through other scopes looking for references to the
     // old object, and update the relevant cross-compartment wrappers.
     if (!RemapAllWrappersForObject(cx, origobj, newIdentity))
-        MOZ_CRASH();
+        return NULL;
 
     // Lastly, update the original object to point to the new one.
     if (origobj->compartment() != destination) {
         RootedObject newIdentityWrapper(cx, newIdentity);
         AutoCompartment ac(cx, origobj);
         if (!JS_WrapObject(cx, newIdentityWrapper.address()))
-            MOZ_CRASH();
+            return NULL;
         if (!origobj->swap(cx, newIdentityWrapper))
-            MOZ_CRASH();
+            return NULL;
         origobj->compartment()->crossCompartmentWrappers.put(ObjectValue(*newIdentity), origv);
     }
 
@@ -1658,7 +1655,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         NukeCrossCompartmentWrapper(cx, newWrapper);
 
         if (!newWrapper->swap(cx, targetwrapper))
-            MOZ_CRASH();
+            return NULL;
     } else {
         // Otherwise, use the passed-in wrapper as the same-compartment wrapper.
         newWrapper = targetwrapper;
@@ -1668,7 +1665,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
     // object. Note that the entries in the maps are for |origobj| and not
     // |origwrapper|. They need to be updated to point at the new object.
     if (!RemapAllWrappersForObject(cx, origobj, targetobj))
-        MOZ_CRASH();
+        return NULL;
 
     // Lastly, update things in the original compartment. Our invariants dictate
     // that the original compartment can only have one cross-compartment wrapper
@@ -1685,14 +1682,14 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         // and a possibly-dangerous object that isn't live.
         RootedObject reflectorGuts(cx, NewDeadProxyObject(cx, JS_GetGlobalForObject(cx, origobj)));
         if (!reflectorGuts || !origobj->swap(cx, reflectorGuts))
-            MOZ_CRASH();
+            return NULL;
 
         // Turn origwrapper into a CCW to the new object.
         RootedObject wrapperGuts(cx, targetobj);
         if (!JS_WrapObject(cx, wrapperGuts.address()))
-            MOZ_CRASH();
+            return NULL;
         if (!origwrapper->swap(cx, wrapperGuts))
-            MOZ_CRASH();
+            return NULL;
         origwrapper->compartment()->crossCompartmentWrappers.put(ObjectValue(*targetobj),
                                                                  ObjectValue(*origwrapper));
     }
@@ -4802,19 +4799,21 @@ JS_NewFunction(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
 {
     RootedObject parent(cx, parentArg);
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
+    JSAtom *atom;
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, parent);
 
-    RootedAtom atom(cx);
-    if (name) {
+    if (!name) {
+        atom = NULL;
+    } else {
         atom = Atomize(cx, name, strlen(name));
         if (!atom)
             return NULL;
     }
 
-    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom);
+    return js_NewFunction(cx, NULL, native, nargs, flags, parent, atom);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -4828,8 +4827,7 @@ JS_NewFunctionById(JSContext *cx, JSNative native, unsigned nargs, unsigned flag
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, parent);
 
-    RootedAtom atom(cx, JSID_TO_ATOM(id));
-    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom);
+    return js_NewFunction(cx, NULL, native, nargs, flags, parent, JSID_TO_ATOM(id));
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -5468,7 +5466,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
             return NULL;
     }
 
-    RootedFunction fun(cx, js_NewFunction(cx, NullPtr(), NULL, 0, JSFUN_INTERPRETED, obj, funAtom));
+    RootedFunction fun(cx, js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, obj, funAtom));
     if (!fun)
         return NULL;
 
@@ -6307,10 +6305,8 @@ JS_DecodeUTF8(JSContext *cx, const char *src, size_t srclen, jschar *dst,
 }
 
 JS_PUBLIC_API(char *)
-JS_EncodeString(JSContext *cx, JSRawString strArg)
+JS_EncodeString(JSContext *cx, JSString *str)
 {
-    RootedString str(cx, strArg);
-
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
@@ -7055,7 +7051,7 @@ JS_ErrorFromException(JSContext *cx, jsval valueArg)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
-    return js_ErrorFromException(value);
+    return js_ErrorFromException(cx, value);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -7265,10 +7261,9 @@ AssertArgumentsAreSane(JSContext *cx, const JS::Value &value)
 } // namespace JS
 
 JS_PUBLIC_API(void *)
-JS_EncodeScript(JSContext *cx, JSRawScript scriptArg, uint32_t *lengthp)
+JS_EncodeScript(JSContext *cx, JSScript *script, uint32_t *lengthp)
 {
     XDREncoder encoder(cx);
-    RootedScript script(cx, scriptArg);
     if (!encoder.codeScript(&script))
         return NULL;
     return encoder.forgetData(lengthp);
@@ -7289,7 +7284,7 @@ JS_DecodeScript(JSContext *cx, const void *data, uint32_t length,
                 JSPrincipals *principals, JSPrincipals *originPrincipals)
 {
     XDRDecoder decoder(cx, data, length, principals, originPrincipals);
-    RootedScript script(cx);
+    JSScript *script;
     if (!decoder.codeScript(&script))
         return NULL;
     return script;

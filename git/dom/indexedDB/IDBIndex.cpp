@@ -93,7 +93,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -134,7 +134,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -165,7 +165,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -206,7 +206,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -246,7 +246,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -295,7 +295,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
 private:
   virtual nsresult EnsureCursor();
@@ -328,7 +328,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -1109,14 +1109,16 @@ GetKeyHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetKeyHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetKeyHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1229,14 +1231,16 @@ GetHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -1429,14 +1433,16 @@ GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllKeysHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1574,14 +1580,16 @@ GetAllHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   GetAllResponse getAllResponse;
 
@@ -1901,15 +1909,18 @@ OpenKeyCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenKeyCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenKeyCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   if (NS_SUCCEEDED(aResultCode)) {
     nsresult rv = EnsureCursor();
@@ -2234,15 +2245,18 @@ OpenCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -2414,14 +2428,16 @@ CountHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-CountHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+CountHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {

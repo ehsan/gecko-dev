@@ -167,10 +167,16 @@ protected:
   DoRequest(const DenyAuthorizationRequest& aRequest);
 
   bool
-  DoRequest(const ConnectRequest& aRequest);
+  DoRequest(const ConnectHeadsetRequest& aRequest);
 
   bool
-  DoRequest(const DisconnectRequest& aRequest);
+  DoRequest(const ConnectObjectPushRequest& aRequest);
+
+  bool
+  DoRequest(const DisconnectHeadsetRequest& aRequest);
+
+  bool
+  DoRequest(const DisconnectObjectPushRequest& aRequest);
 
   bool
   DoRequest(const SendFileRequest& aRequest);

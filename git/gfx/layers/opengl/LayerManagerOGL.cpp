@@ -37,9 +37,6 @@
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
 #endif
-#ifdef XP_MACOSX
-#include "gfxPlatformMac.h"
-#endif
 
 namespace mozilla {
 namespace layers {
@@ -644,12 +641,6 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
   }
 
   if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
-    if (aFlags & END_NO_COMPOSITE) {
-      // Apply pending tree updates before recomputing effective
-      // properties.
-      mRoot->ApplyPendingUpdatesToSubtree();
-    }
-
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
     mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
@@ -874,9 +865,6 @@ LayerManagerOGL::Render()
   if (mIsRenderingToEGLSurface) {
     rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    // FIXME/bug XXXXXX this races with rotation changes on the main
-    // thread, and undoes all the care we take with layers txns being
-    // sent atomically with rotation changes
     mWidget->GetClientBounds(rect);
   }
   WorldTransformRect(rect);
@@ -1192,7 +1180,7 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
   if (mIsRenderingToEGLSurface) {
     rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = nsIntRect(0, 0, mWidgetSize.width, mWidgetSize.height);
+    mWidget->GetClientBounds(rect);
   }
   GLint width = rect.width;
   GLint height = rect.height;
@@ -1225,15 +1213,9 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
 
   mGLContext->ReadPixelsIntoImageSurface(imageSurface);
 
-  // Map from GL space to Cairo space and reverse the world transform.
-  gfxMatrix glToCairoTransform = mWorldMatrix;
-  glToCairoTransform.Invert();
-  glToCairoTransform.Scale(1.0, -1.0);
-  glToCairoTransform.Translate(-gfxPoint(0.0, height));
-
-  gfxContextAutoSaveRestore restore(aTarget);
   aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
-  aTarget->SetMatrix(glToCairoTransform);
+  aTarget->Scale(1.0, -1.0);
+  aTarget->Translate(-gfxPoint(0.0, height));
   aTarget->SetSource(imageSurface);
   aTarget->Paint();
 }
@@ -1431,26 +1413,6 @@ LayerManagerOGL::CreateShadowRefLayer()
     return nullptr;
   }
   return nsRefPtr<ShadowRefLayerOGL>(new ShadowRefLayerOGL(this)).forget();
-}
-
-TemporaryRef<DrawTarget>
-LayerManagerOGL::CreateDrawTarget(const IntSize &aSize,
-                               SurfaceFormat aFormat)
-{
-#ifdef XP_MACOSX
-  // We don't want to accelerate if the surface is too small which indicates
-  // that it's likely used for an icon/static image. We also don't want to
-  // accelerate anything that is above the maximum texture size of weakest gpu.
-  // Safari uses 5000 area as the minimum for acceleration, we decided 64^2 is more logical.
-  bool useAcceleration = aSize.width <= 4096 && aSize.height <= 4096 &&
-                         aSize.width > 64 && aSize.height > 64 &&
-                         gfxPlatformMac::GetPlatform()->UseAcceleratedCanvas();
-  if (useAcceleration) {
-    return Factory::CreateDrawTarget(BACKEND_COREGRAPHICS_ACCELERATED,
-                                     aSize, aFormat);
-  }
-#endif
-  return LayerManager::CreateDrawTarget(aSize, aFormat);
 }
 
 } /* layers */

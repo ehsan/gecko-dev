@@ -10,18 +10,19 @@
  */
 function ProfilerActor(aConnection)
 {
+  this._conn = aConnection;
   this._profiler = Cc["@mozilla.org/tools/profiler;1"].getService(Ci.nsIProfiler);
   this._started = false;
-  this._observedEvents = [];
+
+  Cu.import("resource://gre/modules/Services.jsm");
+  Services.obs.addObserver(this, "profiler-started", false);
+  Services.obs.addObserver(this, "profiler-stopped", false);
 }
 
 ProfilerActor.prototype = {
   actorPrefix: "profiler",
 
   disconnect: function() {
-    for (var event of this._observedEvents) {
-      Services.obs.removeObserver(this, event);
-    }
     if (this._profiler && this._started) {
       this._profiler.StopProfiler();
     }
@@ -63,59 +64,12 @@ ProfilerActor.prototype = {
     var sharedLibraries = this._profiler.getSharedLibraryInformation();
     return { "sharedLibraryInformation": sharedLibraries }
   },
-  onRegisterEventNotifications: function(aRequest) {
-    let registered = [];
-    for (var event of aRequest.events) {
-      if (this._observedEvents.indexOf(event) != -1)
-        continue;
-      Services.obs.addObserver(this, event, false);
-      this._observedEvents.push(event);
-      registered.push(event);
-    }
-    return { registered: registered }
-  },
-  onUnregisterEventNotifications: function(aRequest) {
-    let unregistered = [];
-    for (var event of aRequest.events) {
-      let idx = this._observedEvents.indexOf(event);
-      if (idx == -1)
-        continue;
-      Services.obs.removeObserver(this, event);
-      this._observedEvents.splice(idx, 1);
-      unregistered.push(event);
-    }
-    return { unregistered: unregistered }
-  },
   observe: function(aSubject, aTopic, aData) {
-    function unWrapper(obj) {
-      if (obj && typeof obj == "object" && ("wrappedJSObject" in obj)) {
-        obj = obj.wrappedJSObject;
-        if (("wrappedJSObject" in obj) && (obj.wrappedJSObject == obj)) {
-          /* If the object defines wrappedJSObject as itself, which is the
-           * typical idiom for wrapped JS objects, JSON.stringify won't be
-           * able to work because the object is cyclic.
-           * But removing the wrappedJSObject property will break aSubject
-           * for possible other observers of the same topic, so we need
-           * to restore wrappedJSObject afterwards */
-          delete obj.wrappedJSObject;
-          return { unwrapped: obj,
-                   fixup: function() {
-                     this.unwrapped.wrappedJSObject = this.unwrapped;
-                   }
-                 }
-        }
-      }
-      return { unwrapped: obj, fixup: function() { } }
+    if (aTopic == "profiler-started") {
+      this.conn.send({ from: this.actorID, type: "profilerStateChanged", isActive: true });
+    } else if (aTopic == "profiler-stopped") {
+      this.conn.send({ from: this.actorID, type: "profilerStateChanged", isActive: false });
     }
-    var subject = unWrapper(aSubject);
-    var data = unWrapper(aData);
-    this.conn.send({ from: this.actorID,
-                     type: "eventNotification",
-                     event: aTopic,
-                     subject: subject.unwrapped,
-                     data: data.unwrapped });
-    data.fixup();
-    subject.fixup();
   },
 };
 
@@ -130,9 +84,7 @@ ProfilerActor.prototype.requestTypes = {
   "isActive": ProfilerActor.prototype.onIsActive,
   "getResponsivenessTimes": ProfilerActor.prototype.onGetResponsivenessTimes,
   "getFeatures": ProfilerActor.prototype.onGetFeatures,
-  "getSharedLibraryInformation": ProfilerActor.prototype.onGetSharedLibraryInformation,
-  "registerEventNotifications": ProfilerActor.prototype.onRegisterEventNotifications,
-  "unregisterEventNotifications": ProfilerActor.prototype.onUnregisterEventNotifications
+  "getSharedLibraryInformation": ProfilerActor.prototype.onGetSharedLibraryInformation
 };
 
 DebuggerServer.addGlobalActor(ProfilerActor, "profilerActor");

@@ -139,12 +139,12 @@ Accessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleValue))) {
-    if (HasNumericValue()) {
+    if (mRoleMapEntry && mRoleMapEntry->valueRule != eNoValue) {
       *aInstancePtr = static_cast<nsIAccessibleValue*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
     }
-  }
+  }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
     if (IsLink()) {

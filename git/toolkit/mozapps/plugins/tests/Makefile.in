@@ -14,6 +14,7 @@ relativesrcdir  = @relativesrcdir@
 TESTROOT = $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 USE_STATIC_LIBS = 1
 
+ifneq (mobile,$(MOZ_BUILD_APP))
 _BROWSER_FILES = \
   $(warning browser_bug435788.js has been disabled due to leaks - see bug 751100) \
   pfs_bug435788_1.rdf \
@@ -21,6 +22,7 @@ _BROWSER_FILES = \
   GoodExtension.xpi \
   BadExtension.xpi \
   $(NULL)
+endif
 
 CPPSRCS = \
   GoodPlugin.cpp \
@@ -40,7 +42,9 @@ $(TESTROOT):
 $(PROGRAMS): $(TESTROOT)/% : %$(BIN_SUFFIX)
 	cp $< $@
 
+ifneq (mobile,$(MOZ_BUILD_APP))
 libs::
 	$(INSTALL) $(foreach f,$(_BROWSER_FILES),"$(srcdir)/$f") $(TESTROOT)
 
 libs:: $(PROGRAMS)
+endif

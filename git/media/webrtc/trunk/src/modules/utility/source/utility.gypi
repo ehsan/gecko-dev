@@ -29,12 +29,10 @@
         ],
       },
       'sources': [
-        '../interface/audio_frame_operations.h',
         '../interface/file_player.h',
         '../interface/file_recorder.h',
         '../interface/process_thread.h',
         '../interface/rtp_dump.h',
-        'audio_frame_operations.cc',
         'coder.cc',
         'coder.h',
         'file_player_impl.cc',
@@ -68,23 +66,22 @@
     },
   ], # targets
   'conditions': [
-    ['include_tests==1', {
+    ['build_with_chromium==0', {
       'targets': [
         {
           'target_name': 'webrtc_utility_unittests',
           'type': 'executable',
           'dependencies': [
             'webrtc_utility',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
-            '<(webrtc_root)/test/test.gyp:test_support_main',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../test/test.gyp:test_support_main',
           ],
           'sources': [
-            'audio_frame_operations_unittest.cc',
             'file_player_unittest.cc',
           ],
         }, # webrtc_utility_unittests
       ], # targets
-    }], # include_tests
+    }], # build_with_chromium
   ], # conditions
 }
 

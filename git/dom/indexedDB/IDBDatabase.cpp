@@ -50,7 +50,7 @@ public:
   }
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -117,7 +117,7 @@ public:
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
 
-  virtual ChildProcessSendResult SendResponseToChildProcess(
+  virtual ChildProcessSendResult MaybeSendResponseToChildProcess(
                                                            nsresult aResultCode)
                                                            MOZ_OVERRIDE
   {
@@ -216,8 +216,7 @@ IDBDatabase::IDBDatabase()
   mActorChild(nullptr),
   mActorParent(nullptr),
   mContentParent(nullptr),
-  mInvalidated(false),
-  mDisconnected(false),
+  mInvalidated(0),
   mRegistered(false),
   mClosed(false),
   mRunningVersionChange(false)
@@ -257,8 +256,6 @@ IDBDatabase::Invalidate()
     return;
   }
 
-  mInvalidated = true;
-
   // Make sure we're closed too.
   Close();
 
@@ -269,39 +266,14 @@ IDBDatabase::Invalidate()
   if (owner) {
     IndexedDatabaseManager::CancelPromptsForWindow(owner);
   }
+
+  mInvalidated = true;
 }
 
 bool
 IDBDatabase::IsInvalidated()
 {
-  return mInvalidated;
-}
-
-void
-IDBDatabase::DisconnectFromActor()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (IsDisconnectedFromActor()) {
-    return;
-  }
-
-  mDisconnected = true;
-
-  // Make sure we're closed too.
-  Close();
-
-  // Kill any outstanding prompts.
-  nsPIDOMWindow* owner = GetOwner();
-  if (owner) {
-    IndexedDatabaseManager::CancelPromptsForWindow(owner);
-  }
-}
-
-bool
-IDBDatabase::IsDisconnectedFromActor()
-{
-  return mDisconnected;
+  return !!mInvalidated;
 }
 
 void
@@ -825,8 +797,8 @@ IDBDatabase::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   return IndexedDatabaseManager::FireWindowOnError(GetOwner(), aVisitor);
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-NoRequestDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+NoRequestDatabaseHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   return Success_NotSent;

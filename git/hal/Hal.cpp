@@ -32,20 +32,15 @@ using namespace mozilla::services;
 #define PROXY_IF_SANDBOXED(_call)                 \
   do {                                            \
     if (InSandbox()) {                            \
-      if (!hal_sandbox::IsHalChildLive()) {  \
-        hal_sandbox::_call;                       \
-      }                                           \
+      hal_sandbox::_call;                         \
     } else {                                      \
       hal_impl::_call;                            \
     }                                             \
   } while (0)
 
-#define RETURN_PROXY_IF_SANDBOXED(_call, defValue)\
+#define RETURN_PROXY_IF_SANDBOXED(_call)          \
   do {                                            \
     if (InSandbox()) {                            \
-      if (hal_sandbox::IsHalChildLive()) {   \
-        return defValue;                          \
-      }                                           \
       return hal_sandbox::_call;                  \
     } else {                                      \
       return hal_impl::_call;                     \
@@ -368,7 +363,7 @@ NotifyBatteryChange(const BatteryInformation& aInfo)
 bool GetScreenEnabled()
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetScreenEnabled(), false);
+  RETURN_PROXY_IF_SANDBOXED(GetScreenEnabled());
 }
 
 void SetScreenEnabled(bool enabled)
@@ -384,7 +379,7 @@ bool GetCpuSleepAllowed()
   // what the battery API does. But since this is only used by
   // privileged interface, the synchronous getter is OK here.
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetCpuSleepAllowed(), true);
+  RETURN_PROXY_IF_SANDBOXED(GetCpuSleepAllowed());
 }
 
 void SetCpuSleepAllowed(bool allowed)
@@ -396,7 +391,7 @@ void SetCpuSleepAllowed(bool allowed)
 double GetScreenBrightness()
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetScreenBrightness(), 0);
+  RETURN_PROXY_IF_SANDBOXED(GetScreenBrightness());
 }
 
 void SetScreenBrightness(double brightness)
@@ -408,13 +403,13 @@ void SetScreenBrightness(double brightness)
 bool SetLight(LightType light, const hal::LightConfiguration& aConfig)
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(SetLight(light, aConfig), false);
+  RETURN_PROXY_IF_SANDBOXED(SetLight(light, aConfig));
 }
 
 bool GetLight(LightType light, hal::LightConfiguration* aConfig)
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetLight(light, aConfig), false);
+  RETURN_PROXY_IF_SANDBOXED(GetLight(light, aConfig));
 }
 
 class SystemTimeObserversManager : public ObserversManager<SystemTimeChange>
@@ -469,7 +464,7 @@ nsCString
 GetTimezone()
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetTimezone(), nsCString(""));
+  RETURN_PROXY_IF_SANDBOXED(GetTimezone());
 }
 
 void
@@ -660,7 +655,7 @@ bool
 LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(LockScreenOrientation(aOrientation), false);
+  RETURN_PROXY_IF_SANDBOXED(LockScreenOrientation(aOrientation));
 }
 
 void
@@ -685,7 +680,7 @@ DisableSwitchNotifications(hal::SwitchDevice aDevice) {
 hal::SwitchState GetCurrentSwitchState(hal::SwitchDevice aDevice)
 {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetCurrentSwitchState(aDevice), SWITCH_STATE_UNKNOWN);
+  RETURN_PROXY_IF_SANDBOXED(GetCurrentSwitchState(aDevice));
 }
 
 typedef mozilla::ObserverList<SwitchEvent> SwitchObserverList;
@@ -763,7 +758,7 @@ RegisterTheOneAlarmObserver(AlarmObserver* aObserver)
   MOZ_ASSERT(!sAlarmObserver);
 
   sAlarmObserver = aObserver;
-  RETURN_PROXY_IF_SANDBOXED(EnableAlarm(), false);
+  RETURN_PROXY_IF_SANDBOXED(EnableAlarm());
 }
 
 void
@@ -788,7 +783,7 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 {
   // It's pointless to program an alarm nothing is going to observe ...
   MOZ_ASSERT(sAlarmObserver);
-  RETURN_PROXY_IF_SANDBOXED(SetAlarm(aSeconds, aNanoseconds), false);
+  RETURN_PROXY_IF_SANDBOXED(SetAlarm(aSeconds, aNanoseconds));
 }
 
 void
@@ -861,19 +856,19 @@ SetFMRadioFrequency(const uint32_t aFrequency) {
 uint32_t
 GetFMRadioFrequency() {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetFMRadioFrequency(), 0);
+  RETURN_PROXY_IF_SANDBOXED(GetFMRadioFrequency());
 }
 
 bool
 IsFMRadioOn() {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(IsFMRadioOn(), false);
+  RETURN_PROXY_IF_SANDBOXED(IsFMRadioOn());
 }
 
 uint32_t
 GetFMRadioSignalStrength() {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetFMRadioSignalStrength(), 0);
+  RETURN_PROXY_IF_SANDBOXED(GetFMRadioSignalStrength());
 }
 
 void

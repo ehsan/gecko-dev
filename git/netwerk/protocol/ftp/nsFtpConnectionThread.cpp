@@ -1768,10 +1768,13 @@ nsFtpState::Init(nsFtpChannel *channel)
 
     // Lookup Proxy information asynchronously if it isn't already set
     // on the channel and if we aren't configured explicitly to go directly
+    uint32_t proxyConfigType;
     nsCOMPtr<nsIProtocolProxyService> pps =
         do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID);
 
-    if (pps && !mChannel->ProxyInfo()) {
+    if (pps && !mChannel->ProxyInfo() &&
+        NS_SUCCEEDED(pps->GetProxyConfigType(&proxyConfigType)) &&
+        proxyConfigType != nsIProtocolProxyService::PROXYCONFIG_DIRECT) {
         pps->AsyncResolve(mChannel->URI(), 0, this,
                           getter_AddRefs(mProxyRequest));
     }

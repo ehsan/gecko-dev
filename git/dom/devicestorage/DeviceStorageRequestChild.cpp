@@ -14,7 +14,6 @@ namespace dom {
 namespace devicestorage {
 
 DeviceStorageRequestChild::DeviceStorageRequestChild()
-  : mCallback(nullptr)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestChild);
 }
@@ -23,7 +22,6 @@ DeviceStorageRequestChild::DeviceStorageRequestChild(DOMRequest* aRequest,
                                                      DeviceStorageFile* aFile)
   : mRequest(aRequest)
   , mFile(aFile)
-  , mCallback(nullptr)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestChild);
 }
@@ -35,11 +33,6 @@ DeviceStorageRequestChild::~DeviceStorageRequestChild() {
 bool
 DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aValue)
 {
-  if (mCallback) {
-    mCallback->RequestComplete();
-    mCallback = nullptr;
-  }
-
   switch (aValue.type()) {
 
     case DeviceStorageResponseValue::TErrorResponse:
@@ -97,7 +90,7 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
       }
 
       nsCOMPtr<ContinueCursorEvent> event = new ContinueCursorEvent(cursor);
-      event->Continue();
+      NS_DispatchToMainThread(event);
       break;
     }
 
@@ -110,11 +103,6 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
   return true;
 }
 
-void
-DeviceStorageRequestChild::SetCallback(DeviceStorageRequestChildCallback *aCallback)
-{
-  mCallback = aCallback;
-}
 
 } // namespace devicestorage
 } // namespace dom

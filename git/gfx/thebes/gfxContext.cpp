@@ -1528,9 +1528,8 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
       RefPtr<SourceSurface> source = mDT->Snapshot();
       Point oldDeviceOffset = CurrentState().deviceOffset;
 
-      PushNewDT(gfxASurface::CONTENT_COLOR);
-
       Point offset = CurrentState().deviceOffset - oldDeviceOffset;
+      PushNewDT(gfxASurface::CONTENT_COLOR);
       Rect surfRect(0, 0, Float(mDT->GetSize().width), Float(mDT->GetSize().height));
       Rect sourceRect = surfRect;
       sourceRect.x += offset.x;

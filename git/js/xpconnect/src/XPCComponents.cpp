@@ -4787,7 +4787,9 @@ ContentComponentsGetterOp(JSContext *cx, JSHandleObject obj, JSHandleId id,
     // Do Telemetry on how often this happens.
     Telemetry::Accumulate(Telemetry::COMPONENTS_OBJECT_ACCESSED_BY_CONTENT, true);
 
-    // Warn once.
+    // Warn once. Note that if somebody does window.Components we may have an
+    // outer window here.
+    MOZ_ASSERT(JS_GetGlobalForObject(cx, obj) == JS_ObjectToInnerObject(cx, obj));
     JSAutoCompartment ac(cx, obj);
     nsCOMPtr<nsPIDOMWindow> win =
         do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));

@@ -701,25 +701,11 @@ public:
    */
   void SetBaseTransform(const gfx3DMatrix& aMatrix)
   {
-    mPendingTransform = nullptr;
     if (mTransform == aMatrix) {
       return;
     }
     mTransform = aMatrix;
     Mutated();
-  }
-
-  /**
-   * Can be called at any time.
-   *
-   * Like SetBaseTransform(), but can be called before the next
-   * transform (i.e. outside an open transaction).  Semantically, this
-   * method enqueues a new transform value to be set immediately after
-   * the next transaction is opened.
-   */
-  void SetBaseTransformForNextTransaction(const gfx3DMatrix& aMatrix)
-  {
-    mPendingTransform = new gfx3DMatrix(aMatrix);
   }
 
   void SetPostScale(float aXScale, float aYScale)
@@ -777,15 +763,6 @@ public:
 
   AnimationArray& GetAnimations() { return mAnimations; }
   InfallibleTArray<AnimData>& GetAnimationData() { return mAnimationData; }
-
-  /**
-   * DRAWING PHASE ONLY
-   *
-   * Apply pending changes to layers before drawing them, if those
-   * pending changes haven't been overridden by later changes.
-   */
-  void ApplyPendingUpdatesToSubtree();
-
   /**
    * DRAWING PHASE ONLY
    *
@@ -1002,7 +979,6 @@ public:
    */
   void ClearInvalidRect() { mInvalidRegion.SetEmpty(); }
 
-  void ApplyPendingUpdatesForThisTransaction();
 
 #ifdef DEBUG
   void SetDebugColorIndex(uint32_t aIndex) { mDebugColorIndex = aIndex; }
@@ -1057,10 +1033,6 @@ protected:
   gfx::UserData mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
-  // A mutation of |mTransform| that we've queued to be applied at the
-  // end of the next transaction (if nothing else overrides it in the
-  // meantime).
-  nsAutoPtr<gfx3DMatrix> mPendingTransform;
   float mPostXScale;
   float mPostYScale;
   gfx3DMatrix mEffectiveTransform;

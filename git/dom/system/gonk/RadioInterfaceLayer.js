@@ -69,8 +69,8 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:GetCardLock",
   "RIL:UnlockCardLock",
   "RIL:SetCardLock",
-  "RIL:SendMMI",
-  "RIL:CancelMMI",
+  "RIL:SendUSSD",
+  "RIL:CancelUSSD",
   "RIL:SendStkResponse",
   "RIL:SendStkMenuSelection",
   "RIL:SendStkEventDownload",
@@ -371,13 +371,13 @@ RadioInterfaceLayer.prototype = {
         this.saveRequestTarget(msg);
         this.setCardLock(msg.json);
         break;
-      case "RIL:SendMMI":
+      case "RIL:SendUSSD":
         this.saveRequestTarget(msg);
-        this.sendMMI(msg.json);
+        this.sendUSSD(msg.json);
         break;
-      case "RIL:CancelMMI":
+      case "RIL:CancelUSSD":
         this.saveRequestTarget(msg);
-        this.cancelMMI(msg.json);
+        this.cancelUSSD(msg.json);
         break;
       case "RIL:SendStkResponse":
         this.sendStkResponse(msg.json);
@@ -507,17 +507,15 @@ RadioInterfaceLayer.prototype = {
       case "iccmbdn":
         ppmm.broadcastAsyncMessage("RIL:VoicemailNumberChanged", message);
         break;
-      case "USSDReceived":
-        debug("USSDReceived " + JSON.stringify(message));
+      case "ussdreceived":
+        debug("ussdreceived " + JSON.stringify(message));
         this.handleUSSDReceived(message);
         break;
-      case "sendMMI":
-      case "sendUSSD":
-        this.handleSendMMI(message);
+      case "sendussd":
+        this.handleSendUSSD(message);
         break;
-      case "cancelMMI":
-      case "cancelUSSD":
-        this.handleCancelMMI(message);
+      case "cancelussd":
+        this.handleCancelUSSD(message);
         break;
       case "stkcommand":
         this.handleStkProactiveCommand(message);
@@ -929,10 +927,6 @@ RadioInterfaceLayer.prototype = {
       debug("We're roaming, but data roaming is disabled.");
       return;
     }
-    if (this._changingRadioPower) {
-      // We're changing the radio power currently, ignore any changes.
-      return;
-    }
 
     debug("Data call settings: connect data call.");
     this.dataNetworkInterface.connect(this.dataCallSettings);
@@ -1296,20 +1290,20 @@ RadioInterfaceLayer.prototype = {
 
   handleUSSDReceived: function handleUSSDReceived(ussd) {
     debug("handleUSSDReceived " + JSON.stringify(ussd));
-    ppmm.broadcastAsyncMessage("RIL:USSDReceived", ussd);
+    ppmm.broadcastAsyncMessage("RIL:UssdReceived", ussd);
   },
 
-  handleSendMMI: function handleSendMMI(message) {
-    debug("handleSendMMI " + JSON.stringify(message));
-    let messageType = message.success ? "RIL:SendMMI:Return:OK" :
-                                        "RIL:SendMMI:Return:KO";
+  handleSendUSSD: function handleSendUSSD(message) {
+    debug("handleSendUSSD " + JSON.stringify(message));
+    let messageType = message.success ? "RIL:SendUssd:Return:OK" :
+                                        "RIL:SendUssd:Return:KO";
     this._sendRequestResults(messageType, message);
   },
 
-  handleCancelMMI: function handleCancelMMI(message) {
-    debug("handleCancelMMI " + JSON.stringify(message));
-    let messageType = message.success ? "RIL:CancelMMI:Return:OK" :
-                                        "RIL:CancelMMI:Return:KO";
+  handleCancelUSSD: function handleCancelUSSD(message) {
+    debug("handleCancelUSSD " + JSON.stringify(message));
+    let messageType = message.success ? "RIL:CancelUssd:Return:OK" :
+                                        "RIL:CancelUssd:Return:KO";
     this._sendRequestResults(messageType, message);
   },
 
@@ -1527,17 +1521,13 @@ RadioInterfaceLayer.prototype = {
                              requestId: requestId});
   },
 
-  sendMMI: function sendMMI(message) {
-    debug("SendMMI " + JSON.stringify(message));
-    message.rilMessageType = "sendMMI";
+  sendUSSD: function sendUSSD(message) {
+    debug("SendUSSD " + JSON.stringify(message));
+    message.rilMessageType = "sendUSSD";
     this.worker.postMessage(message);
   },
 
-  cancelMMI: function cancelMMI(message) {
-    // Some MMI codes trigger radio operations, but unfortunately the RIL only
-    // supports cancelling USSD requests so far. Despite that, in order to keep
-    // the API uniformity, we are wrapping the cancelUSSD function within the
-    // cancelMMI funcion.
+  cancelUSSD: function cancelUSSD(message) {
     debug("Cancel pending USSD");
     message.rilMessageType = "cancelUSSD";
     this.worker.postMessage(message);

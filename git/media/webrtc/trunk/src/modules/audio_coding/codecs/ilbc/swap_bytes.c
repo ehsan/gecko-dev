@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -23,13 +23,14 @@
  *---------------------------------------------------------------*/
 
 void WebRtcIlbcfix_SwapBytes(
-    const WebRtc_UWord16* input,   /* (i) the sequence to swap */
-    WebRtc_Word16 wordLength,      /* (i) number or WebRtc_UWord16 to swap */
-    WebRtc_UWord16* output         /* (o) the swapped sequence */
+    WebRtc_UWord16 *sequence,   /* (i/o) the sequence to swap */
+    WebRtc_Word16 wordLength   /* (i) number or WebRtc_UWord16 to swap */
                               ) {
   int k;
-  for (k = wordLength; k > 0; k--) {
-    *output++ = (*input >> 8)|(*input << 8);
-    input++;
+  WebRtc_UWord16 temp=0;
+  for( k=wordLength; k>0; k-- ) {
+    temp = (*sequence >> 8)|(*sequence << 8);
+    *sequence++ = temp;
+    //*sequence++ = (*sequence >> 8) | (*sequence << 8);
   }
 }

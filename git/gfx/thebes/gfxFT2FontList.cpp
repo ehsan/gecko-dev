@@ -875,8 +875,8 @@ CopyFromUriToFile(nsCString aSpec, nsIFile* aLocalFile)
 
     char buf[JAR_READ_BUFFER_SIZE];
     while (true) {
-        uint32_t read;
-        uint32_t written;
+        PRUint32 read;
+        PRUint32 written;
 
         rv = inputStream->Read(buf, JAR_READ_BUFFER_SIZE, &read);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -947,7 +947,7 @@ void ExtractFontsFromJar(nsIFile* aLocalDir)
                 continue;
             }
 
-            int32_t lastSlash = path.RFindChar('/');
+            PRInt32 lastSlash = path.RFindChar('/');
             nsCString fileName;
             if (lastSlash == kNotFound) {
                 fileName = path;

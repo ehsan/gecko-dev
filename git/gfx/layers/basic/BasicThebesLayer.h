@@ -191,6 +191,7 @@ private:
   bool mIsNewBuffer;
   OptionalThebesBuffer mROFrontBuffer;
   nsIntRegion mFrontUpdatedRegion;
+  nsIntRegion mFrontValidRegion;
   bool mFrontAndBackBufferDiffer;
 };
 

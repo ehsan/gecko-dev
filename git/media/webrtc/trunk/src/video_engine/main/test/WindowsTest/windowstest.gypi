@@ -8,9 +8,7 @@
 
 {
   'conditions': [
-    # TODO(kjellander): Support UseoFMFC on VS2010.
-    # http://code.google.com/p/webrtc/issues/detail?id=709
-    ['OS=="win" and MSVS_VERSION < "2010"', {
+    ['OS=="win"', {
       'targets': [
         # WinTest - GUI test for Windows
         {
@@ -23,10 +21,10 @@
             ## VoiceEngine
             '<(webrtc_root)/voice_engine/voice_engine.gyp:voice_engine_core',
             ## VideoEngine
-            'video_engine_core',
+            'video_engine_core',            
           ],
           'include_dirs': [
-            './interface',
+            './interface',            
             '../../../../', # common_types.h and typedefs.h
             '../commonTestClasses/'
           ],
@@ -36,7 +34,7 @@
             'ChannelDlg.cc',
             'ChannelDlg.h',
             'ChannelPool.cc',
-            'ChannelPool.h',
+            'ChannelPool.h',            
             'renderStartImage.jpg',
             'renderTimeoutImage.jpg',
             'res\Capture.rc2',
@@ -54,7 +52,7 @@
             'CaptureDevicePool.cc',
             'tbExternalTransport.h',
             'CaptureDevicePool.h',
-
+            
           ],
            'configurations': {
             'Common_Base': {

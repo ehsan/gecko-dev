@@ -97,7 +97,7 @@ public:
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
   virtual nsresult HandleAccEvent(AccEvent* aEvent);
 #endif
 

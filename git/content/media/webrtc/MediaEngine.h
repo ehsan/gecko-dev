@@ -103,7 +103,7 @@ public:
 
   /* Return a MediaEngineVideoOptions struct with appropriate values for all
    * fields. */
-  virtual const MediaEngineVideoOptions *GetOptions() = 0;
+  virtual MediaEngineVideoOptions GetOptions() = 0;
 };
 
 /**

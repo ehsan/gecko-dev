@@ -3,8 +3,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://gre/modules/ClearRecentHistory.jsm");
-
 // Test clearing plugin data by domain using nsPrivateBrowsingService.
 const testURL = "http://mochi.test:8888/browser/browser/components/privatebrowsing/test/browser/browser_privatebrowsing_clearplugindata.html";
 
@@ -68,22 +66,25 @@ function do_test()
       ok(stored(["192.168.1.1","foo.com","nonexistent.foo.com","bar.com","localhost"]),
         "Data stored for sites");
 
+      let pb = Cc["@mozilla.org/privatebrowsing;1"].
+               getService(Ci.nsIPrivateBrowsingService);
+
       // Clear data for "foo.com" and its subdomains.
-      ClearRecentHistory.removeDataFromDomain("foo.com");
+      pb.removeDataFromDomain("foo.com");
       ok(stored(["bar.com","192.168.1.1","localhost"]), "Data stored for sites");
       ok(!stored(["foo.com"]), "Data cleared for foo.com");
       ok(!stored(["bar.foo.com"]), "Data cleared for subdomains of foo.com");
 
       // Clear data for "bar.com" using a subdomain.
-      ClearRecentHistory.removeDataFromDomain("foo.bar.com");
+      pb.removeDataFromDomain("foo.bar.com");
       ok(!stored(["bar.com"]), "Data cleared for bar.com");
 
       // Clear data for "192.168.1.1".
-      ClearRecentHistory.removeDataFromDomain("192.168.1.1");
+      pb.removeDataFromDomain("192.168.1.1");
       ok(!stored(["192.168.1.1"]), "Data cleared for 192.168.1.1");
 
       // Clear data for "localhost".
-      ClearRecentHistory.removeDataFromDomain("localhost");
+      pb.removeDataFromDomain("localhost");
       ok(!stored(null), "All data cleared");
 
       gBrowser.removeCurrentTab();

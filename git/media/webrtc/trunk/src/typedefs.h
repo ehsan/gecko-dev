@@ -9,22 +9,17 @@
  */
 
 // This file contains platform-specific typedefs and defines.
-// Much of it is derived from Chromium's build/build_config.h.
 
 #ifndef WEBRTC_TYPEDEFS_H_
 #define WEBRTC_TYPEDEFS_H_
 
 // Reserved words definitions
-// TODO(andrew): Remove this.
+// TODO(andrew): Look at removing these.
+#define WEBRTC_EXTERN extern
 #define G_CONST const
+#define WEBRTC_INLINE extern __inline
 
-// For access to standard POSIXish features, use WEBRTC_POSIX instead of a
-// more specific macro.
-#if defined(WEBRTC_MAC) || defined(WEBRTC_LINUX) || \
-    defined(WEBRTC_ANDROID)
-#define WEBRTC_POSIX
-#endif
-
+// Derived from Chromium's build/build_config.h
 // Processor architecture detection.  For more info on what's defined, see:
 //   http://msdn.microsoft.com/en-us/library/b0084kay.aspx
 //   http://www.agner.org/optimize/calling_conventions.pdf
@@ -50,10 +45,6 @@
 // TODO(andrew): Chromium uses the following two defines. Should we switch?
 //#define WEBRTC_ARCH_ARM_FAMILY
 //#define WEBRTC_ARCH_ARMEL
-#define WEBRTC_ARCH_32_BITS
-#define WEBRTC_ARCH_LITTLE_ENDIAN
-#define WEBRTC_LITTLE_ENDIAN
-#elif defined(__MIPSEL__)
 #define WEBRTC_ARCH_32_BITS
 #define WEBRTC_ARCH_LITTLE_ENDIAN
 #define WEBRTC_LITTLE_ENDIAN

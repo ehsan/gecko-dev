@@ -213,9 +213,6 @@ struct nsISupportsResult
     nsWrapperCache *mCache;
 };
 
-JSObject* GetXrayExpandoChain(JSObject *obj);
-void SetXrayExpandoChain(JSObject *obj, JSObject *chain);
-
 }
 }
 }

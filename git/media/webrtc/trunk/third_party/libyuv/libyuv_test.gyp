@@ -1,4 +1,4 @@
-# Copyright 2011 The LibYuv Project Authors. All rights reserved.
+# Copyright (c) 2011 The LibYuv project authors. All Rights Reserved.
 #
 # Use of this source code is governed by a BSD-style license
 # that can be found in the LICENSE file in the root of the source
@@ -9,31 +9,24 @@
 {
   'targets': [
     {
-      'target_name': 'libyuv_unittest',
+     'target_name': 'libyuv_unittest',
       'type': 'executable',
       'dependencies': [
-        'libyuv.gyp:libyuv',
-        # The tests are based on gtest
-        'testing/gtest.gyp:gtest',
-        'testing/gtest.gyp:gtest_main',
-      ],
-      'defines': [
-        'LIBYUV_SVNREVISION="<!(svnversion -n)"',
+         'libyuv.gyp:libyuv',
+         # The tests are based on gtest
+         'testing/gtest.gyp:gtest',
+         'testing/gtest.gyp:gtest_main',
       ],
       'sources': [
-        # headers
-        'unit_test/unit_test.h',
+         # headers
+         'unit_test/unit_test.h',
 
-        # sources
-        'unit_test/compare_test.cc',
-        'unit_test/cpu_test.cc',
-        'unit_test/planar_test.cc',
-        'unit_test/rotate_argb_test.cc',
-        'unit_test/rotate_test.cc',
-        'unit_test/scale_argb_test.cc',
-        'unit_test/scale_test.cc',
-        'unit_test/unit_test.cc',
-        'unit_test/version_test.cc',
+         # sources
+         'unit_test/compare_test.cc',
+         'unit_test/planar_test.cc',
+         'unit_test/rotate_test.cc',
+         'unit_test/scale_test.cc',
+         'unit_test/unit_test.cc',
       ],
       'conditions': [
         ['OS=="linux"', {
@@ -43,26 +36,6 @@
         }],
       ], # conditions
     },
-
-    {
-      'target_name': 'compare',
-      'type': 'executable',
-      'dependencies': [
-        'libyuv.gyp:libyuv',
-      ],
-      'sources': [
-        # sources
-        'util/compare.cc',
-      ],
-      'conditions': [
-        ['OS=="linux"', {
-          'cflags': [
-            '-fexceptions',
-          ],
-        }],
-      ], # conditions
-    },
-
   ], # targets
 }
 

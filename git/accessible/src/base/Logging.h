@@ -153,13 +153,6 @@ void Node(const char* aDescr, nsINode* aNode);
  * Log the accessible and its DOM node as a message entry.
  */
 void AccessibleNNode(const char* aDescr, Accessible* aAccessible);
-void AccessibleNNode(const char* aDescr, nsINode* aNode);
-
-/**
- * Log the DOM event.
- */
-void DOMEvent(const char* aDescr, nsINode* aOrigTarget,
-              const nsAString& aEventType);
 
 /**
  * Log the call stack, two spaces offset is used.

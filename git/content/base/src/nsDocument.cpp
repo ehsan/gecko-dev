@@ -1897,10 +1897,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   if (tmp->mSubDocuments && tmp->mSubDocuments->ops) {
     PL_DHashTableEnumerate(tmp->mSubDocuments, SubDocTraverser, &cb);
   }
-
-  if (tmp->mCSSLoader) {
-    tmp->mCSSLoader->TraverseCachedSheets(cb);
-  }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
@@ -1973,10 +1969,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   }
 
   tmp->mPendingTitleChangeEvent.Revoke();
-
-  if (tmp->mCSSLoader) {
-    tmp->mCSSLoader->UnlinkCachedSheets();
-  }
 
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -3508,7 +3500,7 @@ nsDocument::GetChildAt(uint32_t aIndex) const
 }
 
 int32_t
-nsDocument::IndexOf(const nsINode* aPossibleChild) const
+nsDocument::IndexOf(nsINode* aPossibleChild) const
 {
   return mChildren.IndexOfChild(aPossibleChild);
 }
@@ -6876,7 +6868,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
         if (NS_SUCCEEDED(rv)) {
           int64_t intermediateValue;
           LL_I2L(intermediateValue, PR_USEC_PER_MSEC);
-          modDate = msecs * intermediateValue;
+          LL_MUL(modDate, msecs, intermediateValue);
         }
       }
     } else {
@@ -8399,7 +8391,7 @@ nsDocument::AddImage(imgIRequest* aImage)
   if (oldCount == 0 && mLockingImages) {
     rv = aImage->LockImage();
     if (NS_SUCCEEDED(rv))
-      rv = aImage->StartDecoding();
+      rv = aImage->RequestDecode();
   }
 
   // If this is the first insertion and we're animating images, request
@@ -9463,16 +9455,21 @@ nsDocument::IsFullScreenEnabled(bool aCallerIsChrome, bool aLogFailure)
 
   // Ensure that all ancestor <iframe> elements have the mozallowfullscreen
   // boolean attribute set.
-  nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
-  bool allowed = false;
-  if (docShell) {
-    docShell->GetFullscreenAllowed(&allowed);
-  }
-  if (!allowed) {
-    LogFullScreenDenied(aLogFailure, "FullScreenDeniedIframeDisallowed", this);
-  }
+  nsINode* node = static_cast<nsINode*>(this);
+  do {
+    nsIContent* content = static_cast<nsIContent*>(node);
+    if (content->IsHTML(nsGkAtoms::iframe) &&
+        !content->HasAttr(kNameSpaceID_None, nsGkAtoms::mozallowfullscreen)) {
+      // The node requesting fullscreen, or one of its crossdoc ancestors,
+      // is an iframe which doesn't have the "mozalllowfullscreen" attribute.
+      // This request is not authorized by the parent document.
+      LogFullScreenDenied(aLogFailure, "FullScreenDeniedIframeDisallowed", this);
+      return false;
+    }
+    node = nsContentUtils::GetCrossDocParentNode(node);
+  } while (node);
 
-  return allowed;
+  return true;
 }
 
 static void

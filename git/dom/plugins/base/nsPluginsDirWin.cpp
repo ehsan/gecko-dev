@@ -280,7 +280,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   }
 
   if (restoreOrigDir) {
-    DebugOnly<BOOL> bCheck = SetCurrentDirectoryW(aOrigDir);
+    BOOL bCheck = SetCurrentDirectoryW(aOrigDir);
     NS_ASSERTION(bCheck, "Error in Loading plugin");
   }
 
@@ -321,7 +321,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   if (!verbuf)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (::GetFileVersionInfoW(lpFilepath, 0, versionsize, verbuf))
+  if (::GetFileVersionInfoW(lpFilepath, NULL, versionsize, verbuf))
   {
     // TODO: get appropriately-localized info from plugin file
     UINT lang = 1033; // language = English

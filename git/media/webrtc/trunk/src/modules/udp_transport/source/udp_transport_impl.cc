@@ -16,22 +16,24 @@
 #include <time.h>
 
 #if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    // Disable warning for default initialized arrays on VS2005
+    #pragma warning(disable:4351)
 #elif defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
-#include <arpa/inet.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <unistd.h>
+    #include <arpa/inet.h>
+    #include <ctype.h>
+    #include <fcntl.h>
+    #include <netdb.h>
+    #include <net/if.h>
+    #include <netinet/in.h>
+    #include <stdlib.h>
+    #include <sys/ioctl.h>
+    #include <sys/socket.h>
+    #include <sys/time.h>
+    #include <unistd.h>
 #ifndef MAC_IPHONE
-#include <net/if_arp.h>
+    #include <net/if_arp.h>
 #endif
 #endif // defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
 
@@ -64,52 +66,30 @@
 #endif // defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
 
 namespace webrtc {
-
-class SocketFactory : public UdpTransportImpl::SocketFactoryInterface {
- public:
-  UdpSocketWrapper* CreateSocket(const WebRtc_Word32 id,
-                                 UdpSocketManager* mgr,
-                                 CallbackObj obj,
-                                 IncomingSocketCallback cb,
-                                 bool ipV6Enable,
-                                 bool disableGQOS) {
-    return UdpSocketWrapper::CreateSocket(id, mgr, obj, cb, ipV6Enable,
-                                          disableGQOS);
-  }
-};
-
-// Creates an UdpTransport using the definition of SocketFactory above,
-// and passes (creating if needed) a pointer to the static singleton
-// UdpSocketManager.
 UdpTransport* UdpTransport::Create(const WebRtc_Word32 id,
                                    WebRtc_UWord8& numSocketThreads)
 {
-  return new UdpTransportImpl(id,
-                              new SocketFactory(),
-                              UdpSocketManager::Create(id, numSocketThreads));
+  return new UdpTransportImpl(id, numSocketThreads,
+                              &UdpSocketWrapper::CreateSocket);
 }
 
-// Deletes the UdpTransport and decrements the refcount of the
-// static singleton UdpSocketManager, possibly destroying it.
-// Should only be used on UdpTransports that are created using Create.
 void UdpTransport::Destroy(UdpTransport* module)
 {
     if(module)
     {
         delete module;
-        UdpSocketManager::Return();
     }
 }
 
 UdpTransportImpl::UdpTransportImpl(const WebRtc_Word32 id,
-                                   SocketFactoryInterface* maker,
-                                   UdpSocketManager* socket_manager)
+                                   WebRtc_UWord8& numSocketThreads,
+                                   SocketMaker* maker)
     : _id(id),
       _socket_creator(maker),
       _crit(CriticalSectionWrapper::CreateCriticalSection()),
       _critFilter(CriticalSectionWrapper::CreateCriticalSection()),
       _critPacketCallback(CriticalSectionWrapper::CreateCriticalSection()),
-      _mgr(socket_manager),
+      _mgr(UdpSocketManager::Create(id, numSocketThreads)),
       _lastError(kNoSocketError),
       _destPort(0),
       _destPortRTCP(0),
@@ -161,6 +141,10 @@ UdpTransportImpl::UdpTransportImpl(const WebRtc_Word32 id,
     memset(_localMulticastIP, 0, sizeof(_localMulticastIP));
 
     memset(&_filterIPAddress, 0, sizeof(_filterIPAddress));
+    if(_mgr == NULL)
+    {
+        _mgr = UdpSocketManager::Create(id, numSocketThreads);
+    }
 
     WEBRTC_TRACE(kTraceMemory, kTraceTransport, id, "%s created", __FUNCTION__);
 }
@@ -173,8 +157,8 @@ UdpTransportImpl::~UdpTransportImpl()
     delete _critFilter;
     delete _critPacketCallback;
     delete _cachLock;
-    delete _socket_creator;
 
+    UdpSocketManager::Return();
     WEBRTC_TRACE(kTraceMemory, kTraceTransport, _id, "%s deleted",
                  __FUNCTION__);
 }
@@ -368,11 +352,11 @@ WebRtc_Word32 UdpTransportImpl::InitializeReceiveSockets(
     _tos=0;
     _pcp=0;
 
-    _ptrRtpSocket = _socket_creator->CreateSocket(_id, _mgr, this,
+    _ptrRtpSocket = _socket_creator(_id, _mgr, this,
                                     IncomingRTPCallback,
                                     IpV6Enabled(), false);
 
-    _ptrRtcpSocket = _socket_creator->CreateSocket(_id, _mgr, this,
+    _ptrRtcpSocket = _socket_creator(_id, _mgr, this,
                                      IncomingRTCPCallback,
                                      IpV6Enabled(), false);
 
@@ -848,11 +832,11 @@ WebRtc_Word32 UdpTransportImpl::SetToS(WebRtc_Word32 DSCP, bool useSetSockOpt)
                 {
                     CloseSendSockets();
                     _ptrSendRtpSocket =
-                        _socket_creator->CreateSocket(_id, _mgr, NULL,
+                        _socket_creator(_id, _mgr, NULL,
                                         NULL, IpV6Enabled(),
                                         true);
                     _ptrSendRtcpSocket =
-                        _socket_creator->CreateSocket(_id, _mgr, NULL,
+                        _socket_creator(_id, _mgr, NULL,
                                         NULL, IpV6Enabled(),
                                         true);
                     rtpSock=_ptrSendRtpSocket;
@@ -883,12 +867,12 @@ WebRtc_Word32 UdpTransportImpl::SetToS(WebRtc_Word32 DSCP, bool useSetSockOpt)
                         }
                     }
                     CloseReceiveSockets();
-                    _ptrRtpSocket = _socket_creator->CreateSocket(
-                        _id, _mgr, this, IncomingRTPCallback, IpV6Enabled(),
-                        true);
-                    _ptrRtcpSocket = _socket_creator->CreateSocket(
-                        _id, _mgr, this, IncomingRTCPCallback, IpV6Enabled(),
-                        true);
+                    _ptrRtpSocket = _socket_creator(_id, _mgr, this,
+                                                    IncomingRTPCallback,
+                                                    IpV6Enabled(), true);
+                    _ptrRtcpSocket = _socket_creator(_id, _mgr, this,
+                                                     IncomingRTCPCallback,
+                                                     IpV6Enabled(),true);
                     rtpSock=_ptrRtpSocket;
                     rtcpSock=_ptrRtcpSocket;
                     ErrorCode retVal = BindLocalRTPSocket();
@@ -1546,9 +1530,9 @@ WebRtc_Word32 UdpTransportImpl::InitializeSourcePorts(WebRtc_UWord16 rtpPort,
     _tos=0;
     _pcp=0;
 
-    _ptrSendRtpSocket = _socket_creator->CreateSocket(_id, _mgr, NULL, NULL,
+    _ptrSendRtpSocket = _socket_creator(_id, _mgr, NULL, NULL,
                                         IpV6Enabled(), false);
-    _ptrSendRtcpSocket = _socket_creator->CreateSocket(_id, _mgr, NULL, NULL,
+    _ptrSendRtcpSocket = _socket_creator(_id, _mgr, NULL, NULL,
                                          IpV6Enabled(), false);
 
     ErrorCode retVal = BindRTPSendSocket();
@@ -1999,7 +1983,7 @@ int UdpTransportImpl::SendPacket(int /*channel*/, const void* data, int length)
             "Creating RTP socket since no receive or source socket is\
  configured");
 
-        _ptrRtpSocket = _socket_creator->CreateSocket(_id, _mgr, this,
+        _ptrRtpSocket = _socket_creator(_id, _mgr, this,
                                         IncomingRTPCallback,
                                         IpV6Enabled(), false);
 
@@ -2065,7 +2049,7 @@ int UdpTransportImpl::SendRTCPPacket(int /*channel*/, const void* data,
             "Creating RTCP socket since no receive or source socket is\
  configured");
 
-        _ptrRtcpSocket = _socket_creator->CreateSocket(_id, _mgr, this,
+        _ptrRtcpSocket = _socket_creator(_id, _mgr, this,
                                          IncomingRTCPCallback,
                                          IpV6Enabled(), false);
 
@@ -2476,7 +2460,7 @@ WebRtc_Word32 UdpTransport::LocalHostAddressIPV6(char n_localIP[16])
                     {
                         continue;
                     }
-                    if(n_localIP[0] == 0xfe &&
+                    if(n_localIP[0] == 0xfe && 
                        n_localIP[1] == 0x80 && ptr->ai_next)
                     {
                         continue;
@@ -2503,11 +2487,11 @@ WebRtc_Word32 UdpTransport::LocalHostAddressIPV6(char n_localIP[16])
     {
         if(ptrIfAddrs->ifa_addr->sa_family == AF_INET6)
         {
-            const struct sockaddr_in6* sock_in6 =
+            const struct sockaddr_in6* sock_in6 = 
                 reinterpret_cast<struct sockaddr_in6*>(ptrIfAddrs->ifa_addr);
             const struct in6_addr* sin6_addr = &sock_in6->sin6_addr;
 
-            if (IN6_IS_ADDR_LOOPBACK(sin6_addr) ||
+            if (IN6_IS_ADDR_LOOPBACK(sin6_addr) || 
                 IN6_IS_ADDR_LINKLOCAL(sin6_addr)) {
                 ptrIfAddrs = ptrIfAddrs->ifa_next;
                 continue;
@@ -2731,7 +2715,6 @@ WebRtc_Word32 UdpTransport::LocalHostAddress(WebRtc_UWord32& localIP)
         ifc.ifc_len = IFRSIZE;
         if (ioctl(sockfd, SIOCGIFCONF, &ifc))
         {
-            free(ifc.ifc_req);
             close(sockfd);
             return -1;
         }
@@ -2758,11 +2741,9 @@ WebRtc_Word32 UdpTransport::LocalHostAddress(WebRtc_UWord32& localIP)
                 saddr);
             localIP = Htonl(socket_addess->_sockaddr_in.sin_addr);
             close(sockfd);
-            free(ifc.ifc_req);
             return 0;
         }
     }
-    free(ifc.ifc_req);
     close(sockfd);
     return -1;
 #endif

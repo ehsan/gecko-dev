@@ -14,7 +14,7 @@ namespace js {
 namespace ion {
 
 template <class Op>
-inline void
+inline bool
 SnapshotIterator::readFrameArgs(Op op, const Value *argv, Value *scopeChain, Value *thisv,
                                 unsigned start, unsigned formalEnd, unsigned iterEnd)
 {
@@ -29,12 +29,9 @@ SnapshotIterator::readFrameArgs(Op op, const Value *argv, Value *scopeChain, Val
         skip();
 
     unsigned i = 0;
-    if (formalEnd < start)
-        i = start;
-
     for (; i < start; i++)
         skip();
-    for (; i < formalEnd && i < iterEnd; i++) {
+    for (; i < formalEnd; i++) {
         // We are not always able to read values from the snapshots, some values
         // such as non-gc things may still be live in registers and cause an
         // error while reading the machine state.
@@ -45,10 +42,11 @@ SnapshotIterator::readFrameArgs(Op op, const Value *argv, Value *scopeChain, Val
         for (; i < iterEnd; i++)
             op(argv[i]);
     }
+    return true;
 }
 
 template <class Op>
-inline void
+inline bool
 InlineFrameIterator::forEachCanonicalActualArg(Op op, unsigned start, unsigned count) const
 {
     unsigned nactual = numActualArgs();
@@ -56,19 +54,23 @@ InlineFrameIterator::forEachCanonicalActualArg(Op op, unsigned start, unsigned c
         count = nactual - start;
 
     unsigned end = start + count;
-    unsigned nformal = callee()->nargs;
-
     JS_ASSERT(start <= end && end <= nactual);
 
-    // Currently inlining does not support overflow of arguments, we have to
-    // add this feature in IonBuilder.cpp and in Bailouts.cpp before
-    // continuing. We need to add it to Bailouts.cpp because we need to know
-    // how to walk over the oveflow of arguments.
-    JS_ASSERT_IF(more(), end <= nformal);
+    unsigned nformal = callee()->nargs;
+    unsigned formalEnd = end;
+    if (!more() && end > nformal) {
+        formalEnd = nformal;
+    } else {
+        // Currently inlining does not support overflow of arguments, we have to
+        // add this feature in IonBuilder.cpp and in Bailouts.cpp before
+        // continuing. We need to add it to Bailouts.cpp because we need to know
+        // how to walk over the oveflow of arguments.
+        JS_ASSERT(end <= nformal);
+    }
 
     SnapshotIterator s(si_);
     Value *argv = frame_->actualArgs();
-    s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end);
+    return s.readFrameArgs(op, argv, NULL, NULL, start, formalEnd, end);
 }
 
 } // namespace ion

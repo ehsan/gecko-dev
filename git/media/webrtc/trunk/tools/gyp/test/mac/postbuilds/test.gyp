@@ -58,14 +58,6 @@
             '${BUILT_PRODUCTS_DIR}/${EXECUTABLE_PATH}_gyp_touch',
           ],
         },
-        {
-          'postbuild_name': 'Test paths relative to gyp file',
-          'action': [
-            './copy.sh',
-            'subdirectory/copied_file.txt',
-            '${BUILT_PRODUCTS_DIR}',
-          ],
-        },
       ],
     },
     {

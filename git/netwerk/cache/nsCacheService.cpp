@@ -173,9 +173,8 @@ public:
                                       uint32_t currentSize,
                                       bool shouldUseOldMaxSmartSize);
 
-    bool                    PermittedToSmartSize(nsIPrefBranch*, bool firstRun);
-
 private:
+    bool                    PermittedToSmartSize(nsIPrefBranch*, bool firstRun);
     bool                    mHaveProfile;
     
     bool                    mDiskCacheEnabled;
@@ -1596,27 +1595,28 @@ public:
         if (!nsCacheService::gService || !nsCacheService::gService->mObserver)
             return NS_ERROR_NOT_AVAILABLE;
 
+        nsDisableOldMaxSmartSizePrefEvent::DisableOldMaxSmartSizePref(true);
+        return NS_OK;
+    }
+
+    static void DisableOldMaxSmartSizePref(bool async)
+    {
         nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (!branch) {
-            return NS_ERROR_NOT_AVAILABLE;
+            return;
         }
 
         nsresult rv = branch->SetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF, false);
         if (NS_FAILED(rv)) {
             NS_WARNING("Failed to disable old max smart size");
-            return rv;
+            return;
         }
 
-        nsCacheService::SetDiskSmartSize();
-
-        if (nsCacheService::gService->mObserver->PermittedToSmartSize(branch, false)) {
-            rv = branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("Failed to set cache capacity pref");
-            }
+        if (async) {
+            nsCacheService::SetDiskSmartSize();
+        } else {
+            nsCacheService::gService->SetDiskSmartSize_Locked();
         }
-
-        return NS_OK;
     }
 };
 
@@ -1630,9 +1630,11 @@ nsCacheService::MarkStartingFresh()
 
     gService->mObserver->SetUseNewMaxSmartSize(true);
 
-    // We always dispatch an event here because we don't want to deal with lock
-    // reentrance issues.
-    NS_DispatchToMainThread(new nsDisableOldMaxSmartSizePrefEvent());
+    if (NS_IsMainThread()) {
+        nsDisableOldMaxSmartSizePrefEvent::DisableOldMaxSmartSizePref(false);
+    } else {
+        NS_DispatchToMainThread(new nsDisableOldMaxSmartSizePrefEvent());
+    }
 }
 
 nsresult

@@ -48,7 +48,6 @@ namespace ion {
     _(Sqrt)                                                                 \
     _(Pow)                                                                  \
     _(PowHalf)                                                              \
-    _(Random)                                                               \
     _(MathFunction)                                                         \
     _(Add)                                                                  \
     _(Sub)                                                                  \
@@ -76,7 +75,6 @@ namespace ion {
     _(Start)                                                                \
     _(OsrEntry)                                                             \
     _(RegExp)                                                               \
-    _(RegExpTest)                                                           \
     _(Lambda)                                                               \
     _(ImplicitThis)                                                         \
     _(Slots)                                                                \
@@ -106,7 +104,6 @@ namespace ion {
     _(StoreElementHole)                                                     \
     _(ArrayPopShift)                                                        \
     _(ArrayPush)                                                            \
-    _(ArrayConcat)                                                          \
     _(LoadTypedArrayElement)                                                \
     _(LoadTypedArrayElementHole)                                            \
     _(StoreTypedArrayElement)                                               \

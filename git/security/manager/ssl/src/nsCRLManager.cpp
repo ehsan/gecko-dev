@@ -396,9 +396,9 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
   double tmpData;
   
   LL_L2F(tmpData,secsInDay);
-  tmpData = dayCnt * tmpData;
+  LL_MUL(tmpData,dayCnt,tmpData);
   LL_F2L(secsInDayCnt,tmpData);
-  microsecInDayCnt = secsInDayCnt * PR_USEC_PER_SEC;
+  LL_MUL(microsecInDayCnt, secsInDayCnt, PR_USEC_PER_SEC);
     
   PRTime lastUpdate;
   PRTime nextUpdate;
@@ -415,17 +415,17 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
 
   switch (autoUpdateType) {
   case TYPE_AUTOUPDATE_FREQ_BASED:
-    diff = now - lastUpdate;                    //diff is the no of micro sec between now and last update
-    cycleCnt = diff / microsecInDayCnt;       //temp is the number of full cycles from lst update
-    temp = diff % microsecInDayCnt;
+    LL_SUB(diff, now, lastUpdate);             //diff is the no of micro sec between now and last update
+    LL_DIV(cycleCnt, diff, microsecInDayCnt);   //temp is the number of full cycles from lst update
+    LL_MOD(temp, diff, microsecInDayCnt);
     if(temp != 0) {
-      ++cycleCnt;            //no of complete cycles till next autoupdate instant
+      LL_ADD(cycleCnt,cycleCnt,1);            //no of complete cycles till next autoupdate instant
     }
-    temp = cycleCnt * microsecInDayCnt;    //micro secs from last update
-    tempTime = lastUpdate + temp;
+    LL_MUL(temp,cycleCnt,microsecInDayCnt);    //micro secs from last update
+    LL_ADD(tempTime, lastUpdate, temp);
     break;  
   case TYPE_AUTOUPDATE_TIME_BASED:
-    tempTime = nextUpdate - microsecInDayCnt;
+    LL_SUB(tempTime, nextUpdate, microsecInDayCnt);
     break;
   default:
     return NS_ERROR_NOT_IMPLEMENTED;

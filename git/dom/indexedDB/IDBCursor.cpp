@@ -95,7 +95,7 @@ public:
   PackArgumentsForParentProcess(CursorRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -874,14 +874,16 @@ ContinueHelper::PackArgumentsForParentProcess(CursorRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-ContinueHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 

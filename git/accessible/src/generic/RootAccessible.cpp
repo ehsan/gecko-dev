@@ -258,18 +258,22 @@ RootAccessible::HandleEvent(nsIDOMEvent* aDOMEvent)
   if (!origTargetNode)
     return NS_OK;
 
-#ifdef A11Y_LOG
-  if (logging::IsEnabled(logging::eDOMEvents)) {
-    nsAutoString eventType;
-    aDOMEvent->GetType(eventType);
-    logging::DOMEvent("handled", origTargetNode, eventType);
-  }
-#endif
-
   DocAccessible* document =
     GetAccService()->GetDocAccessible(origTargetNode->OwnerDoc());
 
   if (document) {
+#ifdef DEBUG
+    if (logging::IsEnabled(logging::eDOMEvents)) {
+      nsAutoString eventType;
+      aDOMEvent->GetType(eventType);
+
+      logging::MsgBegin("DOMEvents", "event '%s' handled",
+                        NS_ConvertUTF16toUTF8(eventType).get());
+      logging::Node("target", origTargetNode);
+      logging::MsgEnd();
+    }
+#endif
+
     // Root accessible exists longer than any of its descendant documents so
     // that we are guaranteed notification is processed before root accessible
     // is destroyed.
@@ -291,11 +295,6 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 
   nsAutoString eventType;
   aDOMEvent->GetType(eventType);
-
-#ifdef A11Y_LOG
-  if (logging::IsEnabled(logging::eDOMEvents))
-    logging::DOMEvent("processed", origTargetNode, eventType);
-#endif
 
   if (eventType.EqualsLiteral("popuphiding")) {
     HandlePopupHidingEvent(origTargetNode);
@@ -343,7 +342,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 
     if (isEnabled) {
       FocusMgr()->ActiveItemChanged(accessible);
-#ifdef A11Y_LOG
+#ifdef DEBUG
       if (logging::IsEnabled(logging::eFocus))
         logging::ActiveItemChangeCausedBy("RadioStateChange", accessible);
 #endif
@@ -425,7 +424,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   }
   else if (eventType.EqualsLiteral("DOMMenuItemActive")) {
     FocusMgr()->ActiveItemChanged(accessible);
-#ifdef A11Y_LOG
+#ifdef DEBUG
     if (logging::IsEnabled(logging::eFocus))
       logging::ActiveItemChangeCausedBy("DOMMenuItemActive", accessible);
 #endif
@@ -439,7 +438,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
       accessible->IsWidget() ? accessible : accessible->ContainerWidget();
     if (widget && widget->IsAutoCompletePopup()) {
       FocusMgr()->ActiveItemChanged(nullptr);
-#ifdef A11Y_LOG
+#ifdef DEBUG
       if (logging::IsEnabled(logging::eFocus))
         logging::ActiveItemChangeCausedBy("DOMMenuItemInactive", accessible);
 #endif
@@ -458,7 +457,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
     Accessible* activeItem = accessible->CurrentItem();
     if (activeItem) {
       FocusMgr()->ActiveItemChanged(activeItem);
-#ifdef A11Y_LOG
+#ifdef DEBUG
       if (logging::IsEnabled(logging::eFocus))
         logging::ActiveItemChangeCausedBy("DOMMenuBarActive", accessible);
 #endif
@@ -469,7 +468,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
                             accessible, eFromUserInput);
 
     FocusMgr()->ActiveItemChanged(nullptr);
-#ifdef A11Y_LOG
+#ifdef DEBUG
     if (logging::IsEnabled(logging::eFocus))
       logging::ActiveItemChangeCausedBy("DOMMenuBarInactive", accessible);
 #endif
@@ -663,7 +662,7 @@ RootAccessible::HandlePopupHidingEvent(nsINode* aPopupNode)
   // Restore focus to where it was.
   if (notifyOf & kNotifyOfFocus) {
     FocusMgr()->ActiveItemChanged(nullptr);
-#ifdef A11Y_LOG
+#ifdef DEBUG
     if (logging::IsEnabled(logging::eFocus))
       logging::ActiveItemChangeCausedBy("popuphiding", popup);
 #endif

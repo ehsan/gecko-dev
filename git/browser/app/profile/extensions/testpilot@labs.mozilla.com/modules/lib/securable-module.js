@@ -88,7 +88,7 @@
 
    exports.SandboxFactory.prototype = {
      createSandbox: function createSandbox(options) {
-       var principal = resolvePrincipal('b' in options ? options.b : undefined,
+       var principal = resolvePrincipal(options.principal,
                                         this._defaultPrincipal);
 
        return {

@@ -290,13 +290,6 @@ struct CopyTo
     void operator()(const Value &src) { *dst++ = src; }
 };
 
-struct CopyToHeap
-{
-    HeapValue *dst;
-    CopyToHeap(HeapValue *dst) : dst(dst) {}
-    void operator()(const Value &src) { dst->init(src); ++dst; }
-};
-
 inline unsigned
 StackFrame::numFormalArgs() const
 {
@@ -576,13 +569,25 @@ ContextStack::currentScriptedScopeChain() const
 }
 
 template <class Op>
-inline void
-StackIter::ionForEachCanonicalActualArg(Op op)
+inline bool
+StackIter::forEachCanonicalActualArg(Op op, unsigned start /* = 0 */, unsigned count /* = unsigned(-1) */)
 {
-    JS_ASSERT(isIon());
+    switch (state_) {
+      case DONE:
+        break;
+      case SCRIPTED:
+        JS_ASSERT(isFunctionFrame());
+        return fp()->forEachCanonicalActualArg(op, start, count);
+      case ION:
 #ifdef JS_ION
-    ionInlineFrames_.forEachCanonicalActualArg(op, 0, -1);
+        return ionInlineFrames_.forEachCanonicalActualArg(op, start, count);
 #endif
+      case NATIVE:
+        JS_NOT_REACHED("Unused ?");
+        return false;
+    }
+    JS_NOT_REACHED("Unexpected state");
+    return false;
 }
 
 } /* namespace js */

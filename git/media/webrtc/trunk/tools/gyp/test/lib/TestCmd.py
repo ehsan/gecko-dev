@@ -384,11 +384,8 @@ def no_result(self = None, condition = 1, function = None, skip = 0):
             desc = " [" + self.description + "]"
             sep = "\n\t"
 
-    if os.environ.get('TESTCMD_DEBUG_SKIPS'):
-        at = _caller(traceback.extract_stack(), skip)
-        sys.stderr.write("NO RESULT for test" + of + desc + sep + at)
-    else:
-        sys.stderr.write("NO RESULT\n")
+    at = _caller(traceback.extract_stack(), skip)
+    sys.stderr.write("NO RESULT for test" + of + desc + sep + at)
 
     sys.exit(2)
 

@@ -298,7 +298,7 @@ typedef void
 /* called just before script destruction */
 typedef void
 (* JSDestroyScriptHook)(JSFreeOp *fop,
-                        JSRawScript script,
+                        JSScript  *script,
                         void      *callerdata);
 
 typedef void

@@ -17,7 +17,6 @@
 #include "nsStringGlue.h"
 #include "nsITelemetry.h"
 #include "nsIFile.h"
-#include "nsIMemoryReporter.h"
 #include "Telemetry.h" 
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
@@ -108,8 +107,6 @@ public:
                                Telemetry::ProcessedStack &aStack);
 #endif
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
-  static int64_t GetTelemetryMemoryUsed();
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
   struct Stat {
     uint32_t hitCount;
     uint32_t totalTime;
@@ -125,17 +122,6 @@ public:
   };
 
 private:
-  // We don't need to poke inside any of our hashtables for more
-  // information, so we just have One Function To Size Them All.
-  template<typename EntryType>
-  struct impl {
-    static size_t SizeOfEntryExcludingThis(EntryType *,
-                                           nsMallocSizeOfFun,
-                                           void *) {
-      return 0;
-    };
-  };
-
   static nsCString SanitizeSQL(const nsACString& sql);
 
   enum SanitizedState { Sanitized, Unsanitized };
@@ -192,57 +178,9 @@ private:
   Mutex mHashMutex;
   nsTArray<HangReport> mHangReports;
   Mutex mHangReportsMutex;
-  nsIMemoryReporter *mMemoryReporter;
 };
 
 TelemetryImpl*  TelemetryImpl::sTelemetry = NULL;
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(TelemetryMallocSizeOf, "telemetry")
-
-size_t
-TelemetryImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t n = 0;
-  n += aMallocSizeOf(this);
-  // Ignore the hashtables in mAddonMap; they are not significant.
-  n += mAddonMap.SizeOfExcludingThis(impl<AddonEntryType>::SizeOfEntryExcludingThis,
-                                     aMallocSizeOf);
-  n += mHistogramMap.SizeOfExcludingThis(impl<CharPtrEntryType>::SizeOfEntryExcludingThis,
-                                         aMallocSizeOf);
-  n += mPrivateSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
-                                       aMallocSizeOf);
-  n += mSanitizedSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
-                                         aMallocSizeOf);
-  n += mTrackedDBs.SizeOfExcludingThis(impl<nsCStringHashKey>::SizeOfEntryExcludingThis,
-                                       aMallocSizeOf);
-  n += mHangReports.SizeOfExcludingThis(aMallocSizeOf);
-  return n;
-}
-
-int64_t
-TelemetryImpl::GetTelemetryMemoryUsed()
-{
-  int64_t n = 0;
-  if (sTelemetry) {
-    n += sTelemetry->SizeOfIncludingThis(TelemetryMallocSizeOf);
-  }
-
-  StatisticsRecorder::Histograms hs;
-  StatisticsRecorder::GetHistograms(&hs);
-
-  for (HistogramIterator it = hs.begin(); it != hs.end(); ++it) {
-    Histogram *h = *it;
-    n += h->SizeOfIncludingThis(TelemetryMallocSizeOf);
-  }
-  return n;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(Telemetry,
-  "explicit/telemetry",
-  KIND_HEAP,
-  UNITS_BYTES,
-  TelemetryImpl::GetTelemetryMemoryUsed,
-  "Memory used by the telemetry system.")
 
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
@@ -571,13 +509,9 @@ mHangReportsMutex("Telemetry::mHangReportsMutex")
   // Mark immutable to prevent asserts on simultaneous access from multiple threads
   mTrackedDBs.MarkImmutable();
 #endif
-  mMemoryReporter = new NS_MEMORY_REPORTER_NAME(Telemetry);
-  NS_RegisterMemoryReporter(mMemoryReporter);
 }
 
 TelemetryImpl::~TelemetryImpl() {
-  NS_UnregisterMemoryReporter(mMemoryReporter);
-  mMemoryReporter = nullptr;
 }
 
 NS_IMETHODIMP

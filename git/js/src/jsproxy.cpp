@@ -511,8 +511,7 @@ JSString *
 IndirectProxyHandler::fun_toString(JSContext *cx, JSObject *proxy,
                                    unsigned indent)
 {
-    RootedObject target(cx, GetProxyTargetObject(proxy));
-    return fun_toStringHelper(cx, target, indent);
+    return fun_toStringHelper(cx, GetProxyTargetObject(proxy), indent);
 }
 
 bool

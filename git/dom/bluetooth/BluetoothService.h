@@ -265,13 +265,20 @@ public:
   PrepareAdapterInternal(const nsAString& aPath) = 0;
 
   virtual bool
-  Connect(const nsAString& aDeviceAddress,
-          const nsAString& aAdapterPath,
-          uint16_t aProfileId,
-          BluetoothReplyRunnable* aRunnable) = 0;
+  ConnectHeadset(const nsAString& aDeviceAddress,
+                 const nsAString& aAdapterPath,
+                 BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual void
-  Disconnect(uint16_t aProfileId, BluetoothReplyRunnable* aRunnable) = 0;
+  DisconnectHeadset(BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  ConnectObjectPush(const nsAString& aDeviceAddress,
+                    const nsAString& aAdapterPath,
+                    BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual void
+  DisconnectObjectPush(BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual bool
   SendFile(const nsAString& aDeviceAddress,

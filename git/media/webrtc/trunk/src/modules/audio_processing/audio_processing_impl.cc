@@ -100,7 +100,6 @@ AudioProcessingImpl::AudioProcessingImpl(int id)
 }
 
 AudioProcessingImpl::~AudioProcessingImpl() {
-  crit_->Enter();
   while (!component_list_.empty()) {
     ProcessingComponent* component = component_list_.front();
     component->Destroy();
@@ -114,6 +113,9 @@ AudioProcessingImpl::~AudioProcessingImpl() {
   }
 #endif
 
+  delete crit_;
+  crit_ = NULL;
+
   if (render_audio_) {
     delete render_audio_;
     render_audio_ = NULL;
@@ -123,10 +125,6 @@ AudioProcessingImpl::~AudioProcessingImpl() {
     delete capture_audio_;
     capture_audio_ = NULL;
   }
-
-  crit_->Leave();
-  delete crit_;
-  crit_ = NULL;
 }
 
 CriticalSectionWrapper* AudioProcessingImpl::crit() const {
@@ -260,15 +258,15 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
     return kNullPointerError;
   }
 
-  if (frame->sample_rate_hz_ != sample_rate_hz_) {
+  if (frame->_frequencyInHz != sample_rate_hz_) {
     return kBadSampleRateError;
   }
 
-  if (frame->num_channels_ != num_input_channels_) {
+  if (frame->_audioChannel != num_input_channels_) {
     return kBadNumberChannelsError;
   }
 
-  if (frame->samples_per_channel_ != samples_per_channel_) {
+  if (frame->_payloadDataLengthInSamples != samples_per_channel_) {
     return kBadDataLengthError;
   }
 
@@ -277,9 +275,9 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
     event_msg_->set_type(audioproc::Event::STREAM);
     audioproc::Stream* msg = event_msg_->mutable_stream();
     const size_t data_size = sizeof(int16_t) *
-                             frame->samples_per_channel_ *
-                             frame->num_channels_;
-    msg->set_input_data(frame->data_, data_size);
+                             frame->_payloadDataLengthInSamples *
+                             frame->_audioChannel;
+    msg->set_input_data(frame->_payloadData, data_size);
     msg->set_delay(stream_delay_ms_);
     msg->set_drift(echo_cancellation_->stream_drift_samples());
     msg->set_level(gain_control_->stream_analog_level());
@@ -291,11 +289,11 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
   // TODO(ajm): experiment with mixing and AEC placement.
   if (num_output_channels_ < num_input_channels_) {
     capture_audio_->Mix(num_output_channels_);
-    frame->num_channels_ = num_output_channels_;
+    frame->_audioChannel = num_output_channels_;
   }
 
-  bool data_processed = is_data_processed();
-  if (analysis_needed(data_processed)) {
+  bool data_changed = stream_data_changed();
+  if (analysis_needed(data_changed)) {
     for (int i = 0; i < num_output_channels_; i++) {
       // Split into a low and high band.
       SplittingFilterAnalysis(capture_audio_->data(i),
@@ -346,7 +344,7 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
     return err;
   }
 
-  if (synthesis_needed(data_processed)) {
+  if (synthesis_needed(data_changed)) {
     for (int i = 0; i < num_output_channels_; i++) {
       // Recombine low and high bands.
       SplittingFilterSynthesis(capture_audio_->low_pass_split_data(i),
@@ -363,15 +361,15 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
     return err;
   }
 
-  capture_audio_->InterleaveTo(frame, interleave_needed(data_processed));
+  capture_audio_->InterleaveTo(frame, data_changed);
 
 #ifdef WEBRTC_AUDIOPROC_DEBUG_DUMP
   if (debug_file_->Open()) {
     audioproc::Stream* msg = event_msg_->mutable_stream();
     const size_t data_size = sizeof(int16_t) *
-                             frame->samples_per_channel_ *
-                             frame->num_channels_;
-    msg->set_output_data(frame->data_, data_size);
+                             frame->_payloadDataLengthInSamples *
+                             frame->_audioChannel;
+    msg->set_output_data(frame->_payloadData, data_size);
     err = WriteMessageToDebugFile();
     if (err != kNoError) {
       return err;
@@ -391,15 +389,15 @@ int AudioProcessingImpl::AnalyzeReverseStream(AudioFrame* frame) {
     return kNullPointerError;
   }
 
-  if (frame->sample_rate_hz_ != sample_rate_hz_) {
+  if (frame->_frequencyInHz != sample_rate_hz_) {
     return kBadSampleRateError;
   }
 
-  if (frame->num_channels_ != num_reverse_channels_) {
+  if (frame->_audioChannel != num_reverse_channels_) {
     return kBadNumberChannelsError;
   }
 
-  if (frame->samples_per_channel_ != samples_per_channel_) {
+  if (frame->_payloadDataLengthInSamples != samples_per_channel_) {
     return kBadDataLengthError;
   }
 
@@ -408,9 +406,9 @@ int AudioProcessingImpl::AnalyzeReverseStream(AudioFrame* frame) {
     event_msg_->set_type(audioproc::Event::REVERSE_STREAM);
     audioproc::ReverseStream* msg = event_msg_->mutable_reverse_stream();
     const size_t data_size = sizeof(int16_t) *
-                             frame->samples_per_channel_ *
-                             frame->num_channels_;
-    msg->set_data(frame->data_, data_size);
+                             frame->_payloadDataLengthInSamples *
+                             frame->_audioChannel;
+    msg->set_data(frame->_payloadData, data_size);
     err = WriteMessageToDebugFile();
     if (err != kNoError) {
       return err;
@@ -452,23 +450,21 @@ int AudioProcessingImpl::AnalyzeReverseStream(AudioFrame* frame) {
 }
 
 int AudioProcessingImpl::set_stream_delay_ms(int delay) {
-  Error retval = kNoError;
   was_stream_delay_set_ = true;
   delay += delay_offset_ms_;
 
   if (delay < 0) {
-    delay = 0;
-    retval = kBadStreamParameterWarning;
+    return kBadParameterError;
   }
 
   // TODO(ajm): the max is rather arbitrarily chosen; investigate.
   if (delay > 500) {
-    delay = 500;
-    retval = kBadStreamParameterWarning;
+    stream_delay_ms_ = 500;
+    return kBadStreamParameterWarning;
   }
 
   stream_delay_ms_ = delay;
-  return retval;
+  return kNoError;
 }
 
 int AudioProcessingImpl::stream_delay_ms() const {
@@ -571,7 +567,7 @@ WebRtc_Word32 AudioProcessingImpl::ChangeUniqueId(const WebRtc_Word32 id) {
   return kNoError;
 }
 
-bool AudioProcessingImpl::is_data_processed() const {
+bool AudioProcessingImpl::stream_data_changed() const {
   int enabled_count = 0;
   std::list<ProcessingComponent*>::const_iterator it;
   for (it = component_list_.begin(); it != component_list_.end(); it++) {
@@ -596,17 +592,12 @@ bool AudioProcessingImpl::is_data_processed() const {
   return true;
 }
 
-bool AudioProcessingImpl::interleave_needed(bool is_data_processed) const {
-  // Check if we've upmixed or downmixed the audio.
-  return (num_output_channels_ != num_input_channels_ || is_data_processed);
+bool AudioProcessingImpl::synthesis_needed(bool stream_data_changed) const {
+  return (stream_data_changed && sample_rate_hz_ == kSampleRate32kHz);
 }
 
-bool AudioProcessingImpl::synthesis_needed(bool is_data_processed) const {
-  return (is_data_processed && sample_rate_hz_ == kSampleRate32kHz);
-}
-
-bool AudioProcessingImpl::analysis_needed(bool is_data_processed) const {
-  if (!is_data_processed && !voice_detection_->is_enabled()) {
+bool AudioProcessingImpl::analysis_needed(bool stream_data_changed) const {
+  if (!stream_data_changed && !voice_detection_->is_enabled()) {
     // Only level_estimator_ is enabled.
     return false;
   } else if (sample_rate_hz_ == kSampleRate32kHz) {

@@ -66,8 +66,6 @@ browser.jar:
   skin/classic/browser/urlbar-arrow@2x.png
   skin/classic/browser/urlbar-popup-blocked.png
   skin/classic/browser/urlbar-popup-blocked@2x.png
-  skin/classic/browser/webRTC-shareDevice-16.png
-  skin/classic/browser/webRTC-shareDevice-64.png
   skin/classic/browser/downloads/buttons.png                (downloads/buttons.png)
   skin/classic/browser/downloads/download-glow.png          (downloads/download-glow.png)
   skin/classic/browser/downloads/download-notification.png  (downloads/download-notification.png)
@@ -175,7 +173,6 @@ browser.jar:
   skin/classic/browser/devtools/goto-mdn.png                (devtools/goto-mdn.png)
   skin/classic/browser/devtools/csshtmltree.css             (devtools/csshtmltree.css)
   skin/classic/browser/devtools/commandline.css                    (devtools/commandline.css)
-  skin/classic/browser/devtools/htmlpanel.css               (devtools/htmlpanel.css)
   skin/classic/browser/devtools/markup-view.css             (devtools/markup-view.css)
   skin/classic/browser/devtools/orion.css                   (devtools/orion.css)
   skin/classic/browser/devtools/orion-container.css         (devtools/orion-container.css)

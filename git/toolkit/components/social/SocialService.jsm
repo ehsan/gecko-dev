@@ -206,20 +206,12 @@ SocialProvider.prototype = {
   // Properties:
   //   iconURL, portrait, userName, displayName, profileURL
   // See https://github.com/mozilla/socialapi-dev/blob/develop/docs/socialAPI.md
-  // A value of null or an empty object means 'user not logged in'.
-  // A value of undefined means the service has not told us the status of the
-  // profile, but is expected to soon (ie, the service is still loading/initing)
-  // This distinction might be used to cache certain data between runs - eg,
-  // browser-social.js caches the notification icons so they can be displayed
-  // quickly at startup without waiting for the provider to initialize -
-  // 'undefined' means 'ok to use cached values' versus 'null' meaning 'cached
-  // values aren't to be used as the user is logged out'.
-  profile: undefined,
+  profile: null,
 
   // Map of objects describing the provider's notification icons, whose
   // properties include:
   //   name, iconURL, counter, contentPanel
-  // See https://developer.mozilla.org/en-US/docs/Social_API
+  // See https://github.com/mozilla/socialapi-dev/blob/develop/docs/socialAPI.md
   ambientNotificationIcons: null,
 
   // Called by the workerAPI to update our profile information.

@@ -11,23 +11,32 @@ const NS_ALERT_HORIZONTAL = 1;
 const NS_ALERT_LEFT = 2;
 const NS_ALERT_TOP = 4;
 
-var gOrigin = 0; // Default value: alert from bottom right.
+var gFinalSize;
+var gCurrentSize = 1;
+
+var gSlideIncrement = 1;
+var gSlideTime = 10;
+var gOpenTime = 3000; // total time the alert should stay up once we are done animating.
+var gOrigin = 0; // Default value: alert from bottom right, sliding in vertically.
+var gDisableSlideEffect = false;
  
 var gAlertListener = null;
 var gAlertTextClickable = false;
 var gAlertCookie = "";
 
-function prefillAlertInfo() {
+function prefillAlertInfo()
+{
   // unwrap all the args....
   // arguments[0] --> the image src url
   // arguments[1] --> the alert title
   // arguments[2] --> the alert text
-  // arguments[3] --> is the text clickable?
+  // arguments[3] --> is the text clickable? 
   // arguments[4] --> the alert cookie to be passed back to the listener
   // arguments[5] --> the alert origin reported by the look and feel
   // arguments[6] --> an optional callback listener (nsIObserver)
 
-  switch (window.arguments.length) {
+  switch (window.arguments.length)
+  {
     default:
     case 7:
       gAlertListener = window.arguments[6];
@@ -42,7 +51,7 @@ function prefillAlertInfo() {
         document.getElementById('alertTextLabel').setAttribute('clickable', true);
       }
     case 3:
-      document.getElementById('alertTextLabel').textContent = window.arguments[2];
+      document.getElementById('alertTextLabel').setAttribute('value', window.arguments[2]);
     case 2:
       document.getElementById('alertTitleLabel').setAttribute('value', window.arguments[1]);
     case 1:
@@ -52,48 +61,130 @@ function prefillAlertInfo() {
   }
 }
 
-function onAlertLoad() {
-  const ALERT_DURATION_IMMEDIATE = 4000;
-  let alertTextBox = document.getElementById("alertTextBox");
-  let alertImageBox = document.getElementById("alertImageBox");
-  alertImageBox.style.minHeight = alertTextBox.scrollHeight + "px";
+function onAlertLoad()
+{
+  gSlideIncrement     = Services.prefs.getIntPref("alerts.slideIncrement");
+  gSlideTime          = Services.prefs.getIntPref("alerts.slideIncrementTime");
+  gOpenTime           = Services.prefs.getIntPref("alerts.totalOpenTime");
+  gDisableSlideEffect = Services.prefs.getBoolPref("alerts.disableSlidingEffect");
+
+  var alertBox = document.getElementById("alertBox");
+  // Make sure that the contents are fixed at the window edge facing the
+  // screen's center so that the window looks like "sliding in" and not
+  // like "unfolding". The default packing of "start" only works for
+  // vertical-bottom and horizontal-right positions, so we change it here.
+  if (gOrigin & NS_ALERT_HORIZONTAL)
+  {
+    if (gOrigin & NS_ALERT_LEFT) {
+      document.documentElement.pack = "end";
+      alertBox.setAttribute("origin", "left");
+    } else {
+      alertBox.setAttribute("origin", "right");
+    }
+
+    // Additionally, change the orientation so the packing works as intended
+    document.documentElement.orient = "horizontal";
+  }
+  else
+  {
+    if (gOrigin & NS_ALERT_TOP) {
+      document.documentElement.pack = "end";
+      alertBox.setAttribute("origin", "top");
+    } else {
+      alertBox.setAttribute("origin", "bottom");
+    }
+  }
+
+  alertBox.orient = (gOrigin & NS_ALERT_HORIZONTAL) ? "vertical" : "horizontal";
 
   sizeToContent();
 
+  // Start with a 1px width/height, because 0 causes trouble with gtk1/2
+  gCurrentSize = 1;
+
+  // Determine final size
+  if (gOrigin & NS_ALERT_HORIZONTAL)
+  {
+    gFinalSize = window.outerWidth;
+    window.outerWidth = gCurrentSize;
+  }
+  else
+  {
+    gFinalSize = window.outerHeight;
+    window.outerHeight = gCurrentSize;
+  }
+
   // Determine position
-  let x = gOrigin & NS_ALERT_LEFT ? screen.availLeft :
+  var x = gOrigin & NS_ALERT_LEFT ? screen.availLeft :
           screen.availLeft + screen.availWidth - window.outerWidth;
-  let y = gOrigin & NS_ALERT_TOP ? screen.availTop :
+  var y = gOrigin & NS_ALERT_TOP ? screen.availTop :
           screen.availTop + screen.availHeight - window.outerHeight;
 
   // Offset the alert by 10 pixels from the edge of the screen
-  y += gOrigin & NS_ALERT_TOP ? 10 : -10;
-  x += gOrigin & NS_ALERT_LEFT ? 10 : -10;
+  if (gOrigin & NS_ALERT_HORIZONTAL)
+    y += gOrigin & NS_ALERT_TOP ? 10 : -10;
+  else
+    x += gOrigin & NS_ALERT_LEFT ? 10 : -10;
 
   window.moveTo(x, y);
 
-  if (Services.prefs.getBoolPref("alerts.disableSlidingEffect")) {
-    setTimeout(closeAlert, ALERT_DURATION_IMMEDIATE);
-    return;
-  }
+  setTimeout(animateAlert, gSlideTime);
+}
 
-  let alertBox = document.getElementById("alertBox");
-  alertBox.addEventListener("animationend", function hideAlert(event) {
-    if (event.animationName == "alert-animation") {
-      alertBox.removeEventListener("animationend", hideAlert, false);
-      closeAlert();
-    }
-  }, false);
-  alertBox.setAttribute("animate", true);
+function animate(step)
+{
+  gCurrentSize += step;
+
+  if (gFinalSize < gCurrentSize)
+    gCurrentSize = gFinalSize;
+
+  if (gOrigin & NS_ALERT_HORIZONTAL)
+  {
+    if (!(gOrigin & NS_ALERT_LEFT))
+      window.screenX -= step;
+    window.outerWidth = gCurrentSize;
+  }
+  else
+  {
+    if (!(gOrigin & NS_ALERT_TOP))
+      window.screenY -= step;
+    window.outerHeight = gCurrentSize;
+  }
+}
+
+function animateAlert()
+{
+  if (gCurrentSize < gFinalSize)
+  {
+    if (gDisableSlideEffect)
+      animate(gFinalSize); // We don't begin on zero.
+    else
+      animate(gSlideIncrement);
+    setTimeout(animateAlert, gSlideTime);
+  }
+  else
+    setTimeout(animateCloseAlert, gOpenTime);  
+}
+
+function animateCloseAlert()
+{
+  if (gCurrentSize > 1 && !gDisableSlideEffect)
+  {
+    animate(-gSlideIncrement);
+    setTimeout(animateCloseAlert, gSlideTime);
+  }
+  else
+    closeAlert();
 }
 
 function closeAlert() {
   if (gAlertListener)
-    gAlertListener.observe(null, "alertfinished", gAlertCookie);
-  window.close();
+    gAlertListener.observe(null, "alertfinished", gAlertCookie); 
+  window.close(); 
 }
 
-function onAlertClick() {
+function onAlertClick()
+{
   if (gAlertListener && gAlertTextClickable)
     gAlertListener.observe(null, "alertclickcallback", gAlertCookie);
   closeAlert();

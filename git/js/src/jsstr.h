@@ -125,7 +125,6 @@ ToStringSlow(JSContext *cx, const Value &v);
 static JS_ALWAYS_INLINE JSString *
 ToString(JSContext *cx, const js::Value &v)
 {
-    AssertCanGC();
 #ifdef DEBUG
     {
         SkipRoot skip(cx, &v);

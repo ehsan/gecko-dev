@@ -8,7 +8,6 @@
 
 #include "nsContentUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 class nsHTMLElement : public nsGenericHTMLElement,
@@ -28,9 +27,26 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-  virtual void GetInnerHTML(nsAString& aInnerHTML,
-                            mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) {
+    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex) {
+    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLElement::SetInnerHTML(aInnerHTML);
+  }
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
@@ -70,8 +86,8 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLElement)
 
-void
-nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
+nsresult
+nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   /**
    * nsGenericHTMLElement::GetInnerHTML escapes < and > characters (at least).
@@ -83,9 +99,9 @@ nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
   if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
       mNodeInfo->Equals(nsGkAtoms::plaintext)) {
     nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
-    return;
+    return NS_OK;
   }
 
-  nsGenericHTMLElement::GetInnerHTML(aInnerHTML, aError);
+  return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);
 }
 

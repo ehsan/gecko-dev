@@ -14,7 +14,8 @@
 
 namespace webrtc {
 VideoCoder::VideoCoder(WebRtc_UWord32 instanceID)
-    : _vcm(VideoCodingModule::Create(instanceID)),
+    : _instanceID( instanceID),
+      _vcm(VideoCodingModule::Create(instanceID)),
       _decodedVideo(0)
 {
     _vcm->InitializeSender();
@@ -127,10 +128,9 @@ WebRtc_Word32 VideoCoder::FrameToRender(VideoFrame& videoFrame)
 }
 
 WebRtc_Word32 VideoCoder::SendData(
-    const FrameType frameType,
-    const WebRtc_UWord8  payloadType,
-    const WebRtc_UWord32 timeStamp,
-    int64_t capture_time_ms,
+    FrameType frameType,
+    WebRtc_UWord8  payloadType,
+    WebRtc_UWord32 timeStamp,
     const WebRtc_UWord8* payloadData,
     WebRtc_UWord32 payloadSize,
     const RTPFragmentationHeader& fragmentationHeader,

@@ -9,7 +9,6 @@ from __future__ import unicode_literals
 
 import argparse
 import codecs
-import imp
 import logging
 import os
 import sys
@@ -18,8 +17,21 @@ from mozbuild.base import BuildConfig
 from mozbuild.config import ConfigSettings
 from mozbuild.logger import LoggingManager
 
-from mach.registrar import populate_argument_parser
+# Import sub-command modules
+# TODO Bug 794509 do this via auto-discovery. Update README once this is
+# done.
+from mach.build import Build
+from mach.settings import Settings
+from mach.testing import Testing
+from mach.warnings import Warnings
 
+# Classes inheriting from ArgumentProvider that provide commands.
+HANDLERS = [
+    Build,
+    Settings,
+    Testing,
+    Warnings,
+]
 
 # Classes inheriting from ConfigProvider that provide settings.
 # TODO this should come from auto-discovery somehow.
@@ -39,8 +51,6 @@ CONSUMED_ARGUMENTS = [
     'method',
     'func',
 ]
-
-MODULES_SCANNED = False
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -102,8 +112,6 @@ To see more help for a specific command, run:
 """
 
     def __init__(self, cwd):
-        global MODULES_SCANNED
-
         assert os.path.isdir(cwd)
 
         self.cwd = cwd
@@ -113,17 +121,8 @@ To see more help for a specific command, run:
 
         self.log_manager.register_structured_logger(self.logger)
 
-        if not MODULES_SCANNED:
-            self._load_modules()
-
-        MODULES_SCANNED = True
-
     def run(self, argv):
-        """Runs mach with arguments provided from the command line.
-
-        Returns the integer exit code that should be used. 0 means success. All
-        other values indicate failure.
-        """
+        """Runs mach with arguments provided from the command line."""
 
         # If no encoding is defined, we default to UTF-8 because without this
         # Python 2.7 will assume the default encoding of ASCII. This will blow
@@ -144,10 +143,7 @@ To see more help for a specific command, run:
             if sys.stderr.encoding is None:
                 sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
 
-            return self._run(argv)
-        except KeyboardInterrupt:
-            print('mach interrupted by signal or user action. Stopping.')
-            return 1
+            self._run(argv)
         finally:
             sys.stdin = orig_stdin
             sys.stdout = orig_stdout
@@ -203,48 +199,12 @@ To see more help for a specific command, run:
         else:
             raise Exception('Dispatch configuration error in module.')
 
-        result = fn(**stripped)
-
-        if not result:
-            result = 0
-
-        assert isinstance(result, int)
-
-        return result
+        fn(**stripped)
 
     def log(self, level, action, params, format_str):
         """Helper method to record a structured log event."""
         self.logger.log(level, format_str,
             extra={'action': action, 'params': params})
-
-    def _load_modules(self):
-        """Scan over Python modules looking for mach command providers."""
-
-        # Create parent module otherwise Python complains when the parent is
-        # missing.
-        if b'mach.commands' not in sys.modules:
-            mod = imp.new_module(b'mach.commands')
-            sys.modules[b'mach.commands'] = mod
-
-        for path in sys.path:
-            # We only support importing .py files from directories.
-            commands_path = os.path.join(path, 'mach', 'commands')
-
-            if not os.path.isdir(commands_path):
-                continue
-
-            # We only support loading modules in the immediate mach.commands
-            # module, not sub-modules. Walking the tree would be trivial to
-            # implement if it were ever desired.
-            for f in sorted(os.listdir(commands_path)):
-                if not f.endswith('.py') or f == '__init__.py':
-                    continue
-
-                full_path = os.path.join(commands_path, f)
-                module_name = 'mach.commands.%s' % f[0:-3]
-
-                imp.load_source(module_name, full_path)
-
 
     def load_settings(self, args):
         """Determine which settings files apply and load them.
@@ -310,6 +270,8 @@ To see more help for a specific command, run:
                 'than relative time. Note that this is NOT execution time '
                 'if there are parallel operations.')
 
-        populate_argument_parser(subparser)
+        # Register argument action providers with us.
+        for cls in HANDLERS:
+            cls.populate_argparse(subparser)
 
         return parser

@@ -173,7 +173,7 @@ public:
    */
   void CancelSocketTask();
 private:
-  UnixSocketImpl* mImpl;
+  nsAutoPtr<UnixSocketImpl> mImpl;
 };
 
 } // namespace ipc

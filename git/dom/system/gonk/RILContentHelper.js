@@ -55,11 +55,11 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:VoicemailNumberChanged",
   "RIL:CallError",
   "RIL:CardLockResult",
-  "RIL:USSDReceived",
-  "RIL:SendMMI:Return:OK",
-  "RIL:SendMMI:Return:KO",
-  "RIL:CancelMMI:Return:OK",
-  "RIL:CancelMMI:Return:KO",
+  "RIL:UssdReceived",
+  "RIL:SendUssd:Return:OK",
+  "RIL:SendUssd:Return:KO",
+  "RIL:CancelUssd:Return:OK",
+  "RIL:CancelUssd:Return:KO",
   "RIL:StkCommand",
   "RIL:StkSessionEnd",
   "RIL:DataError"
@@ -409,27 +409,27 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  sendMMI: function sendMMI(window, mmi) {
-    debug("Sending MMI " + mmi);
+  sendUSSD: function sendUSSD(window, ussd) {
+    debug("Sending USSD " + ussd);
     if (!window) {
       throw Components.Exception("Can't get window object",
                                  Cr.NS_ERROR_EXPECTED);
     }
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    cpmm.sendAsyncMessage("RIL:SendMMI", {mmi: mmi, requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:SendUSSD", {ussd: ussd, requestId: requestId});
     return request;
   },
 
-  cancelMMI: function cancelMMI(window) {
-    debug("Cancel MMI");
+  cancelUSSD: function cancelUSSD(window) {
+    debug("Cancel USSD");
     if (!window) {
       throw Components.Exception("Can't get window object",
                                  Cr.NS_ERROR_UNEXPECTED);
     }
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    cpmm.sendAsyncMessage("RIL:CancelMMI", {requestId: requestId});
+    cpmm.sendAsyncMessage("RIL:CancelUSSD", {requestId: requestId});
     return request;
   },
 
@@ -701,19 +701,19 @@ RILContentHelper.prototype = {
           this.fireRequestError(msg.json.requestId, msg.json);
         }
         break;
-      case "RIL:USSDReceived":
+      case "RIL:UssdReceived":
         Services.obs.notifyObservers(null, kUssdReceivedTopic,
                                      msg.json.message);
         break;
-      case "RIL:SendMMI:Return:OK":
-      case "RIL:CancelMMI:Return:OK":
+      case "RIL:SendUssd:Return:OK":
+      case "RIL:CancelUssd:Return:OK":
         request = this.takeRequest(msg.json.requestId);
         if (request) {
           Services.DOMRequest.fireSuccess(request, msg.json);
         }
         break;
-      case "RIL:SendMMI:Return:KO":
-      case "RIL:CancelMMI:Return:KO":
+      case "RIL:SendUssd:Return:KO":
+      case "RIL:CancelUssd:Return:KO":
         request = this.takeRequest(msg.json.requestId);
         if (request) {
           Services.DOMRequest.fireError(request, msg.json.errorMsg);

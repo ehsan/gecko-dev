@@ -280,15 +280,8 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
     // Paint tiles that have no content before tiles that only have stale content.
     nsIntRegion staleRegion = mTiledBuffer.GetValidRegion();
     staleRegion.And(staleRegion, regionToPaint);
-    bool hasNewContent = !staleRegion.Contains(regionToPaint);
-    if (!staleRegion.IsEmpty() && hasNewContent) {
+    if (!staleRegion.IsEmpty() && !staleRegion.Contains(regionToPaint)) {
       regionToPaint.Sub(regionToPaint, staleRegion);
-    }
-
-    // Find out if we should just abort this paint, usually due to there being
-    // an incoming, more relevant paint.
-    if (BasicManager()->ShouldAbortProgressiveUpdate(hasNewContent)) {
-      return;
     }
 
     // The following code decides what order to draw tiles in, based on the
@@ -308,7 +301,7 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
       rect = it.Next();
     } else {
       const nsIntRect* lastRect;
-      while ((lastRect = it.Next())) {
+      while (lastRect = it.Next()) {
         rect = lastRect;
       }
     }
@@ -354,7 +347,7 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
     mValidRegion = mVisibleRegion;
   }
 
-  mTiledBuffer.PaintThebes(this, mValidRegion, regionToPaint, aCallback, aCallbackData);
+  mTiledBuffer.PaintThebes(this, mVisibleRegion, regionToPaint, aCallback, aCallbackData);
 
   mTiledBuffer.ReadLock();
   if (aMaskLayer) {

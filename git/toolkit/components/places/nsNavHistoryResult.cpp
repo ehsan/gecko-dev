@@ -691,10 +691,10 @@ nsNavHistoryContainerResultNode::ReverseUpdateStats(int32_t aAccessCountChange)
 
     if ((sortingByVisitCount && aAccessCountChange != 0) ||
         (sortingByTime && timeChanged)) {
-      int32_t ourIndex = mParent->FindChild(this);
+      uint32_t ourIndex = mParent->FindChild(this);
       NS_ASSERTION(ourIndex >= 0, "Could not find self in parent");
       if (ourIndex >= 0)
-        EnsureItemPosition(static_cast<uint32_t>(ourIndex));
+        EnsureItemPosition(ourIndex);
     }
 
     nsresult rv = mParent->ReverseUpdateStats(aAccessCountChange);
@@ -4029,7 +4029,8 @@ nsNavHistoryFolderResultNode::OnItemMoved(int64_t aItemId,
     node->mBookmarkIndex = aNewIndex;
 
     // adjust position
-    EnsureItemPosition(index);
+    if (index >= 0)
+      EnsureItemPosition(index);
     return NS_OK;
   } else {
     // moving between two different folders, just do a remove and an add

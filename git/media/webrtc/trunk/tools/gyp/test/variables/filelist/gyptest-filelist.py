@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2012 Google Inc. All rights reserved.
+# Copyright (c) 2009 Google Inc. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -17,11 +17,11 @@ test = TestGyp.TestGyp(format='gypd')
 
 expect = test.read('filelist.gyp.stdout')
 if sys.platform == 'win32':
-  expect = expect.replace('/', r'\\').replace('\r\n', '\n')
+  expect = expect.replace('/', r'\\').replace('\r', '')
 
 test.run_gyp('src/filelist.gyp',
-             '--debug', 'variables',
-             stdout=expect, ignore_line_numbers=True)
+             '--debug', 'variables', '--debug', 'general',
+             stdout=expect)
 
 # Verify the filelist.gypd against the checked-in expected contents.
 #

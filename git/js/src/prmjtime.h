@@ -58,7 +58,7 @@ struct JSContext;
 class DSTOffsetCache {
   public:
     inline DSTOffsetCache();
-    int64_t getDSTOffsetMilliseconds(int64_t localTimeMilliseconds);
+    int64_t getDSTOffsetMilliseconds(int64_t localTimeMilliseconds, JSContext *cx);
 
     inline void purge();
 

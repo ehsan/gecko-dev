@@ -19,7 +19,6 @@ from runtests import Mochitest
 from runtests import MochitestOptions
 from runtests import MochitestServer
 
-import devicemanager
 import devicemanagerADB
 import manifestparser
 
@@ -389,11 +388,8 @@ user_pref("network.dns.localDomains","app://system.gaiamobile.org");\n
 
         # Copy the profile to the device.
         self._dm._checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
-        try:
-            self._dm.pushDir(options.profilePath, self.remoteProfile)
-        except devicemanager.DMError:
-            print "Automation Error: Unable to copy profile to device."
-            raise
+        if self._dm.pushDir(options.profilePath, self.remoteProfile) == None:
+            raise devicemanager.FileError("Unable to copy profile to device.")
 
         # In B2G, user.js is always read from /data/local, not the profile
         # directory.  Backup the original user.js first so we can restore it.

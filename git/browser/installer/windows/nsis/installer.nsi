@@ -222,8 +222,6 @@ Section "-Application" APP_IDX
   DetailPrint $(STATUS_INSTALL_APP)
   SetDetailsPrint none
 
-  RmDir /r /REBOOTOK "$INSTDIR\${TO_BE_DELETED}"
-
   ${LogHeader} "Installing Main Files"
   ${CopyFilesFromDir} "$EXEDIR\core" "$INSTDIR" \
                       "$(ERROR_CREATE_DIRECTORY_PREFIX)" \

@@ -14,6 +14,7 @@
 #include <cmath>   // ceil
 #include <cassert>
 
+
 namespace webrtc {
 // RTCPParserV2 : currently read only
 
@@ -1094,9 +1095,7 @@ RTCPUtility::RTCPParserV2::ParseFBCommon(const RTCPCommonHeader& header)
             _state = State_PSFB_FIRItem;
             return true;
         case 15:
-            _packetType                = kRtcpPsfbAppCode;
-            _packet.PSFBAPP.SenderSSRC = senderSSRC;
-            _packet.PSFBAPP.MediaSSRC  = mediaSSRC;
+            _packetType            = kRtcpPsfbAppCode;
 
             _state = State_PSFB_AppItem;
             return true;
@@ -1224,11 +1223,11 @@ RTCPUtility::RTCPParserV2::ParsePsfbAppItem()
         EndCurrentBlock();
         return false;
     }
-    _packetType = kRtcpPsfbRembCode;
+    _packetType = kRtcpPsfbRembItemCode;
     _state = State_PSFB_REMBItem;
     return true;
 }
-
+ 
 bool
 RTCPUtility::RTCPParserV2::ParsePsfbREMBItem()
 {
@@ -1242,7 +1241,7 @@ RTCPUtility::RTCPParserV2::ParsePsfbREMBItem()
         return false;
     }
 
-    _packet.REMBItem.NumberOfSSRCs = *_ptrRTCPData++;
+    const WebRtc_UWord8 numSSRC = *_ptrRTCPData++;
     const WebRtc_UWord8 brExp = (_ptrRTCPData[0] >> 2) & 0x3F;
 
     WebRtc_UWord32 brMantissa = (_ptrRTCPData[0] & 0x03) << 16;
@@ -1250,26 +1249,9 @@ RTCPUtility::RTCPParserV2::ParsePsfbREMBItem()
     brMantissa += (_ptrRTCPData[2]);
 
     _ptrRTCPData += 3; // Fwd read data
-    _packet.REMBItem.BitRate = (brMantissa << brExp);
+    _packet.REMB.BitRate = (brMantissa << brExp);
 
-    const ptrdiff_t length_ssrcs = _ptrRTCPBlockEnd - _ptrRTCPData;
-    if (length_ssrcs < 4 * _packet.REMBItem.NumberOfSSRCs)
-    {
-        _state = State_TopLevel;
-
-        EndCurrentBlock();
-        return false;
-    }
-
-    _packetType = kRtcpPsfbRembItemCode;
-
-    for (int i = 0; i < _packet.REMBItem.NumberOfSSRCs; i++)
-    {
-        _packet.REMBItem.SSRCs[i] = *_ptrRTCPData++ << 24;
-        _packet.REMBItem.SSRCs[i] += *_ptrRTCPData++ << 16;
-        _packet.REMBItem.SSRCs[i] += *_ptrRTCPData++ << 8;
-        _packet.REMBItem.SSRCs[i] += *_ptrRTCPData++;
-    }
+    _ptrRTCPData += 4 * numSSRC; // Ignore the SSRCs for now
     return true;
 }
 

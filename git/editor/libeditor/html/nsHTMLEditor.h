@@ -344,6 +344,11 @@ public:
 
   /**
    * aNode must be a non-null text node.
+   */
+  virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
+
+  /**
+   * aNode must be a non-null text node.
    * outIsEmptyNode must be non-null.
    */
   nsresult IsVisTextNode(nsIContent* aNode,

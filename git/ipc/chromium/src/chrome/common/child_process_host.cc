@@ -47,10 +47,12 @@ class ChildNotificationTask : public Task {
 
 
 
-ChildProcessHost::ChildProcessHost(ProcessType type)
+ChildProcessHost::ChildProcessHost(
+    ProcessType type, ResourceDispatcherHost* resource_dispatcher_host)
     :
       ChildProcessInfo(type),
       ALLOW_THIS_IN_INITIALIZER_LIST(listener_(this)),
+      resource_dispatcher_host_(resource_dispatcher_host),
       opening_channel_(false),
       process_event_(NULL) {
   Singleton<ChildProcessList>::get()->push_back(this);

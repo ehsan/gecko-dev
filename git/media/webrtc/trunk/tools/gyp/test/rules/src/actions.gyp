@@ -11,7 +11,6 @@
         'subdir1/executable.gyp:*',
         'subdir2/never_used.gyp:*',
         'subdir2/no_inputs.gyp:*',
-        'subdir2/no_action.gyp:*',
         'subdir2/none.gyp:*',
         'subdir3/executable2.gyp:*',
         'subdir4/build-asm.gyp:*',

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -40,6 +40,7 @@ typedef void(*IncomingSocketCallback)(CallbackObj obj, const WebRtc_Word8* buf,
 class UdpSocketWrapper
 {
 public:
+    virtual ~UdpSocketWrapper();
     static UdpSocketWrapper* CreateSocket(const WebRtc_Word32 id,
                                           UdpSocketManager* mgr,
                                           CallbackObj obj,
@@ -96,10 +97,7 @@ public:
     virtual WebRtc_UWord32 ReceiveBuffers() {return 0;};
 
 protected:
-    // Creating the socket is done via CreateSocket().
     UdpSocketWrapper();
-    // Destroying the socket is done via CloseBlocking().
-    virtual ~UdpSocketWrapper();
 
     bool _wantsIncoming;
     EventWrapper*  _deleteEvent;

@@ -1650,10 +1650,9 @@ int WebRtcAgc_Init(void *agcInst, WebRtc_Word32 minLevel, WebRtc_Word32 maxLevel
     {
         stt->Rxx16w32_array[0][i] = 0;
     }
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 20; i++)
     {
         stt->env[0][i] = 0;
-        stt->env[1][i] = 0;
     }
     stt->inQueue = 0;
 

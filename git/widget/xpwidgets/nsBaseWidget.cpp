@@ -922,11 +922,6 @@ BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
       return new BasicShadowLayerManager(this);
 }
 
-CompositorChild* nsBaseWidget::GetRemoteRenderer()
-{
-  return mCompositorChild;
-}
-
 //-------------------------------------------------------------------------
 //
 // Return the used device context

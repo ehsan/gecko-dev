@@ -38,19 +38,6 @@ nsStyleLinkElement::~nsStyleLinkElement()
   nsStyleLinkElement::SetStyleSheet(nullptr);
 }
 
-void
-nsStyleLinkElement::Unlink()
-{
-  mStyleSheet = nullptr;
-}
-
-void
-nsStyleLinkElement::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  nsStyleLinkElement* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStyleSheet);
-}
-
 NS_IMETHODIMP 
 nsStyleLinkElement::SetStyleSheet(nsIStyleSheet* aStyleSheet)
 {

@@ -118,8 +118,7 @@ public:
 
   void PrepareRemoval()
   {
-    mTask = nullptr;
-    mCurrentTaskIsCanceled = true;
+    mConsumer.forget();
   }
 
   /** 
@@ -230,7 +229,6 @@ private:
 static void
 DestroyImpl(UnixSocketImpl* impl)
 {
-  MOZ_ASSERT(impl);
   delete impl;
 }
 
@@ -500,15 +498,13 @@ UnixSocketConsumer::CloseSocket()
   if (!mImpl) {
     return;
   }
-  UnixSocketImpl* impl = mImpl;
-  mImpl->mConsumer.forget();
-  mImpl = nullptr;
   // To make sure the owner doesn't die on the IOThread, remove pointer here
+  mImpl->PrepareRemoval();
   // Line it up to be destructed on the IO Thread
   // Kill our pointer to it
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    NewRunnableFunction(DestroyImpl,
-                                                       impl));
+                                                       mImpl.forget()));
 }
 
 void

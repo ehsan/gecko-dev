@@ -18,35 +18,38 @@
           ],
         }, {
           # Need to add a directory normally exported by libyuv.gyp.
-          'include_dirs': [ '<(libyuv_dir)/include', ],
+          'include_dirs': [ '<(DEPTH)/third_party/libyuv/include', ],
         }],
       ],
       'sources': [
-        'include/webrtc_libyuv.h',
+        'include/libyuv.h',
         'include/scaler.h',
-        'webrtc_libyuv.cc',
+        'libyuv.cc',
         'scaler.cc',
+      ],
+      'include_dirs': [
+        '<(DEPTH)',
       ],
     },
   ], # targets
   'conditions': [
-    ['include_tests==1', {
+    ['build_with_chromium==0', {
       'targets': [
         {
           'target_name': 'libyuv_unittests',
           'type': 'executable',
           'dependencies': [
             'webrtc_libyuv',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(webrtc_root)/test/test.gyp:test_support_main',
+            '<(webrtc_root)/../test/test.gyp:test_support_main',
           ],
           'sources': [
             'libyuv_unittest.cc',
-            'scaler_unittest.cc',
-          ],
+            'scaler_unittest.cc', 
+          ], 
         },
       ], # targets
-    }], # include_tests
+    }], # build_with_chromium
   ], # conditions
 }

@@ -8,6 +8,7 @@
 #ifndef nsStyleAnimation_h_
 #define nsStyleAnimation_h_
 
+#include "prtypes.h"
 #include "nsAString.h"
 #include "nsCRTGlue.h"
 #include "nsStringBuffer.h"

@@ -409,7 +409,7 @@ static PropKeyInfo gAllPropKeys[] = {
     {"asLaidOutWindows", rad4},
     {"selectedFrameWindows", rad5},
     {"separateFramesWindows", rad6},
-    {NULL, 0}};
+    {NULL, NULL}};
 
 //--------------------------------------------------------
 //--------------------------------------------------------
@@ -883,7 +883,7 @@ ShowNativePrintDialog(HWND              aHWnd,
   prntdlg.lpPrintTemplateName = NULL;
 
   if (!ShouldExtendPrintDialog()) {
-    prntdlg.lCustData         = 0;
+    prntdlg.lCustData         = NULL;
     prntdlg.lpfnPrintHook     = NULL;
   } else {
     // Set up print dialog "hook" procedure for extending the dialog

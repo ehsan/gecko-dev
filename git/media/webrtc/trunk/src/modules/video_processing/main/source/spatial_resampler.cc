@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -74,19 +74,18 @@ VPMSimpleSpatialResampler::ResampleFrame(const VideoFrame& inFrame,
   }
 
   // Setting scaler
-  // TODO(mikhal/marpan): Should we allow for setting the filter mode in
-  // _scale.Set() with |_resamplingMode|?
+  //TODO: Modify scaler types
   int retVal = 0;
   retVal = _scaler.Set(inFrame.Width(), inFrame.Height(),
                        _targetWidth, _targetHeight, kI420, kI420, kScaleBox);
   if (retVal < 0)
     return retVal;
 
+
   // Disabling cut/pad for now - only scaling.
-  int requiredSize = CalcBufferSize(kI420, _targetWidth, _targetHeight);
+  int requiredSize = (WebRtc_UWord32)(_targetWidth * _targetHeight * 3 >> 1);
   outFrame.VerifyAndAllocate(requiredSize);
   outFrame.SetTimeStamp(inFrame.TimeStamp());
-  outFrame.SetRenderTime(inFrame.RenderTimeMs());
   outFrame.SetWidth(_targetWidth);
   outFrame.SetHeight(_targetHeight);
 

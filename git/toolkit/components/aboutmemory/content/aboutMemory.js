@@ -97,14 +97,12 @@ function reportAssertionFailure(aMsg)
 
 function debug(x)
 {
-  let section = appendElement(document.body, 'div', 'section');
-  appendElementWithText(section, "div", "debug", JSON.stringify(x));
+  appendElementWithText(document.body, "div", "debug", JSON.stringify(x));
 }
 
 function badInput(x)
 {
-  let section = appendElement(document.body, 'div', 'section');
-  appendElementWithText(section, "div", "badInputWarning", x);
+  appendElementWithText(document.body, "div", "badInputWarning", x);
 }
 
 //---------------------------------------------------------------------------
@@ -193,7 +191,7 @@ function processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport)
  * Iterates over each report.
  *
  * @param aReports
- *        Array of reports, read from a file or the clipboard.
+ *        Array of reports, read from file.
  * @param aIgnoreSingle
  *        Function that indicates if we should skip a single reporter, based
  *        on its path.
@@ -221,7 +219,7 @@ function clearBody()
   let body = oldBody.cloneNode(false);
   oldBody.parentNode.replaceChild(body, oldBody);
   body.classList.add(gVerbose ? 'verbose' : 'non-verbose');
-  return body
+  return body;
 }
 
 function appendTextNode(aP, aText)
@@ -377,8 +375,7 @@ function updateAboutMemory()
     let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
       processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport);
     }
-    appendAboutMemoryMain(body, process, gMgr.hasMozMallocUsableSize,
-                          /* forceShowSmaps = */ false);
+    appendAboutMemoryMain(body, process, gMgr.hasMozMallocUsableSize);
 
   } catch (ex) {
     handleException(ex);
@@ -392,40 +389,8 @@ function updateAboutMemory()
 var gCurrentFileFormatVersion = 1;
 
 /**
- * Populate about:memory using the data in the given JSON string.
- *
- * @param aJSONString
- *        A string containing JSON data conforming to the schema used by
- *        nsIMemoryReporterManager::dumpReports.
- */
-function updateAboutMemoryFromJSONString(aJSONString)
-{
-  let body = clearBody();
-
-  try {
-    let json = JSON.parse(aJSONString);
-    assertInput(json.version === gCurrentFileFormatVersion,
-                "data version number missing or doesn't match");
-    assertInput(json.hasMozMallocUsableSize !== undefined,
-                "missing 'hasMozMallocUsableSize' property");
-    assertInput(json.reports && json.reports instanceof Array,
-                "missing or non-array 'reports' property");
-    let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
-      processMemoryReportsFromFile(json.reports, aIgnoreSingle,
-                                   aHandleReport);
-    }
-    appendAboutMemoryMain(body, process, json.hasMozMallocUsableSize,
-                          /* forceShowSmaps = */ true);
-  } catch (ex) {
-    handleException(ex);
-  } finally {
-    appendAboutMemoryFooter(body);
-  }
-}
-
-/**
- * Like updateAboutMemory(), but gets its data from a file instead of the
- * memory reporters.
+ * Like updateAboutMemory(), but gets its data from file instead of the memory
+ * reporters.
  *
  * @param aFile
  *        The File being read from.  Accepted format is described in the
@@ -433,62 +398,49 @@ function updateAboutMemoryFromJSONString(aJSONString)
  */
 function updateAboutMemoryFromFile(aFile)
 {
-  // Note: reader.onload is called asynchronously, once FileReader.readAsText()
+  // Note: readerOnload is called asynchronously, once FileReader.readAsText()
   // completes.  Therefore its exception handling has to be distinct from that
   // surrounding the |reader.readAsText(aFile)| call.
 
+  function readerOnload(aEvent) {
+    try {
+      let json = JSON.parse(aEvent.target.result);
+      assertInput(json.version === gCurrentFileFormatVersion,
+                  "data version number missing or doesn't match");
+      assertInput(json.hasMozMallocUsableSize !== undefined,
+                  "missing 'hasMozMallocUsableSize' property");
+      assertInput(json.reports && json.reports instanceof Array,
+                  "missing or non-array 'reports' property");
+      let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
+        processMemoryReportsFromFile(json.reports, aIgnoreSingle,
+                                     aHandleReport);
+      }
+      appendAboutMemoryMain(body, process, json.hasMozMallocUsableSize);
+    } catch (ex) {
+      handleException(ex);
+    } finally {
+      appendAboutMemoryFooter(body);
+    }
+  };
+
+  let body = clearBody();
+
   try {
     let reader = new FileReader();
-    reader.onerror = function(aEvent) { throw "FileReader.onerror"; };
-    reader.onabort = function(aEvent) { throw "FileReader.onabort"; };
-    reader.onload = function(aEvent) {
-      updateAboutMemoryFromJSONString(aEvent.target.result);
-    };
+    reader.onerror = function(aEvent) { throw "FileReader.onerror"; }
+    reader.onabort = function(aEvent) { throw "FileReader.onabort"; }
+    reader.onload = readerOnload;
     reader.readAsText(aFile);
 
   } catch (ex) {
-    let body = clearBody();
     handleException(ex);
     appendAboutMemoryFooter(body);
   }
 }
 
 /**
- * Like updateAboutMemoryFromFile(), but gets its data from the clipboard
- * instead of a file.
- */
-function updateAboutMemoryFromClipboard()
-{
-  // Get the clipboard's contents.
-  let cb = Cc["@mozilla.org/widget/clipboard;1"]
-             .getService(Components.interfaces.nsIClipboard);
-  let transferable = Cc["@mozilla.org/widget/transferable;1"]
-                       .createInstance(Ci.nsITransferable);
-  let loadContext = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                          .getInterface(Ci.nsIWebNavigation)
-                          .QueryInterface(Ci.nsILoadContext);
-  transferable.init(loadContext);
-  transferable.addDataFlavor('text/unicode');
-  cb.getData(transferable, Ci.nsIClipboard.kGlobalClipboard);
-
-  var cbData = {};
-  try {
-    transferable.getTransferData('text/unicode', cbData,
-                                 /* out dataLen (ignored) */ {});
-    let cbString = cbData.value.QueryInterface(Ci.nsISupportsString).data;
-
-    // Success!  Now use the string to generate about:memory.
-    updateAboutMemoryFromJSONString(cbString);
-  } catch (ex) {
-    let body = clearBody();
-    handleException(ex);
-    appendAboutMemoryFooter(body);
-  }
-}
-
-/**
- * Processes reports (whether from reporters or from a file) and append the
- * main part of the page.
+ * Processes reports (whether from reporters or from file) and append the main
+ * part of the page.
  *
  * @param aBody
  *        The DOM body element.
@@ -497,61 +449,29 @@ function updateAboutMemoryFromClipboard()
  *        file.
  * @param aHasMozMallocUsableSize
  *        Boolean indicating if moz_malloc_usable_size works.
- * @param aForceShowSmaps
- *        True if we should show the smaps memory reporters even if we're not
- *        in verbose mode.
  */
-function appendAboutMemoryMain(aBody, aProcess, aHasMozMallocUsableSize,
-                               aForceShowSmaps)
+function appendAboutMemoryMain(aBody, aProcess, aHasMozMallocUsableSize)
 {
   let treesByProcess = {}, degeneratesByProcess = {}, heapTotalByProcess = {};
   getTreesByProcess(aProcess, treesByProcess, degeneratesByProcess,
-                    heapTotalByProcess, aForceShowSmaps);
+                    heapTotalByProcess);
 
-  // Sort our list of processes.  Always start with the main process, then sort
-  // by resident size (descending).  Processes with no resident reporter go at
-  // the end of the list.
-  let processes = Object.keys(treesByProcess);
-  processes.sort(function(a, b) {
-    assert(a != b, "Elements of Object.keys() should be unique, but " +
-                   "saw duplicate " + a + " elem.");
-
-    if (a == gUnnamedProcessStr) {
-      return -1;
-    }
-
-    if (b == gUnnamedProcessStr) {
-      return 1;
-    }
-
-    let nodeA = degeneratesByProcess[a]['resident'];
-    let nodeB = degeneratesByProcess[b]['resident'];
-
-    if (nodeA && nodeB) {
-      return TreeNode.compareAmounts(nodeA, nodeB);
-    }
-
-    if (nodeA) {
-      return -1;
-    }
-
-    if (nodeB) {
-      return 1;
-    }
-
-    return 0;
-  });
-
-  // Generate output for each process.
-  for (let i = 0; i < processes.length; i++) {
-    let process = processes[i];
-    let section = appendElement(aBody, 'div', 'section');
-
-    appendProcessAboutMemoryElements(section, process,
-                                     treesByProcess[process],
-                                     degeneratesByProcess[process],
-                                     heapTotalByProcess[process],
+  // Generate output for one process at a time.  Always start with the
+  // Main process.
+  if (treesByProcess[gUnnamedProcessStr]) {
+    appendProcessAboutMemoryElements(aBody, gUnnamedProcessStr,
+                                     treesByProcess[gUnnamedProcessStr],
+                                     degeneratesByProcess[gUnnamedProcessStr],
+                                     heapTotalByProcess[gUnnamedProcessStr],
                                      aHasMozMallocUsableSize);
+  }
+  for (let process in treesByProcess) {
+    if (process !== gUnnamedProcessStr) {
+      appendProcessAboutMemoryElements(aBody, process, treesByProcess[process],
+                                       degeneratesByProcess[process],
+                                       heapTotalByProcess[process],
+                                       aHasMozMallocUsableSize);
+    }
   }
 }
 
@@ -563,7 +483,7 @@ function appendAboutMemoryMain(aBody, aProcess, aHasMozMallocUsableSize,
  */
 function appendAboutMemoryFooter(aBody)
 {
-  let section = appendElement(aBody, 'div', 'footer');
+  appendElement(aBody, "hr");
 
   // Memory-related actions.
   const UpDesc = "Re-measure.";
@@ -574,8 +494,7 @@ function appendAboutMemoryFooter(aBody)
                  "collection followed by a cycle collection, and causes the " +
                  "process to reduce memory usage in other ways, e.g. by " +
                  "flushing various caches.";
-  const RdDesc = "Read memory report data from a file.";
-  const CbDesc = "Read memory report data from the clipboard.";
+  const RdDesc = "Read memory report data from file.";
 
   function appendButton(aP, aTitle, aOnClick, aText, aId)
   {
@@ -587,7 +506,7 @@ function appendAboutMemoryFooter(aBody)
     }
   }
 
-  let div1 = appendElement(section, "div");
+  let div1 = appendElement(aBody, "div");
 
   // The "Update" button has an id so it can be clicked in a test.
   appendButton(div1, UpDesc, updateAboutMemory, "Update", "updateButton");
@@ -607,12 +526,9 @@ function appendAboutMemoryFooter(aBody)
     updateAboutMemoryFromFile(file);
   }); 
   appendButton(div1, RdDesc, function() { input.click() },
-               "Read reports from a file", "readReportsFromFileButton");
+               "Read reports from file", "readReportsButton");
 
-  appendButton(div1, CbDesc, updateAboutMemoryFromClipboard,
-               "Read reports from clipboard", "readReportsFromClipboardButton");
-
-  let div2 = appendElement(section, "div");
+  let div2 = appendElement(aBody, "div");
   if (gVerbose) {
     let a = appendElementWithText(div2, "a", "option", "Less verbose");
     a.href = "about:memory";
@@ -621,7 +537,7 @@ function appendAboutMemoryFooter(aBody)
     a.href = "about:memory?verbose";
   }
 
-  let div3 = appendElement(section, "div");
+  let div3 = appendElement(aBody, "div");
   let a = appendElementWithText(div3, "a", "option",
                                 "Troubleshooting information");
   a.href = "about:support";
@@ -631,8 +547,8 @@ function appendAboutMemoryFooter(aBody)
   let legendText2 = "Hover the pointer over the name of a memory report " +
                     "to see a description of what it measures.";
 
-  appendElementWithText(section, "div", "legend", legendText1);
-  appendElementWithText(section, "div", "legend hiddenOnMobile", legendText2);
+  appendElementWithText(aBody, "div", "legend", legendText1);
+  appendElementWithText(aBody, "div", "legend hiddenOnMobile", legendText2);
 }
 
 //---------------------------------------------------------------------------
@@ -658,32 +574,27 @@ const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
  * @param aHeapTotalByProcess
  *        Table of heap total counts, indexed by process, which this function
  *        appends to.
- * @param aForceShowSmaps
- *        True if we should show the smaps memory reporters even if we're not
- *        in verbose mode.
  */
 function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
-                           aDegeneratesByProcess, aHeapTotalByProcess,
-                           aForceShowSmaps)
+                           aDegeneratesByProcess, aHeapTotalByProcess)
 {
-  // Ignore the "smaps" multi-reporter in non-verbose mode unless we're reading
-  // from a file or the clipboard, and ignore the "compartments" and
-  // "ghost-windows" multi-reporters all the time.  (Note that reports from
-  // these multi-reporters can reach here as single reports if they were in the
-  // child process.)
+  // Ignore the "smaps" multi-reporter in non-verbose mode, and the
+  // "compartments" and "ghost-windows" multi-reporters all the time.  (Note
+  // that reports from these multi-reporters can reach here as single reports
+  // if they were in the child process.)
 
   function ignoreSingle(aUnsafePath)
   {
-    return (isSmapsPath(aUnsafePath) && !gVerbose && !aForceShowSmaps) ||
+    return (isSmapsPath(aUnsafePath) && !gVerbose) ||
            aUnsafePath.startsWith("compartments/") ||
            aUnsafePath.startsWith("ghost-windows/");
   }
 
   function ignoreMulti(aMRName)
   {
-    return (aMRName === "smaps" && !gVerbose && !aForceShowSmaps) ||
-            aMRName === "compartments" ||
-            aMRName === "ghost-windows";
+    return (aMRName === "smaps" && !gVerbose) ||
+           aMRName === "compartments" ||
+           aMRName === "ghost-windows";
   }
 
   function handleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
@@ -1079,23 +990,24 @@ function appendProcessAboutMemoryElements(aP, aProcess, aTrees, aDegenerates,
     delete aTrees[treeName];
   }
 
-  // The smaps trees, which are only present in aTrees in verbose mode or when
-  // we're reading from a file or the clipboard.
-  kSmapsTreeNames.forEach(function(aTreeName) {
-    // |t| will be undefined if we don't have any reports for the given
-    // unsafePath.
-    let t = aTrees[aTreeName];
-    if (t) {
-      fillInTree(t);
-      sortTreeAndInsertAggregateNodes(t._amount, t);
-      t._description = kTreeDescriptions[aTreeName];
-      t._hideKids = true;   // smaps trees are always initially collapsed
-      let pre = appendSectionHeader(aP, kSectionNames[aTreeName]);
-      appendTreeElements(pre, t, aProcess, "");
-      appendTextNode(aP, "\n");  // gives nice spacing when we cut and paste
-      delete aTrees[aTreeName];
-    }
-  });
+  // The smaps trees, which are only shown in verbose mode.
+  if (gVerbose) {
+    kSmapsTreeNames.forEach(function(aTreeName) {
+      // |t| will be undefined if we don't have any reports for the given
+      // unsafePath.
+      let t = aTrees[aTreeName];
+      if (t) {
+        fillInTree(t);
+        sortTreeAndInsertAggregateNodes(t._amount, t);
+        t._description = kTreeDescriptions[aTreeName];
+        t._hideKids = true;   // smaps trees are always initially collapsed
+        let pre = appendSectionHeader(aP, kSectionNames[aTreeName]);
+        appendTreeElements(pre, t, aProcess, "");
+        appendTextNode(aP, "\n");  // gives nice spacing when we cut and paste
+        delete aTrees[aTreeName];
+      }
+    });
+  }
 
   // Fill in and sort all the non-degenerate other trees.
   let otherTrees = [];

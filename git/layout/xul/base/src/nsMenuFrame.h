@@ -10,6 +10,7 @@
 #ifndef nsMenuFrame_h__
 #define nsMenuFrame_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsCOMPtr.h"
 

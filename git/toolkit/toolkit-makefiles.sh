@@ -871,7 +871,6 @@ if [ "$ENABLE_TESTS" ]; then
     layout/tools/reftest/Makefile
     layout/xul/base/test/Makefile
     layout/xul/test/Makefile
-    media/webrtc/signaling/test/Makefile
     modules/libjar/test/Makefile
     modules/libjar/test/chrome/Makefile
     modules/libjar/test/mochitest/Makefile
@@ -1715,10 +1714,6 @@ fi
 if [ "$MOZ_WEBRTC" ]; then
  add_makefiles "
    media/webrtc/Makefile
-   media/mtransport/test/Makefile 
-   media/mtransport/build/Makefile
-   media/mtransport/standalone/Makefile
-   media/webrtc/signaling/test/Makefile
  "
 fi
 

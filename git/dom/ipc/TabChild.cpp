@@ -1000,8 +1000,7 @@ TabChild::SetProcessNameToAppName()
     NS_WARNING("Failed to retrieve app name");
     return;
   }
-
-  ContentChild::GetSingleton()->SetProcessName(appName);
+  SetThisProcessName(NS_LossyConvertUTF16toASCII(appName).get());
 }
 
 bool

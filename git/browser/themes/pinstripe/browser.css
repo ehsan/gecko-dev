@@ -1113,6 +1113,7 @@ toolbar[mode="icons"] #zoom-in-button {
 .searchbar-textbox {
   font: icon;
   width: 7em;
+  min-width: 7em;
   -moz-appearance: none;
   box-shadow: 0 1px rgba(255, 255, 255, 0.2), inset 0 1px hsla(0,0%,0%,.05);
   margin: 0 4px;
@@ -1283,7 +1284,6 @@ toolbar[mode="icons"] #zoom-in-button {
 .urlbar-input-box {
   -moz-margin-start: 0;
   padding: 3px 0 2px;
-  min-width: 4em;
 }
 
 .urlbar-history-dropmarker {
@@ -1480,7 +1480,7 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
   richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
     list-style-image: url("chrome://browser/skin/actionicon-tab@2x.png");
     -moz-image-region: rect(0, 32px, 22px, 0);
-    width: 22px;
+    width: 16px;
   }
 
   richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-box > .ac-action-icon {
@@ -3027,10 +3027,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginGeneric-16.png);
 }
 
-#webRTC-notification-icon {
-  list-style-image: url(chrome://browser/skin/webRTC-shareDevice-16.png);
-}
-
 .popup-notification-icon {
   width: 64px;
   height: 64px;
@@ -3109,10 +3105,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 .popup-notification-icon[popupid="webapps-install"] {
   list-style-image: url(chrome://browser/skin/webapps-64.png);
-}
-
-.popup-notification-icon[popupid="webRTC-shareDevices"] {
-  list-style-image: url(chrome://browser/skin/webRTC-shareDevice-64.png);
 }
 
 /* Popup Buttons */
@@ -4058,6 +4050,10 @@ html|*#gcli-output-frame {
   padding: 0;
 }
 
+.social-notification-icon-stack > image {
+  max-height: 16px;
+}
+
 .social-notification-icon-hbox {
   padding: 0;
 }
@@ -4085,9 +4081,10 @@ html|*#gcli-output-frame {
   }
 }
 
-.social-notification-icon-image {
-  width: 16px;
-  height: 16px;
+@media (min-resolution: 2dppx) {
+  .social-notification-icon-image {
+    list-style-image: url("chrome://mozapps/skin/places/defaultFavicon@2x.png");
+  }
 }
 
 /* === end of social toolbar button === */

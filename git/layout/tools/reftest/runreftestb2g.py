@@ -24,7 +24,6 @@ from remotereftest import ReftestServer
 from mozprofile import Profile
 from mozrunner import Runner
 
-import devicemanager
 import devicemanagerADB
 import manifestparser
 
@@ -234,11 +233,11 @@ class B2GReftest(RefTest):
             self._devicemanager.removeDir(self.remoteTestRoot)
 
             # Restore the original user.js.
-            self._devicemanager._checkCmdAs(['shell', 'rm', '-f', self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'rm', '-f', self.userJS])
             if self._devicemanager.useDDCopy:
-                self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
+                self._devicemanager.checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
             else:
-                self._devicemanager._checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
+                self._devicemanager.checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
 
             # We've restored the original profile, so reboot the device so that
             # it gets picked up.
@@ -331,7 +330,7 @@ class B2GReftest(RefTest):
     def restoreProfilesIni(self):
         # restore profiles.ini on the device to its previous state
         if not self.originalProfilesIni or not os.access(self.originalProfilesIni, os.F_OK):
-            raise devicemanager.DMError('Unable to install original profiles.ini; file not found: %s',
+            raise DMError('Unable to install original profiles.ini; file not found: %s',
                           self.originalProfilesIni)
 
         self._devicemanager.pushFile(self.originalProfilesIni, self.remoteProfilesIniPath)
@@ -395,19 +394,16 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
 
         # Copy the profile to the device.
         self._devicemanager.removeDir(self.remoteProfile)
-        try:
-            self._devicemanager.pushDir(profileDir, self.remoteProfile)
-        except devicemanager.DMError:
-            print "Automation Error: Unable to copy profile to device."
-            raise
+        if self._devicemanager.pushDir(profileDir, self.remoteProfile) == None:
+            raise devicemanager.FileError("Unable to copy profile to device.")
 
         # In B2G, user.js is always read from /data/local, not the profile
         # directory.  Backup the original user.js first so we can restore it.
-        self._devicemanager._checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
+        self._devicemanager.checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
         if self._devicemanager.useDDCopy:
-            self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
         else:
-            self._devicemanager._checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
         self._devicemanager.pushFile(os.path.join(profileDir, "user.js"), self.userJS)
 
         self.updateProfilesIni(self.remoteProfile)
@@ -417,11 +413,8 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
 
     def copyExtraFilesToProfile(self, options, profileDir):
         RefTest.copyExtraFilesToProfile(self, options, profileDir)
-        try:
-            self._devicemanager.pushDir(profileDir, options.remoteProfile)
-        except devicemanager.DMError:
-            print "Automation Error: Failed to copy extra files to device"
-            raise
+        if (self._devicemanager.pushDir(profileDir, options.remoteProfile) == None):
+            raise devicemanager.FileError("Failed to copy extra files to device")
 
     def getManifestPath(self, path):
         return path

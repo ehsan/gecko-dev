@@ -65,10 +65,6 @@ public:
   {
     return this;
   }
-  virtual nsIDOMCSSRule* GetExistingDOMRule()
-  {
-    return this;
-  }
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -111,10 +107,6 @@ public:
   virtual int32_t GetType() const;
   virtual already_AddRefed<Rule> Clone() const;
   virtual nsIDOMCSSRule* GetDOMRule()
-  {
-    return this;
-  }
-  virtual nsIDOMCSSRule* GetExistingDOMRule()
   {
     return this;
   }
@@ -279,7 +271,7 @@ private:
   ~CharsetRule() {}
 
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   DECL_STYLE_RULE_INHERIT
 
@@ -350,7 +342,7 @@ private:
   nsCSSKeyframeRule(const nsCSSKeyframeRule& aCopy);
   ~nsCSSKeyframeRule();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIStyleRule methods
 #ifdef DEBUG
@@ -408,10 +400,6 @@ public:
   {
     return this;
   }
-  virtual nsIDOMCSSRule* GetExistingDOMRule()
-  {
-    return this;
-  }
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
@@ -453,10 +441,6 @@ public:
   virtual bool UseForPresentation(nsPresContext* aPresContext,
                                   nsMediaQueryResultCacheKey& aKey);
   virtual nsIDOMCSSRule* GetDOMRule()
-  {
-    return this;
-  }
-  virtual nsIDOMCSSRule* GetExistingDOMRule()
   {
     return this;
   }

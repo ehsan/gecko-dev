@@ -46,16 +46,10 @@ public:
 
   bool operator==(const FrameMetrics& aOther) const
   {
-    return mCompositionBounds.IsEqualEdges(aOther.mCompositionBounds) &&
-           mContentRect.IsEqualEdges(aOther.mContentRect) &&
-           mDisplayPort.IsEqualEdges(aOther.mDisplayPort) &&
-           mViewport.IsEqualEdges(aOther.mViewport) &&
-           mScrollOffset == aOther.mScrollOffset &&
-           mScrollId == aOther.mScrollId &&
-           mScrollableRect.IsEqualEdges(aOther.mScrollableRect) &&
-           mResolution == aOther.mResolution &&
-           mDevPixelsPerCSSPixel == aOther.mDevPixelsPerCSSPixel &&
-           mMayHaveTouchListeners == aOther.mMayHaveTouchListeners;
+    return (mViewport.IsEqualEdges(aOther.mViewport) &&
+            mScrollOffset == aOther.mScrollOffset &&
+            mDisplayPort.IsEqualEdges(aOther.mDisplayPort) &&
+            mScrollId == aOther.mScrollId);
   }
   bool operator!=(const FrameMetrics& aOther) const
   {

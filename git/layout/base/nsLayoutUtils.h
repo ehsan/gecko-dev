@@ -23,6 +23,7 @@ class nsHTMLVideoElement;
 class nsIImageLoadingContent;
 class nsHTMLImageElement;
 
+#include "prtypes.h"
 #include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
@@ -534,15 +535,6 @@ public:
    * to go up to the root frame.
    */
   static gfx3DMatrix GetTransformToAncestor(nsIFrame *aFrame, const nsIFrame *aAncestor);
-
-  /**
-   * Return true if a "layer transform" could be computed for aFrame,
-   * and optionally return the computed transform.  The returned
-   * transform is what would be set on the layer currently if a layers
-   * transaction were opened at the time this helper is called.
-   */
-  static bool GetLayerTransformForFrame(nsIFrame* aFrame,
-                                        gfx3DMatrix* aTransform);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed

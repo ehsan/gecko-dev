@@ -106,13 +106,6 @@ public:
   // transactions for this database will be allowed to run.
   bool IsInvalidated();
 
-  void DisconnectFromActor();
-
-  // Whether or not the database has been disconnected from its actor.  If true
-  // it is not safe to send any IPC messages to the actor representing this db
-  // or any of its subactors.
-  bool IsDisconnectedFromActor();
-
   void CloseInternal(bool aIsDead);
 
   // Whether or not the database has had Close called on it.
@@ -190,8 +183,7 @@ private:
 
   mozilla::dom::ContentParent* mContentParent;
 
-  bool mInvalidated;
-  bool mDisconnected;
+  int32_t mInvalidated;
   bool mRegistered;
   bool mClosed;
   bool mRunningVersionChange;

@@ -42,7 +42,6 @@ namespace dom {
 class TabChild;
 }
 namespace layers {
-class CompositorChild;
 class LayerManager;
 class PLayersChild;
 }
@@ -90,8 +89,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0x4e05b167, 0x475b, 0x422b, \
-    { 0x88, 0xc0, 0xa5, 0xb1, 0x61, 0xcf, 0x87, 0x79 } }
+  { 0xb8f43b25, 0x9036, 0x44e7, \
+    { 0xaa, 0xe2, 0x33, 0x76, 0x6c, 0x35, 0x91, 0xfc } }
 
 /*
  * Window shadow styles
@@ -382,7 +381,6 @@ class nsIWidget : public nsISupports {
     typedef mozilla::dom::TabChild TabChild;
 
   public:
-    typedef mozilla::layers::CompositorChild CompositorChild;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayersBackend LayersBackend;
     typedef mozilla::layers::PLayersChild PLayersChild;
@@ -1634,13 +1632,6 @@ class nsIWidget : public nsISupports {
      * null.
      */
     virtual TabChild* GetOwningTabChild() { return nullptr; }
-
-    /**
-     * If this isn't directly compositing to its window surface,
-     * return the compositor which is doing that on our behalf.
-     */
-    virtual CompositorChild* GetRemoteRenderer()
-    { return nullptr; }
 
 protected:
 

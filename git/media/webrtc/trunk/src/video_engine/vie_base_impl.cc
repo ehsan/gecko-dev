@@ -8,27 +8,25 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "video_engine/vie_base_impl.h"
+#include <stdio.h>
 
-#include <sstream>
-#include <string>
-
-#include "engine_configurations.h"  // NOLINT
-#include "system_wrappers/interface/critical_section_wrapper.h"
-#include "modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "modules/video_coding/main/interface/video_coding.h"
-#include "modules/video_processing/main/interface/video_processing.h"
-#include "modules/video_render/main/interface/video_render.h"
-#include "system_wrappers/interface/trace.h"
-#include "video_engine/vie_channel.h"
-#include "video_engine/vie_channel_manager.h"
-#include "video_engine/vie_defines.h"
-#include "video_engine/vie_encoder.h"
-#include "video_engine/include/vie_errors.h"
-#include "video_engine/vie_impl.h"
-#include "video_engine/vie_input_manager.h"
-#include "video_engine/vie_performance_monitor.h"
-#include "video_engine/vie_shared_data.h"
+#include "critical_section_wrapper.h"
+#include "engine_configurations.h"
+#include "rtp_rtcp.h"
+#include "trace.h"
+#include "video_coding.h"
+#include "video_processing.h"
+#include "video_render.h"
+#include "vie_base_impl.h"
+#include "vie_channel.h"
+#include "vie_channel_manager.h"
+#include "vie_defines.h"
+#include "vie_encoder.h"
+#include "vie_errors.h"
+#include "vie_impl.h"
+#include "vie_input_manager.h"
+#include "vie_performance_monitor.h"
+#include "vie_shared_data.h"
 
 namespace webrtc {
 
@@ -101,7 +99,7 @@ int ViEBaseImpl::SetVoiceEngine(VoiceEngine* voice_engine) {
   return 0;
 }
 
-int ViEBaseImpl::CreateChannel(int& video_channel) {  // NOLINT
+int ViEBaseImpl::CreateChannel(int& video_channel) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_.instance_id()),
                "%s", __FUNCTION__);
 
@@ -113,7 +111,7 @@ int ViEBaseImpl::CreateChannel(int& video_channel) {  // NOLINT
     return -1;
   }
 
-  if (shared_data_.channel_manager()->CreateChannel(&video_channel) == -1) {
+  if (shared_data_.channel_manager()->CreateChannel(video_channel) == -1) {
     WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_.instance_id()),
                  "%s: Could not create channel", __FUNCTION__);
     video_channel = -1;
@@ -125,12 +123,11 @@ int ViEBaseImpl::CreateChannel(int& video_channel) {  // NOLINT
   return 0;
 }
 
-int ViEBaseImpl::CreateChannel(int& video_channel,  // NOLINT
-                               int original_channel) {
+int ViEBaseImpl::CreateChannel(int& video_channel, int original_channel) {
   return CreateChannel(video_channel, original_channel, true);
 }
 
-int ViEBaseImpl::CreateReceiveChannel(int& video_channel,  // NOLINT
+int ViEBaseImpl::CreateReceiveChannel(int& video_channel,
                                       int original_channel) {
   return CreateChannel(video_channel, original_channel, false);
 }
@@ -362,7 +359,7 @@ int ViEBaseImpl::StopReceive(const int video_channel) {
   return 0;
 }
 
-int ViEBaseImpl::RegisterObserver(ViEBaseObserver& observer) {  // NOLINT
+int ViEBaseImpl::RegisterObserver(ViEBaseObserver& observer) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_.instance_id()),
                "%s", __FUNCTION__);
   if (shared_data_.vie_performance_monitor()->ViEBaseObserverRegistered()) {
@@ -390,26 +387,47 @@ int ViEBaseImpl::GetVersion(char version[1024]) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_.instance_id()),
                "GetVersion(version=?)");
   assert(kViEVersionMaxMessageSize == 1024);
+
   if (!version) {
     shared_data_.SetLastError(kViEBaseInvalidArgument);
     return -1;
   }
 
-  // Add WebRTC Version.
-  std::stringstream version_stream;
-  version_stream << "VideoEngine 3.12.0" << std::endl;
+  char version_buf[kViEVersionMaxMessageSize];
+  char* version_ptr = version_buf;
 
-  // Add build info.
-  version_stream << "Build: svn:" << WEBRTC_SVNREVISION << " " << BUILDINFO
-                 << std::endl;
+  WebRtc_Word32 len = 0;  // Does not include NULL termination.
+  WebRtc_Word32 acc_len = 0;
 
-#ifdef WEBRTC_EXTERNAL_TRANSPORT
-  version_stream << "External transport build" << std::endl;
-#endif
-  int version_length = version_stream.tellp();
-  assert(version_length < 1024);
-  memcpy(version, version_stream.str().c_str(), version_length);
-  version[version_length] = '\0';
+  len = AddViEVersion(version_ptr);
+  if (len == -1) {
+    shared_data_.SetLastError(kViEBaseUnknownError);
+    return -1;
+  }
+  version_ptr += len;
+  acc_len += len;
+  assert(acc_len < kViEVersionMaxMessageSize);
+
+  len = AddBuildInfo(version_ptr);
+  if (len == -1) {
+    shared_data_.SetLastError(kViEBaseUnknownError);
+    return -1;
+  }
+  version_ptr += len;
+  acc_len += len;
+  assert(acc_len < kViEVersionMaxMessageSize);
+
+  len = AddExternalTransportBuild(version_ptr);
+  if (len == -1) {
+    shared_data_.SetLastError(kViEBaseUnknownError);
+    return -1;
+  }
+  version_ptr += len;
+  acc_len += len;
+  assert(acc_len < kViEVersionMaxMessageSize);
+
+  memcpy(version, version_buf, acc_len);
+  version[acc_len] = '\0';
 
   WEBRTC_TRACE(kTraceStateInfo, kTraceVideo,
                ViEId(shared_data_.instance_id()), "GetVersion() => %s",
@@ -421,8 +439,24 @@ int ViEBaseImpl::LastError() {
   return shared_data_.LastErrorInternal();
 }
 
-int ViEBaseImpl::CreateChannel(int& video_channel,  // NOLINT
-                               int original_channel, bool sender) {
+WebRtc_Word32 ViEBaseImpl::AddBuildInfo(char* str) const {
+  return sprintf(str, "Build: %s\n", BUILDINFO);
+}
+
+WebRtc_Word32 ViEBaseImpl::AddViEVersion(char* str) const {
+  return sprintf(str, "VideoEngine 3.2.0\n");
+}
+
+WebRtc_Word32 ViEBaseImpl::AddExternalTransportBuild(char* str) const {
+#ifdef WEBRTC_EXTERNAL_TRANSPORT
+  return sprintf(str, "External transport build\n");
+#else
+  return 0;
+#endif
+}
+
+int ViEBaseImpl::CreateChannel(int& video_channel, int original_channel,
+                               bool sender) {
   if (!(shared_data_.Initialized())) {
     shared_data_.SetLastError(kViENotInitialized);
     WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_.instance_id()),
@@ -440,7 +474,7 @@ int ViEBaseImpl::CreateChannel(int& video_channel,  // NOLINT
     return -1;
   }
 
-  if (shared_data_.channel_manager()->CreateChannel(&video_channel,
+  if (shared_data_.channel_manager()->CreateChannel(video_channel,
                                                     original_channel,
                                                     sender) == -1) {
     WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_.instance_id()),

@@ -16,124 +16,15 @@
 #include "jsobjinlines.h"
 
 #include "gc/Barrier-inl.h"
-#include "vm/Stack-inl.h"
 #include "vm/ArgumentsObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
 
-/* Erase formals which are not part of the actuals. */
-static void
-SetMissingFormalArgsToUndefined(HeapValue *dstBase, unsigned numActuals, unsigned numFormals)
+ArgumentsObject *
+ArgumentsObject::create(JSContext *cx, StackFrame *fp)
 {
-    if (numActuals < numFormals) {
-        HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + numFormals;
-        while (dst != dstEnd)
-            (dst++)->init(UndefinedValue());
-    }
-}
-
-static void
-CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
-{
-    JS_ASSERT(!fp->beginsIonActivation());
-
-    HeapValue *dstBase = dst;
-    unsigned numActuals = fp->numActualArgs();
-    unsigned numFormals = fp->callee().nargs;
-
-    /* Copy formal arguments. */
-    Value *src = fp->formals();
-    Value *end = src + numFormals;
-    while (src != end)
-        (dst++)->init(*src++);
-
-    /* Copy actual argument which are not contignous. */
-    if (numFormals < numActuals) {
-        src = fp->actuals() + numFormals;
-        end = src + (numActuals - numFormals);
-        while (src != end)
-            (dst++)->init(*src++);
-    }
-    SetMissingFormalArgsToUndefined(dstBase, numActuals, numFormals);
-}
-
-/* static */ void
-ArgumentsObject::MaybeForwardToCallObject(StackFrame *fp, JSObject *obj, ArgumentsData *data)
-{
-    JSScript *script = fp->script();
-    if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
-        obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
-        for (AliasedFormalIter fi(script); fi; fi++)
-            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
-    }
-}
-
-struct CopyStackFrameArgs
-{
-    StackFrame *fp_;
-
-    CopyStackFrameArgs(StackFrame *fp)
-      : fp_(fp)
-    { }
-
-    inline JSScript *script() const { return fp_->script(); }
-    inline JSFunction *callee() const { return &fp_->callee(); }
-    unsigned numActualArgs() const { return fp_->numActualArgs(); }
-
-    void copyArgs(HeapValue *dst) const {
-        CopyStackFrameArguments(fp_, dst);
-    }
-
-    /*
-     * If a call object exists and the arguments object aliases formals, the
-     * call object is the canonical location for formals.
-     */
-    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
-        ArgumentsObject::MaybeForwardToCallObject(fp_, obj, data);
-    }
-};
-
-struct CopyStackIterArgs
-{
-    StackIter &iter_;
-
-    CopyStackIterArgs(StackIter &iter)
-      : iter_(iter)
-    { }
-
-    inline JSScript *script() const { return iter_.script(); }
-    inline JSFunction *callee() const { return iter_.callee(); }
-    unsigned numActualArgs() const { return iter_.numActualArgs(); }
-
-    void copyArgs(HeapValue *dst) const {
-        if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.fp(), dst);
-            return;
-        }
-
-        unsigned numActuals = iter_.numActualArgs();
-        unsigned numFormals = iter_.callee()->nargs;
-
-        iter_.ionForEachCanonicalActualArg(CopyToHeap(dst));
-        SetMissingFormalArgsToUndefined(dst, numActuals, numFormals);
-    }
-
-    /*
-     * Ion frames are copying every argument onto the stack, other locations are
-     * invalid.
-     */
-    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
-        if (!iter_.isIon())
-            ArgumentsObject::MaybeForwardToCallObject(iter_.fp(), obj, data);
-    }
-};
-
-template <typename CopyArgs>
-/* static */ ArgumentsObject *
-ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction callee, CopyArgs &copy)
-{
-    RootedObject proto(cx, copy.callee()->global().getOrCreateObjectPrototype(cx));
+    RootedObject proto(cx, fp->callee().global().getOrCreateObjectPrototype(cx));
     if (!proto)
         return NULL;
 
@@ -141,7 +32,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     if (!type)
         return NULL;
 
-    bool strict = copy.callee()->inStrictMode();
+    bool strict = fp->callee().inStrictMode();
     Class *clasp = strict ? &StrictArgumentsObjectClass : &NormalArgumentsObjectClass;
 
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, TaggedProto(proto),
@@ -150,8 +41,8 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     if (!shape)
         return NULL;
 
-    unsigned numActuals = copy.numActualArgs();
-    unsigned numFormals = copy.callee()->nargs;
+    unsigned numActuals = fp->numActualArgs();
+    unsigned numFormals = fp->numFormalArgs();
     unsigned numDeletedWords = NumWordsForBitArrayOfLength(numActuals);
     unsigned numArgs = Max(numActuals, numFormals);
     unsigned numBytes = offsetof(ArgumentsData, args) +
@@ -163,12 +54,20 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
         return NULL;
 
     data->numArgs = numArgs;
-    data->callee.init(ObjectValue(*copy.callee()));
-    data->script = copy.script();
+    data->callee.init(ObjectValue(fp->callee()));
+    data->script = fp->script();
 
     /* Copy [0, numArgs) into data->slots. */
     HeapValue *dst = data->args, *dstEnd = data->args + numArgs;
-    copy.copyArgs(dst);
+    for (Value *src = fp->formals(), *end = src + numFormals; src != end; ++src, ++dst)
+        dst->init(*src);
+    if (numActuals > numFormals) {
+        for (Value *src = fp->actuals() + numFormals; dst != dstEnd; ++src, ++dst)
+            dst->init(*src);
+    } else if (numActuals < numFormals) {
+        for (; dst != dstEnd; ++dst)
+            dst->init(UndefinedValue());
+    }
 
     data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
@@ -180,7 +79,16 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     obj->initFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(numActuals << PACKED_BITS_COUNT));
     obj->initFixedSlot(DATA_SLOT, PrivateValue(data));
 
-    copy.maybeForwardToCallObject(obj, data);
+    /*
+     * If it exists and the arguments object aliases formals, the call object
+     * is the canonical location for formals.
+     */
+    JSScript *script = fp->script();
+    if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
+        obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
+        for (AliasedFormalIter fi(script); fi; fi++)
+            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
+    }
 
     ArgumentsObject &argsobj = obj->asArguments();
     JS_ASSERT(argsobj.initialLength() == numActuals);
@@ -192,10 +100,7 @@ ArgumentsObject *
 ArgumentsObject::createExpected(JSContext *cx, StackFrame *fp)
 {
     JS_ASSERT(fp->script()->needsArgsObj());
-    RootedScript script(cx, fp->script());
-    RootedFunction callee(cx, &fp->callee());
-    CopyStackFrameArgs copy(fp);
-    ArgumentsObject *argsobj = create(cx, script, callee, copy);
+    ArgumentsObject *argsobj = create(cx, fp);
     if (!argsobj)
         return NULL;
 
@@ -204,21 +109,9 @@ ArgumentsObject::createExpected(JSContext *cx, StackFrame *fp)
 }
 
 ArgumentsObject *
-ArgumentsObject::createUnexpected(JSContext *cx, StackIter &iter)
-{
-    RootedScript script(cx, iter.script());
-    RootedFunction callee(cx, iter.callee());
-    CopyStackIterArgs copy(iter);
-    return create(cx, script, callee, copy);
-}
-
-ArgumentsObject *
 ArgumentsObject::createUnexpected(JSContext *cx, StackFrame *fp)
 {
-    RootedScript script(cx, fp->script());
-    RootedFunction callee(cx, &fp->callee());
-    CopyStackFrameArgs copy(fp);
-    return create(cx, script, callee, copy);
+    return create(cx, fp);
 }
 
 static JSBool

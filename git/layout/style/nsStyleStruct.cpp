@@ -1361,10 +1361,7 @@ nsStyleGradient::IsOpaque()
 bool
 nsStyleGradient::HasCalc()
 {
-  for (uint32_t i = 0; i < mStops.Length(); i++) {
-    if (mStops[i].mLocation.IsCalcUnit())
-      return true;
-  }
+  // The stops cannot have a Calc.
   return mBgPosX.IsCalcUnit() || mBgPosY.IsCalcUnit() || mAngle.IsCalcUnit() ||
          mRadiusX.IsCalcUnit() || mRadiusX.IsCalcUnit();
 }
@@ -1613,7 +1610,7 @@ nsresult
 nsStyleImage::RequestDecode() const
 {
   if ((mType == eStyleImageType_Image) && mImage)
-    return mImage->StartDecoding();
+    return mImage->RequestDecode();
   return NS_OK;
 }
 

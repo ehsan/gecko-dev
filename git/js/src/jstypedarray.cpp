@@ -1653,8 +1653,7 @@ class TypedArrayTemplate
         unsigned flags = JSPROP_SHARED | JSPROP_GETTER | JSPROP_PERMANENT;
 
         Rooted<GlobalObject*> global(cx, cx->compartment->maybeGlobal());
-        RawObject getter =
-            js_NewFunction(cx, NullPtr(), Getter<ValueGetter>, 0, 0, global, NullPtr());
+        JSObject *getter = js_NewFunction(cx, NULL, Getter<ValueGetter>, 0, 0, global, NULL);
         if (!getter)
             return false;
 
@@ -2027,18 +2026,14 @@ class TypedArrayTemplate
         return NativeType(ToInt32(d));
     }
 
-    static bool
-    nativeFromValue(JSContext *cx, const Value &v, NativeType *result)
+    static NativeType
+    nativeFromValue(JSContext *cx, const Value &v)
     {
-        if (v.isInt32()) {
-            *result = v.toInt32();
-            return true;
-        }
+        if (v.isInt32())
+            return NativeType(v.toInt32());
 
-        if (v.isDouble()) {
-            *result = nativeFromDouble(v.toDouble());
-            return true;
-        }
+        if (v.isDouble())
+            return nativeFromDouble(v.toDouble());
 
         /*
          * The condition guarantees that holes and undefined values
@@ -2047,21 +2042,17 @@ class TypedArrayTemplate
         if (v.isPrimitive() && !v.isMagic() && !v.isUndefined()) {
             RootedValue primitive(cx, v);
             double dval;
-            // ToNumber will only fail from OOM
-            if (!ToNumber(cx, primitive, &dval))
-                return false;
-            *result = nativeFromDouble(dval);
-            return true;
+            JS_ALWAYS_TRUE(ToNumber(cx, primitive, &dval));
+            return nativeFromDouble(dval);
         }
 
-        *result = ArrayTypeIsFloatingPoint()
-                  ? NativeType(js_NaN)
-                  : NativeType(int32_t(0));
-        return true;
+        return ArrayTypeIsFloatingPoint()
+               ? NativeType(js_NaN)
+               : NativeType(int32_t(0));
     }
 
     static bool
-    copyFromArray(JSContext *cx, HandleObject thisTypedArrayObj,
+    copyFromArray(JSContext *cx, JSObject *thisTypedArrayObj,
                   HandleObject ar, uint32_t len, uint32_t offset = 0)
     {
         JS_ASSERT(thisTypedArrayObj->isTypedArray());
@@ -2070,36 +2061,28 @@ class TypedArrayTemplate
         if (ar->isTypedArray())
             return copyFromTypedArray(cx, thisTypedArrayObj, ar, offset);
 
-        const Value *src = NULL;
         NativeType *dest = static_cast<NativeType*>(viewData(thisTypedArrayObj)) + offset;
-
-        // The only way the code below can GC is if nativeFromValue fails, but
-        // in that case we return false immediately, so we do not need to root
-        // |src| and |dest|. These SkipRoots are to protect from the
-        // unconditional MaybeCheckStackRoots done by ToNumber.
-        SkipRoot skipDest(cx, &dest);
-        SkipRoot skipSrc(cx, &src);
+        SkipRoot skip(cx, &dest);
 
         if (ar->isDenseArray() && ar->getDenseArrayInitializedLength() >= len) {
             JS_ASSERT(ar->getArrayLength() == len);
 
-            src = ar->getDenseArrayElements();
-            for (uint32_t i = 0; i < len; ++i) {
-                NativeType n;
-                if (!nativeFromValue(cx, src[i], &n))
-                    return false;
-                dest[i] = n;
-            }
+            const Value *src = ar->getDenseArrayElements();
+            SkipRoot skipSrc(cx, &src);
+
+            /*
+             * It is valid to skip the hole check here because nativeFromValue
+             * treats a hole as undefined.
+             */
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = nativeFromValue(cx, *src++);
         } else {
             RootedValue v(cx);
 
-            for (uint32_t i = 0; i < len; ++i) {
+            for (unsigned i = 0; i < len; ++i) {
                 if (!JSObject::getElement(cx, ar, ar, i, &v))
                     return false;
-                NativeType n;
-                if (!nativeFromValue(cx, v, &n))
-                    return false;
-                dest[i] = n;
+                *dest++ = nativeFromValue(cx, v);
             }
         }
 
@@ -3310,11 +3293,11 @@ InitTypedArrayClass(JSContext *cx)
     if (!JS_DefineFunctions(cx, proto, ArrayType::jsfuncs))
         return NULL;
 
-    RootedFunction fun(cx);
+    Rooted<JSFunction*> fun(cx);
     fun =
-        js_NewFunction(cx, NullPtr(),
+        js_NewFunction(cx, NULL,
                        ArrayBufferObject::createTypedArrayFromBuffer<typename ArrayType::ThisType>,
-                       0, 0, global, NullPtr());
+                       0, 0, global, NULL);
     if (!fun)
         return NULL;
 
@@ -3378,8 +3361,7 @@ InitArrayBufferClass(JSContext *cx)
 
     RootedId byteLengthId(cx, NameToId(cx->names().byteLength));
     unsigned flags = JSPROP_SHARED | JSPROP_GETTER | JSPROP_PERMANENT;
-    RawObject getter = js_NewFunction(cx, NullPtr(), ArrayBufferObject::byteLengthGetter, 0, 0,
-                                      global, NullPtr());
+    JSObject *getter = js_NewFunction(cx, NULL, ArrayBufferObject::byteLengthGetter, 0, 0, global, NULL);
     if (!getter)
         return NULL;
 
@@ -3480,8 +3462,7 @@ DataViewObject::defineGetter(JSContext *cx, PropertyName *name, HandleObject pro
     unsigned flags = JSPROP_SHARED | JSPROP_GETTER | JSPROP_PERMANENT;
 
     Rooted<GlobalObject*> global(cx, cx->compartment->maybeGlobal());
-    JSObject *getter = js_NewFunction(cx, NullPtr(), DataViewObject::getter<ValueGetter>, 0, 0,
-                                      global, NullPtr());
+    JSObject *getter = js_NewFunction(cx, NULL, DataViewObject::getter<ValueGetter>, 0, 0, global, NULL);
     if (!getter)
         return false;
 
@@ -3524,8 +3505,8 @@ DataViewObject::initClass(JSContext *cx)
      * |new DataView(new otherWindow.ArrayBuffer())|, and install it in the
      * global for use by the DataView constructor.
      */
-    RootedFunction fun(cx, js_NewFunction(cx, NullPtr(), ArrayBufferObject::createDataViewForThis,
-                                          0, 0, global, NullPtr()));
+    Rooted<JSFunction*> fun(cx);
+    fun = js_NewFunction(cx, NULL, ArrayBufferObject::createDataViewForThis, 0, 0, global, NULL);
     if (!fun)
         return NULL;
 

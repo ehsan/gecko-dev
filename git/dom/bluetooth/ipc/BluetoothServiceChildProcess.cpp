@@ -301,26 +301,42 @@ BluetoothServiceChildProcess::PrepareAdapterInternal(const nsAString& aPath)
 }
 
 bool
-BluetoothServiceChildProcess::Connect(
+BluetoothServiceChildProcess::ConnectHeadset(
   const nsAString& aDeviceAddress,
   const nsAString& aAdapterPath,
-  const uint16_t aProfileId,
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
-              ConnectRequest(nsString(aDeviceAddress), 
-                             nsString(aAdapterPath),
-                             aProfileId));
+              ConnectHeadsetRequest(nsString(aDeviceAddress), 
+                                    nsString(aAdapterPath)));
 
   return true;
 }
 
 void
-BluetoothServiceChildProcess::Disconnect(
-  const uint16_t aProfileId,
+BluetoothServiceChildProcess::DisconnectHeadset(
   BluetoothReplyRunnable* aRunnable)
 {
-  SendRequest(aRunnable, DisconnectRequest(aProfileId));
+  SendRequest(aRunnable, DisconnectHeadsetRequest());
+}
+
+bool
+BluetoothServiceChildProcess::ConnectObjectPush(
+  const nsAString& aDeviceAddress,
+  const nsAString& aAdapterPath,
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              ConnectObjectPushRequest(nsString(aDeviceAddress), 
+                                       nsString(aAdapterPath)));
+  return true;
+}
+
+void
+BluetoothServiceChildProcess::DisconnectObjectPush(
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, DisconnectObjectPushRequest());
 }
 
 bool

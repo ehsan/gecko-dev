@@ -4554,11 +4554,9 @@ nsHTMLEditRules::WillAlign(Selection* aSelection,
 
     // Skip insignificant formatting text nodes to prevent
     // unnecessary structure splitting!
-    bool isEmptyTextNode = false;
     if (nsEditor::IsTextNode(curNode) &&
        ((nsHTMLEditUtils::IsTableElement(curParent) && !nsHTMLEditUtils::IsTableCellOrCaption(curParent)) ||
-        nsHTMLEditUtils::IsList(curParent) ||
-        (NS_SUCCEEDED(mHTMLEditor->IsEmptyNode(curNode, &isEmptyTextNode)) && isEmptyTextNode)))
+        nsHTMLEditUtils::IsList(curParent)))
       continue;
 
     // if it's a list item, or a list

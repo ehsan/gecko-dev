@@ -57,6 +57,12 @@ public:
     mResultCode = rv;
   }
 
+  virtual ChildProcessSendResult
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
+  {
+    return Success_NotSent;
+  }
+
   virtual nsresult GetResultCode() MOZ_OVERRIDE
   {
     return mResultCode;

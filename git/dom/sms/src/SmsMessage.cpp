@@ -72,7 +72,7 @@ SmsMessage::Create(int32_t aId,
     if (!JS_ObjectIsDate(aCx, &obj)) {
       return NS_ERROR_INVALID_ARG;
     }
-    data.timestamp() = js_DateGetMsecSinceEpoch(&obj);
+    data.timestamp() = js_DateGetMsecSinceEpoch(aCx, &obj);
   } else {
     if (!aTimestamp.isNumber()) {
       return NS_ERROR_INVALID_ARG;

@@ -7,7 +7,6 @@
     {
       'target_name': 'create_intermediate',
       'type': 'none',
-      'msvs_cygwin_shell': '0',
       'actions': [
         {
           'action_name': 'create_intermediate',
@@ -27,7 +26,6 @@
     {
       'target_name': 'dependent',
       'type': 'none',
-      'msvs_cygwin_shell': '0',
       'dependencies': [
         'create_intermediate',
       ],
@@ -41,7 +39,7 @@
             '<(PRODUCT_DIR)/dependent'
           ],
           'action': [
-            'python', 'touch.py', '<(PRODUCT_DIR)/dependent', '<(PRODUCT_DIR)/side_effect',
+            'touch', '<(PRODUCT_DIR)/dependent', '<(PRODUCT_DIR)/side_effect',
           ],
         },
       ],

@@ -73,6 +73,7 @@ private:
   // Optionally get a stop frame (returns stop index/count)
   int32_t GetStopFrame(int32_t aIndex, nsIFrame * *aStopFrame);
 
+  uint32_t GetStopCount();
   void GetStopInformation(int32_t aIndex,
                           float *aOffset, nscolor *aColor, float *aStopOpacity);
 
@@ -83,8 +84,6 @@ private:
                                  const gfxRect *aOverrideBounds);
 
 protected:
-  uint32_t GetStopCount();
-  virtual bool IsSingleColour(uint32_t nStops) = 0;
   virtual already_AddRefed<gfxPattern> CreateGradient() = 0;
 
   // Internal methods for handling referenced gradients
@@ -162,7 +161,6 @@ protected:
   float GetLengthValue(uint32_t aIndex);
   virtual nsSVGLinearGradientElement * GetLinearGradientWithLength(
     uint32_t aIndex, nsSVGLinearGradientElement* aDefault);
-  virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };
 
@@ -210,7 +208,6 @@ protected:
                                   nsSVGRadialGradientElement& aElement);
   virtual nsSVGRadialGradientElement * GetRadialGradientWithLength(
     uint32_t aIndex, nsSVGRadialGradientElement* aDefault);
-  virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };
 

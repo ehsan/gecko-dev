@@ -8,7 +8,6 @@
 #include "nsHashKeys.h"
 #include "nsGlobalWindow.h"
 #include "nsClassHashtable.h"
-#include "nsRefPtrHashtable.h"
 #include "nsObserverService.h"
 
 #include "nsPIDOMWindow.h"
@@ -152,8 +151,6 @@ public:
 
       nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
       obs->AddObserver(sSingleton, "xpcom-shutdown", false);
-      obs->AddObserver(sSingleton, "getUserMedia:response:allow", false);
-      obs->AddObserver(sSingleton, "getUserMedia:response:deny", false);
     }
     return sSingleton;
   }
@@ -179,7 +176,6 @@ private:
   : mBackend(nullptr)
   , mMediaThread(nullptr) {
     mActiveWindows.Init();
-    mActiveCallbacks.Init();
   };
   MediaManager(MediaManager const&) {};
 
@@ -190,7 +186,6 @@ private:
   MediaEngine* mBackend;
   nsCOMPtr<nsIThread> mMediaThread;
   WindowTable mActiveWindows;
-  nsRefPtrHashtable<nsStringHashKey, nsRunnable> mActiveCallbacks;
 
   static nsRefPtr<MediaManager> sSingleton;
 };
