@@ -11,7 +11,7 @@
 #include "mozilla/RefPtr.h"
 #include "nsColor.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "nsHTMLVideoElement.h"
 #include "CanvasUtils.h"
 #include "gfxFont.h"
 #include "mozilla/ErrorResult.h"

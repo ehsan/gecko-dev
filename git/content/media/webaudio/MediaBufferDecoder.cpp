@@ -397,7 +397,7 @@ MediaDecodeTask::CreateReader()
   mBufferDecoder = new BufferDecoder(resource);
 
   // If you change this list to add support for new decoders, please consider
-  // updating HTMLMediaElement::CreateDecoder as well.
+  // updating nsHTMLMediaElement::CreateDecoder as well.
 
   mDecoderReader = DecoderTraits::CreateReader(mContentType, mBufferDecoder);
 

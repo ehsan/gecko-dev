@@ -808,7 +808,7 @@ JSCompartment::sweepBreakpoints(FreeOp *fop)
 
 void
 JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
-                                   JS::TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
+                                   TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
                                    size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
                                    size_t *debuggeesSet)
 {

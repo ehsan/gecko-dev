@@ -54,7 +54,7 @@
 #include "nsClientRect.h"
 #include <algorithm>
 #ifdef MOZ_MEDIA
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "nsHTMLVideoElement.h"
 #endif
 #include "mozilla/dom/HTMLImageElement.h"
 #include "imgIRequest.h"
@@ -4647,7 +4647,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
 }
 
 nsLayoutUtils::SurfaceFromElementResult
-nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
+nsLayoutUtils::SurfaceFromElement(nsHTMLVideoElement* aElement,
                                   uint32_t aSurfaceFlags)
 {
   SurfaceFromElementResult result;
@@ -4712,8 +4712,8 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
 #ifdef MOZ_MEDIA
   // Maybe it's <video>?
-  if (HTMLVideoElement* video =
-        HTMLVideoElement::FromContentOrNull(aElement)) {
+  if (nsHTMLVideoElement* video =
+        nsHTMLVideoElement::FromContentOrNull(aElement)) {
     return SurfaceFromElement(video, aSurfaceFlags);
   }
 #endif

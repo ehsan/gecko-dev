@@ -70,7 +70,7 @@ HTMLSourceElement::BindToTree(nsIDocument *aDocument,
   if (!aParent || !aParent->IsNodeOfType(nsINode::eMEDIA))
     return NS_OK;
 
-  HTMLMediaElement* media = static_cast<HTMLMediaElement*>(aParent);
+  nsHTMLMediaElement* media = static_cast<nsHTMLMediaElement*>(aParent);
   media->NotifyAddedSource();
 
   return NS_OK;

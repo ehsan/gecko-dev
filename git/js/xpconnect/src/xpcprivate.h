@@ -802,8 +802,8 @@ public:
 
     static void GCCallback(JSRuntime *rt, JSGCStatus status);
     static void GCSliceCallback(JSRuntime *rt,
-                                JS::GCProgress progress,
-                                const JS::GCDescription &desc);
+                                js::GCProgress progress,
+                                const js::GCDescription &desc);
     static void FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
@@ -957,7 +957,7 @@ private:
     bool mWatchdogHibernating;
     PRTime mLastActiveTime; // -1 if active NOW
     nsRefPtr<XPCIncrementalReleaseRunnable> mReleaseRunnable;
-    JS::GCSliceCallback mPrevGCSliceCallback;
+    js::GCSliceCallback mPrevGCSliceCallback;
 
     nsCOMPtr<nsIException>   mPendingException;
     nsCOMPtr<nsIExceptionManager> mExceptionManager;
@@ -1725,12 +1725,12 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    JS::ObjectPtr                    mGlobalJSObject;
+    js::ObjectPtr                    mGlobalJSObject;
 
     // XBL Scope. This is is a lazily-created sandbox for non-system scopes.
     // EnsureXBLScope() decides whether it needs to be created or not.
     // This reference is wrapped into the compartment of mGlobalJSObject.
-    JS::ObjectPtr                    mXBLScope;
+    js::ObjectPtr                    mXBLScope;
 
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
@@ -2439,7 +2439,7 @@ public:
 
     void WriteBarrierPre(JSRuntime* rt)
     {
-        if (JS::IsIncrementalBarrierNeeded(rt) && mJSProtoObject)
+        if (js::IsIncrementalBarrierNeeded(rt) && mJSProtoObject)
             mJSProtoObject.writeBarrierPre(rt);
     }
 
@@ -2486,7 +2486,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    JS::ObjectPtr            mJSProtoObject;
+    js::ObjectPtr            mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     uint32_t                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2893,7 +2893,7 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        JS::IncrementalObjectBarrier(GetWrapperPreserveColor());
+        js::IncrementalObjectBarrier(GetWrapperPreserveColor());
         intptr_t newval = intptr_t(obj) | (mWrapperWord & FLAG_MASK);
         mWrapperWord = newval;
     }

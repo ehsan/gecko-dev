@@ -1147,7 +1147,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::GarbageCollectNow(JS::gcreason::DOM_UTILS);
+  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
   nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
 
   return NS_OK;
@@ -2796,7 +2796,7 @@ nsDOMWindowUtils::IsIncrementalGCEnabled(JSContext* cx, bool* aResult)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  *aResult = JS::IsIncrementalGCEnabled(JS_GetRuntime(cx));
+  *aResult = js::IsIncrementalGCEnabled(JS_GetRuntime(cx));
   return NS_OK;
 }
 

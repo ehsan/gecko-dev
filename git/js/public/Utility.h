@@ -31,7 +31,12 @@ namespace JS {}
 namespace mozilla {}
 
 /* The private JS engine namespace. */
-namespace js {}
+namespace js {
+
+/* The private namespace is a superset of the public/shared namespaces. */
+using namespace JS;
+
+}  /* namespace js */
 
 /*
  * Pattern used to overwrite freed memory. If you are accessing an object with

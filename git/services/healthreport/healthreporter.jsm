@@ -644,14 +644,8 @@ AbstractHealthReporter.prototype = Object.freeze({
           measurements: {},
         };
 
-        // Measurement name to recorded version.
-        let lastVersions = {};
-        // Day string to mapping of measurement name to recorded version.
-        let dayVersions = {};
-
         for (let [measurementKey, measurement] of provider.measurements) {
           let name = providerName + "." + measurement.name;
-          let version = measurement.version;
 
           let serializer;
           try {
@@ -675,15 +669,7 @@ AbstractHealthReporter.prototype = Object.freeze({
 
           if (data.singular.size) {
             try {
-              let serialized = serializer.singular(data.singular);
-              if (serialized) {
-                // Only replace the existing data if there is no data or if our
-                // version is newer than the old one.
-                if (!(name in o.data.last) || version > lastVersions[name]) {
-                  o.data.last[name] = serialized;
-                  lastVersions[name] = version;
-                }
-              }
+              o.data.last[name] = serializer.singular(data.singular);
             } catch (ex) {
               this._recordError("Error serializing singular data: " + name,
                                 ex);
@@ -709,18 +695,7 @@ AbstractHealthReporter.prototype = Object.freeze({
                 outputDataDays[dateFormatted] = {};
               }
 
-              // This needs to be separate because dayVersions is provider
-              // specific and gets blown away in a loop while outputDataDays
-              // is persistent.
-              if (!(dateFormatted in dayVersions)) {
-                dayVersions[dateFormatted] = {};
-              }
-
-              if (!(name in outputDataDays[dateFormatted]) ||
-                  version > dayVersions[dateFormatted][name]) {
-                outputDataDays[dateFormatted][name] = serialized;
-                dayVersions[dateFormatted][name] = version;
-              }
+              outputDataDays[dateFormatted][name] = serialized;
             } catch (ex) {
               this._recordError("Error populating data for day: " + name, ex);
               continue;

@@ -1154,8 +1154,20 @@ var GestureModule = {
  * versus an imprecise one (touch).
  */
 var InputSourceHelper = {
-  isPrecise: false,
-  treatMouseAsTouch: false,
+  _isPrecise: false,
+  _treatMouseAsTouch: false,
+  
+  get isPrecise() {
+    return this._isPrecise;
+  },
+  
+  get treatMouseAsTouch() {
+    return this._treatMouseAsTouch;
+  },
+
+  set treatMouseAsTouch(aVal) {
+    this._treatMouseAsTouch = aVal;
+  },
 
   init: function ish_init() {
     // debug feature, make all input imprecise
@@ -1174,15 +1186,15 @@ var InputSourceHelper = {
       case Ci.nsIDOMMouseEvent.MOZ_SOURCE_PEN:
       case Ci.nsIDOMMouseEvent.MOZ_SOURCE_ERASER:
       case Ci.nsIDOMMouseEvent.MOZ_SOURCE_CURSOR:
-        if (!this.isPrecise && !this.treatMouseAsTouch) {
-          this.isPrecise = true;
+        if (!this._isPrecise && !this.treatMouseAsTouch) {
+          this._isPrecise = true;
           this._fire("MozPrecisePointer");
         }
         break;
 
       case Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH:
-        if (this.isPrecise) {
-          this.isPrecise = false;
+        if (this._isPrecise) {
+          this._isPrecise = false;
           this._fire("MozImprecisePointer");
         }
         break;
@@ -1193,7 +1205,7 @@ var InputSourceHelper = {
     if (this.treatMouseAsTouch) {
       this._fire("MozImprecisePointer");
     } else {
-      if (this.isPrecise) {
+      if (this._isPrecise) {
         this._fire("MozPrecisePointer");
       } else {
         this._fire("MozImprecisePointer");

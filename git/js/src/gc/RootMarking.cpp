@@ -376,7 +376,7 @@ ConservativeGCData::recordStackTop()
 }
 
 void
-JS::AutoIdArray::trace(JSTracer *trc)
+AutoIdArray::trace(JSTracer *trc)
 {
     JS_ASSERT(tag_ == IDARRAY);
     gc::MarkIdRange(trc, idArray->length, idArray->vector, "JSAutoIdArray.idArray");

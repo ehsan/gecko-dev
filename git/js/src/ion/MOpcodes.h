@@ -27,6 +27,7 @@ namespace ion {
     _(OsrScopeChain)                                                        \
     _(ReturnFromCtor)                                                       \
     _(CheckOverRecursed)                                                    \
+    _(RecompileCheck)                                                       \
     _(DefVar)                                                               \
     _(DefFun)                                                               \
     _(CreateThis)                                                           \

@@ -18,6 +18,7 @@ class nsDisplayItem;
 class nsFontMetrics;
 class nsClientRectList;
 class nsFontFaceList;
+class nsHTMLVideoElement;
 class nsIImageLoadingContent;
 
 #include "nsChangeHint.h"
@@ -48,7 +49,6 @@ namespace dom {
 class Element;
 class HTMLImageElement;
 class HTMLCanvasElement;
-class HTMLVideoElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -1508,7 +1508,7 @@ public:
                                                      uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLCanvasElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLVideoElement *aElement,
+  static SurfaceFromElementResult SurfaceFromElement(nsHTMLVideoElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
 
   /**

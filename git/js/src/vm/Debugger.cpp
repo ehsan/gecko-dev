@@ -487,21 +487,19 @@ Debugger::hasAnyLiveHooks() const
 }
 
 JSTrapStatus
-Debugger::slowPathOnEnterFrame(JSContext *cx, AbstractFramePtr frame, MutableHandleValue vp)
+Debugger::slowPathOnEnterFrame(JSContext *cx, MutableHandleValue vp)
 {
     /* Build the list of recipients. */
     AutoValueVector triggered(cx);
     Handle<GlobalObject*> global = cx->global();
 
-#ifdef DEBUG
     ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == frame);
-#endif
+    JS_ASSERT(!iter.done());
 
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
             Debugger *dbg = *p;
-            JS_ASSERT(dbg->observesFrame(frame));
+            JS_ASSERT(dbg->observesFrame(iter.abstractFramePtr()));
             if (dbg->observesEnterFrame() && !triggered.append(ObjectValue(*dbg->toJSObject())))
                 return JSTRAP_ERROR;
         }
@@ -529,23 +527,21 @@ DebuggerFrame_freeStackIterData(FreeOp *fop, RawObject obj);
  * |cx->fp()|'s return value, and return a new success value.
  */
 bool
-Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frameOk)
+Debugger::slowPathOnLeaveFrame(JSContext *cx, bool frameOk)
 {
-#ifdef DEBUG
     ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == frame);
-#endif
+    JS_ASSERT(!iter.done());
 
     Handle<GlobalObject*> global = cx->global();
 
     /* Save the frame's completion value. */
     JSTrapStatus status;
     RootedValue value(cx);
-    Debugger::resultToCompletion(cx, frameOk, frame.returnValue(), &status, &value);
+    Debugger::resultToCompletion(cx, frameOk, iter.returnValue(), &status, &value);
 
     /* Build a list of the recipients. */
     AutoObjectVector frames(cx);
-    for (FrameRange r(frame, global); !r.empty(); r.popFront()) {
+    for (FrameRange r(iter.abstractFramePtr(), global); !r.empty(); r.popFront()) {
         if (!frames.append(r.frontFrame())) {
             cx->clearPendingException();
             return false;
@@ -597,7 +593,7 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frame
      * debugger's onPop handler could have caused another debugger to create its
      * own Debugger.Frame instance.
      */
-    for (FrameRange r(frame, global); !r.empty(); r.popFront()) {
+    for (FrameRange r(iter.abstractFramePtr(), global); !r.empty(); r.popFront()) {
         RootedObject frameobj(cx, r.frontFrame());
         Debugger *dbg = r.frontDebugger();
         JS_ASSERT(dbg == Debugger::fromChildJSObject(frameobj));
@@ -606,28 +602,28 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frame
 
         /* If this frame had an onStep handler, adjust the script's count. */
         if (!frameobj->getReservedSlot(JSSLOT_DEBUGFRAME_ONSTEP_HANDLER).isUndefined() &&
-            !frame.script()->changeStepModeCount(cx, -1))
+            !iter.script()->changeStepModeCount(cx, -1))
         {
             status = JSTRAP_ERROR;
             /* Don't exit the loop; we must mark all frames as dead. */
         }
 
-        dbg->frames.remove(frame);
+        dbg->frames.remove(iter.abstractFramePtr());
     }
 
     /*
      * If this is an eval frame, then from the debugger's perspective the
      * script is about to be destroyed. Remove any breakpoints in it.
      */
-    if (frame.isEvalFrame()) {
-        RootedScript script(cx, frame.script());
+    if (iter.isEvalFrame()) {
+        RootedScript script(cx, iter.script());
         script->clearBreakpointsIn(cx->runtime->defaultFreeOp(), NULL, NULL);
     }
 
     /* Establish (status, value) as our resumption value. */
     switch (status) {
       case JSTRAP_RETURN:
-        frame.setReturnValue(value);
+        iter.setReturnValue(value);
         return true;
 
       case JSTRAP_THROW:
@@ -2596,7 +2592,7 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
              * marked gray by XPConnect. Since we're now exposing it to JS code,
              * we need to mark it black.
              */
-            JS::ExposeGCThingToActiveJS(global, JSTRACE_OBJECT);
+            ExposeGCThingToActiveJS(global, JSTRACE_OBJECT);
 
             RootedValue globalValue(cx, ObjectValue(*global));
             if (!dbg->wrapDebuggeeValue(cx, &globalValue))

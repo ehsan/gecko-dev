@@ -47,6 +47,7 @@ protected:
 private:
   nsCOMPtr<nsISupports> mStream;
   nsCOMPtr<nsIRequestObserver> mObserver;
+  nsCOMPtr<nsISupports> mCtxt;
 
   nsresult mStatus;
 };

@@ -118,6 +118,7 @@ let ScriptContexts = {};
   ["TopSitesView", "chrome://browser/content/TopSites.js"],
   ["TopSitesSnappedView", "chrome://browser/content/TopSites.js"],
   ["TopSitesStartView", "chrome://browser/content/TopSites.js"],
+  ["InputSourceHelper", "chrome://browser/content/input.js"],
   ["Sanitizer", "chrome://browser/content/sanitize.js"],
   ["SSLExceptions", "chrome://browser/content/exceptions.js"],
 #ifdef MOZ_SERVICES_SYNC

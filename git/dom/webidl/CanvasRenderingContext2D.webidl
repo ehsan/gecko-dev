@@ -15,6 +15,7 @@ interface CanvasGradient;
 interface CanvasPattern;
 interface HitRegionOptions;
 interface HTMLCanvasElement;
+interface HTMLVideoElement;
 interface TextMetrics;
 interface Window;
 

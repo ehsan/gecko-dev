@@ -1486,8 +1486,6 @@ SetPropertyIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     return true;
 }
 
-const size_t GetElementIC::MAX_FAILED_UPDATES = 16;
-
 bool
 GetElementIC::attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj,
                             const Value &idval, HandlePropertyName name)
@@ -1727,16 +1725,10 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     if (!GetElementOperation(cx, JSOp(*pc), &lval, idval, res))
         return false;
 
-    // Disable cache when we reach max stubs or update failed too much.
-    if (!attachedStub) {
-        cache.incFailedUpdates();
-        if (cache.shouldDisable()) {
-            IonSpew(IonSpew_InlineCaches, "Disable inline cache");
-            cache.disable();
-        }
-    } else {
-        cache.resetFailedUpdates();
-    }
+    // If no new attach was done, and we've reached maximum number of stubs, then
+    // disable the cache.
+    if (!attachedStub && !cache.canAttachStub())
+        cache.disable();
 
     types::TypeScript::Monitor(cx, script, pc, res);
     return true;

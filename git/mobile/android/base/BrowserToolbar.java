@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.ColorDrawable;
@@ -984,7 +983,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
     public void adjustForTabsLayout(int width) {
         mTabsPaneWidth = width;
-        adjustTabsAnimation(true);
+        adjustTabsAnimation(false);
     }
 
     public void updateTabs(boolean areTabsShown) {
@@ -1018,9 +1017,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     public void setIsSideBar(boolean isSideBar) {
         mTabs.setIsSideBar(isSideBar);
 
-        Resources resources = mActivity.getResources();
-        mTabs.setImageDrawable(resources.getDrawable(R.drawable.tabs_level));
-        mTabs.setBackgroundDrawable(resources.getDrawable(R.drawable.tabs_button));
+        mTabs.setImageResource(R.drawable.tabs_level);
+        mTabs.setBackgroundResource(R.drawable.tabs_button);
     }
 
     public void setProgressVisibility(boolean visible) {

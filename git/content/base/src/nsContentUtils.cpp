@@ -168,7 +168,7 @@
 #include "nsIBidiKeyboard.h"
 #endif
 #ifdef MOZ_MEDIA
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #endif
 
 extern "C" int MOZ_XMLTranslateEntity(const char* ptr, const char* end,

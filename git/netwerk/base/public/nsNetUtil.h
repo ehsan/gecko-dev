@@ -657,13 +657,13 @@ NS_ImplementChannelOpen(nsIChannel      *channel,
 inline nsresult
 NS_NewRequestObserverProxy(nsIRequestObserver **result,
                            nsIRequestObserver  *observer,
-                           nsISupports         *context)
+                           nsIEventTarget      *target = nullptr)
 {
     nsresult rv;
     nsCOMPtr<nsIRequestObserverProxy> proxy =
         do_CreateInstance(NS_REQUESTOBSERVERPROXY_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = proxy->Init(observer, context);
+        rv = proxy->Init(observer, target);
         if (NS_SUCCEEDED(rv))
             NS_ADDREF(*result = proxy);  // cannot use nsCOMPtr::swap
     }

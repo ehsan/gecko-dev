@@ -236,7 +236,7 @@ public:
                         JS::Value* rval, bool* sharedBuffer)
     {
         if (buf == sCachedBuffer &&
-            JS::GetGCThingZone(sCachedString) == js::GetContextZone(cx))
+            js::GetGCThingZone(sCachedString) == js::GetContextZone(cx))
         {
             *rval = JS::StringValue(sCachedString);
             *sharedBuffer = false;

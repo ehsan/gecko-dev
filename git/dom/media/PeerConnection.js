@@ -143,7 +143,7 @@ IceCandidate.prototype = {
 
   constructor: function(win, candidateInitDict) {
     if (this._win) {
-      throw new Components.Exception("Constructor already called");
+      throw new Error("Constructor already called");
     }
     this._win = win;
     if (candidateInitDict !== undefined) {
@@ -178,7 +178,7 @@ SessionDescription.prototype = {
 
   constructor: function(win, descriptionInitDict) {
     if (this._win) {
-      throw new Components.Exception("Constructor already called");
+      throw new Error("Constructor already called");
     }
     this._win = win;
     if (descriptionInitDict !== undefined) {
@@ -250,10 +250,10 @@ PeerConnection.prototype = {
   // Constructor is an explicit function, because of nsIDOMGlobalObjectConstructor.
   constructor: function(win, rtcConfig) {
     if (!Services.prefs.getBoolPref("media.peerconnection.enabled")) {
-      throw new Components.Exception("PeerConnection not enabled (did you set the pref?)");
+      throw new Error("PeerConnection not enabled (did you set the pref?)");
     }
     if (this._win) {
-      throw new Components.Exception("RTCPeerConnection constructor already called");
+      throw new Error("RTCPeerConnection constructor already called");
     }
     if (!rtcConfig ||
         !Services.prefs.getBoolPref("media.peerconnection.use_document_iceservers")) {
@@ -263,7 +263,7 @@ PeerConnection.prototype = {
     this._mustValidateRTCConfiguration(rtcConfig,
         "RTCPeerConnection constructor passed invalid RTCConfiguration");
     if (_globalPCList._networkdown) {
-      throw new Components.Exception("Can't create RTCPeerConnections when the network is down");
+      throw new Error("Can't create RTCPeerConnections when the network is down");
     }
 
     this._pc = Cc["@mozilla.org/peerconnection;1"].
@@ -344,26 +344,23 @@ PeerConnection.prototype = {
       try {
         return ios.newURI(uriStr, null, null);
       } catch (e if (e.result == Cr.NS_ERROR_MALFORMED_URI)) {
-        throw new Components.Exception(errorMsg + " - malformed URI: " + uriStr,
-                                       Cr.NS_ERROR_MALFORMED_URI);
+        throw new Error(errorMsg + " - malformed URI: " + uriStr);
       }
     }
     function mustValidateServer(server) {
       let url = nicerNewURI(server.url, errorMsg);
       if (!(url.scheme in { stun:1, stuns:1, turn:1, turns:1 })) {
-        throw new Components.Exception(errorMsg + " - improper scheme: " + url.scheme,
-                                       Cr.NS_ERROR_MALFORMED_URI);
+        throw new Error (errorMsg + " - improper scheme: " + url.scheme);
       }
       if (server.credential && isObject(server.credential)) {
-        throw new Components.Exception(errorMsg + " - invalid credential");
+        throw new Error (errorMsg + " - invalid credential");
       }
     }
     if (!isObject(rtcConfig)) {
-      throw new Components.Exception(errorMsg);
+      throw new Error (errorMsg);
     }
     if (!isArraylike(rtcConfig.iceServers)) {
-      throw new Components.Exception(errorMsg +
-                                     " - iceServers [] property not present");
+      throw new Error (errorMsg + " - iceServers [] property not present");
     }
     let len = rtcConfig.iceServers.length;
     for (let i=0; i < len; i++) {
@@ -403,42 +400,40 @@ PeerConnection.prototype = {
     // Parse-aid: Testing for pilot error of missing outer block avoids
     // otherwise silent no-op since both mandatory and optional are optional
     if (!isObject(constraints) || Array.isArray(constraints)) {
-      throw new Components.Exception(errorMsg);
+      throw new Error(errorMsg);
     }
     if (constraints.mandatory) {
       // Testing for pilot error of using [] on mandatory here throws nicer msg
       // (arrays would throw in loop below regardless but with more cryptic msg)
       if (!isObject(constraints.mandatory) || Array.isArray(constraints.mandatory)) {
-        throw new Components.Exception(errorMsg + " - malformed mandatory constraints");
+        throw new Error(errorMsg + " - malformed mandatory constraints");
       }
       for (let constraint in constraints.mandatory) {
         if (!(constraint in SUPPORTED_CONSTRAINTS) &&
             constraints.mandatory.hasOwnProperty(constraint)) {
-          throw new Components.Exception(errorMsg + " - " +
-                                         ((constraint in OTHER_KNOWN_CONSTRAINTS)?
-                                          "unsupported" : "unknown") +
-                                         " mandatory constraint: " + constraint);
+          throw new Error (errorMsg + " - " +
+                           ((constraint in OTHER_KNOWN_CONSTRAINTS)?
+                            "unsupported" : "unknown") +
+                           " mandatory constraint: " + constraint);
         }
       }
     }
     if (constraints.optional) {
       if (!isArraylike(constraints.optional)) {
-        throw new Components.Exception(errorMsg +
-                                       " - malformed optional constraint array");
+        throw new Error(errorMsg + " - malformed optional constraint array");
       }
       let len = constraints.optional.length;
       for (let i = 0; i < len; i += 1) {
         if (!isObject(constraints.optional[i])) {
-          throw new Components.Exception(errorMsg +
-                                         " - malformed optional constraint: " +
-                                         constraints.optional[i]);
+          throw new Error(errorMsg + " - malformed optional constraint: " +
+                          constraints.optional[i]);
         }
         let constraints_per_entry = 0;
         for (let constraint in constraints.optional[i]) {
           if (constraints.optional[i].hasOwnProperty(constraint)) {
             if (constraints_per_entry) {
-              throw new Components.Exception(errorMsg +
-                  " - optional constraint must be single key/value pair");
+              throw new Error (errorMsg +
+                               " - optional constraint must be single key/value pair");
             }
             constraints_per_entry += 1;
           }
@@ -453,7 +448,7 @@ PeerConnection.prototype = {
   // spec. See Bug 831756.
   _checkClosed: function() {
     if (this._closed) {
-      throw new Components.Exception("Peer connection is closed");
+      throw new Error ("Peer connection is closed");
     }
   },
 
@@ -540,8 +535,9 @@ PeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       default:
-        throw new Components.Exception("Invalid type " + desc.type +
-                                       " provided to setLocalDescription");
+        throw new Error(
+          "Invalid type " + desc.type + " provided to setLocalDescription"
+        );
         break;
     }
 
@@ -569,8 +565,9 @@ PeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       default:
-        throw new Components.Exception("Invalid type " + desc.type +
-                                       " provided to setRemoteDescription");
+        throw new Error(
+          "Invalid type " + desc.type + " provided to setRemoteDescription"
+        );
         break;
     }
 
@@ -588,11 +585,11 @@ PeerConnection.prototype = {
 
   addIceCandidate: function(cand, onSuccess, onError) {
     if (!cand) {
-      throw new Components.Exception("NULL candidate passed to addIceCandidate!");
+      throw new Error ("NULL candidate passed to addIceCandidate!");
     }
 
     if (!cand.candidate || !cand.sdpMLineIndex) {
-      throw new Components.Exception("Invalid candidate passed to addIceCandidate!");
+      throw new Error ("Invalid candidate passed to addIceCandidate!");
     }
 
     this._onAddIceCandidateSuccess = onSuccess;
@@ -670,7 +667,7 @@ PeerConnection.prototype = {
     if (dict &&
         dict.maxRetransmitTime != undefined &&
         dict.maxRetransmitNum != undefined) {
-      throw new Components.Exception("Both maxRetransmitTime and maxRetransmitNum cannot be provided");
+      throw new Error("Both maxRetransmitTime and maxRetransmitNum cannot be provided");
     }
 
     // Must determine the type where we still know if entries are undefined.

@@ -146,7 +146,7 @@ JS::PrepareForFullGC(JSRuntime *rt)
 JS_FRIEND_API(void)
 JS::PrepareForIncrementalGC(JSRuntime *rt)
 {
-    if (!JS::IsIncrementalGCInProgress(rt))
+    if (!IsIncrementalGCInProgress(rt))
         return;
 
     for (ZonesIter zone(rt); !zone.done(); zone.next()) {
@@ -783,10 +783,10 @@ js::IsContextRunningJS(JSContext *cx)
     return !cx->stack.empty();
 }
 
-JS_FRIEND_API(JS::GCSliceCallback)
+JS_FRIEND_API(GCSliceCallback)
 JS::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 {
-    JS::GCSliceCallback old = rt->gcSliceCallback;
+    GCSliceCallback old = rt->gcSliceCallback;
     rt->gcSliceCallback = callback;
     return old;
 }
@@ -836,8 +836,8 @@ JS::NotifyDidPaint(JSRuntime *rt)
         return;
     }
 
-    if (JS::IsIncrementalGCInProgress(rt) && !rt->gcInterFrameGC) {
-        JS::PrepareForIncrementalGC(rt);
+    if (IsIncrementalGCInProgress(rt) && !rt->gcInterFrameGC) {
+        PrepareForIncrementalGC(rt);
         GCSlice(rt, GC_NORMAL, gcreason::REFRESH_FRAME);
     }
 

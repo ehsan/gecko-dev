@@ -95,7 +95,7 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
     }
 
     RootedValue rval(cx);
-    JSTrapStatus status = Debugger::onEnterFrame(cx, frame, &rval);
+    JSTrapStatus status = Debugger::onEnterFrame(cx, &rval);
     switch (status) {
       case JSTRAP_CONTINUE:
         break;
@@ -130,7 +130,7 @@ js::ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, bool okArg)
         }
     }
 
-    return Debugger::onLeaveFrame(cx, frame, ok);
+    return Debugger::onLeaveFrame(cx, ok);
 }
 
 JSTrapStatus
@@ -1032,7 +1032,7 @@ js_CallContextDebugHandler(JSContext *cx)
     }
 }
 
-JS_PUBLIC_API(JS::StackDescription *)
+JS_PUBLIC_API(StackDescription *)
 JS::DescribeStack(JSContext *cx, unsigned maxFrames)
 {
     Vector<FrameDescription> frames(cx);
@@ -1050,7 +1050,7 @@ JS::DescribeStack(JSContext *cx, unsigned maxFrames)
             break;
     }
 
-    JS::StackDescription *desc = js_new<JS::StackDescription>();
+    StackDescription *desc = js_new<StackDescription>();
     if (!desc)
         return NULL;
 
@@ -1060,7 +1060,7 @@ JS::DescribeStack(JSContext *cx, unsigned maxFrames)
 }
 
 JS_PUBLIC_API(void)
-JS::FreeStackDescription(JSContext *cx, JS::StackDescription *desc)
+JS::FreeStackDescription(JSContext *cx, StackDescription *desc)
 {
     js_delete(desc->frames);
     js_delete(desc);
