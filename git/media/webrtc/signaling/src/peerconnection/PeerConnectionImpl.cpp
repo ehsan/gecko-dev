@@ -1270,21 +1270,22 @@ PeerConnectionImpl::GetHandle()
 void
 PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *aCtx)
 {
-  (void) aCtx;
   // Do an async call here to unwind the stack. refptr keeps the PC alive.
   nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
                 WrapRunnable(pc,
-                             &PeerConnectionImpl::IceGatheringCompleted_m),
+                             &PeerConnectionImpl::IceGatheringCompleted_m,
+                             aCtx),
                 NS_DISPATCH_NORMAL);
 }
 
 nsresult
-PeerConnectionImpl::IceGatheringCompleted_m()
+PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
 {
   PC_AUTO_ENTER_API_CALL(false);
+  MOZ_ASSERT(aCtx);
 
-  CSFLogDebugS(logTag, __FUNCTION__);
+  CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
 
   mIceState = kIceWaiting;
 
@@ -1306,21 +1307,22 @@ PeerConnectionImpl::IceGatheringCompleted_m()
 void
 PeerConnectionImpl::IceCompleted(NrIceCtx *aCtx)
 {
-  (void) aCtx;
   // Do an async call here to unwind the stack. refptr keeps the PC alive.
   nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
                 WrapRunnable(pc,
-                             &PeerConnectionImpl::IceCompleted_m),
+                             &PeerConnectionImpl::IceCompleted_m,
+                             aCtx),
                 NS_DISPATCH_NORMAL);
 }
 
 nsresult
-PeerConnectionImpl::IceCompleted_m()
+PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
 {
   PC_AUTO_ENTER_API_CALL(false);
+  MOZ_ASSERT(aCtx);
 
-  CSFLogDebugS(logTag, __FUNCTION__);
+  CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
 
   mIceState = kIceConnected;
 

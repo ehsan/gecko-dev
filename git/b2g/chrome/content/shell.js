@@ -673,7 +673,7 @@ var AlertsHelper = {
      return;
 
     let topic = detail.type == "desktop-notification-click" ? "alertclickcallback"
-                           /* desktop-notification-close */ : "alertfinished";
+                                                            : "alertfinished";
     if (uid.startsWith("app-notif")) {
       try {
         listener.mm.sendAsyncMessage("app-notification-return", {
@@ -682,17 +682,13 @@ var AlertsHelper = {
           target: listener.target
         });
       } catch(e) {
-        // we get an exception if the app is not launched yet
-
         gSystemMessenger.sendMessage("notification", {
-            clicked: (detail.type === "desktop-notification-click"),
-            title: listener.title,
-            body: listener.text,
-            imageURL: listener.imageURL
-          },
-          Services.io.newURI(listener.target, null, null),
-          Services.io.newURI(listener.manifestURL, null, null)
-        );
+          title: listener.title,
+          body: listener.text,
+          imageURL: listener.imageURL
+        },
+        Services.io.newURI(listener.target, null, null),
+        Services.io.newURI(listener.manifestURL, null, null));
       }
     } else if (uid.startsWith("alert")) {
       try {
@@ -1043,20 +1039,21 @@ window.addEventListener('ContentStart', function update_onContentStart() {
 });
 
 (function geolocationStatusTracker() {
-  let gGeolocationActive = false;
+  let gGeolocationActiveCount = 0;
 
   Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    let oldState = gGeolocationActive;
+    let oldCount = gGeolocationActiveCount;
     if (aData == "starting") {
-      gGeolocationActive = true;
+      gGeolocationActiveCount += 1;
     } else if (aData == "shutdown") {
-      gGeolocationActive = false;
+      gGeolocationActiveCount -= 1;
     }
 
-    if (gGeolocationActive != oldState) {
+    // We need to track changes from 1 <-> 0
+    if (gGeolocationActiveCount + oldCount == 1) {
       shell.sendChromeEvent({
         type: 'geolocation-status',
-        active: gGeolocationActive
+        active: (gGeolocationActiveCount == 1)
       });
     }
 }, "geolocation-device-events", false);

@@ -8,6 +8,8 @@
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Symbol)
 
+DOMCI_NODE_DATA(SVGSymbolElement, mozilla::dom::SVGSymbolElement)
+
 namespace mozilla {
 namespace dom {
 
@@ -20,9 +22,15 @@ SVGSymbolElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED4(SVGSymbolElement, SVGSymbolElementBase,
-                             nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement, DOMSVGTests)
+NS_IMPL_ADDREF_INHERITED(SVGSymbolElement,SVGSymbolElementBase)
+NS_IMPL_RELEASE_INHERITED(SVGSymbolElement,SVGSymbolElementBase)
+
+NS_INTERFACE_TABLE_HEAD(SVGSymbolElement)
+  NS_NODE_INTERFACE_TABLE5(SVGSymbolElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement,
+                           nsIDOMSVGSymbolElement, DOMSVGTests)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSymbolElement)
+NS_INTERFACE_MAP_END_INHERITING(SVGSymbolElementBase)
 
 //----------------------------------------------------------------------
 // Implementation

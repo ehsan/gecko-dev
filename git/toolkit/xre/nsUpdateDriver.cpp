@@ -1036,15 +1036,7 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
       updRoot = dirProvider->GetAppDir();
 
     greDir = dirProvider->GetGREDir();
-    nsCOMPtr<nsIFile> exeFile;
-    rv = dirProvider->GetFile(XRE_EXECUTABLE_FILE, &persistent,
-                              getter_AddRefs(exeFile));
-    if (NS_SUCCEEDED(rv))
-      rv = exeFile->GetParent(getter_AddRefs(appDir));
-
-    if (NS_FAILED(rv))
-      appDir = dirProvider->GetAppDir();
-
+    appDir = dirProvider->GetAppDir();
     appVersion = gAppData->version;
     argc = gRestartArgc;
     argv = gRestartArgv;

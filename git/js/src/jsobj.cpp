@@ -1623,10 +1623,10 @@ JSObject::deleteByValue(JSContext *cx, HandleObject obj,
         return false;
 
     if (name->isIndex(&index))
-        return deleteElement(cx, obj, index, rval, strict);
+        return deleteElement(cx, obj, index, rval, false);
 
     Rooted<PropertyName*> propname(cx, name->asPropertyName());
-    return deleteProperty(cx, obj, propname, rval, strict);
+    return deleteProperty(cx, obj, propname, rval, false);
 }
 
 JS_FRIEND_API(bool)
@@ -1661,7 +1661,7 @@ JS_CopyPropertiesFrom(JSContext *cx, JSObject *targetArg, JSObject *objArg)
         if ((attrs & JSPROP_SETTER) && !cx->compartment->wrap(cx, &setter))
             return false;
         v = shape->hasSlot() ? obj->getSlot(shape->slot()) : UndefinedValue();
-        if (!cx->compartment->wrap(cx, &v))
+        if (!cx->compartment->wrap(cx, v.address()))
             return false;
         id = shape->propid();
         if (!JSObject::defineGeneric(cx, target, id, v, getter, setter, attrs))
@@ -1686,9 +1686,8 @@ CopySlots(JSContext *cx, HandleObject from, HandleObject to)
     }
 
     size_t span = JSCLASS_RESERVED_SLOTS(from->getClass());
-    RootedValue v(cx);
     for (; n < span; ++n) {
-        v = from->getSlot(n);
+        Value v = from->getSlot(n);
         if (!cx->compartment->wrap(cx, &v))
             return false;
         to->setSlot(n, v);

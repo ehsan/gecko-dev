@@ -15,7 +15,6 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLSerialize.h"
-#include "xpcpublic.h"
 
 nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
                                                const PRUnichar* aGetter, 
@@ -136,42 +135,50 @@ nsXBLProtoImplProperty::SetSetterLineNumber(uint32_t aLineNumber)
 const char* gPropertyArgs[] = { "val" };
 
 nsresult
-nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
-                                      JSObject* aTargetClassObject)
+nsXBLProtoImplProperty::InstallMember(nsIScriptContext* aContext,
+                                      nsIContent* aBoundElement, 
+                                      JSObject* aScriptObject,
+                                      JSObject* aTargetClassObject,
+                                      const nsCString& aClassStr)
 {
   NS_PRECONDITION(mIsCompiled,
                   "Should not be installing an uncompiled property");
-  MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
-  JSObject * globalObject = JS_GetGlobalForObject(aCx, aTargetClassObject);
-  JSObject * scopeObject = xpc::GetXBLScope(aCx, globalObject);
+  JSContext* cx = aContext->GetNativeContext();
+
+  nsIScriptGlobalObject* sgo = aBoundElement->OwnerDoc()->GetScopeObject();
+
+  if (!sgo) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  NS_ASSERTION(aScriptObject, "uh-oh, script Object should NOT be null or bad things will happen");
+  if (!aScriptObject)
+    return NS_ERROR_FAILURE;
+
+  JSObject * globalObject = sgo->GetGlobalJSObject();
 
   // now we want to reevaluate our property using aContext and the script object for this window...
-  if (mJSGetterObject || mJSSetterObject) {
+  if ((mJSGetterObject || mJSSetterObject) && aTargetClassObject) {
     JSObject * getter = nullptr;
+    JSAutoRequest ar(cx);
+    JSAutoCompartment ac(cx, globalObject);
 
-    // First, enter the compartment of the scope object and clone the functions.
-    JSAutoCompartment ac(aCx, scopeObject);
     if (mJSGetterObject)
-      if (!(getter = ::JS_CloneFunctionObject(aCx, mJSGetterObject, scopeObject)))
+      if (!(getter = ::JS_CloneFunctionObject(cx, mJSGetterObject, globalObject)))
         return NS_ERROR_OUT_OF_MEMORY;
 
     JSObject * setter = nullptr;
     if (mJSSetterObject)
-      if (!(setter = ::JS_CloneFunctionObject(aCx, mJSSetterObject, scopeObject)))
+      if (!(setter = ::JS_CloneFunctionObject(cx, mJSSetterObject, globalObject)))
         return NS_ERROR_OUT_OF_MEMORY;
 
-    // Now, enter the content compartment, wrap the getter/setter, and define
-    // them on the class object.
-    JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!JS_WrapObject(aCx, &getter) ||
-        !JS_WrapObject(aCx, &setter) ||
-        !::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!::JS_DefineUCProperty(cx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
                                JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter),
                                JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter),
-                               mJSAttributes | JSPROP_PERMANENT | JSPROP_READONLY))
+                               mJSAttributes))
       return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;

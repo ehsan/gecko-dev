@@ -21,6 +21,7 @@ EXTRA_JS_MODULES = \
 	NewTabUtils.jsm \
 	offlineAppCache.jsm \
 	SignInToWebsite.jsm \
+	TelemetryTimestamps.jsm \
 	webappsUI.jsm \
 	webrtcUI.jsm \
 	KeywordURLResetPrompter.jsm \

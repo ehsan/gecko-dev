@@ -6,7 +6,7 @@
 #include "nsSVGDocument.h"
 #include "nsString.h"
 #include "nsLiteralString.h"
-#include "nsIDOMSVGElement.h"
+#include "nsIDOMSVGSVGElement.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla::dom;
@@ -59,7 +59,7 @@ nsSVGDocument::GetDomain(nsAString& aDomain)
 
 /* readonly attribute SVGSVGElement rootElement; */
 NS_IMETHODIMP
-nsSVGDocument::GetRootElement(nsIDOMSVGElement** aRootElement)
+nsSVGDocument::GetRootElement(nsIDOMSVGSVGElement** aRootElement)
 {
   *aRootElement = nullptr;
   Element* root = nsDocument::GetRootElement();

@@ -23,6 +23,7 @@
 #include "nsSVGClass.h"
 #include "nsIDOMSVGElement.h"
 
+class nsIDOMSVGSVGElement;
 class nsSVGAngle;
 class nsSVGBoolean;
 class nsSVGEnum;
@@ -119,7 +120,7 @@ public:
   // nsIDOMSVGElement
   NS_IMETHOD GetId(nsAString & aId);
   NS_IMETHOD SetId(const nsAString & aId);
-  NS_IMETHOD GetOwnerSVGElement(nsIDOMSVGElement** aOwnerSVGElement);
+  NS_IMETHOD GetOwnerSVGElement(nsIDOMSVGSVGElement** aOwnerSVGElement);
   NS_IMETHOD GetViewportElement(nsIDOMSVGElement** aViewportElement);
   NS_IMETHOD GetClassName(nsIDOMSVGAnimatedString** aClassName);
   NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle);

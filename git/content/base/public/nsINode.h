@@ -279,7 +279,7 @@ public:
   // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539), mTitleChangedListener
   // - HTMLBodyElement:       mContentStyleRule
   // - HTMLDataListElement:   mOptions
-  // - HTMLFieldSetElement:   mElements, mDependentElements, mFirstLegend
+  // - nsHTMLFieldSetElement: mElements, mDependentElements, mFirstLegend
   // - nsHTMLFormElement:     many!
   // - HTMLFrameSetElement:   mRowSpecs, mColSpecs
   // - nsHTMLInputElement:    mInputData, mFiles, mFileList, mStaticDocfileList

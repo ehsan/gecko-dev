@@ -106,11 +106,11 @@ class IonRectifierFrameLayout : public IonJSFrameLayout
 };
 
 // The callee token is now dead.
-class IonUnwoundRectifierFrameLayout : public IonRectifierFrameLayout
+class IonBailedRectifierFrameLayout : public IonRectifierFrameLayout
 {
   public:
     static inline size_t Size() {
-        return sizeof(IonUnwoundRectifierFrameLayout);
+        return sizeof(IonBailedRectifierFrameLayout);
     }
 };
 

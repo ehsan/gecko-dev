@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <algorithm>
 #include <iostream>
 #include <utility>
 
@@ -276,25 +275,11 @@ std::ostream& operator<<(std::ostream& stream, const Module::Expr& expr) {
 }
 
 bool Module::WriteRuleMap(const RuleMap &rule_map, std::ostream &stream) {
-  // Visit the register rules in alphabetical order.  Because
-  // rule_map has the elements in some arbitrary order,
-  // get the names out into a vector, sort them, and visit in
-  // sorted order.
-  std::vector<const UniqueString*> rr_names;
   for (RuleMap::const_iterator it = rule_map.begin();
        it != rule_map.end(); ++it) {
-    rr_names.push_back(it->first);
-  }
-
-  std::sort(rr_names.begin(), rr_names.end(), LessThan_UniqueString);
-
-  // Now visit the register rules in alphabetical order.
-  for (std::vector<const UniqueString*>::const_iterator name = rr_names.begin();
-       name != rr_names.end();
-       ++name) {
-    if (name != rr_names.begin())
-      stream << " ";
-    stream << FromUniqueString(*name) << ": " << rule_map.find(*name)->second;
+    if (it != rule_map.begin())
+      stream << ' ';
+    stream << it->first << ": " << it->second;
   }
   return stream.good();
 }

@@ -17,7 +17,6 @@
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
-#include "xpcpublic.h"
 #include "nsXBLPrototypeBinding.h"
 
 nsXBLProtoImplMethod::nsXBLProtoImplMethod(const PRUnichar* aName) :
@@ -93,36 +92,43 @@ nsXBLProtoImplMethod::SetLineNumber(uint32_t aLineNumber)
 }
 
 nsresult
-nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
-                                    JSObject* aTargetClassObject)
+nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
+                                    nsIContent* aBoundElement, 
+                                    JSObject* aScriptObject,
+                                    JSObject* aTargetClassObject,
+                                    const nsCString& aClassStr)
 {
   NS_PRECONDITION(IsCompiled(),
                   "Should not be installing an uncompiled method");
-  MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
+  JSContext* cx = aContext->GetNativeContext();
 
-  JSObject* globalObject = JS_GetGlobalForObject(aCx, aTargetClassObject);
-  JSObject* scopeObject = xpc::GetXBLScope(aCx, globalObject);
+  nsIScriptGlobalObject* sgo = aBoundElement->OwnerDoc()->GetScopeObject();
+
+  if (!sgo) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  NS_ASSERTION(aScriptObject, "uh-oh, script Object should NOT be null or bad things will happen");
+  if (!aScriptObject)
+    return NS_ERROR_FAILURE;
+
+  JSObject* globalObject = sgo->GetGlobalJSObject();
 
   // now we want to reevaluate our property using aContext and the script object for this window...
-  if (mJSMethodObject) {
+  if (mJSMethodObject && aTargetClassObject) {
     nsDependentString name(mName);
+    JSAutoRequest ar(cx);
+    JSAutoCompartment ac(cx, globalObject);
 
-    // First, make the function in the compartment of the scope object.
-    JSAutoCompartment ac(aCx, scopeObject);
-    JSObject * method = ::JS_CloneFunctionObject(aCx, mJSMethodObject, scopeObject);
+    JSObject * method = ::JS_CloneFunctionObject(cx, mJSMethodObject, globalObject);
     if (!method) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    // Then, enter the content compartment, wrap the method pointer, and define
-    // the wrapped version on the class object.
-    JSAutoCompartment ac2(aCx, aTargetClassObject);
-    if (!JS_WrapObject(aCx, &method) ||
-        !::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!::JS_DefineUCProperty(cx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), OBJECT_TO_JSVAL(method),
-                               NULL, NULL,
-                               JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT)) {
+                               NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -299,21 +305,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
                                getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Use nsCxPusher to make sure we call ScriptEvaluated when we're done.
-  //
-  // Make sure to do this before entering the compartment, since pushing Push()
-  // may call JS_SaveFrameChain(), which puts us back in an unentered state.
-  nsCxPusher pusher;
-  NS_ENSURE_STATE(pusher.Push(aBoundElement));
-  MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
-
   JSObject* thisObject = JSVAL_TO_OBJECT(v);
-  JSObject* scopeObject = xpc::GetXBLScope(cx, globalObject);
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, scopeObject);
-  if (!JS_WrapObject(cx, &thisObject))
-      return NS_ERROR_OUT_OF_MEMORY;
+  JSAutoCompartment ac(cx, thisObject);
 
   // Clone the function object, using thisObject as the parent so "this" is in
   // the scope chain of the resulting function (for backwards compat to the
@@ -323,6 +318,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Now call the method
+
+  // Use nsCxPusher to make sure we call ScriptEvaluated when we're done.
+  nsCxPusher pusher;
+  NS_ENSURE_STATE(pusher.Push(aBoundElement));
 
   // Check whether it's OK to call the method.
   rv = nsContentUtils::GetSecurityManager()->CheckFunctionAccess(cx, method,

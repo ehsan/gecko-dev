@@ -84,7 +84,7 @@ StringBuffer::finishAtom()
 bool
 js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
 {
-    RootedValue v(cx, arg);
+    Value v = arg;
     if (!ToPrimitive(cx, JSTYPE_STRING, &v))
         return false;
 

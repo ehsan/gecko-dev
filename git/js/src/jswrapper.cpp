@@ -475,41 +475,28 @@ CrossCompartmentWrapper::hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool 
 
 bool
 CrossCompartmentWrapper::get(JSContext *cx, JSObject *wrapperArg, JSObject *receiverArg,
-                             jsid idArg, Value *vpArg)
+                             jsid idArg, Value *vp)
 {
     RootedObject wrapper(cx, wrapperArg);
     RootedObject receiver(cx, receiverArg);
     RootedId id(cx, idArg);
-    RootedValue vp(cx, *vpArg);
-
-    {
-        AutoCompartment call(cx, wrappedObject(wrapper));
-        if (!cx->compartment->wrap(cx, receiver.address()) ||
-            !cx->compartment->wrapId(cx, id.address()))
-        {
-            return false;
-        }
-
-        if (!Wrapper::get(cx, wrapper, receiver, id, vp.address()))
-            return false;
-    }
-
-    bool ok = cx->compartment->wrap(cx, &vp);
-    *vpArg = vp.get();
-    return ok;
+    PIERCE(cx, wrapper,
+           cx->compartment->wrap(cx, receiver.address()) && cx->compartment->wrapId(cx, id.address()),
+           Wrapper::get(cx, wrapper, receiver, id, vp),
+           cx->compartment->wrap(cx, vp));
 }
 
 bool
 CrossCompartmentWrapper::set(JSContext *cx, JSObject *wrapper_, JSObject *receiver_, jsid id_,
-                             bool strict, Value *valueArg)
+                             bool strict, Value *vp)
 {
     RootedObject wrapper(cx, wrapper_), receiver(cx, receiver_);
     RootedId id(cx, id_);
-    RootedValue value(cx, *valueArg);
+    RootedValue value(cx, *vp);
     PIERCE(cx, wrapper,
            cx->compartment->wrap(cx, receiver.address()) &&
            cx->compartment->wrapId(cx, id.address()) &&
-           cx->compartment->wrap(cx, &value),
+           cx->compartment->wrap(cx, value.address()),
            Wrapper::set(cx, wrapper, receiver, id, strict, value.address()),
            NOTHING);
 }
@@ -550,9 +537,9 @@ struct AutoCloseIterator
 };
 
 static bool
-Reify(JSContext *cx, JSCompartment *origin, MutableHandleValue vp)
+Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 {
-    Rooted<PropertyIteratorObject*> iterObj(cx, &vp.toObject().asPropertyIterator());
+    Rooted<PropertyIteratorObject*> iterObj(cx, &vp->toObject().asPropertyIterator());
     NativeIterator *ni = iterObj->getNativeIterator();
 
     AutoCloseIterator close(cx, iterObj);
@@ -587,90 +574,75 @@ Reify(JSContext *cx, JSCompartment *origin, MutableHandleValue vp)
     if (!CloseIterator(cx, iterObj))
         return false;
 
+    RootedValue value(cx, *vp);
+
     if (isKeyIter) {
-        if (!VectorToKeyIterator(cx, obj, ni->flags, keys, vp))
+        if (!VectorToKeyIterator(cx, obj, ni->flags, keys, &value))
             return false;
     } else {
-        if (!VectorToValueIterator(cx, obj, ni->flags, keys, vp))
+        if (!VectorToValueIterator(cx, obj, ni->flags, keys, &value))
             return false;
     }
+
+    *vp = value;
     return true;
 }
 
 bool
-CrossCompartmentWrapper::iterate(JSContext *cx, JSObject *wrapperArg, unsigned flags, Value *vpArg)
+CrossCompartmentWrapper::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, Value *vp)
 {
-    RootedObject wrapper(cx, wrapperArg);
-    RootedValue vp(cx, *vpArg);
-
-    {
-        AutoCompartment call(cx, wrappedObject(wrapper));
-        if (!Wrapper::iterate(cx, wrapper, flags, vp.address()))
-            return false;
-    }
-
-    bool ok = CanReify(vp.address())
-              ? Reify(cx, cx->compartment, &vp)
-              : cx->compartment->wrap(cx, &vp);
-    *vpArg = vp.get();
-    return ok;
+    PIERCE(cx, wrapper,
+           NOTHING,
+           Wrapper::iterate(cx, wrapper, flags, vp),
+           CanReify(vp) ? Reify(cx, cx->compartment, vp) : cx->compartment->wrap(cx, vp));
 }
 
 bool
-CrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapperArg, unsigned argc, Value *vp)
+CrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapper_, unsigned argc, Value *vp)
 {
-    RootedObject wrapper(cx, wrapperArg);
-    RootedObject wrapped(cx, wrappedObject(wrapper));
-
-    CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject wrapper(cx, wrapper_);
+    JSObject *wrapped = wrappedObject(wrapper);
     {
         AutoCompartment call(cx, wrapped);
 
-        args.setCallee(ObjectValue(*wrapped));
-        if (!cx->compartment->wrap(cx, args.mutableThisv()))
+        vp[0] = ObjectValue(*wrapped);
+        if (!cx->compartment->wrap(cx, &vp[1]))
             return false;
-
-        for (size_t n = 0; n < args.length(); ++n) {
-            if (!cx->compartment->wrap(cx, args.handleAt(n)))
+        Value *argv = JS_ARGV(cx, vp);
+        for (size_t n = 0; n < argc; ++n) {
+            if (!cx->compartment->wrap(cx, &argv[n]))
                 return false;
         }
-
         if (!Wrapper::call(cx, wrapper, argc, vp))
             return false;
     }
-
-    return cx->compartment->wrap(cx, args.rval());
+    return cx->compartment->wrap(cx, vp);
 }
 
 bool
-CrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapperArg, unsigned argc, Value *argv,
-                                   Value *rvalArg)
+CrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper_, unsigned argc, Value *argv,
+                                   Value *rval)
 {
-    RootedObject wrapper(cx, wrapperArg);
+    RootedObject wrapper(cx, wrapper_);
     JSObject *wrapped = wrappedObject(wrapper);
     {
         AutoCompartment call(cx, wrapped);
 
         for (size_t n = 0; n < argc; ++n) {
-            RootedValue arg(cx, argv[n]);
-            if (!cx->compartment->wrap(cx, &arg))
+            if (!cx->compartment->wrap(cx, &argv[n]))
                 return false;
-            argv[n] = arg;
         }
-        if (!Wrapper::construct(cx, wrapper, argc, argv, rvalArg))
+        if (!Wrapper::construct(cx, wrapper, argc, argv, rval))
             return false;
     }
-    RootedValue rval(cx, *rvalArg);
-    bool ok = cx->compartment->wrap(cx, &rval);
-    *rvalArg = rval;
-    return ok;
+    return cx->compartment->wrap(cx, rval);
 }
 
 bool
 CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                                     CallArgs srcArgs)
 {
-    RootedObject wrapper(cx, &srcArgs.thisv().toObject());
+    Rooted<JSObject*> wrapper(cx, &srcArgs.thisv().toObject());
     JS_ASSERT(srcArgs.thisv().isMagic(JS_IS_CONSTRUCTING) ||
               !UnwrapObject(wrapper)->isCrossCompartmentWrapper());
 
@@ -684,27 +656,10 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
         Value *src = srcArgs.base();
         Value *srcend = srcArgs.array() + srcArgs.length();
         Value *dst = dstArgs.base();
-
-        RootedValue source(cx);
         for (; src < srcend; ++src, ++dst) {
-            source = *src;
-            if (!cx->compartment->wrap(cx, &source))
+            *dst = *src;
+            if (!cx->compartment->wrap(cx, dst))
                 return false;
-            *dst = source.get();
-
-            // Handle |this| specially. When we rewrap on the other side of the
-            // membrane, we might apply a same-compartment security wrapper that
-            // will stymie this whole process. If that happens, unwrap the wrapper.
-            // This logic can go away when same-compartment security wrappers go away.
-            if ((src == srcArgs.base() + 1) && dst->isObject()) {
-                JSObject *thisObj = &dst->toObject();
-                if (thisObj->isWrapper() &&
-                    !Wrapper::wrapperHandler(thisObj)->isSafeToUnwrap())
-                {
-                    JS_ASSERT(!IsCrossCompartmentWrapper(thisObj));
-                    *src = ObjectValue(*Wrapper::wrappedObject(thisObj));
-                }
-            }
         }
 
         if (!CallNonGenericMethod(cx, test, impl, dstArgs))
@@ -713,14 +668,14 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
         srcArgs.rval().set(dstArgs.rval());
         dstArgs.pop();
     }
-    return cx->compartment->wrap(cx, srcArgs.rval());
+    return cx->compartment->wrap(cx, srcArgs.rval().address());
 }
 
 bool
 CrossCompartmentWrapper::hasInstance(JSContext *cx, HandleObject wrapper, MutableHandleValue v, bool *bp)
 {
     AutoCompartment call(cx, wrappedObject(wrapper));
-    if (!cx->compartment->wrap(cx, v))
+    if (!cx->compartment->wrap(cx, v.address()))
         return false;
     return Wrapper::hasInstance(cx, wrapper, v, bp);
 }
@@ -763,15 +718,11 @@ CrossCompartmentWrapper::regexp_toShared(JSContext *cx, JSObject *wrapper, RegEx
 }
 
 bool
-CrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vpArg)
+CrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
 {
-    if (!Wrapper::defaultValue(cx, wrapper, hint, vpArg))
+    if (!Wrapper::defaultValue(cx, wrapper, hint, vp))
         return false;
-
-    RootedValue vp(cx, *vpArg);
-    bool ok = cx->compartment->wrap(cx, &vp);
-    *vpArg = vp;
-    return ok;
+    return cx->compartment->wrap(cx, vp);
 }
 
 bool

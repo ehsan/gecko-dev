@@ -5,6 +5,7 @@
 
 #include "nsIDOMElement.idl"
 
+interface nsIDOMSVGSVGElement;
 interface nsIDOMSVGAnimatedString;
 interface nsIDOMCSSStyleDeclaration;
 interface nsIDOMCSSValue;
@@ -15,7 +16,7 @@ interface nsIDOMSVGElement : nsIDOMElement
 {
   attribute DOMString id;
             // raises DOMException on setting
-  readonly attribute nsIDOMSVGElement    ownerSVGElement;
+  readonly attribute nsIDOMSVGSVGElement ownerSVGElement;
   readonly attribute nsIDOMSVGElement    viewportElement;
 
   readonly attribute nsIDOMSVGAnimatedString   className;

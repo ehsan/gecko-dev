@@ -80,7 +80,6 @@
 #include "vm/ForkJoin.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
-#include "vm/ForkJoin.h"
 #include "ion/IonCode.h"
 #ifdef JS_ION
 # include "ion/IonMacroAssembler.h"
@@ -1197,10 +1196,10 @@ void *
 ArenaLists::parallelAllocate(Zone *zone, AllocKind thingKind, size_t thingSize)
 {
     /*
-     * During parallel Rivertrail sections, if no existing arena can
-     * satisfy the allocation, then a new one is allocated. If that
-     * fails, then we return NULL which will cause the parallel
-     * section to abort.
+     * During parallel Rivertrail sections, no GC is permitted. If no
+     * existing arena can satisfy the allocation, then a new one is
+     * allocated. If that fails, then we return NULL which will cause
+     * the parallel section to abort.
      */
 
     void *t = allocateFromFreeList(thingKind, thingSize);
@@ -1493,7 +1492,7 @@ RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
      * In parallel sections, we do not attempt to refill the free list
      * and hence do not encounter last ditch GC.
      */
-    JS_ASSERT(!InParallelSection());
+    JS_ASSERT(!ForkJoinSlice::InParallelSection());
 
     PrepareZoneForGC(zone);
 
@@ -4413,7 +4412,7 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
         JSGCInvocationKind gckind, gcreason::Reason reason)
 {
     /* GC shouldn't be running in parallel execution mode */
-    JS_ASSERT(!InParallelSection());
+    JS_ASSERT(!ForkJoinSlice::InParallelSection());
 
     JS_AbortIfWrongThread(rt);
 

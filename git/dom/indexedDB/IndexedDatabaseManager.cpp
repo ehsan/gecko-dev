@@ -1798,6 +1798,10 @@ IndexedDatabaseManager::AsyncUsageRunnable::RunInternal()
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never fail!");
 
+  if (mCanceled) {
+    return NS_OK;
+  }
+
   switch (mCallbackState) {
     case Pending: {
       NS_NOTREACHED("Should never get here without being dispatched!");

@@ -8,11 +8,10 @@
 #ifndef LifoAlloc_h__
 #define LifoAlloc_h__
 
-#include "mozilla/ASan.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/GuardObjects.h"
-#include "mozilla/TypeTraits.h"
+#include "mozilla/ASan.h"
 
 #if defined(MOZ_VALGRIND)
 #include "valgrind/memcheck.h"
@@ -278,7 +277,7 @@ class LifoAlloc
         void *mem = alloc(sizeof(T) * count);
         if (!mem)
             return NULL;
-        JS_STATIC_ASSERT(mozilla::IsPod<T>::value);
+        JS_STATIC_ASSERT(tl::IsPodType<T>::result);
         return (T *) mem;
     }
 

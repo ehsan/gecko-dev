@@ -39,11 +39,11 @@
 }
 
 #titlebar-buttonbox-container,
-#main-window:not([drawintitlebar=true]) > #titlebar {
+#titlebar:not(:-moz-lwtheme) {
   display: none;
 }
 
-#titlebar {
+#main-window[drawintitlebar="true"] > #titlebar {
   height: 22px;
 }
 

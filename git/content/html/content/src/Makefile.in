@@ -31,13 +31,10 @@ EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
 		HTMLAnchorElement.h \
-		HTMLAreaElement.h \
 		HTMLBodyElement.h \
 		HTMLBRElement.h \
-		HTMLButtonElement.h \
 		HTMLDataListElement.h \
 		HTMLDivElement.h \
-		HTMLFieldSetElement.h \
 		HTMLFontElement.h \
 		HTMLFrameSetElement.h \
 		HTMLHeadingElement.h \
@@ -45,16 +42,13 @@ EXPORTS_mozilla/dom = \
 		HTMLImageElement.h \
 		HTMLLabelElement.h \
 		HTMLLIElement.h \
-		HTMLLinkElement.h \
 		HTMLMapElement.h \
 		HTMLMetaElement.h \
 		HTMLMeterElement.h \
 		HTMLModElement.h \
-		HTMLOptGroupElement.h \
 		HTMLParagraphElement.h \
 		HTMLPreElement.h \
 		HTMLScriptElement.h \
-		HTMLSharedElement.h \
 		HTMLSharedListElement.h \
 		HTMLSpanElement.h \
 		HTMLStyleElement.h \
@@ -80,14 +74,14 @@ CPPSRCS		= \
 		nsTextEditorState.cpp \
 		HTMLElement.cpp \
 		HTMLAnchorElement.cpp \
-		HTMLAreaElement.cpp \
+		nsHTMLAreaElement.cpp \
 		HTMLBRElement.cpp \
 		HTMLBodyElement.cpp \
-		HTMLButtonElement.cpp \
+		nsHTMLButtonElement.cpp \
 		HTMLCanvasElement.cpp \
 		HTMLDataListElement.cpp \
 		HTMLDivElement.cpp \
-		HTMLFieldSetElement.cpp \
+		nsHTMLFieldSetElement.cpp \
 		HTMLFontElement.cpp \
 		nsHTMLFormElement.cpp \
 		nsHTMLFrameElement.cpp \
@@ -100,7 +94,7 @@ CPPSRCS		= \
 		HTMLLIElement.cpp \
 		HTMLLabelElement.cpp \
 		nsHTMLLegendElement.cpp \
-		HTMLLinkElement.cpp \
+		nsHTMLLinkElement.cpp \
 		HTMLMapElement.cpp \
 		nsHTMLMenuElement.cpp \
 		nsHTMLMenuItemElement.cpp \
@@ -110,16 +104,16 @@ CPPSRCS		= \
 		HTMLObjectElement.cpp \
 		nsHTMLSharedObjectElement.cpp \
 		nsHTMLOptionElement.cpp \
-		HTMLOptGroupElement.cpp \
+		nsHTMLOptGroupElement.cpp \
 		nsHTMLOutputElement.cpp \
 		HTMLParagraphElement.cpp \
 		HTMLPreElement.cpp \
 		nsHTMLProgressElement.cpp \
 		HTMLScriptElement.cpp \
 		nsHTMLSelectElement.cpp \
-		HTMLSharedElement.cpp \
-		HTMLSharedListElement.cpp \
+		nsHTMLSharedElement.cpp \
 		HTMLSpanElement.cpp \
+		HTMLSharedListElement.cpp \
 		HTMLStyleElement.cpp \
 		HTMLTableElement.cpp \
 		HTMLTableCaptionElement.cpp \

@@ -19,9 +19,8 @@ function log(msg) {
 
 #ifdef MOZ_WIDGET_GONK
 let librecovery = (function() {
-  let library;
   try {
-    library = ctypes.open("librecovery.so");
+    let library = ctypes.open("librecovery.so");
   } catch (e) {
     log("Unable to open librecovery.so");
     throw Cr.NS_ERROR_FAILURE;

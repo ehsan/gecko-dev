@@ -56,15 +56,19 @@ class js::ForkJoinShared : public TaskExecutor, public Monitor
     // Asynchronous Flags
     //
     // These can be read without the lock (hence the |volatile| declaration).
-    // All fields should be *written with the lock*, however.
 
-    // Set to true when parallel execution should abort.
+    // A thread has bailed and others should follow suit.  Set and read
+    // asynchronously.  After setting abort, workers will acquire the lock,
+    // decrement uncompleted, and then notify if uncompleted has reached
+    // blocked.
     volatile bool abort_;
 
     // Set to true when a worker bails for a fatal reason.
     volatile bool fatal_;
 
-    // The main thread has requested a rendezvous.
+    // A thread has request a rendezvous.  Only *written* with the lock (in
+    // |initiateRendezvous()| and |endRendezvous()|) but may be *read* without
+    // the lock.
     volatile bool rendezvous_;
 
     // Invoked only from the main thread:
@@ -117,12 +121,15 @@ class js::ForkJoinShared : public TaskExecutor, public Monitor
     // Invoked during processing by worker threads to "check in".
     bool check(ForkJoinSlice &threadCx);
 
-    // Requests a GC, either full or specific to a zone.
+    // See comment on |ForkJoinSlice::setFatal()| in forkjoin.h
+    bool setFatal();
+
+    // Requests a GC, either full or specific to a compartment.
     void requestGC(gcreason::Reason reason);
     void requestZoneGC(JS::Zone *zone, gcreason::Reason reason);
 
     // Requests that computation abort.
-    void setAbortFlag(bool fatal);
+    void setAbortFlag();
 
     JSRuntime *runtime() { return cx_->runtime; }
 };
@@ -145,7 +152,6 @@ class js::AutoRendezvous
 };
 
 unsigned ForkJoinSlice::ThreadPrivateIndex;
-bool ForkJoinSlice::TLSInitialized;
 
 class js::AutoSetForkJoinSlice
 {
@@ -304,7 +310,7 @@ ForkJoinShared::executeFromWorker(uint32_t workerId, uintptr_t stackLimit)
 void
 ForkJoinShared::executeFromMainThread()
 {
-    executePortion(&cx_->mainThread(), numSlices_ - 1);
+    executePortion(&cx_->runtime->mainThread, numSlices_ - 1);
 }
 
 void
@@ -316,14 +322,22 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
     AutoSetForkJoinSlice autoContext(&slice);
 
     if (!op_.parallel(slice))
-        setAbortFlag(false);
+        setAbortFlag();
+}
+
+bool
+ForkJoinShared::setFatal()
+{
+    // Might as well set the abort flag to true, as it will make propagation
+    // faster.
+    setAbortFlag();
+    fatal_ = true;
+    return false;
 }
 
 bool
 ForkJoinShared::check(ForkJoinSlice &slice)
 {
-    JS_ASSERT(cx_->runtime->interrupt);
-
     if (abort_)
         return false;
 
@@ -340,8 +354,8 @@ ForkJoinShared::check(ForkJoinSlice &slice)
             // service the interrupt, then let them start back up again.
             // AutoRendezvous autoRendezvous(slice);
             // if (!js_HandleExecutionInterrupt(cx_))
-            //     return setAbortFlag(true);
-            setAbortFlag(false);
+            //     return setFatal();
+            setAbortFlag();
             return false;
         }
     } else if (rendezvous_) {
@@ -385,7 +399,6 @@ ForkJoinShared::initiateRendezvous(ForkJoinSlice &slice)
 
     JS_ASSERT(slice.isMainThread());
     JS_ASSERT(!rendezvous_ && blocked_ == 0);
-    JS_ASSERT(cx_->runtime->interrupt);
 
     AutoLockMonitor lock(*this);
 
@@ -427,21 +440,16 @@ ForkJoinShared::endRendezvous(ForkJoinSlice &slice)
     AutoLockMonitor lock(*this);
     rendezvous_ = false;
     blocked_ = 0;
-    rendezvousIndex_++;
+    rendezvousIndex_ += 1;
 
     // Signal other threads that rendezvous is over.
     PR_NotifyAllCondVar(rendezvousEnd_);
 }
 
 void
-ForkJoinShared::setAbortFlag(bool fatal)
+ForkJoinShared::setAbortFlag()
 {
-    AutoLockMonitor lock(*this);
-
     abort_ = true;
-    fatal_ = fatal_ || fatal;
-
-    cx_->runtime->triggerOperationCallback();
 }
 
 void
@@ -514,25 +522,28 @@ bool
 ForkJoinSlice::check()
 {
 #ifdef JS_THREADSAFE
-    if (runtime()->interrupt)
-        return shared->check(*this);
-    else
-        return true;
+    return shared->check(*this);
 #else
     return false;
 #endif
 }
 
 bool
-ForkJoinSlice::InitializeTLS()
+ForkJoinSlice::setFatal()
 {
 #ifdef JS_THREADSAFE
-    if (!TLSInitialized) {
-        TLSInitialized = true;
-        PRStatus status = PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL);
-        return status == PR_SUCCESS;
-    }
-    return true;
+    return shared->setFatal();
+#else
+    return false;
+#endif
+}
+
+bool
+ForkJoinSlice::Initialize()
+{
+#ifdef JS_THREADSAFE
+    PRStatus status = PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL);
+    return status == PR_SUCCESS;
 #else
     return true;
 #endif
@@ -560,7 +571,7 @@ ForkJoinSlice::requestZoneGC(JS::Zone *zone, gcreason::Reason reason)
 void
 ForkJoinSlice::triggerAbort()
 {
-    shared->setAbortFlag(false);
+    shared->setAbortFlag();
 
     // set iontracklimit to -1 so that on next entry to a function,
     // the thread will trigger the overrecursedcheck.  If the thread
@@ -623,7 +634,7 @@ js::ExecuteForkJoinOp(JSContext *cx, ForkJoinOp &op)
 {
 #ifdef JS_THREADSAFE
     // Recursive use of the ThreadPool is not supported.
-    JS_ASSERT(!InParallelSection());
+    JS_ASSERT(!ForkJoinSlice::InParallelSection());
 
     AutoEnterParallelSection enter(cx);
 

@@ -1155,10 +1155,6 @@ struct JSRuntime : js::RuntimeFriendFields,
 
     js::CTypesActivityCallback  ctypesActivityCallback;
 
-    // Non-zero if this is a parallel warmup execution.  See
-    // js::parallel::Do() for more information.
-    uint32_t parallelWarmup;
-
   private:
     // In certain cases, we want to optimize certain opcodes to typed instructions,
     // to avoid carrying an extra register to feed into an unbox. Unfortunately,
@@ -1301,6 +1297,7 @@ struct AutoResolving;
  */
 namespace VersionFlags {
 static const unsigned MASK      = 0x0FFF; /* see JSVersion in jspubtd.h */
+static const unsigned FULL_MASK = 0x0FFF;
 } /* namespace VersionFlags */
 
 static inline JSVersion
@@ -1325,6 +1322,20 @@ static inline bool
 VersionHasFlags(JSVersion version)
 {
     return !!VersionExtractFlags(version);
+}
+
+static inline unsigned
+VersionFlagsToOptions(JSVersion version)
+{
+    unsigned copts = 0;
+    JS_ASSERT((copts & JSCOMPILEOPTION_MASK) == copts);
+    return copts;
+}
+
+static inline JSVersion
+OptionFlagsToVersion(unsigned options, JSVersion version)
+{
+    return version;
 }
 
 static inline bool
@@ -1366,8 +1377,8 @@ struct JSContext : js::ContextFriendFields,
     bool                throwing;            /* is there a pending exception? */
     js::Value           exception;           /* most-recently-thrown exception */
 
-    /* Per-context options. */
-    unsigned            options_;            /* see jsapi.h for JSOPTION_* */
+    /* Per-context run options. */
+    unsigned            runOptions;          /* see jsapi.h for JSOPTION_* */
 
     /* Default locale for Internationalization API */
     char                *defaultLocale;
@@ -1554,21 +1565,26 @@ struct JSContext : js::ContextFriendFields,
      */
     inline JSVersion findVersion() const;
 
-    void setOptions(unsigned opts) {
-        JS_ASSERT((opts & JSOPTION_MASK) == opts);
-        options_ = opts;
+    void setRunOptions(unsigned ropts) {
+        JS_ASSERT((ropts & JSRUNOPTION_MASK) == ropts);
+        runOptions = ropts;
     }
 
-    unsigned options() const { return options_; }
+    /* Note: may override the version. */
+    inline void setCompileOptions(unsigned newcopts);
 
-    bool hasOption(unsigned opt) const {
-        JS_ASSERT((opt & JSOPTION_MASK) == opt);
-        return !!(options_ & opt);
+    unsigned getRunOptions() const { return runOptions; }
+    inline unsigned getCompileOptions() const;
+    inline unsigned allOptions() const;
+
+    bool hasRunOption(unsigned ropt) const {
+        JS_ASSERT((ropt & JSRUNOPTION_MASK) == ropt);
+        return !!(runOptions & ropt);
     }
 
-    bool hasStrictOption() const { return hasOption(JSOPTION_STRICT); }
-    bool hasWErrorOption() const { return hasOption(JSOPTION_WERROR); }
-    bool hasAtLineOption() const { return hasOption(JSOPTION_ATLINE); }
+    bool hasStrictOption() const { return hasRunOption(JSOPTION_STRICT); }
+    bool hasWErrorOption() const { return hasRunOption(JSOPTION_WERROR); }
+    bool hasAtLineOption() const { return hasRunOption(JSOPTION_ATLINE); }
 
     js::LifoAlloc &tempLifoAlloc() { return runtime->tempLifoAlloc; }
     inline js::LifoAlloc &analysisLifoAlloc();
@@ -2244,16 +2260,6 @@ class ContextAllocPolicy
     void free_(void *p) { js_free(p); }
     void reportAllocOverflow() const { js_ReportAllocationOverflow(cx); }
 };
-
-JSBool intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_UnsafeSetElement(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_ForceSequential(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp);
-
-#ifdef DEBUG
-JSBool intrinsic_Dump(JSContext *cx, unsigned argc, Value *vp);
-#endif
 
 } /* namespace js */
 

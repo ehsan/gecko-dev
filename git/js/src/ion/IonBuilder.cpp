@@ -2088,7 +2088,6 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
     // .: Offset of case high
 
     JS_ASSERT(op == JSOP_TABLESWITCH);
-    JS_ASSERT(SN_TYPE(sn) == SRC_SWITCH);
 
     // Pop input.
     MDefinition *ins = current->pop();
@@ -4508,16 +4507,6 @@ IonBuilder::jsop_initprop(HandlePropertyName name)
         needsBarrier = false;
     }
 
-    // In parallel execution, we never require write barriers.  See
-    // forkjoin.cpp for more information.
-    switch (info().executionMode()) {
-      case SequentialExecution:
-        break;
-      case ParallelExecution:
-        needsBarrier = false;
-        break;
-    }
-
     if (templateObject->isFixedSlot(shape->slot())) {
         MStoreFixedSlot *store = MStoreFixedSlot::New(obj, shape->slot(), value);
         if (needsBarrier)
@@ -5481,8 +5470,8 @@ IonBuilder::jsop_getelem_dense()
     return pushTypeBarrier(load, types, barrier);
 }
 
-MInstruction *
-IonBuilder::getTypedArrayLength(MDefinition *obj)
+static MInstruction *
+GetTypedArrayLength(MDefinition *obj)
 {
     if (obj->isConstant()) {
         JSObject *array = &obj->toConstant()->value().toObject();
@@ -5493,8 +5482,8 @@ IonBuilder::getTypedArrayLength(MDefinition *obj)
     return MTypedArrayLength::New(obj);
 }
 
-MInstruction *
-IonBuilder::getTypedArrayElements(MDefinition *obj)
+static MInstruction *
+GetTypedArrayElements(MDefinition *obj)
 {
     if (obj->isConstant()) {
         JSObject *array = &obj->toConstant()->value().toObject();
@@ -5557,14 +5546,14 @@ IonBuilder::jsop_getelem_typed(int arrayType)
         }
 
         // Get the length.
-        MInstruction *length = getTypedArrayLength(obj);
+        MInstruction *length = GetTypedArrayLength(obj);
         current->add(length);
 
         // Bounds check.
         id = addBoundsCheck(id, length);
 
         // Get the elements vector.
-        MInstruction *elements = getTypedArrayElements(obj);
+        MInstruction *elements = GetTypedArrayElements(obj);
         current->add(elements);
 
         // Load the element.
@@ -5734,14 +5723,14 @@ IonBuilder::jsop_setelem_typed(int arrayType)
     id = idInt32;
 
     // Get the length.
-    MInstruction *length = getTypedArrayLength(obj);
+    MInstruction *length = GetTypedArrayLength(obj);
     current->add(length);
 
     // Bounds check.
     id = addBoundsCheck(id, length);
 
     // Get the elements vector.
-    MInstruction *elements = getTypedArrayElements(obj);
+    MInstruction *elements = GetTypedArrayElements(obj);
     current->add(elements);
 
     // Clamp value to [0, 255] for Uint8ClampedArray.
@@ -5805,7 +5794,7 @@ IonBuilder::jsop_length_fastPath()
 
         if (sig.inTypes->getTypedArrayType() != TypedArray::TYPE_MAX) {
             MDefinition *obj = current->pop();
-            MInstruction *length = getTypedArrayLength(obj);
+            MInstruction *length = GetTypedArrayLength(obj);
             current->add(length);
             current->push(length);
             return true;

@@ -1487,9 +1487,7 @@ Navigator::OnNavigation()
 #ifdef MOZ_MEDIA_NAVIGATOR
   // Inform MediaManager in case there are live streams or pending callbacks.
   MediaManager *manager = MediaManager::Get();
-  if (manager) {
-    manager->OnNavigation(win->WindowID());
-  }
+  manager->OnNavigation(win->WindowID());
 #endif
   if (mCameraManager) {
     mCameraManager->OnNavigation(win->WindowID());
@@ -1516,7 +1514,7 @@ Navigator::CheckPermission(const char* type)
 //*****************************************************************************
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
 NS_IMETHODIMP
-Navigator::GetMozAudioChannelManager(nsISupports** aAudioChannelManager)
+Navigator::GetMozAudioChannelManager(nsIAudioChannelManager** aAudioChannelManager)
 {
   *aAudioChannelManager = nullptr;
 

@@ -186,14 +186,14 @@ nsInputStreamTransport::Read(char *buf, uint32_t count, uint32_t *result)
     }
 
     // limit amount read
-    uint64_t max = mLimit - mOffset;
+    uint32_t max = mLimit - mOffset;
     if (max == 0) {
         *result = 0;
         return NS_OK;
     }
-
+        
     if (count > max)
-        count = static_cast<uint32_t>(max);
+        count = max;
 
     nsresult rv = mSource->Read(buf, count, result);
 
@@ -386,14 +386,14 @@ nsOutputStreamTransport::Write(const char *buf, uint32_t count, uint32_t *result
     }
 
     // limit amount written
-    uint64_t max = mLimit - mOffset;
+    uint32_t max = mLimit - mOffset;
     if (max == 0) {
         *result = 0;
         return NS_OK;
     }
-
+        
     if (count > max)
-        count = static_cast<uint32_t>(max);
+        count = max;
 
     nsresult rv = mSink->Write(buf, count, result);
 

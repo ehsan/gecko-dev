@@ -161,15 +161,13 @@ public class HistoryTab extends AwesomeBarTab {
             viewHolder.urlView.setText(url);
 
             byte[] b = (byte[]) historyItem.get(URLColumns.FAVICON);
-            Bitmap favicon = null;
 
-            if (b != null) {
+            if (b == null) {
+                viewHolder.faviconView.setImageDrawable(null);
+            } else {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
-                if (bitmap != null && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
-                    favicon = Favicons.getInstance().scaleImage(bitmap);
-                }
+                updateFavicon(viewHolder.faviconView, bitmap);
             }
-            updateFavicon(viewHolder.faviconView, favicon);
 
             Integer bookmarkId = (Integer) historyItem.get(Combined.BOOKMARK_ID);
             Integer display = (Integer) historyItem.get(Combined.DISPLAY);

@@ -17,7 +17,6 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
 #include "mozilla/Likely.h"
-#include "nsContentUtils.h"
 
 using namespace js;
 using namespace mozilla;
@@ -276,16 +275,16 @@ static void
 DEBUG_CheckUnwrapSafety(JSObject *obj, js::Wrapper *handler,
                         JSCompartment *origin, JSCompartment *target)
 {
+    typedef FilteringWrapper<CrossCompartmentSecurityWrapper, OnlyIfSubjectIsSystem> XSOW;
+
     if (AccessCheck::isChrome(target) || xpc::IsUniversalXPConnectEnabled(target)) {
         // If the caller is chrome (or effectively so), unwrap should always be allowed.
         MOZ_ASSERT(handler->isSafeToUnwrap());
-    } else if (WrapperFactory::IsComponentsObject(obj))
+    } else if (WrapperFactory::IsComponentsObject(obj) ||
+               handler == &XSOW::singleton)
     {
-        // The Components object that is restricted regardless of origin.
+        // This is an object that is restricted regardless of origin.
         MOZ_ASSERT(!handler->isSafeToUnwrap());
-    } else if (AccessCheck::needsSystemOnlyWrapper(obj)) {
-        // SOWs are opaque to everyone but Chrome and XBL scopes.
-        MOZ_ASSERT(handler->isSafeToUnwrap() == nsContentUtils::CanAccessNativeAnon());
     } else {
         // Otherwise, it should depend on whether the target subsumes the origin.
         MOZ_ASSERT(handler->isSafeToUnwrap() == AccessCheck::subsumes(target, origin));
@@ -358,8 +357,6 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
 
     Wrapper *wrapper;
     CompartmentPrivate *targetdata = EnsureCompartmentPrivate(target);
-    bool canAccessNAC = targetIsChrome ||
-                        (targetSubsumesOrigin && nsContentUtils::IsCallerXBL());
 
     //
     // First, handle the special cases.
@@ -380,7 +377,12 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
     } else if (IsComponentsObject(obj) && !AccessCheck::isChrome(target)) {
         wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                     ComponentsObjectPolicy>::singleton;
-    } else if (AccessCheck::needsSystemOnlyWrapper(obj) && !canAccessNAC) {
+    } else if (AccessCheck::needsSystemOnlyWrapper(obj) && !AccessCheck::isChrome(target)) {
+        // This should never happen unless an addon does something really dumb.
+        if (!AccessCheck::subsumes(target, origin)) {
+            JS_ReportError(cx, "Don't expose cross-origin NAC");
+            return nullptr;
+        }
         wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                     OnlyIfSubjectIsSystem>::singleton;
     }

@@ -43,6 +43,7 @@ XPIDLSRCS = \
   nsIVolumeService.idl \
   nsIVolumeStat.idl \
   nsIWorkerHolder.idl \
+  nsIAudioChannelManager.idl \
   nsINavigatorAudioChannelManager.idl \
   nsISystemWorkerManager.idl \
   $(NULL)

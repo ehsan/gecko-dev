@@ -11,6 +11,7 @@
  */
 
 interface HTMLOptionElement;
+interface HTMLOptGroupElement;
 
 interface HTMLOptionsCollection : HTMLCollection {
            attribute unsigned long length;

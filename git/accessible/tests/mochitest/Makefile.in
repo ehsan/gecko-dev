@@ -29,7 +29,6 @@ DIRS	= \
   states \
   table \
   text \
-  textattrs \
   textcaret \
   textselection \
   tree \

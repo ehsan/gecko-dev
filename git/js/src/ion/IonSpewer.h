@@ -52,8 +52,6 @@ namespace ion {
     _(Safepoints)                           \
     /* Debug info about Pools*/             \
     _(Pools)                                \
-    /* Calls to js::ion::Trace() */         \
-    _(Trace)                                \
     /* Debug info about the I$ */           \
     _(CacheFlush)
 

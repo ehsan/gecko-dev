@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGSymbolElement_h
 #define mozilla_dom_SVGSymbolElement_h
 
+#include "nsIDOMSVGSymbolElement.h"
 #include "DOMSVGTests.h"
 #include "nsSVGElement.h"
 #include "nsSVGViewBox.h"
@@ -21,7 +22,7 @@ namespace dom {
 typedef nsSVGElement SVGSymbolElementBase;
 
 class SVGSymbolElement MOZ_FINAL : public SVGSymbolElementBase,
-                                   public nsIDOMSVGElement,
+                                   public nsIDOMSVGSymbolElement,
                                    public DOMSVGTests
 {
 protected:
@@ -34,6 +35,7 @@ public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGSYMBOLELEMENT
 
   // xxx I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
@@ -44,6 +46,8 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 

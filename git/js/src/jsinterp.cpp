@@ -239,26 +239,36 @@ NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
 #endif /* JS_HAS_NO_SUCH_METHOD */
 
 bool
-js::ReportIsNotFunction(JSContext *cx, const Value &v, int numToSkip, MaybeConstruct construct)
+js::ReportIsNotFunction(JSContext *cx, const Value &v, MaybeConstruct construct)
 {
     unsigned error = construct ? JSMSG_NOT_CONSTRUCTOR : JSMSG_NOT_FUNCTION;
-    int spIndex = numToSkip >= 0 ? -(numToSkip + 1) : JSDVG_SEARCH_STACK;
 
     RootedValue val(cx, v);
+    js_ReportValueError3(cx, error, JSDVG_SEARCH_STACK, val, NullPtr(), NULL, NULL);
+    return false;
+}
+
+bool
+js::ReportIsNotFunction(JSContext *cx, const Value *vp, MaybeConstruct construct)
+{
+    ptrdiff_t spIndex = cx->stack.spIndexOf(vp);
+    unsigned error = construct ? JSMSG_NOT_CONSTRUCTOR : JSMSG_NOT_FUNCTION;
+
+    RootedValue val(cx, *vp);
     js_ReportValueError3(cx, error, spIndex, val, NullPtr(), NULL, NULL);
     return false;
 }
 
 JSObject *
-js::ValueToCallable(JSContext *cx, const Value &v, int numToSkip, MaybeConstruct construct)
+js::ValueToCallable(JSContext *cx, const Value *vp, MaybeConstruct construct)
 {
-    if (v.isObject()) {
-        JSObject *callable = &v.toObject();
+    if (vp->isObject()) {
+        JSObject *callable = &vp->toObject();
         if (callable->isCallable())
             return callable;
     }
 
-    ReportIsNotFunction(cx, v, numToSkip, construct);
+    ReportIsNotFunction(cx, vp, construct);
     return NULL;
 }
 
@@ -343,7 +353,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
     InitialFrameFlags initial = (InitialFrameFlags) construct;
 
     if (args.calleev().isPrimitive())
-        return ReportIsNotFunction(cx, args.calleev().get(), args.length() + 1, construct);
+        return ReportIsNotFunction(cx, args.calleev().address(), construct);
 
     JSObject &callee = args.callee();
     Class *clasp = callee.getClass();
@@ -356,7 +366,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
 #endif
         JS_ASSERT_IF(construct, !clasp->construct);
         if (!clasp->call)
-            return ReportIsNotFunction(cx, args.calleev().get(), args.length() + 1, construct);
+            return ReportIsNotFunction(cx, args.calleev().address(), construct);
         return CallJSNative(cx, clasp->call, args);
     }
 
@@ -426,7 +436,7 @@ js::InvokeConstructorKernel(JSContext *cx, CallArgs args)
     args.setThis(MagicValue(JS_IS_CONSTRUCTING));
 
     if (!args.calleev().isObject())
-        return ReportIsNotFunction(cx, args.calleev().get(), args.length() + 1, CONSTRUCT);
+        return ReportIsNotFunction(cx, args.calleev().address(), CONSTRUCT);
 
     JSObject &callee = args.callee();
     if (callee.isFunction()) {
@@ -440,7 +450,7 @@ js::InvokeConstructorKernel(JSContext *cx, CallArgs args)
         }
 
         if (!fun->isInterpretedConstructor())
-            return ReportIsNotFunction(cx, args.calleev().get(), args.length() + 1, CONSTRUCT);
+            return ReportIsNotFunction(cx, args.calleev().address(), CONSTRUCT);
 
         if (!InvokeKernel(cx, args, CONSTRUCT))
             return false;
@@ -451,7 +461,7 @@ js::InvokeConstructorKernel(JSContext *cx, CallArgs args)
 
     Class *clasp = callee.getClass();
     if (!clasp->construct)
-        return ReportIsNotFunction(cx, args.calleev().get(), args.length() + 1, CONSTRUCT);
+        return ReportIsNotFunction(cx, args.calleev().address(), CONSTRUCT);
 
     return CallJSNativeConstructor(cx, clasp->construct, args);
 }
@@ -537,7 +547,7 @@ js::Execute(JSContext *cx, HandleScript script, JSObject &scopeChainArg, Value *
 #endif
 
     /* The VAROBJFIX option makes varObj == globalObj in global code. */
-    if (!cx->hasOption(JSOPTION_VAROBJFIX)) {
+    if (!cx->hasRunOption(JSOPTION_VAROBJFIX)) {
         if (!scopeChain->setVarObj(cx))
             return false;
     }
@@ -618,9 +628,9 @@ js::LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *resu
     RootedValue lvalue(cx, lval);
     RootedValue rvalue(cx, rval);
 
-    if (!ToPrimitive(cx, &lvalue))
+    if (!ToPrimitive(cx, lvalue.address()))
         return false;
-    if (!ToPrimitive(cx, &rvalue))
+    if (!ToPrimitive(cx, rvalue.address()))
         return false;
 
     if (lvalue.get().isString() && rvalue.get().isString()) {
@@ -1251,10 +1261,10 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
         JSInterruptHook hook = cx->runtime->debugHooks.interruptHook;
         if (hook || script->stepModeEnabled()) {
-            RootedValue rval(cx);
+            Value rval;
             JSTrapStatus status = JSTRAP_CONTINUE;
             if (hook)
-                status = hook(cx, script, regs.pc, rval.address(), cx->runtime->debugHooks.interruptHookData);
+                status = hook(cx, script, regs.pc, &rval, cx->runtime->debugHooks.interruptHookData);
             if (status == JSTRAP_CONTINUE && script->stepModeEnabled())
                 status = Debugger::onSingleStep(cx, &rval);
             switch (status) {
@@ -1278,7 +1288,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             moreInterrupts = true;
 
         if (script->hasBreakpointsAt(regs.pc) && interpMode != JSINTERP_SKIP_TRAP) {
-            RootedValue rval(cx);
+            Value rval;
             JSTrapStatus status = Debugger::onTrap(cx, &rval);
             switch (status) {
               case JSTRAP_ERROR:
@@ -3090,9 +3100,9 @@ END_CASE(JSOP_INSTANCEOF)
 BEGIN_CASE(JSOP_DEBUGGER)
 {
     JSTrapStatus st = JSTRAP_CONTINUE;
-    RootedValue rval(cx);
+    Value rval;
     if (JSDebuggerHandler handler = cx->runtime->debugHooks.debuggerHandler)
-        st = handler(cx, script, regs.pc, rval.address(), cx->runtime->debugHooks.debuggerHandlerData);
+        st = handler(cx, script, regs.pc, &rval, cx->runtime->debugHooks.debuggerHandlerData);
     if (st == JSTRAP_CONTINUE)
         st = Debugger::onDebuggerStatement(cx, &rval);
     switch (st) {

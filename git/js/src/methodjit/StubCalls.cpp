@@ -407,9 +407,9 @@ template void JS_FASTCALL stubs::DefFun<false>(VMFrame &f, JSFunction *fun);
         Value &rval = regs.sp[-1];                                            \
         Value &lval = regs.sp[-2];                                            \
         bool cond;                                                            \
-        if (!ToPrimitive(cx, JSTYPE_NUMBER, MutableHandleValue::fromMarkedLocation(&lval))) \
+        if (!ToPrimitive(cx, JSTYPE_NUMBER, &lval))                           \
             THROWV(JS_FALSE);                                                 \
-        if (!ToPrimitive(cx, JSTYPE_NUMBER, MutableHandleValue::fromMarkedLocation(&rval))) \
+        if (!ToPrimitive(cx, JSTYPE_NUMBER, &rval))                           \
             THROWV(JS_FALSE);                                                 \
         if (lval.isString() && rval.isString()) {                             \
             JSString *l = lval.toString(), *r = rval.toString();              \
@@ -518,9 +518,9 @@ StubEqualityOp(VMFrame &f)
         } else if (rval.isNullOrUndefined()) {
             cond = (lval.isObject() && EmulatesUndefined(&lval.toObject())) == EQ;
         } else {
-            if (!ToPrimitive(cx, MutableHandleValue::fromMarkedLocation(&lval)))
+            if (!ToPrimitive(cx, &lval))
                 return false;
-            if (!ToPrimitive(cx, MutableHandleValue::fromMarkedLocation(&rval)))
+            if (!ToPrimitive(cx, &rval))
                 return false;
 
             /*
@@ -586,9 +586,9 @@ stubs::Add(VMFrame &f)
 
     } else {
         bool lIsObject = lval.isObject(), rIsObject = rval.isObject();
-        if (!ToPrimitive(f.cx, MutableHandleValue::fromMarkedLocation(&lval)))
+        if (!ToPrimitive(f.cx, &lval))
             THROW();
-        if (!ToPrimitive(f.cx, MutableHandleValue::fromMarkedLocation(&rval)))
+        if (!ToPrimitive(f.cx, &rval))
             THROW();
         if ((lIsString = lval.isString()) || (rIsString = rval.isString())) {
             if (lIsString) {
@@ -748,7 +748,7 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
             st = handler(f.cx, fscript, pc, rval.address(), f.cx->runtime->debugHooks.debuggerHandlerData);
         }
         if (st == JSTRAP_CONTINUE)
-            st = Debugger::onDebuggerStatement(f.cx, &rval);
+            st = Debugger::onDebuggerStatement(f.cx, rval.address());
 
         switch (st) {
           case JSTRAP_THROW:
@@ -812,14 +812,9 @@ stubs::TriggerIonCompile(VMFrame &f)
         if (*osrPC != JSOP_LOOPENTRY)
             osrPC = NULL;
 
-        ion::MethodStatus compileStatus;
-        if (osrPC) {
-            compileStatus = ion::CanEnterAtBranch(f.cx, script, f.cx->fp(), osrPC,
-                                                  f.fp()->isConstructing());
-        } else {
-            compileStatus = ion::CanEnter(f.cx, script, f.cx->fp(), f.fp()->isConstructing(),
-                                          /* newType = */ false);
-        }
+        RootedFunction scriptFunction(f.cx, script->function());
+        ion::MethodStatus compileStatus =
+            ion::TestIonCompile(f.cx, script, scriptFunction, osrPC, f.fp()->isConstructing());
 
         if (compileStatus != ion::Method_Compiled) {
             if (f.cx->isExceptionPending())
@@ -860,7 +855,7 @@ stubs::RecompileForInline(VMFrame &f)
 void JS_FASTCALL
 stubs::Trap(VMFrame &f, uint32_t trapTypes)
 {
-    RootedValue rval(f.cx);
+    Value rval;
 
     /*
      * Trap may be called for a single-step interrupt trap and/or a
@@ -876,8 +871,7 @@ stubs::Trap(VMFrame &f, uint32_t trapTypes)
         JSInterruptHook hook = f.cx->runtime->debugHooks.interruptHook;
         if (hook) {
             RootedScript fscript(f.cx, f.script());
-            result = hook(f.cx, fscript, f.pc(), rval.address(),
-                          f.cx->runtime->debugHooks.interruptHookData);
+            result = hook(f.cx, fscript, f.pc(), &rval, f.cx->runtime->debugHooks.interruptHookData);
         }
 
         if (result == JSTRAP_CONTINUE)

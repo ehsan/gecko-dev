@@ -25,7 +25,7 @@ class MDefinition;
 class MInstruction;
 class LOsiPoint;
 
-class LIRGeneratorShared : public MInstructionVisitorWithDefaults
+class LIRGeneratorShared : public MInstructionVisitor
 {
   protected:
     MIRGenerator *gen;

@@ -10,7 +10,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/TypeTraits.h"
 #include "mozilla/Util.h"
 
 #include "js/TemplateLib.h"
@@ -547,25 +546,20 @@ class HashMapEntry
     Value value;
 };
 
-} // namespace js
-
-namespace mozilla {
+namespace tl {
 
 template <class T>
-struct IsPod<js::detail::HashTableEntry<T> >
-{
-    static const bool value = IsPod<T>::value;
+struct IsPodType<detail::HashTableEntry<T> > {
+    static const bool result = IsPodType<T>::result;
 };
 
 template <class K, class V>
-struct IsPod<js::HashMapEntry<K, V> >
+struct IsPodType<HashMapEntry<K, V> >
 {
-    static const bool value = IsPod<K>::value && IsPod<V>::value;
+    static const bool result = IsPodType<K>::result && IsPodType<V>::result;
 };
 
-} // namespace mozilla
-
-namespace js {
+} // namespace tl
 
 namespace detail {
 
@@ -1250,7 +1244,7 @@ class HashTable : private AllocPolicy
   public:
     void clear()
     {
-        if (mozilla::IsPod<Entry>::value) {
+        if (tl::IsPodType<Entry>::result) {
             memset(table, 0, sizeof(*table) * capacity());
         } else {
             uint32_t tableCapacity = capacity();

@@ -2375,7 +2375,7 @@ TypeCompartment::init(JSContext *cx)
     compiledInfo.outputIndex = RecompileInfo::NoCompilerRunning;
 
     if (!cx ||
-        !cx->hasOption(JSOPTION_TYPE_INFERENCE) ||
+        !cx->hasRunOption(JSOPTION_TYPE_INFERENCE) ||
         !TypeInferenceSupported())
     {
         return;

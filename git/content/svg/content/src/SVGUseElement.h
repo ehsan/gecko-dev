@@ -8,6 +8,7 @@
 
 #include "mozilla/dom/FromParser.h"
 #include "nsIDOMSVGURIReference.h"
+#include "nsIDOMSVGUseElement.h"
 #include "nsReferencedElement.h"
 #include "nsStubMutationObserver.h"
 #include "mozilla/dom/SVGGraphicsElement.h"
@@ -18,6 +19,10 @@
 class nsIContent;
 class nsINodeInfo;
 class nsSVGUseFrame;
+
+#define NS_SVG_USE_ELEMENT_IMPL_CID \
+{ 0x55fb86fe, 0xd81f, 0x4ae4, \
+  { 0x80, 0x3f, 0xeb, 0x90, 0xfe, 0xe0, 0x7a, 0xe9 } }
 
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult,
@@ -32,7 +37,7 @@ namespace dom {
 typedef SVGGraphicsElement SVGUseElementBase;
 
 class SVGUseElement MOZ_FINAL : public SVGUseElementBase,
-                                public nsIDOMSVGElement,
+                                public nsIDOMSVGUseElement,
                                 public nsIDOMSVGURIReference,
                                 public nsStubMutationObserver
 {
@@ -45,10 +50,13 @@ protected:
   virtual JSObject* WrapNode(JSContext *cx, JSObject *scope, bool *triedToWrap) MOZ_OVERRIDE;
 
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_SVG_USE_ELEMENT_IMPL_CID)
+
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SVGUseElement, SVGUseElementBase)
+  NS_DECL_NSIDOMSVGUSEELEMENT
   NS_DECL_NSIDOMSVGURIREFERENCE
 
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -76,6 +84,8 @@ public:
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
@@ -128,6 +138,8 @@ protected:
   nsCOMPtr<nsIContent> mClone;    // cloned tree
   SourceReference      mSource;   // observed element
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(SVGUseElement, NS_SVG_USE_ELEMENT_IMPL_CID)
 
 } // namespace dom
 } // namespace mozilla

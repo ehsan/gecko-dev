@@ -88,6 +88,18 @@ public:
   DistributeSignal(const BluetoothSignal& aEvent);
 
   /**
+   * Called when a BluetoothManager is created.
+   */
+  void
+  RegisterManager(BluetoothManager* aManager);
+
+  /**
+   * Called when a BluetoothManager is destroyed.
+   */
+  void
+  UnregisterManager(BluetoothManager* aManager);
+
+  /**
    * Called when get a Bluetooth Signal from BluetoothDBusService
    *
    */
@@ -369,6 +381,9 @@ protected:
   BluetoothSignalObserverTable;
 
   BluetoothSignalObserverTable mBluetoothSignalObserverTable;
+
+  typedef nsTObserverArray<BluetoothManager*> BluetoothManagerList;
+  BluetoothManagerList mLiveManagers;
 
   bool mEnabled;
 };

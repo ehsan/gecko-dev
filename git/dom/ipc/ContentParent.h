@@ -148,6 +148,8 @@ protected:
     virtual void ActorDestroy(ActorDestroyReason why);
 
 private:
+    typedef base::ChildPrivileges ChildOSPrivileges;
+
     static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
     static nsTArray<ContentParent*>* gNonAppContentParents;
     static nsTArray<ContentParent*>* gPrivateContent;
@@ -158,14 +160,7 @@ private:
     static void PreallocateAppProcess();
     static void DelayedPreallocateAppProcess();
     static void ScheduleDelayedPreallocateAppProcess();
-
-    // Take the preallocated process and transform it into a "real" app process,
-    // for the specified manifest URL.  If there is no preallocated process (or
-    // if it's dead), this returns false.
-    static already_AddRefed<ContentParent>
-    MaybeTakePreallocatedAppProcess(const nsAString& aAppManifestURL,
-                                    ChildPrivileges aPrivs);
-
+    static already_AddRefed<ContentParent> MaybeTakePreallocatedAppProcess();
     static void FirstIdle();
 
     // Hide the raw constructor methods since we don't want client code
@@ -174,15 +169,14 @@ private:
     using PContentParent::SendPTestShellConstructor;
 
     ContentParent(const nsAString& aAppManifestURL, bool aIsForBrowser,
-                  base::ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
+                  ChildOSPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
     virtual ~ContentParent();
 
     void Init();
 
     // Transform a pre-allocated app process into a "real" app
-    // process, for the specified manifest URL.  If this returns false, the
-    // child process has died.
-    bool TransformPreallocatedIntoApp(const nsAString& aAppManifestURL,
+    // process, for the specified manifest URL.
+    void TransformPreallocatedIntoApp(const nsAString& aAppManifestURL,
                                       ChildPrivileges aPrivs);
 
     /**
@@ -352,7 +346,7 @@ private:
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     GeckoChildProcessHost* mSubprocess;
-    base::ChildPrivileges mOSPrivileges;
+    ChildOSPrivileges mOSPrivileges;
 
     uint64_t mChildID;
     int32_t mGeolocationWatchID;

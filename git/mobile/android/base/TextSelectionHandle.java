@@ -45,7 +45,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
 
     private GeckoApp mActivity;
 
-    public TextSelectionHandle(Context context, AttributeSet attrs) {
+    TextSelectionHandle(Context context, AttributeSet attrs) {
         super(context, attrs);
         setOnTouchListener(this);
         mActivity = (GeckoApp) context;

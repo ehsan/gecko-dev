@@ -6,7 +6,6 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.OnInterceptTouchListener;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.util.EventDispatcher;
@@ -20,7 +19,6 @@ import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -45,7 +43,7 @@ public class LayerView extends FrameLayout {
     private static String LOGTAG = "GeckoLayerView";
 
     private GeckoLayerClient mLayerClient;
-    private PanZoomController mPanZoomController;
+    private TouchEventHandler mTouchEventHandler;
     private GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
@@ -58,7 +56,6 @@ public class LayerView extends FrameLayout {
     private TextureView mTextureView;
 
     private Listener mListener;
-    private OnInterceptTouchListener mTouchIntercepter;
 
     /* Flags used to determine when to show the painted surface. */
     public static final int PAINT_START = 0;
@@ -98,8 +95,8 @@ public class LayerView extends FrameLayout {
 
     public void initializeView(EventDispatcher eventDispatcher) {
         mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
-        mPanZoomController = mLayerClient.getPanZoomController();
 
+        mTouchEventHandler = new TouchEventHandler(getContext(), this, mLayerClient);
         mRenderer = new LayerRenderer(this);
         mInputConnectionHandler = null;
 
@@ -126,50 +123,22 @@ public class LayerView extends FrameLayout {
         if (mRenderer != null) {
             mRenderer.destroy();
         }
-    }
-
-    public void setTouchIntercepter(final OnInterceptTouchListener touchIntercepter) {
-        // this gets run on the gecko thread, but for thread safety we want the assignment
-        // on the UI thread.
-        post(new Runnable() {
-            public void run() {
-                mTouchIntercepter = touchIntercepter;
-            }
-        });
+        if (mTouchEventHandler != null) {
+            mTouchEventHandler.destroy();
+        }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
             requestFocus();
-        }
 
-        if (mTouchIntercepter != null && mTouchIntercepter.onInterceptTouchEvent(this, event)) {
-            return true;
-        }
-        if (mPanZoomController != null && mPanZoomController.onTouchEvent(event)) {
-            return true;
-        }
-        if (mTouchIntercepter != null && mTouchIntercepter.onTouch(this, event)) {
-            return true;
-        }
-        return false;
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
-        if (mTouchIntercepter != null && mTouchIntercepter.onTouch(this, event)) {
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean onGenericMotionEvent(MotionEvent event) {
-        if (mPanZoomController != null && mPanZoomController.onMotionEvent(event)) {
-            return true;
-        }
-        return false;
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 
     @Override
@@ -199,7 +168,7 @@ public class LayerView extends FrameLayout {
     }
 
     public GeckoLayerClient getLayerClient() { return mLayerClient; }
-    public PanZoomController getPanZoomController() { return mPanZoomController; }
+    public TouchEventHandler getTouchEventHandler() { return mTouchEventHandler; }
 
     public ImmutableViewportMetrics getViewportMetrics() {
         return mLayerClient.getViewportMetrics();
@@ -233,13 +202,6 @@ public class LayerView extends FrameLayout {
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
         mInputConnectionHandler = inputConnectionHandler;
         mLayerClient.forceRedraw();
-    }
-
-    @Override
-    public Handler getHandler() {
-        if (mInputConnectionHandler != null)
-            return mInputConnectionHandler.getHandler(super.getHandler());
-        return super.getHandler();
     }
 
     @Override
@@ -509,5 +471,10 @@ public class LayerView extends FrameLayout {
 
     public boolean isFullScreen() {
         return mFullScreen;
+    }
+
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 }

@@ -568,9 +568,9 @@ AddOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
      */
     bool lIsObject = lhs.isObject(), rIsObject = rhs.isObject();
 
-    if (!ToPrimitive(cx, lhs))
+    if (!ToPrimitive(cx, lhs.address()))
         return false;
-    if (!ToPrimitive(cx, rhs))
+    if (!ToPrimitive(cx, rhs.address()))
         return false;
     bool lIsString, rIsString;
     if ((lIsString = lhs.isString()) | (rIsString = rhs.isString())) {
@@ -973,9 +973,9 @@ InitArrayElemOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t
         if (lhs.isInt32() && rhs.isInt32()) {                                 \
             *res = lhs.toInt32() OP rhs.toInt32();                            \
         } else {                                                              \
-            if (!ToPrimitive(cx, JSTYPE_NUMBER, lhs))                         \
+            if (!ToPrimitive(cx, JSTYPE_NUMBER, lhs.address()))               \
                 return false;                                                 \
-            if (!ToPrimitive(cx, JSTYPE_NUMBER, rhs))                         \
+            if (!ToPrimitive(cx, JSTYPE_NUMBER, rhs.address()))               \
                 return false;                                                 \
             if (lhs.isString() && rhs.isString()) {                           \
                 JSString *l = lhs.toString(), *r = rhs.toString();            \
@@ -1095,7 +1095,7 @@ ReportIfNotFunction(JSContext *cx, const Value &v, MaybeConstruct construct = NO
     if (v.isObject() && v.toObject().isFunction())
         return v.toObject().toFunction();
 
-    ReportIsNotFunction(cx, v, -1, construct);
+    ReportIsNotFunction(cx, v, construct);
     return NULL;
 }
 
@@ -1124,7 +1124,7 @@ class FastInvokeGuard
       , useIon_(ion::IsEnabled(cx))
 #endif
     {
-        JS_ASSERT(!InParallelSection());
+        JS_ASSERT(!ForkJoinSlice::InParallelSection());
         initFunction(fval);
     }
 

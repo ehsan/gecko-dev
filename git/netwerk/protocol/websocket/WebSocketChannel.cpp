@@ -125,8 +125,7 @@ public:
     mLastFailure = TimeStamp::Now();
     // We use a truncated exponential backoff as suggested by RFC 6455,
     // but multiply by 1.5 instead of 2 to be more gradual.
-    mNextDelay = static_cast<uint32_t>(
-      std::min<double>(kWSReconnectMaxDelay, mNextDelay * 1.5));
+    mNextDelay = std::min<double>(kWSReconnectMaxDelay, mNextDelay * 1.5);
     LOG(("WebSocket: FailedAgain: host=%s, port=%d: incremented delay to %lu",
          mAddress.get(), mPort, mNextDelay));
   }
@@ -1180,26 +1179,26 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
   uint32_t totalAvail = avail;
 
   while (avail >= 2) {
-    int64_t payloadLength64 = mFramePtr[1] & 0x7F;
-    uint8_t finBit  = mFramePtr[0] & kFinalFragBit;
-    uint8_t rsvBits = mFramePtr[0] & 0x70;
-    uint8_t maskBit = mFramePtr[1] & kMaskBit;
-    uint8_t opcode  = mFramePtr[0] & 0x0F;
+    int64_t payloadLength = mFramePtr[1] & 0x7F;
+    uint8_t finBit        = mFramePtr[0] & kFinalFragBit;
+    uint8_t rsvBits       = mFramePtr[0] & 0x70;
+    uint8_t maskBit       = mFramePtr[1] & kMaskBit;
+    uint8_t opcode        = mFramePtr[0] & 0x0F;
 
     uint32_t framingLength = 2;
     if (maskBit)
       framingLength += 4;
 
-    if (payloadLength64 < 126) {
+    if (payloadLength < 126) {
       if (avail < framingLength)
         break;
-    } else if (payloadLength64 == 126) {
+    } else if (payloadLength == 126) {
       // 16 bit length field
       framingLength += 2;
       if (avail < framingLength)
         break;
 
-      payloadLength64 = mFramePtr[2] << 8 | mFramePtr[3];
+      payloadLength = mFramePtr[2] << 8 | mFramePtr[3];
     } else {
       // 64 bit length
       framingLength += 8;
@@ -1216,19 +1215,18 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
       // copy this in case it is unaligned
       uint64_t tempLen;
       memcpy(&tempLen, mFramePtr + 2, 8);
-      payloadLength64 = PR_ntohll(tempLen);
+      payloadLength = PR_ntohll(tempLen);
     }
 
     payload = mFramePtr + framingLength;
     avail -= framingLength;
 
     LOG(("WebSocketChannel::ProcessInput: payload %lld avail %lu\n",
-         payloadLength64, avail));
+         payloadLength, avail));
 
-    if (payloadLength64 + mFragmentAccumulator > mMaxMessageSize) {
+    if (payloadLength + mFragmentAccumulator > mMaxMessageSize) {
       return NS_ERROR_FILE_TOO_BIG;
     }
-    uint32_t payloadLength = static_cast<uint32_t>(payloadLength64);
 
     if (avail < payloadLength)
       break;
@@ -1268,7 +1266,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
         return NS_ERROR_ILLEGAL_VALUE;
       }
 
-      LOG(("WebSocketChannel:: Accumulating Fragment %ld\n", payloadLength));
+      LOG(("WebSocketChannel:: Accumulating Fragment %lld\n", payloadLength));
 
       if (opcode == kContinuation) {
 
@@ -1360,7 +1358,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
           memcpy(&mServerCloseCode, payload, 2);
           mServerCloseCode = PR_ntohs(mServerCloseCode);
           LOG(("WebSocketChannel:: close recvd code %u\n", mServerCloseCode));
-          uint16_t msglen = static_cast<uint16_t>(payloadLength - 2);
+          uint16_t msglen = payloadLength - 2;
           if (msglen > 0) {
             mServerCloseReason.SetLength(msglen);
             memcpy(mServerCloseReason.BeginWriting(),

@@ -11,7 +11,6 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "IonCode.h"
-#include "CompileInfo.h"
 #include "jsinfer.h"
 #include "jsinterp.h"
 
@@ -19,7 +18,6 @@ namespace js {
 namespace ion {
 
 class TempAllocator;
-class ParallelCompileContext; // in ParallelArrayAnalysis.h
 
 // Possible register allocators which may be used.
 enum IonRegisterAllocator {
@@ -175,11 +173,6 @@ struct IonOptions
     // Default: 5
     uint32_t slowCallIncUseCount;
 
-    // How many uses of a parallel kernel before we attempt compilation.
-    //
-    // Default: 1
-    uint32_t usesBeforeCompileParallel;
-
     void setEagerCompilation() {
         eagerCompilation = true;
         usesBeforeCompile = usesBeforeCompileNoJaeger = 0;
@@ -216,8 +209,7 @@ struct IonOptions
         inlineUseCountRatio(128),
         eagerCompilation(false),
         slowCallLimit(512),
-        slowCallIncUseCount(5),
-        usesBeforeCompileParallel(1)
+        slowCallIncUseCount(5)
     {
     }
 };
@@ -309,7 +301,6 @@ IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args);
 void Invalidate(types::TypeCompartment &types, FreeOp *fop,
                 const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
 void Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
-bool Invalidate(JSContext *cx, UnrootedScript script, ExecutionMode mode, bool resetUses = true);
 bool Invalidate(JSContext *cx, UnrootedScript script, bool resetUses = true);
 
 void MarkValueFromIon(JSRuntime *rt, Value *vp);
@@ -324,14 +315,14 @@ class CodeGenerator;
 CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
+MethodStatus TestIonCompile(JSContext *cx, HandleScript script, HandleFunction fun, jsbytecode *osrPc, bool constructing);
 
 static inline bool IsEnabled(JSContext *cx)
 {
-    return cx->hasOption(JSOPTION_ION) && cx->typeInferenceEnabled();
+    return cx->hasRunOption(JSOPTION_ION) && cx->typeInferenceEnabled();
 }
 
 void ForbidCompilation(JSContext *cx, UnrootedScript script);
-void ForbidCompilation(JSContext *cx, UnrootedScript script, ExecutionMode mode);
 uint32_t UsesBeforeIonRecompile(UnrootedScript script, jsbytecode *pc);
 
 void PurgeCaches(UnrootedScript script, JSCompartment *c);

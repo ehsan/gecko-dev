@@ -2101,7 +2101,9 @@ XPCShellDirProvider::GetFile(const char *prop, bool *persistent,
 #endif
         return localFile->Clone(result);
 #else
-        return mAppFile->GetParent(result);
+        // Fail on non-Windows platforms, the caller is supposed to fal back on
+        // the app dir.
+        return NS_ERROR_FAILURE;
 #endif
     }
 

@@ -67,8 +67,7 @@ reflectBoolean({
 
 // TODO: form (HTMLFormElement)
 // TODO: files (FileList)
-// TODO: formAction (URL).  But note that we currently reflect it weirdly; see
-// content/html/content/test/test_bug607145.html
+// TODO: formAction (URL)
 
 // .formEnctype
 reflectLimitedEnumerated({
@@ -188,11 +187,7 @@ reflectUnsignedInt({
   defaultValue: 20,
 });
 
-// .src (URL)
-reflectURL({
-  element: document.createElement('input'),
-  attribute: 'src',
-});
+// TODO: src (URL)
 
 // .step
 reflectString({

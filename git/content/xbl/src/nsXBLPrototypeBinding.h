@@ -121,13 +121,12 @@ public:
 
   nsresult InitClass(const nsCString& aClassName, JSContext * aContext,
                      JSObject * aGlobal, JSObject * aScriptObject,
-                     JSObject** aClassObject, bool* aNew);
+                     JSObject** aClassObject);
 
   nsresult ConstructInterfaceTable(const nsAString& aImpls);
   
   void SetImplementation(nsXBLProtoImpl* aImpl) { mImplementation = aImpl; }
-  nsXBLProtoImpl* GetImplementation() { return mImplementation; }
-  nsresult InstallImplementation(nsXBLBinding* aBinding);
+  nsresult InstallImplementation(nsIContent* aBoundElement);
   bool HasImplementation() const { return mImplementation != nullptr; }
 
   void AttributeChanged(nsIAtom* aAttribute, int32_t aNameSpaceID,

@@ -468,6 +468,23 @@ JSContext::maybeOverrideVersion(JSVersion newVersion)
     return true;
 }
 
+inline unsigned
+JSContext::getCompileOptions() const { return js::VersionFlagsToOptions(findVersion()); }
+
+inline unsigned
+JSContext::allOptions() const { return getRunOptions() | getCompileOptions(); }
+
+inline void
+JSContext::setCompileOptions(unsigned newcopts)
+{
+    JS_ASSERT((newcopts & JSCOMPILEOPTION_MASK) == newcopts);
+    if (JS_LIKELY(getCompileOptions() == newcopts))
+        return;
+    JSVersion version = findVersion();
+    JSVersion newVersion = js::OptionFlagsToVersion(newcopts, version);
+    maybeOverrideVersion(newVersion);
+}
+
 inline js::LifoAlloc &
 JSContext::analysisLifoAlloc()
 {

@@ -1,6 +1,5 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
-/* globals FirefoxCom */
 
 'use strict';
 
@@ -43,8 +42,7 @@
       return;
 
     // get the related l10n object
-    var key = element.dataset.l10nId;
-    var data = getL10nData(key);
+    var data = getL10nData(element.dataset.l10nId);
     if (!data)
       return;
 

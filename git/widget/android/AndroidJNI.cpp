@@ -72,6 +72,12 @@ Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass
 }
 
 NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobject obj)
+{
+    AndroidBridge::Bridge()->SetSurfaceView(jenv->NewGlobalRef(obj));
+}
+
+NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
 {
     AndroidBridge::Bridge()->SetLayerClient(jenv, obj);
@@ -175,14 +181,12 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
     NS_DispatchToMainThread(runnable);
 }
 
-#ifdef MOZ_WEBSMS_BACKEND
-
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
-                                                         jstring aSender,
-                                                         jstring aBody,
-                                                         jint aMessageClass,
-                                                         jlong aTimestamp)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
+                                                       jstring aSender,
+                                                       jstring aBody,
+                                                       jint aMessageClass,
+                                                       jlong aTimestamp)
 {
     class NotifySmsReceivedRunnable : public nsRunnable {
     public:
@@ -216,12 +220,12 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
-                                                     jint aId,
-                                                     jstring aReceiver,
-                                                     jstring aBody,
-                                                     jlong aTimestamp,
-                                                     jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
+                                                   jint aId,
+                                                   jstring aReceiver,
+                                                   jstring aBody,
+                                                   jlong aTimestamp,
+                                                   jint aRequestId)
 {
     class NotifySmsSentRunnable : public nsRunnable {
     public:
@@ -268,12 +272,12 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
-                                                         jint aId,
-                                                         jint aDeliveryStatus,
-                                                         jstring aReceiver,
-                                                         jstring aBody,
-                                                         jlong aTimestamp)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivery(JNIEnv* jenv, jclass,
+                                                       jint aId,
+                                                       jint aDeliveryStatus,
+                                                       jstring aReceiver,
+                                                       jstring aBody,
+                                                       jlong aTimestamp)
 {
     class NotifySmsDeliveredRunnable : public nsRunnable {
     public:
@@ -312,9 +316,9 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
-                                                           jint aError,
-                                                           jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
+                                                         jint aError,
+                                                         jint aRequestId)
 {
     class NotifySmsSendFailedRunnable : public nsRunnable {
     public:
@@ -345,14 +349,14 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
-                                                    jint aId,
-                                                    jint aDeliveryStatus,
-                                                    jstring aReceiver,
-                                                    jstring aSender,
-                                                    jstring aBody,
-                                                    jlong aTimestamp,
-                                                    jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
+                                                  jint aId,
+                                                  jint aDeliveryStatus,
+                                                  jstring aReceiver,
+                                                  jstring aSender,
+                                                  jstring aBody,
+                                                  jlong aTimestamp,
+                                                  jint aRequestId)
 {
     class NotifyGetSmsRunnable : public nsRunnable {
     public:
@@ -394,9 +398,9 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
-                                                          jint aError,
-                                                          jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGetSmsFailed(JNIEnv* jenv, jclass,
+                                                        jint aError,
+                                                        jint aRequestId)
 {
     class NotifyGetSmsFailedRunnable : public nsRunnable {
     public:
@@ -427,9 +431,9 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
-                                                        jboolean aDeleted,
-                                                        jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleted(JNIEnv* jenv, jclass,
+                                                      jboolean aDeleted,
+                                                      jint aRequestId)
 {
     class NotifySmsDeletedRunnable : public nsRunnable {
     public:
@@ -459,9 +463,9 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
-                                                             jint aError,
-                                                             jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
+                                                           jint aError,
+                                                           jint aRequestId)
 {
     class NotifySmsDeleteFailedRunnable : public nsRunnable {
     public:
@@ -492,8 +496,8 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclas
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclass,
-                                                             jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyNoMessageInList(JNIEnv* jenv, jclass,
+                                                           jint aRequestId)
 {
     class NotifyNoMessageInListRunnable : public nsRunnable {
     public:
@@ -521,15 +525,15 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclas
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
-                                                         jint aListId,
-                                                         jint aMessageId,
-                                                         jint aDeliveryStatus,
-                                                         jstring aReceiver,
-                                                         jstring aSender,
-                                                         jstring aBody,
-                                                         jlong aTimestamp,
-                                                         jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
+                                                       jint aListId,
+                                                       jint aMessageId,
+                                                       jint aDeliveryStatus,
+                                                       jstring aReceiver,
+                                                       jstring aSender,
+                                                       jstring aBody,
+                                                       jlong aTimestamp,
+                                                       jint aRequestId)
 {
     class NotifyCreateMessageListRunnable : public nsRunnable {
     public:
@@ -576,14 +580,14 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass,
-                                                            jint aMessageId,
-                                                            jint aDeliveryStatus,
-                                                            jstring aReceiver,
-                                                            jstring aSender,
-                                                            jstring aBody,
-                                                            jlong aTimestamp,
-                                                            jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
+                                                          jint aMessageId,
+                                                          jint aDeliveryStatus,
+                                                          jstring aReceiver,
+                                                          jstring aSender,
+                                                          jstring aBody,
+                                                          jlong aTimestamp,
+                                                          jint aRequestId)
 {
     class NotifyGotNextMessageRunnable : public nsRunnable {
     public:
@@ -627,9 +631,9 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
-                                                                      jint aError,
-                                                                      jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
+                                                                    jint aError,
+                                                                    jint aRequestId)
 {
     class NotifyReadListFailedRunnable : public nsRunnable {
     public:
@@ -659,14 +663,18 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* je
     NS_DispatchToMainThread(runnable);
 }
 
-#endif  // MOZ_WEBSMS_BACKEND
-
 #ifdef MOZ_ANDROID_OMTC
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)
 {
     nsWindow::ScheduleComposite();
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_schedulePauseComposition(JNIEnv*, jclass)
+{
+    nsWindow::SchedulePauseComposition();
 }
 
 NS_EXPORT void JNICALL

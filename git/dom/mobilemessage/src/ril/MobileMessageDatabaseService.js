@@ -54,8 +54,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "gIDBManager",
 
 const GLOBAL_SCOPE = this;
 
-function getNumberFromRecord(aRecord) {
-  return aRecord.delivery == DELIVERY_RECEIVED ? aRecord.sender : aRecord.receiver;
+function numberFromMessage(message) {
+  return message.delivery == DELIVERY_RECEIVED ? message.sender : message.receiver;
 }
 
 /**
@@ -293,10 +293,10 @@ MobileMessageDatabaseService.prototype = {
         return;
       }
 
-      let record = cursor.value;
-      record.messageClass = MESSAGE_CLASS_NORMAL;
-      record.deliveryStatus = DELIVERY_STATUS_NOT_APPLICABLE;
-      cursor.update(record);
+      let message = cursor.value;
+      message.messageClass = MESSAGE_CLASS_NORMAL;
+      message.deliveryStatus = DELIVERY_STATUS_NOT_APPLICABLE;
+      cursor.update(message);
       cursor.continue();
     };
   },
@@ -338,26 +338,26 @@ MobileMessageDatabaseService.prototype = {
         return;
       }
 
-      let record = cursor.value;
-      let contact = record.sender || record.receiver;
+      let message = cursor.value;
+      let contact = message.sender || message.receiver;
 
       if (contact in threads) {
         let thread = threads[contact];
-        if (!record.read) {
+        if (!message.read) {
           thread.unreadCount++;
         }
-        if (record.timestamp > thread.timestamp) {
-          thread.id = record.id;
-          thread.body = record.body;
-          thread.timestamp = record.timestamp;
+        if (message.timestamp > thread.timestamp) {
+          thread.id = message.id;
+          thread.body = message.body;
+          thread.timestamp = message.timestamp;
         }
       } else {
         threads[contact] = {
           senderOrReceiver: contact,
-          id: record.id,
-          timestamp: record.timestamp,
-          body: record.body,
-          unreadCount: record.read ? 0 : 1
+          id: message.id,
+          timestamp: message.timestamp,
+          body: message.body,
+          unreadCount: message.read ? 0 : 1
         };
       }
       cursor.continue();
@@ -400,30 +400,30 @@ MobileMessageDatabaseService.prototype = {
         return;
       }
 
-      let record = cursor.value;
-      let timestamp = record.timestamp;
-      record.deliveryIndex = [record.delivery, timestamp];
-      record.numberIndex = [
-        [record.sender, timestamp],
-        [record.receiver, timestamp]
+      let message = cursor.value;
+      let timestamp = message.timestamp;
+      message.deliveryIndex = [message.delivery, timestamp];
+      message.numberIndex = [
+        [message.sender, timestamp],
+        [message.receiver, timestamp]
       ];
-      record.readIndex = [record.read, timestamp];
-      cursor.update(record);
+      message.readIndex = [message.read, timestamp];
+      cursor.update(message);
       cursor.continue();
     };
   },
 
-  createMessageFromRecord: function createMessageFromRecord(aRecord) {
-    if (DEBUG) debug("createMessageFromRecord: " + JSON.stringify(aRecord));
-    return gSmsService.createSmsMessage(aRecord.id,
-                                        aRecord.delivery,
-                                        aRecord.deliveryStatus,
-                                        aRecord.sender,
-                                        aRecord.receiver,
-                                        aRecord.body,
-                                        aRecord.messageClass,
-                                        aRecord.timestamp,
-                                        aRecord.read);
+  createMessageFromRecord: function createMessageFromRecord(record) {
+    if (DEBUG) debug("createMessageFromRecord: " + JSON.stringify(record));
+    return gSmsService.createSmsMessage(record.id,
+                                        record.delivery,
+                                        record.deliveryStatus,
+                                        record.sender,
+                                        record.receiver,
+                                        record.body,
+                                        record.messageClass,
+                                        record.timestamp,
+                                        record.read);
   },
 
   /**
@@ -647,18 +647,18 @@ MobileMessageDatabaseService.prototype = {
     return false;
   },
 
-  saveRecord: function saveRecord(aRecord, aCallback) {
+  saveMessage: function saveMessage(message, callback) {
     this.lastKey += 1;
-    aRecord.id = this.lastKey;
-    if (DEBUG) debug("Going to store " + JSON.stringify(aRecord));
+    message.id = this.lastKey;
+    if (DEBUG) debug("Going to store " + JSON.stringify(message));
 
     let self = this;
     function notifyResult(rv) {
-      if (!aCallback) {
+      if (!callback) {
         return;
       }
-      let sms = self.createMessageFromRecord(aRecord);
-      aCallback.notify(rv, sms);
+      let sms = self.createMessageFromRecord(message);
+      callback.notify(rv, sms);
     }
 
     this.newTxn(READ_WRITE, function(error, txn, stores) {
@@ -676,9 +676,9 @@ MobileMessageDatabaseService.prototype = {
       };
 
       // First add to main objectStore.
-      stores[0].put(aRecord);
+      stores[0].put(message);
 
-      let number = getNumberFromRecord(aRecord);
+      let number = numberFromMessage(message);
 
       // Next update the other objectStore.
       stores[1].get(number).onsuccess = function onsuccess(event) {
@@ -686,13 +686,13 @@ MobileMessageDatabaseService.prototype = {
         if (mostRecentEntry) {
           let needsUpdate = false;
 
-          if (mostRecentEntry.timestamp <= aRecord.timestamp) {
-            mostRecentEntry.timestamp = aRecord.timestamp;
-            mostRecentEntry.body = aRecord.body;
+          if (mostRecentEntry.timestamp <= message.timestamp) {
+            mostRecentEntry.timestamp = message.timestamp;
+            mostRecentEntry.body = message.body;
             needsUpdate = true;
           }
 
-          if (!aRecord.read) {
+          if (!message.read) {
             mostRecentEntry.unreadCount++;
             needsUpdate = true;
           }
@@ -702,15 +702,15 @@ MobileMessageDatabaseService.prototype = {
           }
         } else {
           event.target.source.add({ senderOrReceiver: number,
-                                    timestamp: aRecord.timestamp,
-                                    body: aRecord.body,
-                                    id: aRecord.id,
-                                    unreadCount: aRecord.read ? 0 : 1 });
+                                    timestamp: message.timestamp,
+                                    body: message.body,
+                                    id: message.id,
+                                    unreadCount: message.read ? 0 : 1 });
         }
       };
     }, [STORE_NAME, MOST_RECENT_STORE_NAME]);
     // We return the key that we expect to store in the db
-    return aRecord.id;
+    return message.id;
   },
 
 
@@ -744,7 +744,7 @@ MobileMessageDatabaseService.prototype = {
                : sender;
     }
 
-    let record = {
+    let message = {
       deliveryIndex:  [DELIVERY_RECEIVED, aDate],
       numberIndex:    [[sender, aDate], [receiver, aDate]],
       readIndex:      [FILTER_READ_UNREAD, aDate],
@@ -758,7 +758,7 @@ MobileMessageDatabaseService.prototype = {
       timestamp:      aDate,
       read:           FILTER_READ_UNREAD
     };
-    return this.saveRecord(record, aCallback);
+    return this.saveMessage(message, aCallback);
   },
 
   saveSendingMessage: function saveSendingMessage(
@@ -792,7 +792,7 @@ MobileMessageDatabaseService.prototype = {
       }
     }
 
-    let record = {
+    let message = {
       deliveryIndex:  [DELIVERY_SENDING, aDate],
       numberIndex:    [[sender, aDate], [receiver, aDate]],
       readIndex:      [FILTER_READ_READ, aDate],
@@ -806,7 +806,7 @@ MobileMessageDatabaseService.prototype = {
       timestamp:      aDate,
       read:           FILTER_READ_READ
     };
-    return this.saveRecord(record, aCallback);
+    return this.saveMessage(message, aCallback);
   },
 
   setMessageDelivery: function setMessageDelivery(
@@ -817,14 +817,14 @@ MobileMessageDatabaseService.prototype = {
     }
 
     let self = this;
-    let record;
+    let message;
     function notifyResult(rv) {
       if (!callback) {
         return;
       }
       let sms = null;
-      if (record) {
-        sms = self.createMessageFromRecord(record);
+      if (message) {
+        sms = self.createMessageFromRecord(message);
       }
       callback.notify(rv, sms);
     }
@@ -845,12 +845,12 @@ MobileMessageDatabaseService.prototype = {
 
       let getRequest = store.get(messageId);
       getRequest.onsuccess = function onsuccess(event) {
-        record = event.target.result;
-        if (!record) {
+        message = event.target.result;
+        if (!message) {
           if (DEBUG) debug("Message ID " + messageId + " not found");
           return;
         }
-        if (record.id != messageId) {
+        if (message.id != messageId) {
           if (DEBUG) {
             debug("Retrieve message ID (" + messageId + ") is " +
                   "different from the one we got");
@@ -858,22 +858,22 @@ MobileMessageDatabaseService.prototype = {
           return;
         }
         // Only updates messages that have different delivery or deliveryStatus.
-        if ((record.delivery == delivery)
-            && (record.deliveryStatus == deliveryStatus)) {
+        if ((message.delivery == delivery)
+            && (message.deliveryStatus == deliveryStatus)) {
           if (DEBUG) {
             debug("The values of attribute delivery and deliveryStatus are the"
                   + " the same with given parameters.");
           }
           return;
         }
-        record.delivery = delivery;
-        record.deliveryIndex = [delivery, record.timestamp];
-        record.deliveryStatus = deliveryStatus;
+        message.delivery = delivery;
+        message.deliveryIndex = [delivery, message.timestamp];
+        message.deliveryStatus = deliveryStatus;
         if (DEBUG) {
           debug("Message.delivery set to: " + delivery
                 + ", and Message.deliveryStatus set to: " + deliveryStatus);
         }
-        store.put(record);
+        store.put(message);
       };
     });
   },
@@ -900,13 +900,13 @@ MobileMessageDatabaseService.prototype = {
           aRequest.notifyGetMessageFailed(Ci.nsISmsRequest.UNKNOWN_ERROR);
           return;
         }
-        let record = request.result[0];
-        if (!record) {
+        let data = request.result[0];
+        if (!data) {
           if (DEBUG) debug("Message ID " + messageId + " not found");
           aRequest.notifyGetMessageFailed(Ci.nsISmsRequest.NOT_FOUND_ERROR);
           return;
         }
-        if (record.id != messageId) {
+        if (data.id != messageId) {
           if (DEBUG) {
             debug("Requested message ID (" + messageId + ") is " +
                   "different from the one we got");
@@ -914,7 +914,7 @@ MobileMessageDatabaseService.prototype = {
           aRequest.notifyGetMessageFailed(Ci.nsISmsRequest.UNKNOWN_ERROR);
           return;
         }
-        let sms = self.createMessageFromRecord(record);
+        let sms = self.createMessageFromRecord(data);
         aRequest.notifyMessageGot(sms);
       };
 
@@ -954,8 +954,8 @@ MobileMessageDatabaseService.prototype = {
       };
 
       mobileMessageStore.get(messageId).onsuccess = function(event) {
-        let record = event.target.result;
-        if (record) {
+        let message = event.target.result;
+        if (message) {
           if (DEBUG) debug("Deleting message id " + messageId);
 
           // First actually delete the message.
@@ -963,13 +963,13 @@ MobileMessageDatabaseService.prototype = {
             deleted = true;
 
             // Then update unread count and most recent message.
-            let number = getNumberFromRecord(record);
+            let number = numberFromMessage(message);
 
             mruStore.get(number).onsuccess = function(event) {
               // This must exist.
               let mostRecentEntry = event.target.result;
 
-              if (!record.read) {
+              if (!message.read) {
                 mostRecentEntry.unreadCount--;
               }
 
@@ -998,7 +998,7 @@ MobileMessageDatabaseService.prototype = {
                   }
                   mruStore.put(mostRecentEntry);
                 };
-              } else if (!record.read) {
+              } else if (!message.read) {
                 // Shortcut, just update the unread count.
                 if (DEBUG) {
                   debug("Updating unread count for number '" + number + "': " +
@@ -1316,18 +1316,18 @@ MobileMessageDatabaseService.prototype = {
     this.newTxn(READ_ONLY, function (error, txn, store) {
       if (DEBUG) debug("Fetching message " + messageId);
       let request = store.get(messageId);
-      let record;
+      let message;
       request.onsuccess = function onsuccess(event) {
-        record = request.result;
+        message = request.result;
       };
 
       txn.oncomplete = function oncomplete(event) {
         if (DEBUG) debug("Transaction " + txn + " completed.");
-        if (!record) {
+        if (!message) {
           if (DEBUG) debug("Could not get message id " + messageId);
           aRequest.notifyReadMessageListFailed(Ci.nsISmsRequest.NOT_FOUND_ERROR);
         }
-        let sms = self.createMessageFromRecord(record);
+        let sms = self.createMessageFromRecord(message);
         aRequest.notifyNextMessageInListGot(sms);
       };
 
@@ -1363,13 +1363,13 @@ MobileMessageDatabaseService.prototype = {
         aRequest.notifyMarkMessageReadFailed(Ci.nsISmsRequest.INTERNAL_ERROR);
       };
       stores[0].get(messageId).onsuccess = function onsuccess(event) {
-        let record = event.target.result;
-        if (!record) {
+        let message = event.target.result;
+        if (!message) {
           if (DEBUG) debug("Message ID " + messageId + " not found");
           aRequest.notifyMarkMessageReadFailed(Ci.nsISmsRequest.NOT_FOUND_ERROR);
           return;
         }
-        if (record.id != messageId) {
+        if (message.id != messageId) {
           if (DEBUG) {
             debug("Retrieve message ID (" + messageId + ") is " +
                   "different from the one we got");
@@ -1379,22 +1379,22 @@ MobileMessageDatabaseService.prototype = {
         }
         // If the value to be set is the same as the current message `read`
         // value, we just notify successfully.
-        if (record.read == value) {
-          if (DEBUG) debug("The value of record.read is already " + value);
-          aRequest.notifyMessageMarkedRead(record.read);
+        if (message.read == value) {
+          if (DEBUG) debug("The value of message.read is already " + value);
+          aRequest.notifyMessageMarkedRead(message.read);
           return;
         }
-        record.read = value ? FILTER_READ_READ : FILTER_READ_UNREAD;
-        record.readIndex = [record.read, record.timestamp];
+        message.read = value ? FILTER_READ_READ : FILTER_READ_UNREAD;
+        message.readIndex = [message.read, message.timestamp];
         if (DEBUG) debug("Message.read set to: " + value);
-        event.target.source.put(record).onsuccess = function onsuccess(event) {
+        event.target.source.put(message).onsuccess = function onsuccess(event) {
           if (DEBUG) {
             debug("Update successfully completed. Message: " +
                   JSON.stringify(event.target.result));
           }
 
           // Now update the unread count.
-          let number = getNumberFromRecord(record);
+          let number = numberFromMessage(message);
 
           stores[1].get(number).onsuccess = function(event) {
             let mostRecentEntry = event.target.result;
@@ -1407,7 +1407,7 @@ MobileMessageDatabaseService.prototype = {
                     " -> " + mostRecentEntry.unreadCount);
             }
             event.target.source.put(mostRecentEntry).onsuccess = function(event) {
-              aRequest.notifyMessageMarkedRead(record.read);
+              aRequest.notifyMessageMarkedRead(message.read);
             };
           };
         };

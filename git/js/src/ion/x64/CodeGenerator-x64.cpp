@@ -347,7 +347,7 @@ CodeGeneratorX64::visitCompareB(LCompareB *lir)
 
     // Perform the comparison.
     masm.cmpq(lhs.valueReg(), ScratchReg);
-    masm.emitSet(JSOpToCondition(mir->jsop()), output);
+    emitSet(JSOpToCondition(mir->jsop()), output);
     return true;
 }
 
@@ -380,10 +380,11 @@ CodeGeneratorX64::visitCompareV(LCompareV *lir)
     const ValueOperand rhs = ToValue(lir, LCompareV::RhsInput);
     const Register output = ToRegister(lir->output());
 
-    JS_ASSERT(IsEqualityOp(mir->jsop()));
+    JS_ASSERT(mir->jsop() == JSOP_EQ || mir->jsop() == JSOP_STRICTEQ ||
+              mir->jsop() == JSOP_NE || mir->jsop() == JSOP_STRICTNE);
 
     masm.cmpq(lhs.valueReg(), rhs.valueReg());
-    masm.emitSet(JSOpToCondition(mir->jsop()), output);
+    emitSet(JSOpToCondition(mir->jsop()), output);
     return true;
 }
 

@@ -1375,10 +1375,8 @@ js::ToNumberSlow(JSContext *cx, Value v, double *out)
             break;
 
         JS_ASSERT(v.isObject());
-        RootedValue v2(cx, v);
-        if (!ToPrimitive(cx, JSTYPE_NUMBER, &v2))
+        if (!ToPrimitive(cx, JSTYPE_NUMBER, &v))
             return false;
-        v = v2;
         if (v.isObject())
             break;
     }

@@ -72,7 +72,6 @@ namespace ion {
     _(TruncateToInt32)                                                      \
     _(ToString)                                                             \
     _(NewSlots)                                                             \
-    _(NewParallelArray)                                                     \
     _(NewArray)                                                             \
     _(NewObject)                                                            \
     _(NewDeclEnvObject)                                                     \
@@ -146,32 +145,14 @@ namespace ion {
     _(InterruptCheck)                                                       \
     _(FunctionBoundary)                                                     \
     _(GetDOMProperty)                                                       \
-    _(SetDOMProperty)                                                       \
-    _(ParCheckOverRecursed)                                                 \
-    _(ParNewCallObject)                                                     \
-    _(ParNew)                                                               \
-    _(ParNewDenseArray)                                                     \
-    _(ParBailout)                                                           \
-    _(ParLambda)                                                            \
-    _(ParSlice)                                                             \
-    _(ParWriteGuard)                                                        \
-    _(ParDump)                                                              \
-    _(ParCheckInterrupt)
+    _(SetDOMProperty)
 
 // Forward declarations of MIR types.
 #define FORWARD_DECLARE(op) class M##op;
  MIR_OPCODE_LIST(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
-class MInstructionVisitor // interface i.e. pure abstract class
-{
-  public:
-#define VISIT_INS(op) virtual bool visit##op(M##op *) = 0;
-    MIR_OPCODE_LIST(VISIT_INS)
-#undef VISIT_INS
-};
-
-class MInstructionVisitorWithDefaults : public MInstructionVisitor
+class MInstructionVisitor
 {
   public:
 #define VISIT_INS(op) virtual bool visit##op(M##op *) { JS_NOT_REACHED("NYI: " #op); return false; }

@@ -238,16 +238,6 @@ EnsureCompartmentPrivate(JSCompartment *c)
 }
 
 bool
-IsXBLScope(JSCompartment *compartment)
-{
-    // We always eagerly create compartment privates for XBL scopes.
-    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
-    if (!priv || !priv->scope)
-        return false;
-    return priv->scope->IsXBLScope();
-}
-
-bool
 IsUniversalXPConnectEnabled(JSCompartment *compartment)
 {
     CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
@@ -2350,7 +2340,6 @@ CompartmentNameCallback(JSRuntime *rt, JSCompartment *comp,
 }
 
 bool XPCJSRuntime::gExperimentalBindingsEnabled;
-bool XPCJSRuntime::gXBLScopesEnabled;
 
 static bool
 PreserveWrapper(JSContext *cx, JSObject *obj)
@@ -2529,9 +2518,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     DOM_InitInterfaces();
     Preferences::AddBoolVarCache(&gExperimentalBindingsEnabled,
                                  "dom.experimental_bindings",
-                                 false);
-    Preferences::AddBoolVarCache(&gXBLScopesEnabled,
-                                 "dom.xbl_scopes",
                                  false);
 
 

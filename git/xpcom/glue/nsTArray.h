@@ -9,7 +9,6 @@
 
 #include "nsTArrayForwardDeclare.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/TypeTraits.h"
 #include "mozilla/Util.h"
 
 #include <string.h>
@@ -449,26 +448,6 @@ public:
 
 template <class E> class InfallibleTArray;
 template <class E> class FallibleTArray;
-
-template<bool IsPod, bool IsSameType>
-struct AssignRangeAlgorithm {
-  template<class Item, class ElemType, class IndexType, class SizeType>
-  static void implementation(ElemType* elements, IndexType start,
-                             SizeType count, const Item *values) {
-    ElemType *iter = elements + start, *end = iter + count;
-    for (; iter != end; ++iter, ++values)
-      nsTArrayElementTraits<ElemType>::Construct(iter, *values);
-  }
-};
-
-template<>
-struct AssignRangeAlgorithm<true, true> {
-  template<class Item, class ElemType, class IndexType, class SizeType>
-  static void implementation(ElemType* elements, IndexType start,
-                             SizeType count, const Item *values) {
-    memcpy(elements + start, values, count * sizeof(ElemType));
-  }
-};
 
 //
 // nsTArray_Impl contains most of the guts supporting nsTArray, FallibleTArray,
@@ -1326,9 +1305,10 @@ protected:
   template<class Item>
   void AssignRange(index_type start, size_type count,
                    const Item *values) {
-    AssignRangeAlgorithm<mozilla::IsPod<Item>::value,
-                         mozilla::IsSame<Item, elem_type>::value>
-      ::implementation(Elements(), start, count, values);
+    elem_type *iter = Elements() + start, *end = iter + count;
+    for (; iter != end; ++iter, ++values) {
+      elem_traits::Construct(iter, *values);
+    }
   }
 
   // This method sifts an item down to its proper place in a binary heap

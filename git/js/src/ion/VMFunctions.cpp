@@ -13,8 +13,6 @@
 
 #include "vm/StringObject-inl.h"
 
-#include "builtin/ParallelArray.h"
-
 #include "jsboolinlines.h"
 #include "jsinterpinlines.h"
 

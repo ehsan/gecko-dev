@@ -112,7 +112,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
 
     enum {
         JSVAL =        -1, /* js::AutoValueRooter */
-        VALARRAY =     -2, /* js::AutoValueArray */
+        VALARRAY =     -2, /* js::AutoValueArrayRooter */
         PARSER =       -3, /* js::frontend::Parser */
         SHAPEVECTOR =  -4, /* js::AutoShapeVector */
         IDARRAY =      -6, /* js::AutoIdArray */
@@ -691,10 +691,6 @@ class CallReceiver
 
     JS::HandleValue thisv() const {
         return JS::HandleValue::fromMarkedLocation(&argv_[-1]);
-    }
-
-    JS::MutableHandleValue mutableThisv() const {
-        return JS::MutableHandleValue::fromMarkedLocation(&argv_[-1]);
     }
 
     JS::MutableHandleValue rval() const {
@@ -2157,7 +2153,11 @@ JS_StringToVersion(const char *string);
 
 #define JSOPTION_ION            JS_BIT(20)      /* IonMonkey */
 
-#define JSOPTION_MASK           JS_BITMASK(21)
+/* Options which reflect compile-time properties of scripts. */
+#define JSCOMPILEOPTION_MASK    0
+
+#define JSRUNOPTION_MASK        (JS_BITMASK(21) & ~JSCOMPILEOPTION_MASK)
+#define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
 
 extern JS_PUBLIC_API(uint32_t)
 JS_GetOptions(JSContext *cx);

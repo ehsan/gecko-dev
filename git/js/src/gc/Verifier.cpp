@@ -196,19 +196,6 @@ SuppressCheckRoots(Vector<Rooter, 0, SystemAllocPolicy> &rooters)
     return false;
 }
 
-static void
-GatherRooters(Vector<Rooter, 0, SystemAllocPolicy> &rooters,
-              Rooted<void*> **thingGCRooters,
-              unsigned thingRootKind)
-{
-    Rooted<void*> *rooter = thingGCRooters[thingRootKind];
-    while (rooter) {
-        Rooter r = { rooter, ThingRootKind(thingRootKind) };
-        JS_ALWAYS_TRUE(rooters.append(r));
-        rooter = rooter->previous();
-    }
-}
-
 void
 JS::CheckStackRoots(JSContext *cx)
 {
@@ -256,13 +243,16 @@ JS::CheckStackRoots(JSContext *cx)
 #endif
 
     // Gather up all of the rooters
-    Vector<Rooter, 0, SystemAllocPolicy> rooters;
+    Vector< Rooter, 0, SystemAllocPolicy> rooters;
     for (unsigned i = 0; i < THING_ROOT_LIMIT; i++) {
         for (ContextIter cx(rt); !cx.done(); cx.next()) {
-            GatherRooters(rooters, cx->thingGCRooters, i);
+            Rooted<void*> *rooter = cx->thingGCRooters[i];
+            while (rooter) {
+                Rooter r = { rooter, ThingRootKind(i) };
+                JS_ALWAYS_TRUE(rooters.append(r));
+                rooter = rooter->previous();
+            }
         }
-
-        GatherRooters(rooters, rt->mainThread.thingGCRooters, i);
     }
 
     if (SuppressCheckRoots(rooters))

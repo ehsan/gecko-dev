@@ -34,9 +34,6 @@ public:
                         nsIURI* aBindingDocURI,
                         bool* aDidInstall) const;
 
-  nsresult InstallAccessors(JSContext* aCx,
-                            JSObject* aTargetClassObject);
-
   nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
   nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);
 
@@ -44,8 +41,7 @@ public:
 
   unsigned AccessorAttributes() const {
     return JSPROP_SHARED | JSPROP_GETTER | JSPROP_SETTER |
-           JSPROP_READONLY | JSPROP_PERMANENT |
-           (mJSAttributes & JSPROP_ENUMERATE);
+           (mJSAttributes & (JSPROP_ENUMERATE | JSPROP_PERMANENT));
   }
 
   bool IsEmpty() const { return mFieldTextLength == 0; }

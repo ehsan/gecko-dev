@@ -541,10 +541,10 @@ nsXBLPrototypeBinding::SetDestructor(nsXBLProtoImplAnonymousMethod* aMethod)
 }
 
 nsresult
-nsXBLPrototypeBinding::InstallImplementation(nsXBLBinding* aBinding)
+nsXBLPrototypeBinding::InstallImplementation(nsIContent* aBoundElement)
 {
   if (mImplementation)
-    return mImplementation->InstallImplementation(this, aBinding);
+    return mImplementation->InstallImplementation(this, aBoundElement);
   return NS_OK;
 }
 
@@ -841,15 +841,14 @@ nsresult
 nsXBLPrototypeBinding::InitClass(const nsCString& aClassName,
                                  JSContext * aContext, JSObject * aGlobal,
                                  JSObject * aScriptObject,
-                                 JSObject** aClassObject,
-                                 bool* aNew)
+                                 JSObject** aClassObject)
 {
   NS_ENSURE_ARG_POINTER(aClassObject); 
 
   *aClassObject = nullptr;
 
   return nsXBLBinding::DoInitJSClass(aContext, aGlobal, aScriptObject,
-                                     aClassName, this, aClassObject, aNew);
+                                     aClassName, this, aClassObject);
 }
 
 nsIContent*

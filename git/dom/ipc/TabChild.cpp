@@ -229,6 +229,8 @@ TabChild::PreloadSlowThings()
     }
     // Just load and compile these scripts, but don't run them.
     tab->TryCacheLoadAndCompileScript(BROWSER_ELEMENT_CHILD_SCRIPT);
+    tab->TryCacheLoadAndCompileScript(
+        NS_LITERAL_STRING("chrome://browser/content/forms.js"));
     // Load, compile, and run these scripts.
     tab->RecvLoadRemoteScript(
         NS_LITERAL_STRING("chrome://global/content/preload.js"));
@@ -1297,7 +1299,7 @@ TabChild::GetCachedFileDescriptor(const nsAString& aPath,
     info->mCallback = aCallback;
 
     nsRefPtr<CachedFileDescriptorCallbackRunnable> runnable =
-        new CachedFileDescriptorCallbackRunnable(info.forget());
+        new CachedFileDescriptorCallbackRunnable(info);
     runnable->Dispatch();
 
     mCachedFileDescriptorInfos.RemoveElementAt(index);

@@ -9,6 +9,7 @@
 #include "nsIDOMSVGURIReference.h"
 #include "mozilla/dom/SVGTextPositioningElement.h"
 #include "nsSVGString.h"
+#include "nsIDOMSVGTextPositionElem.h"
 
 nsresult NS_NewSVGAltGlyphElement(nsIContent **aResult,
                                   already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -18,8 +19,8 @@ namespace dom {
 
 typedef SVGTextPositioningElement SVGAltGlyphElementBase;
 
-class SVGAltGlyphElement MOZ_FINAL : public SVGAltGlyphElementBase,
-                                     public nsIDOMSVGElement,
+class SVGAltGlyphElement MOZ_FINAL : public SVGAltGlyphElementBase, // = nsIDOMSVGTextPositioningElement
+                                     public nsIDOMSVGTextPositioningElement,
                                      public nsIDOMSVGURIReference
 {
 protected:
@@ -39,6 +40,8 @@ public:
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
   NS_FORWARD_NSIDOMSVGELEMENT(SVGAltGlyphElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(SVGAltGlyphElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(SVGAltGlyphElementBase::)
 
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;

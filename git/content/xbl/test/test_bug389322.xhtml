@@ -17,7 +17,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389322
                var success = true;
              }
              catch (e) { success = false; }
-             XPCNativeWrapper.unwrap(window).report("XBL fields", success)
+             report("XBL fields", success)
              return ""
            }())
         ]]></field>
@@ -28,7 +28,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389322
                var success = true;
              }
              catch (e) { success = false; }
-             XPCNativeWrapper.unwrap(window).report("XBL property getters", success)
+             report("XBL property getters", success)
              return 1
            ]]></getter>
           <setter><![CDATA[
@@ -37,7 +37,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389322
               var success = true
             }
             catch (e) { success = false }
-            XPCNativeWrapper.unwrap(window).report("XBL property setters", success)
+            report("XBL property setters", success)
             return val
           ]]></setter>
         </property>
@@ -48,7 +48,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389322
               var success = true;
             }
             catch (e) { success = false; }
-            XPCNativeWrapper.unwrap(window).report("XBL methods", success)
+            report("XBL methods", success)
           ]]></body>
         </method>
         <constructor><![CDATA[
@@ -60,13 +60,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389322
             var success = true
           }
           catch (e) { success = false }
-          var win = XPCNativeWrapper.unwrap(window);
-          win.report("XBL constructors", success)
+          report("XBL constructors", success)
         
           var ev = document.createEvent("Events")
           ev.initEvent("custom", false, false)
           this.dispatchEvent(ev)
-          win.ctorRan = true;
+          ctorRan = true;
         ]]></constructor>
       </implementation>
       <handlers>
