@@ -76,8 +76,6 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 #include "jsvector.h"
-#include "methodjit/MethodJIT.h"
-#include "methodjit/Logging.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -323,7 +321,7 @@ Class js_NoSuchMethodClass = {
  * call by name, and args is an Array containing this invocation's actual
  * parameters.
  */
-JSBool
+JS_STATIC_INTERPRET JSBool
 js_OnUnknownMethod(JSContext *cx, Value *vp)
 {
     JS_ASSERT(!vp[1].isPrimitive());
@@ -414,52 +412,6 @@ class AutoPreserveEnumerators {
         cx->enumerators = enumerators;
     }
 };
-
-struct AutoInterpPreparer  {
-    JSContext *cx;
-    JSScript *script;
-
-    AutoInterpPreparer(JSContext *cx, JSScript *script)
-      : cx(cx), script(script)
-    {
-        if (script->staticLevel < JS_DISPLAY_SIZE) {
-            JSStackFrame **disp = &cx->display[script->staticLevel];
-            cx->fp->displaySave = *disp;
-            *disp = cx->fp;
-        }
-        cx->interpLevel++;
-    }
-
-    ~AutoInterpPreparer()
-    {
-        if (script->staticLevel < JS_DISPLAY_SIZE)
-            cx->display[script->staticLevel] = cx->fp->displaySave;
-        --cx->interpLevel;
-    }
-};
-
-JS_REQUIRES_STACK bool
-RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
-{
-    JS_ASSERT(script);
-
-#ifdef JS_METHODJIT_SPEW
-    JMCheckLogging();
-#endif
-
-    AutoInterpPreparer prepareInterp(cx, script);
-
-#ifdef JS_METHODJIT
-    mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, fun, scopeChain);
-    if (status == mjit::Compile_Error)
-        return JS_FALSE;
-
-    if (status == mjit::Compile_Okay)
-        return mjit::JaegerShot(cx);
-#endif
-
-    return Interpret(cx);
-}
 
 /*
  * Find a function reference and its 'this' object implicit first parameter
@@ -691,7 +643,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
     } else {
         JS_ASSERT(script);
         AutoPreserveEnumerators preserve(cx);
-        ok = RunScript(cx, script, fun, &fp->scopeChain.asObject());
+        ok = Interpret(cx);
     }
 
     DTrace::exitJSFun(cx, fp, fun, fp->rval);
@@ -887,7 +839,7 @@ Execute(JSContext *cx, JSObject *const chain, JSScript *script,
         hookData = hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData);
 
     AutoPreserveEnumerators preserve(cx);
-    JSBool ok = RunScript(cx, script, fp->fun, &fp->scopeChain.asObject());
+    JSBool ok = Interpret(cx);
     if (result)
         *result = fp->rval;
 
@@ -1161,8 +1113,6 @@ InvokeConstructor(JSContext *cx, const InvokeArgsGuard &args, JSBool clampReturn
     if (!obj)
         return JS_FALSE;
 
-    AutoObjectRooter tvr(cx, obj);
-
     /* Now we have an object with a constructor method; call it. */
     vp[1].setObject(*obj);
     if (!Invoke(cx, args, JSINVOKE_CONSTRUCT))
@@ -1281,7 +1231,7 @@ js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-JS_REQUIRES_STACK JSBool
+JS_STATIC_INTERPRET JS_REQUIRES_STACK JSBool
 js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind)
 {
     JSObject *obj;
@@ -1968,6 +1918,7 @@ AssertValidPropertyCacheHit(JSContext *cx, JSScript *script, JSFrameRegs& regs,
  * same way as non-call bytecodes.
  */
 JS_STATIC_ASSERT(JSOP_NAME_LENGTH == JSOP_CALLNAME_LENGTH);
+JS_STATIC_ASSERT(JSOP_GETGVAR_LENGTH == JSOP_CALLGVAR_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETUPVAR_LENGTH == JSOP_CALLUPVAR_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETUPVAR_DBG_LENGTH == JSOP_CALLUPVAR_DBG_LENGTH);
 JS_STATIC_ASSERT(JSOP_GETUPVAR_DBG_LENGTH == JSOP_GETUPVAR_LENGTH);
@@ -2274,7 +2225,7 @@ Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (cx->interruptFlags && !js_HandleExecutionInterrupt(cx))           \
+        if (!JS_CHECK_OPERATION_LIMIT(cx))                                    \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2319,6 +2270,13 @@ Interpret(JSContext *cx)
     JSVersion originalVersion = (JSVersion) cx->version;
     if (currentVersion != originalVersion)
         js_SetVersion(cx, currentVersion);
+
+    /* Update the static-link display. */
+    if (script->staticLevel < JS_DISPLAY_SIZE) {
+        JSStackFrame **disp = &cx->display[script->staticLevel];
+        fp->displaySave = *disp;
+        *disp = fp;
+    }
 
 #define CHECK_INTERRUPT_HANDLER()                                             \
     JS_BEGIN_MACRO                                                            \
@@ -2646,6 +2604,8 @@ Interpret(JSContext *cx)
     JS_ASSERT_IF(!fp->isGenerator(), !js_IsActiveWithOrBlock(cx, fp->scopeChainObj(), 0));
 
     /* Undo the remaining effects committed on entry to Interpret. */
+    if (script->staticLevel < JS_DISPLAY_SIZE)
+        cx->display[script->staticLevel] = fp->displaySave;
     if (cx->version == currentVersion && currentVersion != originalVersion)
         js_SetVersion(cx, originalVersion);
     --cx->interpLevel;
