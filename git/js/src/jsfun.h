@@ -153,7 +153,7 @@ class JSFunction : public js::NativeObject
     }
     bool isInterpretedConstructor() const {
         // Note: the JITs inline this check, so be careful when making changes
-        // here. See MacroAssembler::branchIfNotInterpretedConstructor.
+        // here. See IonMacroAssembler::branchIfNotInterpretedConstructor.
         return isInterpreted() && !isFunctionPrototype() && !isArrow() &&
                (!isSelfHostedBuiltin() || isSelfHostedConstructor());
     }

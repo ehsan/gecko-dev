@@ -10,7 +10,7 @@
 #include "jit/BaselineFrameInfo.h"
 #include "jit/BaselineIC.h"
 #include "jit/BytecodeAnalysis.h"
-#include "jit/MacroAssembler.h"
+#include "jit/IonMacroAssembler.h"
 
 namespace js {
 namespace jit {

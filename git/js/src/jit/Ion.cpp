@@ -60,88 +60,88 @@ using mozilla::ThreadLocal;
 // Assert that JitCode is gc::Cell aligned.
 JS_STATIC_ASSERT(sizeof(JitCode) % gc::CellSize == 0);
 
-static ThreadLocal<JitContext*> TlsJitContext;
+static ThreadLocal<IonContext*> TlsIonContext;
 
-static JitContext *
-CurrentJitContext()
+static IonContext *
+CurrentIonContext()
 {
-    if (!TlsJitContext.initialized())
+    if (!TlsIonContext.initialized())
         return nullptr;
-    return TlsJitContext.get();
+    return TlsIonContext.get();
 }
 
 void
-jit::SetJitContext(JitContext *ctx)
+jit::SetIonContext(IonContext *ctx)
 {
-    TlsJitContext.set(ctx);
+    TlsIonContext.set(ctx);
 }
 
-JitContext *
-jit::GetJitContext()
+IonContext *
+jit::GetIonContext()
 {
-    MOZ_ASSERT(CurrentJitContext());
-    return CurrentJitContext();
+    MOZ_ASSERT(CurrentIonContext());
+    return CurrentIonContext();
 }
 
-JitContext *
-jit::MaybeGetJitContext()
+IonContext *
+jit::MaybeGetIonContext()
 {
-    return CurrentJitContext();
+    return CurrentIonContext();
 }
 
-JitContext::JitContext(JSContext *cx, TempAllocator *temp)
+IonContext::IonContext(JSContext *cx, TempAllocator *temp)
   : cx(cx),
     temp(temp),
     runtime(CompileRuntime::get(cx->runtime())),
     compartment(CompileCompartment::get(cx->compartment())),
-    prev_(CurrentJitContext()),
+    prev_(CurrentIonContext()),
     assemblerCount_(0)
 {
-    SetJitContext(this);
+    SetIonContext(this);
 }
 
-JitContext::JitContext(ExclusiveContext *cx, TempAllocator *temp)
+IonContext::IonContext(ExclusiveContext *cx, TempAllocator *temp)
   : cx(nullptr),
     temp(temp),
     runtime(CompileRuntime::get(cx->runtime_)),
     compartment(nullptr),
-    prev_(CurrentJitContext()),
+    prev_(CurrentIonContext()),
     assemblerCount_(0)
 {
-    SetJitContext(this);
+    SetIonContext(this);
 }
 
-JitContext::JitContext(CompileRuntime *rt, CompileCompartment *comp, TempAllocator *temp)
+IonContext::IonContext(CompileRuntime *rt, CompileCompartment *comp, TempAllocator *temp)
   : cx(nullptr),
     temp(temp),
     runtime(rt),
     compartment(comp),
-    prev_(CurrentJitContext()),
+    prev_(CurrentIonContext()),
     assemblerCount_(0)
 {
-    SetJitContext(this);
+    SetIonContext(this);
 }
 
-JitContext::JitContext(CompileRuntime *rt)
+IonContext::IonContext(CompileRuntime *rt)
   : cx(nullptr),
     temp(nullptr),
     runtime(rt),
     compartment(nullptr),
-    prev_(CurrentJitContext()),
+    prev_(CurrentIonContext()),
     assemblerCount_(0)
 {
-    SetJitContext(this);
+    SetIonContext(this);
 }
 
-JitContext::~JitContext()
+IonContext::~IonContext()
 {
-    SetJitContext(prev_);
+    SetIonContext(prev_);
 }
 
 bool
 jit::InitializeIon()
 {
-    if (!TlsJitContext.initialized() && !TlsJitContext.init())
+    if (!TlsIonContext.initialized() && !TlsIonContext.init())
         return false;
     CheckLogging();
 #if defined(JS_CODEGEN_ARM)
@@ -195,7 +195,7 @@ JitRuntime::initialize(JSContext *cx)
 
     AutoCompartment ac(cx, cx->atomsCompartment());
 
-    JitContext jctx(cx, nullptr);
+    IonContext ictx(cx, nullptr);
 
     execAlloc_ = cx->runtime()->getExecAlloc(cx);
     if (!execAlloc_)
@@ -646,7 +646,7 @@ jit::LazyLinkTopActivation(JSContext *cx)
         AutoTraceLog logScript(logger, TraceLogCreateTextId(logger, script));
         AutoTraceLog logLink(logger, TraceLogger::IonLinking);
 
-        JitContext jctx(cx, &builder->alloc());
+        IonContext ictx(cx, &builder->alloc());
 
         // Root the assembler until the builder is finished below. As it
         // was constructed off thread, the assembler has not been rooted
@@ -1394,8 +1394,8 @@ OptimizeMIR(MIRGenerator *mir)
 {
     MIRGraph &graph = mir->graph();
     TraceLogger *logger;
-    if (GetJitContext()->runtime->onMainThread())
-        logger = TraceLoggerForMainThread(GetJitContext()->runtime);
+    if (GetIonContext()->runtime->onMainThread())
+        logger = TraceLoggerForMainThread(GetIonContext()->runtime);
     else
         logger = TraceLoggerForCurrentThread();
 
@@ -1715,8 +1715,8 @@ GenerateLIR(MIRGenerator *mir)
     MIRGraph &graph = mir->graph();
 
     TraceLogger *logger;
-    if (GetJitContext()->runtime->onMainThread())
-        logger = TraceLoggerForMainThread(GetJitContext()->runtime);
+    if (GetIonContext()->runtime->onMainThread())
+        logger = TraceLoggerForMainThread(GetIonContext()->runtime);
     else
         logger = TraceLoggerForCurrentThread();
 
@@ -1809,8 +1809,8 @@ CodeGenerator *
 GenerateCode(MIRGenerator *mir, LIRGraph *lir)
 {
     TraceLogger *logger;
-    if (GetJitContext()->runtime->onMainThread())
-        logger = TraceLoggerForMainThread(GetJitContext()->runtime);
+    if (GetIonContext()->runtime->onMainThread())
+        logger = TraceLoggerForMainThread(GetIonContext()->runtime);
     else
         logger = TraceLoggerForCurrentThread();
     AutoTraceLog log(logger, TraceLogger::GenerateCode);
@@ -1910,7 +1910,7 @@ AttachFinishedCompilations(JSContext *cx)
 
         if (CodeGenerator *codegen = builder->backgroundCodegen()) {
             RootedScript script(cx, builder->script());
-            JitContext jctx(cx, &builder->alloc());
+            IonContext ictx(cx, &builder->alloc());
             AutoTraceLog logScript(logger, TraceLogCreateTextId(logger, script));
             AutoTraceLog logLink(logger, TraceLogger::IonLinking);
 
@@ -2014,7 +2014,7 @@ IonCompile(JSContext *cx, JSScript *script,
     if (!temp)
         return AbortReason_Alloc;
 
-    JitContext jctx(cx, temp);
+    IonContext ictx(cx, temp);
 
     types::AutoEnterAnalysis enter(cx);
 
@@ -2548,10 +2548,10 @@ jit::CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numAct
     return Method_Compiled;
 }
 
-static JitExecStatus
+static IonExecStatus
 EnterIon(JSContext *cx, EnterJitData &data)
 {
-    JS_CHECK_RECURSION(cx, return JitExec_Aborted);
+    JS_CHECK_RECURSION(cx, return IonExec_Aborted);
     MOZ_ASSERT(jit::IsIonEnabled(cx));
     MOZ_ASSERT(!data.osrFrame);
 
@@ -2579,7 +2579,7 @@ EnterIon(JSContext *cx, EnterJitData &data)
     cx->runtime()->getJitRuntime(cx)->freeOsrTempData();
 
     MOZ_ASSERT_IF(data.result.isMagic(), data.result.isMagic(JS_ION_ERROR));
-    return data.result.isMagic() ? JitExec_Error : JitExec_Ok;
+    return data.result.isMagic() ? IonExec_Error : IonExec_Ok;
 }
 
 bool
@@ -2634,7 +2634,7 @@ jit::SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoVal
     return true;
 }
 
-JitExecStatus
+IonExecStatus
 jit::IonCannon(JSContext *cx, RunState &state)
 {
     IonScript *ion = state.script()->ionScript();
@@ -2644,20 +2644,20 @@ jit::IonCannon(JSContext *cx, RunState &state)
 
     AutoValueVector vals(cx);
     if (!SetEnterJitData(cx, data, state, vals))
-        return JitExec_Error;
+        return IonExec_Error;
 
-    JitExecStatus status = EnterIon(cx, data);
+    IonExecStatus status = EnterIon(cx, data);
 
-    if (status == JitExec_Ok)
+    if (status == IonExec_Ok)
         state.setReturnValue(data.result);
 
     return status;
 }
 
-JitExecStatus
+IonExecStatus
 jit::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
 {
-    JS_CHECK_RECURSION(cx, return JitExec_Error);
+    JS_CHECK_RECURSION(cx, return IonExec_Error);
 
     IonScript *ion = fun->nonLazyScript()->ionScript();
     JitCode *code = ion->method();
@@ -2682,7 +2682,7 @@ jit::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
     args.rval().set(result);
 
     MOZ_ASSERT_IF(result.isMagic(), result.isMagic(JS_ION_ERROR));
-    return result.isMagic() ? JitExec_Error : JitExec_Ok;
+    return result.isMagic() ? IonExec_Error : IonExec_Ok;
 }
 
 static void
@@ -3267,7 +3267,7 @@ jit::SizeOfIonData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf)
 }
 
 void
-jit::DestroyJitScripts(FreeOp *fop, JSScript *script)
+jit::DestroyIonScripts(FreeOp *fop, JSScript *script)
 {
     if (script->hasIonScript())
         jit::IonScript::Destroy(fop, script->ionScript());
@@ -3280,7 +3280,7 @@ jit::DestroyJitScripts(FreeOp *fop, JSScript *script)
 }
 
 void
-jit::TraceJitScripts(JSTracer* trc, JSScript *script)
+jit::TraceIonScripts(JSTracer* trc, JSScript *script)
 {
     if (script->hasIonScript())
         jit::IonScript::Trace(trc, script->ionScript());
@@ -3320,7 +3320,7 @@ jit::UpdateForDebugMode(JSContext *maybecx, JSCompartment *comp,
 
     // Recompile on-stack baseline scripts if we have a cx.
     if (maybecx) {
-        JitContext jctx(maybecx, nullptr);
+        IonContext ictx(maybecx, nullptr);
         if (!RecompileOnStackBaselineScriptsForDebugMode(maybecx, comp)) {
             js_ReportOutOfMemory(maybecx);
             return false;
@@ -3355,7 +3355,7 @@ AutoDebugModeInvalidation::~AutoDebugModeInvalidation()
     for (JitActivationIterator iter(rt); !iter.done(); ++iter) {
         JSCompartment *comp = iter->compartment();
         if (comp_ == comp || zone_ == comp->zone()) {
-            JitContext jctx(CompileRuntime::get(rt));
+            IonContext ictx(CompileRuntime::get(rt));
             JitSpew(JitSpew_IonInvalidate, "Invalidating frames for debug mode toggle");
             InvalidateActivation(fop, iter, true);
         }

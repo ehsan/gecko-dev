@@ -31,7 +31,7 @@
 #include "irregexp/NativeRegExpMacroAssembler.h"
 
 #include "irregexp/RegExpStack.h"
-#include "jit/Linker.h"
+#include "jit/IonLinker.h"
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif

@@ -38,19 +38,19 @@ enum AbortReason {
     AbortReason_NoAbort
 };
 
-// A JIT context is needed to enter into either an JIT method or an instance
-// of a JIT compiler. It points to a temporary allocator and the active
+// An Ion context is needed to enter into either an Ion method or an instance
+// of the Ion compiler. It points to a temporary allocator and the active
 // JSContext, either of which may be nullptr, and the active compartment, which
 // will not be nullptr.
 
-class JitContext
+class IonContext
 {
   public:
-    JitContext(JSContext *cx, TempAllocator *temp);
-    JitContext(ExclusiveContext *cx, TempAllocator *temp);
-    JitContext(CompileRuntime *rt, CompileCompartment *comp, TempAllocator *temp);
-    explicit JitContext(CompileRuntime *rt);
-    ~JitContext();
+    IonContext(JSContext *cx, TempAllocator *temp);
+    IonContext(ExclusiveContext *cx, TempAllocator *temp);
+    IonContext(CompileRuntime *rt, CompileCompartment *comp, TempAllocator *temp);
+    explicit IonContext(CompileRuntime *rt);
+    ~IonContext();
 
     // Running context when executing on the main thread. Not available during
     // compilation.
@@ -68,18 +68,18 @@ class JitContext
         return assemblerCount_++;
     }
   private:
-    JitContext *prev_;
+    IonContext *prev_;
     int assemblerCount_;
 };
 
 // Initialize Ion statically for all JSRuntimes.
 bool InitializeIon();
 
-// Get and set the current JIT context.
-JitContext *GetJitContext();
-JitContext *MaybeGetJitContext();
+// Get and set the current Ion context.
+IonContext *GetIonContext();
+IonContext *MaybeGetIonContext();
 
-void SetJitContext(JitContext *ctx);
+void SetIonContext(IonContext *ctx);
 
 bool CanIonCompileScript(JSContext *cx, JSScript *script, bool osr);
 
@@ -95,34 +95,34 @@ MethodStatus
 Recompile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode *osrPc,
           bool constructing);
 
-enum JitExecStatus
+enum IonExecStatus
 {
     // The method call had to be aborted due to a stack limit check. This
     // error indicates that Ion never attempted to clean up frames.
-    JitExec_Aborted,
+    IonExec_Aborted,
 
     // The method call resulted in an error, and IonMonkey has cleaned up
     // frames.
-    JitExec_Error,
+    IonExec_Error,
 
-    // The method call succeeded and returned a value.
-    JitExec_Ok
+    // The method call succeeed and returned a value.
+    IonExec_Ok
 };
 
 static inline bool
-IsErrorStatus(JitExecStatus status)
+IsErrorStatus(IonExecStatus status)
 {
-    return status == JitExec_Error || status == JitExec_Aborted;
+    return status == IonExec_Error || status == IonExec_Aborted;
 }
 
 struct EnterJitData;
 
 bool SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoValueVector &vals);
 
-JitExecStatus IonCannon(JSContext *cx, RunState &state);
+IonExecStatus IonCannon(JSContext *cx, RunState &state);
 
 // Used to enter Ion from C++ natives like Array.map. Called from FastInvokeGuard.
-JitExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
+IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
 
 // Walk the stack and invalidate active Ion frames for the invalid scripts.
 void Invalidate(types::TypeZone &types, FreeOp *fop,
@@ -199,8 +199,8 @@ void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
 
 void PurgeCaches(JSScript *script);
 size_t SizeOfIonData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf);
-void DestroyJitScripts(FreeOp *fop, JSScript *script);
-void TraceJitScripts(JSTracer* trc, JSScript *script);
+void DestroyIonScripts(FreeOp *fop, JSScript *script);
+void TraceIonScripts(JSTracer* trc, JSScript *script);
 
 void RequestInterruptForIonCode(JSRuntime *rt, JSRuntime::InterruptMode mode);
 

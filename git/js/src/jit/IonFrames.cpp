@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jit/JitFrames-inl.h"
+#include "jit/IonFrames-inl.h"
 
 #include "jsfun.h"
 #include "jsobj.h"
@@ -17,10 +17,10 @@
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
+#include "jit/IonMacroAssembler.h"
 #include "jit/JitcodeMap.h"
 #include "jit/JitCompartment.h"
 #include "jit/JitSpewer.h"
-#include "jit/MacroAssembler.h"
 #include "jit/ParallelFunctions.h"
 #include "jit/PcScriptCache.h"
 #include "jit/Recover.h"
@@ -42,7 +42,7 @@ namespace js {
 namespace jit {
 
 // Given a slot index, returns the offset, in bytes, of that slot from an
-// JitFrameLayout. Slot distances are uniform across architectures, however,
+// IonJSFrameLayout. Slot distances are uniform across architectures, however,
 // the distance does depend on the size of the frame header.
 static inline int32_t
 OffsetOfFrameSlot(int32_t slot)
@@ -51,31 +51,31 @@ OffsetOfFrameSlot(int32_t slot)
 }
 
 static inline uintptr_t
-ReadFrameSlot(JitFrameLayout *fp, int32_t slot)
+ReadFrameSlot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(uintptr_t *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline double
-ReadFrameDoubleSlot(JitFrameLayout *fp, int32_t slot)
+ReadFrameDoubleSlot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(double *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline float
-ReadFrameFloat32Slot(JitFrameLayout *fp, int32_t slot)
+ReadFrameFloat32Slot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(float *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline int32_t
-ReadFrameInt32Slot(JitFrameLayout *fp, int32_t slot)
+ReadFrameInt32Slot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(int32_t *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline bool
-ReadFrameBooleanSlot(JitFrameLayout *fp, int32_t slot)
+ReadFrameBooleanSlot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(bool *)((char *)fp + OffsetOfFrameSlot(slot));
 }
@@ -160,7 +160,7 @@ JitFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 CalleeToken
 JitFrameIterator::calleeToken() const
 {
-    return ((JitFrameLayout *) current_)->calleeToken();
+    return ((IonJSFrameLayout *) current_)->calleeToken();
 }
 
 JSFunction *
@@ -265,20 +265,20 @@ SizeOfFramePrefix(FrameType type)
 {
     switch (type) {
       case JitFrame_Entry:
-        return EntryFrameLayout::Size();
+        return IonEntryFrameLayout::Size();
       case JitFrame_BaselineJS:
       case JitFrame_IonJS:
       case JitFrame_Bailout:
       case JitFrame_Unwound_IonJS:
-        return JitFrameLayout::Size();
+        return IonJSFrameLayout::Size();
       case JitFrame_BaselineStub:
-        return BaselineStubFrameLayout::Size();
+        return IonBaselineStubFrameLayout::Size();
       case JitFrame_Rectifier:
-        return RectifierFrameLayout::Size();
+        return IonRectifierFrameLayout::Size();
       case JitFrame_Unwound_Rectifier:
         return IonUnwoundRectifierFrameLayout::Size();
       case JitFrame_Exit:
-        return ExitFrameLayout::Size();
+        return IonExitFrameLayout::Size();
       default:
         MOZ_CRASH("unknown frame type");
     }
@@ -748,7 +748,7 @@ HandleException(ResumeFromException *rfe)
             }
         }
 
-        JitFrameLayout *current = iter.isScripted() ? iter.jsFrame() : nullptr;
+        IonJSFrameLayout *current = iter.isScripted() ? iter.jsFrame() : nullptr;
 
         ++iter;
 
@@ -794,7 +794,7 @@ HandleParallelFailure(ResumeFromException *rfe)
 }
 
 void
-EnsureExitFrame(CommonFrameLayout *frame)
+EnsureExitFrame(IonCommonFrameLayout *frame)
 {
     if (frame->prevType() == JitFrame_Unwound_IonJS ||
         frame->prevType() == JitFrame_Unwound_BaselineStub ||
@@ -871,7 +871,7 @@ ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
 static void
 MarkActualArguments(JSTracer *trc, const JitFrameIterator &frame)
 {
-    JitFrameLayout *layout = frame.jsFrame();
+    IonJSFrameLayout *layout = frame.jsFrame();
     MOZ_ASSERT(CalleeTokenIsFunction(layout->calleeToken()));
 
     size_t nargs = frame.numActualArgs();
@@ -905,7 +905,7 @@ WriteAllocation(const JitFrameIterator &frame, const LAllocation *a, uintptr_t v
 static void
 MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
 {
-    JitFrameLayout *layout = (JitFrameLayout *)frame.fp();
+    IonJSFrameLayout *layout = (IonJSFrameLayout *)frame.fp();
 
     layout->replaceCalleeToken(MarkCalleeToken(trc, layout->calleeToken()));
 
@@ -977,7 +977,7 @@ UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
     // Minor GCs may move slots/elements allocated in the nursery. Update
     // any slots/elements pointers stored in this frame.
 
-    JitFrameLayout *layout = (JitFrameLayout *)frame.fp();
+    IonJSFrameLayout *layout = (IonJSFrameLayout *)frame.fp();
 
     IonScript *ionScript = nullptr;
     if (frame.checkInvalidation(&ionScript)) {
@@ -1028,7 +1028,7 @@ MarkBaselineStubFrame(JSTracer *trc, const JitFrameIterator &frame)
     // so that we don't destroy the stub code after unlinking the stub.
 
     MOZ_ASSERT(frame.type() == JitFrame_BaselineStub);
-    BaselineStubFrameLayout *layout = (BaselineStubFrameLayout *)frame.fp();
+    IonBaselineStubFrameLayout *layout = (IonBaselineStubFrameLayout *)frame.fp();
 
     if (ICStub *stub = layout->maybeStubPtr()) {
         MOZ_ASSERT(ICStub::CanMakeCalls(stub->kind()));
@@ -1044,8 +1044,8 @@ JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
     if (frames.isFakeExitFrame()) {
         min = reinterpret_cast<uintptr_t *>(frames.fp());
     } else {
-        ExitFrameLayout *exitFrame = frames.exitFrame();
-        ExitFooterFrame *footer = exitFrame->footer();
+        IonExitFrameLayout *exitFrame = frames.exitFrame();
+        IonExitFooterFrame *footer = exitFrame->footer();
         const VMFunction *f = footer->function();
         if (exitFrame->isWrapperExit() && f->outParam == Type_Handle) {
             switch (f->outParamRootType) {
@@ -1084,7 +1084,7 @@ alignDoubleSpillWithOffset(uint8_t *pointer, int32_t offset)
 }
 
 static void
-MarkJitExitFrameCopiedArguments(JSTracer *trc, const VMFunction *f, ExitFooterFrame *footer)
+MarkJitExitFrameCopiedArguments(JSTracer *trc, const VMFunction *f, IonExitFooterFrame *footer)
 {
     uint8_t *doubleArgs = reinterpret_cast<uint8_t *>(footer);
     doubleArgs = alignDoubleSpillWithOffset(doubleArgs, sizeof(intptr_t));
@@ -1105,7 +1105,7 @@ MarkJitExitFrameCopiedArguments(JSTracer *trc, const VMFunction *f, ExitFooterFr
 }
 #else
 static void
-MarkJitExitFrameCopiedArguments(JSTracer *trc, const VMFunction *f, ExitFooterFrame *footer)
+MarkJitExitFrameCopiedArguments(JSTracer *trc, const VMFunction *f, IonExitFooterFrame *footer)
 {
     // This is NO-OP on other platforms.
 }
@@ -1118,7 +1118,7 @@ MarkJitExitFrame(JSTracer *trc, const JitFrameIterator &frame)
     if (frame.isFakeExitFrame())
         return;
 
-    ExitFooterFrame *footer = frame.exitFrame()->footer();
+    IonExitFooterFrame *footer = frame.exitFrame()->footer();
 
     // Mark the code of the code handling the exit path.  This is needed because
     // invalidated script are no longer marked because data are erased by the
@@ -1130,8 +1130,8 @@ MarkJitExitFrame(JSTracer *trc, const JitFrameIterator &frame)
     // This correspond to the case where we have build a fake exit frame in
     // CodeGenerator.cpp which handle the case of a native function call. We
     // need to mark the argument vector of the function call.
-    if (frame.isExitFrameLayout<NativeExitFrameLayout>()) {
-        NativeExitFrameLayout *native = frame.exitFrame()->as<NativeExitFrameLayout>();
+    if (frame.isExitFrameLayout<IonNativeExitFrameLayout>()) {
+        IonNativeExitFrameLayout *native = frame.exitFrame()->as<IonNativeExitFrameLayout>();
         size_t len = native->argc() + 2;
         Value *vp = native->vp();
         gc::MarkValueRootRange(trc, len, vp, "ion-native-args");
@@ -1268,7 +1268,7 @@ MarkRectifierFrame(JSTracer *trc, const JitFrameIterator &frame)
     //
     // Baseline JIT code generated as part of the ICCall_Fallback stub may use
     // it if we're calling a constructor that returns a primitive value.
-    RectifierFrameLayout *layout = (RectifierFrameLayout *)frame.fp();
+    IonRectifierFrameLayout *layout = (IonRectifierFrameLayout *)frame.fp();
     gc::MarkValueRoot(trc, &layout->argv()[0], "ion-thisv");
 }
 
@@ -1441,7 +1441,7 @@ OsiIndex::returnPointDisplacement() const
     return callPointDisplacement_ + Assembler::PatchWrite_NearCallSize();
 }
 
-RInstructionResults::RInstructionResults(JitFrameLayout *fp)
+RInstructionResults::RInstructionResults(IonJSFrameLayout *fp)
   : results_(nullptr),
     fp_(fp),
     initialized_(false)
@@ -1493,7 +1493,7 @@ RInstructionResults::isInitialized() const
     return initialized_;
 }
 
-JitFrameLayout *
+IonJSFrameLayout *
 RInstructionResults::frame() const
 {
     MOZ_ASSERT(fp_);
@@ -1516,7 +1516,7 @@ RInstructionResults::trace(JSTracer *trc)
 
 
 SnapshotIterator::SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshotOffset,
-                                   JitFrameLayout *fp, const MachineState &machine)
+                                   IonJSFrameLayout *fp, const MachineState &machine)
   : snapshot_(ionScript->snapshots(),
               snapshotOffset,
               ionScript->snapshotsRVATableSize(),
@@ -1788,7 +1788,7 @@ SnapshotIterator::initInstructionResults(MaybeReadFallback &fallback)
     if (recover_.numInstructions() == 1)
         return true;
 
-    JitFrameLayout *fp = fallback.frame->jsFrame();
+    IonJSFrameLayout *fp = fallback.frame->jsFrame();
     RInstructionResults *results = fallback.activation->maybeIonFrameRecovery(fp);
     if (!results) {
         // We do not have the result yet, which means that an observable stack
@@ -1918,14 +1918,14 @@ SnapshotIterator::maybeReadAllocByIndex(size_t index)
     return s;
 }
 
-JitFrameLayout *
+IonJSFrameLayout *
 JitFrameIterator::jsFrame() const
 {
     MOZ_ASSERT(isScripted());
     if (isBailoutJS())
-        return (JitFrameLayout *) activation_->bailoutData()->fp();
+        return (IonJSFrameLayout *) activation_->bailoutData()->fp();
 
-    return (JitFrameLayout *) fp();
+    return (IonJSFrameLayout *) fp();
 }
 
 IonScript *
@@ -2198,8 +2198,8 @@ JitFrameIterator::numActualArgs() const
     if (isScripted())
         return jsFrame()->numActualArgs();
 
-    MOZ_ASSERT(isExitFrameLayout<NativeExitFrameLayout>());
-    return exitFrame()->as<NativeExitFrameLayout>()->argc();
+    MOZ_ASSERT(isExitFrameLayout<IonNativeExitFrameLayout>());
+    return exitFrame()->as<IonNativeExitFrameLayout>()->argc();
 }
 
 void
@@ -2444,17 +2444,17 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
 }
 #endif // DEBUG
 
-JitFrameLayout *
+IonJSFrameLayout *
 InvalidationBailoutStack::fp() const
 {
-    return (JitFrameLayout *) (sp() + ionScript_->frameSize());
+    return (IonJSFrameLayout *) (sp() + ionScript_->frameSize());
 }
 
 void
 InvalidationBailoutStack::checkInvariants() const
 {
 #ifdef DEBUG
-    JitFrameLayout *frame = fp();
+    IonJSFrameLayout *frame = fp();
     CalleeToken token = frame->calleeToken();
     MOZ_ASSERT(token);
 

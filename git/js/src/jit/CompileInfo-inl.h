@@ -8,7 +8,7 @@
 #define jit_CompileInfo_inl_h
 
 #include "jit/CompileInfo.h"
-#include "jit/JitAllocPolicy.h"
+#include "jit/IonAllocPolicy.h"
 
 #include "jsscriptinlines.h"
 
