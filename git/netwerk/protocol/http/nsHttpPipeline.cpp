@@ -502,6 +502,9 @@ nsHttpPipeline::Close(nsresult reason)
     mStatus = reason;
     mClosed = PR_TRUE;
 
+    // we must no longer reference the connection!
+    NS_IF_RELEASE(mConnection);
+
     PRUint32 i, count;
     nsAHttpTransaction *trans;
 
@@ -533,11 +536,6 @@ nsHttpPipeline::Close(nsresult reason)
         }
         mResponseQ.Clear();
     }
-
-    // we must no longer reference the connection!  This needs to come
-    // after we've closed all our transactions, since they might want
-    // connection info as they close.
-    NS_IF_RELEASE(mConnection);
 }
 
 nsresult

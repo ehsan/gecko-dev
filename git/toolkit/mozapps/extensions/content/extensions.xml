@@ -218,11 +218,10 @@
         <setter><![CDATA[
           if (val == -1) {
             this._progress.mode = "undetermined";
-          } else {
-            this._progress.mode = "determined";
-            this._progress.max = val;
+            return;
           }
-          this.setAttribute("mode", this._progress.mode);
+          this._progress.mode = "determined";
+          this._progress.max = val;
         ]]></setter>
       </property>
 

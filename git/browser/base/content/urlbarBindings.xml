@@ -235,7 +235,7 @@
           var action = this._parseActionUrl(url);
           if (action) {
             url = action.param;
-            if (this.hasAttribute("actiontype")) {
+            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
               if (action.type == "switchtab") {
                 this.handleRevert();
                 let prevTab = gBrowser.selectedTab;
@@ -275,9 +275,7 @@
             return;
           }
 
-          if (aTriggeringEvent &&
-              aTriggeringEvent.altKey &&
-              !isTabEmpty(gBrowser.selectedTab)) {
+          if (aTriggeringEvent && aTriggeringEvent.altKey) {
             this.handleRevert();
             content.focus();
             gBrowser.loadOneTab(url, {
@@ -781,48 +779,9 @@
           this._originLabel.value = this.value;
         ]]></body>
       </method>
-
-      <field name="_numNoActionsKeys"><![CDATA[
-        0
-      ]]></field>
-
-      <method name="_clearNoActions">
-        <parameter name="aURL"/>
-        <body><![CDATA[
-          this._numNoActionsKeys = 0;
-          this.popup.removeAttribute("noactions");
-          let action = this._parseActionUrl(this._value);
-          if (action)
-            this.setAttribute("actiontype", action.type);
-        ]]></body>
-      </method>
     </implementation>
 
     <handlers>
-      <handler event="keydown"><![CDATA[
-        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
-             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
-            this.popup.selectedIndex >= 0) {
-          this._numNoActionsKeys++;
-          this.popup.setAttribute("noactions", "true");
-          this.removeAttribute("actiontype");
-        }
-      ]]></handler>
-
-      <handler event="keyup"><![CDATA[
-        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
-             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
-            this._numNoActionsKeys > 0) {
-          this._numNoActionsKeys--;
-          if (this._numNoActionsKeys == 0)
-            this._clearNoActions();
-        }
-      ]]></handler>
-
-      <handler event="blur"><![CDATA[
-        this._clearNoActions();
-      ]]></handler>
-
       <handler event="draggesture" phase="capturing"><![CDATA[
         // TODO: This should use dragstart but editor code is still using
         //       the old drag & drop APIs, so we have to handle draggesture.
@@ -1034,10 +993,10 @@
   </binding>
 
   <binding id="geolocation-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content align="start">
+    <content>
       <xul:image class="popup-notification-icon"
                  xbl:inherits="popupid"/>
-      <xul:vbox flex="1">
+      <xul:vbox>
         <xul:description class="popup-notification-description"
                          xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>

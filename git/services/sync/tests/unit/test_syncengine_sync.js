@@ -102,6 +102,30 @@ function makeSteamEngine() {
 
 var syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
 
+
+/*
+ * Test setup helpers
+ */
+
+function sync_httpd_setup(handlers) {
+  handlers["/1.0/foo/storage/meta/global"]
+      = (new ServerWBO('global', {})).handler();
+  return httpd_setup(handlers);
+}
+
+// Turn WBO cleartext into "encrypted" payload as it goes over the wire
+function encryptPayload(cleartext) {
+  if (typeof cleartext == "object") {
+    cleartext = JSON.stringify(cleartext);
+  }
+
+  return {encryption: "../crypto/steam",
+          ciphertext: cleartext, // ciphertext == cleartext with fake crypto
+          IV: "irrelevant",
+          hmac: Utils.sha256HMAC(cleartext, null)};
+}
+
+
 /*
  * Tests
  * 
@@ -498,7 +522,7 @@ function test_processIncoming_mobile_batchSize() {
 
   try {
 
-    _("On a mobile client, we get new records from the server in batches of 50.");
+    // On a mobile client, we get new records from the server in batches of 50.
     engine._syncStartup();
     engine._processIncoming();
     do_check_eq([id for (id in engine._store.items)].length, 234);
@@ -531,6 +555,7 @@ function test_processIncoming_mobile_batchSize() {
     syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
   }
 }
+
 
 function test_uploadOutgoing_toEmptyServer() {
   _("SyncEngine._uploadOutgoing uploads new records to server");
@@ -931,7 +956,7 @@ function test_canDecrypt_noCryptoKeys() {
   Svc.Prefs.set("username", "foo");
 
   // Wipe CollectionKeys so we can test the desired scenario.
-  CollectionKeys.clear();
+  CollectionKeys.setContents({"collections": {}, "default": null});
 
   let collection = new ServerCollection();
   collection.wbos.flying = new ServerWBO(
@@ -991,8 +1016,6 @@ function test_canDecrypt_true() {
 function run_test() {
   if (DISABLE_TESTS_BUG_604565)
     return;
-
-  CollectionKeys.generateNewKeys();
 
   test_syncStartup_emptyOrOutdatedGlobalsResetsSync();
   test_syncStartup_serverHasNewerVersion();

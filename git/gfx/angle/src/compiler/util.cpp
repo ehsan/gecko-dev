@@ -18,10 +18,7 @@
 double atof_dot(const char *str)
 {
 #ifdef _MSC_VER
-    _locale_t l = _create_locale(LC_NUMERIC, "C");
-    double result = _atof_l(str, l);
-    _free_locale(l);
-    return result;
+    return _atof_l(str, _create_locale(LC_NUMERIC, "C"));
 #else
     double result;
     std::istringstream s(str);

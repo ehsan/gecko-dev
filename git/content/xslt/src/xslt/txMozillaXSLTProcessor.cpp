@@ -682,12 +682,10 @@ txMozillaXSLTProcessor::TransformToDoc(nsIDOMDocument *aOutputDoc,
                                          mObserver);
     es.mOutputHandlerFactory = &handlerFactory;
 
-    nsresult rv = es.init(*sourceNode, &mVariables);
+    es.init(*sourceNode, &mVariables);
 
     // Process root of XML source document
-    if (NS_SUCCEEDED(rv)) {
-        rv = txXSLTProcessor::execute(es);
-    }
+    nsresult rv = txXSLTProcessor::execute(es);
     
     nsresult endRv = es.end(rv);
     if (NS_SUCCEEDED(rv)) {
@@ -743,12 +741,10 @@ txMozillaXSLTProcessor::TransformToFragment(nsIDOMNode *aSource,
     txToFragmentHandlerFactory handlerFactory(*aResult);
     es.mOutputHandlerFactory = &handlerFactory;
 
-    rv = es.init(*sourceNode, &mVariables);
+    es.init(*sourceNode, &mVariables);
 
     // Process root of XML source document
-    if (NS_SUCCEEDED(rv)) {
-        rv = txXSLTProcessor::execute(es);
-    }
+    rv = txXSLTProcessor::execute(es);
     // XXX setup exception context, bug 204658
     nsresult endRv = es.end(rv);
     if (NS_SUCCEEDED(rv)) {

@@ -78,7 +78,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIgnoreSuppression(PR_FALSE),
       mHadToIgnoreSuppression(PR_FALSE),
       mIsAtRootOfPseudoStackingContext(PR_FALSE),
-      mIncludeAllOutOfFlows(PR_FALSE),
       mSelectedFramesOnly(PR_FALSE),
       mAccurateVisibleRegions(PR_FALSE),
       mInTransform(PR_FALSE),
@@ -360,8 +359,9 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 
     if (item->ComputeVisibility(aBuilder, aVisibleRegion)) {
       anyVisible = PR_TRUE;
+      nsIFrame* f = item->GetUnderlyingFrame();
       PRBool transparentBackground = PR_FALSE;
-      if (TreatAsOpaque(item, aBuilder, &transparentBackground)) {
+      if (TreatAsOpaque(item, aBuilder, &transparentBackground) && f) {
         // Subtract opaque item from the visible region
         aBuilder->SubtractFromVisibleRegion(aVisibleRegion, nsRegion(bounds));
       }

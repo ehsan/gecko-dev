@@ -73,8 +73,7 @@
             </intent-filter>
         </activity>
 
-        <activity android:name="Restarter"
-                  android:theme="@android:style/Theme.Light.NoTitleBar">
+        <activity android:enabled="true" android:name="Restarter">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart@MOZ_APP_NAME@" 
 		    android:process="@MOZ_APP_NAME@Restarter"/>

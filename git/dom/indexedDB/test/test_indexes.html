@@ -143,8 +143,6 @@
       is(event.result.height, 60, "Correct height returned!");
       is(event.result.weight, 120, "Correct weight returned!");
 
-      ok(true, "Test group 1");
-
       let keyIndex = 0;
 
       request = objectStore.index("name").openCursor();
@@ -157,7 +155,8 @@
           is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -174,8 +173,6 @@
 
       is(keyIndex, objectStoreData.length, "Saw all the expected keys");
 
-      ok(true, "Test group 2");
-
       keyIndex = 0;
 
       request = objectStore.index("weight").openCursor(null, NEXT);
@@ -188,7 +185,8 @@
           is(cursor.value, objectStoreDataWeightSort[keyIndex].key,
              "Correct value");
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataWeightSort[keyIndex].value.weight,
              "Correct key");
@@ -214,8 +212,6 @@
       request.onsuccess = unexpectedSuccessHandler;
       event = yield;
 
-      ok(true, "Test group 3");
-
       keyIndex = objectStoreDataNameSort.length - 1;
 
       request = objectStore.index("name").openCursor(null, PREV);
@@ -228,7 +224,8 @@
           is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -244,8 +241,6 @@
       yield;
 
       is(keyIndex, -1, "Saw all the expected keys");
-
-      ok(true, "Test group 4");
 
       keyIndex = 1;
       let keyRange = IDBKeyRange.bound("Bob", "Ron");
@@ -271,8 +266,6 @@
 
       is(keyIndex, 5, "Saw all the expected keys");
 
-      ok(true, "Test group 5");
-
       keyIndex = 2;
       let keyRange = IDBKeyRange.bound("Bob", "Ron", true);
 
@@ -296,8 +289,6 @@
       yield;
 
       is(keyIndex, 5, "Saw all the expected keys");
-
-      ok(true, "Test group 6");
 
       keyIndex = 1;
       let keyRange = IDBKeyRange.bound("Bob", "Ron", false, true);
@@ -323,8 +314,6 @@
 
       is(keyIndex, 4, "Saw all the expected keys");
 
-      ok(true, "Test group 7");
-
       keyIndex = 2;
       keyRange = IDBKeyRange.bound("Bob", "Ron", true, true);
 
@@ -348,8 +337,6 @@
       yield;
 
       is(keyIndex, 4, "Saw all the expected keys");
-
-      ok(true, "Test group 8");
 
       keyIndex = 1;
       keyRange = IDBKeyRange.lowerBound("Bob");
@@ -375,8 +362,6 @@
 
       is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
-      ok(true, "Test group 9");
-
       keyIndex = 2;
       keyRange = IDBKeyRange.lowerBound("Bob", true);
 
@@ -400,8 +385,6 @@
       yield;
 
       is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
-
-      ok(true, "Test group 10");
 
       keyIndex = 0;
       keyRange = IDBKeyRange.upperBound("Joe");
@@ -427,8 +410,6 @@
 
       is(keyIndex, 3, "Saw all the expected keys");
 
-      ok(true, "Test group 11");
-
       keyIndex = 0;
       keyRange = IDBKeyRange.upperBound("Joe", true);
 
@@ -452,8 +433,6 @@
       yield;
 
       is(keyIndex, 2, "Saw all the expected keys");
-
-      ok(true, "Test group 12");
 
       keyIndex = 3;
       keyRange = IDBKeyRange.only("Pat");
@@ -479,8 +458,6 @@
 
       is(keyIndex, 4, "Saw all the expected keys");
 
-      ok(true, "Test group 13");
-
       keyIndex = 0;
 
       request = objectStore.index("name").openObjectCursor();
@@ -501,7 +478,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -526,8 +504,6 @@
 
       is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
-      ok(true, "Test group 14");
-
       keyIndex = objectStoreDataNameSort.length - 1;
 
       request = objectStore.index("name").openObjectCursor(null, PREV);
@@ -548,7 +524,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -573,8 +550,6 @@
 
       is(keyIndex, -1, "Saw all the expected keys");
 
-      ok(true, "Test group 15");
-
       keyIndex = 1;
       keyRange = IDBKeyRange.bound("Bob", "Ron");
 
@@ -596,7 +571,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -620,8 +596,6 @@
       yield;
 
       is(keyIndex, 5, "Saw all the expected keys");
-
-      ok(true, "Test group 16");
 
       keyIndex = 2;
       keyRange = IDBKeyRange.bound("Bob", "Ron", true);
@@ -644,7 +618,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -669,8 +644,6 @@
 
       is(keyIndex, 5, "Saw all the expected keys");
 
-      ok(true, "Test group 17");
-
       keyIndex = 1;
       keyRange = IDBKeyRange.bound("Bob", "Ron", false, true);
 
@@ -692,7 +665,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -716,8 +690,6 @@
       yield;
 
       is(keyIndex, 4, "Saw all the expected keys");
-
-      ok(true, "Test group 18");
 
       keyIndex = 2;
       keyRange = IDBKeyRange.bound("Bob", "Ron", true, true);
@@ -740,7 +712,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -765,8 +738,6 @@
 
       is(keyIndex, 4, "Saw all the expected keys");
 
-      ok(true, "Test group 19");
-
       keyIndex = 4;
       keyRange = IDBKeyRange.bound("Bob", "Ron");
 
@@ -788,7 +759,8 @@
                "Correct weight");
           }
 
-          cursor.continue();
+          let retval = cursor.continue();
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -812,8 +784,6 @@
       yield;
 
       is(keyIndex, 0, "Saw all the expected keys");
-
-      ok(true, "Test group 20");
 
       // Test NEXT_NO_DUPLICATE
       keyIndex = 3;
@@ -840,9 +810,7 @@
 
       is(keyIndex, 5, "Saw all the expected keys");
 
-      ok(true, "Test group 21");
-
-      keyIndex = 3;
+      keyIndex = 4;
       keyRange = IDBKeyRange.only(65);
 
       request = objectStore.index("height").openCursor(keyRange,
@@ -865,9 +833,7 @@
       }
       yield;
 
-      is(keyIndex, 4, "Saw all the expected keys");
-
-      ok(true, "Test group 22");
+      is(keyIndex, 5, "Saw all the expected keys");
 
       keyIndex = 5;
 
@@ -883,7 +849,7 @@
              "Correct value");
 
           cursor.continue();
-          if (keyIndex == 5) {
+          if (keyIndex == 4) {
             keyIndex--;
           }
           keyIndex--;
@@ -896,8 +862,7 @@
 
       is(keyIndex, -1, "Saw all the expected keys");
 
-      ok(true, "Test group 23");
-
+      // Test NEXT_NO_DUPLICATE
       keyIndex = 3;
       keyRange = IDBKeyRange.only(65);
 
@@ -930,9 +895,7 @@
 
       is(keyIndex, 5, "Saw all the expected keys");
 
-      ok(true, "Test group 24");
-
-      keyIndex = 3;
+      keyIndex = 4;
       keyRange = IDBKeyRange.only(65);
 
       request = objectStore.index("height").openObjectCursor(keyRange,
@@ -963,9 +926,7 @@
       }
       yield;
 
-      is(keyIndex, 4, "Saw all the expected keys");
-
-      ok(true, "Test group 25");
+      is(keyIndex, 5, "Saw all the expected keys");
 
       keyIndex = 5;
 
@@ -989,7 +950,7 @@
           }
 
           cursor.continue();
-          if (keyIndex == 5) {
+          if (keyIndex == 4) {
             keyIndex--;
           }
           keyIndex--;
@@ -1001,8 +962,6 @@
       yield;
 
       is(keyIndex, -1, "Saw all the expected keys");
-
-      ok(true, "Test group 26");
 
       keyIndex = 0;
 
@@ -1018,7 +977,8 @@
 
           let nextKey = !keyIndex ? "Pat" : undefined;
 
-          cursor.continue(nextKey);
+          let retval = cursor.continue(nextKey);
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -1040,8 +1000,6 @@
 
       is(keyIndex, objectStoreData.length, "Saw all the expected keys");
 
-      ok(true, "Test group 27");
-
       keyIndex = 0;
 
       request = objectStore.index("name").openCursor();
@@ -1056,14 +1014,15 @@
 
           let nextKey = !keyIndex ? "Flo" : undefined;
 
-          cursor.continue(nextKey);
+          let retval = cursor.continue(nextKey);
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
           is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
-          keyIndex += keyIndex ? 1 : 2;
+          keyIndex++;
         }
         else {
           testGenerator.next();
@@ -1072,8 +1031,6 @@
       yield;
 
       is(keyIndex, objectStoreData.length, "Saw all the expected keys");
-
-      ok(true, "Test group 28");
 
       keyIndex = 0;
 
@@ -1097,7 +1054,8 @@
 
           let nextKey = !keyIndex ? "Pat" : undefined;
 
-          cursor.continue(nextKey);
+          let retval = cursor.continue(nextKey);
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -1127,8 +1085,6 @@
 
       is(keyIndex, objectStoreDataNameSort.length, "Saw all the expected keys");
 
-      ok(true, "Test group 29");
-
       keyIndex = 0;
 
       request = objectStore.index("name").openObjectCursor();
@@ -1151,7 +1107,8 @@
 
           let nextKey = !keyIndex ? "Flo" : undefined;
 
-          cursor.continue(nextKey);
+          let retval = cursor.continue(nextKey);
+          is(retval, true, "Correct return from continue");
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
@@ -1166,7 +1123,7 @@
                "Correct weight");
           }
 
-          keyIndex += keyIndex ? 1 : 2;
+          keyIndex++;
         }
         else {
           testGenerator.next();

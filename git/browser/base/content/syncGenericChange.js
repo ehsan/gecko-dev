@@ -242,7 +242,11 @@ let Change = {
       if (!this._updatingPassphrase)
         return;
 
-      valid = this._passphraseBox.value != "";
+      if (event.keyCode != event.DOM_VK_BACK_SPACE) {
+        this._passphraseBox.value = Weave.Utils.hyphenatePartialPassphrase(
+          this._passphraseBox.value);
+       }
+      valid = Weave.Utils.isPassphrase(this._passphraseBox.value);
     }
 
     if (errorString == "")

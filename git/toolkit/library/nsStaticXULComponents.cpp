@@ -233,12 +233,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#ifdef MOZ_SERVICES_SYNC
-#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
-#else
-#define SERVICES_CRYPTO_MODULE
-#endif
-
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
 #else
@@ -294,7 +288,6 @@
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
-    SERVICES_CRYPTO_MODULE                   \
     APP_COMPONENT_MODULES                    \
     /* end of list */
 

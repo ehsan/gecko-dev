@@ -99,7 +99,6 @@ WebGLContext::WebGLContext()
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
     mPixelStoreFlipY = PR_FALSE;
     mPixelStorePremultiplyAlpha = PR_FALSE;
-    mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
     mShaderValidation = PR_TRUE;
 
@@ -710,14 +709,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebGLContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCanvasElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(WebGLRenderingContext, WebGLContext)
+DOMCI_DATA(CanvasRenderingContextWebGL, WebGLContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLRenderingContext)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContextWebGL)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(WebGLBuffer)

@@ -420,16 +420,8 @@ RasterImage::GetType(PRUint16 *aType)
 {
   NS_ENSURE_ARG_POINTER(aType);
 
-  *aType = GetType();
+  *aType = imgIContainer::TYPE_RASTER;
   return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript, notxpcom] PRUint16 GetType(); */
-NS_IMETHODIMP_(PRUint16)
-RasterImage::GetType()
-{
-  return imgIContainer::TYPE_RASTER;
 }
 
 imgFrame*
@@ -918,21 +910,21 @@ RasterImage::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
 
   // See if we can re-use the frame that already exists.
   nsIntRect rect = frame->GetRect();
-  if (rect.x == aX && rect.y == aY && rect.width == aWidth &&
-      rect.height == aHeight && frame->GetFormat() == aFormat) {
-    // We can re-use the frame if it has image data.
-    frame->GetImageData(imageData, imageLength);
-    if (*imageData) {
-      return NS_OK;
-    }
+  if (rect.x != aX || rect.y != aY || rect.width != aWidth || rect.height != aHeight ||
+      frame->GetFormat() != aFormat) {
+    DeleteImgFrame(aFrameNum);
+    return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
+                            /* aPaletteDepth = */ 0, imageData, imageLength,
+                            /* aPaletteData = */ nsnull, 
+                            /* aPaletteLength = */ nsnull);
   }
 
-  DeleteImgFrame(aFrameNum);
-  return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                          /* aPaletteDepth = */ 0, imageData, imageLength,
-                          /* aPaletteData = */ nsnull, 
-                          /* aPaletteLength = */ nsnull);
+  // We can re-use the frame.
+  frame->GetImageData(imageData, imageLength);
+
+  return NS_OK;
 }
+
 
 void
 RasterImage::FrameUpdated(PRUint32 aFrameNum, nsIntRect &aUpdatedRect)

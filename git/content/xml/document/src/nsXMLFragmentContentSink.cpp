@@ -50,7 +50,6 @@
 #include "nsGkAtoms.h"
 #include "nsINodeInfo.h"
 #include "nsNodeInfoManager.h"
-#include "nsNullPrincipal.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsDOMError.h"
 #include "nsIConsoleService.h"
@@ -520,9 +519,6 @@ public:
                                  PRUint32 aLength);
 protected:
   PRUint32 mSkipLevel; // used when we descend into <style> or <script>
-
-  nsCOMPtr<nsIPrincipal> mNullPrincipal;
-
   // Use nsTHashTable as a hash set for our whitelists
   static nsTHashtable<nsISupportsHashKey>* sAllowedTags;
   static nsTHashtable<nsISupportsHashKey>* sAllowedAttributes;
@@ -644,12 +640,6 @@ nsXHTMLParanoidFragmentSink::AddAttributes(const PRUnichar** aAtts,
   PRInt32 nameSpaceID;
   nsCOMPtr<nsIAtom> prefix, localName;
   nsCOMPtr<nsINodeInfo> nodeInfo;
-
-  if (!mNullPrincipal) {
-      mNullPrincipal = do_CreateInstance(NS_NULLPRINCIPAL_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   while (*aAtts) {
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
@@ -665,7 +655,8 @@ nsXHTMLParanoidFragmentSink::AddAttributes(const PRUnichar** aAtts,
       rv = NS_NewURI(getter_AddRefs(attrURI), nsDependentString(aAtts[1]),
                      nsnull, baseURI);
       if (NS_SUCCEEDED(rv)) {
-        rv = secMan->CheckLoadURIWithPrincipal(mNullPrincipal, attrURI, flags);
+        rv = secMan->CheckLoadURIWithPrincipal(mTargetDocument->NodePrincipal(),
+                                               attrURI, flags);
       }
     }
 

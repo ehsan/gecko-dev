@@ -2128,9 +2128,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   // Release the stylesheets list.
   mDOMStyleSheets = nsnull;
 
-  // Clear the original URI so SetDocumentURI sets it.
-  mOriginalURI = nsnull;
-
   SetDocumentURI(aURI);
   // If mDocumentBaseURI is null, nsIDocument::GetBaseURI() returns
   // mDocumentURI.
@@ -2512,11 +2509,6 @@ nsDocument::SetDocumentURI(nsIURI* aURI)
   else {
     equalBases = !oldBase && !newBase;
   }
-
-  // If this is the first time we're setting the document's URI, set the
-  // document's original URI.
-  if (!mOriginalURI)
-    mOriginalURI = mDocumentURI;
 
   // If changing the document's URI changed the base URI of the document, we
   // need to refresh the hrefs of all the links on the page.
@@ -5786,7 +5778,7 @@ nsDocument::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, !mCreatingStaticClone, aReturn);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
 }
 
 NS_IMETHODIMP
@@ -6090,17 +6082,15 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
   PRBool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;
-  JSObject *oldScope = nsnull;
   JSObject *newScope = nsnull;
-  if (!sameDocument && oldDocument) {
-    rv = nsContentUtils::GetContextAndScopes(oldDocument, this, &cx, &oldScope,
-                                             &newScope);
+  if (!sameDocument) {
+    rv = nsContentUtils::GetContextAndScope(oldDocument, this, &cx, &newScope);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMArray<nsINode> nodesWithProperties;
   rv = nsNodeUtils::Adopt(adoptedNode, sameDocument ? nsnull : mNodeInfoManager,
-                          cx, oldScope, newScope, nodesWithProperties);
+                          cx, newScope, nodesWithProperties);
   if (NS_FAILED(rv)) {
     // Disconnect all nodes from their parents, since some have the old document
     // as their ownerDocument and some have this as their ownerDocument.

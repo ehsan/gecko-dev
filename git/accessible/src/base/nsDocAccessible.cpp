@@ -1160,10 +1160,9 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     // to the element with the id that activedescendant points to
     nsCOMPtr<nsINode> focusedNode = GetCurrentFocus();
     if (nsCoreUtils::GetRoleContent(focusedNode) == aContent) {
-      nsAccessible* focusedAcc = GetAccService()->GetAccessible(focusedNode);
       nsRefPtr<nsRootAccessible> rootAcc = GetRootAccessible();
-      if (rootAcc && focusedAcc) {
-        rootAcc->FireAccessibleFocusEvent(focusedAcc, nsnull, PR_TRUE);
+      if (rootAcc) {
+        rootAcc->FireAccessibleFocusEvent(nsnull, focusedNode, nsnull, PR_TRUE);
       }
     }
     return;

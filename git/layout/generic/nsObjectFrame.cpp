@@ -267,7 +267,6 @@ public:
 
 
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
-                              public nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH,
                               public nsIPluginTagInfo,
                               public nsIDOMMouseListener,
                               public nsIDOMMouseMotionListener,
@@ -283,7 +282,6 @@ public:
 
   //nsIPluginInstanceOwner interface
   NS_DECL_NSIPLUGININSTANCEOWNER
-  NS_DECL_NSIPLUGININSTANCEOWNER_MOZILLA_2_0_BRANCH
 
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 
@@ -389,7 +387,7 @@ public:
   void EndCGPaint();
 #else // XP_MACOSX
   void UpdateWindowPositionAndClipRect(PRBool aSetWindow);
-  void CallSetWindow();
+  void SetWindow();
   void UpdateWindowVisibility(PRBool aVisible);
 #endif // XP_MACOSX
 
@@ -1092,19 +1090,19 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
   NotifyPluginReflowObservers();
 }
 
-nsresult
+void
 nsObjectFrame::CallSetWindow()
 {
   NPWindow *win = nsnull;
  
-  nsresult rv = NS_ERROR_FAILURE;
+  nsresult rv;
   nsCOMPtr<nsIPluginInstance> pi; 
   if (!mInstanceOwner ||
       NS_FAILED(rv = mInstanceOwner->GetInstance(*getter_AddRefs(pi))) ||
       !pi ||
       NS_FAILED(rv = mInstanceOwner->GetWindow(win)) || 
       !win)
-    return rv;
+    return;
 
   nsPluginNativeWindow *window = (nsPluginNativeWindow *)win;
 #ifdef XP_MACOSX
@@ -1112,7 +1110,7 @@ nsObjectFrame::CallSetWindow()
 #endif
 
   if (IsHidden())
-    return NS_ERROR_FAILURE;
+    return;
 
   // refresh the plugin port as well
   window->window = mInstanceOwner->GetPluginPortFromWidget();
@@ -1122,7 +1120,7 @@ nsObjectFrame::CallSetWindow()
   nsPresContext* presContext = PresContext();
   nsRootPresContext* rootPC = presContext->GetRootPresContext();
   if (!rootPC)
-    return NS_ERROR_FAILURE;
+    return;
   PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
   nsRect bounds = GetContentRect() + GetParent()->GetOffsetToCrossDoc(rootFrame);
@@ -1135,14 +1133,13 @@ nsObjectFrame::CallSetWindow()
   // this will call pi->SetWindow and take care of window subclassing
   // if needed, see bug 132759.
   if (mInstanceOwner->UseLayers()) {
-    rv = pi->AsyncSetWindow(window);
+    pi->AsyncSetWindow(window);
   }
   else {
-    rv = window->CallSetWindow(pi);
+    window->CallSetWindow(pi);
   }
 
   mInstanceOwner->ReleasePluginPort(window->window);
-  return rv;
 }
 
 PRBool
@@ -2910,7 +2907,6 @@ NS_IMPL_RELEASE(nsPluginInstanceOwner)
 
 NS_INTERFACE_MAP_BEGIN(nsPluginInstanceOwner)
   NS_INTERFACE_MAP_ENTRY(nsIPluginInstanceOwner)
-  NS_INTERFACE_MAP_ENTRY(nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsIPluginTagInfo)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
@@ -3284,12 +3280,6 @@ NS_IMETHODIMP nsPluginInstanceOwner::SetEventModel(PRInt32 eventModel)
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
-}
-
-NS_IMETHODIMP nsPluginInstanceOwner::SetWindow()
-{
-  NS_ENSURE_TRUE(mObjectFrame, NS_ERROR_NULL_POINTER);
-  return mObjectFrame->CallSetWindow();
 }
 
 NPError nsPluginInstanceOwner::ShowNativeContextMenu(NPMenu* menu, void* event)
@@ -6257,16 +6247,14 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
           // Set the plugin window to have an empty cliprect. The cliprect
           // will be reset when nsRootPresContext::UpdatePluginGeometry
           // runs later. The plugin window does need to have the correct
-          // size here. GetEmptyClipConfiguration will probably give it the
-          // size, but just in case we haven't been reflowed or something, set
-          // the size explicitly.
+          // size here.
           nsAutoTArray<nsIWidget::Configuration,1> configuration;
-          mObjectFrame->GetEmptyClipConfiguration(&configuration);
-          if (configuration.Length() > 0) {
-            configuration[0].mBounds.width = mPluginWindow->width;
-            configuration[0].mBounds.height = mPluginWindow->height;
+          if (configuration.AppendElement()) {
+            configuration[0].mChild = mWidget;
+            configuration[0].mBounds =
+              nsIntRect(0, 0, mPluginWindow->width, mPluginWindow->height);
+            parent->ConfigureChildren(configuration);
           }
-          parent->ConfigureChildren(configuration);
 
           // mPluginWindow->type is used in |GetPluginPort| so it must
           // be initialized first
@@ -6520,12 +6508,12 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(PRBool aSetWindow)
       mPluginWindow->clipRect.top    != oldWindow.clipRect.top    ||
       mPluginWindow->clipRect.right  != oldWindow.clipRect.right  ||
       mPluginWindow->clipRect.bottom != oldWindow.clipRect.bottom) {
-    CallSetWindow();
+    SetWindow();
   }
 }
 
 void
-nsPluginInstanceOwner::CallSetWindow()
+nsPluginInstanceOwner::SetWindow()
 {
   if (!mInstance)
     return;

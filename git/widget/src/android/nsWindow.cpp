@@ -135,7 +135,6 @@ static nsWindow* gFocusedWindow = nsnull;
 
 static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
-static bool sValidSurface;
 
 // Multitouch swipe thresholds in inches
 static const double SWIPE_MAX_PINCH_DELTA_INCHES = 0.4;
@@ -658,7 +657,7 @@ nsWindow::SetWindowClass(const nsAString& xulWinType)
 }
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
+nsWindow::GetLayerManager(bool* aAllowRetaining)
 {
     if (aAllowRetaining) {
         *aAllowRetaining = true;
@@ -698,7 +697,6 @@ nsWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
 
         if (layerManager && layerManager->Initialize(sGLContext))
             mLayerManager = layerManager;
-        sValidSurface = true;
     }
 
     if (!sGLContext || !mLayerManager) {
@@ -822,13 +820,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
             break;
 
-	case AndroidGeckoEvent::SURFACE_CREATED:
-	    break;
-
-	case AndroidGeckoEvent::SURFACE_DESTROYED:
-	    sValidSurface = false;
-	    break;
-
         default:
             break;
     }
@@ -877,7 +868,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.region = boundsRect;
-        switch (GetLayerManager(nsnull)->GetBackendType()) {
+        switch (GetLayerManager()->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
@@ -900,7 +891,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
             }
 
             case LayerManager::LAYERS_OPENGL: {
-                static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
+                static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
                     SetClippingRegion(nsIntRegion(boundsRect));
 
                 status = DispatchEvent(&event);
@@ -969,7 +960,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_BASIC) {
         jobject bytebuf = sview.GetSoftwareDrawBuffer();
         if (!bytebuf) {
             ALOG("no buffer to draw into - skipping draw");
@@ -999,16 +990,14 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
             return;
         }
 
-        if (!sValidSurface) {
-            sGLContext->RenewSurface();
-            sValidSurface = true;
-        }
-
-
         NS_ASSERTION(sGLContext, "Drawing with GLES without a GL context?");
+
+        sGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
         DrawTo(nsnull);
 
+        if (sGLContext)
+            sGLContext->SwapBuffers();
         sview.EndDrawing();
     }
 }

@@ -425,10 +425,6 @@ _TEST_FILES2 = \
 		test_bug567350.html \
 		test_bug574596.html \
 		test_bug578096.html \
-		test_bug592366.html \
-		test_bug597345.html \
-		script-1_bug597345.sjs \
-		script-2_bug597345.js \
 		test_bug598877.html \
 		test_bug599588.html \
 		test_bug600466.html \
@@ -439,7 +435,6 @@ _TEST_FILES2 = \
 		file_bug601803b.html \
 		test_bug602838.html \
 		script_bug602838.sjs \
-		test_bug614583.html \
 		test_bug604660.html \
 		file_bug604660-1.xml \
 		file_bug604660-2.xsl \

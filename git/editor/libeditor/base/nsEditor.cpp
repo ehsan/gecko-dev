@@ -4212,14 +4212,20 @@ nsresult nsEditor::EndUpdateViewBatch()
     GetFlags(&flags);
 
     // Turn view updating back on.
-    PRUint32 updateFlag = NS_VMREFRESH_IMMEDIATE;
+    nsCOMPtr<nsIViewManager> viewManager;
+    if (presShell)
+      viewManager = presShell->GetViewManager();
+    if (viewManager)
+    {
+      PRUint32 updateFlag = NS_VMREFRESH_IMMEDIATE;
 
-    // If we're doing async updates, use NS_VMREFRESH_DEFERRED here, so that
-    // the reflows we caused will get processed before the invalidates.
-    if (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) {
-      updateFlag = NS_VMREFRESH_DEFERRED;
+      // If we're doing async updates, use NS_VMREFRESH_DEFERRED here, so that
+      // the reflows we caused will get processed before the invalidates.
+      if (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) {
+        updateFlag = NS_VMREFRESH_DEFERRED;
+      }
+      mBatch.EndUpdateViewBatch(updateFlag);
     }
-    mBatch.EndUpdateViewBatch(updateFlag);
 
     // Turn selection updating and notifications back on.
 
