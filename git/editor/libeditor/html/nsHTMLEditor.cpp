@@ -168,6 +168,11 @@ nsHTMLEditor::~nsHTMLEditor()
   // free any default style propItems
   RemoveAllDefaultProperties();
 
+  while (mStyleSheetURLs.Length())
+  {
+    RemoveOverrideStyleSheet(mStyleSheetURLs[0]);
+  }
+
   if (mLinkHandler && mDocWeak)
   {
     nsCOMPtr<nsIPresShell> ps = GetPresShell();
@@ -352,11 +357,6 @@ nsHTMLEditor::PreDestroy(PRBool aDestroyingFrames)
   nsCOMPtr<nsINode> document = do_QueryReferent(mDocWeak);
   if (document) {
     document->RemoveMutationObserver(this);
-  }
-
-  while (mStyleSheetURLs.Length())
-  {
-    RemoveOverrideStyleSheet(mStyleSheetURLs[0]);
   }
 
   return nsPlaintextEditor::PreDestroy(aDestroyingFrames);
