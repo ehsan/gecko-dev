@@ -381,14 +381,8 @@ public:
     }
 #endif
 
-    // Pause the profiler during saving.
-    // This will prevent us from recording sampling
-    // regarding profile saving. This will also
-    // prevent bugs caused by the circular buffer not
-    // being thread safe. Bug 750989.
     std::ofstream stream;
     stream.open(buff);
-    t->SetPaused(true);
     if (stream.is_open()) {
       stream << *(t->GetPrimaryThreadProfile());
       stream << "h-" << GetSharedLibraryInfoString() << std::endl;
@@ -397,7 +391,6 @@ public:
     } else {
       LOG("Fail to open profile log file.");
     }
-    t->SetPaused(false);
 
     return NS_OK;
   }
@@ -429,10 +422,8 @@ JSObject* TableTicker::ToJSObject(JSContext *aCx)
   b.DefineProperty(profile, "threads", threads);
 
   // For now we only have one thread
-  SetPaused(true);
   JSObject* threadSamples = GetPrimaryThreadProfile()->ToJSObject(aCx);
   b.ArrayPush(threads, threadSamples);
-  SetPaused(false);
 
   return profile;
 }
@@ -728,9 +719,7 @@ char* mozilla_sampler_get_profile()
   }
 
   std::stringstream profile;
-  t->SetPaused(true);
   profile << *(t->GetPrimaryThreadProfile());
-  t->SetPaused(false);
 
   std::string profileString = profile.str();
   char *rtn = (char*)malloc( (profileString.length() + 1) * sizeof(char) );

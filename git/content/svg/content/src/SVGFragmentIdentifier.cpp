@@ -11,6 +11,12 @@
 
 using namespace mozilla;
 
+static nsSVGEnumMapping sZoomAndPanMap[] = {
+  {&nsGkAtoms::disable, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE},
+  {&nsGkAtoms::magnify, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY},
+  {nsnull, 0}
+};
+
 static bool
 IsMatchingParameter(const nsAString &aString, const nsAString &aParameterName)
 {
@@ -142,6 +148,7 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
     }
   }
 
+  const nsSVGViewBoxRect *oldViewBoxPtr = root->GetViewBoxProperty();
   if (viewBoxParams) {
     SaveOldViewBox(root);
     root->mViewBox.SetBaseValueString(*viewBoxParams, root);
@@ -149,6 +156,7 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
     RestoreOldViewBox(root);
   }
 
+  const SVGPreserveAspectRatio *oldPARPtr = root->GetPreserveAspectRatioProperty();
   if (preserveAspectRatioParams) {
     SaveOldPreserveAspectRatio(root);
     root->mPreserveAspectRatio.SetBaseValueString(*preserveAspectRatioParams, root);
@@ -156,6 +164,7 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
     RestoreOldPreserveAspectRatio(root);
   }
 
+  const PRUint16 *oldZoomAndPanPtr = root->GetZoomAndPanProperty();
   if (zoomAndPanParams) {
     SaveOldZoomAndPan(root);
     nsCOMPtr<nsIAtom> valAtom = do_GetAtom(*zoomAndPanParams);

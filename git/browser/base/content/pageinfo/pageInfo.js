@@ -780,16 +780,8 @@ function saveMedia()
     var item = getSelectedImage(tree);
     var url = gImageView.data[tree.currentIndex][COL_IMAGE_ADDRESS];
 
-    if (url) {
-      var titleKey = "SaveImageTitle";
-
-      if (item instanceof HTMLVideoElement)
-        titleKey = "SaveVideoTitle";
-      else if (item instanceof HTMLAudioElement)
-        titleKey = "SaveAudioTitle";
-
-      saveURL(url, null, titleKey, false, false, makeURI(item.baseURI));
-    }
+    if (url)
+      saveURL(url, null, "SaveImageTitle", false, false, makeURI(item.baseURI));
   }
   else {
     var odir  = selectSaveFolder();

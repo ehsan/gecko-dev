@@ -186,18 +186,11 @@ public class GeckoNetworkManager
     ConnectivityManager cm =
       (ConnectivityManager)GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
 
-    if (cm == null) {
-      Log.w("GeckoNetworkManager", "Could not access Connectivity service");
+    if (cm.getActiveNetworkInfo() == null) {
       return NetworkType.NETWORK_NONE;
     }
 
-    NetworkInfo ni = cm.getActiveNetworkInfo();
-
-    if (ni == null) {
-      return NetworkType.NETWORK_NONE;
-    }
-
-    switch (ni.getType()) {
+    switch (cm.getActiveNetworkInfo().getType()) {
       case ConnectivityManager.TYPE_ETHERNET:
         return NetworkType.NETWORK_ETHERNET;
       case ConnectivityManager.TYPE_WIFI:
@@ -213,11 +206,6 @@ public class GeckoNetworkManager
 
     TelephonyManager tm =
       (TelephonyManager)GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
-
-    if (tm == null) {
-      Log.w("GeckoNetworkManager", "Could not access Telephony service");
-      return NetworkType.NETWORK_UNKNOWN;
-    }
 
     switch (tm.getNetworkType()) {
       case TelephonyManager.NETWORK_TYPE_IDEN:

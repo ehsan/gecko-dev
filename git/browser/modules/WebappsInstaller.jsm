@@ -108,11 +108,6 @@ function NativeApp(aData) {
   this.manifest = app.manifest;
 
   this.profileFolder = Services.dirsvc.get("ProfD", Ci.nsIFile);
-
-  this.webappJson = {
-    "registryDir": this.profileFolder.path,
-    "app": app
-  };
 }
 
 #ifdef XP_WIN
@@ -293,9 +288,14 @@ WinNativeApp.prototype = {
    */
   _createConfigFiles: function() {
     // ${InstallDir}/webapp.json
+    let json = {
+      "registryDir": this.profileFolder.path,
+      "app": this.app
+    };
+
     let configJson = this.installDir.clone();
     configJson.append("webapp.json");
-    writeToFile(configJson, JSON.stringify(this.webappJson), function() {});
+    writeToFile(configJson, JSON.stringify(json), function() {});
 
     // ${InstallDir}/webapp.ini
     let webappINI = this.installDir.clone().QueryInterface(Ci.nsILocalFile);
@@ -538,9 +538,18 @@ MacNativeApp.prototype = {
 
   _createConfigFiles: function() {
     // ${ProfileDir}/webapp.json
+    let json = {
+      "registryDir": this.profileFolder.path,
+      "app": {
+        "origin": this.launchURI.prePath,
+        "installOrigin": "apps.mozillalabs.com",
+        "manifest": this.manifest
+       }
+    };
+
     let configJson = this.appProfileDir.clone();
     configJson.append("webapp.json");
-    writeToFile(configJson, JSON.stringify(this.webappJson), function() {});
+    writeToFile(configJson, JSON.stringify(json), function() {});
 
     // ${InstallDir}/Contents/MacOS/webapp.ini
     let applicationINI = this.macOSDir.clone().QueryInterface(Ci.nsILocalFile);

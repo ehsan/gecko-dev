@@ -546,7 +546,7 @@ FloatMarginWidth(const nsHTMLReflowState& aCBReflowState,
                  nsIFrame *aFloat,
                  const nsCSSOffsetState& aFloatOffsetState)
 {
-  AutoMaybeDisableFontInflation an(aFloat);
+  AutoMaybeNullInflationContainer an(aFloat);
   return aFloat->ComputeSize(
     aCBReflowState.rendContext,
     nsSize(aCBReflowState.ComputedWidth(),

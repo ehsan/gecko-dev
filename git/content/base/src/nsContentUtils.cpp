@@ -6491,18 +6491,6 @@ nsContentUtils::IsRequestFullScreenAllowed()
          IsCallerChrome();
 }
 
-/* static */
-bool
-nsContentUtils::HaveEqualPrincipals(nsIDocument* aDoc1, nsIDocument* aDoc2)
-{
-  if (!aDoc1 || !aDoc2) {
-    return false;
-  }
-  bool principalsEqual = false;
-  aDoc1->NodePrincipal()->Equals(aDoc2->NodePrincipal(), &principalsEqual);
-  return principalsEqual;
-}
-
 static void
 CheckForWindowedPlugins(nsIContent* aContent, void* aResult)
 {

@@ -1849,7 +1849,33 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   if (mWhichTextRun == nsTextFrame::eNotInflated) {
     fontInflation = 1.0f;
   } else {
-    fontInflation = nsLayoutUtils::FontSizeInflationFor(firstFrame);
+    nsPresContext* presContext = firstFrame->PresContext();
+    nsLayoutUtils::WidthDetermination widthDeter = nsLayoutUtils::eNotInReflow;
+
+    if (presContext->PresShell()->IsReflowLocked()) {
+      widthDeter = nsLayoutUtils::eInReflow;
+    }
+
+#ifdef DEBUG
+    if (widthDeter == nsLayoutUtils::eInReflow) {
+      // Make sure that the font inflation container is correct.
+      nsIFrame* inflationContainer = nsnull;
+      for (nsIFrame* f = firstFrame; f; f = f->GetParent()) {
+        if (nsLayoutUtils::IsContainerForFontSizeInflation(f)) {
+          inflationContainer = f;
+          break;
+        }
+      }
+
+      // FIXME: When we support variable width containers (e.g. for regions or
+      //        differing-width columns, we should revisit this assertion.
+      NS_ASSERTION(inflationContainer->GetFirstInFlow() ==
+                   presContext->mCurrentInflationContainer->GetFirstInFlow(),
+                   "Current inflation container for text frame is wrong");
+    }
+#endif // #ifdef DEBUG
+
+    fontInflation = nsLayoutUtils::FontSizeInflationFor(firstFrame, widthDeter);
   }
 
   gfxFontGroup* fontGroup = GetFontGroupForFrame(firstFrame, fontInflation);
@@ -4606,7 +4632,8 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
     GetTextDecorations(aPresContext, textDecs);
     if (textDecs.HasDecorationLines()) {
       nscoord inflationMinFontSize =
-        nsLayoutUtils::InflationMinFontSizeFor(aBlockReflowState.frame);
+        nsLayoutUtils::InflationMinFontSizeFor(aBlockReflowState.frame,
+                                               nsLayoutUtils::eInReflow);
 
       const nscoord width = GetSize().width;
       const gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel(),
@@ -5602,7 +5629,7 @@ nsTextFrame::DrawTextRunAndDecorations(
                       aDirtyRect.Width() / app, aDirtyRect.Height() / app);
 
     nscoord inflationMinFontSize =
-      nsLayoutUtils::InflationMinFontSizeFor(this);
+      nsLayoutUtils::InflationMinFontSizeFor(this, nsLayoutUtils::eNotInReflow);
 
     // Underlines
     for (PRUint32 i = aDecorations.mUnderlines.Length(); i-- > 0; ) {
@@ -6689,7 +6716,8 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
 nsTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                nsIFrame::InlineMinWidthData *aData)
 {
-  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  float inflation =
+    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eInReflow);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
 
   nsTextFrame* f;
@@ -6819,7 +6847,8 @@ nsTextFrame::AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
 nsTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
                                 nsIFrame::InlinePrefWidthData *aData)
 {
-  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  float inflation =
+    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eInReflow);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
 
   nsTextFrame* f;
@@ -7344,7 +7373,8 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     } 
   }
 
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
+  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this,
+                              nsLayoutUtils::eInReflow);
 
   if (fontSizeInflation != GetFontSizeInflation()) {
     // FIXME: Ideally, if we already have a text run, we'd move it to be

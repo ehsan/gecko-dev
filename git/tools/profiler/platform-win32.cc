@@ -64,8 +64,7 @@ class SamplerThread : public Thread {
   // Implement Thread::Run().
   virtual void Run() {
     while (sampler_->IsActive()) {
-      if (!sampler_->IsPaused())
-        SampleContext(sampler_);
+      SampleContext(sampler_);
       OS::Sleep(interval_);
     }
   }
@@ -122,7 +121,6 @@ Sampler::Sampler(int interval, bool profiling)
     : interval_(interval),
       profiling_(profiling),
       active_(false),
-      paused_(false),
       data_(new PlatformData) {
 }
 

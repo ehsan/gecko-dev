@@ -237,7 +237,8 @@ nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, bool aShrinkWrap)
 {
-  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  float inflation =
+    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eInReflow);
   nsRefPtr<nsFontMetrics> fontMet;
   NS_ENSURE_SUCCESS(nsLayoutUtils::GetFontMetricsForFrame(this,
                                                           getter_AddRefs(fontMet),

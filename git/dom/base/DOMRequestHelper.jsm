@@ -57,38 +57,25 @@ DOMRequestIpcHelper.prototype = {
       Services.obs.removeObserver(this, "inner-window-destroyed");
       this._requests = [];
       this._window = null;
-      this.removeMessageListener();
+      this._messages.forEach((function(msgName) {
+        cpmm.removeMessageListener(msgName, this);
+      }).bind(this));
       if(this.uninit)
         this.uninit();
     }
   },
 
-  initRequests: function initRequests() {
-    this._requests = [];
-  },
-
-  initMessageListener: function initMessageListener(aMessages) {
-    this._messages = aMessages;
-    this._messages.forEach((function(msgName) {
-      cpmm.addMessageListener(msgName, this);
-    }).bind(this));
-  },
-  
   initHelper: function(aWindow, aMessages) {
-    this.initMessageListener(aMessages);
-    this.initRequests();
-    this._id = this._getRandomId();
-    Services.obs.addObserver(this, "inner-window-destroyed", false);
+    this._messages = aMessages;
+    this._requests = [];
     this._window = aWindow;
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     this.innerWindowID = util.currentInnerWindowID;
-  },
-
-  removeMessageListener: function removeMessageListener() {
+    this._id = this._getRandomId();
+    Services.obs.addObserver(this, "inner-window-destroyed", false);
     this._messages.forEach((function(msgName) {
-        cpmm.removeMessageListener(msgName, this);
-      }).bind(this));
-    this._messages = null;
+      cpmm.addMessageListener(msgName, this);
+    }).bind(this));
   },
 
   createRequest: function() {
