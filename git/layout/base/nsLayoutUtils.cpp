@@ -71,7 +71,6 @@
 #include "nsIFrameInlines.h"
 #include "ImageContainer.h"
 #include "nsComputedDOMStyle.h"
-#include "ActiveLayerTracker.h"
 
 #include "mozilla/Preferences.h"
 
@@ -1206,8 +1205,6 @@ nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
   nsIFrame* stickyFrame = nullptr;
   while (f != aStopAtAncestor) {
     if (IsPopup(f))
-      break;
-    if (ActiveLayerTracker::IsOffsetOrMarginStyleAnimated(f))
       break;
     nsIFrame* parent = GetCrossDocParentFrame(f);
     if (!parent)

@@ -148,7 +148,9 @@ protected:
 class DeprecatedTextureHostShmemD3D9 : public DeprecatedTextureHostD3D9
 {
 public:
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostShmemD3D9"; }
+#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -159,7 +161,9 @@ protected:
 class DeprecatedTextureHostSystemMemD3D9 : public DeprecatedTextureHostD3D9
 {
 public:
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostSystemMemD3D9"; }
+#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -190,10 +194,12 @@ public:
     return nullptr; // TODO: cf bug 872568
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE
   {
     return "TextureImageDeprecatedTextureHostD3D11";
   }
+#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -207,7 +213,9 @@ private:
 class DeprecatedTextureHostDIB : public DeprecatedTextureHostD3D9
 {
 public:
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostDIB"; }
+#endif
   virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator) MOZ_OVERRIDE
   {
     MOZ_ASSERT(aBuffer->type() == SurfaceDescriptor::TSurfaceDescriptorDIB);

@@ -505,6 +505,14 @@ ImportRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 // must be outside the namespace
 DOMCI_DATA(CSSImportRule, css::ImportRule)
 
+static bool
+CloneRuleInto(css::Rule* aRule, void* aArray)
+{
+  nsRefPtr<css::Rule> clone = aRule->Clone();
+  static_cast<nsCOMArray<css::Rule>*>(aArray)->AppendObject(clone);
+  return true;
+}
+
 namespace mozilla {
 namespace css {
 
@@ -524,7 +532,7 @@ SetParentRuleReference(Rule* aRule, void* aParentRule)
 GroupRule::GroupRule(const GroupRule& aCopy)
   : Rule(aCopy)
 {
-  const_cast<GroupRule&>(aCopy).mRules.EnumerateForwards(GroupRule::CloneRuleInto, &mRules);
+  const_cast<GroupRule&>(aCopy).mRules.EnumerateForwards(CloneRuleInto, &mRules);
   mRules.EnumerateForwards(SetParentRuleReference, this);
 }
 

@@ -18,7 +18,7 @@ EXPORTS += [
     'nsIGridPart.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsGrid.cpp',
     'nsGridCell.cpp',
     'nsGridLayout2.cpp',

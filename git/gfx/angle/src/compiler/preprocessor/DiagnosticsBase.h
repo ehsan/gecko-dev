@@ -9,11 +9,6 @@
 
 #include <string>
 
-// Windows.h #defines ERROR.
-#ifdef ERROR
-#undef ERROR
-#endif
-
 namespace pp
 {
 

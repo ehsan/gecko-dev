@@ -203,7 +203,6 @@ class TreeMetadataEmitter(LoggingMixin):
             },
             UNIFIED_SOURCES={
                 '.c': 'UNIFIED_CSRCS',
-                '.mm': 'UNIFIED_CMMSRCS',
                 '.cc': 'UNIFIED_CPPSRCS',
                 '.cpp': 'UNIFIED_CPPSRCS',
             }

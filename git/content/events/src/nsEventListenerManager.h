@@ -417,6 +417,7 @@ protected:
                            nsCxPusher* aPusher);
 
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
+                              const mozilla::dom::EventListenerHolder& aListener,
                               nsIDOMEvent* aDOMEvent,
                               mozilla::dom::EventTarget* aCurrentTarget,
                               nsCxPusher* aPusher);

@@ -11,7 +11,7 @@ EXPORTS += [
     'nsFontFaceList.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'inCSSValueSearch.cpp',
     'inDeepTreeWalker.cpp',
     'inDOMUtils.cpp',
@@ -23,7 +23,7 @@ UNIFIED_SOURCES += [
 ]
 
 if CONFIG['MOZ_XUL']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'inDOMView.cpp',
     ]
 

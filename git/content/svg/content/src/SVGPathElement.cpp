@@ -10,9 +10,8 @@
 #include "DOMSVGPathSeg.h"
 #include "DOMSVGPathSegList.h"
 #include "DOMSVGPoint.h"
-#include "gfx2DGlue.h"
+#include "gfxPath.h"
 #include "mozilla/dom/SVGPathElementBinding.h"
-#include "mozilla/gfx/2D.h"
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
 #include "nsGkAtoms.h"
@@ -60,26 +59,26 @@ SVGPathElement::PathLength()
 float
 SVGPathElement::GetTotalLength(ErrorResult& rv)
 {
-  RefPtr<Path> flat = GetPathForLengthOrPositionMeasuring();
+  nsRefPtr<gfxPath> flat = GetPath(gfxMatrix());
 
   if (!flat) {
     rv.Throw(NS_ERROR_FAILURE);
     return 0.f;
   }
 
-  return flat->ComputeLength();
+  return flat->GetLength();
 }
 
 already_AddRefed<nsISVGPoint>
 SVGPathElement::GetPointAtLength(float distance, ErrorResult& rv)
 {
-  RefPtr<Path> path = GetPathForLengthOrPositionMeasuring();
-  if (!path) {
+  nsRefPtr<gfxPath> flat = GetPath(gfxMatrix());
+  if (!flat) {
     rv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
-  float totalLength = path->ComputeLength();
+  float totalLength = flat->GetLength();
   if (mPathLength.IsExplicitlySet()) {
     float pathLength = mPathLength.GetAnimValue();
     if (pathLength <= 0) {
@@ -91,8 +90,7 @@ SVGPathElement::GetPointAtLength(float distance, ErrorResult& rv)
   distance = std::max(0.f,         distance);
   distance = std::min(totalLength, distance);
 
-  nsCOMPtr<nsISVGPoint> point =
-    new DOMSVGPoint(path->ComputePointAtLength(distance));
+  nsCOMPtr<nsISVGPoint> point = new DOMSVGPoint(flat->FindPoint(gfxPoint(distance, 0)));
   return point.forget();
 }
 
@@ -300,10 +298,10 @@ SVGPathElement::IsAttributeMapped(const nsIAtom* name) const
     SVGPathElementBase::IsAttributeMapped(name);
 }
 
-TemporaryRef<Path>
-SVGPathElement::GetPathForLengthOrPositionMeasuring()
+already_AddRefed<gfxPath>
+SVGPathElement::GetPath(const gfxMatrix &aMatrix)
 {
-  return mD.GetAnimValue().ToPathForLengthOrPositionMeasuring();
+  return mD.GetAnimValue().ToPath(aMatrix);
 }
 
 //----------------------------------------------------------------------
@@ -342,22 +340,16 @@ SVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
   if (mPathLength.IsExplicitlySet()) {
     float authorsPathLengthEstimate = mPathLength.GetAnimValue();
     if (authorsPathLengthEstimate > 0) {
-      RefPtr<Path> path = GetPathForLengthOrPositionMeasuring();
-
+      gfxMatrix matrix;
       if (aFor == eForTextPath) {
         // For textPath, a transform on the referenced path affects the
         // textPath layout, so when calculating the actual path length
         // we need to take that into account.
-        gfxMatrix matrix = PrependLocalTransformsTo(gfxMatrix());
-        if (!matrix.IsIdentity()) {
-          RefPtr<PathBuilder> builder =
-            path->TransformedCopyToBuilder(ToMatrix(matrix));
-          path = builder->Finish();
-        }
+        matrix = PrependLocalTransformsTo(matrix);
       }
-
+      nsRefPtr<gfxPath> path = GetPath(matrix);
       if (path) {
-        return path->ComputeLength() / authorsPathLengthEstimate;
+        return path->GetLength() / authorsPathLengthEstimate;
       }
     }
   }

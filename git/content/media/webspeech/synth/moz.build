@@ -27,7 +27,7 @@ if CONFIG['MOZ_WEBSPEECH']:
         'SpeechSynthesisVoice.h',
     ]
 
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'EnableSpeechSynthesisCheck.cpp',
         'ipc/SpeechSynthesisChild.cpp',
         'ipc/SpeechSynthesisParent.cpp',

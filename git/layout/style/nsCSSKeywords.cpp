@@ -19,13 +19,13 @@ const char* const kCSSRawKeywords[] = {
 };
 #undef CSS_KEY
 
-static int32_t gKeywordTableRefCount;
+static int32_t gTableRefCount;
 static nsStaticCaseInsensitiveNameTable* gKeywordTable;
 
 void
 nsCSSKeywords::AddRefTable(void) 
 {
-  if (0 == gKeywordTableRefCount++) {
+  if (0 == gTableRefCount++) {
     NS_ASSERTION(!gKeywordTable, "pre existing array!");
     gKeywordTable = new nsStaticCaseInsensitiveNameTable();
     if (gKeywordTable) {
@@ -51,7 +51,7 @@ nsCSSKeywords::AddRefTable(void)
 void
 nsCSSKeywords::ReleaseTable(void) 
 {
-  if (0 == --gKeywordTableRefCount) {
+  if (0 == --gTableRefCount) {
     if (gKeywordTable) {
       delete gKeywordTable;
       gKeywordTable = nullptr;

@@ -10,11 +10,9 @@
 #include "nsTArray.h"
 #include "mozilla/ReentrantMonitor.h"
 
-namespace mozilla {
-
-namespace dom {
 class TimeRanges;
-}
+
+namespace mozilla {
 
 // Stores a stream byte offset and the scaled timecode of the block at
 // that offset.  The timecode must be scaled by the stream's timecode

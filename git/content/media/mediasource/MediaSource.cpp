@@ -224,30 +224,39 @@ MediaSource::SetReadyState(MediaSourceReadyState aState)
 {
   MOZ_ASSERT(aState != mReadyState);
 
-  MediaSourceReadyState oldState = mReadyState;
-  mReadyState = aState;
-
-  if (mReadyState == MediaSourceReadyState::Open &&
-      (oldState == MediaSourceReadyState::Closed ||
-       oldState == MediaSourceReadyState::Ended)) {
+  if ((mReadyState == MediaSourceReadyState::Closed ||
+       mReadyState == MediaSourceReadyState::Ended) &&
+      aState == MediaSourceReadyState::Open) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceopen");
     return;
   }
 
-  if (mReadyState == MediaSourceReadyState::Ended &&
-      oldState == MediaSourceReadyState::Open) {
+  if (mReadyState == MediaSourceReadyState::Open &&
+      aState == MediaSourceReadyState::Ended) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceended");
     return;
   }
 
-  if (mReadyState == MediaSourceReadyState::Closed &&
-      (oldState == MediaSourceReadyState::Open ||
-       oldState == MediaSourceReadyState::Ended)) {
+  if ((mReadyState == MediaSourceReadyState::Open ||
+       mReadyState == MediaSourceReadyState::Ended) &&
+      aState == MediaSourceReadyState::Closed) {
+    mReadyState = aState;
     QueueAsyncSimpleEvent("sourceclose");
     return;
   }
 
   NS_WARNING("Invalid MediaSource readyState transition");
+}
+
+void
+MediaSource::GetBuffered(TimeRanges* aRanges)
+{
+  if (mActiveSourceBuffers->Length() == 0) {
+    return;
+  }
+  // TODO: Implement intersection computation.
 }
 
 void

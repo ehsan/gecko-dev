@@ -20,6 +20,67 @@ using namespace JS;
 
 /***************************************************************************/
 
+#ifdef XPC_TRACK_SCOPE_STATS
+static int DEBUG_TotalScopeCount;
+static int DEBUG_TotalLiveScopeCount;
+static int DEBUG_TotalMaxScopeCount;
+static int DEBUG_TotalScopeTraversalCount;
+static bool    DEBUG_DumpedStats;
+#endif
+
+#ifdef DEBUG
+static void DEBUG_TrackNewScope(XPCWrappedNativeScope* scope)
+{
+#ifdef XPC_TRACK_SCOPE_STATS
+    DEBUG_TotalScopeCount++;
+    DEBUG_TotalLiveScopeCount++;
+    if (DEBUG_TotalMaxScopeCount < DEBUG_TotalLiveScopeCount)
+        DEBUG_TotalMaxScopeCount = DEBUG_TotalLiveScopeCount;
+#endif
+}
+
+static void DEBUG_TrackDeleteScope(XPCWrappedNativeScope* scope)
+{
+#ifdef XPC_TRACK_SCOPE_STATS
+    DEBUG_TotalLiveScopeCount--;
+#endif
+}
+
+static void DEBUG_TrackScopeTraversal()
+{
+#ifdef XPC_TRACK_SCOPE_STATS
+    DEBUG_TotalScopeTraversalCount++;
+#endif
+}
+
+static void DEBUG_TrackScopeShutdown()
+{
+#ifdef XPC_TRACK_SCOPE_STATS
+    if (!DEBUG_DumpedStats) {
+        DEBUG_DumpedStats = true;
+        printf("%d XPCWrappedNativeScope(s) were constructed.\n",
+               DEBUG_TotalScopeCount);
+
+        printf("%d XPCWrappedNativeScopes(s) max alive at one time.\n",
+               DEBUG_TotalMaxScopeCount);
+
+        printf("%d XPCWrappedNativeScope(s) alive now.\n" ,
+               DEBUG_TotalLiveScopeCount);
+
+        printf("%d traversals of Scope list.\n",
+               DEBUG_TotalScopeTraversalCount);
+    }
+#endif
+}
+#else
+#define DEBUG_TrackNewScope(scope) ((void)0)
+#define DEBUG_TrackDeleteScope(scope) ((void)0)
+#define DEBUG_TrackScopeTraversal() ((void)0)
+#define DEBUG_TrackScopeShutdown() ((void)0)
+#endif
+
+/***************************************************************************/
+
 XPCWrappedNativeScope* XPCWrappedNativeScope::gScopes = nullptr;
 XPCWrappedNativeScope* XPCWrappedNativeScope::gDyingScopes = nullptr;
 
@@ -95,6 +156,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
         mContext->AddScope(this);
     }
 
+    DEBUG_TrackNewScope(this);
     MOZ_COUNT_CTOR(XPCWrappedNativeScope);
 
     // Attach ourselves to the compartment private.
@@ -248,6 +310,7 @@ bool UseXBLScope(JSCompartment *c)
 XPCWrappedNativeScope::~XPCWrappedNativeScope()
 {
     MOZ_COUNT_DTOR(XPCWrappedNativeScope);
+    DEBUG_TrackDeleteScope(this);
 
     // We can do additional cleanup assertions here...
 
@@ -432,6 +495,8 @@ XPCWrappedNativeScope::MarkAllWrappedNativesAndProtos()
         cur->mWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMarker, nullptr);
         cur->mMainThreadWrappedNativeProtoMap->Enumerate(WrappedNativeProtoMarker, nullptr);
     }
+
+    DEBUG_TrackScopeTraversal();
 }
 
 #ifdef DEBUG
@@ -477,6 +542,8 @@ XPCWrappedNativeScope::SweepAllWrappedNativeTearOffs()
 {
     for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext)
         cur->mWrappedNativeMap->Enumerate(WrappedNativeTearoffSweeper, nullptr);
+
+    DEBUG_TrackScopeTraversal();
 }
 
 // static
@@ -531,6 +598,9 @@ WrappedNativeProtoShutdownEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
 void
 XPCWrappedNativeScope::SystemIsBeingShutDown()
 {
+    DEBUG_TrackScopeTraversal();
+    DEBUG_TrackScopeShutdown();
+
     int liveScopeCount = 0;
 
     ShutdownData data;
@@ -570,6 +640,18 @@ XPCWrappedNativeScope::SystemIsBeingShutDown()
 
     // Now it is safe to kill all the scopes.
     KillDyingScopes();
+
+#ifdef XPC_DUMP_AT_SHUTDOWN
+    if (data.wrapperCount)
+        printf("deleting nsXPConnect  with %d live XPCWrappedNatives\n",
+               data.wrapperCount);
+    if (data.protoCount)
+        printf("deleting nsXPConnect  with %d live XPCWrappedNativeProtos\n",
+               data.protoCount);
+    if (liveScopeCount)
+        printf("deleting nsXPConnect  with %d live XPCWrappedNativeScopes\n",
+               liveScopeCount);
+#endif
 }
 
 
@@ -596,6 +678,8 @@ XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies()
         cur->mWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nullptr);
         cur->mMainThreadWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nullptr);
     }
+
+    DEBUG_TrackScopeTraversal();
 
     return NS_OK;
 }

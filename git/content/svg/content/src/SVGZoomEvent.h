@@ -12,12 +12,10 @@
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/SVGZoomEventBinding.h"
 
+class nsISVGPoint;
 class nsPresContext;
 
 namespace mozilla {
-
-class nsISVGPoint;
-
 namespace dom {
 
 class SVGZoomEvent MOZ_FINAL : public nsDOMUIEvent
