@@ -369,12 +369,7 @@ PrivateBrowsingService.prototype = {
               getService(Ci.nsICacheService)) {
       // NOTE: there is no way to clear just that domain, so we clear out
       //       everything)
-      try {
-        cs.evictEntries(Ci.nsICache.STORE_ANYWHERE);
-      } catch (ex) {
-        Cu.reportError("Exception thrown while clearing the cache: " +
-          ex.toString());
-      }
+      cs.evictEntries(Ci.nsICache.STORE_ANYWHERE);
     }
 
     // Cookies

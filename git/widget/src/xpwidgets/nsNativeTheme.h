@@ -133,13 +133,9 @@ class nsNativeTheme
     return IsFrameRTL(aFrame) ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame);
   }
 
-  // button / toolbarbutton:
+  // toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
-  }
-
-  PRBool IsOpenButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
   }
 
   // treeheadercell:

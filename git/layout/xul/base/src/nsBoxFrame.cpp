@@ -1826,7 +1826,7 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
 
     if (aForce) {
       nsIView* parentView;
-      nsIViewManager* viewManager = aPresContext->GetPresShell()->GetViewManager();
+      nsIViewManager* viewManager = aPresContext->GetViewManager();
       NS_ASSERTION(nsnull != viewManager, "null view manager");
 
       // Create a view

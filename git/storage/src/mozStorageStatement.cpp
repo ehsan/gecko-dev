@@ -444,12 +444,8 @@ mozStorageStatement::Reset()
     if (!mDBConnection || !mDBStatement)
         return NS_ERROR_NOT_INITIALIZED;
 
-#ifdef DEBUG
     PR_LOG(gStorageLog, PR_LOG_DEBUG, ("Resetting statement: '%s'",
                                        sqlite3_sql(mDBStatement)));
-
-    CheckAndLogStatementPerformance(mDBStatement);
-#endif
 
     sqlite3_reset(mDBStatement);
     sqlite3_clear_bindings(mDBStatement);

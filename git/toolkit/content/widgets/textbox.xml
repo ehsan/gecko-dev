@@ -15,7 +15,6 @@
 
   <binding id="textbox" extends="xul:box">
     <resources>
-      <stylesheet src="chrome://global/content/textbox.css"/>
       <stylesheet src="chrome://global/skin/textbox.css"/>
     </resources>
 
