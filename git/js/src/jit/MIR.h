@@ -2709,7 +2709,7 @@ class MNewObject : public MUnaryInstruction
         initialHeap_(initialHeap),
         templateObjectIsClassPrototype_(templateObjectIsClassPrototype)
     {
-        PlainObject *obj = templateObject();
+        JSObject *obj = templateObject();
         MOZ_ASSERT_IF(templateObjectIsClassPrototype, !shouldUseVM());
         setResultType(MIRType_Object);
         if (!obj->hasSingletonType())
@@ -2742,8 +2742,8 @@ class MNewObject : public MUnaryInstruction
         return templateObjectIsClassPrototype_;
     }
 
-    PlainObject *templateObject() const {
-        return &getOperand(0)->toConstant()->value().toObject().as<PlainObject>();
+    NativeObject *templateObject() const {
+        return &getOperand(0)->toConstant()->value().toObject().as<NativeObject>();
     }
 
     gc::InitialHeap initialHeap() const {
@@ -4081,8 +4081,8 @@ class MCreateThisWithTemplate
     }
 
     // Template for |this|, provided by TI.
-    PlainObject *templateObject() const {
-        return &getOperand(0)->toConstant()->value().toObject().as<PlainObject>();
+    NativeObject *templateObject() const {
+        return &getOperand(0)->toConstant()->value().toObject().as<NativeObject>();
     }
 
     gc::InitialHeap initialHeap() const {
@@ -8615,10 +8615,8 @@ class MLoadTypedArrayElementStatic
   : public MUnaryInstruction,
     public ConvertToInt32Policy<0>::Data
 {
-    MLoadTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr,
-                                 int32_t offset, bool needsBoundsCheck)
-      : MUnaryInstruction(ptr), someTypedArray_(someTypedArray), offset_(offset),
-        needsBoundsCheck_(needsBoundsCheck), fallible_(true)
+    MLoadTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr)
+      : MUnaryInstruction(ptr), someTypedArray_(someTypedArray), fallible_(true)
     {
         int type = viewType();
         if (type == Scalar::Float32)
@@ -8630,22 +8628,15 @@ class MLoadTypedArrayElementStatic
     }
 
     AlwaysTenured<JSObject*> someTypedArray_;
-    // An offset to be encoded in the load instruction - taking advantage of the
-    // addressing modes. This is only non-zero when the access is proven to be
-    // within bounds.
-    int32_t offset_;
-    bool needsBoundsCheck_;
     bool fallible_;
 
   public:
     INSTRUCTION_HEADER(LoadTypedArrayElementStatic);
 
     static MLoadTypedArrayElementStatic *New(TempAllocator &alloc, JSObject *someTypedArray,
-                                             MDefinition *ptr, int32_t offset = 0,
-                                             bool needsBoundsCheck = true)
+                                             MDefinition *ptr)
     {
-        return new(alloc) MLoadTypedArrayElementStatic(someTypedArray, ptr, offset,
-                                                       needsBoundsCheck);
+        return new(alloc) MLoadTypedArrayElementStatic(someTypedArray, ptr);
     }
 
     Scalar::Type viewType() const {
@@ -8655,15 +8646,9 @@ class MLoadTypedArrayElementStatic
     size_t length() const;
 
     MDefinition *ptr() const { return getOperand(0); }
-    int32_t offset() const { return offset_; }
-    void setOffset(int32_t offset) { offset_ = offset; }
-    bool congruentTo(const MDefinition *ins) const;
     AliasSet getAliasSet() const {
         return AliasSet::Load(AliasSet::TypedArrayElement);
     }
-
-    bool needsBoundsCheck() const { return needsBoundsCheck_; }
-    void setNeedsBoundsCheck(bool v) { needsBoundsCheck_ = v; }
 
     bool fallible() const {
         return fallible_;
@@ -8676,7 +8661,6 @@ class MLoadTypedArrayElementStatic
     void computeRange(TempAllocator &alloc);
     bool needTruncation(TruncateKind kind);
     bool canProduceFloat32() const { return viewType() == Scalar::Float32; }
-    void collectRangeInfoPreTrunc();
 };
 
 class MStoreTypedArrayElement
@@ -8837,29 +8821,19 @@ class MStoreTypedArrayElementStatic :
     public MBinaryInstruction
   , public StoreTypedArrayElementStaticPolicy::Data
 {
-    MStoreTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr, MDefinition *v,
-                                  int32_t offset, bool needsBoundsCheck)
-        : MBinaryInstruction(ptr, v), someTypedArray_(someTypedArray),
-          offset_(offset), needsBoundsCheck_(needsBoundsCheck)
+    MStoreTypedArrayElementStatic(JSObject *someTypedArray, MDefinition *ptr, MDefinition *v)
+      : MBinaryInstruction(ptr, v), someTypedArray_(someTypedArray)
     {}
 
     AlwaysTenured<JSObject*> someTypedArray_;
-    // An offset to be encoded in the store instruction - taking advantage of the
-    // addressing modes. This is only non-zero when the access is proven to be
-    // within bounds.
-    int32_t offset_;
-    bool needsBoundsCheck_;
 
   public:
     INSTRUCTION_HEADER(StoreTypedArrayElementStatic);
 
     static MStoreTypedArrayElementStatic *New(TempAllocator &alloc, JSObject *someTypedArray,
-                                              MDefinition *ptr, MDefinition *v,
-                                              int32_t offset = 0,
-                                              bool needsBoundsCheck = true)
+                                              MDefinition *ptr, MDefinition *v)
     {
-        return new(alloc) MStoreTypedArrayElementStatic(someTypedArray, ptr, v,
-                                                        offset, needsBoundsCheck);
+        return new(alloc) MStoreTypedArrayElementStatic(someTypedArray, ptr, v);
     }
 
     Scalar::Type viewType() const {
@@ -8875,10 +8849,6 @@ class MStoreTypedArrayElementStatic :
 
     MDefinition *ptr() const { return getOperand(0); }
     MDefinition *value() const { return getOperand(1); }
-    bool needsBoundsCheck() const { return needsBoundsCheck_; }
-    void setNeedsBoundsCheck(bool v) { needsBoundsCheck_ = v; }
-    int32_t offset() const { return offset_; }
-    void setOffset(int32_t offset) { offset_ = offset; }
     AliasSet getAliasSet() const {
         return AliasSet::Store(AliasSet::TypedArrayElement);
     }
@@ -8887,7 +8857,6 @@ class MStoreTypedArrayElementStatic :
     bool canConsumeFloat32(MUse *use) const {
         return use == getUseFor(1) && viewType() == Scalar::Float32;
     }
-    void collectRangeInfoPreTrunc();
 };
 
 // Compute an "effective address", i.e., a compound computation of the form:
@@ -11451,9 +11420,9 @@ class MPostWriteBarrier : public MBinaryInstruction, public ObjectPolicy<0>::Dat
 
 class MNewDeclEnvObject : public MNullaryInstruction
 {
-    AlwaysTenured<DeclEnvObject*> templateObj_;
+    AlwaysTenuredNativeObject templateObj_;
 
-    explicit MNewDeclEnvObject(DeclEnvObject *templateObj)
+    explicit MNewDeclEnvObject(NativeObject *templateObj)
       : MNullaryInstruction(),
         templateObj_(templateObj)
     {
@@ -11463,11 +11432,11 @@ class MNewDeclEnvObject : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(NewDeclEnvObject);
 
-    static MNewDeclEnvObject *New(TempAllocator &alloc, DeclEnvObject *templateObj) {
+    static MNewDeclEnvObject *New(TempAllocator &alloc, NativeObject *templateObj) {
         return new(alloc) MNewDeclEnvObject(templateObj);
     }
 
-    DeclEnvObject *templateObj() {
+    NativeObject *templateObj() {
         return templateObj_;
     }
     AliasSet getAliasSet() const {
@@ -11477,10 +11446,10 @@ class MNewDeclEnvObject : public MNullaryInstruction
 
 class MNewCallObjectBase : public MNullaryInstruction
 {
-    AlwaysTenured<CallObject*> templateObj_;
+    AlwaysTenuredNativeObject templateObj_;
 
   protected:
-    explicit MNewCallObjectBase(CallObject *templateObj)
+    explicit MNewCallObjectBase(NativeObject *templateObj)
       : MNullaryInstruction(),
         templateObj_(templateObj)
     {
@@ -11488,7 +11457,7 @@ class MNewCallObjectBase : public MNullaryInstruction
     }
 
   public:
-    CallObject *templateObject() {
+    NativeObject *templateObject() {
         return templateObj_;
     }
     AliasSet getAliasSet() const {
@@ -11501,12 +11470,12 @@ class MNewCallObject : public MNewCallObjectBase
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    explicit MNewCallObject(CallObject *templateObj)
+    explicit MNewCallObject(NativeObject *templateObj)
       : MNewCallObjectBase(templateObj)
     {}
 
     static MNewCallObject *
-    New(TempAllocator &alloc, CallObject *templateObj)
+    New(TempAllocator &alloc, NativeObject *templateObj)
     {
         return new(alloc) MNewCallObject(templateObj);
     }
@@ -11517,12 +11486,12 @@ class MNewRunOnceCallObject : public MNewCallObjectBase
   public:
     INSTRUCTION_HEADER(NewRunOnceCallObject)
 
-    explicit MNewRunOnceCallObject(CallObject *templateObj)
+    explicit MNewRunOnceCallObject(NativeObject *templateObj)
       : MNewCallObjectBase(templateObj)
     {}
 
     static MNewRunOnceCallObject *
-    New(TempAllocator &alloc, CallObject *templateObj)
+    New(TempAllocator &alloc, NativeObject *templateObj)
     {
         return new(alloc) MNewRunOnceCallObject(templateObj);
     }
@@ -11530,9 +11499,9 @@ class MNewRunOnceCallObject : public MNewCallObjectBase
 
 class MNewCallObjectPar : public MUnaryInstruction
 {
-    AlwaysTenured<CallObject*> templateObj_;
+    AlwaysTenuredNativeObject templateObj_;
 
-    MNewCallObjectPar(MDefinition *cx, CallObject *templateObj)
+    MNewCallObjectPar(MDefinition *cx, NativeObject *templateObj)
         : MUnaryInstruction(cx),
           templateObj_(templateObj)
     {
@@ -11550,7 +11519,7 @@ class MNewCallObjectPar : public MUnaryInstruction
         return getOperand(0);
     }
 
-    CallObject *templateObj() const {
+    NativeObject *templateObj() const {
         return templateObj_;
     }
 

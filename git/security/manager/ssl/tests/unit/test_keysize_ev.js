@@ -46,7 +46,10 @@ function checkEVStatus(cert, usage, isEVExpected) {
  * Adds a single EV key size test.
  *
  * @param {Array} expectedNamesForOCSP
- *        An array of nicknames of the certs to be responded to.
+ *        An array of nicknames of the certs to be responded to. The cert name
+ *        prefix is not added to the nicknames in this array.
+ * @param {String} certNamePrefix
+ *        The prefix to prepend to the passed in cert names.
  * @param {String} rootCACertFileName
  *        The file name of the root CA cert. Can begin with ".." to reference
  *        certs in folders other than "test_keysize/".
@@ -57,7 +60,7 @@ function checkEVStatus(cert, usage, isEVExpected) {
  * @param {Boolean} expectedResult
  *        Whether the chain is expected to validate as EV.
  */
-function addKeySizeTestForEV(expectedNamesForOCSP,
+function addKeySizeTestForEV(expectedNamesForOCSP, certNamePrefix,
                              rootCACertFileName, subCACertFileNames,
                              endEntityCertFileName, expectedResult)
 {
@@ -65,11 +68,16 @@ function addKeySizeTestForEV(expectedNamesForOCSP,
     clearOCSPCache();
     let ocspResponder = getOCSPResponder(expectedNamesForOCSP);
 
-    loadCert(rootCACertFileName, "CTu,CTu,CTu");
+    // Don't prepend the cert name prefix if rootCACertFileName starts with ".."
+    // to support reusing certs in other directories.
+    let rootCertNamePrefix = rootCACertFileName.startsWith("..")
+                           ? ""
+                           : certNamePrefix;
+    loadCert(rootCertNamePrefix + rootCACertFileName, "CTu,CTu,CTu");
     for (let subCACertFileName of subCACertFileNames) {
-      loadCert(subCACertFileName, ",,");
+      loadCert(certNamePrefix + subCACertFileName, ",,");
     }
-    checkEVStatus(certFromFile(endEntityCertFileName + ".der"),
+    checkEVStatus(certFromFile(certNamePrefix + endEntityCertFileName + ".der"),
                   certificateUsageSSLServer, expectedResult);
 
     ocspResponder.stop(run_next_test);
@@ -78,9 +86,8 @@ function addKeySizeTestForEV(expectedNamesForOCSP,
 
 /**
  * For debug builds which have the test EV roots compiled in, checks for the
- * given key type that chains that contain certs with key sizes adequate for EV
- * are validated as such, while chains that contain any cert with an inadequate
- * key size fail EV and validate as DV.
+ * given key type that good chains validate as EV, while bad chains fail EV and
+ * validate as DV.
  * For opt builds which don't have the test EV roots compiled in, checks that
  * none of the chains validate as EV.
  *
@@ -89,70 +96,59 @@ function addKeySizeTestForEV(expectedNamesForOCSP,
  *
  * @param {String} keyType
  *        The key type to check (e.g. "rsa").
- * @param {Number} inadequateKeySize
- *        The inadequate key size of the generated certs.
- * @param {Number} adequateKeySize
- *        The adequate key size of the generated certs.
  */
-function checkForKeyType(keyType, inadequateKeySize, adequateKeySize) {
+function checkForKeyType(keyType) {
+  let certNamePrefix = "ev-" + keyType;
+
   // Reuse the existing test RSA EV root
-  let rootOKCertFileName = keyType == "rsa"
-                         ? "../test_ev_certs/evroot"
-                         : "ev_root_" + keyType + "_" + adequateKeySize;
-  let rootOKName = keyType == "rsa"
-                 ? "evroot"
-                 : "ev_root_" + keyType + "_" + adequateKeySize;
-  let rootNotOKName = "ev_root_" + keyType + "_" + inadequateKeySize;
-  let intOKName = "ev_int_" + keyType + "_" + adequateKeySize;
-  let intNotOKName = "ev_int_" + keyType + "_" + inadequateKeySize;
-  let eeOKName = "ev_ee_" + keyType + "_" + adequateKeySize;
-  let eeNotOKName = "ev_ee_" + keyType + "_" + inadequateKeySize;
+  let rootCAOKCertFileName = keyType == "rsa" ? "../test_ev_certs/evroot"
+                                              : "-caOK";
 
-  // Chain with certs that have adequate sizes for EV and DV
+  // OK CA -> OK INT -> OK EE
   // In opt builds, this chain is only validated for DV. Hence, an OCSP fetch
-  // will for example not be done for the "ev_int_rsa_2048-evroot" intermediate
-  // in such a build.
-  let intFullName = intOKName + "-" + rootOKName;
-  let eeFullName = eeOKName + "-" + intOKName + "-" + rootOKName;
+  // will not be done for the "-intOK-caOK" intermediate in such a build.
   let expectedNamesForOCSP = isDebugBuild
-                           ? [ intFullName,
-                               eeFullName ]
-                           : [ eeFullName ];
-  addKeySizeTestForEV(expectedNamesForOCSP, rootOKCertFileName,
-                      [ intFullName ], eeFullName, isDebugBuild);
+                           ? [ certNamePrefix + "-intOK-caOK",
+                               certNamePrefix + "-eeOK-intOK-caOK" ]
+                           : [ certNamePrefix + "-eeOK-intOK-caOK" ];
+  addKeySizeTestForEV(expectedNamesForOCSP, certNamePrefix,
+                      rootCAOKCertFileName,
+                      ["-intOK-caOK"],
+                      "-eeOK-intOK-caOK",
+                      isDebugBuild);
 
-  // Chain with a root cert that has an inadequate size for EV, but
-  // adequate size for DV
-  intFullName = intOKName + "-" + rootNotOKName;
-  eeFullName = eeOKName + "-" + intOKName + "-" + rootNotOKName;
-  expectedNamesForOCSP = [ eeFullName ];
-  addKeySizeTestForEV(expectedNamesForOCSP, rootNotOKName,
-                      [ intFullName ], eeFullName, false);
+  // Bad CA -> OK INT -> OK EE
+  expectedNamesForOCSP = [ certNamePrefix + "-eeOK-intOK-caBad" ];
+  addKeySizeTestForEV(expectedNamesForOCSP, certNamePrefix,
+                      "-caBad",
+                      ["-intOK-caBad"],
+                      "-eeOK-intOK-caBad",
+                      false);
 
-  // Chain with an intermediate cert that has an inadequate size for EV, but
-  // adequate size for DV
-  intFullName = intNotOKName + "-" + rootOKName;
-  eeFullName = eeOKName + "-" + intNotOKName + "-" + rootOKName;
+  // OK CA -> Bad INT -> OK EE
   expectedNamesForOCSP = isDebugBuild
-                       ? [ intFullName ]
-                       : [ eeFullName ];
-  addKeySizeTestForEV(expectedNamesForOCSP, rootOKCertFileName,
-                      [ intFullName ], eeFullName, false);
+                       ? [ certNamePrefix + "-intBad-caOK" ]
+                       : [ certNamePrefix + "-eeOK-intBad-caOK" ];
+  addKeySizeTestForEV(expectedNamesForOCSP, certNamePrefix,
+                      rootCAOKCertFileName,
+                      ["-intBad-caOK"],
+                      "-eeOK-intBad-caOK",
+                      false);
 
-  // Chain with an end entity cert that has an inadequate size for EV, but
-  // adequate size for DV
-  intFullName = intOKName + "-" + rootOKName;
-  eeFullName = eeNotOKName + "-" + intOKName + "-" + rootOKName;
-  expectedNamesForOCSP = [ eeFullName ];
-  addKeySizeTestForEV(expectedNamesForOCSP, rootOKCertFileName,
-                      [ intFullName ], eeFullName, false);
+  // OK CA -> OK INT -> Bad EE
+  expectedNamesForOCSP = [ certNamePrefix + "-eeBad-intOK-caOK" ];
+  addKeySizeTestForEV(expectedNamesForOCSP, certNamePrefix,
+                      rootCAOKCertFileName,
+                      ["-intOK-caOK"],
+                      "-eeBad-intOK-caOK",
+                      false);
 }
 
 function run_test() {
   // Setup OCSP responder
   Services.prefs.setCharPref("network.dns.localDomains", "www.example.com");
 
-  checkForKeyType("rsa", 2040, 2048);
+  checkForKeyType("rsa");
 
   run_next_test();
 }

@@ -119,7 +119,8 @@ BackgroundParentImpl::DeallocPBackgroundTestParent(
 }
 
 auto
-BackgroundParentImpl::AllocPBackgroundIDBFactoryParent()
+BackgroundParentImpl::AllocPBackgroundIDBFactoryParent(
+                                      const OptionalWindowId& aOptionalWindowId)
   -> PBackgroundIDBFactoryParent*
 {
   using mozilla::dom::indexedDB::AllocPBackgroundIDBFactoryParent;
@@ -127,12 +128,13 @@ BackgroundParentImpl::AllocPBackgroundIDBFactoryParent()
   AssertIsInMainProcess();
   AssertIsOnBackgroundThread();
 
-  return AllocPBackgroundIDBFactoryParent();
+  return AllocPBackgroundIDBFactoryParent(this, aOptionalWindowId);
 }
 
 bool
 BackgroundParentImpl::RecvPBackgroundIDBFactoryConstructor(
-                                            PBackgroundIDBFactoryParent* aActor)
+                                      PBackgroundIDBFactoryParent* aActor,
+                                      const OptionalWindowId& aOptionalWindowId)
 {
   using mozilla::dom::indexedDB::RecvPBackgroundIDBFactoryConstructor;
 
@@ -140,7 +142,7 @@ BackgroundParentImpl::RecvPBackgroundIDBFactoryConstructor(
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
 
-  return RecvPBackgroundIDBFactoryConstructor(aActor);
+  return RecvPBackgroundIDBFactoryConstructor(this, aActor, aOptionalWindowId);
 }
 
 bool
