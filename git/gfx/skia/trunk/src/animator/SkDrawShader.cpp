@@ -36,8 +36,9 @@ bool SkDrawShader::add() {
     return false;
 }
 
-SkMatrix* SkDrawShader::getMatrix() {
-    return matrix ? &matrix->getMatrix() : NULL;
+void SkDrawShader::addPostlude(SkShader* shader) {
+    if (matrix)
+        shader->setLocalMatrix(matrix->getMatrix());
 }
 
 #if SK_USE_CONDENSED_INFO == 0
@@ -74,9 +75,9 @@ SkShader* SkDrawBitmapShader::getShader() {
     // draw-time from the paint
     SkShader* shader  = SkShader::CreateBitmapShader(image->fBitmap,
                                                     (SkShader::TileMode) tileMode,
-                                                    (SkShader::TileMode) tileMode,
-                                                    getMatrix());
+                                                    (SkShader::TileMode) tileMode);
     SkAutoTDelete<SkShader> autoDel(shader);
+    addPostlude(shader);
     (void)autoDel.detach();
     return shader;
 }

@@ -28,19 +28,24 @@ SkImageDecoder* SkImageDecoder::Factory(SkStreamRewindable*) {
 
 void SkImageDecoder::copyFieldsToOther(SkImageDecoder* ) {}
 
-bool SkImageDecoder::DecodeFile(const char[], SkBitmap*, SkColorType, Mode, Format*) {
+bool SkImageDecoder::DecodeFile(const char[], SkBitmap*, SkBitmap::Config,
+                                SkImageDecoder::Mode, SkImageDecoder::Format*) {
     return false;
 }
 
-bool SkImageDecoder::decode(SkStream*, SkBitmap*, SkColorType, Mode) {
+bool SkImageDecoder::decode(SkStream*, SkBitmap*, SkBitmap::Config, Mode) {
     return false;
 }
 
-bool SkImageDecoder::DecodeStream(SkStreamRewindable*, SkBitmap*, SkColorType, Mode, Format*) {
+bool SkImageDecoder::DecodeStream(SkStreamRewindable*, SkBitmap*, SkBitmap::Config,
+                                  SkImageDecoder::Mode,
+                                  SkImageDecoder::Format*) {
     return false;
 }
 
-bool SkImageDecoder::DecodeMemory(const void*, size_t, SkBitmap*, SkColorType, Mode, Format*) {
+bool SkImageDecoder::DecodeMemory(const void*, size_t, SkBitmap*,
+                                  SkBitmap::Config, SkImageDecoder::Mode,
+                                  SkImageDecoder::Format*) {
     return false;
 }
 
@@ -48,7 +53,7 @@ bool SkImageDecoder::buildTileIndex(SkStreamRewindable*, int *width, int *height
     return false;
 }
 
-bool SkImageDecoder::decodeSubset(SkBitmap*, const SkIRect&, SkColorType) {
+bool SkImageDecoder::decodeSubset(SkBitmap*, const SkIRect&, SkBitmap::Config) {
     return false;
 }
 
@@ -68,11 +73,9 @@ SkImageDecoder::Peeker* SkImageDecoder::setPeeker(Peeker*) {
     return NULL;
 }
 
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
 SkImageDecoder::Chooser* SkImageDecoder::setChooser(Chooser*) {
     return NULL;
 }
-#endif
 
 SkBitmap::Allocator* SkImageDecoder::setAllocator(SkBitmap::Allocator*) {
     return NULL;
@@ -80,20 +83,29 @@ SkBitmap::Allocator* SkImageDecoder::setAllocator(SkBitmap::Allocator*) {
 
 void SkImageDecoder::setSampleSize(int) {}
 
+SkBitmap::Config SkImageDecoder::GetDeviceConfig() {
+    return SkBitmap::kNo_Config;
+}
+
+void SkImageDecoder::SetDeviceConfig(SkBitmap::Config) {}
+
 bool SkImageDecoder::cropBitmap(SkBitmap*, SkBitmap*, int, int, int, int, int,
                     int, int) {
     return false;
 }
 
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
-bool SkImageDecoder::chooseFromOneChoice(SkColorType, int, int) const {
+bool SkImageDecoder::chooseFromOneChoice(SkBitmap::Config, int, int) const {
     return false;
 }
-#endif
 
 bool SkImageDecoder::allocPixelRef(SkBitmap*, SkColorTable*) const {
     return false;
 }
+
+SkBitmap::Config SkImageDecoder::getPrefConfig(SrcDepth, bool) const {
+    return SkBitmap::kNo_Config;
+}
+
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -135,3 +147,9 @@ bool SkImageEncoder::encodeFile(const char file[], const SkBitmap& bm, int quali
     return false;
 }
 /////////////////////////////////////////////////////////////////////////
+
+// Empty implementation for SkImages.
+
+#include "SkImages.h"
+
+void SkImages::InitializeFlattenables() {}

@@ -15,9 +15,9 @@
 class GrContext;
 class GrIndexBufferAllocPool;
 class GrPath;
-class GrPathRange;
 class GrPathRenderer;
 class GrPathRendererChain;
+class GrResource;
 class GrStencilBuffer;
 class GrVertexBufferAllocPool;
 
@@ -71,26 +71,15 @@ public:
      * two but underlying API requires a power of two texture then srcData
      * will be embedded in a power of two texture. The extra width and height
      * is filled as though srcData were rendered clamped into the texture.
-     * The exception is when using compressed data formats. In this case, the
-     * desc width and height must be a multiple of the compressed format block
-     * size otherwise this function returns NULL. Similarly, if the underlying
-     * API requires a power of two texture and the source width and height are not
-     * a power of two, then this function returns NULL.
      *
      * If kRenderTarget_TextureFlag is specified the GrRenderTarget is
      * accessible via GrTexture::asRenderTarget(). The texture will hold a ref
-     * on the render target until the texture is destroyed. Compressed textures
-     * cannot have the kRenderTarget_TextureFlag set.
+     * on the render target until the texture is destroyed.
      *
      * @param desc        describes the texture to be created.
      * @param srcData     texel data to load texture. Begins with full-size
-     *                    palette data for paletted textures. For compressed
-     *                    formats it contains the compressed pixel data. Otherwise,
-     *                    it contains width*height texels. If NULL texture data
-     *                    is uninitialized.
-     * @param rowBytes    the number of bytes between consecutive rows. Zero
-     *                    means rows are tightly packed. This field is ignored
-     *                    for compressed formats.
+     *                    palette data for paletted textures. Contains width*
+     *                    height texels. If NULL texture data is uninitialized.
      *
      * @return    The texture object if successful, otherwise NULL.
      */
@@ -112,8 +101,8 @@ public:
      *
      * @param size    size in bytes of the vertex buffer
      * @param dynamic hints whether the data will be frequently changed
-     *                by either GrVertexBuffer::map() or
-     *                GrVertexBuffer::updateData().
+     *                by either GrVertexBuffer::lock or
+     *                GrVertexBuffer::updateData.
      *
      * @return    The vertex buffer if successful, otherwise NULL.
      */
@@ -124,8 +113,8 @@ public:
      *
      * @param size    size in bytes of the index buffer
      * @param dynamic hints whether the data will be frequently changed
-     *                by either GrIndexBuffer::map() or
-     *                GrIndexBuffer::updateData().
+     *                by either GrIndexBuffer::lock or
+     *                GrIndexBuffer::updateData.
      *
      * @return The index buffer if successful, otherwise NULL.
      */
@@ -136,13 +125,6 @@ public:
      * only legal to call this if the caps report support for path stenciling.
      */
     GrPath* createPath(const SkPath& path, const SkStrokeRec& stroke);
-
-    /**
-     * Creates a path range object that can be used to draw multiple paths via
-     * drawPaths(). It is only legal to call this if the caps report support for
-     * path rendering.
-     */
-    GrPathRange* createPathRange(size_t size, const SkStrokeRec&);
 
     /**
      * Returns an index buffer that can be used to render quads.
@@ -157,6 +139,13 @@ public:
      * Resolves MSAA.
      */
     void resolveRenderTarget(GrRenderTarget* target);
+
+    /**
+     * Ensures that the current render target is actually set in the
+     * underlying 3D API. Used when client wants to use 3D API to directly
+     * render to the RT.
+     */
+    void forceRenderTargetFlush();
 
     /**
      * Gets a preferred 8888 config to use for writing/reading pixel data to/from a surface with
@@ -249,28 +238,29 @@ public:
                             size_t rowBytes);
 
     /**
-     * Called to tell GrGpu that all GrGpuResources have been lost and should
+     * Called to tell Gpu object that all GrResources have been lost and should
      * be abandoned. Overrides must call INHERITED::abandonResources().
      */
     virtual void abandonResources();
 
     /**
-     * Called to tell GrGpu to release all GrGpuResources. Overrides must call
+     * Called to tell Gpu object to release all GrResources. Overrides must call
      * INHERITED::releaseResources().
      */
     void releaseResources();
 
     /**
-     * Add object to list of objects. Should only be called by GrGpuResource.
+     * Add resource to list of resources. Should only be called by GrResource.
      * @param resource  the resource to add.
      */
-    void insertObject(GrGpuResource* object);
+    void insertResource(GrResource* resource);
 
     /**
-     * Remove object from list of objects. Should only be called by GrGpuResource.
+     * Remove resource from list of resources. Should only be called by
+     * GrResource.
      * @param resource  the resource to remove.
      */
-    void removeObject(GrGpuResource* object);
+    void removeResource(GrResource* resource);
 
     // GrDrawTarget overrides
     virtual void clear(const SkIRect* rect,
@@ -340,16 +330,15 @@ public:
 
     void getPathStencilSettingsForFillType(SkPath::FillType fill, GrStencilSettings* outStencilSettings);
 
+protected:
     enum DrawType {
         kDrawPoints_DrawType,
         kDrawLines_DrawType,
         kDrawTriangles_DrawType,
         kStencilPath_DrawType,
         kDrawPath_DrawType,
-        kDrawPaths_DrawType,
     };
 
-protected:
     DrawType PrimTypeToDrawType(GrPrimitiveType type) {
         switch (type) {
             case kTriangles_GrPrimitiveType:
@@ -362,7 +351,7 @@ protected:
             case kLineStrip_GrPrimitiveType:
                 return kDrawLines_DrawType;
             default:
-                SkFAIL("Unexpected primitive type");
+                GrCrash("Unexpected primitive type");
                 return kDrawTriangles_DrawType;
         }
     }
@@ -432,14 +421,11 @@ private:
     virtual GrTexture* onCreateTexture(const GrTextureDesc& desc,
                                        const void* srcData,
                                        size_t rowBytes) = 0;
-    virtual GrTexture* onCreateCompressedTexture(const GrTextureDesc& desc,
-                                                 const void* srcData) = 0;
     virtual GrTexture* onWrapBackendTexture(const GrBackendTextureDesc&) = 0;
     virtual GrRenderTarget* onWrapBackendRenderTarget(const GrBackendRenderTargetDesc&) = 0;
     virtual GrVertexBuffer* onCreateVertexBuffer(size_t size, bool dynamic) = 0;
     virtual GrIndexBuffer* onCreateIndexBuffer(size_t size, bool dynamic) = 0;
     virtual GrPath* onCreatePath(const SkPath& path, const SkStrokeRec&) = 0;
-    virtual GrPathRange* onCreatePathRange(size_t size, const SkStrokeRec&) = 0;
 
     // overridden by backend-specific derived class to perform the clear and
     // clearRect. NULL rect means clear whole target. If canIgnoreRect is
@@ -452,10 +438,9 @@ private:
     // overridden by backend-specific derived class to perform the path stenciling.
     virtual void onGpuStencilPath(const GrPath*, SkPath::FillType) = 0;
     virtual void onGpuDrawPath(const GrPath*, SkPath::FillType) = 0;
-    virtual void onGpuDrawPaths(const GrPathRange*,
-                                const uint32_t indices[], int count,
-                                const float transforms[], PathTransformType,
-                                SkPath::FillType) = 0;
+
+    // overridden by backend-specific derived class to perform flush
+    virtual void onForceRenderTargetFlush() = 0;
 
     // overridden by backend-specific derived class to perform the read pixels.
     virtual bool onReadPixels(GrRenderTarget* target,
@@ -498,10 +483,6 @@ private:
     virtual void onStencilPath(const GrPath*, SkPath::FillType) SK_OVERRIDE;
     virtual void onDrawPath(const GrPath*, SkPath::FillType,
                             const GrDeviceCoordTexture* dstCopy) SK_OVERRIDE;
-    virtual void onDrawPaths(const GrPathRange*,
-                             const uint32_t indices[], int count,
-                             const float transforms[], PathTransformType,
-                             SkPath::FillType, const GrDeviceCoordTexture*) SK_OVERRIDE;
 
     // readies the pools to provide vertex/index data.
     void prepareVertexPool();
@@ -526,7 +507,7 @@ private:
     enum {
         kPreallocGeomPoolStateStackCnt = 4,
     };
-    typedef SkTInternalLList<GrGpuResource> ObjectList;
+    typedef SkTInternalLList<GrResource> ResourceList;
     SkSTArray<kPreallocGeomPoolStateStackCnt, GeometryPoolState, true>  fGeomPoolStateStack;
     ResetTimestamp                                                      fResetTimestamp;
     uint32_t                                                            fResetBits;
@@ -539,7 +520,7 @@ private:
     mutable GrIndexBuffer*                                              fQuadIndexBuffer;
     // Used to abandon/release all resources created by this GrGpu. TODO: Move this
     // functionality to GrResourceCache.
-    ObjectList                                                          fObjectList;
+    ResourceList                                                        fResourceList;
 
     typedef GrDrawTarget INHERITED;
 };

@@ -1741,6 +1741,7 @@ LIRGenerator::visitToDouble(MToDouble *convert)
         return lowerConstantDouble(0, convert);
 
       case MIRType_Undefined:
+      case MIRType_Symbol:
         JS_ASSERT(conversion != MToDouble::NumbersOnly);
         return lowerConstantDouble(GenericNaN(), convert);
 
@@ -1764,7 +1765,7 @@ LIRGenerator::visitToDouble(MToDouble *convert)
         return redefine(convert, opd);
 
       default:
-        // Objects might be effectful. Symbols will throw.
+        // Objects might be effectful.
         // Strings are complicated - we don't handle them yet.
         MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
@@ -1790,6 +1791,7 @@ LIRGenerator::visitToFloat32(MToFloat32 *convert)
         return lowerConstantFloat32(0, convert);
 
       case MIRType_Undefined:
+      case MIRType_Symbol:
         JS_ASSERT(conversion != MToFloat32::NumbersOnly);
         return lowerConstantFloat32(GenericNaN(), convert);
 
@@ -1813,7 +1815,7 @@ LIRGenerator::visitToFloat32(MToFloat32 *convert)
         return redefine(convert, opd);
 
       default:
-        // Objects might be effectful. Symbols will throw.
+        // Objects might be effectful.
         // Strings are complicated - we don't handle them yet.
         MOZ_ASSUME_UNREACHABLE("unexpected type");
         return false;
@@ -1860,7 +1862,7 @@ LIRGenerator::visitToInt32(MToInt32 *convert)
       case MIRType_Symbol:
       case MIRType_Object:
       case MIRType_Undefined:
-        // Objects might be effectful. Symbols throw. Undefined coerces to NaN, not int32.
+        // Objects might be effectful. Undefined and symbols coerce to NaN, not int32.
         MOZ_ASSUME_UNREACHABLE("ToInt32 invalid input type");
         return false;
 
@@ -1888,6 +1890,7 @@ LIRGenerator::visitTruncateToInt32(MTruncateToInt32 *truncate)
 
       case MIRType_Null:
       case MIRType_Undefined:
+      case MIRType_Symbol:
         return define(new(alloc()) LInteger(0), truncate);
 
       case MIRType_Int32:
@@ -1901,7 +1904,7 @@ LIRGenerator::visitTruncateToInt32(MTruncateToInt32 *truncate)
         return lowerTruncateFToInt32(truncate);
 
       default:
-        // Objects might be effectful. Symbols throw.
+        // Objects might be effectful.
         // Strings are complicated - we don't handle them yet.
         MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
@@ -3636,28 +3639,6 @@ LIRGenerator::visitRecompileCheck(MRecompileCheck *ins)
     if (!add(lir, ins))
         return false;
     return assignSafepoint(lir, ins);
-}
-
-bool
-LIRGenerator::visitSimdExtractElement(MSimdExtractElement *ins)
-{
-    JS_ASSERT(IsSimdType(ins->input()->type()));
-    JS_ASSERT(!IsSimdType(ins->type()));
-
-    if (ins->input()->type() == MIRType_Int32x4) {
-        // Note: there could be int16x8 in the future, which doesn't use the
-        // same instruction. We either need to pass the arity or create new LIns.
-        LUse use = useRegisterAtStart(ins->input());
-        return define(new(alloc()) LSimdExtractElementI(use, ins->lane()), ins);
-    }
-
-    if (ins->input()->type() == MIRType_Float32x4) {
-        LUse use = useRegisterAtStart(ins->input());
-        return define(new(alloc()) LSimdExtractElementF(use, ins->lane()), ins);
-    }
-
-    MOZ_ASSUME_UNREACHABLE("Unknown SIMD kind when extracting element");
-    return false;
 }
 
 static void

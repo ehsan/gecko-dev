@@ -14,7 +14,7 @@ GrGLIndexBuffer::GrGLIndexBuffer(GrGpuGL* gpu, const Desc& desc)
 }
 
 void GrGLIndexBuffer::onRelease() {
-    if (!this->wasDestroyed()) {
+    if (this->isValid()) {
         fImpl.release(this->getGpuGL());
     }
 
@@ -26,22 +26,30 @@ void GrGLIndexBuffer::onAbandon() {
     INHERITED::onAbandon();
 }
 
-void* GrGLIndexBuffer::onMap() {
-    if (!this->wasDestroyed()) {
-        return fImpl.map(this->getGpuGL());
+void* GrGLIndexBuffer::lock() {
+    if (this->isValid()) {
+        return fImpl.lock(this->getGpuGL());
     } else {
         return NULL;
     }
 }
 
-void GrGLIndexBuffer::onUnmap() {
-    if (!this->wasDestroyed()) {
-        fImpl.unmap(this->getGpuGL());
+void* GrGLIndexBuffer::lockPtr() const {
+    return fImpl.lockPtr();
+}
+
+void GrGLIndexBuffer::unlock() {
+    if (this->isValid()) {
+        fImpl.unlock(this->getGpuGL());
     }
 }
 
-bool GrGLIndexBuffer::onUpdateData(const void* src, size_t srcSizeInBytes) {
-    if (!this->wasDestroyed()) {
+bool GrGLIndexBuffer::isLocked() const {
+    return fImpl.isLocked();
+}
+
+bool GrGLIndexBuffer::updateData(const void* src, size_t srcSizeInBytes) {
+    if (this->isValid()) {
         return fImpl.updateData(this->getGpuGL(), src, srcSizeInBytes);
     } else {
         return false;

@@ -77,14 +77,14 @@ function run_tests()
   is(subwin.getComputedStyle(visitedlink, "").color, "rgb(0, 0, 255)",
      "getComputedStyle on visited link should report color is blue");
 
-  // Test matches.
-  is(unvisitedlink.matches(":link"), true,
+  // Test mozMatchesSelector.
+  is(unvisitedlink.mozMatchesSelector(":link"), true,
      "unvisited link matches :link");
-  is(visitedlink.matches(":link"), true,
+  is(visitedlink.mozMatchesSelector(":link"), true,
      "visited link matches :link");
-  is(unvisitedlink.matches(":visited"), false,
+  is(unvisitedlink.mozMatchesSelector(":visited"), false,
      "unvisited link does not match :visited");
-  is(visitedlink.matches(":visited"), false,
+  is(visitedlink.mozMatchesSelector(":visited"), false,
      "visited link does not match :visited");
 
   SimpleTest.finish();

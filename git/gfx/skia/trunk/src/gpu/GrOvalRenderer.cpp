@@ -10,7 +10,6 @@
 #include "GrEffect.h"
 #include "gl/GrGLEffect.h"
 #include "gl/GrGLSL.h"
-#include "gl/GrGLShaderBuilder.h"
 #include "gl/GrGLVertexEffect.h"
 #include "GrTBackendEffectFactory.h"
 
@@ -20,31 +19,29 @@
 
 #include "SkRRect.h"
 #include "SkStrokeRec.h"
-#include "SkTLazy.h"
 
 #include "effects/GrVertexEffect.h"
-#include "effects/GrRRectEffect.h"
 
 namespace {
 
 struct CircleVertex {
-    SkPoint  fPos;
-    SkPoint  fOffset;
+    GrPoint  fPos;
+    GrPoint  fOffset;
     SkScalar fOuterRadius;
     SkScalar fInnerRadius;
 };
 
 struct EllipseVertex {
-    SkPoint  fPos;
-    SkPoint  fOffset;
-    SkPoint  fOuterRadii;
-    SkPoint  fInnerRadii;
+    GrPoint  fPos;
+    GrPoint  fOffset;
+    GrPoint  fOuterRadii;
+    GrPoint  fInnerRadii;
 };
 
 struct DIEllipseVertex {
-    SkPoint  fPos;
-    SkPoint  fOuterOffset;
-    SkPoint  fInnerOffset;
+    GrPoint  fPos;
+    GrPoint  fOuterOffset;
+    GrPoint  fInnerOffset;
 };
 
 inline bool circle_stays_circle(const SkMatrix& m) {
@@ -62,7 +59,7 @@ inline bool circle_stays_circle(const SkMatrix& m) {
 
 class CircleEdgeEffect : public GrVertexEffect {
 public:
-    static GrEffect* Create(bool stroke) {
+    static GrEffectRef* Create(bool stroke) {
         GR_CREATE_STATIC_EFFECT(gCircleStrokeEdge, CircleEdgeEffect, (true));
         GR_CREATE_STATIC_EFFECT(gCircleFillEdge, CircleEdgeEffect, (false));
 
@@ -97,7 +94,7 @@ public:
 
         virtual void emitCode(GrGLFullShaderBuilder* builder,
                               const GrDrawEffect& drawEffect,
-                              const GrEffectKey& key,
+                              EffectKey key,
                               const char* outputColor,
                               const char* inputColor,
                               const TransformedCoordsArray&,
@@ -121,10 +118,10 @@ public:
                                    (GrGLSLExpr4(inputColor) * GrGLSLExpr1("edgeAlpha")).c_str());
         }
 
-        static void GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                           GrEffectKeyBuilder* b) {
+        static inline EffectKey GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
             const CircleEdgeEffect& circleEffect = drawEffect.castEffect<CircleEdgeEffect>();
-            b->add32(circleEffect.isStroked());
+
+            return circleEffect.isStroked() ? 0x1 : 0x0;
         }
 
         virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {}
@@ -154,10 +151,10 @@ private:
 
 GR_DEFINE_EFFECT_TEST(CircleEdgeEffect);
 
-GrEffect* CircleEdgeEffect::TestCreate(SkRandom* random,
-                                       GrContext* context,
-                                       const GrDrawTargetCaps&,
-                                       GrTexture* textures[]) {
+GrEffectRef* CircleEdgeEffect::TestCreate(SkRandom* random,
+                                          GrContext* context,
+                                          const GrDrawTargetCaps&,
+                                          GrTexture* textures[]) {
     return CircleEdgeEffect::Create(random->nextBool());
 }
 
@@ -173,7 +170,7 @@ GrEffect* CircleEdgeEffect::TestCreate(SkRandom* random,
 
 class EllipseEdgeEffect : public GrVertexEffect {
 public:
-    static GrEffect* Create(bool stroke) {
+    static GrEffectRef* Create(bool stroke) {
         GR_CREATE_STATIC_EFFECT(gEllipseStrokeEdge, EllipseEdgeEffect, (true));
         GR_CREATE_STATIC_EFFECT(gEllipseFillEdge, EllipseEdgeEffect, (false));
 
@@ -208,7 +205,7 @@ public:
 
         virtual void emitCode(GrGLFullShaderBuilder* builder,
                               const GrDrawEffect& drawEffect,
-                              const GrEffectKey& key,
+                              EffectKey key,
                               const char* outputColor,
                               const char* inputColor,
                               const TransformedCoordsArray&,
@@ -233,7 +230,9 @@ public:
             builder->fsCodeAppend("\tfloat test = dot(scaledOffset, scaledOffset) - 1.0;\n");
             builder->fsCodeAppendf("\tvec2 grad = 2.0*scaledOffset*%s.xy;\n", fsRadiiName);
             builder->fsCodeAppend("\tfloat grad_dot = dot(grad, grad);\n");
-            // avoid calling inversesqrt on zero.
+            // we need to clamp the length^2 of the gradiant vector to a non-zero value, because
+            // on the Nexus 4 the undefined result of inversesqrt(0) drops out an entire tile
+            // TODO: restrict this to Adreno-only
             builder->fsCodeAppend("\tgrad_dot = max(grad_dot, 1.0e-4);\n");
             builder->fsCodeAppend("\tfloat invlen = inversesqrt(grad_dot);\n");
             builder->fsCodeAppend("\tfloat edgeAlpha = clamp(0.5-test*invlen, 0.0, 1.0);\n");
@@ -251,10 +250,10 @@ public:
                                    (GrGLSLExpr4(inputColor) * GrGLSLExpr1("edgeAlpha")).c_str());
         }
 
-        static void GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                           GrEffectKeyBuilder* b) {
+        static inline EffectKey GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
             const EllipseEdgeEffect& ellipseEffect = drawEffect.castEffect<EllipseEdgeEffect>();
-            b->add32(ellipseEffect.isStroked());
+
+            return ellipseEffect.isStroked() ? 0x1 : 0x0;
         }
 
         virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {
@@ -285,10 +284,10 @@ private:
 
 GR_DEFINE_EFFECT_TEST(EllipseEdgeEffect);
 
-GrEffect* EllipseEdgeEffect::TestCreate(SkRandom* random,
-                                        GrContext* context,
-                                        const GrDrawTargetCaps&,
-                                        GrTexture* textures[]) {
+GrEffectRef* EllipseEdgeEffect::TestCreate(SkRandom* random,
+                                           GrContext* context,
+                                           const GrDrawTargetCaps&,
+                                           GrTexture* textures[]) {
     return EllipseEdgeEffect::Create(random->nextBool());
 }
 
@@ -307,7 +306,7 @@ class DIEllipseEdgeEffect : public GrVertexEffect {
 public:
     enum Mode { kStroke = 0, kHairline, kFill };
 
-    static GrEffect* Create(Mode mode) {
+    static GrEffectRef* Create(Mode mode) {
         GR_CREATE_STATIC_EFFECT(gEllipseStrokeEdge, DIEllipseEdgeEffect, (kStroke));
         GR_CREATE_STATIC_EFFECT(gEllipseHairlineEdge, DIEllipseEdgeEffect, (kHairline));
         GR_CREATE_STATIC_EFFECT(gEllipseFillEdge, DIEllipseEdgeEffect, (kFill));
@@ -346,7 +345,7 @@ public:
 
         virtual void emitCode(GrGLFullShaderBuilder* builder,
                               const GrDrawEffect& drawEffect,
-                              const GrEffectKey& key,
+                              EffectKey key,
                               const char* outputColor,
                               const char* inputColor,
                               const TransformedCoordsArray&,
@@ -379,7 +378,9 @@ public:
                                    fsOffsetName0, fsOffsetName0, fsOffsetName0, fsOffsetName0);
 
             builder->fsCodeAppend("\tfloat grad_dot = dot(grad, grad);\n");
-            // avoid calling inversesqrt on zero.
+            // we need to clamp the length^2 of the gradiant vector to a non-zero value, because
+            // on the Nexus 4 the undefined result of inversesqrt(0) drops out an entire tile
+            // TODO: restrict this to Adreno-only
             builder->fsCodeAppend("\tgrad_dot = max(grad_dot, 1.0e-4);\n");
             builder->fsCodeAppend("\tfloat invlen = inversesqrt(grad_dot);\n");
             if (kHairline == ellipseEffect.getMode()) {
@@ -407,12 +408,10 @@ public:
                                    (GrGLSLExpr4(inputColor) * GrGLSLExpr1("edgeAlpha")).c_str());
         }
 
-        static void GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                           GrEffectKeyBuilder* b) {
-            const DIEllipseEdgeEffect& ellipseEffect =
-                drawEffect.castEffect<DIEllipseEdgeEffect>();
+        static inline EffectKey GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
+            const DIEllipseEdgeEffect& ellipseEffect = drawEffect.castEffect<DIEllipseEdgeEffect>();
 
-            b->add32(ellipseEffect.getMode());
+            return ellipseEffect.getMode();
         }
 
         virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {
@@ -443,10 +442,10 @@ private:
 
 GR_DEFINE_EFFECT_TEST(DIEllipseEdgeEffect);
 
-GrEffect* DIEllipseEdgeEffect::TestCreate(SkRandom* random,
-                                          GrContext* context,
-                                          const GrDrawTargetCaps&,
-                                          GrTexture* textures[]) {
+GrEffectRef* DIEllipseEdgeEffect::TestCreate(SkRandom* random,
+                                             GrContext* context,
+                                             const GrDrawTargetCaps&,
+                                             GrTexture* textures[]) {
     return DIEllipseEdgeEffect::Create((Mode)(random->nextRangeU(0,2)));
 }
 
@@ -491,7 +490,7 @@ bool GrOvalRenderer::drawOval(GrDrawTarget* target, const GrContext* context, bo
 // position + edge
 extern const GrVertexAttrib gCircleVertexAttribs[] = {
     {kVec2f_GrVertexAttribType, 0,               kPosition_GrVertexAttribBinding},
-    {kVec4f_GrVertexAttribType, sizeof(SkPoint), kEffect_GrVertexAttribBinding}
+    {kVec4f_GrVertexAttribType, sizeof(GrPoint), kEffect_GrVertexAttribBinding}
 };
 
 void GrOvalRenderer::drawCircle(GrDrawTarget* target,
@@ -502,7 +501,7 @@ void GrOvalRenderer::drawCircle(GrDrawTarget* target,
     GrDrawState* drawState = target->drawState();
 
     const SkMatrix& vm = drawState->getViewMatrix();
-    SkPoint center = SkPoint::Make(circle.centerX(), circle.centerY());
+    GrPoint center = GrPoint::Make(circle.centerX(), circle.centerY());
     vm.mapPoints(&center, 1);
     SkScalar radius = vm.mapRadius(SkScalarHalf(circle.width()));
     SkScalar strokeWidth = vm.mapRadius(stroke.getWidth());
@@ -524,14 +523,12 @@ void GrOvalRenderer::drawCircle(GrDrawTarget* target,
     CircleVertex* verts = reinterpret_cast<CircleVertex*>(geo.vertices());
 
     SkStrokeRec::Style style = stroke.getStyle();
-    bool isStrokeOnly = SkStrokeRec::kStroke_Style == style ||
-                        SkStrokeRec::kHairline_Style == style;
-    bool hasStroke = isStrokeOnly || SkStrokeRec::kStrokeAndFill_Style == style;
+    bool isStroked = (SkStrokeRec::kStroke_Style == style || SkStrokeRec::kHairline_Style == style);
 
     SkScalar innerRadius = 0.0f;
     SkScalar outerRadius = radius;
     SkScalar halfWidth = 0;
-    if (hasStroke) {
+    if (style != SkStrokeRec::kFill_Style) {
         if (SkScalarNearlyZero(strokeWidth)) {
             halfWidth = SK_ScalarHalf;
         } else {
@@ -539,12 +536,12 @@ void GrOvalRenderer::drawCircle(GrDrawTarget* target,
         }
 
         outerRadius += halfWidth;
-        if (isStrokeOnly) {
+        if (isStroked) {
             innerRadius = radius - halfWidth;
         }
     }
 
-    GrEffect* effect = CircleEdgeEffect::Create(isStrokeOnly && innerRadius > 0);
+    GrEffectRef* effect = CircleEdgeEffect::Create(isStroked && innerRadius > 0);
     static const int kCircleEdgeAttrIndex = 1;
     drawState->addCoverageEffect(effect, kCircleEdgeAttrIndex)->unref();
 
@@ -590,15 +587,15 @@ void GrOvalRenderer::drawCircle(GrDrawTarget* target,
 // position + offset + 1/radii
 extern const GrVertexAttrib gEllipseVertexAttribs[] = {
     {kVec2f_GrVertexAttribType, 0,                 kPosition_GrVertexAttribBinding},
-    {kVec2f_GrVertexAttribType, sizeof(SkPoint),   kEffect_GrVertexAttribBinding},
-    {kVec4f_GrVertexAttribType, 2*sizeof(SkPoint), kEffect_GrVertexAttribBinding}
+    {kVec2f_GrVertexAttribType, sizeof(GrPoint),   kEffect_GrVertexAttribBinding},
+    {kVec4f_GrVertexAttribType, 2*sizeof(GrPoint), kEffect_GrVertexAttribBinding}
 };
 
 // position + offsets
 extern const GrVertexAttrib gDIEllipseVertexAttribs[] = {
     {kVec2f_GrVertexAttribType, 0,                 kPosition_GrVertexAttribBinding},
-    {kVec2f_GrVertexAttribType, sizeof(SkPoint),   kEffect_GrVertexAttribBinding},
-    {kVec2f_GrVertexAttribType, 2*sizeof(SkPoint), kEffect_GrVertexAttribBinding},
+    {kVec2f_GrVertexAttribType, sizeof(GrPoint),   kEffect_GrVertexAttribBinding},
+    {kVec2f_GrVertexAttribType, 2*sizeof(GrPoint), kEffect_GrVertexAttribBinding},
 };
 
 bool GrOvalRenderer::drawEllipse(GrDrawTarget* target,
@@ -617,7 +614,7 @@ bool GrOvalRenderer::drawEllipse(GrDrawTarget* target,
 
     // do any matrix crunching before we reset the draw state for device coords
     const SkMatrix& vm = drawState->getViewMatrix();
-    SkPoint center = SkPoint::Make(ellipse.centerX(), ellipse.centerY());
+    GrPoint center = GrPoint::Make(ellipse.centerX(), ellipse.centerY());
     vm.mapPoints(&center, 1);
     SkScalar ellipseXRadius = SkScalarHalf(ellipse.width());
     SkScalar ellipseYRadius = SkScalarHalf(ellipse.height());
@@ -633,13 +630,11 @@ bool GrOvalRenderer::drawEllipse(GrDrawTarget* target,
     scaledStroke.fY = SkScalarAbs(strokeWidth*(vm[SkMatrix::kMSkewX] + vm[SkMatrix::kMScaleY]));
 
     SkStrokeRec::Style style = stroke.getStyle();
-    bool isStrokeOnly = SkStrokeRec::kStroke_Style == style ||
-                        SkStrokeRec::kHairline_Style == style;
-    bool hasStroke = isStrokeOnly || SkStrokeRec::kStrokeAndFill_Style == style;
+    bool isStroked = (SkStrokeRec::kStroke_Style == style || SkStrokeRec::kHairline_Style == style);
 
     SkScalar innerXRadius = 0;
     SkScalar innerYRadius = 0;
-    if (hasStroke) {
+    if (SkStrokeRec::kFill_Style != style) {
         if (SkScalarNearlyZero(scaledStroke.length())) {
             scaledStroke.set(SK_ScalarHalf, SK_ScalarHalf);
         } else {
@@ -659,7 +654,7 @@ bool GrOvalRenderer::drawEllipse(GrDrawTarget* target,
         }
 
         // this is legit only if scale & translation (which should be the case at the moment)
-        if (isStrokeOnly) {
+        if (isStroked) {
             innerXRadius = xRadius - scaledStroke.fX;
             innerYRadius = yRadius - scaledStroke.fY;
         }
@@ -684,8 +679,8 @@ bool GrOvalRenderer::drawEllipse(GrDrawTarget* target,
 
     EllipseVertex* verts = reinterpret_cast<EllipseVertex*>(geo.vertices());
 
-    GrEffect* effect = EllipseEdgeEffect::Create(isStrokeOnly &&
-                                                 innerXRadius > 0 && innerYRadius > 0);
+    GrEffectRef* effect = EllipseEdgeEffect::Create(isStroked &&
+                                                    innerXRadius > 0 && innerYRadius > 0);
 
     static const int kEllipseCenterAttrIndex = 1;
     static const int kEllipseEdgeAttrIndex = 2;
@@ -743,7 +738,7 @@ bool GrOvalRenderer::drawDIEllipse(GrDrawTarget* target,
     GrDrawState* drawState = target->drawState();
     const SkMatrix& vm = drawState->getViewMatrix();
 
-    SkPoint center = SkPoint::Make(ellipse.centerX(), ellipse.centerY());
+    GrPoint center = GrPoint::Make(ellipse.centerX(), ellipse.centerY());
     SkScalar xRadius = SkScalarHalf(ellipse.width());
     SkScalar yRadius = SkScalarHalf(ellipse.height());
 
@@ -803,7 +798,7 @@ bool GrOvalRenderer::drawDIEllipse(GrDrawTarget* target,
 
     DIEllipseVertex* verts = reinterpret_cast<DIEllipseVertex*>(geo.vertices());
 
-    GrEffect* effect = DIEllipseEdgeEffect::Create(mode);
+    GrEffectRef* effect = DIEllipseEdgeEffect::Create(mode);
 
     static const int kEllipseOuterOffsetAttrIndex = 1;
     static const int kEllipseInnerOffsetAttrIndex = 2;
@@ -886,69 +881,9 @@ GrIndexBuffer* GrOvalRenderer::rRectIndexBuffer(GrGpu* gpu) {
     return fRRectIndexBuffer;
 }
 
-bool GrOvalRenderer::drawDRRect(GrDrawTarget* target, GrContext* context, bool useAA,
-                                const SkRRect& origOuter, const SkRRect& origInner) {
-    bool applyAA = useAA &&
-                   !target->getDrawState().getRenderTarget()->isMultisampled() &&
-                   !target->shouldDisableCoverageAAForBlend();
-    GrDrawState::AutoRestoreEffects are;
-    if (!origInner.isEmpty()) {
-        SkTCopyOnFirstWrite<SkRRect> inner(origInner);
-        if (!context->getMatrix().isIdentity()) {
-            if (!origInner.transform(context->getMatrix(), inner.writable())) {
-                return false;
-            }
-        }
-        GrEffectEdgeType edgeType = applyAA ? kInverseFillAA_GrEffectEdgeType :
-                                              kInverseFillBW_GrEffectEdgeType;
-        GrEffect* effect = GrRRectEffect::Create(edgeType, *inner);
-        if (NULL == effect) {
-            return false;
-        }
-        are.set(target->drawState());
-        target->drawState()->addCoverageEffect(effect)->unref();
-    }
-
-    SkStrokeRec fillRec(SkStrokeRec::kFill_InitStyle);
-    if (this->drawRRect(target, context, useAA, origOuter, fillRec)) {
-        return true;
-    }
-
-    SkASSERT(!origOuter.isEmpty());
-    SkTCopyOnFirstWrite<SkRRect> outer(origOuter);
-    if (!context->getMatrix().isIdentity()) {
-        if (!origOuter.transform(context->getMatrix(), outer.writable())) {
-            return false;
-        }
-    }
-    GrEffectEdgeType edgeType = applyAA ? kFillAA_GrEffectEdgeType :
-                                          kFillBW_GrEffectEdgeType;
-    GrEffect* effect = GrRRectEffect::Create(edgeType, *outer);
-    if (NULL == effect) {
-        return false;
-    }
-    if (!are.isSet()) {
-        are.set(target->drawState());
-    }
-    GrDrawState::AutoViewMatrixRestore avmr;
-    if (!avmr.setIdentity(target->drawState())) {
-        return false;
-    }
-    target->drawState()->addCoverageEffect(effect)->unref();
-    SkRect bounds = outer->getBounds();
-    if (applyAA) {
-        bounds.outset(SK_ScalarHalf, SK_ScalarHalf);
-    }
-    target->drawRect(bounds, NULL, NULL, NULL);
-    return true;
-}
-
-bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool useAA,
-                               const SkRRect& rrect, const SkStrokeRec& stroke) {
-    if (rrect.isOval()) {
-        return this->drawOval(target, context, useAA, rrect.getBounds(), stroke);
-    }
-
+bool GrOvalRenderer::drawSimpleRRect(GrDrawTarget* target, GrContext* context, bool useAA,
+                                     const SkRRect& rrect, const SkStrokeRec& stroke)
+{
     bool useCoverageAA = useAA &&
         !target->getDrawState().getRenderTarget()->isMultisampled() &&
         !target->shouldDisableCoverageAAForBlend();
@@ -959,10 +894,12 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
     }
 
     const SkMatrix& vm = context->getMatrix();
-
-    if (!vm.rectStaysRect() || !rrect.isSimple()) {
-        return false;
+#ifdef SK_DEBUG
+    {
+        // we should have checked for this previously
+        SkASSERT(useCoverageAA && vm.rectStaysRect() && rrect.isSimple());
     }
+#endif
 
     // do any matrix crunching before we reset the draw state for device coords
     const SkRect& rrectBounds = rrect.getBounds();
@@ -975,38 +912,21 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
     SkScalar yRadius = SkScalarAbs(vm[SkMatrix::kMSkewX]*radii.fX +
                                    vm[SkMatrix::kMScaleY]*radii.fY);
 
+    // if hairline stroke is greater than radius, we don't handle that right now
     SkStrokeRec::Style style = stroke.getStyle();
+    if (SkStrokeRec::kHairline_Style == style &&
+        (SK_ScalarHalf > xRadius || SK_ScalarHalf > yRadius)) {
+        return false;
+    }
 
     // do (potentially) anisotropic mapping of stroke
     SkVector scaledStroke;
     SkScalar strokeWidth = stroke.getWidth();
+    scaledStroke.fX = SkScalarAbs(strokeWidth*(vm[SkMatrix::kMScaleX] + vm[SkMatrix::kMSkewY]));
+    scaledStroke.fY = SkScalarAbs(strokeWidth*(vm[SkMatrix::kMSkewX] + vm[SkMatrix::kMScaleY]));
 
-    bool isStrokeOnly = SkStrokeRec::kStroke_Style == style ||
-                        SkStrokeRec::kHairline_Style == style;
-    bool hasStroke = isStrokeOnly || SkStrokeRec::kStrokeAndFill_Style == style;
-
-    if (hasStroke) {
-        if (SkStrokeRec::kHairline_Style == style) {
-            scaledStroke.set(1, 1);
-        } else {
-            scaledStroke.fX = SkScalarAbs(strokeWidth*(vm[SkMatrix::kMScaleX] +
-                                                       vm[SkMatrix::kMSkewY]));
-            scaledStroke.fY = SkScalarAbs(strokeWidth*(vm[SkMatrix::kMSkewX] +
-                                                       vm[SkMatrix::kMScaleY]));
-        }
-
-        // if half of strokewidth is greater than radius, we don't handle that right now
-        if (SK_ScalarHalf*scaledStroke.fX > xRadius || SK_ScalarHalf*scaledStroke.fY > yRadius) {
-            return false;
-        }
-    }
-
-    // The way the effect interpolates the offset-to-ellipse/circle-center attribute only works on
-    // the interior of the rrect if the radii are >= 0.5. Otherwise, the inner rect of the nine-
-    // patch will have fractional coverage. This only matters when the interior is actually filled.
-    // We could consider falling back to rect rendering here, since a tiny radius is
-    // indistinguishable from a square corner.
-    if (!isStrokeOnly && (SK_ScalarHalf > xRadius || SK_ScalarHalf > yRadius)) {
+    // if half of strokewidth is greater than radius, we don't handle that right now
+    if (SK_ScalarHalf*scaledStroke.fX > xRadius || SK_ScalarHalf*scaledStroke.fY > yRadius) {
         return false;
     }
 
@@ -1017,6 +937,8 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
         return false;
     }
 
+    bool isStroked = (SkStrokeRec::kStroke_Style == style || SkStrokeRec::kHairline_Style == style);
+
     GrIndexBuffer* indexBuffer = this->rRectIndexBuffer(context->getGpu());
     if (NULL == indexBuffer) {
         GrPrintf("Failed to create index buffer!\n");
@@ -1024,7 +946,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
     }
 
     // if the corners are circles, use the circle renderer
-    if ((!hasStroke || scaledStroke.fX == scaledStroke.fY) && xRadius == yRadius) {
+    if ((!isStroked || scaledStroke.fX == scaledStroke.fY) && xRadius == yRadius) {
         drawState->setVertexAttribs<gCircleVertexAttribs>(SK_ARRAY_COUNT(gCircleVertexAttribs));
         SkASSERT(sizeof(CircleVertex) == drawState->getVertexSize());
 
@@ -1038,23 +960,23 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
         SkScalar innerRadius = 0.0f;
         SkScalar outerRadius = xRadius;
         SkScalar halfWidth = 0;
-        if (hasStroke) {
+        if (style != SkStrokeRec::kFill_Style) {
             if (SkScalarNearlyZero(scaledStroke.fX)) {
                 halfWidth = SK_ScalarHalf;
             } else {
                 halfWidth = SkScalarHalf(scaledStroke.fX);
             }
 
-            if (isStrokeOnly) {
+            if (isStroked) {
                 innerRadius = xRadius - halfWidth;
             }
             outerRadius += halfWidth;
             bounds.outset(halfWidth, halfWidth);
         }
 
-        isStrokeOnly = (isStrokeOnly && innerRadius >= 0);
+        isStroked = (isStroked && innerRadius >= 0);
 
-        GrEffect* effect = CircleEdgeEffect::Create(isStrokeOnly);
+        GrEffectRef* effect = CircleEdgeEffect::Create(isStroked);
         static const int kCircleEdgeAttrIndex = 1;
         drawState->addCoverageEffect(effect, kCircleEdgeAttrIndex)->unref();
 
@@ -1107,8 +1029,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
         }
 
         // drop out the middle quad if we're stroked
-        int indexCnt = isStrokeOnly ? SK_ARRAY_COUNT(gRRectIndices) - 6 :
-                                      SK_ARRAY_COUNT(gRRectIndices);
+        int indexCnt = isStroked ? GR_ARRAY_COUNT(gRRectIndices)-6 : GR_ARRAY_COUNT(gRRectIndices);
         target->setIndexSourceToBuffer(indexBuffer);
         target->drawIndexed(kTriangles_GrPrimitiveType, 0, 0, 16, indexCnt, &bounds);
 
@@ -1119,7 +1040,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
 
         SkScalar innerXRadius = 0.0f;
         SkScalar innerYRadius = 0.0f;
-        if (hasStroke) {
+        if (SkStrokeRec::kFill_Style != style) {
             if (SkScalarNearlyZero(scaledStroke.length())) {
                 scaledStroke.set(SK_ScalarHalf, SK_ScalarHalf);
             } else {
@@ -1139,7 +1060,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
             }
 
             // this is legit only if scale & translation (which should be the case at the moment)
-            if (isStrokeOnly) {
+            if (isStroked) {
                 innerXRadius = xRadius - scaledStroke.fX;
                 innerYRadius = yRadius - scaledStroke.fY;
             }
@@ -1149,7 +1070,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
             bounds.outset(scaledStroke.fX, scaledStroke.fY);
         }
 
-        isStrokeOnly = (isStrokeOnly && innerXRadius >= 0 && innerYRadius >= 0);
+        isStroked = (isStroked && innerXRadius >= 0 && innerYRadius >= 0);
 
         GrDrawTarget::AutoReleaseGeometry geo(target, 16, 0);
         if (!geo.succeeded()) {
@@ -1158,7 +1079,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
         }
         EllipseVertex* verts = reinterpret_cast<EllipseVertex*>(geo.vertices());
 
-        GrEffect* effect = EllipseEdgeEffect::Create(isStrokeOnly);
+        GrEffectRef* effect = EllipseEdgeEffect::Create(isStroked);
         static const int kEllipseOffsetAttrIndex = 1;
         static const int kEllipseRadiiAttrIndex = 2;
         drawState->addCoverageEffect(effect,
@@ -1217,8 +1138,7 @@ bool GrOvalRenderer::drawRRect(GrDrawTarget* target, GrContext* context, bool us
         }
 
         // drop out the middle quad if we're stroked
-        int indexCnt = isStrokeOnly ? SK_ARRAY_COUNT(gRRectIndices) - 6 :
-                                      SK_ARRAY_COUNT(gRRectIndices);
+        int indexCnt = isStroked ? GR_ARRAY_COUNT(gRRectIndices)-6 : GR_ARRAY_COUNT(gRRectIndices);
         target->setIndexSourceToBuffer(indexBuffer);
         target->drawIndexed(kTriangles_GrPrimitiveType, 0, 0, 16, indexCnt, &bounds);
     }

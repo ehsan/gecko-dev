@@ -8,7 +8,6 @@
 
 
 #include "SkUtils.h"
-#include "SkLazyFnPtr.h"
 
 #if 0
 #define assign_16_longs(dst, value)             \
@@ -38,7 +37,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static void sk_memset16_portable(uint16_t dst[], uint16_t value, int count) {
+void sk_memset16_portable(uint16_t dst[], uint16_t value, int count) {
     SkASSERT(dst != NULL && count >= 0);
 
     if (count <= 0) {
@@ -91,7 +90,7 @@ static void sk_memset16_portable(uint16_t dst[], uint16_t value, int count) {
     }
 }
 
-static void sk_memset32_portable(uint32_t dst[], uint32_t value, int count) {
+void sk_memset32_portable(uint32_t dst[], uint32_t value, int count) {
     SkASSERT(dst != NULL && count >= 0);
 
     int sixteenlongs = count >> 4;
@@ -109,45 +108,21 @@ static void sk_memset32_portable(uint32_t dst[], uint32_t value, int count) {
     }
 }
 
-static void sk_memcpy32_portable(uint32_t dst[], const uint32_t src[], int count) {
-    memcpy(dst, src, count * sizeof(uint32_t));
-}
-
-namespace {
-// These three methods technically need external linkage to be passed as template parameters.
-// Since they can't be static, we hide them in an anonymous namespace instead.
-
-SkMemset16Proc choose_memset16() {
+static void sk_memset16_stub(uint16_t dst[], uint16_t value, int count) {
     SkMemset16Proc proc = SkMemset16GetPlatformProc();
-    return proc ? proc : sk_memset16_portable;
+    sk_memset16 = proc ? proc : sk_memset16_portable;
+    sk_memset16(dst, value, count);
 }
 
-SkMemset32Proc choose_memset32() {
+SkMemset16Proc sk_memset16 = sk_memset16_stub;
+
+static void sk_memset32_stub(uint32_t dst[], uint32_t value, int count) {
     SkMemset32Proc proc = SkMemset32GetPlatformProc();
-    return proc ? proc : sk_memset32_portable;
+    sk_memset32 = proc ? proc : sk_memset32_portable;
+    sk_memset32(dst, value, count);
 }
 
-SkMemcpy32Proc choose_memcpy32() {
-    SkMemcpy32Proc proc = SkMemcpy32GetPlatformProc();
-    return proc ? proc : sk_memcpy32_portable;
-}
-
-}  // namespace
-
-void sk_memset16(uint16_t dst[], uint16_t value, int count) {
-    SK_DECLARE_STATIC_LAZY_FN_PTR(SkMemset16Proc, proc, choose_memset16);
-    proc.get()(dst, value, count);
-}
-
-void sk_memset32(uint32_t dst[], uint32_t value, int count) {
-    SK_DECLARE_STATIC_LAZY_FN_PTR(SkMemset32Proc, proc, choose_memset32);
-    proc.get()(dst, value, count);
-}
-
-void sk_memcpy32(uint32_t dst[], const uint32_t src[], int count) {
-    SK_DECLARE_STATIC_LAZY_FN_PTR(SkMemcpy32Proc, proc, choose_memcpy32);
-    proc.get()(dst, src, count);
-}
+SkMemset32Proc sk_memset32 = sk_memset32_stub;
 
 ///////////////////////////////////////////////////////////////////////////////
 

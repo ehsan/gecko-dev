@@ -30,8 +30,8 @@ enum PlaybackMode {
     kSilent_PlaybackMode,
 };
 
-static bool should_draw_immediately(const SkBitmap* bitmap, const SkPaint* paint,
-                                    size_t bitmapSizeThreshold) {
+static bool shouldDrawImmediately(const SkBitmap* bitmap, const SkPaint* paint,
+                           size_t bitmapSizeThreshold) {
     if (bitmap && ((bitmap->getTexture() && !bitmap->isImmutable()) ||
         (bitmap->getSize() > bitmapSizeThreshold))) {
         return true;
@@ -150,22 +150,34 @@ public:
     bool hasPendingCommands();
     size_t storageAllocatedForRecording() const;
     size_t freeMemoryIfPossible(size_t bytesToFree);
+    size_t getBitmapSizeThreshold() const;
+    void setBitmapSizeThreshold(size_t sizeThreshold);
     void flushPendingCommands(PlaybackMode);
     void skipPendingCommands();
     void setMaxRecordingStorage(size_t);
     void recordedDrawCommand();
 
+    virtual int width() const SK_OVERRIDE;
+    virtual int height() const SK_OVERRIDE;
+    virtual SkBitmap::Config config() const SK_OVERRIDE;
+    virtual bool isOpaque() const SK_OVERRIDE;
     virtual SkImageInfo imageInfo() const SK_OVERRIDE;
 
     virtual GrRenderTarget* accessRenderTarget() SK_OVERRIDE;
 
     virtual SkBaseDevice* onCreateDevice(const SkImageInfo&, Usage) SK_OVERRIDE;
 
+#ifdef SK_SUPPORT_LEGACY_WRITEPIXELSCONFIG
+    virtual void writePixels(const SkBitmap& bitmap, int x, int y,
+                                SkCanvas::Config8888 config8888) SK_OVERRIDE;
+#endif
     virtual SkSurface* newSurface(const SkImageInfo&) SK_OVERRIDE;
 
 protected:
     virtual const SkBitmap& onAccessBitmap() SK_OVERRIDE;
-    virtual bool onReadPixels(const SkImageInfo&, void*, size_t, int x, int y) SK_OVERRIDE;
+    virtual bool onReadPixels(const SkBitmap& bitmap,
+                                int x, int y,
+                                SkCanvas::Config8888 config8888) SK_OVERRIDE;
     virtual bool onWritePixels(const SkImageInfo&, const void*, size_t, int x, int y) SK_OVERRIDE;
 
     // The following methods are no-ops on a deferred device
@@ -261,6 +273,7 @@ private:
     bool fCanDiscardCanvasContents;
     size_t fMaxRecordingStorageBytes;
     size_t fPreviousStorageAllocated;
+    size_t fBitmapSizeThreshold;
 };
 
 SkDeferredDevice::SkDeferredDevice(SkSurface* surface) {
@@ -283,6 +296,7 @@ void SkDeferredDevice::init() {
     fFreshFrame = true;
     fCanDiscardCanvasContents = false;
     fPreviousStorageAllocated = 0;
+    fBitmapSizeThreshold = kDeferredCanvasBitmapSizeThreshold;
     fMaxRecordingStorageBytes = kDefaultMaxRecordingStorageBytes;
     fNotificationClient = NULL;
     this->beginRecording();
@@ -316,6 +330,9 @@ void SkDeferredDevice::skipPendingCommands() {
         if (fPipeController.hasPendingCommands()) {
             fFreshFrame = true;
             flushPendingCommands(kSilent_PlaybackMode);
+            if (fNotificationClient) {
+                fNotificationClient->skippedPendingDrawCommands();
+            }
         }
     }
 }
@@ -352,14 +369,9 @@ void SkDeferredDevice::flushPendingCommands(PlaybackMode playbackMode) {
     }
     fPipeWriter.flushRecording(true);
     fPipeController.playback(kSilent_PlaybackMode == playbackMode);
-    if (fNotificationClient) {
-        if (playbackMode == kSilent_PlaybackMode) {
-            fNotificationClient->skippedPendingDrawCommands();
-        } else {
-            fNotificationClient->flushedDrawCommands();
-        }
+    if (playbackMode == kNormal_PlaybackMode && fNotificationClient) {
+        fNotificationClient->flushedDrawCommands();
     }
-
     fPreviousStorageAllocated = storageAllocatedForRecording();
 }
 
@@ -372,6 +384,14 @@ size_t SkDeferredDevice::freeMemoryIfPossible(size_t bytesToFree) {
     size_t val = fPipeWriter.freeMemoryIfPossible(bytesToFree);
     fPreviousStorageAllocated = storageAllocatedForRecording();
     return val;
+}
+
+size_t SkDeferredDevice::getBitmapSizeThreshold() const {
+    return fBitmapSizeThreshold;
+}
+
+void SkDeferredDevice::setBitmapSizeThreshold(size_t sizeThreshold) {
+    fBitmapSizeThreshold = sizeThreshold;
 }
 
 size_t SkDeferredDevice::storageAllocatedForRecording() const {
@@ -411,6 +431,22 @@ SkImage* SkDeferredDevice::newImageSnapshot() {
     return fSurface ? fSurface->newImageSnapshot() : NULL;
 }
 
+int SkDeferredDevice::width() const {
+    return immediateDevice()->width();
+}
+
+int SkDeferredDevice::height() const {
+    return immediateDevice()->height();
+}
+
+SkBitmap::Config SkDeferredDevice::config() const {
+    return immediateDevice()->config();
+}
+
+bool SkDeferredDevice::isOpaque() const {
+    return immediateDevice()->isOpaque();
+}
+
 SkImageInfo SkDeferredDevice::imageInfo() const {
     return immediateDevice()->imageInfo();
 }
@@ -436,6 +472,37 @@ void SkDeferredDevice::prepareForImmediatePixelWrite() {
 
     fImmediateCanvas->flush();
 }
+
+#ifdef SK_SUPPORT_LEGACY_WRITEPIXELSCONFIG
+void SkDeferredDevice::writePixels(const SkBitmap& bitmap, int x, int y,
+                                 SkCanvas::Config8888 config8888) {
+
+    if (x <= 0 && y <= 0 && (x + bitmap.width()) >= width() &&
+        (y + bitmap.height()) >= height()) {
+        this->skipPendingCommands();
+    }
+
+    if (SkBitmap::kARGB_8888_Config == bitmap.config() &&
+        SkCanvas::kNative_Premul_Config8888 != config8888 &&
+        kPMColorAlias != config8888) {
+        //Special case config: no deferral
+        prepareForImmediatePixelWrite();
+        immediateDevice()->writePixels(bitmap, x, y, config8888);
+        return;
+    }
+
+    SkPaint paint;
+    paint.setXfermodeMode(SkXfermode::kSrc_Mode);
+    if (shouldDrawImmediately(&bitmap, NULL, getBitmapSizeThreshold())) {
+        prepareForImmediatePixelWrite();
+        fImmediateCanvas->drawSprite(bitmap, x, y, &paint);
+    } else {
+        this->recordingCanvas()->drawSprite(bitmap, x, y, &paint);
+        this->recordedDrawCommand();
+
+    }
+}
+#endif
 
 bool SkDeferredDevice::onWritePixels(const SkImageInfo& info, const void* pixels, size_t rowBytes,
                                    int x, int y) {
@@ -474,10 +541,11 @@ SkSurface* SkDeferredDevice::newSurface(const SkImageInfo& info) {
     return this->immediateDevice()->newSurface(info);
 }
 
-bool SkDeferredDevice::onReadPixels(const SkImageInfo& info, void* pixels, size_t rowBytes,
-                                    int x, int y) {
+bool SkDeferredDevice::onReadPixels(
+    const SkBitmap& bitmap, int x, int y, SkCanvas::Config8888 config8888) {
     this->flushPendingCommands(kNormal_PlaybackMode);
-    return fImmediateCanvas->readPixels(info, pixels, rowBytes, x, y);
+    return fImmediateCanvas->readPixels(const_cast<SkBitmap*>(&bitmap),
+                                                   x, y, config8888);
 }
 
 class AutoImmediateDrawIfNeeded {
@@ -497,9 +565,11 @@ public:
         }
     }
 private:
-    void init(SkDeferredCanvas& canvas, const SkBitmap* bitmap, const SkPaint* paint) {
-        if (canvas.isDeferredDrawing() &&
-            should_draw_immediately(bitmap, paint, canvas.getBitmapSizeThreshold())) {
+    void init(SkDeferredCanvas& canvas, const SkBitmap* bitmap, const SkPaint* paint)
+    {
+        SkDeferredDevice* device = static_cast<SkDeferredDevice*>(canvas.getDevice());
+        if (canvas.isDeferredDrawing() && (NULL != device) &&
+            shouldDrawImmediately(bitmap, paint, device->getBitmapSizeThreshold())) {
             canvas.setDeferredDrawing(false);
             fCanvas = &canvas;
         } else {
@@ -520,7 +590,6 @@ SkDeferredCanvas::SkDeferredCanvas(SkDeferredDevice* device) : SkCanvas (device)
 }
 
 void SkDeferredCanvas::init() {
-    fBitmapSizeThreshold = kDeferredCanvasBitmapSizeThreshold;
     fDeferredDrawing = true; // On by default
 }
 
@@ -538,7 +607,9 @@ size_t SkDeferredCanvas::freeMemoryIfPossible(size_t bytesToFree) {
 }
 
 void SkDeferredCanvas::setBitmapSizeThreshold(size_t sizeThreshold) {
-    fBitmapSizeThreshold = sizeThreshold;
+    SkDeferredDevice* deferredDevice = this->getDeferredDevice();
+    SkASSERT(deferredDevice);
+    deferredDevice->setBitmapSizeThreshold(sizeThreshold);
 }
 
 void SkDeferredCanvas::recordedDrawCommand() {
@@ -663,10 +734,10 @@ bool SkDeferredCanvas::isFullFrame(const SkRect* rect,
         SkIntToScalar(canvasSize.fWidth), SkIntToScalar(canvasSize.fHeight)));
 }
 
-void SkDeferredCanvas::willSave() {
-    this->drawingCanvas()->save();
+void SkDeferredCanvas::willSave(SaveFlags flags) {
+    this->drawingCanvas()->save(flags);
     this->recordedDrawCommand();
-    this->INHERITED::willSave();
+    this->INHERITED::willSave(flags);
 }
 
 SkCanvas::SaveLayerStrategy SkDeferredCanvas::willSaveLayer(const SkRect* bounds,
@@ -686,6 +757,30 @@ void SkDeferredCanvas::willRestore() {
 
 bool SkDeferredCanvas::isDrawingToLayer() const {
     return this->drawingCanvas()->isDrawingToLayer();
+}
+
+void SkDeferredCanvas::didTranslate(SkScalar dx, SkScalar dy) {
+    this->drawingCanvas()->translate(dx, dy);
+    this->recordedDrawCommand();
+    this->INHERITED::didTranslate(dx, dy);
+}
+
+void SkDeferredCanvas::didScale(SkScalar sx, SkScalar sy) {
+    this->drawingCanvas()->scale(sx, sy);
+    this->recordedDrawCommand();
+    this->INHERITED::didScale(sx, sy);
+}
+
+void SkDeferredCanvas::didRotate(SkScalar degrees) {
+    this->drawingCanvas()->rotate(degrees);
+    this->recordedDrawCommand();
+    this->INHERITED::didRotate(degrees);
+}
+
+void SkDeferredCanvas::didSkew(SkScalar sx, SkScalar sy) {
+    this->drawingCanvas()->skew(sx, sy);
+    this->recordedDrawCommand();
+    this->INHERITED::didSkew(sx, sy);
 }
 
 void SkDeferredCanvas::didConcat(const SkMatrix& matrix) {
@@ -869,35 +964,38 @@ void SkDeferredCanvas::drawSprite(const SkBitmap& bitmap, int left, int top,
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                                  const SkPaint& paint) {
+void SkDeferredCanvas::drawText(const void* text, size_t byteLength,
+                                SkScalar x, SkScalar y, const SkPaint& paint) {
     AutoImmediateDrawIfNeeded autoDraw(*this, &paint);
     this->drawingCanvas()->drawText(text, byteLength, x, y, paint);
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                                     const SkPaint& paint) {
+void SkDeferredCanvas::drawPosText(const void* text, size_t byteLength,
+                                   const SkPoint pos[], const SkPaint& paint) {
     AutoImmediateDrawIfNeeded autoDraw(*this, &paint);
     this->drawingCanvas()->drawPosText(text, byteLength, pos, paint);
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                      SkScalar constY, const SkPaint& paint) {
+void SkDeferredCanvas::drawPosTextH(const void* text, size_t byteLength,
+                                    const SkScalar xpos[], SkScalar constY,
+                                    const SkPaint& paint) {
     AutoImmediateDrawIfNeeded autoDraw(*this, &paint);
     this->drawingCanvas()->drawPosTextH(text, byteLength, xpos, constY, paint);
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                        const SkMatrix* matrix, const SkPaint& paint) {
+void SkDeferredCanvas::drawTextOnPath(const void* text, size_t byteLength,
+                                      const SkPath& path,
+                                      const SkMatrix* matrix,
+                                      const SkPaint& paint) {
     AutoImmediateDrawIfNeeded autoDraw(*this, &paint);
     this->drawingCanvas()->drawTextOnPath(text, byteLength, path, matrix, paint);
     this->recordedDrawCommand();
 }
 
-void SkDeferredCanvas::onDrawPicture(const SkPicture* picture) {
+void SkDeferredCanvas::drawPicture(SkPicture& picture) {
     this->drawingCanvas()->drawPicture(picture);
     this->recordedDrawCommand();
 }
@@ -912,6 +1010,13 @@ void SkDeferredCanvas::drawVertices(VertexMode vmode, int vertexCount,
     this->drawingCanvas()->drawVertices(vmode, vertexCount, vertices, texs, colors, xmode,
                                         indices, indexCount, paint);
     this->recordedDrawCommand();
+}
+
+SkBounder* SkDeferredCanvas::setBounder(SkBounder* bounder) {
+    this->drawingCanvas()->setBounder(bounder);
+    this->INHERITED::setBounder(bounder);
+    this->recordedDrawCommand();
+    return bounder;
 }
 
 SkDrawFilter* SkDeferredCanvas::setDrawFilter(SkDrawFilter* filter) {

@@ -8,10 +8,6 @@
 
 #include "SkBBoxRecord.h"
 
-SkBBoxRecord::~SkBBoxRecord() {
-    fSaveStack.deleteAll();
-}
-
 void SkBBoxRecord::drawOval(const SkRect& rect, const SkPaint& paint) {
     if (this->transformBounds(rect, &paint)) {
         INHERITED::drawOval(rect, paint);
@@ -88,8 +84,8 @@ void SkBBoxRecord::clear(SkColor color) {
     INHERITED::clear(color);
 }
 
-void SkBBoxRecord::onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                              const SkPaint& paint) {
+void SkBBoxRecord::drawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
+                            const SkPaint& paint) {
     SkRect bbox;
     paint.measureText(text, byteLength, &bbox);
     SkPaint::FontMetrics metrics;
@@ -132,7 +128,7 @@ void SkBBoxRecord::onDrawText(const void* text, size_t byteLength, SkScalar x, S
     bbox.fTop += y;
     bbox.fBottom += y;
     if (this->transformBounds(bbox, &paint)) {
-        INHERITED::onDrawText(text, byteLength, x, y, paint);
+        INHERITED::drawText(text, byteLength, x, y, paint);
     }
 }
 
@@ -169,20 +165,8 @@ void SkBBoxRecord::drawBitmapNine(const SkBitmap& bitmap, const SkIRect& center,
     }
 }
 
-// Hack to work-around https://code.google.com/p/chromium/issues/detail?id=373785
-// This logic assums that 'pad' is enough to add to the left and right to account for
-// big glyphs. For the font in question (a logo font) the glyphs is much wider than just
-// the pointsize (approx 3x wider).
-// As a temp work-around, we scale-up pad.
-// A more correct fix might be to add fontmetrics.fMaxX, but we don't have that value in hand
-// at the moment, and (possibly) the value in the font may not be accurate (but who knows).
-//
-static SkScalar hack_373785_amend_pad(SkScalar pad) {
-    return pad * 4;
-}
-
-void SkBBoxRecord::onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                                 const SkPaint& paint) {
+void SkBBoxRecord::drawPosText(const void* text, size_t byteLength,
+                               const SkPoint pos[], const SkPaint& paint) {
     SkRect bbox;
     bbox.set(pos, paint.countText(text, byteLength));
     SkPaint::FontMetrics metrics;
@@ -192,17 +176,16 @@ void SkBBoxRecord::onDrawPosText(const void* text, size_t byteLength, const SkPo
 
     // pad on left and right by half of max vertical glyph extents
     SkScalar pad = (metrics.fTop - metrics.fBottom) / 2;
-    pad = hack_373785_amend_pad(pad);
     bbox.fLeft += pad;
     bbox.fRight -= pad;
 
     if (this->transformBounds(bbox, &paint)) {
-        INHERITED::onDrawPosText(text, byteLength, pos, paint);
+        INHERITED::drawPosText(text, byteLength, pos, paint);
     }
 }
 
-void SkBBoxRecord::onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                  SkScalar constY, const SkPaint& paint) {
+void SkBBoxRecord::drawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
+                                SkScalar constY, const SkPaint& paint) {
     size_t numChars = paint.countText(text, byteLength);
     if (numChars == 0) {
         return;
@@ -229,7 +212,6 @@ void SkBBoxRecord::onDrawPosTextH(const void* text, size_t byteLength, const SkS
     }
 
     // pad horizontally by max glyph height
-    pad = hack_373785_amend_pad(pad);
     bbox.fLeft  += pad;
     bbox.fRight -= pad;
 
@@ -253,8 +235,9 @@ void SkBBoxRecord::drawSprite(const SkBitmap& bitmap, int left, int top,
     INHERITED::drawSprite(bitmap, left, top, paint);
 }
 
-void SkBBoxRecord::onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                    const SkMatrix* matrix, const SkPaint& paint) {
+void SkBBoxRecord::drawTextOnPath(const void* text, size_t byteLength,
+                                  const SkPath& path, const SkMatrix* matrix,
+                                  const SkPaint& paint) {
     SkRect bbox = path.getBounds();
     SkPaint::FontMetrics metrics;
     paint.getFontMetrics(&metrics);
@@ -267,7 +250,7 @@ void SkBBoxRecord::onDrawTextOnPath(const void* text, size_t byteLength, const S
     bbox.fBottom -= pad;
 
     if (this->transformBounds(bbox, &paint)) {
-        INHERITED::onDrawTextOnPath(text, byteLength, path, matrix, paint);
+        INHERITED::drawTextOnPath(text, byteLength, path, matrix, paint);
     }
 }
 
@@ -284,31 +267,11 @@ void SkBBoxRecord::drawVertices(VertexMode mode, int vertexCount,
     }
 }
 
-void SkBBoxRecord::onDrawPicture(const SkPicture* picture) {
-    if (picture->width() > 0 && picture->height() > 0 &&
-        this->transformBounds(SkRect::MakeWH(picture->width(), picture->height()), NULL)) {
-        this->INHERITED::onDrawPicture(picture);
+void SkBBoxRecord::drawPicture(SkPicture& picture) {
+    if (picture.width() > 0 && picture.height() > 0 &&
+        this->transformBounds(SkRect::MakeWH(picture.width(), picture.height()), NULL)) {
+        INHERITED::drawPicture(picture);
     }
-}
-
-void SkBBoxRecord::willSave() {
-    fSaveStack.push(NULL);
-    this->INHERITED::willSave();
-}
-
-SkCanvas::SaveLayerStrategy SkBBoxRecord::willSaveLayer(const SkRect* bounds,
-                                                        const SkPaint* paint,
-                                                        SaveFlags flags) {
-    // Image filters can affect the effective bounds of primitives drawn inside saveLayer().
-    // Copy the paint so we can compute the modified bounds in transformBounds().
-    fSaveStack.push(paint && paint->getImageFilter() ? new SkPaint(*paint) : NULL);
-    return this->INHERITED::willSaveLayer(bounds, paint, flags);
-}
-
-void SkBBoxRecord::willRestore() {
-    delete fSaveStack.top();
-    fSaveStack.pop();
-    this->INHERITED::willRestore();
 }
 
 bool SkBBoxRecord::transformBounds(const SkRect& bounds, const SkPaint* paint) {
@@ -326,14 +289,6 @@ bool SkBBoxRecord::transformBounds(const SkRect& bounds, const SkPaint* paint) {
                 // current clip is empty
                 return false;
             }
-        }
-    }
-
-    for (int i = fSaveStack.count() - 1; i >= 0; --i) {
-        const SkPaint* paint = fSaveStack.getAt(i);
-        if (paint && paint->canComputeFastBounds()) {
-            SkRect temp;
-            outBounds = paint->computeFastBounds(outBounds, &temp);
         }
     }
 

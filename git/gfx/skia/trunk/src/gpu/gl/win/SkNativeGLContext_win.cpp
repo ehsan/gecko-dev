@@ -7,6 +7,7 @@
  */
 
 #include "gl/SkNativeGLContext.h"
+#include "SkWGL.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -27,8 +28,7 @@ ATOM SkNativeGLContext::gWC = 0;
 SkNativeGLContext::SkNativeGLContext()
     : fWindow(NULL)
     , fDeviceContext(NULL)
-    , fGlRenderContext(0)
-    , fPbufferContext(NULL) {
+    , fGlRenderContext(0) {
 }
 
 SkNativeGLContext::~SkNativeGLContext() {
@@ -36,22 +36,18 @@ SkNativeGLContext::~SkNativeGLContext() {
 }
 
 void SkNativeGLContext::destroyGLContext() {
-    SkSafeSetNull(fPbufferContext);
     if (fGlRenderContext) {
         wglDeleteContext(fGlRenderContext);
-        fGlRenderContext = 0;
     }
     if (fWindow && fDeviceContext) {
         ReleaseDC(fWindow, fDeviceContext);
-        fDeviceContext = 0;
     }
     if (fWindow) {
         DestroyWindow(fWindow);
-        fWindow = 0;
     }
 }
 
-const GrGLInterface* SkNativeGLContext::createGLContext(GrGLStandard forcedGpuAPI) {
+const GrGLInterface* SkNativeGLContext::createGLContext() {
     HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(NULL);
 
     if (!gWC) {
@@ -89,41 +85,19 @@ const GrGLInterface* SkNativeGLContext::createGLContext(GrGLStandard forcedGpuAP
         this->destroyGLContext();
         return NULL;
     }
-    // Requesting a Core profile would bar us from using NVPR. So we request
-    // compatibility profile or GL ES.
-    SkWGLContextRequest contextType =
-        kGLES_GrGLStandard == forcedGpuAPI ?
-        kGLES_SkWGLContextRequest : kGLPreferCompatibilityProfile_SkWGLContextRequest;
 
-    fPbufferContext = SkWGLPbufferContext::Create(fDeviceContext, 0, contextType);
-
-    HDC dc;
-    HGLRC glrc;
-
-    if (NULL == fPbufferContext) {
-        if (!(fGlRenderContext = SkCreateWGLContext(fDeviceContext, 0, contextType))) {
-            SkDebugf("Could not create rendering context.\n");
-            this->destroyGLContext();
-            return NULL;
-        }
-        dc = fDeviceContext;
-        glrc = fGlRenderContext;
-    } else {
-        ReleaseDC(fWindow, fDeviceContext);
-        fDeviceContext = 0;
-        DestroyWindow(fWindow);
-        fWindow = 0;
-
-        dc = fPbufferContext->getDC();
-        glrc = fPbufferContext->getGLRC();
-    }
-
-    if (!(wglMakeCurrent(dc, glrc))) {
-        SkDebugf("Could not set the context.\n");
+    // Requesting a Core profile would bar us from using NVPR. So we pass false.
+    if (!(fGlRenderContext = SkCreateWGLContext(fDeviceContext, 0, false))) {
+        SkDebugf("Could not create rendering context.\n");
         this->destroyGLContext();
         return NULL;
     }
 
+    if (!(wglMakeCurrent(fDeviceContext, fGlRenderContext))) {
+        SkDebugf("Could not set the context.\n");
+        this->destroyGLContext();
+        return NULL;
+    }
     const GrGLInterface* interface = GrGLCreateNativeInterface();
     if (NULL == interface) {
         SkDebugf("Could not create GL interface.\n");
@@ -135,31 +109,13 @@ const GrGLInterface* SkNativeGLContext::createGLContext(GrGLStandard forcedGpuAP
 }
 
 void SkNativeGLContext::makeCurrent() const {
-    HDC dc;
-    HGLRC glrc;
-
-    if (NULL == fPbufferContext) {
-        dc = fDeviceContext;
-        glrc = fGlRenderContext;
-    } else {
-        dc = fPbufferContext->getDC();
-        glrc = fPbufferContext->getGLRC();
-    }
-
-    if (!wglMakeCurrent(dc, glrc)) {
+    if (!wglMakeCurrent(fDeviceContext, fGlRenderContext)) {
         SkDebugf("Could not create rendering context.\n");
     }
 }
 
 void SkNativeGLContext::swapBuffers() const {
-    HDC dc;
-
-    if (NULL == fPbufferContext) {
-        dc = fDeviceContext;
-    } else {
-        dc = fPbufferContext->getDC();
-    }
-    if (!SwapBuffers(dc)) {
+    if (!SwapBuffers(fDeviceContext)) {
         SkDebugf("Could not complete SwapBuffers.\n");
     }
 }

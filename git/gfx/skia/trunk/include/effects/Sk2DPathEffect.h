@@ -14,9 +14,14 @@
 
 class SK_API Sk2DPathEffect : public SkPathEffect {
 public:
-    virtual bool filterPath(SkPath*, const SkPath&, SkStrokeRec*, const SkRect*) const SK_OVERRIDE;
+    static Sk2DPathEffect* Create(const SkMatrix& mat) {
+        return SkNEW_ARGS(Sk2DPathEffect, (mat));
+    }
 
-    SK_DECLARE_UNFLATTENABLE_OBJECT()
+    virtual bool filterPath(SkPath*, const SkPath&,
+                            SkStrokeRec*, const SkRect*) const SK_OVERRIDE;
+
+    SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(Sk2DPathEffect)
 
 protected:
     /** New virtual, to be overridden by subclasses.
@@ -38,9 +43,13 @@ protected:
     const SkMatrix& getMatrix() const { return fMatrix; }
 
     // protected so that subclasses can call this during unflattening
-    explicit Sk2DPathEffect(const SkMatrix& mat);
-    explicit Sk2DPathEffect(SkReadBuffer&);
+    Sk2DPathEffect(SkReadBuffer&);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
+
+#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
+public:
+#endif
+    Sk2DPathEffect(const SkMatrix& mat);
 
 private:
     SkMatrix    fMatrix, fInverse;
@@ -66,13 +75,17 @@ public:
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkLine2DPathEffect)
 
 protected:
-    SkLine2DPathEffect(SkScalar width, const SkMatrix& matrix)
-        : Sk2DPathEffect(matrix), fWidth(width) {}
-    explicit SkLine2DPathEffect(SkReadBuffer&);
+    virtual void nextSpan(int u, int v, int ucount, SkPath*) const SK_OVERRIDE;
+
+    SkLine2DPathEffect(SkReadBuffer&);
 
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
 
-    virtual void nextSpan(int u, int v, int ucount, SkPath*) const SK_OVERRIDE;
+#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
+public:
+#endif
+    SkLine2DPathEffect(SkScalar width, const SkMatrix& matrix)
+    : Sk2DPathEffect(matrix), fWidth(width) {}
 
 private:
     SkScalar fWidth;
@@ -93,11 +106,15 @@ public:
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkPath2DPathEffect)
 
 protected:
-    SkPath2DPathEffect(const SkMatrix&, const SkPath&);
-    explicit SkPath2DPathEffect(SkReadBuffer& buffer);
+    SkPath2DPathEffect(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
 
     virtual void next(const SkPoint&, int u, int v, SkPath*) const SK_OVERRIDE;
+
+#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
+public:
+#endif
+    SkPath2DPathEffect(const SkMatrix&, const SkPath&);
 
 private:
     SkPath  fPath;

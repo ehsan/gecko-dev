@@ -57,13 +57,13 @@ private:
     SkCanvas* fCanvas;
 };
 
-void SkNWayCanvas::willSave() {
+void SkNWayCanvas::willSave(SaveFlags flags) {
     Iter iter(fList);
     while (iter.next()) {
-        iter->save();
+        iter->save(flags);
     }
 
-    this->INHERITED::willSave();
+    this->INHERITED::willSave(flags);
 }
 
 SkCanvas::SaveLayerStrategy SkNWayCanvas::willSaveLayer(const SkRect* bounds, const SkPaint* paint,
@@ -84,6 +84,38 @@ void SkNWayCanvas::willRestore() {
         iter->restore();
     }
     this->INHERITED::willRestore();
+}
+
+void SkNWayCanvas::didTranslate(SkScalar dx, SkScalar dy) {
+    Iter iter(fList);
+    while (iter.next()) {
+        iter->translate(dx, dy);
+    }
+    this->INHERITED::didTranslate(dx, dy);
+}
+
+void SkNWayCanvas::didScale(SkScalar sx, SkScalar sy) {
+    Iter iter(fList);
+    while (iter.next()) {
+        iter->scale(sx, sy);
+    }
+    this->INHERITED::didScale(sx, sy);
+}
+
+void SkNWayCanvas::didRotate(SkScalar degrees) {
+    Iter iter(fList);
+    while (iter.next()) {
+        iter->rotate(degrees);
+    }
+    this->INHERITED::didRotate(degrees);
+}
+
+void SkNWayCanvas::didSkew(SkScalar sx, SkScalar sy) {
+    Iter iter(fList);
+    while (iter.next()) {
+        iter->skew(sx, sy);
+    }
+    this->INHERITED::didSkew(sx, sy);
 }
 
 void SkNWayCanvas::didConcat(const SkMatrix& matrix) {
@@ -233,39 +265,41 @@ void SkNWayCanvas::drawSprite(const SkBitmap& bitmap, int x, int y,
     }
 }
 
-void SkNWayCanvas::onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                              const SkPaint& paint) {
+void SkNWayCanvas::drawText(const void* text, size_t byteLength, SkScalar x,
+                            SkScalar y, const SkPaint& paint) {
     Iter iter(fList);
     while (iter.next()) {
         iter->drawText(text, byteLength, x, y, paint);
     }
 }
 
-void SkNWayCanvas::onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                                 const SkPaint& paint) {
+void SkNWayCanvas::drawPosText(const void* text, size_t byteLength,
+                               const SkPoint pos[], const SkPaint& paint) {
     Iter iter(fList);
     while (iter.next()) {
         iter->drawPosText(text, byteLength, pos, paint);
     }
 }
 
-void SkNWayCanvas::onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                  SkScalar constY, const SkPaint& paint) {
+void SkNWayCanvas::drawPosTextH(const void* text, size_t byteLength,
+                                const SkScalar xpos[], SkScalar constY,
+                                const SkPaint& paint) {
     Iter iter(fList);
     while (iter.next()) {
         iter->drawPosTextH(text, byteLength, xpos, constY, paint);
     }
 }
 
-void SkNWayCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                    const SkMatrix* matrix, const SkPaint& paint) {
+void SkNWayCanvas::drawTextOnPath(const void* text, size_t byteLength,
+                                  const SkPath& path, const SkMatrix* matrix,
+                                  const SkPaint& paint) {
     Iter iter(fList);
     while (iter.next()) {
         iter->drawTextOnPath(text, byteLength, path, matrix, paint);
     }
 }
 
-void SkNWayCanvas::onDrawPicture(const SkPicture* picture) {
+void SkNWayCanvas::drawPicture(SkPicture& picture) {
     Iter iter(fList);
     while (iter.next()) {
         iter->drawPicture(picture);
@@ -289,6 +323,14 @@ void SkNWayCanvas::drawData(const void* data, size_t length) {
     while (iter.next()) {
         iter->drawData(data, length);
     }
+}
+
+SkBounder* SkNWayCanvas::setBounder(SkBounder* bounder) {
+    Iter iter(fList);
+    while (iter.next()) {
+        iter->setBounder(bounder);
+    }
+    return this->INHERITED::setBounder(bounder);
 }
 
 SkDrawFilter* SkNWayCanvas::setDrawFilter(SkDrawFilter* filter) {

@@ -65,14 +65,7 @@ SourceSurfaceSkia::InitFromData(unsigned char* aData,
                                 SurfaceFormat aFormat)
 {
   SkBitmap temp;
-  SkAlphaType alphaType = (aFormat == SurfaceFormat::B8G8R8X8) ?
-    kOpaque_SkAlphaType : kPremul_SkAlphaType;
-
-  SkImageInfo info = SkImageInfo::Make(aSize.width,
-                                       aSize.height,
-                                       GfxFormatToSkiaColorType(aFormat),
-                                       alphaType);
-  temp.setInfo(info, aStride);
+  temp.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
   temp.setPixels(aData);
 
   if (!temp.copyTo(&mBitmap, GfxFormatToSkiaColorType(aFormat))) {

@@ -60,10 +60,8 @@ bool SkSnapshot::draw(SkAnimateMaker& maker) {
         name.append(".jpg");
     else if (type == SkImageEncoder::kPNG_Type)
         name.append(".png");
-
-    SkBitmap pixels;
-    pixels.allocPixels(maker.fCanvas->imageInfo());
-    maker.fCanvas->readPixels(&pixels, 0, 0);
-    encoder->encodeFile(name.c_str(), pixels, SkScalarFloorToInt(quality));
+    encoder->encodeFile(name.c_str(),
+                        maker.fCanvas->getDevice()->accessBitmap(false),
+                        SkScalarFloorToInt(quality));
     return false;
 }

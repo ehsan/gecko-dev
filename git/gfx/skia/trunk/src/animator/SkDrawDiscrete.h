@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,10 +6,11 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkDrawDiscrete_DEFINED
 #define SkDrawDiscrete_DEFINED
 
-#include "SkPaintPart.h"
+#include "SkPaintParts.h"
 
 class SkDiscrete : public SkDrawPathEffect {
     DECLARE_MEMBER_INFO(Discrete);

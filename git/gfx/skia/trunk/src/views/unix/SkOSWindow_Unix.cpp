@@ -200,13 +200,11 @@ static bool MyXNextEventWithDelay(Display* dsp, XEvent* evt) {
     return true;
 }
 
-static Atom wm_delete_window_message;
-
 SkOSWindow::NextXEventResult SkOSWindow::nextXEvent() {
     XEvent evt;
     Display* dsp = fUnixWindow.fDisplay;
 
-    if (!MyXNextEventWithDelay(dsp, &evt)) {
+    if (!MyXNextEventWithDelay(fUnixWindow.fDisplay, &evt)) {
         return kContinue_NextXEventResult;
     }
 
@@ -250,11 +248,6 @@ SkOSWindow::NextXEventResult SkOSWindow::nextXEvent() {
         case KeyRelease:
             this->handleKeyUp(XKeyToSkKey(XkbKeycodeToKeysym(dsp, evt.xkey.keycode, 0, 0)));
             break;
-        case ClientMessage:
-            if ((Atom)evt.xclient.data.l[0] == wm_delete_window_message) {
-                return kQuitRequest_NextXEventResult;
-            }
-            // fallthrough
         default:
             // Do nothing for other events
             break;
@@ -268,9 +261,6 @@ void SkOSWindow::loop() {
         return;
     }
     Window win = fUnixWindow.fWin;
-
-    wm_delete_window_message = XInternAtom(dsp, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(dsp, win, &wm_delete_window_message, 1);
 
     XSelectInput(dsp, win, EVENT_MASK);
 

@@ -39,7 +39,7 @@ enum GrCoordSet {
  * position). GrEffects just define these transformations, and the framework does the rest of the
  * work to make the transformed coordinates available in their fragment shader.
  */
-class GrCoordTransform : SkNoncopyable {
+class GrCoordTransform : public SkNoncopyable {
 public:
     GrCoordTransform() { SkDEBUGCODE(fInEffect = false); }
 

@@ -10,7 +10,6 @@
 #include "GLContext.h"
 #include "skia/GrGLInterface.h"
 #include "skia/GrContext.h"
-#include "mozilla/gfx/HelpersSkia.h"
 
 namespace mozilla {
 namespace gl {
@@ -37,8 +36,8 @@ protected:
 
 private:
   RefPtr<GLContext> mGLContext;
-  mozilla::gfx::RefPtrSkia<GrGLInterface> mGrGLInterface;
-  mozilla::gfx::RefPtrSkia<GrContext> mGrContext;
+  SkRefPtr<GrGLInterface> mGrGLInterface;
+  SkRefPtr<GrContext> mGrContext;
 };
 
 }

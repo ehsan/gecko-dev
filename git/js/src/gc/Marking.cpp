@@ -1395,8 +1395,9 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
 {
     unsigned count = type->getPropertyCount();
     for (unsigned i = 0; i < count; i++) {
-        if (types::Property *prop = type->getProperty(i))
-            MarkId(gcmarker, &prop->id, "TypeObject property id");
+        types::Property *prop = type->getProperty(i);
+        if (prop && JSID_IS_STRING(prop->id))
+            PushMarkStack(gcmarker, JSID_TO_STRING(prop->id));
     }
 
     if (type->proto().isObject())

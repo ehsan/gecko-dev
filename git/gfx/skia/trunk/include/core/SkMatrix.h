@@ -10,7 +10,6 @@
 #ifndef SkMatrix_DEFINED
 #define SkMatrix_DEFINED
 
-#include "SkDynamicAnnotations.h"
 #include "SkRect.h"
 
 class SkString;
@@ -219,57 +218,57 @@ public:
     /** Set the matrix to skew by sx and sy.
     */
     void setSkew(SkScalar kx, SkScalar ky);
-    /** Set the matrix to the concatenation of the two specified matrices.
-        Either of the two matrices may also be the target matrix.
-        *this = a * b;
+    /** Set the matrix to the concatenation of the two specified matrices,
+        returning true if the the result can be represented. Either of the
+        two matrices may also be the target matrix. *this = a * b;
     */
-    void setConcat(const SkMatrix& a, const SkMatrix& b);
+    bool setConcat(const SkMatrix& a, const SkMatrix& b);
 
     /** Preconcats the matrix with the specified translation.
         M' = M * T(dx, dy)
     */
-    void preTranslate(SkScalar dx, SkScalar dy);
+    bool preTranslate(SkScalar dx, SkScalar dy);
     /** Preconcats the matrix with the specified scale.
         M' = M * S(sx, sy, px, py)
     */
-    void preScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py);
+    bool preScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py);
     /** Preconcats the matrix with the specified scale.
         M' = M * S(sx, sy)
     */
-    void preScale(SkScalar sx, SkScalar sy);
+    bool preScale(SkScalar sx, SkScalar sy);
     /** Preconcats the matrix with the specified rotation.
         M' = M * R(degrees, px, py)
     */
-    void preRotate(SkScalar degrees, SkScalar px, SkScalar py);
+    bool preRotate(SkScalar degrees, SkScalar px, SkScalar py);
     /** Preconcats the matrix with the specified rotation.
         M' = M * R(degrees)
     */
-    void preRotate(SkScalar degrees);
+    bool preRotate(SkScalar degrees);
     /** Preconcats the matrix with the specified skew.
         M' = M * K(kx, ky, px, py)
     */
-    void preSkew(SkScalar kx, SkScalar ky, SkScalar px, SkScalar py);
+    bool preSkew(SkScalar kx, SkScalar ky, SkScalar px, SkScalar py);
     /** Preconcats the matrix with the specified skew.
         M' = M * K(kx, ky)
     */
-    void preSkew(SkScalar kx, SkScalar ky);
+    bool preSkew(SkScalar kx, SkScalar ky);
     /** Preconcats the matrix with the specified matrix.
         M' = M * other
     */
-    void preConcat(const SkMatrix& other);
+    bool preConcat(const SkMatrix& other);
 
     /** Postconcats the matrix with the specified translation.
         M' = T(dx, dy) * M
     */
-    void postTranslate(SkScalar dx, SkScalar dy);
+    bool postTranslate(SkScalar dx, SkScalar dy);
     /** Postconcats the matrix with the specified scale.
         M' = S(sx, sy, px, py) * M
     */
-    void postScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py);
+    bool postScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py);
     /** Postconcats the matrix with the specified scale.
         M' = S(sx, sy) * M
     */
-    void postScale(SkScalar sx, SkScalar sy);
+    bool postScale(SkScalar sx, SkScalar sy);
     /** Postconcats the matrix by dividing it by the specified integers.
         M' = S(1/divx, 1/divy, 0, 0) * M
     */
@@ -277,23 +276,23 @@ public:
     /** Postconcats the matrix with the specified rotation.
         M' = R(degrees, px, py) * M
     */
-    void postRotate(SkScalar degrees, SkScalar px, SkScalar py);
+    bool postRotate(SkScalar degrees, SkScalar px, SkScalar py);
     /** Postconcats the matrix with the specified rotation.
         M' = R(degrees) * M
     */
-    void postRotate(SkScalar degrees);
+    bool postRotate(SkScalar degrees);
     /** Postconcats the matrix with the specified skew.
         M' = K(kx, ky, px, py) * M
     */
-    void postSkew(SkScalar kx, SkScalar ky, SkScalar px, SkScalar py);
+    bool postSkew(SkScalar kx, SkScalar ky, SkScalar px, SkScalar py);
     /** Postconcats the matrix with the specified skew.
         M' = K(kx, ky) * M
     */
-    void postSkew(SkScalar kx, SkScalar ky);
+    bool postSkew(SkScalar kx, SkScalar ky);
     /** Postconcats the matrix with the specified matrix.
         M' = other * M
     */
-    void postConcat(const SkMatrix& other);
+    bool postConcat(const SkMatrix& other);
 
     enum ScaleToFit {
         /**
@@ -564,27 +563,20 @@ public:
     SK_TO_STRING_NONVIRT()
 
     /**
-     * Calculates the minimum scaling factor of the matrix as computed from the SVD of the upper
-     * left 2x2. If the matrix has perspective -1 is returned.
+     * Calculates the minimum stretching factor of the matrix. If the matrix has
+     * perspective -1 is returned.
      *
-     * @return minumum scale factor
+     * @return minumum strecthing factor
      */
-    SkScalar getMinScale() const;
+    SkScalar getMinStretch() const;
 
     /**
-     * Calculates the maximum scaling factor of the matrix as computed from the SVD of the upper
-     * left 2x2. If the matrix has perspective -1 is returned.
+     * Calculates the maximum stretching factor of the matrix. If the matrix has
+     * perspective -1 is returned.
      *
-     * @return maximum scale factor
+     * @return maximum strecthing factor
      */
-    SkScalar getMaxScale() const;
-
-    /**
-     * Gets both the min and max scale factors. The min scale factor is scaleFactors[0] and the max
-     * is scaleFactors[1]. If the matrix has perspective false will be returned and scaleFactors
-     * will be unchanged.
-     */
-    bool getMinMaxScales(SkScalar scaleFactors[2]) const;
+    SkScalar getMaxStretch() const;
 
     /**
      *  Return a reference to a const identity matrix
@@ -596,15 +588,6 @@ public:
      *  never be used.
      */
     static const SkMatrix& InvalidMatrix();
-
-    /**
-     * Return the concatenation of two matrices, a * b.
-     */
-    static SkMatrix Concat(const SkMatrix& a, const SkMatrix& b) {
-        SkMatrix result;
-        result.setConcat(a, b);
-        return result;
-    }
 
     /**
      * Testing routine; the matrix's type cache should never need to be
@@ -644,7 +627,7 @@ private:
     };
 
     SkScalar         fMat[9];
-    mutable SkTRacy<uint32_t> fTypeMask;
+    mutable uint32_t fTypeMask;
 
     uint8_t computeTypeMask() const;
     uint8_t computePerspectiveTypeMask() const;
@@ -665,7 +648,7 @@ private:
     void clearTypeMask(int mask) {
         // only allow a valid mask
         SkASSERT((mask & kAllMasks) == mask);
-        fTypeMask = fTypeMask & ~mask;
+        fTypeMask &= ~mask;
     }
 
     TypeMask getPerspectiveTypeMaskOnly() const {

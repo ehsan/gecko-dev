@@ -8,9 +8,14 @@
 #ifndef GrRectanizer_DEFINED
 #define GrRectanizer_DEFINED
 
-#include "GrTypes.h"
+#include "GrPoint.h"
 
-struct SkIPoint16;
+class GrRectanizerPurgeListener {
+public:
+    virtual ~GrRectanizerPurgeListener() {}
+
+    virtual void notifyPurgeStrip(void*, int yCoord) = 0;
+};
 
 class GrRectanizer {
 public:
@@ -26,10 +31,14 @@ public:
     int width() const { return fWidth; }
     int height() const { return fHeight; }
 
-    // Attempt to add a rect. Return true on success; false on failure. If
-    // successful the position in the atlas is returned in 'loc'.
-    virtual bool addRect(int width, int height, SkIPoint16* loc) = 0;
+    virtual bool addRect(int width, int height, GrIPoint16* loc) = 0;
     virtual float percentFull() const = 0;
+
+    // return the Y-coordinate of a strip that should be purged, given height
+    // i.e. return the oldest such strip, or some other criteria. Return -1
+    // if there is no candidate
+    virtual int stripToPurge(int height) const = 0;
+    virtual void purgeStripAtY(int yCoord) = 0;
 
     /**
      *  Our factory, which returns the subclass du jour

@@ -54,11 +54,10 @@ bool GrGLExtensions::init(GrGLStandard standard,
 
     // glGetStringi and indexed extensions were added in version 3.0 of desktop GL and ES.
     const GrGLubyte* verString = getString(GR_GL_VERSION);
-    GrGLVersion version = GrGLGetVersionFromString((const char*) verString);
-    if (GR_GL_INVALID_VER == version) {
+    if (NULL == verString) {
         return false;
     }
-
+    GrGLVersion version = GrGLGetVersionFromString((const char*) verString);
     bool indexed = version >= GR_GL_VER(3, 0);
 
     if (indexed) {

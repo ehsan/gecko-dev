@@ -112,7 +112,7 @@ private:
  *  key. However, if a GrEffect uses different swizzles based on its input then it must
  *  consider that variation in its key-generation.
  */
-class GrTextureAccess : SkNoncopyable {
+class GrTextureAccess : public SkNoncopyable {
 public:
     /**
      * A default GrTextureAccess must have reset() called on it in a GrEffect subclass's

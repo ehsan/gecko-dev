@@ -30,7 +30,7 @@ struct SkDLine {
     static double ExactPointH(const SkDPoint& xy, double left, double right, double y);
     static double ExactPointV(const SkDPoint& xy, double top, double bottom, double x);
     double isLeft(const SkDPoint& pt) const;
-    double nearPoint(const SkDPoint& xy, bool* unequal) const;
+    double nearPoint(const SkDPoint& xy) const;
     bool nearRay(const SkDPoint& xy) const;
     static double NearPointH(const SkDPoint& xy, double left, double right, double y);
     static double NearPointV(const SkDPoint& xy, double top, double bottom, double x);
@@ -38,7 +38,9 @@ struct SkDLine {
     SkDPoint ptAtT(double t) const;
     SkDLine subDivide(double t1, double t2) const;
 
-    void dump() const;
+#ifdef SK_DEBUG
+    void dump();
+#endif
 private:
     SkDVector tangent() const { return fPts[0] - fPts[1]; }
 };

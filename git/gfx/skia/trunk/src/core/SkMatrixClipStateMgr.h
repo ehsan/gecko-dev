@@ -53,7 +53,7 @@ public:
     static const int32_t kIdentityWideOpenStateID = 0;
     static const int kIdentityMatID = 0;
 
-    class MatrixClipState : SkNoncopyable {
+    class MatrixClipState : public SkNoncopyable {
     public:
         class MatrixInfo {
         public:
@@ -62,29 +62,29 @@ public:
                 fMatrix.reset();
             }
 
-            void preTranslate(SkScalar dx, SkScalar dy) {
+            bool preTranslate(SkScalar dx, SkScalar dy) {
                 fMatrixID = -1;
-                fMatrix.preTranslate(dx, dy);
+                return fMatrix.preTranslate(dx, dy);
             }
 
-            void preScale(SkScalar sx, SkScalar sy) {
+            bool preScale(SkScalar sx, SkScalar sy) {
                 fMatrixID = -1;
-                fMatrix.preScale(sx, sy);
+                return fMatrix.preScale(sx, sy);
             }
 
-            void preRotate(SkScalar degrees) {
+            bool preRotate(SkScalar degrees) {
                 fMatrixID = -1;
-                fMatrix.preRotate(degrees);
+                return fMatrix.preRotate(degrees);
             }
 
-            void preSkew(SkScalar sx, SkScalar sy) {
+            bool preSkew(SkScalar sx, SkScalar sy) {
                 fMatrixID = -1;
-                fMatrix.preSkew(sx, sy);
+                return fMatrix.preSkew(sx, sy);
             }
 
-            void preConcat(const SkMatrix& matrix) {
+            bool preConcat(const SkMatrix& matrix) {
                 fMatrixID = -1;
-                fMatrix.preConcat(matrix);
+                return fMatrix.preConcat(matrix);
             }
 
             void setMatrix(const SkMatrix& matrix) {
@@ -108,7 +108,7 @@ public:
             typedef SkNoncopyable INHERITED;
         };
 
-        class ClipInfo : SkNoncopyable {
+        class ClipInfo : public SkNoncopyable {
         public:
             ClipInfo() {}
 
@@ -181,7 +181,7 @@ public:
             typedef SkNoncopyable INHERITED;
         };
 
-        MatrixClipState(MatrixClipState* prev)
+        MatrixClipState(MatrixClipState* prev, int flags)
             : fPrev(prev)
         {
             fHasOpen = false;
@@ -202,11 +202,19 @@ public:
             else {
                 fLayerID = prev->fLayerID;
 
-                fMatrixInfoStorage = *prev->fMatrixInfo;
-                fMatrixInfo = &fMatrixInfoStorage;
+                if (flags & SkCanvas::kMatrix_SaveFlag) {
+                    fMatrixInfoStorage = *prev->fMatrixInfo;
+                    fMatrixInfo = &fMatrixInfoStorage;
+                } else {
+                    fMatrixInfo = prev->fMatrixInfo;
+                }
 
-                // We don't copy the ClipOps of the previous clip states
-                fClipInfo = &fClipInfoStorage;
+                if (flags & SkCanvas::kClip_SaveFlag) {
+                    // We don't copy the ClipOps of the previous clip states
+                    fClipInfo = &fClipInfoStorage;
+                } else {
+                    fClipInfo = prev->fClipInfo;
+                }
 
                 // Initially a new save/saveLayer represents the same MC state
                 // as its predecessor.
@@ -267,7 +275,7 @@ public:
     // this duplicates effort.
     int getSaveCount() const { return fMatrixClipStack.count(); }
 
-    int save();
+    int save(SkCanvas::SaveFlags flags);
 
     int saveLayer(const SkRect* bounds, const SkPaint* paint, SkCanvas::SaveFlags flags);
 
@@ -277,29 +285,29 @@ public:
 
     void restore();
 
-    void translate(SkScalar dx, SkScalar dy) {
+    bool translate(SkScalar dx, SkScalar dy) {
         this->call(kMatrix_CallType);
-        fCurMCState->fMatrixInfo->preTranslate(dx, dy);
+        return fCurMCState->fMatrixInfo->preTranslate(dx, dy);
     }
 
-    void scale(SkScalar sx, SkScalar sy) {
+    bool scale(SkScalar sx, SkScalar sy) {
         this->call(kMatrix_CallType);
-        fCurMCState->fMatrixInfo->preScale(sx, sy);
+        return fCurMCState->fMatrixInfo->preScale(sx, sy);
     }
 
-    void rotate(SkScalar degrees) {
+    bool rotate(SkScalar degrees) {
         this->call(kMatrix_CallType);
-        fCurMCState->fMatrixInfo->preRotate(degrees);
+        return fCurMCState->fMatrixInfo->preRotate(degrees);
     }
 
-    void skew(SkScalar sx, SkScalar sy) {
+    bool skew(SkScalar sx, SkScalar sy) {
         this->call(kMatrix_CallType);
-        fCurMCState->fMatrixInfo->preSkew(sx, sy);
+        return fCurMCState->fMatrixInfo->preSkew(sx, sy);
     }
 
-    void concat(const SkMatrix& matrix) {
+    bool concat(const SkMatrix& matrix) {
         this->call(kMatrix_CallType);
-        fCurMCState->fMatrixInfo->preConcat(matrix);
+        return fCurMCState->fMatrixInfo->preConcat(matrix);
     }
 
     void setMatrix(const SkMatrix& matrix) {
@@ -360,19 +368,19 @@ protected:
     // skp that must be filled in when the current open state is closed. These are
     // here rather then distributed across the MatrixClipState's because saveLayers
     // can cause MC states to be nested.
-    SkTDArray<int32_t>  *fSkipOffsets;  // TODO: should we store u32 or size_t instead?
+    SkTDArray<int32_t>  *fSkipOffsets;
 
     SkDEBUGCODE(void validate();)
 
-    int MCStackPush();
+    int MCStackPush(SkCanvas::SaveFlags flags);
 
-    void addClipOffset(size_t offset) {
+    void addClipOffset(int offset) {
         SkASSERT(NULL != fSkipOffsets);
         SkASSERT(kIdentityWideOpenStateID != fCurOpenStateID);
         SkASSERT(fCurMCState->fHasOpen);
         SkASSERT(!fCurMCState->fIsSaveLayer);
 
-        *fSkipOffsets->append() = SkToS32(offset);
+        *fSkipOffsets->append() = offset;
     }
 
     void writeDeltaMat(int currentMatID, int desiredMatID);

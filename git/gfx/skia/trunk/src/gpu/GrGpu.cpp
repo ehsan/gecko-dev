@@ -57,11 +57,11 @@ void GrGpu::abandonResources() {
 
     fClipMaskManager.releaseResources();
 
-    while (NULL != fObjectList.head()) {
-        fObjectList.head()->abandon();
+    while (NULL != fResourceList.head()) {
+        fResourceList.head()->abandon();
     }
 
-    SkASSERT(NULL == fQuadIndexBuffer || fQuadIndexBuffer->wasDestroyed());
+    SkASSERT(NULL == fQuadIndexBuffer || !fQuadIndexBuffer->isValid());
     SkSafeSetNull(fQuadIndexBuffer);
     delete fVertexPool;
     fVertexPool = NULL;
@@ -73,11 +73,11 @@ void GrGpu::releaseResources() {
 
     fClipMaskManager.releaseResources();
 
-    while (NULL != fObjectList.head()) {
-        fObjectList.head()->release();
+    while (NULL != fResourceList.head()) {
+        fResourceList.head()->release();
     }
 
-    SkASSERT(NULL == fQuadIndexBuffer || fQuadIndexBuffer->wasDestroyed());
+    SkASSERT(NULL == fQuadIndexBuffer || !fQuadIndexBuffer->isValid());
     SkSafeSetNull(fQuadIndexBuffer);
     delete fVertexPool;
     fVertexPool = NULL;
@@ -85,18 +85,18 @@ void GrGpu::releaseResources() {
     fIndexPool = NULL;
 }
 
-void GrGpu::insertObject(GrGpuResource* object) {
-    SkASSERT(NULL != object);
-    SkASSERT(this == object->getGpu());
+void GrGpu::insertResource(GrResource* resource) {
+    SkASSERT(NULL != resource);
+    SkASSERT(this == resource->getGpu());
 
-    fObjectList.addToHead(object);
+    fResourceList.addToHead(resource);
 }
 
-void GrGpu::removeObject(GrGpuResource* object) {
-    SkASSERT(NULL != object);
-    SkASSERT(this == object->getGpu());
+void GrGpu::removeResource(GrResource* resource) {
+    SkASSERT(NULL != resource);
+    SkASSERT(this == resource->getGpu());
 
-    fObjectList.remove(object);
+    fResourceList.remove(resource);
 }
 
 
@@ -110,39 +110,24 @@ void GrGpu::unimpl(const char msg[]) {
 
 GrTexture* GrGpu::createTexture(const GrTextureDesc& desc,
                                 const void* srcData, size_t rowBytes) {
-    if (!this->caps()->isConfigTexturable(desc.fConfig)) {
+    if (kUnknown_GrPixelConfig == desc.fConfig) {
         return NULL;
     }
-
     if ((desc.fFlags & kRenderTarget_GrTextureFlagBit) &&
         !this->caps()->isConfigRenderable(desc.fConfig, desc.fSampleCnt > 0)) {
         return NULL;
     }
 
-    GrTexture *tex = NULL;
-    if (GrPixelConfigIsCompressed(desc.fConfig)) {
-        // We shouldn't be rendering into this
-        SkASSERT((desc.fFlags & kRenderTarget_GrTextureFlagBit) == 0);
-
-        if (!this->caps()->npotTextureTileSupport() &&
-            (!SkIsPow2(desc.fWidth) || !SkIsPow2(desc.fHeight))) {
+    this->handleDirtyContext();
+    GrTexture* tex = this->onCreateTexture(desc, srcData, rowBytes);
+    if (NULL != tex &&
+        (kRenderTarget_GrTextureFlagBit & desc.fFlags) &&
+        !(kNoStencil_GrTextureFlagBit & desc.fFlags)) {
+        SkASSERT(NULL != tex->asRenderTarget());
+        // TODO: defer this and attach dynamically
+        if (!this->attachStencilBufferToRenderTarget(tex->asRenderTarget())) {
+            tex->unref();
             return NULL;
-        }
-
-        this->handleDirtyContext();
-        tex = this->onCreateCompressedTexture(desc, srcData);
-    } else {
-        this->handleDirtyContext();
-        tex = this->onCreateTexture(desc, srcData, rowBytes);
-        if (NULL != tex &&
-            (kRenderTarget_GrTextureFlagBit & desc.fFlags) &&
-            !(kNoStencil_GrTextureFlagBit & desc.fFlags)) {
-            SkASSERT(NULL != tex->asRenderTarget());
-            // TODO: defer this and attach dynamically
-            if (!this->attachStencilBufferToRenderTarget(tex->asRenderTarget())) {
-                tex->unref();
-                return NULL;
-            }
         }
     }
     return tex;
@@ -218,12 +203,6 @@ GrPath* GrGpu::createPath(const SkPath& path, const SkStrokeRec& stroke) {
     return this->onCreatePath(path, stroke);
 }
 
-GrPathRange* GrGpu::createPathRange(size_t size, const SkStrokeRec& stroke) {
-    SkASSERT(this->caps()->pathRenderingSupport());
-    this->handleDirtyContext();
-    return this->onCreatePathRange(size, stroke);
-}
-
 void GrGpu::clear(const SkIRect* rect,
                   GrColor color,
                   bool canIgnoreRect,
@@ -238,6 +217,11 @@ void GrGpu::clear(const SkIRect* rect,
     }
     this->handleDirtyContext();
     this->onClear(rect, color, canIgnoreRect);
+}
+
+void GrGpu::forceRenderTargetFlush() {
+    this->handleDirtyContext();
+    this->onForceRenderTargetFlush();
 }
 
 bool GrGpu::readPixels(GrRenderTarget* target,
@@ -286,7 +270,7 @@ void GrGpu::getPathStencilSettingsForFillType(SkPath::FillType fill, GrStencilSe
 
     switch (fill) {
         default:
-            SkFAIL("Unexpected path fill.");
+            GrCrash("Unexpected path fill.");
             /* fallthrough */;
         case SkPath::kWinding_FillType:
         case SkPath::kInverseWinding_FillType:
@@ -324,17 +308,17 @@ const GrIndexBuffer* GrGpu::getQuadIndexBuffer() const {
         GrGpu* me = const_cast<GrGpu*>(this);
         fQuadIndexBuffer = me->createIndexBuffer(SIZE, false);
         if (NULL != fQuadIndexBuffer) {
-            uint16_t* indices = (uint16_t*)fQuadIndexBuffer->map();
+            uint16_t* indices = (uint16_t*)fQuadIndexBuffer->lock();
             if (NULL != indices) {
                 fill_indices(indices, MAX_QUADS);
-                fQuadIndexBuffer->unmap();
+                fQuadIndexBuffer->unlock();
             } else {
                 indices = (uint16_t*)sk_malloc_throw(SIZE);
                 fill_indices(indices, MAX_QUADS);
                 if (!fQuadIndexBuffer->updateData(indices, SIZE)) {
                     fQuadIndexBuffer->unref();
                     fQuadIndexBuffer = NULL;
-                    SkFAIL("Can't get indices into buffer!");
+                    GrCrash("Can't get indices into buffer!");
                 }
                 sk_free(indices);
             }
@@ -425,30 +409,14 @@ void GrGpu::onDrawPath(const GrPath* path, SkPath::FillType fill,
     this->onGpuDrawPath(path, fill);
 }
 
-void GrGpu::onDrawPaths(const GrPathRange* pathRange,
-                        const uint32_t indices[], int count,
-                        const float transforms[], PathTransformType transformsType,
-                        SkPath::FillType fill, const GrDeviceCoordTexture* dstCopy) {
-    this->handleDirtyContext();
-
-    drawState()->setDefaultVertexAttribs();
-
-    GrDrawState::AutoRestoreEffects are;
-    if (!this->setupClipAndFlushState(kDrawPaths_DrawType, dstCopy, &are, NULL)) {
-        return;
-    }
-
-    this->onGpuDrawPaths(pathRange, indices, count, transforms, transformsType, fill);
-}
-
 void GrGpu::finalizeReservedVertices() {
     SkASSERT(NULL != fVertexPool);
-    fVertexPool->unmap();
+    fVertexPool->unlock();
 }
 
 void GrGpu::finalizeReservedIndices() {
     SkASSERT(NULL != fIndexPool);
-    fIndexPool->unmap();
+    fIndexPool->unlock();
 }
 
 void GrGpu::prepareVertexPool() {

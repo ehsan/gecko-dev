@@ -1558,12 +1558,8 @@ js::NonObjectToNumberSlow(ThreadSafeContext *cx, Value v, double *out)
         *out = 0.0;
         return true;
     }
-    if (v.isSymbol()) {
-        JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_NUMBER);
-        return false;
-    }
 
-    JS_ASSERT(v.isUndefined());
+    JS_ASSERT(v.isUndefined() || v.isSymbol());
     *out = GenericNaN();
     return true;
 }

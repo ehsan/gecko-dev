@@ -13,38 +13,38 @@ static bool bridgeWinding(SkTArray<SkOpContour*, true>& contourList, SkPathWrite
     bool firstContour = true;
     bool unsortable = false;
     bool topUnsortable = false;
-    bool firstPass = true;
-    SkPoint lastTopLeft;
     SkPoint topLeft = {SK_ScalarMin, SK_ScalarMin};
     do {
         int index, endIndex;
         bool topDone;
-        bool onlyVertical = false;
-        lastTopLeft = topLeft;
         SkOpSegment* current = FindSortableTop(contourList, SkOpAngle::kUnaryWinding, &firstContour,
-                &index, &endIndex, &topLeft, &topUnsortable, &topDone, &onlyVertical, firstPass);
+                &index, &endIndex, &topLeft, &topUnsortable, &topDone);
         if (!current) {
-            if ((!topUnsortable || firstPass) && !topDone) {
+            if (topUnsortable || !topDone) {
+                topUnsortable = false;
                 SkASSERT(topLeft.fX != SK_ScalarMin && topLeft.fY != SK_ScalarMin);
                 topLeft.fX = topLeft.fY = SK_ScalarMin;
                 continue;
             }
             break;
-        } else if (onlyVertical) {
-            break;
         }
-        firstPass = !topUnsortable || lastTopLeft != topLeft;
-        SkTDArray<SkOpSpan*> chase;
+        SkTDArray<SkOpSpan*> chaseArray;
         do {
             if (current->activeWinding(index, endIndex)) {
                 do {
                     if (!unsortable && current->done()) {
-                          break;
+            #if DEBUG_ACTIVE_SPANS
+                        DebugShowActiveSpans(contourList);
+            #endif
+                        if (simple->isEmpty()) {
+                            simple->init();
+                            break;
+                        }
                     }
                     SkASSERT(unsortable || !current->done());
                     int nextStart = index;
                     int nextEnd = endIndex;
-                    SkOpSegment* next = current->findNextWinding(&chase, &nextStart, &nextEnd,
+                    SkOpSegment* next = current->findNextWinding(&chaseArray, &nextStart, &nextEnd,
                             &unsortable);
                     if (!next) {
                         if (!unsortable && simple->hasMove()
@@ -67,7 +67,7 @@ static bool bridgeWinding(SkTArray<SkOpContour*, true>& contourList, SkPathWrite
                 } while (!simple->isClosed() && (!unsortable
                         || !current->done(SkMin32(index, endIndex))));
                 if (current->activeWinding(index, endIndex) && !simple->isClosed()) {
-//                    SkASSERT(unsortable || simple->isEmpty());
+                    SkASSERT(unsortable || simple->isEmpty());
                     int min = SkMin32(index, endIndex);
                     if (!current->done(min)) {
                         current->addCurveTo(index, endIndex, simple, true);
@@ -77,19 +77,11 @@ static bool bridgeWinding(SkTArray<SkOpContour*, true>& contourList, SkPathWrite
                 simple->close();
             } else {
                 SkOpSpan* last = current->markAndChaseDoneUnary(index, endIndex);
-                if (last && !last->fChased && !last->fLoop) {
-                    last->fChased = true;
-                    SkASSERT(!SkPathOpsDebug::ChaseContains(chase, last));
-                    // assert that last isn't already in array
-                    *chase.append() = last;
-#if DEBUG_WINDING
-                    SkDebugf("%s chase.append id=%d windSum=%d small=%d\n", __FUNCTION__,
-                            last->fOther->span(last->fOtherIndex).fOther->debugID(), last->fWindSum,
-                            last->fSmall);
-#endif
+                if (last && !last->fLoop) {
+                    *chaseArray.append() = last;
                 }
             }
-            current = FindChase(&chase, &index, &endIndex);
+            current = FindChase(chaseArray, index, endIndex);
         #if DEBUG_ACTIVE_SPANS
             DebugShowActiveSpans(contourList);
         #endif
@@ -190,9 +182,7 @@ bool Simplify(const SkPath& path, SkPath* result) {
             next = *nextPtr++;
         } while (AddIntersectTs(current, next) && nextPtr != listEnd);
     } while (currentPtr != listEnd);
-    if (!HandleCoincidence(&contourList, 0)) {
-        return false;
-    }
+    HandleCoincidence(&contourList, 0);
     // construct closed contours
     SkPathWriter simple(*result);
     if (builder.xorMask() == kWinding_PathOpsMask ? bridgeWinding(contourList, &simple)

@@ -28,15 +28,11 @@ static void scale_rect(SkRect* rect, float xScale, float yScale) {
     rect->fBottom = SkScalarMul(rect->fBottom, yScale);
 }
 
-static float adjust_sigma(float sigma, int maxTextureSize, int *scaleFactor, int *radius) {
+static float adjust_sigma(float sigma, int *scaleFactor, int *radius) {
     *scaleFactor = 1;
     while (sigma > MAX_BLUR_SIGMA) {
         *scaleFactor *= 2;
         sigma *= 0.5f;
-        if (*scaleFactor > maxTextureSize) {
-            *scaleFactor = maxTextureSize;
-            sigma = MAX_BLUR_SIGMA;
-        }
     }
     *radius = static_cast<int>(ceilf(sigma * 3.0f));
     SkASSERT(*radius <= GrConvolutionEffect::kMaxKernelRadius);
@@ -54,7 +50,7 @@ static void convolve_gaussian_pass(GrContext* context,
                                    float bounds[2]) {
     GrPaint paint;
     paint.reset();
-    SkAutoTUnref<GrEffect> conv(GrConvolutionEffect::CreateGaussian(
+    SkAutoTUnref<GrEffectRef> conv(GrConvolutionEffect::CreateGaussian(
         texture, direction, radius, sigma, useBounds, bounds));
     paint.reset();
     paint.addColorEffect(conv);
@@ -133,9 +129,8 @@ GrTexture* GaussianBlur(GrContext* context,
     SkIRect clearRect;
     int scaleFactorX, radiusX;
     int scaleFactorY, radiusY;
-    int maxTextureSize = context->getMaxTextureSize();
-    sigmaX = adjust_sigma(sigmaX, maxTextureSize, &scaleFactorX, &radiusX);
-    sigmaY = adjust_sigma(sigmaY, maxTextureSize, &scaleFactorY, &radiusY);
+    sigmaX = adjust_sigma(sigmaX, &scaleFactorX, &radiusX);
+    sigmaY = adjust_sigma(sigmaY, &scaleFactorY, &radiusY);
 
     SkRect srcRect(rect);
     scale_rect(&srcRect, 1.0f / scaleFactorX, 1.0f / scaleFactorY);
@@ -174,7 +169,7 @@ GrTexture* GaussianBlur(GrContext* context,
             matrix.mapRect(&domain, rect);
             domain.inset(i < scaleFactorX ? SK_ScalarHalf / srcTexture->width() : 0.0f,
                          i < scaleFactorY ? SK_ScalarHalf / srcTexture->height() : 0.0f);
-            SkAutoTUnref<GrEffect> effect(GrTextureDomainEffect::Create(
+            SkAutoTUnref<GrEffectRef> effect(GrTextureDomainEffect::Create(
                 srcTexture,
                 matrix,
                 domain,

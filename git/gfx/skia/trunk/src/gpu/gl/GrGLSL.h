@@ -40,7 +40,7 @@ enum GrGLSLGeneration {
 /**
  * Gets the most recent GLSL Generation compatible with the OpenGL context.
  */
-bool GrGetGLSLGeneration(const GrGLInterface* gl, GrGLSLGeneration* generation);
+GrGLSLGeneration GrGetGLSLGeneration(const GrGLInterface* gl);
 
 /**
  * Returns a string to include at the beginning of a shader to declare the GLSL
@@ -70,7 +70,7 @@ static inline const char* GrGLSLTypeString(GrSLType t) {
         case kSampler2D_GrSLType:
             return "sampler2D";
         default:
-            SkFAIL("Unknown shader var type.");
+            GrCrash("Unknown shader var type.");
             return ""; // suppress warning
     }
 }

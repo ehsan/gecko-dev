@@ -19,16 +19,21 @@ struct SkDCubicPair {
 };
 
 struct SkDCubic {
-    enum SearchAxis {
-        kXAxis,
-        kYAxis
-    };
+    SkDPoint fPts[4];
+
+    void set(const SkPoint pts[4]) {
+        fPts[0] = pts[0];
+        fPts[1] = pts[1];
+        fPts[2] = pts[2];
+        fPts[3] = pts[3];
+    }
+
+    static const int gPrecisionUnit;
 
     const SkDPoint& operator[](int n) const { SkASSERT(n >= 0 && n < 4); return fPts[n]; }
     SkDPoint& operator[](int n) { SkASSERT(n >= 0 && n < 4); return fPts[n]; }
 
     void align(int endIndex, int ctrlIndex, SkDPoint* dstPt) const;
-    double binarySearch(double min, double max, double axisIntercept, SearchAxis xAxis) const;
     double calcPrecision() const;
     SkDCubicPair chopAt(double t) const;
     bool clockwise() const;
@@ -37,9 +42,9 @@ struct SkDCubic {
     SkDVector dxdyAtT(double t) const;
     bool endsAreExtremaInXOrY() const;
     static int FindExtrema(double a, double b, double c, double d, double tValue[2]);
-    int findInflections(double tValues[2]) const;
+    int findInflections(double tValues[]) const;
 
-    static int FindInflections(const SkPoint a[4], double tValues[2]) {
+    static int FindInflections(const SkPoint a[4], double tValues[]) {
         SkDCubic cubic;
         cubic.set(a);
         return cubic.findInflections(tValues);
@@ -51,18 +56,7 @@ struct SkDCubic {
     SkDPoint ptAtT(double t) const;
     static int RootsReal(double A, double B, double C, double D, double t[3]);
     static int RootsValidT(const double A, const double B, const double C, double D, double s[3]);
-
-    int searchRoots(double extremes[6], int extrema, double axisIntercept,
-                    SearchAxis xAxis, double* validRoots) const;
     bool serpentine() const;
-
-    void set(const SkPoint pts[4]) {
-        fPts[0] = pts[0];
-        fPts[1] = pts[1];
-        fPts[2] = pts[2];
-        fPts[3] = pts[3];
-    }
-
     SkDCubic subDivide(double t1, double t2) const;
 
     static SkDCubic SubDivide(const SkPoint a[4], double t1, double t2) {
@@ -84,13 +78,9 @@ struct SkDCubic {
     void toQuadraticTs(double precision, SkTArray<double, true>* ts) const;
     SkDQuad toQuad() const;
 
-    // utilities callable by the user from the debugger when the implementation code is linked in
-    void dump() const;
-    void dumpNumber() const;
-
-    static const int gPrecisionUnit;
-
-    SkDPoint fPts[4];
+#ifdef SK_DEBUG
+    void dump();
+#endif
 };
 
 #endif

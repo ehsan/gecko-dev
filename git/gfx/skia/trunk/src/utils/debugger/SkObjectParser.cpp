@@ -25,13 +25,13 @@ SkString* SkObjectParser::BitmapToString(const SkBitmap& bitmap) {
     mBitmap->append(" H: ");
     mBitmap->appendS32(bitmap.height());
 
-    const char* gColorTypeStrings[] = {
-        "None", "A8", "565", "4444", "RGBA", "BGRA", "Index8"
+    const char* gConfigStrings[] = {
+        "None", "A8", "Index8", "RGB565", "ARGB4444", "ARGB8888"
     };
-    SkASSERT(kLastEnum_SkColorType + 1 == SK_ARRAY_COUNT(gColorTypeStrings));
+    SkASSERT(SkBitmap::kConfigCount == SK_ARRAY_COUNT(gConfigStrings));
 
-    mBitmap->append(" ColorType: ");
-    mBitmap->append(gColorTypeStrings[bitmap.colorType()]);
+    mBitmap->append(" Config: ");
+    mBitmap->append(gConfigStrings[bitmap.config()]);
 
     if (bitmap.isOpaque()) {
         mBitmap->append(" opaque");
@@ -241,8 +241,6 @@ SkString* SkObjectParser::RRectToString(const SkRRect& rrect, const char* title)
             mRRect->append("oval");
         } else if (rrect.isSimple()) {
             mRRect->append("simple");
-        } else if (rrect.isNinePatch()) {
-            mRRect->append("nine-patch");
         } else {
             SkASSERT(rrect.isComplex());
             mRRect->append("complex");
@@ -300,6 +298,12 @@ SkString* SkObjectParser::RegionToString(const SkRegion& region) {
 
 SkString* SkObjectParser::SaveFlagsToString(SkCanvas::SaveFlags flags) {
     SkString* mFlags = new SkString("SkCanvas::SaveFlags: ");
+    if (flags & SkCanvas::kMatrix_SaveFlag) {
+        mFlags->append("kMatrix_SaveFlag ");
+    }
+    if (flags & SkCanvas::kClip_SaveFlag) {
+        mFlags->append("kClip_SaveFlag ");
+    }
     if (flags & SkCanvas::kHasAlphaLayer_SaveFlag) {
         mFlags->append("kHasAlphaLayer_SaveFlag ");
     }

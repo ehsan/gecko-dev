@@ -60,9 +60,9 @@ public:
     /**
      * Gets the GL program ID for this program.
      */
-    GrGLuint programID() const { return fBuilderOutput.fProgramID; }
+    GrGLuint programID() const { return fProgramID; }
 
-    bool hasVertexShader() const { return fBuilderOutput.fHasVertexShader; }
+    bool hasVertexShader() const { return fHasVertexShader; }
 
     /**
      * Some GL state that is relevant to programs is not stored per-program. In particular color
@@ -103,49 +103,19 @@ public:
             fRenderTargetSize.fHeight = -1;
             fRenderTargetOrigin = (GrSurfaceOrigin) -1;
         }
-
-        /**
-         * Gets a matrix that goes from local coords to Skia's device coordinates.
-         */
         template<int Size> void getGLMatrix(GrGLfloat* destMatrix) {
-            GrGLGetMatrix<Size>(destMatrix, fViewMatrix);
-        }
-
-        /**
-         * Gets a matrix that goes from local coordinates to GL normalized device coords.
-         */
-        template<int Size> void getRTAdjustedGLMatrix(GrGLfloat* destMatrix) {
             SkMatrix combined;
             if (kBottomLeft_GrSurfaceOrigin == fRenderTargetOrigin) {
                 combined.setAll(SkIntToScalar(2) / fRenderTargetSize.fWidth, 0, -SK_Scalar1,
                                 0, -SkIntToScalar(2) / fRenderTargetSize.fHeight, SK_Scalar1,
-                                0, 0, 1);
+                                0, 0, SkMatrix::I()[8]);
             } else {
                 combined.setAll(SkIntToScalar(2) / fRenderTargetSize.fWidth, 0, -SK_Scalar1,
                                 0, SkIntToScalar(2) / fRenderTargetSize.fHeight, -SK_Scalar1,
-                                0, 0, 1);
+                                0, 0, SkMatrix::I()[8]);
             }
-            combined.preConcat(fViewMatrix);
+            combined.setConcat(combined, fViewMatrix);
             GrGLGetMatrix<Size>(destMatrix, combined);
-        }
-
-        /**
-         * Gets a vec4 that adjusts the position from Skia device coords to GL's normalized device
-         * coords. Assuming the transformed position, pos, is a homogeneous vec3, the vec, v, is
-         * applied as such:
-         * pos.x = dot(v.xy, pos.xz)
-         * pos.y = dot(v.zq, pos.yz)
-         */
-        void getRTAdjustmentVec(GrGLfloat* destVec) {
-            destVec[0] = 2.f / fRenderTargetSize.fWidth;
-            destVec[1] = -1.f;
-            if (kBottomLeft_GrSurfaceOrigin == fRenderTargetOrigin) {
-                destVec[2] = -2.f / fRenderTargetSize.fHeight;
-                destVec[3] = 1.f;
-            } else {
-                destVec[2] = 2.f / fRenderTargetSize.fHeight;
-                destVec[3] = -1.f;
-            }
         }
     };
 
@@ -164,12 +134,38 @@ public:
 private:
     typedef GrGLUniformManager::UniformHandle UniformHandle;
 
-    GrGLProgram(GrGpuGL*,
-                const GrGLProgramDesc&,
-                GrGLUniformManager*,
-                const GrGLShaderBuilder::GenProgramOutput&);
+    // handles for uniforms (aside from per-effect samplers)
+    struct UniformHandles {
+        UniformHandle       fViewMatrixUni;
+        UniformHandle       fColorUni;
+        UniformHandle       fCoverageUni;
 
-    // Sets the texture units for samplers.
+        // We use the render target height to provide a y-down frag coord when specifying
+        // origin_upper_left is not supported.
+        UniformHandle       fRTHeightUni;
+
+        // Uniforms for computing texture coords to do the dst-copy lookup
+        UniformHandle       fDstCopyTopLeftUni;
+        UniformHandle       fDstCopyScaleUni;
+        UniformHandle       fDstCopySamplerUni;
+    };
+
+    GrGLProgram(GrGpuGL* gpu,
+                const GrGLProgramDesc& desc,
+                const GrEffectStage* colorStages[],
+                const GrEffectStage* coverageStages[]);
+
+    bool succeeded() const { return 0 != fProgramID; }
+
+    /**
+     * This is the heavy initialization routine for building a GLProgram. colorStages and
+     * coverageStages correspond to the output of GrGLProgramDesc::Build().
+     */
+    bool genProgram(GrGLShaderBuilder* builder,
+                    const GrEffectStage* colorStages[],
+                    const GrEffectStage* coverageStages[]);
+
+    // Sets the texture units for samplers
     void initSamplerUniforms();
 
     // Helper for setData(). Makes GL calls to specify the initial color when there is not
@@ -183,18 +179,26 @@ private:
     // Helper for setData() that sets the view matrix and loads the render target height uniform
     void setMatrixAndRenderTargetHeight(const GrDrawState&);
 
+    // GL program ID
+    GrGLuint                    fProgramID;
+
     // these reflect the current values of uniforms (GL uniform values travel with program)
-    MatrixState                         fMatrixState;
-    GrColor                             fColor;
-    GrColor                             fCoverage;
-    int                                 fDstCopyTexUnit;
+    MatrixState                       fMatrixState;
+    GrColor                           fColor;
+    GrColor                           fCoverage;
+    int                               fDstCopyTexUnit;
 
-    GrGLShaderBuilder::GenProgramOutput fBuilderOutput;
+    SkAutoTDelete<GrGLProgramEffects> fColorEffects;
+    SkAutoTDelete<GrGLProgramEffects> fCoverageEffects;
 
-    GrGLProgramDesc                     fDesc;
-    GrGpuGL*                            fGpu;
+    GrGLProgramDesc                   fDesc;
+    GrGpuGL*                          fGpu;
 
-    SkAutoTUnref<GrGLUniformManager>    fUniformManager;
+    GrGLUniformManager                fUniformManager;
+    UniformHandles                    fUniformHandles;
+
+    bool                              fHasVertexShader;
+    int                               fNumTexCoordSets;
 
     typedef SkRefCnt INHERITED;
 };

@@ -31,7 +31,7 @@ public:
             return false;
         }
 
-        if (kUnknown_SkColorType == info.colorType()) {
+        if (SkImageInfoToBitmapConfig(info) == SkBitmap::kNo_Config) {
             return false;
         }
 
@@ -64,10 +64,6 @@ public:
 
     SkPixelRef* getPixelRef() const { return fBitmap.pixelRef(); }
 
-    virtual SkShader* onNewShader(SkShader::TileMode,
-                                  SkShader::TileMode,
-                                  const SkMatrix* localMatrix) const SK_OVERRIDE;
-
 private:
     SkImage_Raster() : INHERITED(0, 0) {}
 
@@ -98,9 +94,8 @@ SkImage_Raster::SkImage_Raster(const Info& info, SkData* data, size_t rowBytes)
 {
     data->ref();
     void* addr = const_cast<void*>(data->data());
-    SkColorTable* ctable = NULL;
 
-    fBitmap.installPixels(info, addr, rowBytes, ctable, release_data, data);
+    fBitmap.installPixels(info, addr, rowBytes, release_data, data);
     fBitmap.setImmutable();
     fBitmap.lockPixels();
 }
@@ -108,19 +103,12 @@ SkImage_Raster::SkImage_Raster(const Info& info, SkData* data, size_t rowBytes)
 SkImage_Raster::SkImage_Raster(const Info& info, SkPixelRef* pr, size_t rowBytes)
     : INHERITED(info.fWidth, info.fHeight)
 {
-    fBitmap.setInfo(info, rowBytes);
+    fBitmap.setConfig(info, rowBytes);
     fBitmap.setPixelRef(pr);
     fBitmap.lockPixels();
 }
 
 SkImage_Raster::~SkImage_Raster() {}
-
-SkShader* SkImage_Raster::onNewShader(SkShader::TileMode tileX,
-                                      SkShader::TileMode tileY,
-                                      const SkMatrix* localMatrix) const
-{
-    return SkShader::CreateBitmapShader(fBitmap, tileX, tileY, localMatrix);
-}
 
 void SkImage_Raster::onDraw(SkCanvas* canvas, SkScalar x, SkScalar y, const SkPaint* paint) {
     canvas->drawBitmap(fBitmap, x, y, paint);
@@ -145,8 +133,8 @@ bool SkImage_Raster::onReadPixels(SkBitmap* dst, const SkIRect& subset) const {
 
 const void* SkImage_Raster::onPeekPixels(SkImageInfo* infoPtr,
                                          size_t* rowBytesPtr) const {
-    const SkImageInfo info = fBitmap.info();
-    if ((kUnknown_SkColorType == info.colorType()) || !fBitmap.getPixels()) {
+    SkImageInfo info;
+    if (!fBitmap.asImageInfo(&info) || !fBitmap.getPixels()) {
         return NULL;
     }
     *infoPtr = info;

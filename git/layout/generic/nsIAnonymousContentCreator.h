@@ -69,7 +69,7 @@ public:
    *
    * @see nsIContent::GetChildren for set of values used for filter.
    */
-  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter) = 0;
 
   /**

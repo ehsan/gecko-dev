@@ -14,7 +14,6 @@
 #include "skia/SkCanvas.h"
 
 #include "2D.h"
-#include "HelpersSkia.h"
 #include "Rect.h"
 #include "PathSkia.h"
 #include <sstream>
@@ -131,12 +130,12 @@ private:
   bool UsingSkiaGPU() const;
 
 #ifdef USE_SKIA_GPU
-  RefPtrSkia<GrContext> mGrContext;
+  SkRefPtr<GrContext> mGrContext;
   uint32_t mTexture;
 #endif
 
   IntSize mSize;
-  RefPtrSkia<SkCanvas> mCanvas;
+  SkRefPtr<SkCanvas> mCanvas;
   SourceSurfaceSkia* mSnapshot;
 };
 

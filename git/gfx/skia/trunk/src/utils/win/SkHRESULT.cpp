@@ -9,11 +9,10 @@
 
 #include "SkHRESULT.h"
 
-void SkTraceHR(const char* file, unsigned long line, HRESULT hr, const char* msg) {
-    if (NULL != msg) {
-        SkDebugf("%s\n", msg);
-    }
-    SkDebugf("%s(%lu) : error 0x%x: ", file, line, hr);
+void SkTraceHR(const char* file, unsigned long line,
+               HRESULT hr, const char* msg) {
+    SkDEBUGCODE(if (NULL != msg) SkDEBUGF(("%s\n", msg)));
+    SkDEBUGF(("%s(%lu) : error 0x%x: ", file, line, hr));
 
     LPSTR errorText = NULL;
     FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
@@ -28,9 +27,9 @@ void SkTraceHR(const char* file, unsigned long line, HRESULT hr, const char* msg
     );
 
     if (NULL == errorText) {
-        SkDebugf("<unknown>\n");
+        SkDEBUGF(("<unknown>\n"));
     } else {
-        SkDebugf("%s", errorText);
+        SkDEBUGF(("%s", errorText));
         LocalFree(errorText);
         errorText = NULL;
     }

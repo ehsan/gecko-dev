@@ -9,9 +9,10 @@
 #define GrPlotMgr_DEFINED
 
 #include "GrTypes.h"
+#include "GrPoint.h"
 #include "SkTypes.h"
 
-class GrPlotMgr : SkNoncopyable {
+class GrPlotMgr : public SkNoncopyable {
 public:
     GrPlotMgr(int width, int height) {
         fDim.set(width, height);
@@ -34,7 +35,7 @@ public:
         sk_bzero(fBusy, fDim.fX * fDim.fY);
     }
 
-    bool newPlot(SkIPoint16* loc) {
+    bool newPlot(GrIPoint16* loc) {
         char* busy = fBusy;
         for (int y = 0; y < fDim.fY; y++) {
             for (int x = 0; x < fDim.fX; x++) {
@@ -67,7 +68,7 @@ private:
     };
     char fStorage[STORAGE];
     char* fBusy;
-    SkIPoint16  fDim;
+    GrIPoint16  fDim;
 };
 
 #endif

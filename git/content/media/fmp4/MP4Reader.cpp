@@ -78,7 +78,7 @@ public:
     uint32_t sum = 0;
     uint32_t bytesRead = 0;
     do {
-      uint64_t offset = aOffset + sum;
+      uint32_t offset = aOffset + sum;
       char* buffer = reinterpret_cast<char*>(aBuffer) + sum;
       uint32_t toRead = aCount - sum;
       nsresult rv = mResource->ReadAt(offset, buffer, toRead, &bytesRead);
@@ -745,27 +745,13 @@ void
 MP4Reader::NotifyDataArrived(const char* aBuffer, uint32_t aLength,
                              int64_t aOffset)
 {
-  if (NS_IsMainThread()) {
-    MediaTaskQueue* queue =
-      mAudio.mTaskQueue ? mAudio.mTaskQueue : mVideo.mTaskQueue;
-    queue->Dispatch(NS_NewRunnableMethod(this, &MP4Reader::UpdateIndex));
-  } else {
-    UpdateIndex();
-  }
-}
-
-void
-MP4Reader::UpdateIndex()
-{
   nsTArray<MediaByteRange> ranges;
-  nsTArray<Interval<Microseconds>> timeRanges;
-
-  MediaResource* resource = mDecoder->GetResource();
-  resource->Pin();
-  if (NS_SUCCEEDED(resource->GetCachedRanges(ranges))) {
-    mDemuxer->ConvertByteRangesToTime(ranges, &timeRanges);
+  if (NS_FAILED(mDecoder->GetResource()->GetCachedRanges(ranges))) {
+    return;
   }
-  resource->Unpin();
+
+  nsTArray<Interval<Microseconds>> timeRanges;
+  mDemuxer->ConvertByteRangesToTime(ranges, &timeRanges);
 
   MonitorAutoLock mon(mTimeRangesMonitor);
   mTimeRanges = timeRanges;

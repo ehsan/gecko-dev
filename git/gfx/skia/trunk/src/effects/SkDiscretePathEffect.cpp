@@ -20,10 +20,9 @@ static void Perterb(SkPoint* p, const SkVector& tangent, SkScalar scale) {
     *p += normal;
 }
 
-SkDiscretePathEffect::SkDiscretePathEffect(SkScalar segLength,
-                                           SkScalar deviation,
-                                           uint32_t seedAssist)
-    : fSegLength(segLength), fPerterb(deviation), fSeedAssist(seedAssist)
+
+SkDiscretePathEffect::SkDiscretePathEffect(SkScalar segLength, SkScalar deviation)
+    : fSegLength(segLength), fPerterb(deviation)
 {
 }
 
@@ -32,10 +31,7 @@ bool SkDiscretePathEffect::filterPath(SkPath* dst, const SkPath& src,
     bool doFill = rec->isFillStyle();
 
     SkPathMeasure   meas(src, doFill);
-
-    /* Caller may supply their own seed assist, which by default is 0 */
-    uint32_t seed = fSeedAssist ^ SkScalarRoundToInt(meas.getLength());
-
+    uint32_t        seed = SkScalarRoundToInt(meas.getLength());
     SkLCGRandom     rand(seed ^ ((seed << 16) | (seed >> 16)));
     SkScalar        scale = fPerterb;
     SkPoint         p;
@@ -79,11 +75,9 @@ void SkDiscretePathEffect::flatten(SkWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
     buffer.writeScalar(fSegLength);
     buffer.writeScalar(fPerterb);
-    buffer.writeUInt(fSeedAssist);
 }
 
 SkDiscretePathEffect::SkDiscretePathEffect(SkReadBuffer& buffer) {
     fSegLength = buffer.readScalar();
     fPerterb = buffer.readScalar();
-    fSeedAssist = buffer.readUInt();
 }

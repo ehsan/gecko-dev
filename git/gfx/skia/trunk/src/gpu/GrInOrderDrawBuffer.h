@@ -19,7 +19,6 @@
 
 class GrGpu;
 class GrIndexBufferAllocPool;
-class GrPathRange;
 class GrVertexBufferAllocPool;
 
 /**
@@ -73,9 +72,7 @@ public:
     virtual void clear(const SkIRect* rect,
                        GrColor color,
                        bool canIgnoreRect,
-                       GrRenderTarget* renderTarget) SK_OVERRIDE;
-
-    virtual void discard(GrRenderTarget*) SK_OVERRIDE;
+                       GrRenderTarget* renderTarget = NULL) SK_OVERRIDE;
 
     virtual void initCopySurfaceDstDesc(const GrSurface* src, GrTextureDesc* desc) SK_OVERRIDE;
 
@@ -91,7 +88,6 @@ private:
         kClear_Cmd          = 5,
         kCopySurface_Cmd    = 6,
         kDrawPath_Cmd       = 7,
-        kDrawPaths_Cmd      = 8,
     };
 
     class DrawRecord : public DrawInfo {
@@ -116,20 +112,6 @@ private:
         GrDeviceCoordTexture        fDstCopy;
     };
 
-    struct DrawPaths : public ::SkNoncopyable {
-        DrawPaths();
-        ~DrawPaths();
-
-        SkAutoTUnref<const GrPathRange> fPathRange;
-        uint32_t* fIndices;
-        size_t fCount;
-        float* fTransforms;
-        PathTransformType fTransformsType;
-        SkPath::FillType fFill;
-        GrDeviceCoordTexture fDstCopy;
-    };
-
-    // This is also used to record a discard by setting the color to GrColor_ILLEGAL
     struct Clear : public ::SkNoncopyable {
         Clear() : fRenderTarget(NULL) {}
         ~Clear() { SkSafeUnref(fRenderTarget); }
@@ -147,11 +129,6 @@ private:
         SkIPoint                fDstPoint;
     };
 
-    struct Clip : public ::SkNoncopyable {
-        SkClipStack fStack;
-        SkIPoint    fOrigin;
-    };
-
     // overrides from GrDrawTarget
     virtual void onDraw(const DrawInfo&) SK_OVERRIDE;
     virtual void onDrawRect(const SkRect& rect,
@@ -162,10 +139,6 @@ private:
     virtual void onStencilPath(const GrPath*, SkPath::FillType) SK_OVERRIDE;
     virtual void onDrawPath(const GrPath*, SkPath::FillType,
                             const GrDeviceCoordTexture* dstCopy) SK_OVERRIDE;
-    virtual void onDrawPaths(const GrPathRange*,
-                             const uint32_t indices[], int count,
-                             const float transforms[], PathTransformType,
-                             SkPath::FillType, const GrDeviceCoordTexture*) SK_OVERRIDE;
 
     virtual bool onReserveVertexSpace(size_t vertexSize,
                                       int vertexCount,
@@ -195,8 +168,10 @@ private:
 
     bool quickInsideClip(const SkRect& devBounds);
 
-    virtual void didAddGpuTraceMarker() SK_OVERRIDE {}
-    virtual void didRemoveGpuTraceMarker() SK_OVERRIDE {}
+    virtual void onInstantGpuTraceEvent(const char* marker) SK_OVERRIDE;
+    virtual void onPushGpuTraceEvent(const char* marker) SK_OVERRIDE;
+    virtual void onPopGpuTraceEvent() SK_OVERRIDE;
+
 
     // Attempts to concat instances from info onto the previous draw. info must represent an
     // instanced draw. The caller must have already recorded a new draw state and clip if necessary.
@@ -213,45 +188,31 @@ private:
     DrawRecord*     recordDraw(const DrawInfo&);
     StencilPath*    recordStencilPath();
     DrawPath*       recordDrawPath();
-    DrawPaths*      recordDrawPaths();
     Clear*          recordClear();
     CopySurface*    recordCopySurface();
 
     // TODO: Use a single allocator for commands and records
     enum {
         kCmdPreallocCnt          = 32,
-        kDrawPreallocCnt         = 16,
+        kDrawPreallocCnt         = 8,
         kStencilPathPreallocCnt  = 8,
         kDrawPathPreallocCnt     = 8,
-        kDrawPathsPreallocCnt    = 8,
         kStatePreallocCnt        = 8,
         kClipPreallocCnt         = 8,
-        kClearPreallocCnt        = 8,
+        kClearPreallocCnt        = 4,
         kGeoPoolStatePreAllocCnt = 4,
         kCopySurfacePreallocCnt  = 4,
     };
 
-    typedef GrTAllocator<DrawRecord>                        DrawAllocator;
-    typedef GrTAllocator<StencilPath>                       StencilPathAllocator;
-    typedef GrTAllocator<DrawPath>                          DrawPathAllocator;
-    typedef GrTAllocator<DrawPaths>                         DrawPathsAllocator;
-    typedef GrTAllocator<GrDrawState>                       StateAllocator;
-    typedef GrTAllocator<Clear>                             ClearAllocator;
-    typedef GrTAllocator<CopySurface>                       CopySurfaceAllocator;
-    typedef GrTAllocator<Clip>                              ClipAllocator;
-
+    SkSTArray<kCmdPreallocCnt, uint8_t, true>                          fCmds;
     GrSTAllocator<kDrawPreallocCnt, DrawRecord>                        fDraws;
-    GrSTAllocator<kStencilPathPreallocCnt, StencilPath>                fStencilPaths;
-    GrSTAllocator<kDrawPathPreallocCnt, DrawPath>                      fDrawPath;
-    GrSTAllocator<kDrawPathsPreallocCnt, DrawPaths>                    fDrawPaths;
-    GrSTAllocator<kStatePreallocCnt, GrDrawState>                      fStates;
+    GrSTAllocator<kStatePreallocCnt, StencilPath>                      fStencilPaths;
+    GrSTAllocator<kStatePreallocCnt, DrawPath>                         fDrawPaths;
+    GrSTAllocator<kStatePreallocCnt, GrDrawState::DeferredState>       fStates;
     GrSTAllocator<kClearPreallocCnt, Clear>                            fClears;
     GrSTAllocator<kCopySurfacePreallocCnt, CopySurface>                fCopySurfaces;
-    GrSTAllocator<kClipPreallocCnt, Clip>                              fClips;
-
-    SkTArray<GrTraceMarkerSet, false>                                  fGpuCmdMarkers;
-
-    SkSTArray<kCmdPreallocCnt, uint8_t, true>                          fCmds;
+    GrSTAllocator<kClipPreallocCnt, SkClipStack>                       fClips;
+    GrSTAllocator<kClipPreallocCnt, SkIPoint>                          fClipOrigins;
 
     GrDrawTarget*                   fDstGpu;
 
@@ -283,8 +244,6 @@ private:
     SkSTArray<kGeoPoolStatePreAllocCnt, GeometryPoolState> fGeoPoolStateStack;
 
     virtual bool       isIssued(uint32_t drawID) { return drawID != fDrawID; }
-
-    void addToCmdBuffer(uint8_t cmd);
 
     bool                            fFlushing;
     uint32_t                        fDrawID;

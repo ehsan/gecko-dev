@@ -15,10 +15,9 @@
 #include "SkTDArray.h"
 
 struct FontFileInfo {
-    FontFileInfo() : fIndex(0) { }
+    FontFileInfo() : fFileName(NULL) {}
 
-    SkString              fFileName;
-    int                   fIndex;
+    const char*           fFileName;
     SkPaintOptionsAndroid fPaintOptions;
 };
 
@@ -33,8 +32,8 @@ struct FontFileInfo {
 struct FontFamily {
     FontFamily() : fIsFallbackFont(false), order(-1) {}
 
-    SkTArray<SkString> fNames;
-    SkTArray<FontFileInfo> fFontFiles;
+    SkTDArray<const char*>   fNames;
+    SkTDArray<FontFileInfo*> fFontFiles;
     bool fIsFallbackFont;
     int order; // only used internally by SkFontConfigParser
 };

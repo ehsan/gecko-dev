@@ -36,24 +36,25 @@ class SkDefaultEventTracer: public SkEventTracer {
     };
 };
 
-SkEventTracer* SkEventTracer::gInstance;
+SkEventTracer *SkEventTracer::gInstance;
+
+static void intialiize_default_tracer(void *current_instance) {
+    if (NULL == current_instance) {
+        SkEventTracer::SetInstance(SkNEW(SkDefaultEventTracer));
+    }
+}
 
 static void cleanup_tracer() {
     // calling SetInstance will delete the existing instance.
     SkEventTracer::SetInstance(NULL);
 }
 
-static void intialize_default_tracer(SkEventTracer* current_instance) {
-    if (NULL == current_instance) {
-        SkEventTracer::SetInstance(SkNEW(SkDefaultEventTracer));
-    }
-    atexit(cleanup_tracer);
-}
-
-
 SkEventTracer* SkEventTracer::GetInstance() {
     SK_DECLARE_STATIC_ONCE(once);
-    SkOnce(&once, intialize_default_tracer, SkEventTracer::gInstance);
+    SkOnce(&once,
+           intialiize_default_tracer,
+           SkEventTracer::gInstance,
+           cleanup_tracer);
     SkASSERT(NULL != SkEventTracer::gInstance);
     return SkEventTracer::gInstance;
 }

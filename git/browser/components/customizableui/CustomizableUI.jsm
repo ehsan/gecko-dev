@@ -4145,7 +4145,7 @@ OverflowableToolbar.prototype = {
       this._hideTimeoutId = null;
     }
     this._hideTimeoutId = window.setTimeout(() => {
-      if (!this._panel.firstChild.matches(":hover")) {
+      if (!this._panel.firstChild.mozMatchesSelector(":hover")) {
         this._panel.hidePopup();
       }
     }, OVERFLOW_PANEL_HIDE_DELAY_MS);

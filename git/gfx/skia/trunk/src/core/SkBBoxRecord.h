@@ -10,7 +10,6 @@
 #define SkBBoxRecord_DEFINED
 
 #include "SkPictureRecord.h"
-#include "SkTDArray.h"
 
 /**
   * This is an abstract SkPictureRecord subclass that intercepts draw calls and computes an
@@ -20,10 +19,8 @@
 class SkBBoxRecord : public SkPictureRecord {
 public:
 
-    SkBBoxRecord(const SkISize& size, uint32_t recordFlags)
-        : INHERITED(size, recordFlags) {
-    }
-    virtual ~SkBBoxRecord();
+    SkBBoxRecord(const SkISize& size, uint32_t recordFlags) : INHERITED(size, recordFlags) {}
+    virtual ~SkBBoxRecord() { }
 
     /**
      * This is called each time we get a bounding box, it will be axis-aligned,
@@ -39,6 +36,8 @@ public:
                             const SkPaint& paint) SK_OVERRIDE;
     virtual void drawPaint(const SkPaint& paint) SK_OVERRIDE;
     virtual void clear(SkColor) SK_OVERRIDE;
+    virtual void drawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
+                          const SkPaint& paint) SK_OVERRIDE;
     virtual void drawBitmap(const SkBitmap& bitmap, SkScalar left, SkScalar top,
                             const SkPaint* paint = NULL) SK_OVERRIDE;
     virtual void drawBitmapRectToRect(const SkBitmap& bitmap, const SkRect* src,
@@ -48,28 +47,25 @@ public:
                                   const SkPaint* paint) SK_OVERRIDE;
     virtual void drawBitmapNine(const SkBitmap& bitmap, const SkIRect& center,
                                 const SkRect& dst, const SkPaint* paint) SK_OVERRIDE;
+    virtual void drawPosText(const void* text, size_t byteLength,
+                             const SkPoint pos[], const SkPaint& paint) SK_OVERRIDE;
+    virtual void drawPosTextH(const void* text, size_t byteLength,
+                              const SkScalar xpos[], SkScalar constY,
+                              const SkPaint& paint) SK_OVERRIDE;
     virtual void drawSprite(const SkBitmap& bitmap, int left, int top,
                             const SkPaint* paint) SK_OVERRIDE;
+    virtual void drawTextOnPath(const void* text, size_t byteLength,
+                                const SkPath& path, const SkMatrix* matrix,
+                                const SkPaint& paint) SK_OVERRIDE;
     virtual void drawVertices(VertexMode mode, int vertexCount,
                               const SkPoint vertices[], const SkPoint texs[],
                               const SkColor colors[], SkXfermode* xfer,
                               const uint16_t indices[], int indexCount,
                               const SkPaint& paint) SK_OVERRIDE;
+    virtual void drawPicture(SkPicture& picture) SK_OVERRIDE;
 
 protected:
     virtual void onDrawDRRect(const SkRRect&, const SkRRect&, const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                            const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                               const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                SkScalar constY, const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                  const SkMatrix* matrix, const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawPicture(const SkPicture* picture) SK_OVERRIDE;
-    virtual void willSave() SK_OVERRIDE;
-    virtual SaveLayerStrategy willSaveLayer(const SkRect*, const SkPaint*, SaveFlags) SK_OVERRIDE;
-    virtual void willRestore() SK_OVERRIDE;
 
 private:
     /**
@@ -78,12 +74,6 @@ private:
      * returns false if the draw is completely clipped out, and may safely be ignored.
      **/
     bool transformBounds(const SkRect& bounds, const SkPaint* paint);
-
-    /**
-     * Paints from currently-active saveLayers that need to be applied to bounding boxes of all
-     * primitives drawn inside them. We own these pointers.
-     **/
-    SkTDArray<const SkPaint*> fSaveStack;
 
     typedef SkPictureRecord INHERITED;
 };

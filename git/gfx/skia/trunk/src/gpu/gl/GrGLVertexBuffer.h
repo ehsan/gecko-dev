@@ -26,22 +26,26 @@ public:
     size_t baseOffset() const { return fImpl.baseOffset(); }
 
     void bind() const {
-        if (!this->wasDestroyed()) {
+        if (this->isValid()) {
             fImpl.bind(this->getGpuGL());
         }
     }
 
+    // overrides of GrVertexBuffer
+    virtual void* lock();
+    virtual void* lockPtr() const;
+    virtual void unlock();
+    virtual bool isLocked() const;
+    virtual bool updateData(const void* src, size_t srcSizeInBytes);
+
 protected:
+    // overrides of GrResource
     virtual void onAbandon() SK_OVERRIDE;
     virtual void onRelease() SK_OVERRIDE;
 
 private:
-    virtual void* onMap() SK_OVERRIDE;
-    virtual void onUnmap() SK_OVERRIDE;
-    virtual bool onUpdateData(const void* src, size_t srcSizeInBytes) SK_OVERRIDE;
-
     GrGpuGL* getGpuGL() const {
-        SkASSERT(!this->wasDestroyed());
+        SkASSERT(this->isValid());
         return (GrGpuGL*)(this->getGpu());
     }
 

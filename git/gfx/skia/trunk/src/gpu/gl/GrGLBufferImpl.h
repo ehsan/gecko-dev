@@ -17,7 +17,7 @@ class GrGpuGL;
  * This class serves as the implementation of GrGL*Buffer classes. It was written to avoid code
  * duplication in those classes.
  */
-class GrGLBufferImpl : SkNoncopyable {
+class GrGLBufferImpl : public SkNoncopyable {
 public:
     struct Desc {
         bool        fIsWrapped;
@@ -40,9 +40,10 @@ public:
 
     void bind(GrGpuGL* gpu) const;
 
-    void* map(GrGpuGL* gpu);
-    void unmap(GrGpuGL* gpu);
-    bool isMapped() const;
+    void* lock(GrGpuGL* gpu);
+    void* lockPtr() const { return fLockPtr; }
+    void unlock(GrGpuGL* gpu);
+    bool isLocked() const;
     bool updateData(GrGpuGL* gpu, const void* src, size_t srcSizeInBytes);
 
 private:
@@ -51,9 +52,7 @@ private:
     Desc         fDesc;
     GrGLenum     fBufferType; // GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER
     void*        fCPUData;
-    void*        fMapPtr;
-    size_t       fGLSizeInBytes;     // In certain cases we make the size of the GL buffer object
-                                     // smaller or larger than the size in fDesc.
+    void*        fLockPtr;
 
     typedef SkNoncopyable INHERITED;
 };

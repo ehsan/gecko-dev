@@ -6,7 +6,6 @@
  */
 
 
-#include "SkBitmapScaler.h"
 #include "SkBitmapProcState.h"
 #include "SkColorPriv.h"
 #include "SkPaint.h"
@@ -16,7 +15,7 @@
 
 #include "SkConvolver.h"
 
-#if !defined(SK_CPU_ARM64) && SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
+#if SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
 void SI8_D16_nofilter_DX_arm(
     const SkBitmapProcState& s,
     const uint32_t* SK_RESTRICT xy,
@@ -187,7 +186,7 @@ void SI8_opaque_D32_nofilter_DX_arm(const SkBitmapProcState& s,
 
     s.fBitmap->getColorTable()->unlockColors();
 }
-#endif // !defined(SK_CPU_ARM64) && SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
+#endif // SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -195,7 +194,6 @@ void SI8_opaque_D32_nofilter_DX_arm(const SkBitmapProcState& s,
     otherwise the shader won't even look at the matrix/sampler
  */
 void SkBitmapProcState::platformProcs() {
-#if !defined(SK_CPU_ARM64) && SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
     bool isOpaque = 256 == fAlphaScale;
     bool justDx = false;
 
@@ -203,8 +201,9 @@ void SkBitmapProcState::platformProcs() {
         justDx = true;
     }
 
-    switch (fBitmap->colorType()) {
-        case kIndex_8_SkColorType:
+    switch (fBitmap->config()) {
+        case SkBitmap::kIndex8_Config:
+#if SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
             if (justDx && SkPaint::kNone_FilterLevel == fFilterLevel) {
 #if 0   /* crashing on android device */
                 fSampleProc16 = SI8_D16_nofilter_DX_arm;
@@ -216,11 +215,11 @@ void SkBitmapProcState::platformProcs() {
                     fShaderProc32 = NULL;
                 }
             }
+#endif
             break;
         default:
             break;
     }
-#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -230,6 +229,6 @@ extern void platformConvolutionProcs_arm_neon(SkConvolutionProcs* procs);
 void platformConvolutionProcs_arm(SkConvolutionProcs* procs) {
 }
 
-void SkBitmapScaler::PlatformConvolutionProcs(SkConvolutionProcs* procs) {
+void SkBitmapProcState::platformConvolutionProcs(SkConvolutionProcs* procs) {
     SK_ARM_NEON_WRAP(platformConvolutionProcs_arm)(procs);
 }

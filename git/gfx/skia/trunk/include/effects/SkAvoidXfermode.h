@@ -53,9 +53,13 @@ public:
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkAvoidXfermode)
 
 protected:
-    SkAvoidXfermode(SkColor opColor, U8CPU tolerance, Mode mode);
-    explicit SkAvoidXfermode(SkReadBuffer&);
+    SkAvoidXfermode(SkReadBuffer&);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
+
+#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
+public:
+#endif
+    SkAvoidXfermode(SkColor opColor, U8CPU tolerance, Mode mode);
 
 private:
     SkColor     fOpColor;

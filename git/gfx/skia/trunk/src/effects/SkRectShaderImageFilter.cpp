@@ -29,14 +29,14 @@ SkRectShaderImageFilter* SkRectShaderImageFilter::Create(SkShader* s, const Crop
 }
 
 SkRectShaderImageFilter::SkRectShaderImageFilter(SkShader* s, const CropRect* cropRect)
-  : INHERITED(0, NULL, cropRect)
+  : INHERITED(NULL, cropRect)
   , fShader(s) {
     SkASSERT(s);
     s->ref();
 }
 
 SkRectShaderImageFilter::SkRectShaderImageFilter(SkReadBuffer& buffer)
-  : INHERITED(0, buffer) {
+  : INHERITED(1, buffer) {
     fShader = buffer.readShader();
 }
 
@@ -66,15 +66,13 @@ bool SkRectShaderImageFilter::onFilterImage(Proxy* proxy,
         return false;
     }
     SkCanvas canvas(device.get());
-
     SkPaint paint;
+    paint.setShader(fShader);
     SkMatrix matrix(ctx.ctm());
     matrix.postTranslate(SkIntToScalar(-bounds.left()), SkIntToScalar(-bounds.top()));
-    paint.setShader(SkShader::CreateLocalMatrixShader(fShader, matrix))->unref();
-
+    fShader->setLocalMatrix(matrix);
     SkRect rect = SkRect::MakeWH(SkIntToScalar(bounds.width()), SkIntToScalar(bounds.height()));
     canvas.drawRect(rect, paint);
-
     *result = device.get()->accessBitmap(false);
     offset->fX = bounds.fLeft;
     offset->fY = bounds.fTop;

@@ -52,6 +52,14 @@ typedef const SkGlyph& (*SkMeasureCacheProc)(SkGlyphCache*, const char**);
 */
 
 class SK_API SkPaint {
+    enum {
+        // DEPRECATED -- use setFilterLevel instead
+        kFilterBitmap_Flag    = 0x02, // temporary flag
+        // DEPRECATED -- use setFilterLevel instead
+        kHighQualityFilterBitmap_Flag = 0x4000, // temporary flag
+        // DEPRECATED -- use setFilterLevel instead
+        kHighQualityDownsampleBitmap_Flag = 0x8000, // temporary flag
+    };
 public:
     SkPaint();
     SkPaint(const SkPaint& paint);
@@ -89,7 +97,7 @@ public:
     };
 
     Hinting getHinting() const {
-        return static_cast<Hinting>(fBitfields.fHinting);
+        return static_cast<Hinting>(fHinting);
     }
 
     void setHinting(Hinting hintingLevel);
@@ -121,7 +129,7 @@ public:
     /** Return the paint's flags. Use the Flag enum to test flag values.
         @return the paint's flags (see enums ending in _Flag for bit masks)
     */
-    uint32_t getFlags() const { return fBitfields.fFlags; }
+    uint32_t getFlags() const { return fFlags; }
 
     /** Set the paint's flags. Use the Flag enum to specific flag values.
         @param flags    The new flag bits for the paint (see Flags enum)
@@ -302,9 +310,7 @@ public:
      *  Return the filter level. This affects the quality (and performance) of
      *  drawing scaled images.
      */
-    FilterLevel getFilterLevel() const {
-      return (FilterLevel)fBitfields.fFilterLevel;
-    }
+    FilterLevel getFilterLevel() const;
 
     /**
      *  Set the filter level. This affects the quality (and performance) of
@@ -352,7 +358,7 @@ public:
         kFill_Style).
         @return the paint's Style
     */
-    Style getStyle() const { return (Style)fBitfields.fStyle; }
+    Style getStyle() const { return (Style)fStyle; }
 
     /** Set the paint's style, used for controlling how primitives'
         geometries are interpreted (except for drawBitmap, which always assumes
@@ -458,7 +464,7 @@ public:
         @return the line cap style for the paint, used whenever the paint's
                 style is Stroke or StrokeAndFill.
     */
-    Cap getStrokeCap() const { return (Cap)fBitfields.fCapType; }
+    Cap getStrokeCap() const { return (Cap)fCapType; }
 
     /** Set the paint's stroke cap type.
         @param cap  set the paint's line cap style, used whenever the paint's
@@ -470,7 +476,7 @@ public:
         @return the paint's line join style, used whenever the paint's style is
                 Stroke or StrokeAndFill.
     */
-    Join getStrokeJoin() const { return (Join)fBitfields.fJoinType; }
+    Join getStrokeJoin() const { return (Join)fJoinType; }
 
     /** Set the paint's stroke join type.
         @param join set the paint's line join style, used whenever the paint's
@@ -508,12 +514,7 @@ public:
      *  once (e.g. bitmap tiling or gradient) and then change its transparency
      *  w/o having to modify the original shader... only the paint's alpha needs
      *  to be modified.
-     *
-     *  There is an exception to this only-respect-paint's-alpha rule: If the shader only generates
-     *  alpha (e.g. SkShader::CreateBitmapShader(bitmap, ...) where bitmap's colortype is kAlpha_8)
-     *  then the shader will use the paint's entire color to "colorize" its output (modulating the
-     *  bitmap's alpha with the paint's color+alpha).
-     *
+     *  <p />
      *  Pass NULL to clear any previous shader.
      *  As a convenience, the parameter passed is also returned.
      *  If a previous shader exists, its reference count is decremented.
@@ -687,7 +688,7 @@ public:
     /** Return the paint's Align value for drawing text.
         @return the paint's Align value for drawing text.
     */
-    Align   getTextAlign() const { return (Align)fBitfields.fTextAlign; }
+    Align   getTextAlign() const { return (Align)fTextAlign; }
 
     /** Set the paint's text alignment.
         @param align set the paint's Align value for drawing text.
@@ -740,9 +741,7 @@ public:
         kGlyphID_TextEncoding   //!< the text parameters are glyph indices
     };
 
-    TextEncoding getTextEncoding() const {
-      return (TextEncoding)fBitfields.fTextEncoding;
-    }
+    TextEncoding getTextEncoding() const { return (TextEncoding)fTextEncoding; }
 
     void setTextEncoding(TextEncoding encoding);
 
@@ -1042,6 +1041,10 @@ public:
 
 private:
     SkTypeface*     fTypeface;
+    SkScalar        fTextSize;
+    SkScalar        fTextScaleX;
+    SkScalar        fTextSkewX;
+
     SkPathEffect*   fPathEffect;
     SkShader*       fShader;
     SkXfermode*     fXfermode;
@@ -1052,12 +1055,10 @@ private:
     SkImageFilter*  fImageFilter;
     SkAnnotation*   fAnnotation;
 
-    SkScalar        fTextSize;
-    SkScalar        fTextScaleX;
-    SkScalar        fTextSkewX;
     SkColor         fColor;
     SkScalar        fWidth;
     SkScalar        fMiterLimit;
+
     union {
         struct {
             // all of these bitfields should add up to 32
@@ -1068,11 +1069,13 @@ private:
             unsigned        fStyle : 2;
             unsigned        fTextEncoding : 2;  // 3 values
             unsigned        fHinting : 2;
-            unsigned        fFilterLevel : 2;
-            //unsigned      fFreeBits : 2;
-        } fBitfields;
-        uint32_t fBitfieldsUInt;
+            //unsigned      fFreeBits : 4;
+        };
+        uint32_t fBitfields;
     };
+    uint32_t getBitfields() const { return fBitfields; }
+    void setBitfields(uint32_t bitfields);
+
     uint32_t fDirtyBits;
 
     SkDrawCacheProc    getDrawCacheProc() const;
@@ -1082,8 +1085,7 @@ private:
     SkScalar measure_text(SkGlyphCache*, const char* text, size_t length,
                           int* count, SkRect* bounds) const;
 
-    SkGlyphCache* detachCache(const SkDeviceProperties* deviceProperties, const SkMatrix*,
-                              bool ignoreGamma) const;
+    SkGlyphCache* detachCache(const SkDeviceProperties* deviceProperties, const SkMatrix*) const;
 
     void descriptorProc(const SkDeviceProperties* deviceProperties, const SkMatrix* deviceMatrix,
                         void (*proc)(SkTypeface*, const SkDescriptor*, void*),
@@ -1118,6 +1120,9 @@ private:
 
     static bool TooBigToUseCache(const SkMatrix& ctm, const SkMatrix& textM);
 
+    bool tooBigToUseCache() const;
+    bool tooBigToUseCache(const SkMatrix& ctm) const;
+
     // Set flags/hinting/textSize up to use for drawing text as paths.
     // Returns scale factor to restore the original textSize, since will will
     // have change it to kCanonicalTextSizeForPaths.
@@ -1130,14 +1135,12 @@ private:
     }
 
     friend class SkAutoGlyphCache;
-    friend class SkAutoGlyphCacheNoGamma;
     friend class SkCanvas;
     friend class SkDraw;
     friend class SkGraphics; // So Term() can be called.
     friend class SkPDFDevice;
     friend class GrBitmapTextContext;
     friend class GrDistanceFieldTextContext;
-    friend class GrStencilAndCoverTextContext;
     friend class SkTextToPathIter;
     friend class SkCanonicalizePaint;
 

@@ -169,9 +169,9 @@ static bool return_false(const SkBitmap& bm, const char msg[]) {
 
 static WEBP_CSP_MODE webp_decode_mode(const SkBitmap* decodedBitmap, bool premultiply) {
     WEBP_CSP_MODE mode = MODE_LAST;
-    const SkColorType ct = decodedBitmap->colorType();
+    SkBitmap::Config config = decodedBitmap->config();
 
-    if (ct == kN32_SkColorType) {
+    if (config == SkBitmap::kARGB_8888_Config) {
         #if SK_PMCOLOR_BYTE_ORDER(B,G,R,A)
             mode = premultiply ? MODE_bgrA : MODE_BGRA;
         #elif SK_PMCOLOR_BYTE_ORDER(R,G,B,A)
@@ -179,9 +179,9 @@ static WEBP_CSP_MODE webp_decode_mode(const SkBitmap* decodedBitmap, bool premul
         #else
             #error "Skia uses BGRA or RGBA byte order"
         #endif
-    } else if (ct == kARGB_4444_SkColorType) {
+    } else if (config == SkBitmap::kARGB_4444_Config) {
         mode = premultiply ? MODE_rgbA_4444 : MODE_RGBA_4444;
-    } else if (ct == kRGB_565_SkColorType) {
+    } else if (config == SkBitmap::kRGB_565_Config) {
         mode = MODE_RGB_565;
     }
     SkASSERT(MODE_LAST != mode);
@@ -278,35 +278,28 @@ static bool webp_get_config_resize_crop(WebPDecoderConfig* config,
     return true;
 }
 
-bool SkWEBPImageDecoder::setDecodeConfig(SkBitmap* decodedBitmap, int width, int height) {
-    SkColorType colorType = this->getPrefColorType(k32Bit_SrcDepth, SkToBool(fHasAlpha));
+bool SkWEBPImageDecoder::setDecodeConfig(SkBitmap* decodedBitmap,
+                                         int width, int height) {
+    SkBitmap::Config config = this->getPrefConfig(k32Bit_SrcDepth, SkToBool(fHasAlpha));
 
     // YUV converter supports output in RGB565, RGBA4444 and RGBA8888 formats.
     if (fHasAlpha) {
-        if (colorType != kARGB_4444_SkColorType) {
-            colorType = kN32_SkColorType;
+        if (config != SkBitmap::kARGB_4444_Config) {
+            config = SkBitmap::kARGB_8888_Config;
         }
     } else {
-        if (colorType != kRGB_565_SkColorType && colorType != kARGB_4444_SkColorType) {
-            colorType = kN32_SkColorType;
+        if (config != SkBitmap::kRGB_565_Config &&
+            config != SkBitmap::kARGB_4444_Config) {
+            config = SkBitmap::kARGB_8888_Config;
         }
     }
 
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
-    if (!this->chooseFromOneChoice(colorType, width, height)) {
+    if (!this->chooseFromOneChoice(config, width, height)) {
         return false;
     }
-#endif
 
-    SkAlphaType alphaType = kOpaque_SkAlphaType;
-    if (SkToBool(fHasAlpha)) {
-        if (this->getRequireUnpremultipliedColors()) {
-            alphaType = kUnpremul_SkAlphaType;
-        } else {
-            alphaType = kPremul_SkAlphaType;
-        }
-    }
-    return decodedBitmap->setInfo(SkImageInfo::Make(width, height, colorType, alphaType));
+    return decodedBitmap->setConfig(config, width, height, 0,
+                                    fHasAlpha ? kPremul_SkAlphaType : kOpaque_SkAlphaType);
 }
 
 bool SkWEBPImageDecoder::onBuildTileIndex(SkStreamRewindable* stream,
@@ -333,8 +326,10 @@ bool SkWEBPImageDecoder::onBuildTileIndex(SkStreamRewindable* stream,
 }
 
 static bool is_config_compatible(const SkBitmap& bitmap) {
-    const SkColorType ct = bitmap.colorType();
-    return ct == kARGB_4444_SkColorType || ct == kRGB_565_SkColorType || ct == kN32_SkColorType;
+    SkBitmap::Config config = bitmap.config();
+    return config == SkBitmap::kARGB_4444_Config ||
+           config == SkBitmap::kRGB_565_Config ||
+           config == SkBitmap::kARGB_8888_Config;
 }
 
 bool SkWEBPImageDecoder::onDecodeSubset(SkBitmap* decodedBitmap,
@@ -379,14 +374,12 @@ bool SkWEBPImageDecoder::onDecodeSubset(SkBitmap* decodedBitmap,
         if (!allocResult) {
             return return_false(*decodedBitmap, "allocPixelRef");
         }
-#ifdef SK_SUPPORT_LEGACY_IMAGEDECODER_CHOOSER
     } else {
         // This is also called in setDecodeConfig in above block.
         // i.e., when bitmap->isNull() is true.
-        if (!chooseFromOneChoice(bitmap->colorType(), width, height)) {
+        if (!chooseFromOneChoice(bitmap->config(), width, height)) {
             return false;
         }
-#endif
     }
 
     SkAutoLockPixels alp(*bitmap);
@@ -554,9 +547,11 @@ static void Index8_To_RGB(const uint8_t* in, uint8_t* rgb, int width,
   }
 }
 
-static ScanlineImporter ChooseImporter(SkColorType ct, bool  hasAlpha, int*  bpp) {
-    switch (ct) {
-        case kN32_SkColorType:
+static ScanlineImporter ChooseImporter(const SkBitmap::Config& config,
+                                       bool  hasAlpha,
+                                       int*  bpp) {
+    switch (config) {
+        case SkBitmap::kARGB_8888_Config:
             if (hasAlpha) {
                 *bpp = 4;
                 return ARGB_8888_To_RGBA;
@@ -564,7 +559,7 @@ static ScanlineImporter ChooseImporter(SkColorType ct, bool  hasAlpha, int*  bpp
                 *bpp = 3;
                 return ARGB_8888_To_RGB;
             }
-        case kARGB_4444_SkColorType:
+        case SkBitmap::kARGB_4444_Config:
             if (hasAlpha) {
                 *bpp = 4;
                 return ARGB_4444_To_RGBA;
@@ -572,10 +567,10 @@ static ScanlineImporter ChooseImporter(SkColorType ct, bool  hasAlpha, int*  bpp
                 *bpp = 3;
                 return ARGB_4444_To_RGB;
             }
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             *bpp = 3;
             return RGB_565_To_RGB;
-        case kIndex_8_SkColorType:
+        case SkBitmap::kIndex8_Config:
             *bpp = 3;
             return Index8_To_RGB;
         default:
@@ -599,9 +594,11 @@ private:
 
 bool SkWEBPImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bm,
                                   int quality) {
+    const SkBitmap::Config config = bm.config();
     const bool hasAlpha = !bm.isOpaque();
     int bpp = -1;
-    const ScanlineImporter scanline_import = ChooseImporter(bm.colorType(), hasAlpha, &bpp);
+    const ScanlineImporter scanline_import = ChooseImporter(config, hasAlpha,
+                                                            &bpp);
     if (NULL == scanline_import) {
         return false;
     }

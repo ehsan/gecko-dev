@@ -20,7 +20,6 @@ class SkBBoxHierarchyRecord : public SkBBoxRecord, public SkBBoxHierarchyClient 
 public:
     /** This will take a ref of h */
     SkBBoxHierarchyRecord(const SkISize& size, uint32_t recordFlags, SkBBoxHierarchy* h);
-    virtual ~SkBBoxHierarchyRecord() { };
 
     virtual void handleBBox(const SkRect& bounds) SK_OVERRIDE;
 
@@ -28,10 +27,14 @@ public:
     virtual bool shouldRewind(void* data) SK_OVERRIDE;
 
 protected:
-    virtual void willSave() SK_OVERRIDE;
+    virtual void willSave(SaveFlags) SK_OVERRIDE;
     virtual SaveLayerStrategy willSaveLayer(const SkRect*, const SkPaint*, SaveFlags) SK_OVERRIDE;
     virtual void willRestore() SK_OVERRIDE;
 
+    virtual void didTranslate(SkScalar, SkScalar) SK_OVERRIDE;
+    virtual void didScale(SkScalar, SkScalar) SK_OVERRIDE;
+    virtual void didRotate(SkScalar) SK_OVERRIDE;
+    virtual void didSkew(SkScalar, SkScalar) SK_OVERRIDE;
     virtual void didConcat(const SkMatrix&) SK_OVERRIDE;
     virtual void didSetMatrix(const SkMatrix&) SK_OVERRIDE;
 

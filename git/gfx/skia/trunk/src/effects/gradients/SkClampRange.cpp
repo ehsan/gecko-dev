@@ -50,6 +50,7 @@ void SkClampRange::init(SkFixed fx0, SkFixed dx0, int count, int v0, int v1) {
 
     fV0 = v0;
     fV1 = v1;
+    fOverflowed = false;
 
     // special case 1 == count, as it is slightly common for skia
     // and avoids us ever calling divide or 64bit multiply
@@ -62,6 +63,7 @@ void SkClampRange::init(SkFixed fx0, SkFixed dx0, int count, int v0, int v1) {
     int64_t dx = dx0;
     // start with ex equal to the last computed value
     int64_t ex = fx + (count - 1) * dx;
+    fOverflowed = overflows_fixed(ex);
 
     if ((uint64_t)(fx | ex) <= 0xFFFF) {
         fCount0 = fCount2 = 0;
@@ -84,8 +86,9 @@ void SkClampRange::init(SkFixed fx0, SkFixed dx0, int count, int v0, int v1) {
 
     // now make ex be 1 past the last computed value
     ex += dx;
+    fOverflowed = overflows_fixed(ex);
     // now check for over/under flow
-    if (overflows_fixed(ex)) {
+    if (fOverflowed) {
         int originalCount = count;
         int64_t ccount;
         bool swap = dx < 0;

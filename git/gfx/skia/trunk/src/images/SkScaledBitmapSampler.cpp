@@ -25,8 +25,7 @@ static bool Sample_Gray_D8888(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_gray_to_8888_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_gray_to_8888_proc(const SkImageDecoder& decoder) {
     // Dither, unpremul, and skipZeroes have no effect
     return Sample_Gray_D8888;
 }
@@ -42,8 +41,7 @@ static bool Sample_RGBx_D8888(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_RGBx_to_8888_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_RGBx_to_8888_proc(const SkImageDecoder& decoder) {
     // Dither, unpremul, and skipZeroes have no effect
     return Sample_RGBx_D8888;
 }
@@ -94,16 +92,15 @@ static bool Sample_RGBA_D8888_SkipZ(void* SK_RESTRICT dstRow,
     return alphaMask != 0xFF;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_RGBA_to_8888_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_RGBA_to_8888_proc(const SkImageDecoder& decoder) {
     // Dither has no effect.
-    if (!opts.fPremultiplyAlpha) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         // We could check each component for a zero, at the expense of extra checks.
         // For now, just return unpremul.
         return Sample_RGBA_D8888_Unpremul;
     }
     // Supply the versions that premultiply the colors
-    if (opts.fSkipZeros) {
+    if (decoder.getSkipWritingZeroes()) {
         return Sample_RGBA_D8888_SkipZ;
     }
     return Sample_RGBA_D8888;
@@ -134,10 +131,9 @@ static bool Sample_Gray_D565_D(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_gray_to_565_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_gray_to_565_proc(const SkImageDecoder& decoder) {
     // Unpremul and skip zeroes make no difference
-    if (opts.fDither) {
+    if (decoder.getDitherImage()) {
         return Sample_Gray_D565_D;
     }
     return Sample_Gray_D565;
@@ -167,10 +163,9 @@ static bool Sample_RGBx_D565_D(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_RGBx_to_565_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_RGBx_to_565_proc(const SkImageDecoder& decoder) {
     // Unpremul and skip zeroes make no difference
-    if (opts.fDither) {
+    if (decoder.getDitherImage()) {
         return Sample_RGBx_D565_D;
     }
     return Sample_RGBx_D565;
@@ -189,8 +184,7 @@ static bool Sample_D565_D565(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_565_to_565_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_565_to_565_proc(const SkImageDecoder& decoder) {
     // Unpremul, dither, and skip zeroes have no effect
     return Sample_D565_D565;
 }
@@ -222,10 +216,9 @@ static bool Sample_Gray_D4444_D(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_gray_to_4444_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_gray_to_4444_proc(const SkImageDecoder& decoder) {
     // Skip zeroes and unpremul make no difference
-    if (opts.fDither) {
+    if (decoder.getDitherImage()) {
         return Sample_Gray_D4444_D;
     }
     return Sample_Gray_D4444;
@@ -256,10 +249,9 @@ static bool Sample_RGBx_D4444_D(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_RGBx_to_4444_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_RGBx_to_4444_proc(const SkImageDecoder& decoder) {
     // Skip zeroes and unpremul make no difference
-    if (opts.fDither) {
+    if (decoder.getDitherImage()) {
         return Sample_RGBx_D4444_D;
     }
     return Sample_RGBx_D4444;
@@ -339,19 +331,19 @@ static bool Sample_RGBA_D4444_D_SkipZ(void* SK_RESTRICT dstRow,
     return alphaMask != 0xFF;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_RGBA_to_4444_proc(const SkScaledBitmapSampler::Options& opts) {
-    if (!opts.fPremultiplyAlpha) {
+static SkScaledBitmapSampler::RowProc get_RGBA_to_4444_proc(const SkImageDecoder& decoder) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         // Unpremultiplied is not supported for 4444
         return NULL;
     }
-    if (opts.fSkipZeros) {
-        if (opts.fDither) {
+    const bool dither = decoder.getDitherImage();
+    if (decoder.getSkipWritingZeroes()) {
+        if (dither) {
             return Sample_RGBA_D4444_D_SkipZ;
         }
         return Sample_RGBA_D4444_SkipZ;
     }
-    if (opts.fDither) {
+    if (dither) {
         return Sample_RGBA_D4444_D;
     }
     return Sample_RGBA_D4444;
@@ -394,14 +386,13 @@ static bool Sample_Index_D8888_SkipZ(void* SK_RESTRICT dstRow,
     return cc != A32_MASK_IN_PLACE;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_index_to_8888_proc(const SkScaledBitmapSampler::Options& opts) {
-    if (!opts.fPremultiplyAlpha) {
+static SkScaledBitmapSampler::RowProc get_index_to_8888_proc(const SkImageDecoder& decoder) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         // Unpremultiplied is not supported for an index source.
         return NULL;
     }
     // Dither makes no difference
-    if (opts.fSkipZeros) {
+    if (decoder.getSkipWritingZeroes()) {
         return Sample_Index_D8888_SkipZ;
     }
     return Sample_Index_D8888;
@@ -435,10 +426,9 @@ static bool Sample_Index_D565_D(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_index_to_565_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_index_to_565_proc(const SkImageDecoder& decoder) {
     // Unpremultiplied and skip zeroes make no difference
-    if (opts.fDither) {
+    if (decoder.getDitherImage()) {
         return Sample_Index_D565_D;
     }
     return Sample_Index_D565;
@@ -512,19 +502,19 @@ static bool Sample_Index_D4444_D_SkipZ(void* SK_RESTRICT dstRow,
     return cc != A32_MASK_IN_PLACE;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_index_to_4444_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_index_to_4444_proc(const SkImageDecoder& decoder) {
     // Unpremul not allowed
-    if (!opts.fPremultiplyAlpha) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         return NULL;
     }
-    if (opts.fSkipZeros) {
-        if (opts.fDither) {
+    const bool dither = decoder.getDitherImage();
+    if (decoder.getSkipWritingZeroes()) {
+        if (dither) {
             return Sample_Index_D4444_D_SkipZ;
         }
         return Sample_Index_D4444_SkipZ;
     }
-    if (opts.fDither) {
+    if (dither) {
         return Sample_Index_D4444_D;
     }
     return Sample_Index_D4444;
@@ -545,10 +535,9 @@ static bool Sample_Index_DI(void* SK_RESTRICT dstRow,
     return false;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_index_to_index_proc(const SkScaledBitmapSampler::Options& opts) {
+static SkScaledBitmapSampler::RowProc get_index_to_index_proc(const SkImageDecoder& decoder) {
     // Unpremul not allowed
-    if (!opts.fPremultiplyAlpha) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         return NULL;
     }
     // Ignore dither and skip zeroes
@@ -568,16 +557,15 @@ static bool Sample_Gray_DA8(void* SK_RESTRICT dstRow,
     return true;
 }
 
-static SkScaledBitmapSampler::RowProc
-get_gray_to_A8_proc(const SkScaledBitmapSampler::Options& opts) {
-    if (!opts.fPremultiplyAlpha) {
+static SkScaledBitmapSampler::RowProc get_gray_to_A8_proc(const SkImageDecoder& decoder) {
+    if (decoder.getRequireUnpremultipliedColors()) {
         return NULL;
     }
     // Ignore skip and dither.
     return Sample_Gray_DA8;
 }
 
-typedef SkScaledBitmapSampler::RowProc (*RowProcChooser)(const SkScaledBitmapSampler::Options&);
+typedef SkScaledBitmapSampler::RowProc (*RowProcChooser)(const SkImageDecoder& decoder);
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "SkScaledBitmapSampler.h"
@@ -625,7 +613,7 @@ SkScaledBitmapSampler::SkScaledBitmapSampler(int width, int height,
 }
 
 bool SkScaledBitmapSampler::begin(SkBitmap* dst, SrcConfig sc,
-                                  const Options& opts,
+                                  const SkImageDecoder& decoder,
                                   const SkPMColor ctable[]) {
     static const RowProcChooser gProcChoosers[] = {
         get_gray_to_8888_proc,
@@ -696,20 +684,20 @@ bool SkScaledBitmapSampler::begin(SkBitmap* dst, SrcConfig sc,
             return false;
     }
 
-    switch (dst->colorType()) {
-        case kN32_SkColorType:
+    switch (dst->config()) {
+        case SkBitmap::kARGB_8888_Config:
             index += 0 * gProcDstConfigSpan;
             break;
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             index += 1 * gProcDstConfigSpan;
             break;
-        case kARGB_4444_SkColorType:
+        case SkBitmap::kARGB_4444_Config:
             index += 2 * gProcDstConfigSpan;
             break;
-        case kIndex_8_SkColorType:
+        case SkBitmap::kIndex8_Config:
             index += 3 * gProcDstConfigSpan;
             break;
-        case kAlpha_8_SkColorType:
+        case SkBitmap::kA8_Config:
             index += 4 * gProcDstConfigSpan;
             break;
         default:
@@ -720,18 +708,12 @@ bool SkScaledBitmapSampler::begin(SkBitmap* dst, SrcConfig sc,
     if (NULL == chooser) {
         fRowProc = NULL;
     } else {
-        fRowProc = chooser(opts);
+        fRowProc = chooser(decoder);
     }
     fDstRow = (char*)dst->getPixels();
     fDstRowBytes = dst->rowBytes();
     fCurrY = 0;
     return fRowProc != NULL;
-}
-
-bool SkScaledBitmapSampler::begin(SkBitmap* dst, SrcConfig sc,
-                                  const SkImageDecoder& decoder,
-                                  const SkPMColor ctable[]) {
-    return this->begin(dst, sc, Options(decoder), ctable);
 }
 
 bool SkScaledBitmapSampler::next(const uint8_t* SK_RESTRICT src) {
@@ -842,23 +824,17 @@ protected:
 
 void test_row_proc_choice();
 void test_row_proc_choice() {
-    const SkColorType colorTypes[] = {
-        kAlpha_8_SkColorType, kIndex_8_SkColorType, kRGB_565_SkColorType, kARGB_4444_SkColorType,
-        kN32_SkColorType
-    };
-
     SkBitmap dummyBitmap;
     DummyDecoder dummyDecoder;
     size_t procCounter = 0;
     for (int sc = SkScaledBitmapSampler::kGray; sc <= SkScaledBitmapSampler::kRGB_565; ++sc) {
-        for (size_t c = 0; c < SK_ARRAY_COUNT(colorTypes); ++c) {
+        for (int c = SkBitmap::kA8_Config; c <= SkBitmap::kARGB_8888_Config; ++c) {
             for (int unpremul = 0; unpremul <= 1; ++unpremul) {
                 for (int dither = 0; dither <= 1; ++dither) {
                     // Arbitrary width/height/sampleSize to allow SkScaledBitmapSampler to
                     // be considered valid.
                     SkScaledBitmapSampler sampler(10, 10, 1);
-                    dummyBitmap.setInfo(SkImageInfo::Make(10, 10,
-                                                          colorTypes[c], kPremul_SkAlphaType));
+                    dummyBitmap.setConfig((SkBitmap::Config) c, 10, 10);
                     dummyDecoder.setDitherImage(SkToBool(dither));
                     dummyDecoder.setRequireUnpremultipliedColors(SkToBool(unpremul));
                     sampler.begin(&dummyBitmap, (SkScaledBitmapSampler::SrcConfig) sc,

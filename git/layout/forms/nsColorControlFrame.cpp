@@ -83,12 +83,10 @@ nsColorControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsColorControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsColorControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                               uint32_t aFilter)
 {
-  if (mColorContent) {
-    aElements.AppendElement(mColorContent);
-  }
+  aElements.MaybeAppendElement(mColorContent);
 }
 
 nsresult

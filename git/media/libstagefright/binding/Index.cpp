@@ -83,16 +83,11 @@ Index::Index(const stagefright::Vector<MediaSource::Indice>& aIndex,
   }
 }
 
-Index::~Index() {}
-
 void
 Index::ConvertByteRangesToTimeRanges(
   const nsTArray<MediaByteRange>& aByteRanges,
   nsTArray<Interval<Microseconds>>* aTimeRanges)
 {
-  RangeFinder rangeFinder(aByteRanges);
-  nsTArray<Interval<Microseconds>> timeRanges;
-
   nsTArray<stagefright::MediaSource::Indice> moofIndex;
   nsTArray<stagefright::MediaSource::Indice>* index;
   if (mMoofParser) {
@@ -103,20 +98,15 @@ Index::ConvertByteRangesToTimeRanges(
       // We take the index out of the moof parser and move it into a local
       // variable so we don't get concurrency issues. It gets freed when we
       // exit this function.
-      for (int i = 0; i < mMoofParser->mMoofs.Length(); i++) {
-        Moof& moof = mMoofParser->mMoofs[i];
-        if (rangeFinder.Contains(moof.mRange) &&
-            rangeFinder.Contains(moof.mMdatRange)) {
-          timeRanges.AppendElements(moof.mTimeRanges);
-        } else {
-          moofIndex.AppendElements(mMoofParser->mMoofs[i].mIndex);
-        }
-      }
+      moofIndex = mMoofParser->mIndex;
     }
     index = &moofIndex;
   } else {
     index = &mIndex;
   }
+
+  nsTArray<Interval<Microseconds>> timeRanges;
+  RangeFinder rangeFinder(aByteRanges);
 
   bool hasSync = false;
   for (size_t i = 0; i < index->Length(); i++) {

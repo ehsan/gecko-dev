@@ -18,15 +18,15 @@
  * the result of purely intersections of rects (with an initial replace)
  * isIntersectionOfRects will be set to true.
  */
-void GrClipData::getConservativeBounds(int width, int height,
+void GrClipData::getConservativeBounds(const GrSurface* surface,
                                        SkIRect* devResult,
                                        bool* isIntersectionOfRects) const {
     SkRect devBounds;
 
     fClipStack->getConservativeBounds(-fOrigin.fX,
                                       -fOrigin.fY,
-                                      width,
-                                      height,
+                                      surface->width(),
+                                      surface->height(),
                                       &devBounds,
                                       isIntersectionOfRects);
 

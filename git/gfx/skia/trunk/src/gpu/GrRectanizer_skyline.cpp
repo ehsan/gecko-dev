@@ -6,10 +6,56 @@
  * found in the LICENSE file.
  */
 
-#include "GrRectanizer_skyline.h"
-#include "SkPoint.h"
+#include "GrRectanizer.h"
+#include "SkTDArray.h"
 
-bool GrRectanizerSkyline::addRect(int width, int height, SkIPoint16* loc) {
+// Pack rectangles and track the current silhouette
+// Based in part on Jukka Jylänki's work at http://clb.demon.fi
+
+class GrRectanizerSkyline : public GrRectanizer {
+public:
+    GrRectanizerSkyline(int w, int h) : GrRectanizer(w, h) {
+        reset();
+    }
+
+    virtual ~GrRectanizerSkyline() {
+    }
+
+    virtual void reset() {
+        fAreaSoFar = 0;
+        fSkyline.reset();
+        SkylineSegment* seg = fSkyline.append(1);
+        seg->fX = 0;
+        seg->fY = 0;
+        seg->fWidth = width();
+    }
+
+    virtual bool addRect(int w, int h, GrIPoint16* loc);
+
+    virtual float percentFull() const {
+        return fAreaSoFar / ((float)this->width() * this->height());
+    }
+
+    virtual int stripToPurge(int height) const { return -1; }
+    virtual void purgeStripAtY(int yCoord) { }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    struct SkylineSegment {
+        int  fX;
+        int  fY;
+        int  fWidth;
+    };
+
+    SkTDArray<SkylineSegment> fSkyline;
+
+    int32_t fAreaSoFar;
+
+    bool rectangleFits(int skylineIndex, int width, int height, int* y) const;
+    void addSkylineLevel(int skylineIndex, int x, int y, int width, int height);
+};
+
+bool GrRectanizerSkyline::addRect(int width, int height, GrIPoint16* loc) {
     if ((unsigned)width > (unsigned)this->width() ||
         (unsigned)height > (unsigned)this->height()) {
         return false;
@@ -58,13 +104,13 @@ bool GrRectanizerSkyline::rectangleFits(int skylineIndex, int width, int height,
     int i = skylineIndex;
     int y = fSkyline[skylineIndex].fY;
     while (widthLeft > 0) {
-        y = SkMax32(y, fSkyline[i].fY);
+    y = SkMax32(y, fSkyline[i].fY);
         if (y + height > this->height()) {
             return false;
         }
-        widthLeft -= fSkyline[i].fWidth;
-        ++i;
-        SkASSERT(i < fSkyline.count() || widthLeft <= 0);
+    widthLeft -= fSkyline[i].fWidth;
+    ++i;
+    SkASSERT(i < fSkyline.count() || widthLeft <= 0);
     }
 
     *ypos = y;
@@ -81,9 +127,8 @@ void GrRectanizerSkyline::addSkylineLevel(int skylineIndex, int x, int y, int wi
     SkASSERT(newSegment.fX + newSegment.fWidth <= this->width());
     SkASSERT(newSegment.fY <= this->height());
 
-    // delete width of the new skyline segment from following ones
+    // delete width of this skyline segment from following ones
     for (int i = skylineIndex+1; i < fSkyline.count(); ++i) {
-        // The new segment subsumes all or part of fSkyline[i]
         SkASSERT(fSkyline[i-1].fX <= fSkyline[i].fX);
 
         if (fSkyline[i].fX < fSkyline[i-1].fX + fSkyline[i-1].fWidth) {
@@ -93,16 +138,14 @@ void GrRectanizerSkyline::addSkylineLevel(int skylineIndex, int x, int y, int wi
             fSkyline[i].fWidth -= shrink;
 
             if (fSkyline[i].fWidth <= 0) {
-                // fully consumed
                 fSkyline.remove(i);
                 --i;
-            } else {
-                // only partially consumed
-                break;
             }
-        } else {
-            break;
+            else
+                break;
         }
+        else
+            break;
     }
 
     // merge fSkylines

@@ -97,27 +97,13 @@ public:
     int intersectRay(double roots[3]) {
         double adj = fLine[1].fX - fLine[0].fX;
         double opp = fLine[1].fY - fLine[0].fY;
-        SkDCubic c;
+        SkDCubic r;
         for (int n = 0; n < 4; ++n) {
-            c[n].fX = (fCubic[n].fY - fLine[0].fY) * adj - (fCubic[n].fX - fLine[0].fX) * opp;
+            r[n].fX = (fCubic[n].fY - fLine[0].fY) * adj - (fCubic[n].fX - fLine[0].fX) * opp;
         }
         double A, B, C, D;
-        SkDCubic::Coefficients(&c[0].fX, &A, &B, &C, &D);
-        int count = SkDCubic::RootsValidT(A, B, C, D, roots);
-        for (int index = 0; index < count; ++index) {
-            SkDPoint calcPt = c.ptAtT(roots[index]);
-            if (!approximately_zero(calcPt.fX)) {
-                for (int n = 0; n < 4; ++n) {
-                    c[n].fY = (fCubic[n].fY - fLine[0].fY) * opp
-                            + (fCubic[n].fX - fLine[0].fX) * adj;
-                }
-                double extremeTs[6];
-                int extrema = SkDCubic::FindExtrema(c[0].fX, c[1].fX, c[2].fX, c[3].fX, extremeTs);
-                count = c.searchRoots(extremeTs, extrema, 0, SkDCubic::kXAxis, roots);
-                break;
-            }
-        }
-        return count;
+        SkDCubic::Coefficients(&r[0].fX, &A, &B, &C, &D);
+        return SkDCubic::RootsValidT(A, B, C, D, roots);
     }
 
     int intersect() {
@@ -160,21 +146,11 @@ public:
         return fIntersections->used();
     }
 
-    static int HorizontalIntersect(const SkDCubic& c, double axisIntercept, double roots[3]) {
+    int horizontalIntersect(double axisIntercept, double roots[3]) {
         double A, B, C, D;
-        SkDCubic::Coefficients(&c[0].fY, &A, &B, &C, &D);
+        SkDCubic::Coefficients(&fCubic[0].fY, &A, &B, &C, &D);
         D -= axisIntercept;
-        int count = SkDCubic::RootsValidT(A, B, C, D, roots);
-        for (int index = 0; index < count; ++index) {
-            SkDPoint calcPt = c.ptAtT(roots[index]);
-            if (!approximately_equal(calcPt.fY, axisIntercept)) {
-                double extremeTs[6];
-                int extrema = SkDCubic::FindExtrema(c[0].fY, c[1].fY, c[2].fY, c[3].fY, extremeTs);
-                count = c.searchRoots(extremeTs, extrema, axisIntercept, SkDCubic::kYAxis, roots);
-                break;
-            }
-        }
-        return count;
+        return SkDCubic::RootsValidT(A, B, C, D, roots);
     }
 
     int horizontalIntersect(double axisIntercept, double left, double right, bool flipped) {
@@ -182,13 +158,11 @@ public:
         if (fAllowNear) {
             addNearHorizontalEndPoints(left, right, axisIntercept);
         }
-        double roots[3];
-        int count = HorizontalIntersect(fCubic, axisIntercept, roots);
-        for (int index = 0; index < count; ++index) {
-            double cubicT = roots[index];
-            SkDPoint pt;
-            pt.fX = fCubic.ptAtT(cubicT).fX;
-            pt.fY = axisIntercept;
+        double rootVals[3];
+        int roots = horizontalIntersect(axisIntercept, rootVals);
+        for (int index = 0; index < roots; ++index) {
+            double cubicT = rootVals[index];
+            SkDPoint pt = fCubic.ptAtT(cubicT);
             double lineT = (pt.fX - left) / (right - left);
             if (pinTs(&cubicT, &lineT, &pt, kPointInitialized)) {
                 fIntersections->insert(cubicT, lineT, pt);
@@ -200,21 +174,11 @@ public:
         return fIntersections->used();
     }
 
-    static int VerticalIntersect(const SkDCubic& c, double axisIntercept, double roots[3]) {
+    int verticalIntersect(double axisIntercept, double roots[3]) {
         double A, B, C, D;
-        SkDCubic::Coefficients(&c[0].fX, &A, &B, &C, &D);
+        SkDCubic::Coefficients(&fCubic[0].fX, &A, &B, &C, &D);
         D -= axisIntercept;
-        int count = SkDCubic::RootsValidT(A, B, C, D, roots);
-        for (int index = 0; index < count; ++index) {
-            SkDPoint calcPt = c.ptAtT(roots[index]);
-            if (!approximately_equal(calcPt.fX, axisIntercept)) {
-                double extremeTs[6];
-                int extrema = SkDCubic::FindExtrema(c[0].fX, c[1].fX, c[2].fX, c[3].fX, extremeTs);
-                count = c.searchRoots(extremeTs, extrema, axisIntercept, SkDCubic::kXAxis, roots);
-                break;
-            }
-        }
-        return count;
+        return SkDCubic::RootsValidT(A, B, C, D, roots);
     }
 
     int verticalIntersect(double axisIntercept, double top, double bottom, bool flipped) {
@@ -222,13 +186,11 @@ public:
         if (fAllowNear) {
             addNearVerticalEndPoints(top, bottom, axisIntercept);
         }
-        double roots[3];
-        int count = VerticalIntersect(fCubic, axisIntercept, roots);
-        for (int index = 0; index < count; ++index) {
-            double cubicT = roots[index];
-            SkDPoint pt;
-            pt.fX = axisIntercept;
-            pt.fY = fCubic.ptAtT(cubicT).fY;
+        double rootVals[3];
+        int roots = verticalIntersect(axisIntercept, rootVals);
+        for (int index = 0; index < roots; ++index) {
+            double cubicT = rootVals[index];
+            SkDPoint pt = fCubic.ptAtT(cubicT);
             double lineT = (pt.fY - top) / (bottom - top);
             if (pinTs(&cubicT, &lineT, &pt, kPointInitialized)) {
                 fIntersections->insert(cubicT, lineT, pt);
@@ -261,7 +223,7 @@ public:
             if (fIntersections->hasT(cubicT)) {
                 continue;
             }
-            double lineT = fLine.nearPoint(fCubic[cIndex], NULL);
+            double lineT = fLine.nearPoint(fCubic[cIndex]);
             if (lineT < 0) {
                 continue;
             }
@@ -340,17 +302,10 @@ public:
         }
         double cT = *cubicT = SkPinT(*cubicT);
         double lT = *lineT = SkPinT(*lineT);
-        SkDPoint lPt = fLine.ptAtT(lT);
-        SkDPoint cPt = fCubic.ptAtT(cT);
-        if (!lPt.moreRoughlyEqual(cPt)) {
-            return false;
-        }
-        // FIXME: if points are roughly equal but not approximately equal, need to do
-        // a binary search like quad/quad intersection to find more precise t values
         if (lT == 0 || lT == 1 || (ptSet == kPointUninitialized && cT != 0 && cT != 1)) {
-            *pt = lPt;
+            *pt = fLine.ptAtT(lT);
         } else if (ptSet == kPointUninitialized) {
-            *pt = cPt;
+            *pt = fCubic.ptAtT(cT);
         }
         SkPoint gridPt = pt->asSkPoint();
         if (gridPt == fLine[0].asSkPoint()) {
