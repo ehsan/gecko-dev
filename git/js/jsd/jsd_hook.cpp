@@ -40,6 +40,11 @@ jsd_InterruptHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rva
     if( ! jsdscript )
         return JSTRAP_CONTINUE;
 
+#ifdef LIVEWIRE
+    if( ! jsdlw_UserCodeAtPC(jsdc, jsdscript, (uintptr_t)pc) )
+        return JSTRAP_CONTINUE;
+#endif
+
     return jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_INTERRUPTED,
                                  hook, hookData, rval);
 }
@@ -165,17 +170,17 @@ jsd_CallExecutionHook(JSDContext* jsdc,
     return JSTRAP_CONTINUE;
 }
 
-bool
+JSBool
 jsd_CallCallHook (JSDContext* jsdc,
                   JSContext *cx,
                   unsigned type,
                   JSD_CallHookProc hook,
                   void* hookData)
 {
-    bool hookanswer;
+    JSBool hookanswer;
     JSDThreadState*  jsdthreadstate;
     
-    hookanswer = false;
+    hookanswer = JS_FALSE;
     if(hook && NULL != (jsdthreadstate = jsd_NewThreadState(jsdc, cx)))
     {
         hookanswer = hook(jsdc, jsdthreadstate, type, hookData);
@@ -185,7 +190,7 @@ jsd_CallCallHook (JSDContext* jsdc,
     return hookanswer;
 }
 
-bool
+JSBool
 jsd_SetInterruptHook(JSDContext*           jsdc,
                      JSD_ExecutionHookProc hook,
                      void*                 callerdata)
@@ -196,10 +201,10 @@ jsd_SetInterruptHook(JSDContext*           jsdc,
     JS_SetInterrupt(jsdc->jsrt, jsd_InterruptHandler, (void*) jsdc);
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearInterruptHook(JSDContext* jsdc)
 {
     JSD_LOCK();
@@ -207,10 +212,10 @@ jsd_ClearInterruptHook(JSDContext* jsdc)
     jsdc->interruptHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetDebugBreakHook(JSDContext*           jsdc,
                       JSD_ExecutionHookProc hook,
                       void*                 callerdata)
@@ -220,20 +225,20 @@ jsd_SetDebugBreakHook(JSDContext*           jsdc,
     jsdc->debugBreakHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearDebugBreakHook(JSDContext* jsdc)
 {
     JSD_LOCK();
     jsdc->debugBreakHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetDebuggerHook(JSDContext*           jsdc,
                       JSD_ExecutionHookProc hook,
                       void*                 callerdata)
@@ -243,20 +248,20 @@ jsd_SetDebuggerHook(JSDContext*           jsdc,
     jsdc->debuggerHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearDebuggerHook(JSDContext* jsdc)
 {
     JSD_LOCK();
     jsdc->debuggerHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetThrowHook(JSDContext*           jsdc,
                  JSD_ExecutionHookProc hook,
                  void*                 callerdata)
@@ -266,20 +271,20 @@ jsd_SetThrowHook(JSDContext*           jsdc,
     jsdc->throwHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearThrowHook(JSDContext* jsdc)
 {
     JSD_LOCK();
     jsdc->throwHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetFunctionHook(JSDContext*      jsdc,
                     JSD_CallHookProc hook,
                     void*            callerdata)
@@ -289,20 +294,20 @@ jsd_SetFunctionHook(JSDContext*      jsdc,
     jsdc->functionHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearFunctionHook(JSDContext* jsdc)
 {
     JSD_LOCK();
     jsdc->functionHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetTopLevelHook(JSDContext*      jsdc,
                     JSD_CallHookProc hook,
                     void*            callerdata)
@@ -312,16 +317,16 @@ jsd_SetTopLevelHook(JSDContext*      jsdc,
     jsdc->toplevelHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearTopLevelHook(JSDContext* jsdc)
 {
     JSD_LOCK();
     jsdc->toplevelHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 

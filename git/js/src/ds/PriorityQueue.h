@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_PriorityQueue_h
-#define ds_PriorityQueue_h
+#ifndef jspriorityqueue_h_
+#define jspriorityqueue_h_
 
 #include "js/Vector.h"
 
@@ -132,4 +132,4 @@ class PriorityQueue
 
 }  /* namespace js */
 
-#endif /* ds_PriorityQueue_h */
+#endif /* jspriorityqueue_h_ */

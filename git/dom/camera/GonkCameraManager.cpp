@@ -20,9 +20,6 @@
 #include "GonkCameraControl.h"
 #include "DOMCameraManager.h"
 #include "CameraCommon.h"
-#include "mozilla/ErrorResult.h"
-
-using namespace mozilla;
 
 // From nsDOMCameraManager, but gonk-specific!
 nsresult
@@ -36,7 +33,7 @@ nsresult
 nsDOMCameraManager::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
 {
   int32_t count = android::Camera::getNumberOfCameras();
-  DOM_CAMERA_LOGI("GetCameraName : getNumberOfCameras() returned %d\n", count);
+  DOM_CAMERA_LOGI("getListOfCameras : getNumberOfCameras() returned %d\n", count);
   if (aDeviceNum > count) {
     DOM_CAMERA_LOGE("GetCameraName : invalid device number");
     return NS_ERROR_NOT_AVAILABLE;
@@ -66,21 +63,24 @@ nsDOMCameraManager::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
   return NS_OK;
 }
 
-void
-nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv)
+/* [implicit_jscontext] jsval getListOfCameras (); */
+NS_IMETHODIMP
+nsDOMCameraManager::GetListOfCameras(JSContext* cx, JS::Value* _retval)
 {
-  int32_t count = android::Camera::getNumberOfCameras();
+  JSObject* a = JS_NewArrayObject(cx, 0, nullptr);
+  uint32_t index = 0;
+  int32_t count;
+
+  if (!a) {
+    DOM_CAMERA_LOGE("getListOfCameras : Could not create array object");
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  count = android::Camera::getNumberOfCameras();
   if (count <= 0) {
-    return;
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
   DOM_CAMERA_LOGI("getListOfCameras : getNumberOfCameras() returned %d\n", count);
-
-  // Allocate 2 extra slots to reserve space for 'front' and 'back' cameras
-  // at the front of the array--we will collapse any empty slots below.
-  aList.SetLength(2);
-  uint32_t extraIdx = 2;
-  bool gotFront = false, gotBack = false;
   while (count--) {
     nsCString cameraName;
     nsresult result = GetCameraName(count, cameraName);
@@ -88,25 +88,28 @@ nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv
       continue;
     }
 
-    // The first camera we find named 'back' gets slot 0; and the first
-    // we find named 'front' gets slot 1.  All others appear after these.
-    if (cameraName.EqualsLiteral("back")) {
-      CopyUTF8toUTF16(cameraName, aList[0]);
-      gotBack = true;
-    } else if (cameraName.EqualsLiteral("front")) {
-      CopyUTF8toUTF16(cameraName, aList[1]);
-      gotFront = true;
+    JSString* v = JS_NewStringCopyZ(cx, cameraName.get());
+    JS::Value jv;
+    if (!cameraName.Compare("back")) {
+      index = 0;
+    } else if (!cameraName.Compare("front")) {
+      index = 1;
     } else {
-      CopyUTF8toUTF16(cameraName, *aList.InsertElementAt(extraIdx));
-      extraIdx++;
+      static uint32_t extraIndex = 2;
+      index = extraIndex++;
+    }
+
+    if (!v) {
+      DOM_CAMERA_LOGE("getListOfCameras : out of memory populating camera list");
+      return NS_ERROR_NOT_AVAILABLE;
+    }
+    jv = STRING_TO_JSVAL(v);
+    if (!JS_SetElement(cx, a, index, &jv)) {
+      DOM_CAMERA_LOGE("getListOfCameras : failed building list of cameras");
+      return NS_ERROR_NOT_AVAILABLE;
     }
   }
 
-  if (!gotFront) {
-    aList.RemoveElementAt(1);
-  }
-  
-  if (!gotBack) {
-    aList.RemoveElementAt(0);
-  }
+  *_retval = OBJECT_TO_JSVAL(a);
+  return NS_OK;
 }

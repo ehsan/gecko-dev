@@ -10,6 +10,7 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULES = stlport
+LIBRARY_NAME = stlport_static
 FORCE_STATIC_LIB = 1
 STL_FLAGS =
 
@@ -17,12 +18,13 @@ STL_FLAGS =
 # installing it in dist/lib.
 LIBRARY = $(LIB_PREFIX)$(LIBRARY_NAME).$(LIB_SUFFIX)
 
-VPATH += $(srcdir)/src
+VPATH += $(STLPORT_SOURCES)/src
 
-CSRCS = $(notdir $(wildcard $(srcdir)/src/*.c))
+CPPSRCS = $(notdir $(wildcard $(STLPORT_SOURCES)/src/*.cpp))
+CSRCS = $(notdir $(wildcard $(STLPORT_SOURCES)/src/*.c))
 
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -D_GNU_SOURCE
 CXXFLAGS += -fuse-cxa-atexit
-INCLUDES += -I$(srcdir)/stlport
+INCLUDES += -I$(STLPORT_SOURCES)/stlport

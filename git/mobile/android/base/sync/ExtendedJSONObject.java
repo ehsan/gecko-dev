@@ -115,7 +115,7 @@ public class ExtendedJSONObject {
   /**
    * Helper method to get a JSON object from a stream.
    *
-   * @param in input {@link Reader}.
+   * @param jsonString input.
    * @throws ParseException
    * @throws IOException
    * @throws NonArrayJSONException if the object is valid JSON, but not an object.
@@ -285,7 +285,7 @@ public class ExtendedJSONObject {
   }
 
   @SuppressWarnings("unchecked")
-  public Set<Entry<String, Object>> entrySet() {
+  public Iterable<Entry<String, Object>> entryIterable() {
     return this.object.entrySet();
   }
 
@@ -307,28 +307,5 @@ public class ExtendedJSONObject {
 
   public int size() {
     return this.object.size();
-  }
-
-  @Override
-  public int hashCode() {
-    if (this.object == null) {
-      return getClass().hashCode();
-    }
-    return this.object.hashCode() ^ getClass().hashCode();
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (o == null || !(o instanceof ExtendedJSONObject)) {
-      return false;
-    }
-    if (o == this) {
-      return true;
-    }
-    ExtendedJSONObject other = (ExtendedJSONObject) o;
-    if (this.object == null) {
-      return other.object == null;
-    }
-    return this.object.equals(other.object);
   }
 }

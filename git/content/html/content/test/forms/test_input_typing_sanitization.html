@@ -170,6 +170,7 @@ function runTest()
     { type: 'month', todo: true },
     { type: 'datetime', todo: true },
     { type: 'datetime-local', todo: true },
+    { type: 'color', todo: true },
   ];
 
   for (test of data) {
@@ -205,7 +206,7 @@ function runTest()
     valueIndex = 0;
     submitFrame.onload = checkValueSubmittedIsValid;
     testSubmissions();
-    yield undefined;
+    yield;
   }
 }
 

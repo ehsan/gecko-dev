@@ -53,7 +53,7 @@ public:
                  "Can't be for deletion and request a version!");
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   nsresult Init();
@@ -105,7 +105,7 @@ protected:
   nsresult StartSetVersion();
   nsresult StartDelete();
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
   void DispatchSuccessEvent();
   void DispatchErrorEvent();
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;

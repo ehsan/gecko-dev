@@ -29,7 +29,6 @@
 #include "mozilla/dom/Element.h"
 #include <algorithm>
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 /******************************************************************/
@@ -373,13 +372,8 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
                               nsRange* aRange,
                               uint32_t aNativeOffset,
                               uint32_t aNativeLength,
-                              bool aExpandToClusterBoundaries,
-                              uint32_t* aNewNativeOffset)
+                              bool aExpandToClusterBoundaries)
 {
-  if (aNewNativeOffset) {
-    *aNewNativeOffset = aNativeOffset;
-  }
-
   nsCOMPtr<nsIContentIterator> iter = NS_NewPreContentIterator();
   nsresult rv = iter->Init(mRootContent);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -410,12 +404,8 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
           ConvertToXPOffset(content, aNativeOffset - nativeOffset) : 0;
 
       if (aExpandToClusterBoundaries) {
-        uint32_t oldXPOffset = xpOffset;
         rv = ExpandToClusterBoundary(content, false, &xpOffset);
         NS_ENSURE_SUCCESS(rv, rv);
-        if (aNewNativeOffset) {
-          *aNewNativeOffset -= (oldXPOffset - xpOffset);
-        }
       }
 
       rv = aRange->SetStart(domNode, int32_t(xpOffset));
@@ -466,9 +456,6 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
     MOZ_ASSERT(!mRootContent->IsNodeOfType(nsINode::eTEXT));
     rv = aRange->SetStart(domNode, int32_t(mRootContent->GetChildCount()));
     NS_ENSURE_SUCCESS(rv, rv);
-    if (aNewNativeOffset) {
-      *aNewNativeOffset = nativeOffset;
-    }
   }
   rv = aRange->SetEnd(domNode, int32_t(mRootContent->GetChildCount()));
   NS_ASSERTION(NS_SUCCEEDED(rv), "nsIDOMRange::SetEnd failed");
@@ -530,8 +517,7 @@ nsContentEventHandler::OnQueryTextContent(nsQueryContentEvent* aEvent)
 
   nsRefPtr<nsRange> range = new nsRange(mRootContent);
   rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset,
-                                  aEvent->mInput.mLength, false,
-                                  &aEvent->mReply.mOffset);
+                                  aEvent->mInput.mLength, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = GenerateFlatTextContent(range, aEvent->mReply.mString);
@@ -588,10 +574,7 @@ nsContentEventHandler::OnQueryTextRect(nsQueryContentEvent* aEvent)
 
   nsRefPtr<nsRange> range = new nsRange(mRootContent);
   rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset,
-                                  aEvent->mInput.mLength, true,
-                                  &aEvent->mReply.mOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = GenerateFlatTextContent(range, aEvent->mReply.mString);
+                                  aEvent->mInput.mLength, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // used to iterate over all contents and their frames
@@ -734,7 +717,6 @@ nsContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
       NS_ENSURE_SUCCESS(rv, rv);
       aEvent->mReply.mRect =
         rect.ToOutsidePixels(caretFrame->PresContext()->AppUnitsPerDevPixel());
-      aEvent->mReply.mOffset = aEvent->mInput.mOffset;
       aEvent->mSucceeded = true;
       return NS_OK;
     }
@@ -742,8 +724,7 @@ nsContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
 
   // Otherwise, we should set the guessed caret rect.
   nsRefPtr<nsRange> range = new nsRange(mRootContent);
-  rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset, 0, true,
-                                  &aEvent->mReply.mOffset);
+  rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset, 0, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t offsetInFrame;
@@ -833,8 +814,8 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
                                   rootWidget);
   eventOnRoot.refPoint = aEvent->refPoint;
   if (rootWidget != aEvent->widget) {
-    eventOnRoot.refPoint += LayoutDeviceIntPoint::FromUntyped(
-      aEvent->widget->WidgetToScreenOffset() - rootWidget->WidgetToScreenOffset());
+    eventOnRoot.refPoint += aEvent->widget->WidgetToScreenOffset();
+    eventOnRoot.refPoint -= rootWidget->WidgetToScreenOffset();
   }
   nsPoint ptInRoot =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(&eventOnRoot, rootFrame);
@@ -892,15 +873,16 @@ nsContentEventHandler::OnQueryDOMWidgetHittest(nsQueryContentEvent* aEvent)
   nsIFrame* docFrame = mPresShell->GetRootFrame();
   NS_ENSURE_TRUE(docFrame, NS_ERROR_FAILURE);
 
-  LayoutDeviceIntPoint eventLoc = aEvent->refPoint +
-    LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
+  nsIntPoint eventLoc =
+    aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
   nsIntRect docFrameRect = docFrame->GetScreenRect(); // Returns CSS pixels
-  CSSIntPoint eventLocCSS(
-    mPresContext->DevPixelsToIntCSSPixels(eventLoc.x) - docFrameRect.x,
-    mPresContext->DevPixelsToIntCSSPixels(eventLoc.y) - docFrameRect.y);
+  eventLoc.x = mPresContext->DevPixelsToIntCSSPixels(eventLoc.x);
+  eventLoc.y = mPresContext->DevPixelsToIntCSSPixels(eventLoc.y);
+  eventLoc.x -= docFrameRect.x;
+  eventLoc.y -= docFrameRect.y;
 
   Element* contentUnderMouse =
-    doc->ElementFromPointHelper(eventLocCSS.x, eventLocCSS.y, false, false);
+    doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, false, false);
   if (contentUnderMouse) {
     nsIWidget* targetWidget = nullptr;
     nsIFrame* targetFrame = contentUnderMouse->GetPrimaryFrame();
@@ -1024,23 +1006,12 @@ static void AdjustRangeForSelection(nsIContent* aRoot,
 {
   nsINode* node = *aNode;
   int32_t offset = *aOffset;
-  if (aRoot != node && node->GetParent()) {
-    if (node->IsNodeOfType(nsINode::eTEXT)) {
-      // When the offset is at the end of the text node, set it to after the
-      // text node, to make sure the caret is drawn on a new line when the last
-      // character of the text node is '\n'
-      int32_t length = (int32_t)(static_cast<nsIContent*>(node)->TextLength());
-      MOZ_ASSERT(offset <= length, "Offset is past length of text node");
-      if (offset == length) {
-        node = node->GetParent();
-        offset = node->IndexOf(*aNode) + 1;
-      }
-    } else {
-      node = node->GetParent();
-      offset = node->IndexOf(*aNode) + (offset ? 1 : 0);
-    }
+  if (aRoot != node && node->GetParent() &&
+      !node->IsNodeOfType(nsINode::eTEXT)) {
+    node = node->GetParent();
+    offset = node->IndexOf(*aNode) + (offset ? 1 : 0);
   }
-
+  
   nsIContent* brContent = node->GetChildAt(offset - 1);
   while (brContent && brContent->IsHTML()) {
     if (brContent->Tag() != nsGkAtoms::br || IsContentBR(brContent))
@@ -1071,6 +1042,7 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
 
   // Get range from offset and length
   nsRefPtr<nsRange> range = new nsRange(mRootContent);
+  NS_ENSURE_TRUE(range, NS_ERROR_OUT_OF_MEMORY);
   rv = SetRangeFromFlatTextOffset(range, aEvent->mOffset, aEvent->mLength,
                                   aEvent->mExpandToClusterBoundary);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -30,7 +30,6 @@ class nsIPresShell;
 class nsDOMCSSValueList;
 class nsROCSSPrimitiveValue;
 class nsStyleContext;
-class gfx3DMatrix;
 
 class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
 {
@@ -46,7 +45,7 @@ public:
   GetPropertyCSSValue(const nsAString& aProp, mozilla::ErrorResult& aRv)
     MOZ_OVERRIDE;
   using nsICSSDeclaration::GetPropertyCSSValue;
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
 
   enum StyleType {
     eDefaultOnly, // Only includes UA and user sheets
@@ -93,8 +92,6 @@ public:
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*) MOZ_OVERRIDE;
   virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
-
-  static nsROCSSPrimitiveValue* MatrixToCSSValue(gfx3DMatrix& aMatrix);
 
 private:
   void AssertFlushedPendingReflows() {
@@ -181,7 +178,6 @@ private:
   mozilla::dom::CSSValue* DoGetMaxWidth();
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
-  mozilla::dom::CSSValue* DoGetMixBlendMode();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();
@@ -196,7 +192,6 @@ private:
   mozilla::dom::CSSValue* DoGetFontLanguageOverride();
   mozilla::dom::CSSValue* DoGetFontSize();
   mozilla::dom::CSSValue* DoGetFontSizeAdjust();
-  mozilla::dom::CSSValue* DoGetOSXFontSmoothing();
   mozilla::dom::CSSValue* DoGetFontStretch();
   mozilla::dom::CSSValue* DoGetFontStyle();
   mozilla::dom::CSSValue* DoGetFontSynthesis();
@@ -308,13 +303,12 @@ private:
   mozilla::dom::CSSValue* DoGetLineHeight();
   mozilla::dom::CSSValue* DoGetTextAlign();
   mozilla::dom::CSSValue* DoGetTextAlignLast();
-  mozilla::dom::CSSValue* DoGetTextCombineHorizontal();
+  mozilla::dom::CSSValue* DoGetMozTextBlink();
   mozilla::dom::CSSValue* DoGetTextDecoration();
   mozilla::dom::CSSValue* DoGetTextDecorationColor();
   mozilla::dom::CSSValue* DoGetTextDecorationLine();
   mozilla::dom::CSSValue* DoGetTextDecorationStyle();
   mozilla::dom::CSSValue* DoGetTextIndent();
-  mozilla::dom::CSSValue* DoGetTextOrientation();
   mozilla::dom::CSSValue* DoGetTextOverflow();
   mozilla::dom::CSSValue* DoGetTextTransform();
   mozilla::dom::CSSValue* DoGetTextShadow();
@@ -331,7 +325,6 @@ private:
   mozilla::dom::CSSValue* DoGetOpacity();
   mozilla::dom::CSSValue* DoGetPointerEvents();
   mozilla::dom::CSSValue* DoGetVisibility();
-  mozilla::dom::CSSValue* DoGetWritingMode();
 
   /* Direction properties */
   mozilla::dom::CSSValue* DoGetDirection();
@@ -393,6 +386,7 @@ private:
   mozilla::dom::CSSValue* DoGetAnimationIterationCount();
   mozilla::dom::CSSValue* DoGetAnimationPlayState();
 
+#ifdef MOZ_FLEXBOX
   /* CSS Flexbox properties */
   mozilla::dom::CSSValue* DoGetAlignItems();
   mozilla::dom::CSSValue* DoGetAlignSelf();
@@ -402,6 +396,7 @@ private:
   mozilla::dom::CSSValue* DoGetFlexShrink();
   mozilla::dom::CSSValue* DoGetOrder();
   mozilla::dom::CSSValue* DoGetJustifyContent();
+#endif // MOZ_FLEXBOX
 
   /* SVG properties */
   mozilla::dom::CSSValue* DoGetFill();
@@ -444,6 +439,7 @@ private:
   mozilla::dom::CSSValue* DoGetMaskType();
   mozilla::dom::CSSValue* DoGetPaintOrder();
 
+  nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,
@@ -494,11 +490,6 @@ private:
   bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   bool GetFrameBorderRectWidth(nscoord& aWidth);
   bool GetFrameBorderRectHeight(nscoord& aHeight);
-
-  /* Helper functions for computing the filter property style. */
-  void SetCssTextToCoord(nsAString& aCssText, const nsStyleCoord& aCoord);
-  mozilla::dom::CSSValue* CreatePrimitiveValueForStyleFilter(
-    const nsStyleFilter& aStyleFilter);
 
   struct ComputedStyleMapEntry
   {

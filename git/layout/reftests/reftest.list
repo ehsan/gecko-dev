@@ -48,9 +48,6 @@ include bugs/reftest.list
 # canvas 2D
 include canvas/reftest.list
 
-# css animations
-include css-animations/reftest.list
-
 # css calc() tests
 include css-calc/reftest.list
 
@@ -244,8 +241,8 @@ skip-if(B2G) include pagination/reftest.list
 # <style scoped>
 skip-if(B2G) include scoped-style/reftest.list
 
-# scrolling 
-skip-if(Android&&AndroidVersion>=15) include scrolling/reftest.list
+# scrolling
+include scrolling/reftest.list
 
 # selection
 include selection/reftest.list

@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
+#include "tests.h"
 #include "jsfun.h"
+#include "jscntxt.h"
 
-#include "jsapi-tests/tests.h"
+#include "jsobjinlines.h"
 
 #ifdef MOZ_TRACE_JSCALLS
 
@@ -30,7 +31,7 @@ funcTransition(const JSFunction *,
     }
 }
 
-static bool called2 = false;
+static JSBool called2 = false;
 
 static void
 funcTransition2(const JSFunction *, const JSScript*, const JSContext*, int)
@@ -135,7 +136,7 @@ JSContext *createContext()
 {
     JSContext *cx = JSAPITest::createContext();
     if (cx)
-        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
+        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_PCCOUNT);
     return cx;
 }
 

@@ -43,7 +43,6 @@ const EXT_STATE_ENABLED = nsIAccessibleStates.EXT_STATE_ENABLED;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
 const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
-const EXT_STATE_PINNED = nsIAccessibleStates.EXT_STATE_PINNED;
 const EXT_STATE_SENSITIVE = nsIAccessibleStates.EXT_STATE_SENSITIVE;
 const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
 const EXT_STATE_STALE = nsIAccessibleStates.EXT_STATE_STALE;
@@ -78,10 +77,8 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
 
   // Primary test.
-  if (aState) {
-    isState(state & aState, aState, false,
-            "wrong state bits for " + id + "!");
-  }
+  isState(state & aState, aState, false,
+          "wrong state bits for " + id + "!");
 
   if (aExtraState)
     isState(extraState & aExtraState, aExtraState, true,

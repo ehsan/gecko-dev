@@ -321,6 +321,17 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("dom.disable_open_during_load", value);
   },
 
+  get plugins() {
+    if (Services.prefs.getBoolPref("plugins.click_to_play")) {
+      return this.UNKNOWN;
+    }
+    return this.ALLOW;
+  },
+  set plugins(aValue) {
+    let value = (aValue != this.ALLOW);
+    Services.prefs.setBoolPref("plugins.click_to_play", value);
+  },
+  
   get fullscreen() {
     if (!Services.prefs.getBoolPref("full-screen-api.enabled")) {
       return this.DENY;
@@ -369,7 +380,7 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup", "fullscreen"],
+  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup", "plugins", "fullscreen"],
 
   /**
    * Permissions that don't have a global "Allow" option.
@@ -379,7 +390,7 @@ let AboutPermissions = {
   /**
    * Permissions that don't have a global "Deny" option.
    */
-  _noGlobalDeny: [],
+  _noGlobalDeny: ["plugins"],
 
   _stringBundle: Services.strings.
                  createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
@@ -401,6 +412,7 @@ let AboutPermissions = {
     Services.prefs.addObserver("geo.enabled", this, false);
     Services.prefs.addObserver("dom.indexedDB.enabled", this, false);
     Services.prefs.addObserver("dom.disable_open_during_load", this, false);
+    Services.prefs.addObserver("plugins.click_to_play", this, false);
     Services.prefs.addObserver("full-screen-api.enabled", this, false);
 
     Services.obs.addObserver(this, "perm-changed", false);
@@ -422,6 +434,7 @@ let AboutPermissions = {
       Services.prefs.removeObserver("geo.enabled", this, false);
       Services.prefs.removeObserver("dom.indexedDB.enabled", this, false);
       Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
+      Services.prefs.removeObserver("plugins.click_to_play", this, false);
       Services.prefs.removeObserver("full-screen-api.enabled", this, false);
 
       Services.obs.removeObserver(this, "perm-changed");
@@ -745,11 +758,18 @@ let AboutPermissions = {
     if (!this._selectedSite) {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
-      if (aType == "cookie")
+      if (aType == "plugins")
+        document.getElementById("plugins-pref-item").hidden = false;
+      else if (aType == "cookie")
 	// cookie-9 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
 	// for site-specific preferences only.
 	document.getElementById("cookie-9").hidden = true;
     } else {
+      if (aType == "plugins") {
+        document.getElementById("plugins-pref-item").hidden =
+          !Services.prefs.getBoolPref("plugins.click_to_play");
+        return;
+      }
       if (aType == "cookie")
         document.getElementById("cookie-9").hidden = false;
       let result = {};

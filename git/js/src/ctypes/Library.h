@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ctypes_Library_h
-#define ctypes_Library_h
+#ifndef LIBRARY_H
+#define LIBRARY_H
 
 #include "jsapi.h"
 
@@ -20,17 +20,17 @@ enum LibrarySlot {
 
 namespace Library
 {
-  bool Name(JSContext* cx, unsigned argc, jsval *vp);
+  JSBool Name(JSContext* cx, unsigned argc, jsval *vp);
 
   JSObject* Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks);
 
   bool IsLibrary(JSObject* obj);
   PRLibrary* GetLibrary(JSObject* obj);
 
-  bool Open(JSContext* cx, unsigned argc, jsval* vp);
+  JSBool Open(JSContext* cx, unsigned argc, jsval* vp);
 }
 
 }
 }
 
-#endif /* ctypes_Library_h */
+#endif

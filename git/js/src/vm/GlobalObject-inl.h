@@ -4,11 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_GlobalObject_inl_h
-#define vm_GlobalObject_inl_h
+#ifndef GlobalObject_inl_h___
+#define GlobalObject_inl_h___
 
 #include "vm/GlobalObject.h"
 
+#include "gc/Barrier-inl.h"
 #include "vm/ObjectImpl-inl.h"
 
 namespace js {
@@ -55,6 +56,13 @@ GlobalObject::setCreateArrayFromBufferHelper(uint32_t slot, Handle<JSFunction*> 
 {
     JS_ASSERT(getSlotRef(slot).isUndefined());
     setSlot(slot, ObjectValue(*fun));
+}
+
+void
+GlobalObject::setBooleanValueOf(Handle<JSFunction*> valueOfFun)
+{
+    JS_ASSERT(getSlotRef(BOOLEAN_VALUEOF).isUndefined());
+    setSlot(BOOLEAN_VALUEOF, ObjectValue(*valueOfFun));
 }
 
 void
@@ -127,6 +135,69 @@ GlobalObject::setCreateArrayFromBuffer<uint8_clamped>(Handle<JSFunction*> fun)
     setCreateArrayFromBufferHelper(FROM_BUFFER_UINT8CLAMPED, fun);
 }
 
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<uint8_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_UINT8);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<int8_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_INT8);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<uint16_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_UINT16);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<int16_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_INT16);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<uint32_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_UINT32);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<int32_t>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_INT32);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<float>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_FLOAT32);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<double>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_FLOAT64);
+}
+
+template<>
+inline Value
+GlobalObject::createArrayFromBuffer<uint8_clamped>() const
+{
+    return createArrayFromBufferHelper(FROM_BUFFER_UINT8CLAMPED);
+}
+
 void
 GlobalObject::setProtoGetter(JSFunction *protoGetter)
 {
@@ -139,7 +210,7 @@ GlobalObject::setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue v
 {
 #ifdef DEBUG
     RootedObject self(cx, this);
-    JS_ASSERT(cx->runtime()->isSelfHostingGlobal(self));
+    JS_ASSERT(cx->runtime->isSelfHostingGlobal(self));
 #endif
     RootedObject holder(cx, intrinsicsHolder());
     RootedValue valCopy(cx, value);
@@ -155,4 +226,4 @@ GlobalObject::setIntrinsicsHolder(JSObject *obj)
 
 } // namespace js
 
-#endif /* vm_GlobalObject_inl_h */
+#endif

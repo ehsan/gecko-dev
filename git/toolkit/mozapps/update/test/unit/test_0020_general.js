@@ -5,17 +5,12 @@
 
 /* General Update Check Update XML Tests */
 
-const TEST_ID = "0020";
-
 var gNextRunFunc;
 var gExpectedCount;
 
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
-
-  adjustGeneralPaths();
-
   removeUpdateDirsAndFiles();
   setUpdateURLOverride();
   setUpdateChannel("test_channel");
@@ -124,6 +119,7 @@ function check_test_pt02() {
   do_check_true(bestUpdate.showPrompt);
   do_check_true(bestUpdate.showNeverForVersion);
   do_check_eq(bestUpdate.promptWaitTime, "345600");
+  do_check_true(bestUpdate.showSurvey);
   do_check_eq(bestUpdate.serviceURL, URL_HOST + "update.xml?force=1");
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);
@@ -204,6 +200,7 @@ function check_test_pt03() {
   do_check_true(bestUpdate.showPrompt);
   do_check_true(bestUpdate.showNeverForVersion);
   do_check_eq(bestUpdate.promptWaitTime, "691200");
+  do_check_false(bestUpdate.showSurvey);
   do_check_eq(bestUpdate.serviceURL, URL_HOST + "update.xml?force=1");
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);

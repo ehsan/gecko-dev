@@ -54,8 +54,6 @@ using namespace mozilla::dom;
 #define LOADSTART_STR "loadstart"
 #define LOADEND_STR "loadend"
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMFileReader,
                                                   FileIOObject)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFile)
@@ -95,7 +93,9 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  NS_HOLD_JS_OBJECTS(this, nsDOMFileReader);
+  nsContentUtils::PreserveWrapper(
+    static_cast<EventTarget*>(
+      static_cast<nsDOMEventTargetHelper*>(this)), this);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -113,8 +113,7 @@ nsDOMFileReader::nsDOMFileReader()
 nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
-  mResultArrayBuffer = nullptr;
-  NS_DROP_JS_OBJECTS(this, nsDOMFileReader);
+
   nsLayoutStatics::Release();
 }
 
@@ -134,11 +133,9 @@ nsDOMFileReader::Init()
   mPrincipal.swap(principal);
 
   // Instead of grabbing some random global from the context stack,
-  // let's use the default one (junk scope) for now.
+  // let's use the default one (junk drawer) for now.
   // We should move away from this Init...
-  nsCOMPtr<nsIGlobalObject> global = xpc::GetJunkScopeGlobal();
-  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-  BindToOwner(global);
+  BindToOwner(xpc::GetNativeForGlobal(xpc::GetJunkScope()));
   return NS_OK;
 }
 
@@ -216,7 +213,7 @@ nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetError(nsISupports** aError)
+nsDOMFileReader::GetError(nsIDOMDOMError** aError)
 {
   NS_IF_ADDREF(*aError = GetError());
   return NS_OK;

@@ -7,9 +7,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+
+#include "jscntxt.h"
 
 static js::ProfileEntry pstack[10];
 static uint32_t psize = 0;
@@ -20,9 +21,9 @@ reset(JSContext *cx)
 {
     psize = max_stack = 0;
     memset(pstack, 0, sizeof(pstack));
-    cx->runtime()->spsProfiler.stringsReset();
-    cx->runtime()->spsProfiler.enableSlowAssertions(true);
-    js::EnableRuntimeProfilingStack(cx->runtime(), true);
+    cx->runtime->spsProfiler.stringsReset();
+    cx->runtime->spsProfiler.enableSlowAssertions(true);
+    js::EnableRuntimeProfilingStack(cx->runtime, true);
 }
 
 static JSClass ptestClass = {
@@ -30,43 +31,43 @@ static JSClass ptestClass = {
     JS_StrictPropertyStub, JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static bool
+static JSBool
 test_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
     max_stack = psize;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 test_fn2(JSContext *cx, unsigned argc, jsval *vp)
 {
     jsval r;
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JS::RootedObject global(cx, JS_GetGlobalObject(cx));
     return JS_CallFunctionName(cx, global, "d", 0, NULL, &r);
 }
 
-static bool
+static JSBool
 enable(JSContext *cx, unsigned argc, jsval *vp)
 {
-    js::EnableRuntimeProfilingStack(cx->runtime(), true);
-    return true;
+    js::EnableRuntimeProfilingStack(cx->runtime, true);
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 disable(JSContext *cx, unsigned argc, jsval *vp)
 {
-    js::EnableRuntimeProfilingStack(cx->runtime(), false);
-    return true;
+    js::EnableRuntimeProfilingStack(cx->runtime, false);
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 Prof(JSContext* cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, &ptestClass, vp);
     if (!obj)
-        return false;
+        return JS_FALSE;
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-    return true;
+    return JS_TRUE;
 }
 
 static const JSFunctionSpec ptestFunctions[] = {
@@ -80,8 +81,8 @@ static const JSFunctionSpec ptestFunctions[] = {
 static JSObject*
 initialize(JSContext *cx)
 {
-    js::SetRuntimeProfilingStack(cx->runtime(), pstack, &psize, 10);
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    js::SetRuntimeProfilingStack(cx->runtime, pstack, &psize, 10);
+    JS::RootedObject global(cx, JS_GetGlobalObject(cx));
     return JS_InitClass(cx, global, NULL, &ptestClass, Prof, 0,
                         NULL, ptestFunctions, NULL, NULL);
 }
@@ -107,24 +108,24 @@ BEGIN_TEST(testProfileStrings_isCalledWithInterpreter)
         CHECK(JS_CallFunctionName(cx, global, "check", 0, NULL, rval.address()));
         CHECK(psize == 0);
         CHECK(max_stack >= 8);
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == 8);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == 8);
         /* Make sure the stack resets and we added no new entries */
         max_stack = 0;
         CHECK(JS_CallFunctionName(cx, global, "check", 0, NULL, rval.address()));
         CHECK(psize == 0);
         CHECK(max_stack >= 8);
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == 8);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == 8);
     }
     reset(cx);
     {
         JS::RootedValue rval(cx);
         CHECK(JS_CallFunctionName(cx, global, "check2", 0, NULL, rval.address()));
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == 5);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == 5);
         CHECK(max_stack >= 6);
         CHECK(psize == 0);
     }
-    js::EnableRuntimeProfilingStack(cx->runtime(), false);
-    js::SetRuntimeProfilingStack(cx->runtime(), pstack, &psize, 3);
+    js::EnableRuntimeProfilingStack(cx->runtime, false);
+    js::SetRuntimeProfilingStack(cx->runtime, pstack, &psize, 3);
     reset(cx);
     {
         JS::RootedValue rval(cx);
@@ -141,7 +142,8 @@ END_TEST(testProfileStrings_isCalledWithInterpreter)
 BEGIN_TEST(testProfileStrings_isCalledWithJIT)
 {
     CHECK(initialize(cx));
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_METHODJIT |
+                        JSOPTION_METHODJIT_ALWAYS);
 
     EXEC("function g() { var p = new Prof(); p.test_fn(); }");
     EXEC("function f() { g(); }");
@@ -162,16 +164,16 @@ BEGIN_TEST(testProfileStrings_isCalledWithJIT)
         CHECK(max_stack >= 8);
 
         /* Make sure the stack resets and we added no new entries */
-        uint32_t cnt = cx->runtime()->spsProfiler.stringsCount();
+        uint32_t cnt = cx->runtime->spsProfiler.stringsCount();
         max_stack = 0;
         CHECK(JS_CallFunctionName(cx, global, "check", 0, NULL, rval.address()));
         CHECK(psize == 0);
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == cnt);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == cnt);
         CHECK(max_stack >= 8);
     }
 
-    js::EnableRuntimeProfilingStack(cx->runtime(), false);
-    js::SetRuntimeProfilingStack(cx->runtime(), pstack, &psize, 3);
+    js::EnableRuntimeProfilingStack(cx->runtime, false);
+    js::SetRuntimeProfilingStack(cx->runtime, pstack, &psize, 3);
     reset(cx);
     {
         /* Limit the size of the stack and make sure we don't overflow */
@@ -189,7 +191,7 @@ END_TEST(testProfileStrings_isCalledWithJIT)
 BEGIN_TEST(testProfileStrings_isCalledWhenError)
 {
     CHECK(initialize(cx));
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS);
 
     EXEC("function check2() { throw 'a'; }");
 
@@ -198,10 +200,10 @@ BEGIN_TEST(testProfileStrings_isCalledWhenError)
     {
         JS::RootedValue rval(cx);
         /* Make sure the stack resets and we have an entry for each stack */
-        bool ok = JS_CallFunctionName(cx, global, "check2", 0, NULL, rval.address());
+        JSBool ok = JS_CallFunctionName(cx, global, "check2", 0, NULL, rval.address());
         CHECK(!ok);
         CHECK(psize == 0);
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == 1);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == 1);
 
         JS_ClearPendingException(cx);
     }
@@ -212,19 +214,19 @@ END_TEST(testProfileStrings_isCalledWhenError)
 BEGIN_TEST(testProfileStrings_worksWhenEnabledOnTheFly)
 {
     CHECK(initialize(cx));
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_BASELINE | JSOPTION_ION);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS);
 
     EXEC("function b(p) { p.test_fn(); }");
     EXEC("function a() { var p = new Prof(); p.enable(); b(p); }");
     reset(cx);
-    js::EnableRuntimeProfilingStack(cx->runtime(), false);
+    js::EnableRuntimeProfilingStack(cx->runtime, false);
     {
         /* enable it in the middle of JS and make sure things check out */
         JS::RootedValue rval(cx);
         JS_CallFunctionName(cx, global, "a", 0, NULL, rval.address());
         CHECK(psize == 0);
         CHECK(max_stack >= 1);
-        CHECK(cx->runtime()->spsProfiler.stringsCount() == 1);
+        CHECK(cx->runtime->spsProfiler.stringsCount() == 1);
     }
 
     EXEC("function d(p) { p.disable(); }");
@@ -251,7 +253,7 @@ BEGIN_TEST(testProfileStrings_worksWhenEnabledOnTheFly)
     EXEC("function g(p) { p.disable(); for (var i = 0; i < 100; i++) i++; }");
     EXEC("function f() { g(new Prof()); }");
     reset(cx);
-    cx->runtime()->spsProfiler.enableSlowAssertions(false);
+    cx->runtime->spsProfiler.enableSlowAssertions(false);
     {
         JS::RootedValue rval(cx);
         /* disable, and make sure that if we try to re-enter the JIT the pop

@@ -46,8 +46,10 @@ interface CanvasRenderingContext2D {
            attribute DOMString globalCompositeOperation; // (default source-over)
 
   // colors and styles (see also the CanvasDrawingStyles interface)
-           attribute (DOMString or CanvasGradient or CanvasPattern) strokeStyle; // (default black)
-           attribute (DOMString or CanvasGradient or CanvasPattern) fillStyle; // (default black)
+           [GetterThrows]
+           attribute any strokeStyle; // (default black)
+           [GetterThrows]
+           attribute any fillStyle; // (default black)
   [Creator]
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
   [Creator, Throws]
@@ -74,7 +76,7 @@ interface CanvasRenderingContext2D {
 
   // path API (see also CanvasPathMethods)
   void beginPath();
-  void fill([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  void fill(optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  void fill(Path path);
   void stroke();
 // NOT IMPLEMENTED  void stroke(Path path);
@@ -84,10 +86,10 @@ interface CanvasRenderingContext2D {
 // NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, Element element);
 // NOT IMPLEMENTED  void scrollPathIntoView();
 // NOT IMPLEMENTED  void scrollPathIntoView(Path path);
-  void clip([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  void clip(optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  void clip(Path path);
 // NOT IMPLEMENTED  void resetClip();
-  boolean isPointInPath(unrestricted double x, unrestricted double y, [TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
+  boolean isPointInPath(unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  boolean isPointInPath(Path path, unrestricted double x, unrestricted double y);
   boolean isPointInStroke(double x, double y);
 

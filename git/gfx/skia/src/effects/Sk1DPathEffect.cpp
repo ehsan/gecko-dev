@@ -11,8 +11,7 @@
 #include "SkFlattenableBuffers.h"
 #include "SkPathMeasure.h"
 
-bool Sk1DPathEffect::filterPath(SkPath* dst, const SkPath& src,
-                                SkStrokeRec*, const SkRect*) const {
+bool Sk1DPathEffect::filterPath(SkPath* dst, const SkPath& src, SkStrokeRec*) {
     SkPathMeasure   meas(src, false);
     do {
         SkScalar    length = meas.getLength();
@@ -69,10 +68,10 @@ SkPath1DPathEffect::SkPath1DPathEffect(const SkPath& path, SkScalar advance,
 }
 
 bool SkPath1DPathEffect::filterPath(SkPath* dst, const SkPath& src,
-                            SkStrokeRec* rec, const SkRect* cullRect) const {
+                                    SkStrokeRec* rec) {
     if (fAdvance > 0) {
         rec->setFillStyle();
-        return this->INHERITED::filterPath(dst, src, rec, cullRect);
+        return this->INHERITED::filterPath(dst, src, rec);
     }
     return false;
 }
@@ -160,7 +159,7 @@ SkPath1DPathEffect::SkPath1DPathEffect(SkFlattenableReadBuffer& buffer) {
     }
 }
 
-SkScalar SkPath1DPathEffect::begin(SkScalar contourLength) const {
+SkScalar SkPath1DPathEffect::begin(SkScalar contourLength) {
     return fInitialOffset;
 }
 
@@ -175,7 +174,7 @@ void SkPath1DPathEffect::flatten(SkFlattenableWriteBuffer& buffer) const {
 }
 
 SkScalar SkPath1DPathEffect::next(SkPath* dst, SkScalar distance,
-                                  SkPathMeasure& meas) const {
+                                  SkPathMeasure& meas) {
     switch (fStyle) {
         case kTranslate_Style: {
             SkPoint pos;
@@ -198,3 +197,8 @@ SkScalar SkPath1DPathEffect::next(SkPath* dst, SkScalar distance,
     }
     return fAdvance;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+SK_DEFINE_FLATTENABLE_REGISTRAR(SkPath1DPathEffect)
+

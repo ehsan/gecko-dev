@@ -10,15 +10,13 @@ XPIDL_SOURCES += [
     'nsIMIMEService.idl',
 ]
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/netwerk/base/public',
+]
+
 MODULE = 'mimetype'
 
 EXPORTS += [
     'nsMimeTypes.h',
 ]
-
-CPP_SOURCES += [
-    'nsMIMEHeaderParamImpl.cpp',
-]
-
-LIBRARY_NAME = 'nkmime_s'
 

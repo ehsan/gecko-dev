@@ -16,8 +16,7 @@ nsDocShellLoadInfo::nsDocShellLoadInfo()
   : mInheritOwner(false),
     mOwnerIsExplicit(false),
     mSendReferrer(true),
-    mLoadType(nsIDocShellLoadInfo::loadNormal),
-    mIsSrcdocLoad(false)
+    mLoadType(nsIDocShellLoadInfo::loadNormal)
 {
 }
 
@@ -188,26 +187,6 @@ NS_IMETHODIMP nsDocShellLoadInfo::SetSendReferrer(bool aSendReferrer)
    mSendReferrer = aSendReferrer;
    return NS_OK;
 }
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetIsSrcdocLoad(bool* aIsSrcdocLoad)
-{
-   *aIsSrcdocLoad = mIsSrcdocLoad;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::GetSrcdocData(nsAString &aSrcdocData)
-{
-   aSrcdocData = mSrcdocData;
-   return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShellLoadInfo::SetSrcdocData(const nsAString &aSrcdocData)
-{
-   mSrcdocData = aSrcdocData;
-   mIsSrcdocLoad = true;
-   return NS_OK;
-}
-
 
 //*****************************************************************************
 // nsDocShellLoadInfo: Helpers

@@ -243,3 +243,4 @@ void SkParsePath::ToSVGString(const SkPath& path, SkString* str) {
         }
     }
 }
+

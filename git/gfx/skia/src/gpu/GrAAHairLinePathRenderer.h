@@ -18,13 +18,14 @@ public:
     static GrPathRenderer* Create(GrContext* context);
 
     virtual bool canDrawPath(const SkPath& path,
-                             const SkStrokeRec& stroke,
-                             const GrDrawTarget* target,
-                             bool antiAlias) const SK_OVERRIDE;
+                            GrPathFill fill,
+                            const GrDrawTarget* target,
+                            bool antiAlias) const SK_OVERRIDE;
 
 protected:
     virtual bool onDrawPath(const SkPath& path,
-                            const SkStrokeRec& stroke,
+                            GrPathFill fill,
+                            const GrVec* translate,
                             GrDrawTarget* target,
                             bool antiAlias) SK_OVERRIDE;
 
@@ -35,6 +36,7 @@ private:
                              const GrIndexBuffer* fQuadsIndexBuffer);
 
     bool createGeom(const SkPath& path,
+                    const GrVec* translate,
                     GrDrawTarget* target,
                     int* lineCnt,
                     int* quadCnt,
@@ -48,3 +50,4 @@ private:
 
 
 #endif
+

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+const NS_OS_TEMP_DIR = "TmpD";
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const NS_ERROR_IN_PROGRESS = 2152398863;
@@ -37,7 +38,9 @@ var ZipWriter = Components.Constructor("@mozilla.org/zipwriter;1",
 var ZipReader = Components.Constructor("@mozilla.org/libjar/zip-reader;1",
                                        "nsIZipReader", "open");
 
-var tmpDir = do_get_profile();
+var dirSvc = Cc["@mozilla.org/file/directory_service;1"]
+              .getService(Ci.nsIProperties);
+var tmpDir = dirSvc.get(NS_OS_TEMP_DIR, Ci.nsIFile);
 var tmpFile = tmpDir.clone();
 tmpFile.append("zipwriter-test.zip");
 if (tmpFile.exists())

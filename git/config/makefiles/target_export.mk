@@ -12,9 +12,10 @@ PARALLEL_DIRS_export = $(addsuffix _export,$(PARALLEL_DIRS))
 ###############
 ## TIER targets
 ###############
-$(addprefix export_tier_,$(TIERS)): export_tier_%:
+export_tier_%:
 	@$(ECHO) "$@"
-	$(foreach dir,$(tier_$*_dirs),$(call TIER_DIR_SUBMAKE,$*,export,$(dir),export))
+	@$(MAKE_TIER_SUBMAKEFILES)
+	$(foreach dir,$(tier_$*_dirs),$(call SUBMAKE,export,$(dir)))
 
 #################
 ## Common targets
@@ -30,3 +31,18 @@ export:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)
 
+
+#
+# Rule to create list of libraries for final link
+#
+# todo: use pre-req deps rather than conditionals
+export:: export-gen-final-lib-link-list
+export-gen-final-lib-link-list:
+ifdef LIBRARY_NAME   #{
+ifdef EXPORT_LIBRARY #{
+ifdef IS_COMPONENT   #{
+else # !IS_COMPONENT
+	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_LIBS) $(STATIC_LIBRARY_NAME)
+endif #} IS_COMPONENT
+endif #} EXPORT_LIBRARY
+endif #} LIBRARY_NAME

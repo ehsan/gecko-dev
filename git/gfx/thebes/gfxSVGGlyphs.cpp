@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Foundation code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Edwin Flores <eflores@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxSVGGlyphs.h"
 
@@ -28,7 +60,6 @@
 #include "nsIPrincipal.h"
 #include "Element.h"
 #include "nsSVGUtils.h"
-#include "harfbuzz/hb.h"
 
 #define SVG_CONTENT_TYPE NS_LITERAL_CSTRING("image/svg+xml")
 #define UTF8_CHARSET NS_LITERAL_CSTRING("utf-8")
@@ -41,23 +72,32 @@ const float gfxSVGGlyphs::SVG_UNITS_PER_EM = 1000.0f;
 
 const gfxRGBA SimpleTextObjectPaint::sZero = gfxRGBA(0.0f, 0.0f, 0.0f, 0.0f);
 
-gfxSVGGlyphs::gfxSVGGlyphs(hb_blob_t *aSVGTable, hb_blob_t *aCmapTable)
+gfxSVGGlyphs::gfxSVGGlyphs(FallibleTArray<uint8_t>& aSVGTable,
+                           const FallibleTArray<uint8_t>& aCmapTable)
 {
-    mSVGData = aSVGTable;
+    mSVGData.SwapElements(aSVGTable);
 
-    const char* svgData = hb_blob_get_data(mSVGData, nullptr);
-    mHeader = reinterpret_cast<const Header*>(svgData);
-    mIndex = reinterpret_cast<const IndexEntry*>(svgData + sizeof(Header));
+    mHeader = reinterpret_cast<Header*>(mSVGData.Elements());
+    UnmangleHeaders();
 
     mGlyphDocs.Init();
     mGlyphIdMap.Init();
     mCmapData = aCmapTable;
 }
 
-gfxSVGGlyphs::~gfxSVGGlyphs()
+void
+gfxSVGGlyphs::UnmangleHeaders()
 {
-    hb_blob_destroy(mSVGData);
-    hb_blob_destroy(mCmapData);
+    mHeader->mIndexLength = mozilla::NativeEndian::swapFromBigEndian(mHeader->mIndexLength);
+
+    mIndex = reinterpret_cast<IndexEntry*>(mSVGData.Elements() + sizeof(Header));
+
+    for (uint16_t i = 0; i < mHeader->mIndexLength; i++) {
+        mIndex[i].mStartGlyph = mozilla::NativeEndian::swapFromBigEndian(mIndex[i].mStartGlyph);
+        mIndex[i].mEndGlyph = mozilla::NativeEndian::swapFromBigEndian(mIndex[i].mEndGlyph);
+        mIndex[i].mDocOffset = mozilla::NativeEndian::swapFromBigEndian(mIndex[i].mDocOffset);
+        mIndex[i].mDocLength = mozilla::NativeEndian::swapFromBigEndian(mIndex[i].mDocLength);
+    }
 }
 
 /*
@@ -72,17 +112,13 @@ gfxSVGGlyphs::~gfxSVGGlyphs()
  *        sets intersecting of size > 1 -- so... don't do that)
  */
 /* static */ int
-gfxSVGGlyphs::CompareIndexEntries(const void *aKey, const void *aEntry)
+gfxSVGGlyphs::CompareIndexEntries(const void *_key, const void *_entry)
 {
-    const uint32_t key = *(uint32_t*)aKey;
-    const IndexEntry *entry = (const IndexEntry*)aEntry;
+    const uint32_t key = *(uint32_t*)_key;
+    const IndexEntry *entry = (const IndexEntry*)_entry;
 
-    if (key < uint16_t(entry->mStartGlyph)) {
-        return -1;
-    }
-    if (key > uint16_t(entry->mEndGlyph)) {
-        return 1;
-    }
+    if (key < entry->mStartGlyph) return -1;
+    if (key >= entry->mEndGlyph) return 1;
     return 0;
 }
 
@@ -90,7 +126,7 @@ gfxSVGGlyphsDocument *
 gfxSVGGlyphs::FindOrCreateGlyphsDocument(uint32_t aGlyphId)
 {
     IndexEntry *entry = (IndexEntry*)bsearch(&aGlyphId, mIndex,
-                                             uint16_t(mHeader->mIndexLength),
+                                             mHeader->mIndexLength,
                                              sizeof(IndexEntry),
                                              CompareIndexEntries);
     if (!entry) {
@@ -100,8 +136,7 @@ gfxSVGGlyphs::FindOrCreateGlyphsDocument(uint32_t aGlyphId)
     gfxSVGGlyphsDocument *result = mGlyphDocs.Get(entry->mDocOffset);
 
     if (!result) {
-        const uint8_t *data = (const uint8_t*)hb_blob_get_data(mSVGData, nullptr);
-        result = new gfxSVGGlyphsDocument(data + entry->mDocOffset,
+        result = new gfxSVGGlyphsDocument(mSVGData.Elements() + entry->mDocOffset,
                                           entry->mDocLength, mCmapData);
         mGlyphDocs.Put(entry->mDocOffset, result);
     }
@@ -158,7 +193,8 @@ gfxSVGGlyphsDocument::SetupPresentation()
  * @param aCmapTable Buffer containing the raw cmap table data
  */
 void
-gfxSVGGlyphsDocument::FindGlyphElements(Element *aElem, hb_blob_t *aCmapTable)
+gfxSVGGlyphsDocument::FindGlyphElements(Element *aElem,
+                                        const FallibleTArray<uint8_t> &aCmapTable)
 {
     for (nsIContent *child = aElem->GetLastChild(); child;
             child = child->GetPreviousSibling()) {
@@ -234,8 +270,8 @@ gfxSVGGlyphsDocument::GetGlyphElement(uint32_t aGlyphId)
     return mGlyphIdMap.Get(aGlyphId);
 }
 
-gfxSVGGlyphsDocument::gfxSVGGlyphsDocument(const uint8_t *aBuffer, uint32_t aBufLen,
-                                           hb_blob_t *aCmapTable)
+gfxSVGGlyphsDocument::gfxSVGGlyphsDocument(uint8_t *aBuffer, uint32_t aBufLen,
+                                           const FallibleTArray<uint8_t>& aCmapTable)
 {
     mGlyphIdMap.Init();
     ParseDocument(aBuffer, aBufLen);
@@ -260,7 +296,7 @@ gfxSVGGlyphsDocument::gfxSVGGlyphsDocument(const uint8_t *aBuffer, uint32_t aBuf
 }
 
 static nsresult
-CreateBufferedStream(const uint8_t *aBuffer, uint32_t aBufLen,
+CreateBufferedStream(uint8_t *aBuffer, uint32_t aBufLen,
                      nsCOMPtr<nsIInputStream> &aResult)
 {
     nsCOMPtr<nsIInputStream> stream;
@@ -282,7 +318,7 @@ CreateBufferedStream(const uint8_t *aBuffer, uint32_t aBufLen,
 }
 
 nsresult
-gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
+gfxSVGGlyphsDocument::ParseDocument(uint8_t *aBuffer, uint32_t aBufLen)
 {
     // Mostly pulled from nsDOMParser::ParseFromStream
 
@@ -375,65 +411,38 @@ gfxSVGGlyphsDocument::InsertGlyphId(Element *aGlyphElement)
     mGlyphIdMap.Put(glyphId, aGlyphElement);
 }
 
-// Get the Unicode character at index aPos in the string, and update aPos to
-// point to the next char (i.e. advance by one or two, depending whether we
-// found a surrogate pair).
-// This will assert (and return junk) if the string is not well-formed UTF16.
-// However, this is only used to process an attribute that comes from the
-// SVG-glyph XML document, and is not exposed to modification via the DOM,
-// so it must be well-formed UTF16 data (no unpaired surrogate codepoints)
-// unless our Unicode handling is seriously broken.
-static uint32_t
-NextUSV(const nsAString& aString, uint32_t& aPos)
-{
-    mozilla::DebugOnly<uint32_t> len = aString.Length();
-    NS_ASSERTION(aPos < len, "already at end of string");
-
-    uint32_t c1 = aString[aPos++];
-    if (NS_IS_HIGH_SURROGATE(c1)) {
-        NS_ASSERTION(aPos < len, "trailing high surrogate");
-        uint32_t c2 = aString[aPos++];
-        NS_ASSERTION(NS_IS_LOW_SURROGATE(c2), "isolated high surrogate");
-        return SURROGATE_TO_UCS4(c1, c2);
-    }
-
-    NS_ASSERTION(!NS_IS_LOW_SURROGATE(c1), "isolated low surrogate");
-    return c1;
-}
-
 void
 gfxSVGGlyphsDocument::InsertGlyphChar(Element *aGlyphElement,
-                                      hb_blob_t *aCmapTable)
+                                      const FallibleTArray<uint8_t> &aCmapTable)
 {
     nsAutoString glyphChar;
-    if (!aGlyphElement->GetAttr(kNameSpaceID_None, nsGkAtoms::glyphchar,
-                                glyphChar)) {
+    if (!aGlyphElement->GetAttr(kNameSpaceID_None, nsGkAtoms::glyphchar, glyphChar)) {
         return;
     }
 
-    uint32_t charCode, varSelector = 0, len = glyphChar.Length(), index = 0;
-    if (!len) {
-        NS_WARNING("glyphchar is empty");
-        return;
-    }
+    uint32_t varSelector;
 
-    charCode = NextUSV(glyphChar, index);
-    if (index < len) {
-        varSelector = NextUSV(glyphChar, index);
-        if (!gfxFontUtils::IsVarSelector(varSelector)) {
+    switch (glyphChar.Length()) {
+        case 0:
+            NS_WARNING("glyphchar is empty");
+            return;
+        case 1:
+            varSelector = 0;
+            break;
+        case 2:
+            if (gfxFontUtils::IsVarSelector(glyphChar.CharAt(1))) {
+                varSelector = glyphChar.CharAt(1);
+                break;
+            }
+        default:
             NS_WARNING("glyphchar contains more than one character");
             return;
-        }
     }
 
-    if (index < len) {
-        NS_WARNING("glyphchar contains more than one character");
-        return;
-    }
-
-    const uint8_t *data = (const uint8_t*)hb_blob_get_data(aCmapTable, &len);
-    uint32_t glyphId =
-        gfxFontUtils::MapCharToGlyph(data, len, charCode, varSelector);
+    uint32_t glyphId = gfxFontUtils::MapCharToGlyph(aCmapTable.Elements(),
+                                                    aCmapTable.Length(),
+                                                    glyphChar.CharAt(0),
+                                                    varSelector);
 
     if (glyphId) {
         mGlyphIdMap.Put(glyphId, aGlyphElement);

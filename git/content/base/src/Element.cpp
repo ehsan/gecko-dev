@@ -10,9 +10,10 @@
  * utility methods for subclasses, and so forth.
  */
 
+#include "mozilla/DebugOnly.h"
+
 #include "mozilla/dom/Element.h"
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
@@ -72,7 +73,6 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
-#include "ChildIterator.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -94,6 +94,7 @@
 #include "nsView.h"
 #include "nsViewManager.h"
 #include "nsIScrollableFrame.h"
+#include "nsXBLInsertionPoint.h"
 #include "mozilla/css/StyleRule.h" /* For nsCSSSelectorList */
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
@@ -126,26 +127,10 @@
 #include "nsXBLService.h"
 #include "nsContentCID.h"
 #include "nsITextControlElement.h"
-#include "nsISupportsImpl.h"
 #include "mozilla/dom/DocumentFragment.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-NS_IMETHODIMP
-Element::QueryInterface(REFNSIID aIID, void** aInstancePtr)
-{
-  NS_ASSERTION(aInstancePtr,
-               "QueryInterface requires a non-NULL destination!");
-  nsresult rv = FragmentOrElement::QueryInterface(aIID, aInstancePtr);
-  if (NS_SUCCEEDED(rv)) {
-    return NS_OK;
-  }
-
-  // Give the binding manager a chance to get an interface for this element.
-  return OwnerDoc()->BindingManager()->GetBindingImplementation(this, aIID,
-                                                                aInstancePtr);
-}
 
 nsEventStates
 Element::IntrinsicState() const
@@ -378,7 +363,8 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   // We must ensure that the XBL Binding is installed before we hand
   // back this object.
 
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) && GetXBLBinding()) {
+  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) &&
+      doc->BindingManager()->GetBinding(this)) {
     // There's already a binding for this element so nothing left to
     // be done here.
 
@@ -431,6 +417,34 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return obj;
 }
 
+Element*
+Element::GetFirstElementChild() const
+{
+  uint32_t i, count = mAttrsAndChildren.ChildCount();
+  for (i = 0; i < count; ++i) {
+    nsIContent* child = mAttrsAndChildren.ChildAt(i);
+    if (child->IsElement()) {
+      return child->AsElement();
+    }
+  }
+  
+  return nullptr;
+}
+
+Element*
+Element::GetLastElementChild() const
+{
+  uint32_t i = mAttrsAndChildren.ChildCount();
+  while (i > 0) {
+    nsIContent* child = mAttrsAndChildren.ChildAt(--i);
+    if (child->IsElement()) {
+      return child->AsElement();
+    }
+  }
+  
+  return nullptr;
+}
+
 nsDOMTokenList*
 Element::GetClassList()
 {
@@ -470,6 +484,32 @@ Element::GetStyledFrame()
 {
   nsIFrame *frame = GetPrimaryFrame(Flush_Layout);
   return frame ? nsLayoutUtils::GetStyleFrame(frame) : nullptr;
+}
+
+Element*
+Element::GetOffsetRect(nsRect& aRect)
+{
+  aRect = nsRect();
+
+  nsIFrame* frame = GetStyledFrame();
+  if (!frame) {
+    return nullptr;
+  }
+
+  nsPoint origin = frame->GetPosition();
+  aRect.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
+  aRect.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+
+  // Get the union of all rectangles in this and continuation frames.
+  // It doesn't really matter what we use as aRelativeTo here, since
+  // we only care about the size. Using 'parent' might make things
+  // a bit faster by speeding up the internal GetOffsetTo operations.
+  nsIFrame* parent = frame->GetParent() ? frame->GetParent() : frame;
+  nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, parent);
+  aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
+  aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
+
+  return nullptr;
 }
 
 nsIScrollableFrame*
@@ -895,6 +935,60 @@ Element::HasAttributeNS(const nsAString& aNamespaceURI,
   return HasAttr(nsid, name);
 }
 
+static nsXBLBinding*
+GetFirstBindingWithContent(nsBindingManager* aBmgr, nsIContent* aBoundElem)
+{
+  nsXBLBinding* binding = aBmgr->GetBinding(aBoundElem);
+  while (binding) {
+    if (binding->GetAnonymousContent()) {
+      return binding;
+    }
+    binding = binding->GetBaseBinding();
+  }
+  
+  return nullptr;
+}
+
+static nsresult
+BindNodesInInsertPoints(nsXBLBinding* aBinding, nsIContent* aInsertParent,
+                        nsIDocument* aDocument)
+{
+  NS_PRECONDITION(aBinding && aInsertParent, "Missing arguments");
+
+  nsresult rv;
+  // These should be refcounted or otherwise protectable.
+  nsInsertionPointList* inserts =
+    aBinding->GetExistingInsertionPointsFor(aInsertParent);
+  if (inserts) {
+    bool allowScripts = aBinding->AllowScripts();
+#ifdef MOZ_XUL
+    nsCOMPtr<nsIXULDocument> xulDoc = do_QueryInterface(aDocument);
+#endif
+    uint32_t i;
+    for (i = 0; i < inserts->Length(); ++i) {
+      nsCOMPtr<nsIContent> insertRoot =
+        inserts->ElementAt(i)->GetDefaultContent();
+      if (insertRoot) {
+        for (nsCOMPtr<nsIContent> child = insertRoot->GetFirstChild();
+             child;
+             child = child->GetNextSibling()) {
+          rv = child->BindToTree(aDocument, aInsertParent,
+                                 aBinding->GetBoundElement(), allowScripts);
+          NS_ENSURE_SUCCESS(rv, rv);
+
+#ifdef MOZ_XUL
+          if (xulDoc) {
+            xulDoc->AddSubtreeToDocument(child);
+          }
+#endif
+        }
+      }
+    }
+  }
+
+  return NS_OK;
+}
+
 already_AddRefed<nsIHTMLCollection>
 Element::GetElementsByClassName(const nsAString& aClassNames)
 {
@@ -915,7 +1009,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                     bool aCompileEventHandlers)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
-  NS_PRECONDITION((NODE_FROM(aParent, aDocument)->OwnerDoc() == OwnerDoc()),
+  NS_PRECONDITION(HasSameOwnerDoc(NODE_FROM(aParent, aDocument)),
                   "Must have the same owner document");
   NS_PRECONDITION(!aParent || aDocument == aParent->GetCurrentDoc(),
                   "aDocument must be current doc of aParent");
@@ -1036,8 +1130,9 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   if (hadForceXBL) {
     nsBindingManager* bmgr = OwnerDoc()->BindingManager();
 
-    nsXBLBinding* contBinding = bmgr->GetBindingWithContent(this);
     // First check if we have a binding...
+    nsXBLBinding* contBinding =
+      GetFirstBindingWithContent(bmgr, this);
     if (contBinding) {
       nsCOMPtr<nsIContent> anonRoot = contBinding->GetAnonymousContent();
       bool allowScripts = contBinding->AllowScripts();
@@ -1045,6 +1140,21 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
            child;
            child = child->GetNextSibling()) {
         rv = child->BindToTree(aDocument, this, this, allowScripts);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      // ...then check if we have content in insertion points that are
+      // direct children of the <content>
+      rv = BindNodesInInsertPoints(contBinding, this, aDocument);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    // ...and finally check if we're in a binding where we have content in
+    // insertion points.
+    if (aBindingParent) {
+      nsXBLBinding* binding = bmgr->GetBinding(aBindingParent);
+      if (binding) {
+        rv = BindNodesInInsertPoints(binding, this, aDocument);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }
@@ -1099,13 +1209,15 @@ class RemoveFromBindingManagerRunnable : public nsRunnable {
 public:
   RemoveFromBindingManagerRunnable(nsBindingManager* aManager,
                                    Element* aElement,
-                                   nsIDocument* aDoc):
-    mManager(aManager), mElement(aElement), mDoc(aDoc)
+                                   nsIDocument* aDoc,
+                                   nsIContent* aBindingParent):
+    mManager(aManager), mElement(aElement), mDoc(aDoc),
+    mBindingParent(aBindingParent)
   {}
 
   NS_IMETHOD Run()
   {
-    mManager->RemovedFromDocumentInternal(mElement, mDoc);
+    mManager->RemovedFromDocumentInternal(mElement, mDoc, mBindingParent);
     return NS_OK;
   }
 
@@ -1113,6 +1225,7 @@ private:
   nsRefPtr<nsBindingManager> mManager;
   nsRefPtr<Element> mElement;
   nsCOMPtr<nsIDocument> mDoc;
+  nsCOMPtr<nsIContent> mBindingParent;
 };
 
 void
@@ -1160,7 +1273,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
       nsContentUtils::AddScriptRunner(
         new RemoveFromBindingManagerRunnable(document->BindingManager(), this,
-                                             document));
+                                             document, GetBindingParent()));
     }
 
     document->ClearBoxObjectFor(this);
@@ -1705,7 +1818,8 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    nsRefPtr<nsXBLBinding> binding =
+      OwnerDoc()->BindingManager()->GetBinding(this);
     if (binding) {
       binding->AttributeChanged(aName, aNamespaceID, false, aNotify);
     }
@@ -1888,7 +2002,8 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    nsRefPtr<nsXBLBinding> binding = GetXBLBinding();
+    nsRefPtr<nsXBLBinding> binding =
+      OwnerDoc()->BindingManager()->GetBinding(this);
     if (binding) {
       binding->AttributeChanged(aName, aNameSpaceID, true, aNotify);
     }
@@ -1981,8 +2096,7 @@ Element::List(FILE* out, int32_t aIndent,
 
   ListAttributes(out);
 
-  fprintf(out, " state=[%llx]",
-          static_cast<unsigned long long>(State().GetInternalValue()));
+  fprintf(out, " state=[%llx]", State().GetInternalValue());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
   if (IsCommonAncestorForRangeInSelection()) {
     nsRange::RangeHashTable* ranges =
@@ -2018,36 +2132,44 @@ Element::List(FILE* out, int32_t aIndent,
                                        getter_AddRefs(anonymousChildren));
 
   if (anonymousChildren) {
-    uint32_t length = 0;
+    uint32_t length;
     anonymousChildren->GetLength(&length);
+    if (length > 0) {
+      for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
+      fputs("anonymous-children<\n", out);
 
-    for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
-    fputs("anonymous-children<\n", out);
-
-    for (uint32_t i = 0; i < length; ++i) {
-      nsCOMPtr<nsIDOMNode> node;
-      anonymousChildren->Item(i, getter_AddRefs(node));
-      nsCOMPtr<nsIContent> child = do_QueryInterface(node);
-      child->List(out, aIndent + 1);
-    }
-
-    for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
-    fputs(">\n", out);
-
-    bool outHeader = false;
-    ExplicitChildIterator iter(nonConstThis);
-    for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-      if (!outHeader) {
-        outHeader = true;
-
-        for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
-        fputs("content-list<\n", out);
+      for (uint32_t i = 0; i < length; ++i) {
+        nsCOMPtr<nsIDOMNode> node;
+        anonymousChildren->Item(i, getter_AddRefs(node));
+        nsCOMPtr<nsIContent> child = do_QueryInterface(node);
+        child->List(out, aIndent + 1);
       }
 
-      child->List(out, aIndent + 1);
+      for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
+      fputs(">\n", out);
     }
+  }
 
-    if (outHeader) {
+  if (bindingManager->HasContentListFor(nonConstThis)) {
+    nsCOMPtr<nsIDOMNodeList> contentList;
+    bindingManager->GetContentListFor(nonConstThis,
+                                      getter_AddRefs(contentList));
+
+    NS_ASSERTION(contentList != nullptr, "oops, binding manager lied");
+    
+    uint32_t length;
+    contentList->GetLength(&length);
+    if (length > 0) {
+      for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
+      fputs("content-list<\n", out);
+
+      for (uint32_t i = 0; i < length; ++i) {
+        nsCOMPtr<nsIDOMNode> node;
+        contentList->Item(i, getter_AddRefs(node));
+        nsCOMPtr<nsIContent> child = do_QueryInterface(node);
+        child->List(out, aIndent + 1);
+      }
+
       for (indent = aIndent; --indent >= 0; ) fputs("  ", out);
       fputs(">\n", out);
     }
@@ -2492,7 +2614,7 @@ private:
     uint32_t mLength;
   };
 public:
-  StringBuilder() : mLast(MOZ_THIS_IN_INITIALIZER_LIST()), mLength(0)
+  StringBuilder() : mLast(this), mLength(0)
   {
     MOZ_COUNT_CTOR(StringBuilder);
   }
@@ -2612,7 +2734,7 @@ public:
             EncodeTextFragment(u.mTextFragment, aOut);
             break;
           default:
-            MOZ_CRASH("Unknown unit type?");
+            MOZ_NOT_REACHED("Unknown unit type?");
         }
       }
     }
@@ -3416,31 +3538,4 @@ Element::SetBoolAttr(nsIAtom* aAttr, bool aValue)
   }
 
   return UnsetAttr(kNameSpaceID_None, aAttr, true);
-}
-
-Directionality
-Element::GetComputedDirectionality() const
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    return frame->StyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR
-             ? eDir_LTR : eDir_RTL;
-  }
-
-  return GetDirectionality();
-}
-
-float
-Element::FontSizeInflation()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  if (!frame) {
-    return -1.0;
-  }
-
-  if (nsLayoutUtils::FontSizeInflationEnabled(frame->PresContext())) {
-    return nsLayoutUtils::FontSizeInflationFor(frame);
-  }
-
-  return 1.0;
 }

@@ -3,29 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "perf/jsperf.h"
+#include "jsperf.h"
 
 #include "jscntxt.h" /* for error messages */
 #include "jsobj.h" /* for unwrapping without a context */
+
+#include "jsobjinlines.h"
+#include "vm/ObjectImpl-inl.h"
 
 using JS::PerfMeasurement;
 
 // You cannot forward-declare a static object in C++, so instead
 // we have to forward-declare the helper functions that refer to it.
-static PerfMeasurement* GetPM(JSContext* cx, JS::HandleObject obj, const char* fname);
+static PerfMeasurement* GetPM(JSContext* cx, JSHandleObject obj, const char* fname);
 static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 
 // Property access
 
 #define GETTER(name)                                                    \
-    static bool                                                         \
+    static JSBool                                                       \
     pm_get_##name(JSContext* cx, JS::HandleObject obj, JS::HandleId /*unused*/, JS::MutableHandleValue vp) \
     {                                                                   \
         PerfMeasurement* p = GetPM(cx, obj, #name);                     \
         if (!p)                                                         \
-            return false;                                               \
+            return JS_FALSE;                                            \
         vp.set(JS_NumberValue(double(p->name)));                        \
-        return true;                                                    \
+        return JS_TRUE;                                                 \
     }
 
 GETTER(cpu_cycles)
@@ -45,48 +48,48 @@ GETTER(eventsMeasured)
 
 // Calls
 
-static bool
+static JSBool
 pm_start(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->start();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_stop(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->stop();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_reset(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     p->reset();
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 pm_canMeasureSomething(JSContext* cx, unsigned /*unused*/, jsval* vp)
 {
     PerfMeasurement* p = GetPMFromThis(cx, vp);
     if (!p)
-        return false;
+        return JS_FALSE;
 
     JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(p->canMeasureSomething()));
-    return true;
+    return JS_TRUE;
 }
 
 const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT;
@@ -150,7 +153,7 @@ static const struct pm_const {
 
 #undef CONSTANT
 
-static bool pm_construct(JSContext* cx, unsigned argc, jsval* vp);
+static JSBool pm_construct(JSContext* cx, unsigned argc, jsval* vp);
 static void pm_finalize(JSFreeOp* fop, JSObject* obj);
 
 static JSClass pm_class = {
@@ -161,29 +164,29 @@ static JSClass pm_class = {
 
 // Constructor and destructor
 
-static bool
+static JSBool
 pm_construct(JSContext* cx, unsigned argc, jsval* vp)
 {
     uint32_t mask;
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
-        return false;
+        return JS_FALSE;
 
     JS::RootedObject obj(cx, JS_NewObjectForConstructor(cx, &pm_class, vp));
     if (!obj)
-        return false;
+        return JS_FALSE;
 
     if (!JS_FreezeObject(cx, obj))
-        return false;
+        return JS_FALSE;
 
     PerfMeasurement* p = cx->new_<PerfMeasurement>(PerfMeasurement::EventMask(mask));
     if (!p) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        return JS_FALSE;
     }
 
     JS_SetPrivate(obj, p);
     *vp = OBJECT_TO_JSVAL(obj);
-    return true;
+    return JS_TRUE;
 }
 
 static void
@@ -195,7 +198,7 @@ pm_finalize(JSFreeOp* fop, JSObject* obj)
 // Helpers (declared above)
 
 static PerfMeasurement*
-GetPM(JSContext* cx, JS::HandleObject obj, const char* fname)
+GetPM(JSContext* cx, JSHandleObject obj, const char* fname)
 {
     PerfMeasurement* p = (PerfMeasurement*)
         JS_GetInstancePrivate(cx, obj, &pm_class, 0);

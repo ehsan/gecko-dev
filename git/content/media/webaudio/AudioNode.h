@@ -10,21 +10,23 @@
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/dom/AudioNodeBinding.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Attributes.h"
 #include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "AudioContext.h"
+#include "AudioParamTimeline.h"
 #include "MediaStreamGraph.h"
-#include "WebAudioUtils.h"
+
+struct JSContext;
 
 namespace mozilla {
 
+class ErrorResult;
+
 namespace dom {
 
-class AudioContext;
-class AudioBufferSourceNode;
 class AudioParam;
-class AudioParamTimeline;
 struct ThreeDPoint;
 
 template<class T>
@@ -157,13 +159,8 @@ public:
   virtual uint16_t NumberOfOutputs() const { return 1; }
 
   uint32_t ChannelCount() const { return mChannelCount; }
-  virtual void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv)
+  void SetChannelCount(uint32_t aChannelCount)
   {
-    if (aChannelCount == 0 ||
-        aChannelCount > WebAudioUtils::MaxChannelCount) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
     mChannelCount = aChannelCount;
     SendChannelMixingParametersToStream();
   }
@@ -212,8 +209,6 @@ public:
   }
 
   void RemoveOutputParam(AudioParam* aParam);
-
-  virtual void NotifyInputConnected() {}
 
 private:
   friend class AudioBufferSourceNode;

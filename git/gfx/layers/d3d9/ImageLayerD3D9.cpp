@@ -51,34 +51,34 @@ DataToTexture(IDirect3DDevice9 *aDevice,
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_DEFAULT,
-                             getter_AddRefs(texture), nullptr)))
+                             getter_AddRefs(texture), NULL)))
     {
-      return nullptr;
+      return NULL;
     }
 
     nsRefPtr<IDirect3DTexture9> tmpTexture;
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_SYSTEMMEM,
-                             getter_AddRefs(tmpTexture), nullptr)))
+                             getter_AddRefs(tmpTexture), NULL)))
     {
-      return nullptr;
+      return NULL;
     }
 
     tmpTexture->GetSurfaceLevel(0, getter_AddRefs(surface));
-    surface->LockRect(&lockedRect, nullptr, 0);
+    surface->LockRect(&lockedRect, NULL, 0);
     NS_ASSERTION(lockedRect.pBits, "Could not lock surface");
   } else {
     if (FAILED(aDevice->
                CreateTexture(aSize.width, aSize.height,
                              1, 0, aFormat, D3DPOOL_MANAGED,
-                             getter_AddRefs(texture), nullptr)))
+                             getter_AddRefs(texture), NULL)))
     {
-      return nullptr;
+      return NULL;
     }
 
     /* lock the entire texture */
-    texture->LockRect(0, &lockedRect, nullptr, 0);
+    texture->LockRect(0, &lockedRect, NULL, 0);
   }
 
   uint32_t width = aSize.width;
@@ -95,7 +95,7 @@ DataToTexture(IDirect3DDevice9 *aDevice,
     surface->UnlockRect();
     nsRefPtr<IDirect3DSurface9> dstSurface;
     texture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(surface, nullptr, dstSurface, nullptr);
+    aDevice->UpdateSurface(surface, NULL, dstSurface, NULL);
   } else {
     texture->UnlockRect(0);
   }
@@ -185,31 +185,31 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     HRESULT hr;
     hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
                                 1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                getter_AddRefs(backendData->mYTexture), nullptr);
+                                getter_AddRefs(backendData->mYTexture), NULL);
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                                   1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(backendData->mCbTexture), nullptr);
+                                  getter_AddRefs(backendData->mCbTexture), NULL);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                                   1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(backendData->mCrTexture), nullptr);
+                                  getter_AddRefs(backendData->mCrTexture), NULL);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
                                   1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpYTexture), nullptr);
+                                  getter_AddRefs(tmpYTexture), NULL);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                                   1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCbTexture), nullptr);
+                                  getter_AddRefs(tmpCbTexture), NULL);
     }
     if (!FAILED(hr)) {
       hr = aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                                   1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCrTexture), nullptr);
+                                  getter_AddRefs(tmpCrTexture), NULL);
     }
 
     if (FAILED(hr)) {
@@ -221,23 +221,23 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     tmpYTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceY));
     tmpCbTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCb));
     tmpCrTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCr));
-    tmpSurfaceY->LockRect(&lockrectY, nullptr, 0);
-    tmpSurfaceCb->LockRect(&lockrectCb, nullptr, 0);
-    tmpSurfaceCr->LockRect(&lockrectCr, nullptr, 0);
+    tmpSurfaceY->LockRect(&lockrectY, NULL, 0);
+    tmpSurfaceCb->LockRect(&lockrectCb, NULL, 0);
+    tmpSurfaceCr->LockRect(&lockrectCr, NULL, 0);
   } else {
     HRESULT hr;
     hr = aDevice->CreateTexture(data->mYSize.width, data->mYSize.height,
                                 1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                                getter_AddRefs(backendData->mYTexture), nullptr);
+                                getter_AddRefs(backendData->mYTexture), NULL);
     if (!FAILED(hr)) {
       aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                              1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(backendData->mCbTexture), nullptr);
+                             getter_AddRefs(backendData->mCbTexture), NULL);
     }
     if (!FAILED(hr)) {
       aDevice->CreateTexture(data->mCbCrSize.width, data->mCbCrSize.height,
                              1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(backendData->mCrTexture), nullptr);
+                             getter_AddRefs(backendData->mCrTexture), NULL);
     }
 
     if (FAILED(hr)) {
@@ -247,9 +247,9 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     }
 
     /* lock the entire texture */
-    backendData->mYTexture->LockRect(0, &lockrectY, nullptr, 0);
-    backendData->mCbTexture->LockRect(0, &lockrectCb, nullptr, 0);
-    backendData->mCrTexture->LockRect(0, &lockrectCr, nullptr, 0);
+    backendData->mYTexture->LockRect(0, &lockrectY, NULL, 0);
+    backendData->mCbTexture->LockRect(0, &lockrectCb, NULL, 0);
+    backendData->mCrTexture->LockRect(0, &lockrectCr, NULL, 0);
   }
 
   src  = data->mYChannel;
@@ -291,11 +291,11 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     tmpSurfaceCr->UnlockRect();
     nsRefPtr<IDirect3DSurface9> dstSurface;
     backendData->mYTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceY, nullptr, dstSurface, nullptr);
+    aDevice->UpdateSurface(tmpSurfaceY, NULL, dstSurface, NULL);
     backendData->mCbTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceCb, nullptr, dstSurface, nullptr);
+    aDevice->UpdateSurface(tmpSurfaceCb, NULL, dstSurface, NULL);
     backendData->mCrTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-    aDevice->UpdateSurface(tmpSurfaceCr, nullptr, dstSurface, nullptr);
+    aDevice->UpdateSurface(tmpSurfaceCr, NULL, dstSurface, NULL);
   } else {
     backendData->mYTexture->UnlockRect(0);
     backendData->mCbTexture->UnlockRect(0);

@@ -1,5 +1,6 @@
 <!--
      Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/licenses/publicdomain/
      http://creativecommons.org/publicdomain/zero/1.0/
 -->
 <html class="reftest-wait">
@@ -9,15 +10,12 @@
       function snapshot() {
         document.documentElement.removeAttribute("class");
       }
-      function delay_snapshot() {
-        setTimeout(snapshot, 100); // delay snapshot to allow time for
-                                   // :visited style inside the image to
-                                   // resolve (which it hopefully won't)
-      }
-      document.addEventListener("MozReftestInvalidate", delay_snapshot, false);
     </script>
   </head>
-  <body style="margin: 0">
+
+  <!-- Wait 100ms before taking snapshot, to be sure we've allowed time for
+       :visited style inside the image to resolve (which it hopefully won't) -->
+  <body style="margin: 0" onload="setTimeout(snapshot, 100)">
     <img src="svg-image-visited-1-helper.svg">
   </body>
 </html>

@@ -4,8 +4,6 @@
 
 "use strict";
 
-require("sdk/clipboard");
-
 const { Cc, Ci } = require("chrome");
 
 const imageTools = Cc["@mozilla.org/image/tools;1"].
@@ -219,5 +217,17 @@ exports["test Set Image Type Wrong Data"] = function(assert) {
     clip.set(wrongPNG, flavor);
   }, "Unable to decode data given in a valid image.");
 };
+
+// TODO: Test error cases.
+
+if (require("sdk/system/xul-app").is("Fennec")) {
+  module.exports = {
+    "test Unsupported Test": function UnsupportedTest (assert) {
+        assert.pass(
+          "Skipping this test until Fennec support is implemented." +
+          "See bug 789757");
+    }
+  }
+}
 
 require("test").run(exports)

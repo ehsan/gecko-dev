@@ -27,15 +27,9 @@ function formatLogMessage(aType, aName, aStr, aException) {
   let message = aType.toUpperCase() + " " + aName + ": " + aStr;
   if (aException) {
     if (typeof aException == "number")
-      return message + ": " + Components.Exception("", aException).name;
-
-    message  = message + ": " + aException;
-    // instanceOf doesn't work here, let's duck type
-    if (aException.fileName)
-      message = message + " (" + aException.fileName + ":" + aException.lineNumber + ")";
-
-    if (aException.message == "too much recursion")
-      dump(message + "\n" + aException.stack + "\n");
+      return message + ": " + Components.Exception("", aException).name
+    else
+      return message + ": " + aException;
   }
   return message;
 }
@@ -92,8 +86,8 @@ AddonLogger.prototype = {
                         Ci.nsIScriptError.errorFlag, "component javascript");
     Services.console.logMessage(consoleMessage);
 
-    // Always dump errors, in case the Console Service isn't listening yet
-    dump("*** " + message + "\n");
+    if (gDebugLogEnabled)
+      dump("*** " + message + "\n");
 
     try {
       var tstamp = new Date();

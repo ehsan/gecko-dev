@@ -72,6 +72,10 @@ public:
   virtual ~GrallocBufferActor();
 
   static PGrallocBufferParent*
+  Create(const gfxIntSize& aSize, const gfxContentType& aContent,
+         MaybeMagicGrallocBufferHandle* aOutHandle);
+
+  static PGrallocBufferParent*
   Create(const gfxIntSize& aSize, const uint32_t& aFormat, const uint32_t& aUsage,
          MaybeMagicGrallocBufferHandle* aOutHandle);
 
@@ -87,7 +91,7 @@ public:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  void SetDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
+  void SetTextureHost(TextureHost* aTextureHost);
 
 private:
   GrallocBufferActor();
@@ -102,7 +106,7 @@ private:
 
   // used only for hacky fix in gecko 23 for bug 862324
   // see bug 865908 about fixing this.
-  DeprecatedTextureHost* mDeprecatedTextureHost;
+  TextureHost* mTextureHost;
 
   friend class ISurfaceAllocator;
 };

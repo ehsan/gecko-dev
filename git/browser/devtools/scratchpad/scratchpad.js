@@ -14,12 +14,9 @@
 
 "use strict";
 
-let require = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-
-let { Cc, Ci, Cu } = require("chrome");
-let promise = require("sdk/core/promise");
-let Telemetry = require("devtools/shared/telemetry");
-let TargetFactory = require("devtools/framework/target").TargetFactory;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -30,30 +27,14 @@ Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
-  "resource:///modules/devtools/VariablesView.jsm");
+                                  "resource:///modules/devtools/VariablesView.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "VariablesViewController",
-  "resource:///modules/devtools/VariablesViewController.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
+                                  "resource:///modules/devtools/gDevTools.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ObjectClient",
-  "resource://gre/modules/devtools/dbg-client.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
-  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
-  "resource://gre/modules/devtools/dbg-server.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "DebuggerClient",
-  "resource://gre/modules/devtools/dbg-client.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "REMOTE_TIMEOUT", () =>
-  Services.prefs.getIntPref("devtools.debugger.remote-timeout")
-);
- 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
 const SCRATCHPAD_CONTEXT_BROWSER = 2;
 const SCRATCHPAD_L10N = "chrome://browser/locale/devtools/scratchpad.properties";
@@ -65,10 +46,6 @@ const BUTTON_POSITION_DONT_SAVE = 2;
 const BUTTON_POSITION_REVERT = 0;
 const VARIABLES_VIEW_URL = "chrome://browser/content/devtools/widgets/VariablesView.xul";
 
-// Because we have no constructor / destructor where we can log metrics we need
-// to do so here.
-let telemetry = new Telemetry();
-telemetry.toolOpened("scratchpad");
 
 /**
  * The scratchpad object handles the Scratchpad window functionality.
@@ -135,10 +112,7 @@ var Scratchpad = {
    * Retrieve the xul:notificationbox DOM element. It notifies the user when
    * the current code execution context is SCRATCHPAD_CONTEXT_BROWSER.
    */
-  get notificationBox()
-  {
-    return document.getElementById("scratchpad-notificationbox");
-  },
+  get notificationBox() document.getElementById("scratchpad-notificationbox"),
 
   /**
    * Get the selected text from the editor.
@@ -146,10 +120,7 @@ var Scratchpad = {
    * @return string
    *         The selected text.
    */
-  get selectedText()
-  {
-    return this.editor.getSelectedText();
-  },
+  get selectedText() this.editor.getSelectedText(),
 
   /**
    * Get the editor content, in the given range. If no range is given you get
@@ -258,10 +229,13 @@ var Scratchpad = {
   /**
    * Get the most recent chrome window of type navigator:browser.
    */
-  get browserWindow()
-  {
-    return Services.wm.getMostRecentWindow("navigator:browser");
-  },
+  get browserWindow() Services.wm.getMostRecentWindow("navigator:browser"),
+
+  /**
+   * Reference to the last chrome window of type navigator:browser. We use this
+   * to check if the chrome window changed since the last code evaluation.
+   */
+  _previousWindow: null,
 
   /**
    * Get the gBrowser object of the most recent browser window.
@@ -271,6 +245,11 @@ var Scratchpad = {
     let recentWin = this.browserWindow;
     return recentWin ? recentWin.gBrowser : null;
   },
+
+  /**
+   * Cached Cu.Sandbox object for the active tab content window object.
+   */
+  _contentSandbox: null,
 
   /**
    * Unique name for the current Scratchpad instance. Used to distinguish
@@ -288,9 +267,76 @@ var Scratchpad = {
   get sidebar()
   {
     if (!this._sidebar) {
-      this._sidebar = new ScratchpadSidebar(this);
+      this._sidebar = new ScratchpadSidebar();
     }
     return this._sidebar;
+  },
+
+  /**
+   * Get the Cu.Sandbox object for the active tab content window object. Note
+   * that the returned object is cached for later reuse. The cached object is
+   * kept only for the current location in the current tab of the current
+   * browser window and it is reset for each context switch,
+   * navigator:browser window switch, tab switch or navigation.
+   */
+  get contentSandbox()
+  {
+    if (!this.browserWindow) {
+      Cu.reportError(this.strings.
+                     GetStringFromName("browserWindow.unavailable"));
+      return;
+    }
+
+    if (!this._contentSandbox ||
+        this.browserWindow != this._previousBrowserWindow ||
+        this._previousBrowser != this.gBrowser.selectedBrowser ||
+        this._previousLocation != this.gBrowser.contentWindow.location.href) {
+      let contentWindow = this.gBrowser.selectedBrowser.contentWindow;
+      this._contentSandbox = new Cu.Sandbox(contentWindow,
+        { sandboxPrototype: contentWindow, wantXrays: false,
+          sandboxName: 'scratchpad-content'});
+      this._contentSandbox.__SCRATCHPAD__ = this;
+
+      this._previousBrowserWindow = this.browserWindow;
+      this._previousBrowser = this.gBrowser.selectedBrowser;
+      this._previousLocation = contentWindow.location.href;
+    }
+
+    return this._contentSandbox;
+  },
+
+  /**
+   * Cached Cu.Sandbox object for the most recently active navigator:browser
+   * chrome window object.
+   */
+  _chromeSandbox: null,
+
+  /**
+   * Get the Cu.Sandbox object for the most recently active navigator:browser
+   * chrome window object. Note that the returned object is cached for later
+   * reuse. The cached object is kept only for the current browser window and it
+   * is reset for each context switch or navigator:browser window switch.
+   */
+  get chromeSandbox()
+  {
+    if (!this.browserWindow) {
+      Cu.reportError(this.strings.
+                     GetStringFromName("browserWindow.unavailable"));
+      return;
+    }
+
+    if (!this._chromeSandbox ||
+        this.browserWindow != this._previousBrowserWindow) {
+      this._chromeSandbox = new Cu.Sandbox(this.browserWindow,
+        { sandboxPrototype: this.browserWindow, wantXrays: false,
+          sandboxName: 'scratchpad-chrome'});
+      this._chromeSandbox.__SCRATCHPAD__ = this;
+      addDebuggerToGlobal(this._chromeSandbox);
+
+      this._previousBrowserWindow = this.browserWindow;
+    }
+
+    return this._chromeSandbox;
   },
 
   /**
@@ -335,38 +381,30 @@ var Scratchpad = {
    * @return Promise
    *         The promise for the script evaluation result.
    */
-  evaluate: function SP_evaluate(aString)
+  evalForContext: function SP_evaluateForContext(aString)
   {
-    let connection;
-    if (this.executionContext == SCRATCHPAD_CONTEXT_CONTENT) {
-      connection = ScratchpadTab.consoleFor(this.gBrowser.selectedTab);
-    }
-    else {
-      connection = ScratchpadWindow.consoleFor(this.browserWindow);
-    }
+    let deferred = Promise.defer();
 
-    let evalOptions = { url: this.uniqueName };
+    // This setTimeout is temporary and will be replaced by DebuggerClient
+    // execution in a future patch (bug 825039). The purpose for using
+    // setTimeout is to ensure there is no accidental dependency on the
+    // promise being resolved synchronously, which can cause subtle bugs.
+    setTimeout(() => {
+      let chrome = this.executionContext != SCRATCHPAD_CONTEXT_CONTENT;
+      let sandbox = chrome ? this.chromeSandbox : this.contentSandbox;
+      let name = this.uniqueName;
 
-    return connection.then(({ debuggerClient, webConsoleClient }) => {
-      let deferred = promise.defer();
+      try {
+        let result = Cu.evalInSandbox(aString, sandbox, "1.8", name, 1);
+        deferred.resolve([aString, undefined, result]);
+      }
+      catch (ex) {
+        deferred.resolve([aString, ex]);
+      }
+    }, 0);
 
-      webConsoleClient.evaluateJS(aString, aResponse => {
-        this.debuggerClient = debuggerClient;
-        this.webConsoleClient = webConsoleClient;
-        if (aResponse.error) {
-          deferred.reject(aResponse);
-        }
-        else if (aResponse.exception) {
-          deferred.resolve([aString, aResponse]);
-        }
-        else {
-          deferred.resolve([aString, undefined, aResponse.result]);
-        }
-      }, evalOptions);
-
-      return deferred.promise;
-    });
-   },
+    return deferred.promise;
+  },
 
   /**
    * Execute the selected text (if any) or the entire editor content in the
@@ -378,7 +416,7 @@ var Scratchpad = {
   execute: function SP_execute()
   {
     let selection = this.selectedText || this.getText();
-    return this.evaluate(selection);
+    return this.evalForContext(selection);
   },
 
   /**
@@ -390,22 +428,16 @@ var Scratchpad = {
    */
   run: function SP_run()
   {
-    let deferred = promise.defer();
-    let reject = aReason => deferred.reject(aReason);
-
-    this.execute().then(([aString, aError, aResult]) => {
-      let resolve = () => deferred.resolve([aString, aError, aResult]);
-
+    let promise = this.execute();
+    promise.then(([, aError, ]) => {
       if (aError) {
-        this.writeAsErrorComment(aError.exception).then(resolve, reject);
+        this.writeAsErrorComment(aError);
       }
       else {
         this.deselect();
-        resolve();
       }
-    }, reject);
-
-    return deferred.promise;
+    });
+    return promise;
   },
 
   /**
@@ -418,24 +450,26 @@ var Scratchpad = {
    */
   inspect: function SP_inspect()
   {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
     let reject = aReason => deferred.reject(aReason);
 
     this.execute().then(([aString, aError, aResult]) => {
       let resolve = () => deferred.resolve([aString, aError, aResult]);
 
       if (aError) {
-        this.writeAsErrorComment(aError.exception).then(resolve, reject);
+        this.writeAsErrorComment(aError);
+        resolve();
       }
-      else if (VariablesView.isPrimitive({ value: aResult })) {
-        this._writePrimitiveAsComment(aResult).then(resolve, reject);
+      else if (!isObject(aResult)) {
+        this.writeAsComment(aResult);
+        resolve();
       }
       else {
         this.deselect();
         this.sidebar.open(aString, aResult).then(resolve, reject);
       }
     }, reject);
-
+    
     return deferred.promise;
   },
 
@@ -449,7 +483,7 @@ var Scratchpad = {
    */
   reloadAndRun: function SP_reloadAndRun()
   {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     if (this.executionContext !== SCRATCHPAD_CONTEXT_CONTENT) {
       Cu.reportError(this.strings.
@@ -486,74 +520,16 @@ var Scratchpad = {
    */
   display: function SP_display()
   {
-    let deferred = promise.defer();
-    let reject = aReason => deferred.reject(aReason);
-
-    this.execute().then(([aString, aError, aResult]) => {
-      let resolve = () => deferred.resolve([aString, aError, aResult]);
-
+    let promise = this.execute();
+    promise.then(([aString, aError, aResult]) => {
       if (aError) {
-        this.writeAsErrorComment(aError.exception).then(resolve, reject);
-      }
-      else if (VariablesView.isPrimitive({ value: aResult })) {
-        this._writePrimitiveAsComment(aResult).then(resolve, reject);
+        this.writeAsErrorComment(aError);
       }
       else {
-        let objectClient = new ObjectClient(this.debuggerClient, aResult);
-        objectClient.getDisplayString(aResponse => {
-          if (aResponse.error) {
-            reportError("display", aResponse);
-            reject(aResponse);
-          }
-          else {
-            let string = aResponse.displayString;
-            if (string && string.type == "null") {
-              string = "Exception: " +
-                       this.strings.GetStringFromName("stringConversionFailed");
-            }
-            this.writeAsComment(string);
-            resolve();
-          }
-        });
+        this.writeAsComment(aResult);
       }
-    }, reject);
-
-    return deferred.promise;
-  },
-
-  /**
-   * Writes out a primitive value as a comment. This handles values which are
-   * to be printed directly (number, string) as well as grips to values
-   * (null, undefined, longString).
-   *
-   * @param any aValue
-   *        The value to print.
-   * @return Promise
-   *         The promise that resolves after the value has been printed.
-   */
-  _writePrimitiveAsComment: function SP__writePrimitiveAsComment(aValue)
-  {
-    let deferred = promise.defer();
-
-    if (aValue.type == "longString") {
-      let client = this.webConsoleClient;
-      client.longString(aValue).substring(0, aValue.length, aResponse => {
-        if (aResponse.error) {
-          reportError("display", aResponse);
-          deferred.reject(aResponse);
-        }
-        else {
-          deferred.resolve(aResponse.substring);
-        }
-      });
-    }
-    else {
-      deferred.resolve(aValue.type || aValue);
-    }
-
-    return deferred.promise.then(aComment => {
-      this.writeAsComment(aComment);
     });
+    return promise;
   },
 
   /**
@@ -581,119 +557,28 @@ var Scratchpad = {
    * Write out an error at the current insertion point as a block comment
    * @param object aValue
    *        The Error object to write out the message and stack trace
-   * @return Promise
-   *         The promise that indicates when writing the comment completes.
    */
   writeAsErrorComment: function SP_writeAsErrorComment(aError)
   {
-    let deferred = promise.defer();
-
-    if (VariablesView.isPrimitive({ value: aError })) {
-      deferred.resolve(aError);
+    let stack = "";
+    if (aError.stack) {
+      stack = aError.stack;
     }
-    else {
-      let reject = aReason => deferred.reject(aReason);
-      let objectClient = new ObjectClient(this.debuggerClient, aError);
-
-      // Because properties on Error objects are lazily added, this roundabout
-      // way of getting all the properties is required, rather than simply
-      // using getPrototypeAndProperties. See bug 724768.
-      let names = ["message", "stack", "fileName", "lineNumber"];
-      let promises = names.map(aName => {
-        let deferred = promise.defer();
-
-        objectClient.getProperty(aName, aResponse => {
-          if (aResponse.error) {
-            deferred.reject(aResponse);
-          }
-          else {
-            deferred.resolve({
-              name: aName,
-              descriptor: aResponse.descriptor
-            });
-          }
-        });
-
-        return deferred.promise;
-      });
-
-      {
-        // We also need to use getPrototypeAndProperties to retrieve any
-        // safeGetterValues in case this is a DOM error.
-        let deferred = promise.defer();
-        objectClient.getPrototypeAndProperties(aResponse => {
-          if (aResponse.error) {
-            deferred.reject(aResponse);
-          }
-          else {
-            deferred.resolve(aResponse);
-          }
-        });
-        promises.push(deferred.promise);
+    else if (aError.fileName) {
+      if (aError.lineNumber) {
+        stack = "@" + aError.fileName + ":" + aError.lineNumber;
       }
-
-      promise.all(promises).then(aProperties => {
-        let error = {};
-        let safeGetters;
-
-        // Combine all the property descriptor/getter values into one object.
-        for (let property of aProperties) {
-          if (property.descriptor) {
-            error[property.name] = property.descriptor.value;
-          }
-          else if (property.safeGetterValues) {
-            safeGetters = property.safeGetterValues;
-          }
-        }
-
-        if (safeGetters) {
-          for (let key of Object.keys(safeGetters)) {
-            if (!error.hasOwnProperty(key)) {
-              error[key] = safeGetters[key].getterValue;
-            }
-          }
-        }
-
-        // Assemble the best possible stack we can given the properties we have.
-        let stack;
-        if (typeof error.stack == "string") {
-          stack = error.stack;
-        }
-        else if (typeof error.fileName == "number") {
-          stack = "@" + error.fileName;
-          if (typeof error.lineNumber == "number") {
-            stack += ":" + error.lineNumber;
-          }
-        }
-        else if (typeof error.lineNumber == "number") {
-          stack = "@" + error.lineNumber;
-        }
-
-        stack = stack ? "\n" + stack.replace(/\n$/, "") : "";
-
-        if (typeof error.message == "string") {
-          deferred.resolve(error.message + stack);
-        }
-        else {
-          objectClient.getDisplayString(aResult => {
-            if (aResult.error) {
-              deferred.reject(aResult);
-            }
-            else if (aResult.displayString.type == "null") {
-              deferred.resolve(stack);
-            }
-            else {
-              deferred.resolve(aResult.displayString + stack);
-            }
-          }, reject);
-        }
-      }, reject);
+      else {
+        stack = "@" + aError.fileName;
+      }
+    }
+    else if (aError.lineNumber) {
+      stack = "@" + aError.lineNumber;
     }
 
-    return deferred.promise.then(aMessage => {
-      console.log(aMessage);
-      this.writeAsComment("Exception: " + aMessage);
-    });
+    let newComment = "Exception: " + ( aError.message || aError) + ( stack == "" ? stack : "\n" + stack.replace(/\n$/, "") );
+
+    this.writeAsComment(newComment);
   },
 
   // Menu Operations
@@ -734,8 +619,8 @@ var Scratchpad = {
 
     let encoder = new TextEncoder();
     let buffer = encoder.encode(this.getText());
-    let writePromise = OS.File.writeAtomic(aFile.path, buffer,{tmpPath: aFile.path + ".tmp"});
-    writePromise.then(value => {
+    let promise = OS.File.writeAtomic(aFile.path, buffer,{tmpPath: aFile.path + ".tmp"});
+    promise.then(value => {
       if (aCallback) {
         aCallback.call(this, Components.results.NS_OK);
       }
@@ -991,7 +876,7 @@ var Scratchpad = {
 
   /**
    * Clear a range of files from the list.
-   *
+   * 
    * @param integer aIndex
    *        Index of file in menu to remove.
    * @param integer aLength
@@ -1175,7 +1060,7 @@ var Scratchpad = {
    */
   openErrorConsole: function SP_openErrorConsole()
   {
-    this.browserWindow.HUDConsoleUI.toggleBrowserConsole();
+    this.browserWindow.toJavaScriptConsole();
   },
 
   /**
@@ -1183,7 +1068,7 @@ var Scratchpad = {
    */
   openWebConsole: function SP_openWebConsole()
   {
-    let target = TargetFactory.forTab(this.gBrowser.selectedTab);
+    let target = devtools.TargetFactory.forTab(this.gBrowser.selectedTab);
     gDevTools.showToolbox(target, "webconsole");
     this.browserWindow.focus();
   },
@@ -1203,6 +1088,7 @@ var Scratchpad = {
     content.setAttribute("checked", true);
     this.executionContext = SCRATCHPAD_CONTEXT_CONTENT;
     this.notificationBox.removeAllNotifications(false);
+    this.resetContext();
   },
 
   /**
@@ -1228,6 +1114,19 @@ var Scratchpad = {
       null,
       this.notificationBox.PRIORITY_WARNING_HIGH,
       null);
+    this.resetContext();
+  },
+
+  /**
+   * Reset the cached Cu.Sandbox object for the current context.
+   */
+  resetContext: function SP_resetContext()
+  {
+    this._chromeSandbox = null;
+    this._contentSandbox = null;
+    this._previousWindow = null;
+    this._previousBrowser = null;
+    this._previousLocation = null;
   },
 
   /**
@@ -1324,7 +1223,9 @@ var Scratchpad = {
     }
 
     this.initialized = true;
+
     this._triggerObservers("Ready");
+
     this.populateRecentFilesMenu();
     PreferenceObserver.init();
   },
@@ -1392,6 +1293,8 @@ var Scratchpad = {
       return;
     }
 
+    this.resetContext();
+
     // This event is created only after user uses 'reload and run' feature.
     if (this._reloadAndRunEvent) {
       this.gBrowser.selectedBrowser.removeEventListener("load",
@@ -1404,12 +1307,6 @@ var Scratchpad = {
 
     this.editor.destroy();
     this.editor = null;
-    if (this._sidebar) {
-      this._sidebar.destroy();
-      this._sidebar = null;
-    }
-    this.webConsoleClient = null;
-    this.debuggerClient = null;
     this.initialized = false;
   },
 
@@ -1493,10 +1390,8 @@ var Scratchpad = {
       }
 
       if (shouldClose) {
-        telemetry.toolClosed("scratchpad");
         window.close();
       }
-
       if (aCallback) {
         aCallback();
       }
@@ -1565,9 +1460,6 @@ var Scratchpad = {
     }
   },
 
-  /**
-   * Opens the MDN documentation page for Scratchpad.
-   */
   openDocumentationPage: function SP_openDocumentationPage()
   {
     let url = this.strings.GetStringFromName("help.openDocumentationPage");
@@ -1579,153 +1471,15 @@ var Scratchpad = {
 
 
 /**
- * Represents the DebuggerClient connection to a specific tab as used by the
- * Scratchpad.
- *
- * @param object aTab
- *              The tab to connect to.
- */
-function ScratchpadTab(aTab)
-{
-  this._tab = aTab;
-}
-
-let scratchpadTargets = new WeakMap();
-
-/**
- * Returns the object containing the DebuggerClient and WebConsoleClient for a
- * given tab or window.
- *
- * @param object aSubject
- *        The tab or window to obtain the connection for.
- * @return Promise
- *         The promise for the connection information.
- */
-ScratchpadTab.consoleFor = function consoleFor(aSubject)
-{
-  if (!scratchpadTargets.has(aSubject)) {
-    scratchpadTargets.set(aSubject, new this(aSubject));
-  }
-  return scratchpadTargets.get(aSubject).connect();
-};
-
-
-ScratchpadTab.prototype = {
-  /**
-   * The promise for the connection.
-   */
-  _connector: null,
-
-  /**
-   * Initialize a debugger client and connect it to the debugger server.
-   *
-   * @return Promise
-   *         The promise for the result of connecting to this tab or window.
-   */
-  connect: function ST_connect()
-  {
-    if (this._connector) {
-      return this._connector;
-    }
-
-    let deferred = promise.defer();
-    this._connector = deferred.promise;
-
-    let connectTimer = setTimeout(() => {
-      deferred.reject({
-        error: "timeout",
-        message: Scratchpad.strings.GetStringFromName("connectionTimeout"),
-      });
-    }, REMOTE_TIMEOUT);
-
-    deferred.promise.then(() => clearTimeout(connectTimer));
-
-    this._attach().then(aTarget => {
-      let consoleActor = aTarget.form.consoleActor;
-      let client = aTarget.client;
-      client.attachConsole(consoleActor, [], (aResponse, aWebConsoleClient) => {
-        if (aResponse.error) {
-          reportError("attachConsole", aResponse);
-          deferred.reject(aResponse);
-        }
-        else {
-          deferred.resolve({
-            webConsoleClient: aWebConsoleClient,
-            debuggerClient: client
-          });
-        }
-      });
-    });
-
-    return deferred.promise;
-  },
-
-  /**
-   * Attach to this tab.
-   *
-   * @return Promise
-   *         The promise for the TabTarget for this tab.
-   */
-  _attach: function ST__attach()
-  {
-    let target = TargetFactory.forTab(this._tab);
-    return target.makeRemote().then(() => target);
-  },
-};
-
-
-/**
- * Represents the DebuggerClient connection to a specific window as used by the
- * Scratchpad.
- */
-function ScratchpadWindow() {}
-
-ScratchpadWindow.consoleFor = ScratchpadTab.consoleFor;
-
-ScratchpadWindow.prototype = Heritage.extend(ScratchpadTab.prototype, {
-  /**
-   * Attach to this window.
-   *
-   * @return Promise
-   *         The promise for the target for this window.
-   */
-  _attach: function SW__attach()
-  {
-    let deferred = promise.defer();
-
-    if (!DebuggerServer.initialized) {
-      DebuggerServer.init();
-      DebuggerServer.addBrowserActors();
-    }
-
-    let client = new DebuggerClient(DebuggerServer.connectPipe());
-    client.connect(() => {
-      client.listTabs(aResponse => {
-        if (aResponse.error) {
-          reportError("listTabs", aResponse);
-          deferred.reject(aResponse);
-        }
-        else {
-          deferred.resolve({ form: aResponse, client: client });
-        }
-      });
-    });
-
-    return deferred.promise;
-  }
-});
-
-
-/**
  * Encapsulates management of the sidebar containing the VariablesView for
  * object inspection.
  */
-function ScratchpadSidebar(aScratchpad)
+function ScratchpadSidebar()
 {
-  let ToolSidebar = require("devtools/framework/sidebar").ToolSidebar;
+  let ToolSidebar = devtools.require("devtools/framework/sidebar").ToolSidebar;
   let tabbox = document.querySelector("#scratchpad-sidebar");
-  this._sidebar = new ToolSidebar(tabbox, this, "scratchpad");
-  this._scratchpad = aScratchpad;
+  this._sidebar = new ToolSidebar(tabbox, this);
+  this._splitter = document.querySelector(".devtools-side-splitter");
 }
 
 ScratchpadSidebar.prototype = {
@@ -1733,6 +1487,11 @@ ScratchpadSidebar.prototype = {
    * The ToolSidebar for this sidebar.
    */
   _sidebar: null,
+
+  /*
+   * The splitter element between the sidebar and the editor.
+   */
+  _splitter: null,
 
   /*
    * The VariablesView for this sidebar.
@@ -1759,33 +1518,13 @@ ScratchpadSidebar.prototype = {
   {
     this.show();
 
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     let onTabReady = () => {
-      if (this.variablesView) {
-        this.variablesView.controller.releaseActors();
-      }
-      else {
+      if (!this.variablesView) {
         let window = this._sidebar.getWindowForTab("variablesview");
         let container = window.document.querySelector("#variables");
-
-        this.variablesView = new VariablesView(container, {
-          searchEnabled: true,
-          searchPlaceholder: this._scratchpad.strings
-                             .GetStringFromName("propertiesFilterPlaceholder")
-        });
-
-        VariablesViewController.attach(this.variablesView, {
-          getObjectClient: aGrip => {
-            return new ObjectClient(this._scratchpad.debuggerClient, aGrip);
-          },
-          getLongStringClient: aActor => {
-            return this._scratchpad.webConsoleClient.longString(aActor);
-          },
-          releaseActor: aActor => {
-            this._scratchpad.debuggerClient.release(aActor);
-          }
-        });
+        this.variablesView = new VariablesView(container);
       }
       this._update(aObject).then(() => deferred.resolve());
     };
@@ -1809,6 +1548,7 @@ ScratchpadSidebar.prototype = {
     if (!this.visible) {
       this.visible = true;
       this._sidebar.show();
+      this._splitter.setAttribute("state", "open");
     }
   },
 
@@ -1820,22 +1560,8 @@ ScratchpadSidebar.prototype = {
     if (this.visible) {
       this.visible = false;
       this._sidebar.hide();
+      this._splitter.setAttribute("state", "collapsed");
     }
-  },
-
-  /**
-   * Destroy the sidebar.
-   *
-   * @return Promise
-   *         The promise that resolves when the sidebar is destroyed.
-   */
-  destroy: function SS_destroy()
-  {
-    if (this.variablesView) {
-      this.variablesView.controller.releaseActors();
-      this.variablesView = null;
-    }
-    return this._sidebar.destroy();
   },
 
   /**
@@ -1848,31 +1574,24 @@ ScratchpadSidebar.prototype = {
    */
   _update: function SS__update(aObject)
   {
-    let view = this.variablesView;
-    view.empty();
+    let deferred = Promise.defer();
 
-    let scope = view.addScope();
-    scope.expanded = true;
-    scope.locked = true;
+    this.variablesView.rawObject = aObject;
 
-    let container = scope.addItem();
-    return view.controller.expand(container, aObject);
+    // In the future this will work on remote values (bug 825039).
+    setTimeout(() => deferred.resolve(), 0);
+    return deferred.promise;
   }
 };
 
 
 /**
- * Report an error coming over the remote debugger protocol.
- *
- * @param string aAction
- *        The name of the action or method that failed.
- * @param object aResponse
- *        The response packet that contains the error.
+ * Check whether a value is non-primitive.
  */
-function reportError(aAction, aResponse)
+function isObject(aValue)
 {
-  Cu.reportError(aAction + " failed: " + aResponse.error + " " +
-                 aResponse.message);
+  let type = typeof aValue;
+  return type == "object" ? aValue != null : type == "function";
 }
 
 

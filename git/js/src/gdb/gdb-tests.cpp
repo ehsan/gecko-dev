@@ -7,7 +7,6 @@
 #include <string.h>
 
 #include "gdb-tests.h"
-#include "jsfriendapi.h"
 
 using namespace JS;
 
@@ -28,7 +27,7 @@ checkPtr(T *ptr)
 }
 
 void
-checkBool(bool success)
+checkBool(JSBool success)
 {
   if (! success)
     abort();
@@ -63,16 +62,14 @@ main (int argc, const char **argv)
     JS_SetNativeStackQuota(runtime, 5000000);
 
     JSContext *cx = checkPtr(JS_NewContext(runtime, 8192));
+    JS_SetVersion(cx, JSVERSION_LATEST);
     JS_SetErrorReporter(cx, reportError);
 
     JSAutoRequest ar(cx);
 
     /* Create the global object. */
-    JS::CompartmentOptions options;
-    options.setVersion(JSVERSION_LATEST);
-    RootedObject global(cx, checkPtr(JS_NewGlobalObject(cx, &global_class, NULL,
-                        JS::FireOnNewGlobalHook, options)));
-    js::SetDefaultObjectForContext(cx, global);
+    RootedObject global(cx, checkPtr(JS_NewGlobalObject(cx, &global_class, NULL)));
+    JS_SetGlobalObject(cx, global);
 
     JSAutoCompartment ac(cx, global);
 

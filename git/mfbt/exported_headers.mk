@@ -9,11 +9,7 @@
 EXPORTS_NAMESPACES += mozilla
 
 EXPORTS_mozilla += \
-  Alignment.h \
-  AllocPolicy.h \
-  Array.h \
   Assertions.h \
-  Atomics.h \
   Attributes.h \
   BloomFilter.h \
   Casting.h \
@@ -32,24 +28,21 @@ EXPORTS_mozilla += \
   LinkedList.h \
   MathAlgorithms.h \
   MemoryChecking.h \
-  MemoryReporting.h \
-  Move.h \
+  MSStdInt.h \
   NullPtr.h \
   PodOperations.h \
   Poison.h \
   Range.h \
   RangedPtr.h \
-  ReentrancyGuard.h \
   RefPtr.h \
   Scoped.h \
   SHA1.h \
   SplayTree.h \
-  TemplateLib.h \
+  StandardInteger.h \
   ThreadLocal.h \
   TypedEnum.h \
   Types.h \
   TypeTraits.h \
   Util.h \
-  Vector.h \
   WeakPtr.h \
   $(NULL)

@@ -7,7 +7,6 @@
 #ifndef nsISizeOfEventTarget_h___
 #define nsISizeOfEventTarget_h___
 
-#include "mozilla/MemoryReporting.h"
 #include "nsISupports.h"
 
 #define NS_ISIZEOFEVENTTARGET_IID \
@@ -32,7 +31,7 @@ public:
    * itself.
    */
   virtual size_t
-    SizeOfEventTargetIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const = 0;
+    SizeOfEventTargetIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsISizeOfEventTarget, NS_ISIZEOFEVENTTARGET_IID)

@@ -3,23 +3,27 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<merge xmlns:android="http://schemas.android.com/apk/res/android"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto">
+<org.mozilla.gecko.BrowserToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:gecko="http://schemas.android.com/apk/res-auto"
+              android:id="@+id/browser_toolbar"
+              style="@style/BrowserToolbar"
+              android:clickable="true"
+              android:focusable="true">
 
     <org.mozilla.gecko.BrowserToolbarBackground android:id="@+id/address_bar_bg"
                                                 android:layout_width="fill_parent"
                                                 android:layout_height="fill_parent"
                                                 android:background="@drawable/address_bar_bg"/>
 
-    <org.mozilla.gecko.ShapedButton android:id="@+id/tabs"
-                                    style="@style/AddressBar.ImageButton"
-                                    android:layout_width="84dip"
-                                    android:layout_alignParentLeft="true"
-                                    gecko:curveTowards="left"
-                                    android:background="@drawable/shaped_button"
-                                    android:gravity="center_vertical"
-                                    android:paddingLeft="6dip"
-                                    android:paddingRight="38dip"/>
+    <Gecko.ShapedButton android:id="@+id/tabs"
+                        style="@style/AddressBar.ImageButton"
+                        android:layout_width="84dip"
+                        android:layout_alignParentLeft="true"
+                        gecko:curveTowards="left"
+                        android:background="@drawable/shaped_button"
+                        android:gravity="center_vertical"
+                        android:paddingLeft="6dip"
+                        android:paddingRight="38dip"/>
 
     <!-- The TextSwitcher should be shifted 28dp on the right, to avoid
          the curve. On a 56dp space, centering 24dp image will leave
@@ -65,7 +69,7 @@
                                   android:contentDescription="@string/back"
                                   android:background="@drawable/address_bar_nav_button"/>
 
-    <LinearLayout android:id="@+id/awesome_bar_display_container"
+    <LinearLayout android:id="@+id/awesome_bar_content"
                   style="@style/AddressBar.Button.Container"
                   android:layout_toRightOf="@id/back"
                   android:layout_toLeftOf="@id/menu_items">
@@ -75,9 +79,8 @@
                      android:layout_width="@dimen/browser_toolbar_favicon_size"
                      android:layout_height="fill_parent"
                      android:scaleType="fitCenter"
-                     android:layout_marginLeft="4dip"
-                     android:paddingLeft="4dip"
-                     android:paddingRight="4dip"
+                     android:paddingLeft="8dip"
+                     android:layout_marginRight="4dip"
                      android:layout_gravity="center_vertical"
                      android:src="@drawable/favicon"/>
 
@@ -90,26 +93,25 @@
                      android:contentDescription="@string/site_security"
                      android:visibility="gone"/>
 
-        <org.mozilla.gecko.GeckoTextView android:id="@+id/awesome_bar_title"
-                                         style="@style/AddressBar.Button"
-                                         android:layout_width="fill_parent"
-                                         android:layout_height="fill_parent"
-                                         android:layout_weight="1.0"
-                                         android:singleLine="true"
-                                         android:paddingRight="8dp"
-                                         android:textColor="@color/awesome_bar_title"
-                                         android:textColorHint="@color/awesome_bar_title_hint"
-                                         android:gravity="center_vertical|left"
-                                         android:hint="@string/awesomebar_default_text"
-                                         android:layout_gravity="center_vertical"
-                                         gecko:autoUpdateTheme="false"/>
+        <Gecko.TextView android:id="@+id/awesome_bar_title"
+                        style="@style/AddressBar.Button"
+                        android:layout_width="fill_parent"
+                        android:layout_height="fill_parent"
+                        android:layout_weight="1.0"
+                        android:singleLine="true"
+                        android:paddingRight="8dp"
+                        android:textColor="@color/awesome_bar_title"
+                        android:textColorHint="@color/awesome_bar_title_hint"
+                        android:gravity="center_vertical|left"
+                        android:hint="@string/awesomebar_default_text"
+                        android:layout_gravity="center_vertical"
+                        gecko:autoUpdateTheme="false"/>
 
-        <org.mozilla.gecko.PageActionLayout android:id="@+id/page_action_layout"
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="match_parent"
-                                            android:layout_marginRight="@dimen/browser_toolbar_button_padding"
-                                            android:visibility="gone"
-                                            android:orientation="horizontal"/>
+        <ImageButton android:id="@+id/reader"
+                     style="@style/AddressBar.ImageButton.Icon"
+                     android:src="@drawable/reader"
+                     android:contentDescription="@string/reader"
+                     android:visibility="gone"/>
 
         <ImageButton android:id="@+id/stop"
                      style="@style/AddressBar.ImageButton.Icon"
@@ -127,28 +129,27 @@
                   android:layout_toLeftOf="@id/menu"
                   android:layout_alignWithParentIfMissing="true"/>
 
-    <org.mozilla.gecko.GeckoImageButton android:id="@+id/menu"
-                                        style="@style/AddressBar.ImageButton"
-                                        android:layout_width="56dip"
-                                        android:layout_alignParentRight="true"
-                                        android:contentDescription="@string/menu"
-                                        android:background="@drawable/action_bar_button"
-                                        android:visibility="gone"/>
+    <Gecko.ImageButton android:id="@+id/menu"
+                       style="@style/AddressBar.ImageButton"
+                       android:layout_width="56dip"
+                       android:layout_alignParentRight="true"
+                       android:contentDescription="@string/menu"
+                       android:background="@drawable/action_bar_button"
+                       android:visibility="gone"/>
 
-    <org.mozilla.gecko.GeckoImageView android:id="@+id/menu_icon"
-                                      style="@style/AddressBar.ImageButton"
-                                      android:layout_alignLeft="@id/menu"
-                                      android:layout_alignRight="@id/menu"
-                                      android:gravity="center_vertical"
-                                      android:src="@drawable/menu_level"
-                                      android:visibility="gone"/>
+    <Gecko.ImageView android:id="@+id/menu_icon"
+                     style="@style/AddressBar.ImageButton"
+                     android:layout_alignLeft="@id/menu"
+                     android:layout_alignRight="@id/menu"
+                     android:gravity="center_vertical"
+                     android:src="@drawable/menu_level"
+                     android:visibility="gone"/>
 
     <ImageView android:id="@+id/shadow"
                android:layout_width="fill_parent"
                android:layout_height="2dp"
                android:layout_alignParentBottom="true"
                android:background="@drawable/address_bar_bg_shadow_repeat"
-               android:contentDescription="@null"
                android:visibility="gone"/>
 
-</merge>
+</org.mozilla.gecko.BrowserToolbarLayout>

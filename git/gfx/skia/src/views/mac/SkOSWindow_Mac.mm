@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2011 Google Inc.
  *
@@ -5,7 +6,7 @@
  * found in the LICENSE file.
  */
 
-#if defined(SK_BUILD_FOR_MAC)
+#if defined(SK_BUILD_FOR_MAC) && !defined(SK_USE_WXWIDGETS)
 
 #import  <Cocoa/Cocoa.h>
 #include "SkOSWindow_Mac.h"
@@ -48,9 +49,8 @@ bool SkOSWindow::onEvent(const SkEvent& evt) {
     return this->INHERITED::onEvent(evt);
 }
 
-bool SkOSWindow::onDispatchClick(int x, int y, Click::State state, void* owner,
-                                 unsigned modi) {
-    return this->INHERITED::onDispatchClick(x, y, state, owner, modi);
+bool SkOSWindow::onDispatchClick(int x, int y, Click::State state, void* owner) {
+    return this->INHERITED::onDispatchClick(x, y, state, owner);
 }
 
 void SkOSWindow::onSetTitle(const char title[]) {
@@ -65,8 +65,8 @@ void SkOSWindow::onUpdateMenu(const SkOSMenu* menu) {
     [(SkNSView*)fHWND onUpdateMenu:menu];
 }
 
-bool SkOSWindow::attach(SkBackEndTypes attachType, int sampleCount, AttachmentInfo* info) {
-    return [(SkNSView*)fHWND attach:attachType withMSAASampleCount:sampleCount andGetInfo:info];
+bool SkOSWindow::attach(SkBackEndTypes attachType, int sampleCount) {
+    return [(SkNSView*)fHWND attach:attachType withMSAASampleCount:sampleCount];
 }
 
 void SkOSWindow::detach() {

@@ -1,57 +1,19 @@
-/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-"use strict";
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-
 this.EXPORTED_SYMBOLS = [ ];
 
 Cu.import("resource://gre/modules/devtools/gcli.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-  "resource:///modules/devtools/gDevTools.jsm");
+                                  "resource:///modules/devtools/gDevTools.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
-  "resource://gre/modules/devtools/Console.jsm");
+                                  "resource://gre/modules/devtools/Console.jsm");
 
-/**
- * Utility to get access to the current breakpoint list
- * @param dbg The debugger panel
- * @returns an array of object, one for each breakpoint, where each breakpoint
- * object has the following properties:
- * - id: A unique identifier for the breakpoint. This is not designed to be
- *       shown to the user.
- * - label: A unique string identifier designed to be user visible. In theory
- *          the label of a breakpoint could change
- * - url: The URL of the source file
- * - lineNumber: The line number of the breakpoint in the source file
- * - lineText: The text of the line at the breakpoint
- * - truncatedLineText: lineText truncated to MAX_LINE_TEXT_LENGTH
- */
-function getAllBreakpoints(dbg) {
-  let breakpoints = [];
-  let sources = dbg.panelWin.DebuggerView.Sources;
-  let { trimUrlLength: tr } = dbg.panelWin.SourceUtils;
-
-  for (let source in sources) {
-    for (let { attachment: breakpoint } in source) {
-      breakpoints.push({
-        id: source.value + ":" + breakpoint.lineNumber,
-        label: source.label + ":" + breakpoint.lineNumber,
-        url: source.value,
-        lineNumber: breakpoint.lineNumber,
-        lineText: breakpoint.lineText,
-        truncatedLineText: tr(breakpoint.lineText, MAX_LINE_TEXT_LENGTH, "end")
-      });
-    }
-  }
-
-  return breakpoints;
-}
 
 /**
  * 'break' command
@@ -70,9 +32,20 @@ gcli.addCommand({
   description: gcli.lookup("breaklistDesc"),
   returnType: "breakpoints",
   exec: function(args, context) {
-    let dbg = getPanel(context, "jsdebugger", { ensure_opened: true });
-    return dbg.then(function(dbg) {
-      return getAllBreakpoints(dbg);
+    let panel = getPanel(context, "jsdebugger", {ensure_opened: true});
+    return panel.then(function(dbg) {
+      let breakpoints = [];
+      for (let source in dbg.panelWin.DebuggerView.Sources) {
+        for (let { attachment: breakpoint } in source) {
+          breakpoints.push({
+            url: source.value,
+            label: source.label,
+            lineNumber: breakpoint.lineNumber,
+            lineText: breakpoint.lineText
+          });
+        }
+      }
+      return breakpoints;
     });
   }
 });
@@ -83,12 +56,28 @@ gcli.addConverter({
   exec: function(breakpoints, context) {
     let dbg = getPanel(context, "jsdebugger");
     if (dbg && breakpoints.length) {
+      let SourceUtils = dbg.panelWin.SourceUtils;
+      let index = 0;
       return context.createView({
         html: breakListHtml,
         data: {
-          breakpoints: breakpoints,
-          onclick: context.update,
-          ondblclick: context.updateExec
+          breakpoints: breakpoints.map(function(breakpoint) {
+            return {
+              index: index++,
+              url: breakpoint.url,
+              label: SourceUtils.trimUrlLength(
+                breakpoint.label + ":" + breakpoint.lineNumber,
+                MAX_LABEL_LENGTH,
+                "start"),
+              lineText: breakpoint.lineText,
+              truncatedLineText: SourceUtils.trimUrlLength(
+                breakpoint.lineText,
+                MAX_LINE_TEXT_LENGTH,
+                "end")
+            };
+          }),
+          onclick: createUpdateHandler(context),
+          ondblclick: createExecuteHandler(context)
         }
       });
     } else {
@@ -115,10 +104,10 @@ var breakListHtml = "" +
       "    </td>" +
       "    <td>" +
       "      <span class='gcli-out-shortcut'" +
-      "            data-command='break del ${breakpoint.label}'" +
+      "            data-command='break del ${breakpoint.index}'" +
       "            onclick='${onclick}'" +
-      "            ondblclick='${ondblclick}'>" +
-      "        " + gcli.lookup("breaklistOutRemove") + "</span>" +
+      "            ondblclick='${ondblclick}'" +
+      "          >" + gcli.lookup("breaklistOutRemove") + "</span>" +
       "    </td>" +
       "  </tr>" +
       " </tbody>" +
@@ -148,12 +137,16 @@ gcli.addCommand({
       name: "file",
       type: {
         name: "selection",
-        data: function(context) {
+        data: function(args, context) {
+          let files = [];
           let dbg = getPanel(context, "jsdebugger");
           if (dbg) {
-            return dbg.panelWin.DebuggerView.Sources.values;
+            let sourcesView = dbg.panelWin.DebuggerView.Sources;
+            for (let item in sourcesView) {
+              files.push(item.value);
+            }
           }
-          return [];
+          return files;
         }
       },
       description: gcli.lookup("breakaddlineFileDesc")
@@ -172,8 +165,7 @@ gcli.addCommand({
     if (!dbg) {
       return gcli.lookup("debuggerStopped");
     }
-
-    let deferred = context.defer();
+    var deferred = context.defer();
     let position = { url: args.file, line: args.line };
     dbg.addBreakpoint(position, function(aBreakpoint, aError) {
       if (aError) {
@@ -186,6 +178,7 @@ gcli.addCommand({
   }
 });
 
+
 /**
  * 'break del' command
  */
@@ -194,22 +187,16 @@ gcli.addCommand({
   description: gcli.lookup("breakdelDesc"),
   params: [
     {
-      name: "breakpoint",
+      name: "breakid",
       type: {
-        name: "selection",
-        lookup: function(context) {
+        name: "number",
+        min: 0,
+        max: function(args, context) {
           let dbg = getPanel(context, "jsdebugger");
-          if (dbg == null) {
-            return [];
-          }
-          return getAllBreakpoints(dbg).map(breakpoint => {
-            return {
-              name: breakpoint.label,
-              value: breakpoint,
-              description: breakpoint.truncatedLineText
-            };
-          });
-        }
+          return dbg == null ?
+              null :
+              Object.keys(dbg.getAllBreakpoints()).length - 1;
+        },
       },
       description: gcli.lookup("breakdelBreakidDesc")
     }
@@ -221,20 +208,18 @@ gcli.addCommand({
       return gcli.lookup("debuggerStopped");
     }
 
-    let breakpoint = dbg.getBreakpoint(
-      args.breakpoint.url, args.breakpoint.lineNumber);
-
-    if (breakpoint == null) {
+    let breakpoints = dbg.getAllBreakpoints();
+    let id = Object.keys(breakpoints)[args.breakid];
+    if (!id || !(id in breakpoints)) {
       return gcli.lookup("breakNotFound");
     }
 
     let deferred = context.defer();
     try {
-      dbg.removeBreakpoint(breakpoint, function() {
+      dbg.removeBreakpoint(breakpoints[id], function() {
         deferred.resolve(gcli.lookup("breakdelRemoved"));
       });
     } catch (ex) {
-      console.error('Error removing breakpoint, already removed?', ex);
       // If the debugger has been closed already, don't scare the user.
       deferred.resolve(gcli.lookup("breakdelRemoved"));
     }
@@ -259,8 +244,7 @@ gcli.addCommand({
   description: gcli.lookup("dbgOpen"),
   params: [],
   exec: function(args, context) {
-    return gDevTools.showToolbox(context.environment.target, "jsdebugger")
-                    .then(() => null);
+    return gDevTools.showToolbox(context.environment.target, "jsdebugger").then(function() null);
   }
 });
 
@@ -272,11 +256,7 @@ gcli.addCommand({
   description: gcli.lookup("dbgClose"),
   params: [],
   exec: function(args, context) {
-    if (!getPanel(context, "jsdebugger"))
-      return;
-
-    return gDevTools.closeToolbox(context.environment.target)
-                    .then(() => null);
+    return gDevTools.closeToolbox(context.environment.target).then(function() null);
   }
 });
 
@@ -408,7 +388,6 @@ gcli.addCommand({
     if (!dbg) {
       return gcli.lookup("debuggerClosed");
     }
-
     let sources = dbg._view.Sources.values;
     let div = createXHTMLElement(doc, "div");
     let ol = createXHTMLElement(doc, "ol");
@@ -424,129 +403,6 @@ gcli.addCommand({
 });
 
 /**
- * Define the 'dbg blackbox' and 'dbg unblackbox' commands.
- */
-[
-  {
-    name: "blackbox",
-    clientMethod: "blackBox",
-    l10nPrefix: "dbgBlackBox"
-  },
-  {
-    name: "unblackbox",
-    clientMethod: "unblackBox",
-    l10nPrefix: "dbgUnBlackBox"
-  }
-].forEach(function (cmd) {
-  const lookup = function (id) {
-    return gcli.lookup(cmd.l10nPrefix + id);
-  };
-
-  gcli.addCommand({
-    name: "dbg " + cmd.name,
-    description: lookup("Desc"),
-    params: [
-      {
-        name: "source",
-        type: {
-          name: "selection",
-          data: function (context) {
-            let dbg = getPanel(context, "jsdebugger");
-            return dbg
-              ? [s for (s of dbg._view.Sources.values)]
-              : [];
-          }
-        },
-        description: lookup("SourceDesc"),
-        defaultValue: null
-      },
-      {
-        name: "glob",
-        type: "string",
-        description: lookup("GlobDesc"),
-        defaultValue: null
-      },
-      {
-        name: "invert",
-        type: "boolean",
-        description: lookup("InvertDesc")
-      }
-    ],
-    returnType: "dom",
-    exec: function (args, context) {
-      const dbg = getPanel(context, "jsdebugger");
-      const doc = context.environment.chromeDocument;
-      if (!dbg) {
-        throw new Error(gcli.lookup("debuggerClosed"));
-      }
-
-      const { promise, resolve, reject } = context.defer();
-      const { activeThread } = dbg._controller;
-      const globRegExp = args.glob
-        ? globToRegExp(args.glob)
-        : null;
-
-      // Filter the sources down to those that we will need to black box.
-
-      function shouldBlackBox(source) {
-        var value = globRegExp && globRegExp.test(source.url)
-          || args.source && source.url == args.source;
-        return args.invert ? !value : value;
-      }
-
-      const toBlackBox = [s.attachment.source
-                          for (s of dbg._view.Sources.items)
-                          if (shouldBlackBox(s.attachment.source))];
-
-      // If we aren't black boxing any sources, bail out now.
-
-      if (toBlackBox.length === 0) {
-        const empty = createXHTMLElement(doc, "div");
-        empty.textContent = lookup("EmptyDesc");
-        return void resolve(empty);
-      }
-
-      // Send the black box request to each source we are black boxing. As we
-      // get responses, accumulate the results in `blackBoxed`.
-
-      const blackBoxed = [];
-
-      for (let source of toBlackBox) {
-        let { url } = source;
-        activeThread.source(source)[cmd.clientMethod](function ({ error }) {
-          if (error) {
-            blackBoxed.push(lookup("ErrorDesc") + " " + url);
-          } else {
-            blackBoxed.push(url);
-          }
-
-          if (toBlackBox.length === blackBoxed.length) {
-            displayResults();
-          }
-        });
-      }
-
-      // List the results for the user.
-
-      function displayResults() {
-        const results = doc.createElement("div");
-        results.textContent = lookup("NonEmptyDesc");
-        const list = createXHTMLElement(doc, "ul");
-        results.appendChild(list);
-        for (let result of blackBoxed) {
-          const item = createXHTMLElement(doc, "li");
-          item.textContent = result;
-          list.appendChild(item);
-        }
-        resolve(results);
-      }
-
-      return promise;
-    }
-  });
-});
-
-/**
  * A helper to create xhtml namespaced elements
  */
 function createXHTMLElement(document, tagname) {
@@ -554,53 +410,70 @@ function createXHTMLElement(document, tagname) {
 }
 
 /**
+ * Helper to find the 'data-command' attribute and call some action on it.
+ * @see |updateCommand()| and |executeCommand()|
+ */
+function withCommand(element, action) {
+  var command = element.getAttribute("data-command");
+  if (!command) {
+    command = element.querySelector("*[data-command]")
+      .getAttribute("data-command");
+  }
+
+  if (command) {
+    action(command);
+  }
+  else {
+    console.warn("Missing data-command for " + util.findCssSelector(element));
+  }
+}
+
+/**
+ * Create a handler to update the requisition to contain the text held in the
+ * first matching data-command attribute under the currentTarget of the event.
+ * @param context Either a Requisition or an ExecutionContext or another object
+ * that contains an |update()| function that follows a similar contract.
+ */
+function createUpdateHandler(context) {
+  return function(ev) {
+    withCommand(ev.currentTarget, function(command) {
+      context.update(command);
+    });
+  }
+}
+
+/**
+ * Create a handler to execute the text held in the data-command attribute
+ * under the currentTarget of the event.
+ * @param context Either a Requisition or an ExecutionContext or another object
+ * that contains an |update()| function that follows a similar contract.
+ */
+function createExecuteHandler(context) {
+  return function(ev) {
+    withCommand(ev.currentTarget, function(command) {
+      context.exec({
+        visible: true,
+        typed: command
+      });
+    });
+  }
+}
+
+/**
  * A helper to go from a command context to a debugger panel
  */
-function getPanel(context, id, options = {}) {
+function getPanel(context, id, opts) {
   if (context == null) {
     return undefined;
   }
 
   let target = context.environment.target;
-  if (options.ensure_opened) {
+  if (opts && opts.ensure_opened) {
     return gDevTools.showToolbox(target, id).then(function(toolbox) {
       return toolbox.getPanel(id);
     });
   } else {
     let toolbox = gDevTools.getToolbox(target);
-    if (toolbox) {
-      return toolbox.getPanel(id);
-    } else {
-      return undefined;
-    }
+    return toolbox && toolbox.getPanel(id);
   }
-}
-
-/**
- * Converts a glob to a regular expression
- */
-function globToRegExp(glob) {
-  const reStr = glob
-  // Escape existing regular expression syntax
-    .replace(/\\/g, "\\\\")
-    .replace(/\//g, "\\/")
-    .replace(/\^/g, "\\^")
-    .replace(/\$/g, "\\$")
-    .replace(/\+/g, "\\+")
-    .replace(/\?/g, "\\?")
-    .replace(/\./g, "\\.")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)")
-    .replace(/\=/g, "\\=")
-    .replace(/\!/g, "\\!")
-    .replace(/\|/g, "\\|")
-    .replace(/\{/g, "\\{")
-    .replace(/\}/g, "\\}")
-    .replace(/\,/g, "\\,")
-    .replace(/\[/g, "\\[")
-    .replace(/\]/g, "\\]")
-    .replace(/\-/g, "\\-")
-  // Turn * into the match everything wildcard
-    .replace(/\*/g, ".*")
-  return new RegExp("^" + reStr + "$");
 }

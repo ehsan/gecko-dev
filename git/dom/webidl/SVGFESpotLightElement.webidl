@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedNumber;
+
 interface SVGFESpotLightElement : SVGElement {
   readonly attribute SVGAnimatedNumber x;
   readonly attribute SVGAnimatedNumber y;

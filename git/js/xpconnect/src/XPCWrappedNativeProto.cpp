@@ -7,10 +7,6 @@
 /* Shared proto object for XPCWrappedNative. */
 
 #include "xpcprivate.h"
-#include "nsCxPusher.h"
-#include "pratom.h"
-
-using namespace mozilla;
 
 #if defined(DEBUG_xpc_hacker) || defined(DEBUG)
 int32_t XPCWrappedNativeProto::gDEBUG_LiveProtoCount = 0;
@@ -19,14 +15,16 @@ int32_t XPCWrappedNativeProto::gDEBUG_LiveProtoCount = 0;
 XPCWrappedNativeProto::XPCWrappedNativeProto(XPCWrappedNativeScope* Scope,
                                              nsIClassInfo* ClassInfo,
                                              uint32_t ClassInfoFlags,
-                                             XPCNativeSet* Set)
+                                             XPCNativeSet* Set,
+                                             QITableEntry* offsets)
     : mScope(Scope),
       mJSProtoObject(nullptr),
       mClassInfo(ClassInfo),
       mClassInfoFlags(ClassInfoFlags),
       mSet(Set),
       mSecurityInfo(nullptr),
-      mScriptableInfo(nullptr)
+      mScriptableInfo(nullptr),
+      mOffsets(offsets)
 {
     // This native object lives as long as its associated JSObject - killed
     // by finalization of the JSObject (or explicitly if Init fails).
@@ -41,7 +39,7 @@ XPCWrappedNativeProto::XPCWrappedNativeProto(XPCWrappedNativeScope* Scope,
 
 XPCWrappedNativeProto::~XPCWrappedNativeProto()
 {
-    MOZ_ASSERT(!mJSProtoObject, "JSProtoObject still alive");
+    NS_ASSERTION(!mJSProtoObject, "JSProtoObject still alive");
 
     MOZ_COUNT_DTOR(XPCWrappedNativeProto);
 
@@ -56,17 +54,17 @@ XPCWrappedNativeProto::~XPCWrappedNativeProto()
     delete mScriptableInfo;
 }
 
-bool
-XPCWrappedNativeProto::Init(const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
+JSBool
+XPCWrappedNativeProto::Init(XPCCallContext& ccx,
+                            const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
                             bool callPostCreatePrototype)
 {
-    AutoJSContext cx;
     nsIXPCScriptable *callback = scriptableCreateInfo ?
                                  scriptableCreateInfo->GetCallback() :
                                  nullptr;
     if (callback) {
         mScriptableInfo =
-            XPCNativeScriptableInfo::Construct(scriptableCreateInfo);
+            XPCNativeScriptableInfo::Construct(ccx, scriptableCreateInfo);
         if (!mScriptableInfo)
             return false;
     }
@@ -89,16 +87,16 @@ XPCWrappedNativeProto::Init(const XPCNativeScriptableCreateInfo* scriptableCreat
         jsclazz = &XPC_WN_NoMods_NoCall_Proto_JSClass;
     }
 
-    JS::RootedObject parent(cx, mScope->GetGlobalJSObject());
-    JS::RootedObject proto(cx, JS_GetObjectPrototype(cx, parent));
-    mJSProtoObject = JS_NewObjectWithUniqueType(cx, js::Jsvalify(jsclazz),
+    JS::RootedObject parent(ccx, mScope->GetGlobalJSObject());
+    JS::RootedObject proto(ccx, JS_GetObjectPrototype(ccx, parent));
+    mJSProtoObject = JS_NewObjectWithUniqueType(ccx, js::Jsvalify(jsclazz),
                                                 proto, parent);
 
     bool success = !!mJSProtoObject;
     if (success) {
         JS_SetPrivate(mJSProtoObject, this);
         if (callPostCreatePrototype)
-            success = CallPostCreatePrototype();
+            success = CallPostCreatePrototype(ccx);
     }
 
     DEBUG_ReportShadowedMembers(mSet, nullptr, this);
@@ -107,10 +105,8 @@ XPCWrappedNativeProto::Init(const XPCNativeScriptableCreateInfo* scriptableCreat
 }
 
 bool
-XPCWrappedNativeProto::CallPostCreatePrototype()
+XPCWrappedNativeProto::CallPostCreatePrototype(XPCCallContext& ccx)
 {
-    AutoJSContext cx;
-
     // Nothing to do if we don't have a scriptable callback.
     nsIXPCScriptable *callback = mScriptableInfo ? mScriptableInfo->GetCallback()
                                                  : nullptr;
@@ -119,11 +115,11 @@ XPCWrappedNativeProto::CallPostCreatePrototype()
 
     // Call the helper. This can handle being called if it's not implemented,
     // so we don't have to check any sort of "want" here. See xpc_map_end.h.
-    nsresult rv = callback->PostCreatePrototype(cx, mJSProtoObject);
+    nsresult rv = callback->PostCreatePrototype(ccx, mJSProtoObject);
     if (NS_FAILED(rv)) {
         JS_SetPrivate(mJSProtoObject, nullptr);
         mJSProtoObject = nullptr;
-        XPCThrower::Throw(rv, cx);
+        XPCThrower::Throw(rv, ccx);
         return false;
     }
 
@@ -133,7 +129,7 @@ XPCWrappedNativeProto::CallPostCreatePrototype()
 void
 XPCWrappedNativeProto::JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj)
 {
-    MOZ_ASSERT(obj == mJSProtoObject, "huh?");
+    NS_ASSERTION(obj == mJSProtoObject, "huh?");
 
     // Map locking is not necessary since we are running gc.
 
@@ -173,16 +169,17 @@ XPCWrappedNativeProto::SystemIsBeingShutDown()
 
 // static
 XPCWrappedNativeProto*
-XPCWrappedNativeProto::GetNewOrUsed(XPCWrappedNativeScope* scope,
+XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
+                                    XPCWrappedNativeScope* scope,
                                     nsIClassInfo* classInfo,
                                     const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
+                                    QITableEntry* offsets,
                                     bool callPostCreatePrototype)
 {
-    AutoJSContext cx;
-    MOZ_ASSERT(scope, "bad param");
-    MOZ_ASSERT(classInfo, "bad param");
+    NS_ASSERTION(scope, "bad param");
+    NS_ASSERTION(classInfo, "bad param");
 
-    AutoMarkingWrappedNativeProtoPtr proto(cx);
+    AutoMarkingWrappedNativeProtoPtr proto(ccx);
     ClassInfo2WrappedNativeProtoMap* map = nullptr;
     XPCLock* lock = nullptr;
 
@@ -190,7 +187,7 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCWrappedNativeScope* scope,
     if (NS_FAILED(classInfo->GetFlags(&ciFlags)))
         ciFlags = 0;
 
-    bool mainThreadOnly = !!(ciFlags & nsIClassInfo::MAIN_THREAD_ONLY);
+    JSBool mainThreadOnly = !!(ciFlags & nsIClassInfo::MAIN_THREAD_ONLY);
     map = scope->GetWrappedNativeProtoMap(mainThreadOnly);
     lock = mainThreadOnly ? nullptr : scope->GetRuntime()->GetMapLock();
     {   // scoped lock
@@ -200,14 +197,14 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCWrappedNativeScope* scope,
             return proto;
     }
 
-    AutoMarkingNativeSetPtr set(cx);
-    set = XPCNativeSet::GetNewOrUsed(classInfo);
+    AutoMarkingNativeSetPtr set(ccx);
+    set = XPCNativeSet::GetNewOrUsed(ccx, classInfo);
     if (!set)
         return nullptr;
 
-    proto = new XPCWrappedNativeProto(scope, classInfo, ciFlags, set);
+    proto = new XPCWrappedNativeProto(scope, classInfo, ciFlags, set, offsets);
 
-    if (!proto || !proto->Init(scriptableCreateInfo, callPostCreatePrototype)) {
+    if (!proto || !proto->Init(ccx, scriptableCreateInfo, callPostCreatePrototype)) {
         delete proto.get();
         return nullptr;
     }

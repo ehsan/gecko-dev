@@ -135,7 +135,7 @@ const SkMemberInfo SkDump::fInfo[] = {
 
 DEFINE_GET_MEMBER(SkDump);
 
-bool SkDump::enable(SkAnimateMaker&) {
+bool SkDump::enable(SkAnimateMaker& maker ) {
     return true;
 }
 
@@ -143,7 +143,7 @@ bool SkDump::hasEnable() const {
     return true;
 }
 
-bool SkDump::setProperty(int index, SkScriptValue&) {
+bool SkDump::setProperty(int index, SkScriptValue& ) {
     return index <= SK_PROPERTY(posts);
 }
 

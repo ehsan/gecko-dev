@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_workers_workerprivate_h__
 #define mozilla_dom_workers_workerprivate_h__
 
-#include "mozilla/Attributes.h"
 #include "Workers.h"
 
 #include "nsIContentSecurityPolicy.h"
@@ -41,10 +40,8 @@ class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
-
-namespace JS {
-class RuntimeStats;
-}
+class nsIXPCScriptNotify;
+namespace JS { class RuntimeStats; }
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -64,7 +61,7 @@ protected:
   ClearingBehavior mClearingBehavior;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   bool
   Dispatch(JSContext* aCx);
@@ -109,7 +106,9 @@ protected:
   virtual void
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult);
 
-public:
+  void NotifyScriptExecutedIfNeeded() const;
+
+private:
   NS_DECL_NSIRUNNABLE
 };
 
@@ -134,7 +133,7 @@ protected:
   { }
 
   virtual bool
-  DispatchInternal() MOZ_OVERRIDE;
+  DispatchInternal();
 };
 
 class MainThreadSyncRunnable : public WorkerSyncRunnable
@@ -177,7 +176,7 @@ protected:
   { }
 
   virtual bool
-  DispatchInternal() MOZ_OVERRIDE;
+  DispatchInternal();
 };
 
 // SharedMutex is a small wrapper around an (internal) reference-counted Mutex
@@ -264,6 +263,7 @@ private:
   // Main-thread things.
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsIXPCScriptNotify> mScriptNotify;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -273,14 +273,12 @@ private:
   // Only used for top level workers.
   nsTArray<nsRefPtr<WorkerRunnable> > mQueuedRunnables;
 
-  // Only for ChromeWorkers without window and only touched on the main thread.
-  nsTArray<nsCString> mHostObjectURIs;
-
-  // Protected by mMutex.
-  JSSettings mJSSettings;
-
   uint64_t mBusyCount;
   Status mParentStatus;
+  uint32_t mJSContextOptions;
+  uint32_t mJSRuntimeHeapSize;
+  uint32_t mJSWorkerAllocationThreshold;
+  uint8_t mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
   bool mIsChromeWorker;
@@ -349,11 +347,8 @@ public:
   bool
   Suspend(JSContext* aCx);
 
-  void
-  Resume(JSContext* aCx);
-
   bool
-  SynchronizeAndResume(nsIScriptContext* aCx);
+  Resume(JSContext* aCx);
 
   virtual void
   _trace(JSTracer* aTrc) MOZ_OVERRIDE;
@@ -395,20 +390,15 @@ public:
   GetInnerWindowId();
 
   void
-  UpdateJSContextOptions(JSContext* aCx, uint32_t aChromeOptions,
-                         uint32_t aContentOptions);
+  UpdateJSContextOptions(JSContext* aCx, uint32_t aOptions);
 
   void
-  UpdateJSWorkerMemoryParameter(JSContext* aCx, JSGCParamKey key,
-                                uint32_t value);
+  UpdateJSWorkerMemoryParameter(JSContext* aCx, JSGCParamKey key, uint32_t value);
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal, uint32_t aFrequency);
+  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal);
 #endif
-
-  void
-  UpdateJITHardening(JSContext* aCx, bool aJITHardening);
 
   void
   GarbageCollect(JSContext* aCx, bool aShrinking);
@@ -460,6 +450,13 @@ public:
   {
     AssertIsOnMainThread();
     return mScriptContext;
+  }
+
+  nsIXPCScriptNotify*
+  GetScriptNotify() const
+  {
+    AssertIsOnMainThread();
+    return mScriptNotify;
   }
 
   JSObject*
@@ -579,12 +576,31 @@ public:
     return mLocationInfo;
   }
 
-  void
-  CopyJSSettings(JSSettings& aSettings)
+  uint32_t
+  GetJSContextOptions() const
   {
-    mozilla::MutexAutoLock lock(mMutex);
-    aSettings = mJSSettings;
+    return mJSContextOptions;
   }
+
+  uint32_t
+  GetJSRuntimeHeapSize() const
+  {
+    return mJSRuntimeHeapSize;
+  }
+
+  uint32_t
+  GetJSWorkerAllocationThreshold() const
+  {
+    return mJSWorkerAllocationThreshold;
+  }
+
+#ifdef JS_GC_ZEAL
+  uint8_t
+  GetGCZeal() const
+  {
+    return mGCZeal;
+  }
+#endif
 
   bool
   IsChromeWorker() const
@@ -607,10 +623,6 @@ public:
   AssertInnerWindowIsCorrect() const
   { }
 #endif
-
-  void RegisterHostObjectURI(const nsACString& aURI);
-  void UnregisterHostObjectURI(const nsACString& aURI);
-  void StealHostObjectURIs(nsTArray<nsCString>& aArray);
 };
 
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
@@ -802,8 +814,7 @@ public:
   }
 
   void
-  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aContentOptions,
-                                 uint32_t aChromeOptions);
+  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions);
 
   void
   UpdateJSWorkerMemoryParameterInternal(JSContext* aCx, JSGCParamKey key, uint32_t aValue);
@@ -828,11 +839,8 @@ public:
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal, uint32_t aFrequency);
+  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal);
 #endif
-
-  void
-  UpdateJITHardeningInternal(JSContext* aCx, bool aJITHardening);
 
   void
   GarbageCollectInternal(JSContext* aCx, bool aShrinking,
@@ -897,6 +905,10 @@ private:
                 nsCOMPtr<nsIChannel>& aChannel,
                 nsCOMPtr<nsIContentSecurityPolicy>& aCSP, bool aEvalAllowed,
                 bool aReportCSPViolations, bool aXHRParamsAllowed);
+
+  static bool
+  GetContentSecurityPolicy(JSContext *aCx,
+                           nsIContentSecurityPolicy** aCsp);
 
   bool
   Dispatch(WorkerRunnable* aEvent, EventQueue* aQueue);

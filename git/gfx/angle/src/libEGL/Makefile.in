@@ -10,6 +10,7 @@ VPATH     = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 # On Windows, we don't automatically get "lib" prepended, but we need it.
+LIBRARY_NAME     = libEGL
 FORCE_SHARED_LIB = 1
 
 # ANGLE uses the STL, so we can't use our derpy STL wrappers.
@@ -19,7 +20,7 @@ STL_FLAGS =
 # support
 ENABLE_CXX_EXCEPTIONS = 1
 
-ifndef GNU_CC
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 # Enable unwind semantics for exception handlers in response to warning C4530.
 OS_CPPFLAGS += -EHsc
 endif
@@ -51,8 +52,21 @@ LOCAL_INCLUDES = \
 
 VPATH += $(srcdir)/../common
 # src/common:
+CPPSRCS += \
+  debug.cpp \
+  RefCountObject.cpp \
+  $(NULL)
+
 VPATH += $(srcdir)/../libEGL
 # src/libEGL:
+CPPSRCS += \
+  Config.cpp \
+  Display.cpp \
+  libEGL.cpp \
+  main.cpp \
+  Surface.cpp \
+  $(NULL)
+
 DEFFILE = $(srcdir)/libEGL.def
 RCFILE  = $(srcdir)/libEGL.rc
 

@@ -115,13 +115,14 @@ BluetoothChild::RecvNotificationsStopped()
 }
 
 PBluetoothRequestChild*
-BluetoothChild::AllocPBluetoothRequestChild(const Request& aRequest)
+BluetoothChild::AllocPBluetoothRequest(const Request& aRequest)
 {
-  MOZ_CRASH("Caller is supposed to manually construct a request!");
+  MOZ_NOT_REACHED("Caller is supposed to manually construct a request!");
+  return nullptr;
 }
 
 bool
-BluetoothChild::DeallocPBluetoothRequestChild(PBluetoothRequestChild* aActor)
+BluetoothChild::DeallocPBluetoothRequest(PBluetoothRequestChild* aActor)
 {
   delete aActor;
   return true;

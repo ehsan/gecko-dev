@@ -6,7 +6,7 @@
  */
 
 #include "GrTextureAccess.h"
-#include "GrColor.h"
+
 #include "GrTexture.h"
 
 GrTextureAccess::GrTextureAccess() {
@@ -16,92 +16,52 @@ GrTextureAccess::GrTextureAccess() {
 #endif
 }
 
-GrTextureAccess::GrTextureAccess(GrTexture* texture, const GrTextureParams& params) {
-    this->reset(texture, params);
+GrTextureAccess::GrTextureAccess(GrTexture* texture, const char* swizzle) {
+    this->reset(texture, swizzle);
 }
 
-GrTextureAccess::GrTextureAccess(GrTexture* texture,
-                                 bool bilerp,
-                                 SkShader::TileMode tileXAndY) {
-    this->reset(texture, bilerp, tileXAndY);
+GrTextureAccess::GrTextureAccess(GrTexture* texture) {
+    this->reset(texture);
 }
 
-GrTextureAccess::GrTextureAccess(GrTexture* texture,
-                                 const char* swizzle,
-                                 const GrTextureParams& params) {
-    this->reset(texture, swizzle, params);
-}
-
-GrTextureAccess::GrTextureAccess(GrTexture* texture,
-                                 const char* swizzle,
-                                 bool bilerp,
-                                 SkShader::TileMode tileXAndY) {
-    this->reset(texture, swizzle, bilerp, tileXAndY);
-}
-
-void GrTextureAccess::reset(GrTexture* texture,
-                            const char* swizzle,
-                            const GrTextureParams& params) {
+void GrTextureAccess::reset(GrTexture* texture, const char* swizzle) {
     GrAssert(NULL != texture);
     GrAssert(strlen(swizzle) >= 1 && strlen(swizzle) <= 4);
 
-    fParams = params;
-    fTexture.reset(SkRef(texture));
-    this->setSwizzle(swizzle);
-}
+    texture->ref();
+    fTexture.reset(texture);
 
-void GrTextureAccess::reset(GrTexture* texture,
-                            const char* swizzle,
-                            bool bilerp,
-                            SkShader::TileMode tileXAndY) {
-    GrAssert(NULL != texture);
-    GrAssert(strlen(swizzle) >= 1 && strlen(swizzle) <= 4);
-
-    fParams.reset(tileXAndY, bilerp);
-    fTexture.reset(SkRef(texture));
-    this->setSwizzle(swizzle);
-}
-
-void GrTextureAccess::reset(GrTexture* texture,
-                            const GrTextureParams& params) {
-    GrAssert(NULL != texture);
-    fTexture.reset(SkRef(texture));
-    fParams = params;
-    memcpy(fSwizzle, "rgba", 5);
-    fSwizzleMask = kRGBA_GrColorComponentFlags;
-}
-
-void GrTextureAccess::reset(GrTexture* texture,
-                            bool bilerp,
-                            SkShader::TileMode tileXAndY) {
-    GrAssert(NULL != texture);
-    fTexture.reset(SkRef(texture));
-    fParams.reset(tileXAndY, bilerp);
-    memcpy(fSwizzle, "rgba", 5);
-    fSwizzleMask = kRGBA_GrColorComponentFlags;
-}
-
-void GrTextureAccess::setSwizzle(const char* swizzle) {
     fSwizzleMask = 0;
-    memset(fSwizzle, '\0', 5);
-    for (int i = 0; i < 4 && '\0' != swizzle[i]; ++i) {
+    fSwizzle[4] = '\0';
+    int i = 0;
+    do {
         fSwizzle[i] = swizzle[i];
         switch (swizzle[i]) {
             case 'r':
-                fSwizzleMask |= kR_GrColorComponentFlag;
+                fSwizzleMask |= kR_SwizzleFlag;
                 break;
             case 'g':
-                fSwizzleMask |= kG_GrColorComponentFlag;
+                fSwizzleMask |= kG_SwizzleFlag;
                 break;
             case 'b':
-                fSwizzleMask |= kB_GrColorComponentFlag;
+                fSwizzleMask |= kB_SwizzleFlag;
                 break;
             case 'a':
-                fSwizzleMask |= kA_GrColorComponentFlag;
+                fSwizzleMask |= kA_SwizzleFlag;
+                break;
+            case '\0':
                 break;
             default:
                 GrCrash("Unexpected swizzle string character.");
                 break;
         }
-    }
+    } while ('\0' != swizzle[i] && ++i < 4);
+}
+
+void GrTextureAccess::reset(GrTexture* texture) {
+    GrAssert(NULL != texture);
+    texture->ref();
+    fTexture.reset(texture);
+    memcpy(fSwizzle, "rgba", 5);
+    fSwizzleMask = (kRGB_SwizzleMask | kA_SwizzleFlag);
 }

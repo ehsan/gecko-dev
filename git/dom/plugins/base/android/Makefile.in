@@ -12,8 +12,25 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkpluginandroid_s
 LIBXUL_LIBRARY   = 1
+FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
 FAIL_ON_WARNINGS := 1
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
+CPPSRCS += ANPAudio.cpp    \
+           ANPEvent.cpp    \
+           ANPMatrix.cpp   \
+           ANPSystem.cpp   \
+           ANPWindow.cpp   \
+           ANPBitmap.cpp   \
+           ANPLog.cpp      \
+           ANPNativeWindow.cpp \
+           ANPSurface.cpp  \
+           ANPVideo.cpp    \
+           ANPOpenGL.cpp   \
+           $(NULL)
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/widget/android \
@@ -28,4 +45,4 @@ LOCAL_INCLUDES += \
 DEFINES += -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"'
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
+

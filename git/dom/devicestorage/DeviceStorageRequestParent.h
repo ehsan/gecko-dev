@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_devicestorage_DeviceStorageRequestParent_h
 #define mozilla_dom_devicestorage_DeviceStorageRequestParent_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/devicestorage/PDeviceStorageRequestParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
@@ -36,8 +35,7 @@ protected:
   ~DeviceStorageRequestParent();
 
 private:
-  ThreadSafeAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
+  nsAutoRefCnt mRefCnt;
   DeviceStorageParams mParams;
 
   class CancelableRunnable : public nsRunnable
@@ -52,7 +50,7 @@ private:
     virtual ~CancelableRunnable() {
     }
 
-    NS_IMETHOD Run() MOZ_OVERRIDE {
+    NS_IMETHOD Run() {
       nsresult rv = NS_OK;
       if (!mCanceled) {
         rv = CancelableRun();

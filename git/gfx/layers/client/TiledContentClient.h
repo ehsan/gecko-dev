@@ -9,12 +9,9 @@
 #include "mozilla/layers/ContentClient.h"
 #include "TiledLayerBuffer.h"
 #include "gfxPlatform.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
 
 namespace mozilla {
 namespace layers {
-
-class BasicTileDescriptor;
 
 /**
  * Represent a single tile in tiled buffer. The buffer keeps tiles,
@@ -26,42 +23,38 @@ class BasicTileDescriptor;
  * Ideal place to store per tile debug information.
  */
 struct BasicTiledLayerTile {
-  RefPtr<DeprecatedTextureClientTile> mDeprecatedTextureClient;
+  RefPtr<TextureClientTile> mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
   TimeStamp        mLastUpdate;
 #endif
 
   // Placeholder
   BasicTiledLayerTile()
-    : mDeprecatedTextureClient(nullptr)
-  {}
-
-  BasicTiledLayerTile(DeprecatedTextureClientTile* aTextureClient)
-    : mDeprecatedTextureClient(aTextureClient)
+    : mTextureClient(nullptr)
   {}
 
   BasicTiledLayerTile(const BasicTiledLayerTile& o) {
-    mDeprecatedTextureClient = o.mDeprecatedTextureClient;
+    mTextureClient = o.mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
     mLastUpdate = o.mLastUpdate;
 #endif
   }
   BasicTiledLayerTile& operator=(const BasicTiledLayerTile& o) {
     if (this == &o) return *this;
-    mDeprecatedTextureClient = o.mDeprecatedTextureClient;
+    mTextureClient = o.mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
     mLastUpdate = o.mLastUpdate;
 #endif
     return *this;
   }
   bool operator== (const BasicTiledLayerTile& o) const {
-    return mDeprecatedTextureClient == o.mDeprecatedTextureClient;
+    return mTextureClient == o.mTextureClient;
   }
   bool operator!= (const BasicTiledLayerTile& o) const {
-    return mDeprecatedTextureClient != o.mDeprecatedTextureClient;
+    return mTextureClient != o.mTextureClient;
   }
 
-  bool IsPlaceholderTile() { return mDeprecatedTextureClient == nullptr; }
+  bool IsPlaceholderTile() { return mTextureClient == nullptr; }
 
   void ReadUnlock() {
     GetSurface()->ReadUnlock();
@@ -70,11 +63,8 @@ struct BasicTiledLayerTile {
     GetSurface()->ReadLock();
   }
 
-  TileDescriptor GetTileDescriptor();
-  static BasicTiledLayerTile OpenDescriptor(ISurfaceAllocator *aAllocator, const TileDescriptor& aDesc);
-
   gfxReusableSurfaceWrapper* GetSurface() {
-    return mDeprecatedTextureClient->GetReusableSurfaceWrapper();
+    return mTextureClient->GetReusableSurfaceWrapper();
   }
 };
 
@@ -83,8 +73,8 @@ struct BasicTiledLayerTile {
  * doesn't need to be recalculated on every repeated transaction.
  */
 struct BasicTiledLayerPaintData {
-  CSSPoint mScrollOffset;
-  CSSPoint mLastScrollOffset;
+  gfx::Point mScrollOffset;
+  gfx::Point mLastScrollOffset;
   gfx3DMatrix mTransformScreenToLayer;
   nsIntRect mLayerCriticalDisplayPort;
   gfxSize mResolution;
@@ -117,29 +107,6 @@ public:
     , mLastPaintOpaque(false)
   {}
 
-  BasicTiledLayerBuffer(ISurfaceAllocator* aAllocator,
-                        const nsIntRegion& aValidRegion,
-                        const nsIntRegion& aPaintedRegion,
-                        const InfallibleTArray<TileDescriptor>& aTiles,
-                        int aRetainedWidth,
-                        int aRetainedHeight,
-                        float aResolution)
-  {
-    mValidRegion = aValidRegion;
-    mPaintedRegion = aPaintedRegion;
-    mRetainedWidth = aRetainedWidth;
-    mRetainedHeight = aRetainedHeight;
-    mResolution = aResolution;
-
-    for(size_t i = 0; i < aTiles.Length(); i++) {
-      if (aTiles[i].type() == TileDescriptor::TPlaceholderTileDescriptor) {
-        mRetainedTiles.AppendElement(GetPlaceholderTile());
-      } else {
-        mRetainedTiles.AppendElement(BasicTiledLayerTile::OpenDescriptor(aAllocator, aTiles[i]));
-      }
-    }
-  }
-
   void PaintThebes(const nsIntRegion& aNewValidRegion,
                    const nsIntRegion& aPaintRegion,
                    LayerManager::DrawThebesLayerCallback aCallback,
@@ -166,7 +133,7 @@ public:
 
   /**
    * Performs a progressive update of a given tiled buffer.
-   * See ComputeProgressiveUpdateRegion below for parameter documentation.
+   * See ComputeProgressiveUpdateRegion above for parameter documentation.
    */
   bool ProgressiveUpdate(nsIntRegion& aValidRegion,
                          nsIntRegion& aInvalidRegion,
@@ -175,10 +142,14 @@ public:
                          LayerManager::DrawThebesLayerCallback aCallback,
                          void* aCallbackData);
 
-  SurfaceDescriptorTiles GetSurfaceDescriptorTiles();
-
-  static BasicTiledLayerBuffer OpenDescriptor(ISurfaceAllocator* aAllocator,
-                                              const SurfaceDescriptorTiles& aDescriptor);
+  /**
+   * Copy this buffer duplicating the texture hosts under the tiles
+   * XXX This should go. It is a hack because we need to keep the
+   * surface wrappers alive whilst they are locked by the compositor.
+   * Once we properly implement the texture host/client architecture
+   * for tiled layers we shouldn't need this.
+   */
+  BasicTiledLayerBuffer DeepCopy() const;
 
 protected:
   BasicTiledLayerTile ValidateTile(BasicTiledLayerTile aTile,
@@ -227,6 +198,10 @@ private:
    * current transaction.
    * aRegionToPaint will be filled with the region to update. This may be empty,
    * which indicates that there is no more work to do.
+   * aTransform is the transform required to convert from screen-space to
+   * layer-space.
+   * aScrollOffset is the current scroll offset of the primary scrollable layer.
+   * aResolution is the render resolution of the layer.
    * aIsRepeated should be true if this function has already been called during
    * this transaction.
    *

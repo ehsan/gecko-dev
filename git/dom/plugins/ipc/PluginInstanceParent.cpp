@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include <stdint.h> // for intptr_t
+#include "mozilla/StandardInteger.h" // for intptr_t
 
 #include "PluginInstanceParent.h"
 #include "BrowserStreamParent.h"
@@ -158,37 +158,37 @@ PluginInstanceParent::Destroy()
 }
 
 PBrowserStreamParent*
-PluginInstanceParent::AllocPBrowserStreamParent(const nsCString& url,
-                                                const uint32_t& length,
-                                                const uint32_t& lastmodified,
-                                                PStreamNotifyParent* notifyData,
-                                                const nsCString& headers,
-                                                const nsCString& mimeType,
-                                                const bool& seekable,
-                                                NPError* rv,
-                                                uint16_t *stype)
+PluginInstanceParent::AllocPBrowserStream(const nsCString& url,
+                                          const uint32_t& length,
+                                          const uint32_t& lastmodified,
+                                          PStreamNotifyParent* notifyData,
+                                          const nsCString& headers,
+                                          const nsCString& mimeType,
+                                          const bool& seekable,
+                                          NPError* rv,
+                                          uint16_t *stype)
 {
     NS_RUNTIMEABORT("Not reachable");
     return NULL;
 }
 
 bool
-PluginInstanceParent::DeallocPBrowserStreamParent(PBrowserStreamParent* stream)
+PluginInstanceParent::DeallocPBrowserStream(PBrowserStreamParent* stream)
 {
     delete stream;
     return true;
 }
 
 PPluginStreamParent*
-PluginInstanceParent::AllocPPluginStreamParent(const nsCString& mimeType,
-                                               const nsCString& target,
-                                               NPError* result)
+PluginInstanceParent::AllocPPluginStream(const nsCString& mimeType,
+                                         const nsCString& target,
+                                         NPError* result)
 {
     return new PluginStreamParent(this, mimeType, target, result);
 }
 
 bool
-PluginInstanceParent::DeallocPPluginStreamParent(PPluginStreamParent* stream)
+PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
 {
     delete stream;
     return true;
@@ -478,12 +478,12 @@ PluginInstanceParent::AnswerNPN_PostURL(const nsCString& url,
 }
 
 PStreamNotifyParent*
-PluginInstanceParent::AllocPStreamNotifyParent(const nsCString& url,
-                                               const nsCString& target,
-                                               const bool& post,
-                                               const nsCString& buffer,
-                                               const bool& file,
-                                               NPError* result)
+PluginInstanceParent::AllocPStreamNotify(const nsCString& url,
+                                         const nsCString& target,
+                                         const bool& post,
+                                         const nsCString& buffer,
+                                         const bool& file,
+                                         NPError* result)
 {
     return new StreamNotifyParent();
 }
@@ -532,7 +532,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
 }
 
 bool
-PluginInstanceParent::DeallocPStreamNotifyParent(PStreamNotifyParent* notifyData)
+PluginInstanceParent::DeallocPStreamNotify(PStreamNotifyParent* notifyData)
 {
     delete notifyData;
     return true;
@@ -970,14 +970,14 @@ PluginInstanceParent::GetImageContainer()
 }
 
 PPluginBackgroundDestroyerParent*
-PluginInstanceParent::AllocPPluginBackgroundDestroyerParent()
+PluginInstanceParent::AllocPPluginBackgroundDestroyer()
 {
     NS_RUNTIMEABORT("'Power-user' ctor is used exclusively");
     return nullptr;
 }
 
 bool
-PluginInstanceParent::DeallocPPluginBackgroundDestroyerParent(
+PluginInstanceParent::DeallocPPluginBackgroundDestroyer(
     PPluginBackgroundDestroyerParent* aActor)
 {
     delete aActor;
@@ -1472,7 +1472,7 @@ PluginInstanceParent::NPP_Print(NPPrint* platformPrint)
 }
 
 PPluginScriptableObjectParent*
-PluginInstanceParent::AllocPPluginScriptableObjectParent()
+PluginInstanceParent::AllocPPluginScriptableObject()
 {
     return new PluginScriptableObjectParent(Proxy);
 }
@@ -1503,7 +1503,7 @@ ActorSearch(NPObject* aKey,
 #endif // DEBUG
 
 bool
-PluginInstanceParent::DeallocPPluginScriptableObjectParent(
+PluginInstanceParent::DeallocPPluginScriptableObject(
                                          PPluginScriptableObjectParent* aObject)
 {
     PluginScriptableObjectParent* actor =
@@ -1610,9 +1610,9 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
 }
 
 PPluginSurfaceParent*
-PluginInstanceParent::AllocPPluginSurfaceParent(const WindowsSharedMemoryHandle& handle,
-                                                const gfxIntSize& size,
-                                                const bool& transparent)
+PluginInstanceParent::AllocPPluginSurface(const WindowsSharedMemoryHandle& handle,
+                                          const gfxIntSize& size,
+                                          const bool& transparent)
 {
 #ifdef XP_WIN
     return new PluginSurfaceParent(handle, size, transparent);
@@ -1623,7 +1623,7 @@ PluginInstanceParent::AllocPPluginSurfaceParent(const WindowsSharedMemoryHandle&
 }
 
 bool
-PluginInstanceParent::DeallocPPluginSurfaceParent(PPluginSurfaceParent* s)
+PluginInstanceParent::DeallocPPluginSurface(PPluginSurfaceParent* s)
 {
 #ifdef XP_WIN
     delete s;

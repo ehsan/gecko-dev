@@ -6,7 +6,6 @@
 
 #include "Link.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsEventStates.h"
 #include "nsIURL.h"
@@ -42,6 +41,14 @@ Link::ElementHasHref() const
 {
   return ((!mElement->IsSVG() && mElement->HasAttr(kNameSpaceID_None, nsGkAtoms::href))
         || (!mElement->IsHTML() && mElement->HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)));
+}
+
+nsLinkState
+Link::GetLinkState() const
+{
+  NS_ASSERTION(mRegistered,
+               "Getting the link state of an unregistered Link!");
+  return nsLinkState(mLinkState);
 }
 
 void
@@ -501,7 +508,7 @@ Link::SetHrefAttribute(nsIURI *aURI)
 }
 
 size_t
-Link::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+Link::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 

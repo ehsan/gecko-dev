@@ -50,19 +50,22 @@ struct AudioCodecConfig
 
 struct VideoCodecConfig
 {
+
   /*
    * The data-types for these properties mimic the
    * corresponding webrtc::VideoCodec data-types.
    */
   int mType;
   std::string mName;
+  int mWidth;
+  int mHeight;
 
-  /* When we have resolution negotiation information (RFC 6236)
-   * it will be stored here.
-   */
+  VideoCodecConfig(int type, std::string name,int width,
+                    int height): mType(type),
+                                 mName(name),
+                                 mWidth(width),
+                                 mHeight(height)
 
-  VideoCodecConfig(int type, std::string name): mType(type),
-                                                mName(name)
   {
   }
 

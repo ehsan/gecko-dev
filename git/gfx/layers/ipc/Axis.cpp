@@ -102,6 +102,11 @@ Axis::Axis(AsyncPanZoomController* aAsyncPanZoomController)
 }
 
 void Axis::UpdateWithTouchAtDevicePoint(int32_t aPos, const TimeDuration& aTimeDelta) {
+  if (mPos == aPos) {
+    // Does not make sense to calculate velocity when distance is 0
+    return;
+  }
+
   float newVelocity = (mPos - aPos) / aTimeDelta.ToMilliseconds();
 
   bool curVelocityBelowThreshold = fabsf(newVelocity) < gVelocityThreshold;
@@ -245,7 +250,7 @@ float Axis::DisplacementWillOverscrollAmount(float aDisplacement) {
   }
 }
 
-Axis::Overscroll Axis::ScaleWillOverscroll(float aScale, float aFocus) {
+Axis::Overscroll Axis::ScaleWillOverscroll(float aScale, int32_t aFocus) {
   float originAfterScale = (GetOrigin() + aFocus) * aScale - aFocus;
 
   bool both = ScaleWillOverscrollBothSides(aScale);
@@ -264,7 +269,7 @@ Axis::Overscroll Axis::ScaleWillOverscroll(float aScale, float aFocus) {
   return OVERSCROLL_NONE;
 }
 
-float Axis::ScaleWillOverscrollAmount(float aScale, float aFocus) {
+float Axis::ScaleWillOverscrollAmount(float aScale, int32_t aFocus) {
   float originAfterScale = (GetOrigin() + aFocus) * aScale - aFocus;
   switch (ScaleWillOverscroll(aScale, aFocus)) {
   case OVERSCROLL_MINUS: return originAfterScale - GetPageStart() * aScale;
@@ -292,35 +297,40 @@ float Axis::GetPageEnd() {
 }
 
 float Axis::GetOrigin() {
-  CSSPoint origin = mAsyncPanZoomController->GetFrameMetrics().mScrollOffset;
+  gfx::Point origin = mAsyncPanZoomController->GetFrameMetrics().mScrollOffset;
   return GetPointOffset(origin);
 }
 
 float Axis::GetCompositionLength() {
   const FrameMetrics& metrics = mAsyncPanZoomController->GetFrameMetrics();
-  CSSRect cssCompositedRect = metrics.CalculateCompositedRectInCssPixels();
+  gfx::Rect cssCompositedRect =
+    AsyncPanZoomController::CalculateCompositedRectInCssPixels(metrics);
   return GetRectLength(cssCompositedRect);
 }
 
 float Axis::GetPageStart() {
-  CSSRect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
+  gfx::Rect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
   return GetRectOffset(pageRect);
 }
 
 float Axis::GetPageLength() {
-  CSSRect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
+  gfx::Rect pageRect = mAsyncPanZoomController->GetFrameMetrics().mScrollableRect;
   return GetRectLength(pageRect);
 }
 
 bool Axis::ScaleWillOverscrollBothSides(float aScale) {
   const FrameMetrics& metrics = mAsyncPanZoomController->GetFrameMetrics();
 
-  CSSRect cssContentRect = metrics.mScrollableRect;
+  gfx::Rect cssContentRect = metrics.mScrollableRect;
 
-  CSSToScreenScale scale(metrics.CalculateResolution().scale * aScale);
-  CSSIntRect cssCompositionBounds = RoundedIn(metrics.mCompositionBounds / scale);
+  float currentScale = metrics.mZoom.width;
+  nsIntRect compositionBounds = metrics.mCompositionBounds;
+  gfx::Rect scaledCompositionBounds =
+    gfx::Rect(compositionBounds.x, compositionBounds.y,
+              compositionBounds.width, compositionBounds.height);
+  scaledCompositionBounds.ScaleInverseRoundIn(currentScale * aScale);
 
-  return GetRectLength(cssContentRect) < GetRectLength(CSSRect(cssCompositionBounds));
+  return GetRectLength(cssContentRect) < GetRectLength(scaledCompositionBounds);
 }
 
 AxisX::AxisX(AsyncPanZoomController* aAsyncPanZoomController)
@@ -329,17 +339,17 @@ AxisX::AxisX(AsyncPanZoomController* aAsyncPanZoomController)
 
 }
 
-float AxisX::GetPointOffset(const CSSPoint& aPoint)
+float AxisX::GetPointOffset(const gfx::Point& aPoint)
 {
   return aPoint.x;
 }
 
-float AxisX::GetRectLength(const CSSRect& aRect)
+float AxisX::GetRectLength(const gfx::Rect& aRect)
 {
   return aRect.width;
 }
 
-float AxisX::GetRectOffset(const CSSRect& aRect)
+float AxisX::GetRectOffset(const gfx::Rect& aRect)
 {
   return aRect.x;
 }
@@ -350,17 +360,17 @@ AxisY::AxisY(AsyncPanZoomController* aAsyncPanZoomController)
 
 }
 
-float AxisY::GetPointOffset(const CSSPoint& aPoint)
+float AxisY::GetPointOffset(const gfx::Point& aPoint)
 {
   return aPoint.y;
 }
 
-float AxisY::GetRectLength(const CSSRect& aRect)
+float AxisY::GetRectLength(const gfx::Rect& aRect)
 {
   return aRect.height;
 }
 
-float AxisY::GetRectOffset(const CSSRect& aRect)
+float AxisY::GetRectOffset(const gfx::Rect& aRect)
 {
   return aRect.y;
 }

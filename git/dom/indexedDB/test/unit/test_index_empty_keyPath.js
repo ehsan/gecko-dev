@@ -19,7 +19,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined; // upgradeneeded
+  let event = yield; // upgradeneeded
 
   let db = event.target.result;
 
@@ -37,11 +37,11 @@ function testSteps()
       }
     }
   }
-  event = yield undefined; // testGenerator.send
+  event = yield; // testGenerator.send
 
   // Now create the index.
   objectStore.createIndex("set", "", { unique: true });
-  yield undefined; // success
+  yield; // success
 
   let trans = db.transaction("data", "readwrite");
   objectStore = trans.objectStore("data");
@@ -51,7 +51,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  let event = yield undefined;
+  let event = yield;
 
   is(event.target.result, "bar", "Got correct result");
 
@@ -59,13 +59,13 @@ function testSteps()
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
 
-  yield undefined;
+  yield;
 
   let request = index.get("foopy");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  let event = yield undefined;
+  let event = yield;
 
   is(event.target.result, "foopy", "Got correct result");
 
@@ -75,9 +75,9 @@ function testSteps()
 
   trans.oncomplete = grabEventAndContinueHandler;
 
-  yield undefined;
-  yield undefined;
+  yield;
+  yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

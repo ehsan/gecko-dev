@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_Object_h
-#define builtin_Object_h
+#ifndef Object_h___
+#define Object_h___
 
 #include "jsobj.h"
 
@@ -15,9 +15,9 @@ extern const JSFunctionSpec object_methods[];
 extern const JSFunctionSpec object_static_methods[];
 
 /* Object constructor native. Exposed only so the JIT can know its address. */
-extern bool
+extern JSBool
 obj_construct(JSContext *cx, unsigned argc, js::Value *vp);
 
 } /* namespace js */
 
-#endif /* builtin_Object_h */
+#endif

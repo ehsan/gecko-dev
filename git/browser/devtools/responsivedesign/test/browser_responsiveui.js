@@ -121,29 +121,16 @@ function test() {
     widthBeforeClose = content.innerWidth;
     heightBeforeClose = content.innerHeight;
 
-    info("XXX BUG 851296: instance.closing: " + !!instance.closing);
-
-    mgr.once("off", function() {
-      info("XXX BUG 851296: 'off' received.");
-      executeSoon(restart);
-    });
+    mgr.once("off", function() {executeSoon(restart)});
     EventUtils.synthesizeKey("VK_ESCAPE", {});
   }
 
   function restart() {
-    info("XXX BUG 851296: restarting.");
-    info("XXX BUG 851296: __responsiveUI: " + gBrowser.selectedTab.__responsiveUI);
-    mgr.once("on", function() {
-      info("XXX BUG 851296: 'on' received.");
-      executeSoon(onUIOpen2);
-    });
-    //XXX BUG 851296: synthesizeKeyFromKeyTag("key_responsiveUI");
-    mgr.toggle(window, gBrowser.selectedTab);
-    info("XXX BUG 851296: restart() finished.");
+    mgr.once("on", function() {executeSoon(onUIOpen2)});
+    synthesizeKeyFromKeyTag("key_responsiveUI");
   }
 
   function onUIOpen2() {
-    info("XXX BUG 851296: onUIOpen2.");
     let container = gBrowser.getBrowserContainer();
     is(container.getAttribute("responsivemode"), "true", "In responsive mode.");
 
@@ -190,8 +177,6 @@ function test() {
       accelKey: modifiersAttr.match("accel")
     }
 
-    info("XXX BUG 851296: key name: " + name);
-    info("XXX BUG 851296: key modifiers: " + JSON.stringify(modifiers));
     EventUtils.synthesizeKey(name, modifiers);
   }
 }

@@ -27,7 +27,7 @@ function testSimpleCall() {
   gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({
       run: function() {
-        var frames = gDebugger.DebuggerView.StackFrames.widget._list,
+        var frames = gDebugger.DebuggerView.StackFrames._container._list,
             childNodes = frames.childNodes;
 
         is(gDebugger.DebuggerController.activeThread.state, "paused",
@@ -56,7 +56,7 @@ function testLocationChange()
 
       closeDebuggerAndFinish();
     });
-    gDebugger.DebuggerController.client.activeTab.navigateTo(TAB1_URL);
+    content.location = TAB1_URL;
   });
 }
 

@@ -11,22 +11,9 @@ Cu.import("resource://gre/modules/PageThumbs.jsm");
 const backgroundPageThumbsContent = {
 
   init: function () {
-    // Arrange to prevent (most) popup dialogs for this window - popups done
-    // in the parent (eg, auth) aren't prevented, but alert() etc are.
-    let dwu = content.
-                QueryInterface(Ci.nsIInterfaceRequestor).
-                getInterface(Ci.nsIDOMWindowUtils);
-    dwu.preventFurtherDialogs();
-
-    // We want a low network priority for this service - lower than b/g tabs
-    // etc - so set it to the lowest priority available.
-    this._webNav.QueryInterface(Ci.nsIDocumentLoader).
-      loadGroup.QueryInterface(Ci.nsISupportsPriority).
-      priority = Ci.nsISupportsPriority.PRIORITY_LOWEST;
-
-    docShell.allowMedia = false;
-    docShell.allowPlugins = false;
-
+    // Stop about:blank from loading.  If it finishes loading after a capture
+    // request is received, it could trigger the capture's load listener.
+    this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
     addMessageListener("BackgroundPageThumbs:capture",
                        this._onCapture.bind(this));
   },
@@ -36,24 +23,22 @@ const backgroundPageThumbsContent = {
   },
 
   _onCapture: function (msg) {
-    this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
-    if (this._onLoad)
+    if (this._onLoad) {
+      this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
       removeEventListener("load", this._onLoad, true);
+    }
 
     this._onLoad = function onLoad(event) {
       if (event.target != content.document)
         return;
-      let pageLoadTime = new Date() - loadDate;
       removeEventListener("load", this._onLoad, true);
       delete this._onLoad;
 
+      // The viewport is always reset to a small size after load, so resize it.
+      this._sizeViewport();
       let canvas = PageThumbs._createCanvas(content);
-      let captureDate = new Date();
       PageThumbs._captureToCanvas(content, canvas);
-      let captureTime = new Date() - captureDate;
 
-      let channel = docShell.currentDocumentChannel;
-      let isErrorResponse = PageThumbs._isChannelErrorResponse(channel);
       let finalURL = this._webNav.currentURI.spec;
       let fileReader = Cc["@mozilla.org/files/filereader;1"].
                        createInstance(Ci.nsIDOMFileReader);
@@ -62,25 +47,27 @@ const backgroundPageThumbsContent = {
           id: msg.json.id,
           imageData: fileReader.result,
           finalURL: finalURL,
-          telemetry: {
-            CAPTURE_PAGE_LOAD_TIME_MS: pageLoadTime,
-            CAPTURE_CANVAS_DRAW_TIME_MS: captureTime,
-          },
-          wasErrorResponse: isErrorResponse,
         });
       };
       canvas.toBlob(blob => fileReader.readAsArrayBuffer(blob));
-
-      // Load about:blank to cause the captured window to be collected...
-      // eventually.
-      this._webNav.loadURI("about:blank", Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
-                           null, null, null);
     }.bind(this);
 
     addEventListener("load", this._onLoad, true);
     this._webNav.loadURI(msg.json.url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
                          null, null, null);
-    let loadDate = new Date();
+  },
+
+  _sizeViewport: function () {
+    let width = {};
+    let height = {};
+    Cc["@mozilla.org/gfx/screenmanager;1"].
+      getService(Ci.nsIScreenManager).
+      primaryScreen.
+      GetRect({}, {}, width, height);
+    content.
+      QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIDOMWindowUtils).
+      setCSSViewport(width.value, height.value);
   },
 };
 

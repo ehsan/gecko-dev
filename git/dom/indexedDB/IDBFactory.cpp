@@ -27,7 +27,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsDOMClassInfoID.h"
 #include "nsGlobalWindow.h"
 #include "nsHashKeys.h"
@@ -210,6 +209,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 
   AutoSafeJSContext cx;
+  JSAutoRequest ar(cx);
 
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   NS_ASSERTION(xpc, "This should never be null!");
@@ -218,8 +218,9 @@ IDBFactory::Create(ContentParent* aContentParent,
   nsresult rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JSObject*> global(cx, globalHolder->GetJSObject());
-  NS_ENSURE_STATE(global);
+  JS::Rooted<JSObject*> global(cx);
+  rv = globalHolder->GetJSObject(global.address());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // The CreateSandbox call returns a proxy to the actual sandbox object. We
   // don't need a proxy here.
@@ -334,7 +335,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
                                     uint64_t* aVersion,
                                     ObjectStoreInfoArray& aObjectStores)
 {
-  AssertIsOnIOThread();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aConnection, "Null pointer!");
 
   aObjectStores.Clear();
@@ -497,8 +498,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBFactory)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBFactory)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBFactory)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
@@ -528,14 +527,14 @@ IDBFactory::OpenInternal(const nsAString& aName,
                          int64_t aVersion,
                          const nsACString& aASCIIOrigin,
                          bool aDeleting,
+                         JSContext* aCallingCx,
                          IDBOpenDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mWindow || mOwningObject, "Must have one of these!");
 
-  AutoJSContext cx;
   nsCOMPtr<nsPIDOMWindow> window;
-  JS::Rooted<JSObject*> scriptOwner(cx);
+  JS::Rooted<JSObject*> scriptOwner(aCallingCx);
   StoragePrivilege privilege;
 
   if (mWindow) {
@@ -550,7 +549,7 @@ IDBFactory::OpenInternal(const nsAString& aName,
   }
 
   nsRefPtr<IDBOpenDBRequest> request =
-    IDBOpenDBRequest::Create(this, window, scriptOwner);
+    IDBOpenDBRequest::Create(this, window, scriptOwner, aCallingCx);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsresult rv;
@@ -647,9 +646,9 @@ IDBFactory::Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
   return Key::CompareKeys(first, second);
 }
 
-already_AddRefed<IDBOpenDBRequest>
-IDBFactory::OpenForPrincipal(nsIPrincipal* aPrincipal,
-                             const nsAString& aName,
+already_AddRefed<nsIIDBOpenDBRequest>
+IDBFactory::OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                             const NonNull<nsAString>& aName,
                              const Optional<uint64_t>& aVersion,
                              ErrorResult& aRv)
 {
@@ -658,12 +657,12 @@ IDBFactory::OpenForPrincipal(nsIPrincipal* aPrincipal,
     MOZ_CRASH();
   }
 
-  return Open(aPrincipal, aName, aVersion, false, aRv);
+  return Open(aCx, aPrincipal, aName, aVersion, false, aRv);
 }
 
-already_AddRefed<IDBOpenDBRequest>
-IDBFactory::DeleteForPrincipal(nsIPrincipal* aPrincipal,
-                               const nsAString& aName,
+already_AddRefed<nsIIDBOpenDBRequest>
+IDBFactory::DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                               const NonNull<nsAString>& aName,
                                ErrorResult& aRv)
 {
   // Just to be on the extra-safe side
@@ -671,11 +670,11 @@ IDBFactory::DeleteForPrincipal(nsIPrincipal* aPrincipal,
     MOZ_CRASH();
   }
 
-  return Open(aPrincipal, aName, Optional<uint64_t>(), true, aRv);
+  return Open(aCx, aPrincipal, aName, Optional<uint64_t>(), true, aRv);
 }
 
-already_AddRefed<IDBOpenDBRequest>
-IDBFactory::Open(nsIPrincipal* aPrincipal,
+already_AddRefed<nsIIDBOpenDBRequest>
+IDBFactory::Open(JSContext* aCx, nsIPrincipal* aPrincipal,
                  const nsAString& aName, const Optional<uint64_t>& aVersion,
                  bool aDelete, ErrorResult& aRv)
 {
@@ -706,7 +705,7 @@ IDBFactory::Open(nsIPrincipal* aPrincipal,
   }
 
   nsRefPtr<IDBOpenDBRequest> request;
-  rv = OpenInternal(aName, version, origin, aDelete,
+  rv = OpenInternal(aName, version, origin, aDelete, aCx,
                     getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);

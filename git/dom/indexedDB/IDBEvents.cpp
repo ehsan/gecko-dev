@@ -6,6 +6,7 @@
 
 #include "IDBEvents.h"
 
+#include "nsDOMClassInfoID.h"
 #include "nsDOMException.h"
 #include "nsJSON.h"
 #include "nsThreadUtils.h"
@@ -15,8 +16,6 @@
 
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::dom;
-
-NS_DEFINE_STATIC_IID_ACCESSOR(IDBVersionChangeEvent, IDBVERSIONCHANGEEVENT_IID)
 
 namespace {
 
@@ -59,7 +58,7 @@ mozilla::dom::indexedDB::CreateGenericEvent(mozilla::dom::EventTarget* aOwner,
 }
 
 // static
-already_AddRefed<IDBVersionChangeEvent>
+already_AddRefed<nsDOMEvent>
 IDBVersionChangeEvent::CreateInternal(mozilla::dom::EventTarget* aOwner,
                                       const nsAString& aType,
                                       uint64_t aOldVersion,
@@ -97,5 +96,32 @@ NS_IMPL_ADDREF_INHERITED(IDBVersionChangeEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, nsDOMEvent)
 
 NS_INTERFACE_MAP_BEGIN(IDBVersionChangeEvent)
-  NS_INTERFACE_MAP_ENTRY(IDBVersionChangeEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
+
+DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
+
+NS_IMETHODIMP
+IDBVersionChangeEvent::GetOldVersion(uint64_t* aOldVersion)
+{
+  NS_ENSURE_ARG_POINTER(aOldVersion);
+  *aOldVersion = mOldVersion;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+IDBVersionChangeEvent::GetNewVersion(JSContext* aCx,
+                                     JS::Value* aNewVersion)
+{
+  NS_ENSURE_ARG_POINTER(aNewVersion);
+
+  if (!mNewVersion) {
+    *aNewVersion = JSVAL_NULL;
+  }
+  else {
+    *aNewVersion = JS_NumberValue(double(mNewVersion));
+  }
+
+  return NS_OK;
+}

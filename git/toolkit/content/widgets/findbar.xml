@@ -173,57 +173,66 @@
   <binding id="findbar"
            extends="chrome://global/content/bindings/toolbar.xml#toolbar">
     <resources>
-      <stylesheet src="chrome://global/content/bindings/findbar.css"/>
       <stylesheet src="chrome://global/skin/findBar.css"/>
     </resources>
 
     <content hidden="true">
     <xul:hbox anonid="findbar-container" class="findbar-container" flex="1" align="center">
-      <xul:hbox anonid="findbar-textbox-wrapper" align="stretch">
-        <xul:textbox anonid="findbar-textbox"
-                     class="findbar-textbox findbar-find-fast"
-                     xbl:inherits="flash"/>
-        <xul:toolbarbutton anonid="find-previous"
-                           class="findbar-find-previous tabbable"
-                           tooltiptext="&previous.tooltip;"
-                           oncommand="onFindAgainCommand(true);"
-                           disabled="true"
-                           xbl:inherits="accesskey=findpreviousaccesskey"/>
-        <xul:toolbarbutton anonid="find-next"
-                           class="findbar-find-next tabbable"
-                           tooltiptext="&next.tooltip;"
-                           oncommand="onFindAgainCommand(false);"
-                           disabled="true"
-                           xbl:inherits="accesskey=findnextaccesskey"/>
-      </xul:hbox>
-      <xul:image anonid="find-status-icon" class="findbar-find-fast find-status-icon"/>
-      <xul:description anonid="find-status"
-                       control="findbar-textbox"
-                       class="findbar-find-fast findbar-find-status">
-      <!-- Do not use value, first child is used because it provides a11y with text change events -->
-      </xul:description>
-      <xul:spacer flex="1"/>
-      <xul:toolbarbutton anonid="highlight"
-                         class="findbar-highlight tabbable"
-                         label="&highlightAll.label;"
-                         accesskey="&highlightAll.accesskey;"
-                         tooltiptext="&highlightAll.tooltiptext;"
-                         oncommand="toggleHighlight(this.checked);"
-                         type="checkbox"
-                         xbl:inherits="accesskey=highlightaccesskey"/>
-      <xul:toolbarbutton anonid="find-case-sensitive"
-                         class="findbar-case-sensitive tabbable"
-                         label="&caseSensitive.label;"
-                         accesskey="&caseSensitive.accesskey;"
-                         tooltiptext="&caseSensitive.tooltiptext;"
-                         oncommand="_setCaseSensitivity(this.checked);"
-                         type="checkbox"
-                         xbl:inherits="accesskey=matchcaseaccesskey"/>
-      <xul:label anonid="match-case-status" class="findbar-find-fast"/>
       <xul:toolbarbutton anonid="find-closebutton"
                          class="findbar-closebutton"
                          tooltiptext="&findCloseButton.tooltip;"
                          oncommand="close();"/>
+      <xul:label anonid="find-label" class="findbar-find-fast" control="findbar-textbox"/>
+      <xul:textbox class="findbar-textbox findbar-find-fast" anonid="findbar-textbox"
+                   xbl:inherits="flash"/>
+#ifdef MOZ_WIDGET_GTK
+      <xul:toolbarbutton anonid="find-previous"
+                         class="findbar-find-previous tabbable"
+                         label="&previous.label;"
+                         accesskey="&previous.accesskey;"
+                         tooltiptext="&previous.tooltip;"
+                         oncommand="onFindAgainCommand(true);"
+                         disabled="true"
+                         xbl:inherits="accesskey=findpreviousaccesskey"/>
+#endif
+      <xul:toolbarbutton anonid="find-next"
+                         class="findbar-find-next tabbable"
+                         label="&next.label;"
+                         accesskey="&next.accesskey;"
+                         tooltiptext="&next.tooltip;"
+                         oncommand="onFindAgainCommand(false);"
+                         disabled="true"
+                         xbl:inherits="accesskey=findnextaccesskey"/>
+#ifndef MOZ_WIDGET_GTK
+      <xul:toolbarbutton anonid="find-previous"
+                         class="findbar-find-previous tabbable"
+                         label="&previous.label;"
+                         accesskey="&previous.accesskey;"
+                         tooltiptext="&previous.tooltip;"
+                         oncommand="onFindAgainCommand(true);"
+                         disabled="true"
+                         xbl:inherits="accesskey=findpreviousaccesskey"/>
+#endif
+      <xul:toolbarbutton anonid="highlight"
+                         class="findbar-highlight tabbable"
+                         label="&highlight.label;"
+                         accesskey="&highlight.accesskey;"
+                         tooltiptext="&highlight.tooltiptext;"
+                         oncommand="toggleHighlight(this.checked);"
+                         type="checkbox"
+                         disabled="true"
+                         xbl:inherits="accesskey=highlightaccesskey"/>
+      <xul:checkbox anonid="find-case-sensitive"
+                    oncommand="_setCaseSensitivity(this.checked);"
+                    label="&caseSensitiveCheckbox.label;"
+                    accesskey="&caseSensitiveCheckbox.accesskey;"
+                    xbl:inherits="accesskey=matchcaseaccesskey"/>
+      <xul:label anonid="match-case-status" class="findbar-find-fast"/>
+      <xul:image anonid="find-status-icon" class="findbar-find-fast find-status-icon"/>
+      <xul:description anonid="find-status" class="findbar-find-fast findbar-find-status"
+                       control="findbar-textbox">
+      <!-- Do not use value, first child is used because it provides a11y with text change events -->
+      </xul:description>
     </xul:hbox>
     </content>
 
@@ -241,8 +250,6 @@
 
       <field name="_flashFindBar">0</field>
       <field name="_initialFlashFindBarCount">6</field>
-
-      <field name="_contentScrollOffset">0</field>
 
       <property name="_foundLink"
                 onget="return this._foundLinkRef.get();"
@@ -948,15 +955,12 @@
           }
 
           var doc = win.document;
-          if (!doc || !doc.documentElement)
-           return textFound;
-
-          var body = (doc instanceof HTMLDocument && doc.body) ?
-                     doc.body : doc.documentElement;
+          if (!doc || !(doc instanceof HTMLDocument))
+            return textFound;
 
           if (aHighlight) {
             var searchRange = doc.createRange();
-             searchRange.selectNodeContents(body);
+            searchRange.selectNodeContents(doc.body);
 
             var startPt = searchRange.cloneRange();
             startPt.collapse(true);
@@ -1124,11 +1128,11 @@
             this._wrappedToBottomStr =
               stringsBundle.GetStringFromName("WrappedToBottom");
             this._normalFindStr =
-              stringsBundle.GetStringFromName("NormalFind");
+              stringsBundle.GetStringFromName("NormalFindLabel");
             this._fastFindStr =
-              stringsBundle.GetStringFromName("FastFind");
+              stringsBundle.GetStringFromName("FastFindLabel");
             this._fastFindLinksStr =
-              stringsBundle.GetStringFromName("FastFindLinks");
+              stringsBundle.GetStringFromName("FastFindLinksLabel");
             this._caseSensitiveStr =
               stringsBundle.GetStringFromName("CaseSensitive");
           }
@@ -1137,29 +1141,7 @@
 
           this._updateFindUI();
           if (this.hidden) {
-            // Use position:absolute during the transition.
-            this.style.position = "absolute";
-            this.parentNode.style.position = "relative";
-
-            // Apparently a flush is necessary after setting position:relative
-            // on our parentNode, otherwise setting hidden to false won't
-            // animate the transform change.
-            this.getBoundingClientRect();
-
             this.hidden = false;
-
-            // Set a height on the findbar that's at least as much as the
-            // current height, but guaranteed to be an integer number of
-            // screen pixels.
-            // This way, reapplying position:static on the findbar after the
-            // fade in animation won't cause the browser contents to wiggle.
-            let [chromeOffset, contentScrollOffset] = this._findOffsets();
-            this.style.height = chromeOffset + "px";
-            this._contentScrollOffset = contentScrollOffset;
-
-            // Wait for the findbar appearance animation to end before
-            // changing the browser size.
-            this.addEventListener("transitionend", this);
 
             this._updateStatusUI(this.nsITypeAheadFind.FIND_FOUND);
 
@@ -1203,16 +1185,6 @@
           }
 
           this.hidden = true;
-
-          this.addEventListener("transitionend", this);
-
-          // Revert browser scroll shift + findbar static positioning.
-          if (this.getAttribute("position") == "top" &&
-              this.style.position != "absolute") {
-            this._browser.contentWindow.scrollBy(0, -this._contentScrollOffset);
-          }
-          this.style.position = "absolute";
-
           var fastFind = this.browser.fastFind;
           fastFind.setSelectionModeAndRepaint
             (this.nsISelectionController.SELECTION_ON);
@@ -1380,7 +1352,6 @@
           return /^text\/|\+xml$/.test(aMimeType) ||
                  aMimeType == "application/x-javascript" ||
                  aMimeType == "application/javascript" ||
-                 aMimeType == "application/json" ||
                  aMimeType == "application/xml";
         ]]></body>
       </method>
@@ -1514,55 +1485,7 @@
             case "keypress":
               this._onBrowserKeypress(aEvent);
               break;
-            case "transitionend":
-              if (aEvent.target == this &&
-                  aEvent.propertyName == "transform") {
-                this.removeEventListener("transitionend", this);
-
-                // Change the browser size in such a way that the region that's
-                // overlapped by the findbar can be scrolled to, but try to
-                // avoid a visual shift of the browser contents.
-                this.style.removeProperty("position");
-                if (this.getAttribute("position") == "top" &&
-                    !this.hidden) {
-                  this._browser.contentWindow.scrollBy(0, this._contentScrollOffset);
-                }
-
-                // We'd like to remove position:relative from this.parentNode,
-                // but that unfortunately causes unnecessary repainting.
-              }
-              break;
           }
-        ]]></body>
-      </method>
-
-      <method name="_screenPixelsPerCSSPixel">
-        <parameter name="aWindow"/>
-        <body><![CDATA[
-          return aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                        .getInterface(Components.interfaces.nsIDOMWindowUtils)
-                        .screenPixelsPerCSSPixel;
-        ]]></body>
-      </method>
-
-      <!--
-        - Find two numbers, one in chrome CSS pixels and one in integer
-        - content CSS pixels, that are about the same as (but not less than)
-        - the height of the findbar. These two numbers hopefully map to the
-        - same number of integer screen pixels.
-        - We want to avoid shifting of the page even when chrome and content
-        - have different zoom factors, and scrollBy() only accepts integers.
-        -->
-      <method name="_findOffsets">
-        <body><![CDATA[
-          let chromeFactor = this._screenPixelsPerCSSPixel(window);
-          let contentFactor = this._screenPixelsPerCSSPixel(this._browser.contentWindow);
-
-          let findbarHeightScreen = this.getBoundingClientRect().height * chromeFactor;
-          let contentScrollOffset = Math.ceil(findbarHeightScreen / contentFactor);
-          let estimatedScrollOffsetInScreenPixels = Math.round(contentScrollOffset * contentFactor);
-          let chromeOffset = estimatedScrollOffsetInScreenPixels / chromeFactor;
-          return [chromeOffset, contentScrollOffset];
         ]]></body>
       </method>
 
@@ -1570,7 +1493,8 @@
         <parameter name="aEnable"/>
         <body><![CDATA[
           this.getElement("find-next").disabled =
-            this.getElement("find-previous").disabled = !aEnable;
+            this.getElement("find-previous").disabled =
+            this.getElement("highlight").disabled = !aEnable;
         ]]></body>
       </method>
 
@@ -1580,30 +1504,23 @@
         -->
       <method name="_updateFindUI">
         <body><![CDATA[
-          let showMinimalUI = this._findMode != this.FIND_NORMAL;
+          var showMinimalUI = this._findMode != this.FIND_NORMAL;
 
-          let nodes = this.getElement("findbar-container").childNodes;
-          let wrapper = this.getElement("findbar-textbox-wrapper");
-          for (let node of nodes) {
-            if (node == wrapper)
+          var nodes = this.getElement("findbar-container").childNodes;
+          for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].className.indexOf("findbar-find-fast") != -1)
                continue;
-            node.hidden = showMinimalUI;
+
+            nodes[i].hidden = showMinimalUI;
           }
-          this.getElement("find-next").hidden =
-            this.getElement("find-previous").hidden = showMinimalUI;
           this._updateCaseSensitivity();
 
-          if (showMinimalUI)
-            this._findField.classList.add("minimal");
-          else
-            this._findField.classList.remove("minimal");
-
           if (this._findMode == this.FIND_TYPEAHEAD)
-            this._findField.placeholder = this._fastFindStr;
+            this.getElement("find-label").value = this._fastFindStr;
           else if (this._findMode == this.FIND_LINKS)
-            this._findField.placeholder = this._fastFindLinksStr;
+            this.getElement("find-label").value = this._fastFindLinksStr;
           else
-            this._findField.placeholder = this._normalFindStr;
+            this.getElement("find-label").value = this._normalFindStr;
         ]]></body>
       </method>
 
@@ -1844,10 +1761,12 @@
 
           var initialString = (this.prefillWithSelection && userWantsPrefill) ?
                               this._getInitialSelection() : null;
-          if (initialString)
+          if (initialString) {
             this._findField.value = initialString;
-
-          this._enableFindButtons(!!this._findField.value);
+            this._enableFindButtons(true);
+          }
+          else if (!this._findField.value)
+            this._enableFindButtons(false);
 
           this._findField.select();
           this._findField.focus();

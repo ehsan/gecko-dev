@@ -7,6 +7,7 @@
 #include "SpeechRecognition.h"
 
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 #include "mozilla/dom/SpeechRecognitionBinding.h"
@@ -170,7 +171,7 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           AbortError(aEvent);
           break;
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_STARTING:
@@ -194,9 +195,9 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           break;
         case EVENT_START:
           SR_LOG("STATE_STARTING: Unhandled event %s", GetName(aEvent));
-          MOZ_CRASH();
+          MOZ_NOT_REACHED("");
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_ESTIMATING:
@@ -220,9 +221,9 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           break;
         case EVENT_START:
           SR_LOG("STATE_ESTIMATING: Unhandled event %d", aEvent->mType);
-          MOZ_CRASH();
+          MOZ_NOT_REACHED("");
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_WAITING_FOR_SPEECH:
@@ -246,9 +247,9 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           break;
         case EVENT_START:
           SR_LOG("STATE_STARTING: Unhandled event %s", GetName(aEvent));
-          MOZ_CRASH();
+          MOZ_NOT_REACHED("");
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_RECOGNIZING:
@@ -272,9 +273,9 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           break;
         case EVENT_START:
           SR_LOG("STATE_RECOGNIZING: Unhandled aEvent %s", GetName(aEvent));
-          MOZ_CRASH();
+          MOZ_NOT_REACHED("");
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_WAITING_FOR_RESULT:
@@ -298,16 +299,16 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
         case EVENT_START:
         case EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT:
           SR_LOG("STATE_WAITING_FOR_RESULT: Unhandled aEvent %s", GetName(aEvent));
-          MOZ_CRASH();
+          MOZ_NOT_REACHED("");
         case EVENT_COUNT:
-          MOZ_CRASH("Invalid event EVENT_COUNT");
+          MOZ_NOT_REACHED("Invalid event EVENT_COUNT");
       }
       break;
     case STATE_ABORTING:
       DoNothing(aEvent);
       break;
     case STATE_COUNT:
-      MOZ_CRASH("Invalid state STATE_COUNT");
+      MOZ_NOT_REACHED("Invalid state STATE_COUNT");
   }
 
   return;
@@ -520,10 +521,11 @@ SpeechRecognition::AbortError(SpeechEvent* aEvent)
 void
 SpeechRecognition::NotifyError(SpeechEvent* aEvent)
 {
-  aEvent->mError->SetTrusted(true);
+  nsCOMPtr<nsIDOMEvent> domEvent = do_QueryInterface(aEvent->mError);
+  domEvent->SetTrusted(true);
 
   bool defaultActionEnabled;
-  this->DispatchEvent(aEvent->mError, &defaultActionEnabled);
+  this->DispatchEvent(domEvent, &defaultActionEnabled);
 
   return;
 }
@@ -574,7 +576,7 @@ SpeechRecognition::Observe(nsISupports* aSubject, const char* aTopic,
       StateBetween(STATE_IDLE, STATE_WAITING_FOR_SPEECH)) {
 
     DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR,
-                  SpeechRecognitionErrorCode::No_speech,
+                  nsIDOMSpeechRecognitionError::NO_SPEECH,
                   NS_LITERAL_STRING("No speech detected (timeout)"));
   } else if (!strcmp(aTopic, SPEECH_RECOGNITION_TEST_END_TOPIC)) {
     nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -600,7 +602,7 @@ SpeechRecognition::ProcessTestEventRequest(nsISupports* aSubject, const nsAStrin
     Abort();
   } else if (aEventName.EqualsLiteral("EVENT_AUDIO_ERROR")) {
     DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR,
-                  SpeechRecognitionErrorCode::Audio_capture, // TODO different codes?
+                  nsIDOMSpeechRecognitionError::AUDIO_CAPTURE, // TODO different codes?
                   NS_LITERAL_STRING("AUDIO_ERROR test event"));
   } else if (aEventName.EqualsLiteral("EVENT_AUDIO_DATA")) {
     StartRecording(static_cast<DOMMediaStream*>(aSubject));
@@ -746,21 +748,19 @@ SpeechRecognition::Abort()
 }
 
 void
-SpeechRecognition::DispatchError(EventType aErrorType,
-                                 SpeechRecognitionErrorCode aErrorCode,
+SpeechRecognition::DispatchError(EventType aErrorType, int aErrorCode,
                                  const nsAString& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aErrorType == EVENT_RECOGNITIONSERVICE_ERROR ||
              aErrorType == EVENT_AUDIO_ERROR, "Invalid error type!");
 
-  nsRefPtr<SpeechRecognitionError> srError =
-    new SpeechRecognitionError(nullptr, nullptr, nullptr);
+  nsCOMPtr<nsIDOMEvent> domEvent;
+  NS_NewDOMSpeechRecognitionError(getter_AddRefs(domEvent), nullptr, nullptr, nullptr);
 
-  ErrorResult err;
+  nsCOMPtr<nsIDOMSpeechRecognitionError> srError = do_QueryInterface(domEvent);
   srError->InitSpeechRecognitionError(NS_LITERAL_STRING("error"), true, false,
-                                      aErrorCode, aMessage, err);
-
+                                      aErrorCode, aMessage);
   nsRefPtr<SpeechEvent> event = new SpeechEvent(this, aErrorType);
   event->mError = srError;
   NS_DispatchToMainThread(event);
@@ -1002,12 +1002,12 @@ NS_IMPL_ISUPPORTS1(SpeechRecognition::GetUserMediaErrorCallback, nsIDOMGetUserMe
 NS_IMETHODIMP
 SpeechRecognition::GetUserMediaErrorCallback::OnError(const nsAString& aError)
 {
-  SpeechRecognitionErrorCode errorCode;
+  int errorCode;
 
   if (aError.Equals(NS_LITERAL_STRING("PERMISSION_DENIED"))) {
-    errorCode = SpeechRecognitionErrorCode::Not_allowed;
+    errorCode = nsIDOMSpeechRecognitionError::NOT_ALLOWED;
   } else {
-    errorCode = SpeechRecognitionErrorCode::Audio_capture;
+    errorCode = nsIDOMSpeechRecognitionError::AUDIO_CAPTURE;
   }
 
   mRecognition->DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR, errorCode,

@@ -11,18 +11,27 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 XPI_NAME	= widgetutils
+LIBRARY_NAME    = widgetutils
 SHORT_LIBNAME = widgetutils
 FORCE_SHARED_LIB = 1
 IS_COMPONENT = 1
 
+CPPSRCS		= nsWidgetUtils.cpp
+
 EXTRA_DSO_LDOPTS = \
-  $(XPCOM_GLUE_LDOPTS) \
-  $(NSPR_LIBS) \
-  $(MOZ_COMPONENT_LIBS) \
-  $(NULL)
+	$(XPCOM_GLUE_LDOPTS) \
+	$(NSPR_LIBS) \
+	$(NULL)
+
+EXTRA_DSO_LDOPTS += $(MOZ_COMPONENT_LIBS)
+
+EXPORT_RESOURCE = \
+	$(NULL)
 
 ifdef TARGET_XPCOM_ABI
 FINAL_TARGET=$(DIST)/xpi-stage/$(XPI_NAME)/platform/$(OS_TARGET)_$(TARGET_XPCOM_ABI)
 endif
+
+#EXTRA_COMPONENTS = $(srcdir)/SimpleTest.js
 
 include $(topsrcdir)/config/rules.mk

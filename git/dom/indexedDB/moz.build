@@ -8,11 +8,26 @@ DIRS += ['ipc']
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
+    'nsIIDBCursor.idl',
+    'nsIIDBCursorWithValue.idl',
+    'nsIIDBDatabase.idl',
+    'nsIIDBFileHandle.idl',
+    'nsIIDBIndex.idl',
     'nsIIDBKeyRange.idl',
+    'nsIIDBObjectStore.idl',
+    'nsIIDBOpenDBRequest.idl',
+    'nsIIDBRequest.idl',
+    'nsIIDBTransaction.idl',
+    'nsIIDBVersionChangeEvent.idl',
     'nsIIndexedDatabaseManager.idl',
 ]
 
 XPIDL_MODULE = 'dom_indexeddb'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
 
 MODULE = 'dom'
 
@@ -36,30 +51,5 @@ EXPORTS.mozilla.dom.indexedDB += [
     'IndexedDatabaseManager.h',
     'Key.h',
     'KeyPath.h',
-]
-
-CPP_SOURCES += [
-    'AsyncConnectionHelper.cpp',
-    'CheckPermissionsHelper.cpp',
-    'Client.cpp',
-    'DatabaseInfo.cpp',
-    'FileInfo.cpp',
-    'FileManager.cpp',
-    'IDBCursor.cpp',
-    'IDBDatabase.cpp',
-    'IDBEvents.cpp',
-    'IDBFactory.cpp',
-    'IDBFileHandle.cpp',
-    'IDBIndex.cpp',
-    'IDBKeyRange.cpp',
-    'IDBObjectStore.cpp',
-    'IDBRequest.cpp',
-    'IDBTransaction.cpp',
-    'IDBWrapperCache.cpp',
-    'IndexedDatabaseManager.cpp',
-    'Key.cpp',
-    'KeyPath.cpp',
-    'OpenDatabaseHelper.cpp',
-    'TransactionThreadPool.cpp',
 ]
 

@@ -38,7 +38,7 @@ template <typename T> class FallibleTArray;
  * Note that the gfxContext takes coordinates in device pixels,
  * as opposed to app units.
  */
-class gfxContext {
+class THEBES_API gfxContext {
     NS_INLINE_DECL_REFCOUNTING(gfxContext)
 
 public:
@@ -67,7 +67,7 @@ public:
      */
     already_AddRefed<gfxASurface> CurrentSurface(gfxFloat *dx, gfxFloat *dy);
     already_AddRefed<gfxASurface> CurrentSurface() {
-        return CurrentSurface(nullptr, nullptr);
+        return CurrentSurface(NULL, NULL);
     }
 
     /**
@@ -204,7 +204,6 @@ public:
      * @param snapToPixels ?
      */
     void Rectangle(const gfxRect& rect, bool snapToPixels = false);
-    void SnappedRectangle(const gfxRect& rect) { return Rectangle(rect, true); }
 
     /**
      * Draw an ellipse at the center corner with the given dimensions.
@@ -453,7 +452,7 @@ public:
     void SetDash(gfxLineType ltype);
     void SetDash(gfxFloat *dashes, int ndash, gfxFloat offset);
     // Return true if dashing is set, false if it's not enabled or the
-    // context is in an error state.  |offset| can be nullptr to mean
+    // context is in an error state.  |offset| can be NULL to mean
     // "don't care".
     bool CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) const;
     // Returns 0.0 if dashing isn't enabled.
@@ -801,7 +800,7 @@ private:
  * call Save() on a gfxContext and have Restore() called automatically on the
  * gfxContext before they return.
  */
-class gfxContextAutoSaveRestore
+class THEBES_API gfxContextAutoSaveRestore
 {
 public:
   gfxContextAutoSaveRestore() : mContext(nullptr) {}
@@ -843,7 +842,7 @@ private:
  * be the same when Save and Restore are called. The calling function must
  * ensure that this is the case or the path will be copied incorrectly.
  */
-class gfxContextPathAutoSaveRestore
+class THEBES_API gfxContextPathAutoSaveRestore
 {
 public:
     gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
@@ -901,7 +900,7 @@ private:
  * back up the current matrix of a context and have it automatically restored
  * before they return.
  */
-class gfxContextMatrixAutoSaveRestore
+class THEBES_API gfxContextMatrixAutoSaveRestore
 {
 public:
     gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
@@ -925,7 +924,7 @@ private:
 };
 
 
-class gfxContextAutoDisableSubpixelAntialiasing {
+class THEBES_API gfxContextAutoDisableSubpixelAntialiasing {
 public:
     gfxContextAutoDisableSubpixelAntialiasing(gfxContext *aContext, bool aDisable)
     {

@@ -22,35 +22,35 @@ function test()
 
   gPrevPref = Services.prefs.getBoolPref(
     "devtools.debugger.source-maps-enabled");
-  SpecialPowers.pushPrefEnv({"set": [["devtools.debugger.source-maps-enabled", true]]}, () => {
-    debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
-      resumed = true;
-      gTab = aTab;
-      gDebuggee = aDebuggee;
-      gPane = aPane;
-      gDebugger = gPane.panelWin;
+  Services.prefs.setBoolPref("devtools.debugger.source-maps-enabled", true);
 
-      gDebugger.addEventListener("Debugger:SourceShown", function _onSourceShown(aEvent) {
-        gDebugger.removeEventListener("Debugger:SourceShown", _onSourceShown);
-        // Show original sources should be already enabled.
-        is(gPrevPref, true,
-          "The source maps functionality should be enabled by default.");
-        is(gDebugger.Prefs.sourceMapsEnabled, true,
-          "The source maps pref should be true from startup.");
-        is(gDebugger.DebuggerView.Options._showOriginalSourceItem.getAttribute("checked"),
-           "true", "Source maps should be enabled from startup. ")
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+    resumed = true;
+    gTab = aTab;
+    gDebuggee = aDebuggee;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-        ok(aEvent.detail.url.indexOf(".coffee") != -1,
-           "The debugger should show the source mapped coffee script file.");
-        ok(aEvent.detail.url.indexOf(".js") == -1,
-           "The debugger should not show the generated js script file.");
-        ok(gDebugger.editor.getText().search(/isnt/) != -1,
-           "The debugger's editor should have the coffee script source displayed.");
-        ok(gDebugger.editor.getText().search(/function/) == -1,
-           "The debugger's editor should not have the JS source displayed.");
+    gDebugger.addEventListener("Debugger:SourceShown", function _onSourceShown(aEvent) {
+      gDebugger.removeEventListener("Debugger:SourceShown", _onSourceShown);
+      // Show original sources should be already enabled.
+      is(gPrevPref, false,
+        "The source maps functionality should be disabled by default.");
+      is(gDebugger.Prefs.sourceMapsEnabled, true,
+        "The source maps pref should be true from startup.");
+      is(gDebugger.DebuggerView.Options._showOriginalSourceItem.getAttribute("checked"),
+         "true", "Source maps should be enabled from startup. ")
 
-        testToggleGeneratedSource();
-      });
+      ok(aEvent.detail.url.indexOf(".coffee") != -1,
+         "The debugger should show the source mapped coffee script file.");
+      ok(aEvent.detail.url.indexOf(".js") == -1,
+         "The debugger should not show the generated js script file.");
+      ok(gDebugger.editor.getText().search(/isnt/) != -1,
+         "The debugger's editor should have the coffee script source displayed.");
+      ok(gDebugger.editor.getText().search(/function/) == -1,
+         "The debugger's editor should not have the JS source displayed.");
+
+      testToggleGeneratedSource();
     });
   });
 }
@@ -80,7 +80,6 @@ function testToggleGeneratedSource() {
   gDebugger.DebuggerView.Options._showOriginalSourceItem.setAttribute("checked",
                                                                       "false");
   gDebugger.DebuggerView.Options._toggleShowOriginalSource();
-  gDebugger.DebuggerView.Options._onPopupHidden();
 }
 
 function testSetBreakpoint() {
@@ -103,7 +102,7 @@ function testHitBreakpoint() {
 
     activeThread.addOneTimeListener("framesadded", function (aEvent, aPacket) {
       // Make sure that we have JavaScript stack frames.
-      let frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      let frames = gDebugger.DebuggerView.StackFrames._container._list;
       let childNodes = frames.childNodes;
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 1,
@@ -142,7 +141,7 @@ function testToggleOnPause() {
        "The debugger's editor should have the JS source displayed.");
 
     // Make sure that we have coffee script stack frames.
-    let frames = gDebugger.DebuggerView.StackFrames.widget._list;
+    let frames = gDebugger.DebuggerView.StackFrames._container._list;
     let childNodes = frames.childNodes;
 
     is(frames.querySelectorAll(".dbg-stackframe").length, 1,
@@ -158,7 +157,6 @@ function testToggleOnPause() {
   gDebugger.DebuggerView.Options._showOriginalSourceItem.setAttribute("checked",
                                                                       "true");
   gDebugger.DebuggerView.Options._toggleShowOriginalSource();
-  gDebugger.DebuggerView.Options._onPopupHidden();
 }
 
 function resumeAndFinish()
@@ -195,6 +193,7 @@ function waitForCaretPos(number, callback)
 }
 
 registerCleanupFunction(function() {
+  Services.prefs.setBoolPref("devtools.debugger.source-maps-enabled", false);
   removeTab(gTab);
   gPane = null;
   gTab = null;

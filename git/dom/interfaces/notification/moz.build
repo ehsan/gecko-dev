@@ -6,9 +6,14 @@
 
 XPIDL_SOURCES += [
     'nsIDOMDesktopNotification.idl',
+    'nsIDOMNavigatorDesktopNotification.idl',
 ]
 
 XPIDL_MODULE = 'dom_notification'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+]
 
 MODULE = 'dom'
 

@@ -247,17 +247,6 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
   }
 }
 
-void
-nsDisplayCanvasThemedBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                       nsRenderingContext* aCtx)
-{
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-  nsPoint offset = ToReferenceFrame();
-  nsRect bgClipRect = frame->CanvasArea() + offset;
-
-  PaintInternal(aBuilder, aCtx, mVisibleRect, &bgClipRect);
-}
-
 /**
  * A display item to paint the focus ring for the document.
  *
@@ -320,7 +309,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   
     if (isThemed) {
       aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasThemedBackground(aBuilder, this));
+        new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, 0, isThemed, nullptr));
       return;
     }
 
@@ -334,7 +323,8 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         continue;
       }
       aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, i, bg));
+        new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, i,
+                                                      isThemed, bg));
     }
   }
 
@@ -486,8 +476,12 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
 
     nsPoint kidPt(kidReflowState.mComputedMargin.left,
                   kidReflowState.mComputedMargin.top);
-
-    kidReflowState.ApplyRelativePositioning(&kidPt);
+    // Apply CSS relative positioning
+    const nsStyleDisplay* styleDisp = kidFrame->StyleDisplay();
+    if (NS_STYLE_POSITION_RELATIVE == styleDisp->mPosition) {
+      kidPt += nsPoint(kidReflowState.mComputedOffsets.left,
+                       kidReflowState.mComputedOffsets.top);
+    }
 
     // Reflow the frame
     ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,

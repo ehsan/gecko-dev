@@ -25,7 +25,6 @@
 
 class nsHttpRequestHead;
 class nsHttpResponseHead;
-class nsHttpHandler;
 
 //-----------------------------------------------------------------------------
 // nsHttpConnection - represents a connection to a HTTP server (or proxy)
@@ -42,7 +41,7 @@ class nsHttpConnection : public nsAHttpSegmentReader
                        , public nsIInterfaceRequestor
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSAHTTPSEGMENTREADER
     NS_DECL_NSAHTTPSEGMENTWRITER
     NS_DECL_NSIINPUTSTREAMCALLBACK
@@ -56,7 +55,7 @@ public:
     // Initialize the connection:
     //  info        - specifies the connection parameters.
     //  maxHangTime - limits the amount of time this connection can spend on a
-    //                single transaction before it should no longer be kept
+    //                single transaction before it should no longer be kept 
     //                alive.  a value of 0xffff indicates no limit.
     nsresult Init(nsHttpConnectionInfo *info, uint16_t maxHangTime,
                   nsISocketTransport *, nsIAsyncInputStream *,
@@ -120,15 +119,11 @@ public:
     nsresult ResumeSend();
     nsresult ResumeRecv();
     int64_t  MaxBytesRead() {return mMaxBytesRead;}
-    uint8_t GetLastHttpResponseVersion() { return mLastHttpResponseVersion; }
-
-    friend class nsHttpConnectionForceRecv;
-    nsresult ForceRecv();
 
     static NS_METHOD ReadFromStream(nsIInputStream *, void *, const char *,
                                     uint32_t, uint32_t, uint32_t *);
 
-    // When a persistent connection is in the connection manager idle
+    // When a persistent connection is in the connection manager idle 
     // connection pool, the nsHttpConnection still reads errors and hangups
     // on the socket so that it can be proactively released if the server
     // initiates a termination. Only call on socket thread.
@@ -136,7 +131,6 @@ public:
     void EndIdleMonitoring();
 
     bool UsingSpdy() { return !!mUsingSpdyVersion; }
-    uint8_t GetSpdyVersion() { return mUsingSpdyVersion; }
     bool EverUsedSpdy() { return mEverUsedSpdy; }
     PRIntervalTime Rtt() { return mRtt; }
 
@@ -161,12 +155,6 @@ public:
     void    SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks);
     void    PrintDiagnostics(nsCString &log);
 
-    void    SetTransactionCaps(uint32_t aCaps) { mTransactionCaps = aCaps; }
-
-    // IsExperienced() returns true when the connection has started at least one
-    // non null HTTP transaction of any version.
-    bool    IsExperienced() { return mExperienced; }
-
 private:
     // called to cause the underlying socket to start speaking SSL
     nsresult ProxyStartSSL();
@@ -180,11 +168,15 @@ private:
     PRIntervalTime IdleTime();
     bool     IsAlive();
     bool     SupportsPipelining(nsHttpResponseHead *);
-
+    
     // Makes certain the SSL handshake is complete and NPN negotiation
     // has had a chance to happen
     bool     EnsureNPNComplete();
-    void     SetupSSL(uint32_t caps);
+    void     SetupNPN(uint32_t caps);
+
+    // Inform the connection manager of any SPDY Alternate-Protocol
+    // redirections
+    void     HandleAlternateProtocol(nsHttpResponseHead *);
 
     // Start the Spdy transaction handler when NPN indicates spdy/*
     void     StartSpdy(uint8_t versionLevel);
@@ -206,8 +198,6 @@ private:
     // mTransaction only points to the HTTP Transaction callbacks if the
     // transaction is open, otherwise it is null.
     nsRefPtr<nsAHttpTransaction>    mTransaction;
-
-    nsRefPtr<nsHttpHandler>         mHttpHandler; // keep gHttpHandler alive
 
     mozilla::Mutex                  mCallbacksLock;
     nsMainThreadPtrHandle<nsIInterfaceRequestor> mCallbacks;
@@ -237,7 +227,6 @@ private:
     bool                            mLastTransactionExpectedNoContent;
     bool                            mIdleMonitoring;
     bool                            mProxyConnectInProgress;
-    bool                            mExperienced;
 
     // The number of <= HTTP/1.1 transactions performed on this connection. This
     // excludes spdy transactions.
@@ -252,7 +241,7 @@ private:
 
     // SPDY related
     bool                            mNPNComplete;
-    bool                            mSetupSSLCalled;
+    bool                            mSetupNPNCalled;
 
     // version level in use, 0 if unused
     uint8_t                         mUsingSpdyVersion;
@@ -263,12 +252,6 @@ private:
 
     // mUsingSpdyVersion is cleared when mSpdySession is freed, this is permanent
     bool                            mEverUsedSpdy;
-
-    // mLastHttpResponseVersion stores the last response's http version seen.
-    uint8_t                         mLastHttpResponseVersion;
-
-    // The capabailities associated with the most recent transaction
-    uint32_t                        mTransactionCaps;
 };
 
 #endif // nsHttpConnection_h__

@@ -32,7 +32,7 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "assembler/assembler/ARMAssembler.h"
+#include "ARMAssembler.h"
 
 namespace JSC {
 

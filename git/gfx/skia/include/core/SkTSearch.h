@@ -237,3 +237,4 @@ private:
 #define SkCastForQSort(compare) reinterpret_cast<int (*)(const void*, const void*)>(compare)
 
 #endif
+

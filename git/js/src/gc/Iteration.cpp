@@ -5,13 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "jscompartment.h"
+#include "jscntxt.h"
 #include "jsgc.h"
+#include "jsprf.h"
 
-#include "gc/GCInternals.h"
 #include "js/HashTable.h"
-#include "vm/Runtime.h"
+#include "gc/GCInternals.h"
 
+#include "jsobjinlines.h"
 #include "jsgcinlines.h"
 
 using namespace js;
@@ -87,7 +88,7 @@ js::IterateScripts(JSRuntime *rt, JSCompartment *compartment,
 void
 js::IterateGrayObjects(Zone *zone, GCThingCallback cellCallback, void *data)
 {
-    AutoPrepareForTracing prep(zone->runtimeFromMainThread());
+    AutoPrepareForTracing prep(zone->rt);
 
     for (size_t finalizeKind = 0; finalizeKind <= FINALIZE_OBJECT_LAST; finalizeKind++) {
         for (CellIterUnderGC i(zone, AllocKind(finalizeKind)); !i.done(); i.next()) {

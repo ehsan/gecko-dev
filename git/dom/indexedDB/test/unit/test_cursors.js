@@ -16,7 +16,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -29,7 +29,7 @@ function testSteps()
     ok(!event.target.result, "No results");
     testGenerator.next();
   }
-  yield undefined;
+  yield;
 
   objectStore = db.createObjectStore("autoIncrementKeyPath",
                                      { keyPath: "foo",
@@ -41,7 +41,7 @@ function testSteps()
     ok(!event.target.result, "No results");
     testGenerator.next();
   }
-  yield undefined;
+  yield;
 
   objectStore = db.createObjectStore("keyPath", { keyPath: "foo" });
 
@@ -51,7 +51,7 @@ function testSteps()
     ok(!event.target.result, "No results");
     testGenerator.next();
   }
-  yield undefined;
+  yield;
 
   objectStore = db.createObjectStore("foo");
 
@@ -61,7 +61,7 @@ function testSteps()
     ok(!event.target.result, "No results");
     testGenerator.next();
   }
-  yield undefined;
+  yield;
 
   let keyIndex = 0;
 
@@ -74,7 +74,7 @@ function testSteps()
       }
     };
   }
-  yield undefined;
+  yield;
 
   keyIndex = 0;
 
@@ -109,7 +109,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all added items");
 
@@ -137,7 +137,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, 8, "Saw all the expected keys");
 
@@ -169,7 +169,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all the expected keys");
 
@@ -201,7 +201,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all the expected keys");
 
@@ -234,7 +234,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all the expected keys");
 
@@ -271,21 +271,21 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all the expected keys");
 
   request = objectStore.get(sortedKeys[4]);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, "bar", "Update succeeded");
 
   request = objectStore.put("foo", sortedKeys[4]);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   keyIndex = 0;
 
@@ -323,7 +323,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, keys.length, "Saw all the expected keys");
   is(gotRemoveEvent, true, "Saw the remove event");
@@ -331,14 +331,14 @@ function testSteps()
   request = objectStore.get(sortedKeys[4]);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, undefined, "Entry was deleted");
 
   request = objectStore.add("foo", sortedKeys[4]);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   keyIndex = sortedKeys.length - 1;
 
@@ -368,10 +368,10 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, -1, "Saw all added items");
 
   finishTest();
-  yield undefined;
+  yield;
 }

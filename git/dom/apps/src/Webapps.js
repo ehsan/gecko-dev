@@ -84,7 +84,7 @@ WebappsRegistry.prototype = {
       }
     } catch(e) {
       throw new Components.Exception(
-        "INVALID_URL: '" + aURL + "'", Cr.NS_ERROR_FAILURE
+        "INVALID_URL: '" + aURL, Cr.NS_ERROR_FAILURE
       );
     }
 
@@ -118,9 +118,19 @@ WebappsRegistry.prototype = {
     return false;
   },
 
-  _prepareInstall: function(aURL, aRequest, aParams, isPackage) {
+  // mozIDOMApplicationRegistry implementation
+
+  install: function(aURL, aParams) {
+    let uri = this._validateURL(aURL);
+
+    let request = this.createRequest();
+
+    if (!this._ensureForeground(request)) {
+      return request;
+    }
+
     let installURL = this._window.location.href;
-    let requestID = this.getRequestId(aRequest);
+    let requestID = this.getRequestId(request);
     let receipts = (aParams && aParams.receipts &&
                     Array.isArray(aParams.receipts)) ? aParams.receipts
                                                      : [];
@@ -129,36 +139,20 @@ WebappsRegistry.prototype = {
                                                          : [];
 
     let principal = this._window.document.nodePrincipal;
-
-    return { app: {
-                    installOrigin: this._getOrigin(installURL),
-                    origin: this._getOrigin(aURL),
-                    manifestURL: aURL,
-                    receipts: receipts,
-                    categories: categories
-                  },
-
-             from: installURL,
-             oid: this._id,
-             requestID: requestID,
-             appId: principal.appId,
-             isBrowser: principal.isInBrowserElement,
-             isPackage: isPackage
-           };
-  },
-
-  // mozIDOMApplicationRegistry implementation
-
-  install: function(aURL, aParams) {
-    let uri = this._validateURL(aURL);
-
-    let request = this.createRequest();
-
-    if (this._ensureForeground(request)) {
-      cpmm.sendAsyncMessage("Webapps:Install",
-                            this._prepareInstall(uri, request, aParams, false));
-    }
-
+    cpmm.sendAsyncMessage("Webapps:Install",
+                          { app: {
+                              installOrigin: this._getOrigin(installURL),
+                              origin: this._getOrigin(uri),
+                              manifestURL: uri,
+                              receipts: receipts,
+                              categories: categories
+                            },
+                            from: installURL,
+                            oid: this._id,
+                            requestID: requestID,
+                            appId: principal.appId,
+                            isBrowser: principal.isInBrowserElement
+                          });
     return request;
   },
 
@@ -207,22 +201,48 @@ WebappsRegistry.prototype = {
                           ["Webapps:Install:Return:OK"]);
   },
 
+  // mozIDOMApplicationRegistry2 implementation
+
   installPackage: function(aURL, aParams) {
     let uri = this._validateURL(aURL);
 
     let request = this.createRequest();
 
-    if (this._ensureForeground(request)) {
-      cpmm.sendAsyncMessage("Webapps:InstallPackage",
-                            this._prepareInstall(uri, request, aParams, true));
+    if (!this._ensureForeground(request)) {
+      return request;
     }
 
+    let installURL = this._window.location.href;
+    let requestID = this.getRequestId(request);
+    let receipts = (aParams && aParams.receipts &&
+                    Array.isArray(aParams.receipts)) ? aParams.receipts
+                                                     : [];
+    let categories = (aParams && aParams.categories &&
+                      Array.isArray(aParams.categories)) ? aParams.categories
+                                                         : [];
+
+    let principal = this._window.document.nodePrincipal;
+    cpmm.sendAsyncMessage("Webapps:InstallPackage",
+                          { app: {
+                              installOrigin: this._getOrigin(installURL),
+                              origin: this._getOrigin(uri),
+                              manifestURL: uri,
+                              receipts: receipts,
+                              categories: categories
+                            },
+                            from: installURL,
+                            oid: this._id,
+                            requestID: requestID,
+                            isPackage: true,
+                            appId: principal.appId,
+                            isBrowser: principal.isInBrowserElement
+                          });
     return request;
   },
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
-    this.initDOMRequestHelper(aWindow, ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
+    this.initHelper(aWindow, ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
                               "Webapps:GetInstalled:Return:OK",
                               "Webapps:GetSelf:Return:OK",
                               "Webapps:CheckInstalled:Return:OK" ]);
@@ -244,17 +264,55 @@ WebappsRegistry.prototype = {
 
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupportsWeakReference,
-                                         Ci.mozIDOMApplicationRegistry,
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationRegistry,
+#ifdef MOZ_B2G
                                          Ci.mozIDOMApplicationRegistry2,
+#elifdef MOZ_WIDGET_ANDROID
+                                         Ci.mozIDOMApplicationRegistry2,
+#endif
                                          Ci.nsIDOMGlobalPropertyInitializer]),
 
   classInfo: XPCOMUtils.generateCI({classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
                                     contractID: "@mozilla.org/webapps;1",
                                     interfaces: [Ci.mozIDOMApplicationRegistry,
-                                                 Ci.mozIDOMApplicationRegistry2],
+#ifdef MOZ_B2G
+                                                 Ci.mozIDOMApplicationRegistry2,
+#elifdef MOZ_WIDGET_ANDROID
+                                                 Ci.mozIDOMApplicationRegistry2,
+#endif
+                                                 ],
                                     flags: Ci.nsIClassInfo.DOM_OBJECT,
                                     classDescription: "Webapps Registry"})
+}
+
+/**
+  * nsIDOMDOMError object
+  */
+function createDOMError(aError) {
+  let error = Cc["@mozilla.org/dom-error;1"]
+                .createInstance(Ci.nsIDOMDOMError);
+  error.wrappedJSObject.init(aError);
+  return error;
+}
+
+function DOMError() {
+  this.wrappedJSObject = this;
+}
+
+DOMError.prototype = {
+  init: function domerror_init(aError) {
+    this.name = aError;
+  },
+
+  classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMDOMError]),
+
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{dcc1d5b7-43d8-4740-9244-b3d8db0f503d}"),
+                                    contractID: "@mozilla.org/dom-error;1",
+                                    interfaces: [Ci.nsIDOMDOMError],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
+                                    classDescription: "DOMError object"})
 }
 
 /**
@@ -336,13 +394,11 @@ WebappsApplication.prototype = {
 
     this._downloadError = null;
 
-    this.initDOMRequestHelper(aWindow, ["Webapps:OfflineCache",
+    this.initHelper(aWindow, ["Webapps:OfflineCache",
                               "Webapps:CheckForUpdate:Return:OK",
                               "Webapps:CheckForUpdate:Return:KO",
-                              "Webapps:Launch:Return:OK",
                               "Webapps:Launch:Return:KO",
-                              "Webapps:PackageEvent",
-                              "Webapps:ClearBrowserData:Return"]);
+                              "Webapps:PackageEvent"]);
 
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
                           ["Webapps:OfflineCache",
@@ -403,7 +459,7 @@ WebappsApplication.prototype = {
   },
 
   get downloadError() {
-    return new this._window.DOMError(this._downloadError || '');
+    return createDOMError(this._downloadError);
   },
 
   download: function() {
@@ -438,26 +494,11 @@ WebappsApplication.prototype = {
   },
 
   clearBrowserData: function() {
-    let request = this.createRequest();
     let browserChild =
       BrowserElementPromptService.getBrowserElementChildForWindow(this._window);
     if (browserChild) {
-      browserChild.messageManager.sendAsyncMessage(
-        "Webapps:ClearBrowserData",
-        { manifestURL: this.manifestURL,
-          oid: this._id,
-          requestID: this.getRequestId(request) }
-      );
-    } else {
-      let runnable = {
-        run: function run() {
-          Services.DOMRequest.fireError(request, "NO_CLEARABLE_BROWSER");
-        }
-      }
-      Services.tm.currentThread.dispatch(runnable,
-                                         Ci.nsIThread.DISPATCH_NORMAL);
+      browserChild.messageManager.sendAsyncMessage("Webapps:ClearBrowserData");
     }
-    return request;
   },
 
   uninit: function() {
@@ -491,9 +532,6 @@ WebappsApplication.prototype = {
       case "Webapps:Launch:Return:KO":
         Services.DOMRequest.fireError(req, "APP_INSTALL_PENDING");
         break;
-      case "Webapps:Launch:Return:OK":
-        Services.DOMRequest.fireSuccess(req, null);
-        break;
       case "Webapps:CheckForUpdate:Return:KO":
         Services.DOMRequest.fireError(req, msg.error);
         break;
@@ -501,25 +539,9 @@ WebappsApplication.prototype = {
         if (msg.manifestURL != this.manifestURL)
           return;
 
-        manifestCache.evict(this.manifestURL, this.innerWindowID);
-
-        let hiddenProps = ["manifest", "updateManifest"];
-        let updatableProps = ["installOrigin", "installTime", "installState",
-            "lastUpdateCheck", "updateTime", "progress", "downloadAvailable",
-            "downloading", "readyToApplyDownload", "downloadSize"];
-        // Props that we don't update: origin, receipts, manifestURL, removable.
-
-        updatableProps.forEach(function(prop) {
-          if (msg.app[prop]) {
-            this[prop] = msg.app[prop];
-          }
-        }, this);
-
-        hiddenProps.forEach(function(prop) {
-          if (msg.app[prop]) {
-            this["_" + prop] = msg.app[prop];
-          }
-        }, this);
+        for (let prop in msg.app) {
+          this[prop] = msg.app[prop];
+        }
 
         if (msg.event == "downloadapplied") {
           this._fireEvent("downloadapplied", this._ondownloadapplied);
@@ -541,7 +563,6 @@ WebappsApplication.prototype = {
           if (this.installState == "installed") {
             this._downloadError = null;
             this.downloading = false;
-            this.downloadAvailable = false;
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             this._fireEvent("downloadapplied", this._ondownloadapplied);
           } else {
@@ -567,7 +588,6 @@ WebappsApplication.prototype = {
         this.progress = app.progress || msg.progress || 0;
         this.readyToApplyDownload = app.readyToApplyDownload;
         this.updateTime = app.updateTime;
-        this.origin = app.origin;
 
         switch(msg.type) {
           case "error":
@@ -600,16 +620,12 @@ WebappsApplication.prototype = {
             break;
         }
         break;
-      case "Webapps:ClearBrowserData:Return":
-        Services.DOMRequest.fireSuccess(req, null);
-        break;
     }
   },
 
   classID: Components.ID("{723ed303-7757-4fb0-b261-4f78b1f6bd22}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplication,
-                                         Ci.nsISupportsWeakReference]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplication]),
 
   classInfo: XPCOMUtils.generateCI({classID: Components.ID("{723ed303-7757-4fb0-b261-4f78b1f6bd22}"),
                                     contractID: "@mozilla.org/webapps/application;1",
@@ -622,7 +638,7 @@ WebappsApplication.prototype = {
   * mozIDOMApplicationMgmt object
   */
 function WebappsApplicationMgmt(aWindow) {
-  this.initDOMRequestHelper(aWindow, ["Webapps:GetAll:Return:OK",
+  this.initHelper(aWindow, ["Webapps:GetAll:Return:OK",
                             "Webapps:GetAll:Return:KO",
                             "Webapps:Uninstall:Return:OK",
                             "Webapps:Uninstall:Broadcast:Return:OK",
@@ -760,7 +776,7 @@ WebappsApplicationMgmt.prototype = {
 
   classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationMgmt, Ci.nsISupportsWeakReference]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationMgmt]),
 
   classInfo: XPCOMUtils.generateCI({classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
                                     contractID: "@mozilla.org/webapps/application-mgmt;1",
@@ -770,4 +786,5 @@ WebappsApplicationMgmt.prototype = {
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry,
-                                                     WebappsApplication]);
+                                                     WebappsApplication,
+                                                     DOMError]);

@@ -29,7 +29,7 @@ function testFrameParameters()
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames.widget._list,
+      var frames = gDebugger.DebuggerView.StackFrames._container._list,
           localScope = gDebugger.DebuggerView.Variables._list.querySelectorAll(".variables-view-scope")[0],
           localNodes = localScope.querySelector(".variables-view-element-details").childNodes,
           localNonEnums = localScope.querySelector(".nonenum").childNodes;
@@ -43,11 +43,11 @@ function testFrameParameters()
       is(localNodes.length + localNonEnums.length, 12,
         "The localScope and localNonEnums should contain all the created variable elements.");
 
-      is(localNodes[0].querySelector(".value").getAttribute("value"), "Window",
+      is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Window]",
         "Should have the right property value for 'this'.");
-      is(localNodes[8].querySelector(".value").getAttribute("value"), "Arguments",
+      is(localNodes[8].querySelector(".value").getAttribute("value"), "[object Arguments]",
         "Should have the right property value for 'arguments'.");
-      is(localNodes[10].querySelector(".value").getAttribute("value"), "Object",
+      is(localNodes[10].querySelector(".value").getAttribute("value"), "[object Object]",
         "Should have the right property value for 'c'.");
 
 
@@ -117,45 +117,45 @@ function testFrameParameters()
         window.clearInterval(intervalID);
 
         is(thisNode.target.querySelector(".value")
-           .getAttribute("value"), "Window",
+           .getAttribute("value"), "[object Window]",
           "Should have the right property value for 'this'.");
 
         is(thisNode.get("window").target.querySelector(".name")
            .getAttribute("value"), "window",
           "Should have the right property name for 'window'.");
-        is(thisNode.get("window").target.querySelector(".value")
-           .getAttribute("value"), "Window",
+        ok(thisNode.get("window").target.querySelector(".value")
+           .getAttribute("value").search(/object/) != -1,
           "'window' should be an object.");
 
         is(thisNode.get("document").target.querySelector(".name")
            .getAttribute("value"), "document",
           "Should have the right property name for 'document'.");
-        is(thisNode.get("document").target.querySelector(".value")
-           .getAttribute("value"), "HTMLDocument",
+        ok(thisNode.get("document").target.querySelector(".value")
+           .getAttribute("value").search(/object/) != -1,
           "'document' should be an object.");
 
 
         is(argumentsNode.target.querySelector(".value")
-           .getAttribute("value"), "Arguments",
+           .getAttribute("value"), "[object Arguments]",
           "Should have the right property value for 'arguments'.");
 
         is(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .name")[0]
            .getAttribute("value"), "0",
           "Should have the right property name for 'arguments[0]'.");
-        is(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .value")[0]
-           .getAttribute("value"), "Object",
+        ok(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .value")[0]
+           .getAttribute("value").search(/object/) != -1,
           "'arguments[0]' should be an object.");
 
         is(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .name")[7]
            .getAttribute("value"), "__proto__",
           "Should have the right property name for '__proto__'.");
-        is(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .value")[7]
-           .getAttribute("value"), "Object",
+        ok(argumentsNode.target.querySelectorAll(".variables-view-property > .title > .value")[7]
+           .getAttribute("value").search(/object/) != -1,
           "'__proto__' should be an object.");
 
 
         is(cNode.target.querySelector(".value")
-           .getAttribute("value"), "Object",
+           .getAttribute("value"), "[object Object]",
           "Should have the right property value for 'c'.");
 
         is(cNode.target.querySelectorAll(".variables-view-property > .title > .name")[0]
@@ -226,7 +226,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
 
-    var frames = gDebugger.DebuggerView.StackFrames.widget._list;
+    var frames = gDebugger.DebuggerView.StackFrames._container._list;
     is(frames.querySelectorAll(".dbg-stackframe").length, 0,
       "Should have no frames.");
 

@@ -4,20 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "xpcprivate.h"
 #include "XPCWrapper.h"
 #include "AccessCheck.h"
 #include "WrapperFactory.h"
 #include "AccessCheck.h"
-#include "nsCxPusher.h"
 
 using namespace xpc;
-using namespace mozilla;
-
 namespace XPCNativeWrapper {
 
 static inline
-bool
+JSBool
 ThrowException(nsresult ex, JSContext *cx)
 {
   XPCThrower::Throw(ex, cx);
@@ -25,7 +21,7 @@ ThrowException(nsresult ex, JSContext *cx)
   return false;
 }
 
-static bool
+static JSBool
 UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc != 1) {
@@ -47,7 +43,7 @@ UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
   return true;
 }
 
-static bool
+static JSBool
 XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc == 0) {
@@ -65,19 +61,16 @@ XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 }
 // static
 bool
-AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject)
+AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
 {
-  // Pushing a JSContext calls ActivateDebugger which calls this function, so
-  // we can't use an AutoJSContext here until JSD is gone.
-  JSAutoCompartment ac(aCx, aGlobalObject);
   JSFunction *xpcnativewrapper =
-    JS_DefineFunction(aCx, aGlobalObject, "XPCNativeWrapper",
+    JS_DefineFunction(ccx, aGlobalObject, "XPCNativeWrapper",
                       XrayWrapperConstructor, 1,
                       JSPROP_READONLY | JSPROP_PERMANENT | JSFUN_STUB_GSOPS | JSFUN_CONSTRUCTOR);
   if (!xpcnativewrapper) {
     return false;
   }
-  return JS_DefineFunction(aCx, JS_GetFunctionObject(xpcnativewrapper), "unwrap", UnwrapNW, 1,
+  return JS_DefineFunction(ccx, JS_GetFunctionObject(xpcnativewrapper), "unwrap", UnwrapNW, 1,
                            JSPROP_READONLY | JSPROP_PERMANENT) != nullptr;
 }
 

@@ -7,7 +7,6 @@
 #ifndef AbstractMediaDecoder_h_
 #define AbstractMediaDecoder_h_
 
-#include "mozilla/Attributes.h"
 #include "nsISupports.h"
 #include "nsDataHashtable.h"
 #include "nsThreadUtils.h"
@@ -71,11 +70,6 @@ public:
 
   // Set the duration of the media in microseconds.
   virtual void SetMediaDuration(int64_t aDuration) = 0;
-
-  // Sets the duration of the media in microseconds. The MediaDecoder
-  // fires a durationchange event to its owner (e.g., an HTML audio
-  // tag).
-  virtual void UpdateMediaDuration(int64_t aDuration) = 0;
 
   // Set the media as being seekable or not.
   virtual void SetMediaSeekable(bool aMediaSeekable) = 0;
@@ -143,7 +137,7 @@ class AudioMetadataEventRunner : public nsRunnable
         mTags(aTags)
   {}
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     mDecoder->MetadataLoaded(mChannels, mRate, mHasAudio, mHasVideo, mTags);
     return NS_OK;

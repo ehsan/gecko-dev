@@ -10,8 +10,8 @@
  * or SpiderMonkey public headers may not work correctly.
  */
 
-#ifndef js_RequiredDefines_h
-#define js_RequiredDefines_h
+#ifndef js_RequiredDefines_h___
+#define js_RequiredDefines_h___
 
 /*
  * The c99 defining the limit macros (UINT32_MAX for example), says:
@@ -20,4 +20,4 @@
  */
 #define __STDC_LIMIT_MACROS
 
-#endif /* js_RequiredDefines_h */
+#endif /* js_RequiredDefines_h___ */

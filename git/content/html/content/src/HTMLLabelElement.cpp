@@ -28,10 +28,20 @@ HTMLLabelElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return HTMLLabelElementBinding::Wrap(aCx, aScope, this);
 }
 
-// nsISupports
+// nsISupports 
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLLabelElement, nsGenericHTMLFormElement,
-                             nsIDOMHTMLLabelElement)
+
+NS_IMPL_ADDREF_INHERITED(HTMLLabelElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLLabelElement, Element)
+
+// QueryInterface implementation for HTMLLabelElement
+NS_INTERFACE_TABLE_HEAD(HTMLLabelElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLLabelElement,
+                                   nsIDOMHTMLLabelElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLLabelElement,
+                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 // nsIDOMHTMLLabelElement
 
@@ -46,7 +56,7 @@ HTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMETHODIMP
 HTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
 {
-  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryObject(GetLabeledElement());
+  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(GetLabeledElement());
   element.forget(aElement);
   return NS_OK;
 }
@@ -74,7 +84,7 @@ HTMLLabelElement::Focus(ErrorResult& aError)
   // retarget the focus method at the for content
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm) {
-    nsCOMPtr<nsIDOMElement> elem = do_QueryObject(GetLabeledElement());
+    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(GetLabeledElement());
     if (elem)
       fm->SetFocus(elem, 0);
   }
@@ -105,7 +115,7 @@ DestroyMouseDownPoint(void *    /*aObject*/,
                       void *    aPropertyValue,
                       void *    /*aData*/)
 {
-  LayoutDeviceIntPoint* pt = static_cast<LayoutDeviceIntPoint*>(aPropertyValue);
+  nsIntPoint* pt = static_cast<nsIntPoint*>(aPropertyValue);
   delete pt;
 }
 
@@ -135,10 +145,9 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             nsMouseEvent::eLeftButton) {
           // We reset the mouse-down point on every event because there is
           // no guarantee we will reach the NS_MOUSE_CLICK code below.
-          LayoutDeviceIntPoint* curPoint =
-            new LayoutDeviceIntPoint(aVisitor.mEvent->refPoint);
+          nsIntPoint *curPoint = new nsIntPoint(aVisitor.mEvent->refPoint);
           SetProperty(nsGkAtoms::labelMouseDownPtProperty,
-                      static_cast<void*>(curPoint),
+                      static_cast<void *>(curPoint),
                       DestroyMouseDownPoint);
         }
         break;
@@ -147,13 +156,12 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         if (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
           const nsMouseEvent* event =
             static_cast<const nsMouseEvent*>(aVisitor.mEvent);
-          LayoutDeviceIntPoint* mouseDownPoint =
-            static_cast<LayoutDeviceIntPoint*>(
-              GetProperty(nsGkAtoms::labelMouseDownPtProperty));
+          nsIntPoint *mouseDownPoint = static_cast<nsIntPoint *>
+            (GetProperty(nsGkAtoms::labelMouseDownPtProperty));
 
           bool dragSelect = false;
           if (mouseDownPoint) {
-            LayoutDeviceIntPoint dragDistance = *mouseDownPoint;
+            nsIntPoint dragDistance = *mouseDownPoint;
             DeleteProperty(nsGkAtoms::labelMouseDownPtProperty);
 
             dragDistance -= aVisitor.mEvent->refPoint;
@@ -163,26 +171,27 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                          dragDistance.y > CLICK_DISTANCE ||
                          dragDistance.y < -CLICK_DISTANCE;
           }
+
           // Don't click the for-content if we did drag-select text or if we
-          // have a kbd modifier (which adjusts a selection).
-          if (dragSelect || event->IsShift() || event->IsControl() ||
-              event->IsAlt() || event->IsMeta()) {
+          // have a kbd modifier (which adjusts a selection), or if it's a
+          // double click (we already forwarded the first click event).
+          if (dragSelect || event->clickCount > 1 ||
+              event->IsShift() || event->IsControl() || event->IsAlt() ||
+              event->IsMeta()) {
             break;
           }
-          // Only set focus on the first click of multiple clicks to prevent
-          // to prevent immediate de-focus.
-          if (event->clickCount <= 1) {
-            nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-            if (fm) {
-              // Use FLAG_BYMOVEFOCUS here so that the label is scrolled to.
-              // Also, within HTMLInputElement::PostHandleEvent, inputs will
-              // be selected only when focused via a key or when the navigation
-              // flag is used and we want to select the text on label clicks as
-              // well.
-              nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(content);
-              fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOVEFOCUS);
-            }
+
+          nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+          if (fm) {
+            // Use FLAG_BYMOVEFOCUS here so that the label is scrolled to.
+            // Also, within HTMLInputElement::PostHandleEvent, inputs will
+            // be selected only when focused via a key or when the navigation
+            // flag is used and we want to select the text on label clicks as
+            // well.
+            nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(content);
+            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOVEFOCUS);
           }
+
           // Dispatch a new click event to |content|
           //    (For compatibility with IE, we do only left click.  If
           //    we wanted to interpret the HTML spec very narrowly, we

@@ -9,6 +9,7 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
+#include "js/MemoryMetrics.h"
 #include "jsclass.h"
 #include "jsfriendapi.h"
 #include "jspubtd.h"
@@ -17,7 +18,6 @@
 #include "js/GCAPI.h"
 
 #include "nsISupports.h"
-#include "nsIURI.h"
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
@@ -39,12 +39,12 @@ class nsIGlobalObject;
 
 namespace xpc {
 JSObject *
-TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
+TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
 
 JSObject *
 TransplantObjectWithWrapper(JSContext *cx,
-                            JS::HandleObject origobj, JS::HandleObject origwrapper,
-                            JS::HandleObject targetobj, JS::HandleObject targetwrapper);
+                            JSObject *origobj, JSObject *origwrapper,
+                            JSObject *targetobj, JSObject *targetwrapper);
 
 // Return a raw XBL scope object corresponding to contentScope, which must
 // be an object whose global is a DOM window.
@@ -66,15 +66,7 @@ AllowXBLScope(JSCompartment *c);
 bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
-bool
-IsReflector(JSObject *obj);
 } /* namespace xpc */
-
-namespace JS {
-
-struct RuntimeStats;
-
-}
 
 #define XPCONNECT_GLOBAL_FLAGS                                                \
     JSCLASS_DOM_GLOBAL | JSCLASS_HAS_PRIVATE |                                \
@@ -90,16 +82,48 @@ xpc_LocalizeRuntime(JSRuntime *rt);
 NS_EXPORT_(void)
 xpc_DelocalizeRuntime(JSRuntime *rt);
 
-// If IS_WN_CLASS for the JSClass of an object is true, the object is a
-// wrappednative wrapper, holding the XPCWrappedNative in its private slot.
+nsresult
+xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
-static inline bool IS_WN_CLASS(js::Class* clazz)
+static inline bool IS_WRAPPER_CLASS(js::Class* clazz)
 {
     return clazz->ext.isWrappedNative;
 }
-static inline bool IS_WN_REFLECTOR(JSObject *obj)
+
+// If IS_WRAPPER_CLASS for the JSClass of an object is true, the object can be
+// a slim wrapper, holding a native in its private slot, or a wrappednative
+// wrapper, holding the XPCWrappedNative in its private slot. A slim wrapper
+// also holds a pointer to its XPCWrappedNativeProto in a reserved slot, we can
+// check that slot for a private value (i.e. a double) to distinguish between
+// the two. This allows us to store a JSObject in that slot for non-slim wrappers
+// while still being able to distinguish the two cases.
+
+// NB: This slot isn't actually reserved for us on globals, because SpiderMonkey
+// uses the first N slots on globals internally. The fact that we use it for
+// wrapped global objects is totally broken. But due to a happy coincidence, the
+// JS engine never uses that slot. This still needs fixing though. See bug 760095.
+#define WRAPPER_MULTISLOT 0
+
+static inline bool IS_WN_WRAPPER_OBJECT(JSObject *obj)
 {
-    return IS_WN_CLASS(js::GetObjectClass(obj));
+    MOZ_ASSERT(IS_WRAPPER_CLASS(js::GetObjectClass(obj)));
+    return !js::GetReservedSlot(obj, WRAPPER_MULTISLOT).isDouble();
+}
+static inline bool IS_SLIM_WRAPPER_OBJECT(JSObject *obj)
+{
+    return !IS_WN_WRAPPER_OBJECT(obj);
+}
+
+// Use these functions if IS_WRAPPER_CLASS(GetObjectClass(obj)) might be false.
+// Avoid calling them if IS_WRAPPER_CLASS(GetObjectClass(obj)) can only be
+// true, as we'd do a redundant call to IS_WRAPPER_CLASS.
+static inline bool IS_WN_WRAPPER(JSObject *obj)
+{
+    return IS_WRAPPER_CLASS(js::GetObjectClass(obj)) && IS_WN_WRAPPER_OBJECT(obj);
+}
+static inline bool IS_SLIM_WRAPPER(JSObject *obj)
+{
+    return IS_WRAPPER_CLASS(js::GetObjectClass(obj)) && IS_SLIM_WRAPPER_OBJECT(obj);
 }
 
 extern bool
@@ -110,10 +134,14 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
 {
     if (cache) {
         JSObject* wrapper = cache->GetWrapper();
+        NS_ASSERTION(!wrapper ||
+                     !cache->IsDOMBinding() ||
+                     !IS_SLIM_WRAPPER(wrapper),
+                     "Should never have a slim wrapper when IsDOMBinding()");
         if (wrapper &&
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
             (cache->IsDOMBinding() ? !cache->HasSystemOnlyWrapper() :
-                                     xpc_OkToHandOutWrapper(cache))) {
+             (IS_SLIM_WRAPPER(wrapper) || xpc_OkToHandOutWrapper(cache)))) {
             *vp = OBJECT_TO_JSVAL(wrapper);
             return wrapper;
         }
@@ -125,7 +153,7 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
 // this subset of the JS heap.
-inline bool
+inline JSBool
 xpc_IsGrayGCThing(void *thing)
 {
     return JS::GCThingIsMarkedGray(thing);
@@ -133,7 +161,7 @@ xpc_IsGrayGCThing(void *thing)
 
 // The cycle collector only cares about some kinds of GCthings that are
 // reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
-extern bool
+extern JSBool
 xpc_GCThingIsGrayCCThing(void *thing);
 
 // Unmark gray for known-nonnull cases
@@ -166,16 +194,25 @@ inline JSContext *
 xpc_UnmarkGrayContext(JSContext *cx)
 {
     if (cx) {
-        JSObject *global = js::DefaultObjectForContextOrNull(cx);
+        JSObject *global = JS_GetGlobalObject(cx);
         xpc_UnmarkGrayObject(global);
         if (global && JS_IsInRequest(JS_GetRuntime(cx))) {
-            JSObject *scope = JS::CurrentGlobalOrNull(cx);
+            JSObject *scope = JS_GetGlobalForScopeChain(cx);
             if (scope != global)
                 xpc_UnmarkGrayObject(scope);
         }
     }
     return cx;
 }
+
+#ifdef __cplusplus
+class XPCAutoRequest : public JSAutoRequest {
+public:
+    XPCAutoRequest(JSContext *cx) : JSAutoRequest(cx) {
+        xpc_UnmarkGrayContext(cx);
+    }
+};
+#endif
 
 // If aVariant is an XPCVariant, this marks the object to be in aGeneration.
 // This also unmarks the gray JSObject.
@@ -246,6 +283,8 @@ private:
 };
 
 namespace xpc {
+
+bool DeferredRelease(nsISupports *obj);
 
 // If these functions return false, then an exception will be set on cx.
 NS_EXPORT_(bool) Base64Encode(JSContext *cx, JS::Value val, JS::Value *out);
@@ -328,6 +367,8 @@ nsIPrincipal *GetObjectPrincipal(JSObject *obj);
 
 bool IsXBLScope(JSCompartment *compartment);
 
+void DumpJSHeap(FILE* file);
+
 void SetLocationForGlobal(JSObject *global, const nsACString& location);
 void SetLocationForGlobal(JSObject *global, nsIURI *locationURI);
 
@@ -376,7 +417,6 @@ public:
 
     nsAutoCString jsPathPrefix;
     nsAutoCString domPathPrefix;
-    nsCOMPtr<nsIURI> location;
 
 private:
     CompartmentStatsExtras(const CompartmentStatsExtras &other) MOZ_DELETE;
@@ -418,31 +458,25 @@ GetNativeForGlobal(JSObject *global);
  */
 JSObject *
 GetJunkScope();
-
-/**
- * Returns the native global of the junk scope. See comment of GetJunkScope
- * about the conditions of using it.
- */
-nsIGlobalObject *
-GetJunkScopeGlobal();
-
-// Error reporter used when there is no associated DOM window on to which to
-// report errors and warnings.
-void
-SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
-
-// We have a separate version that's exported with external linkage for use by
-// xpcshell, since external linkage on windows changes the signature to make it
-// incompatible with the JSErrorReporter type, causing JS_SetErrorReporter calls
-// to fail to compile.
-NS_EXPORT_(void)
-SystemErrorReporterExternal(JSContext *cx, const char *message,
-                            JSErrorReport *rep);
-
-NS_EXPORT_(void)
-SimulateActivityCallback(bool aActive);
-
 } // namespace xpc
+
+nsCycleCollectionParticipant *
+xpc_JSZoneParticipant();
+
+// This API is for internal use only and should _not_ be used without approval
+// by the XPConnect Module Owner. Consumers who want to push/pop contexts
+// should go through one of the RAII classes (nsCxPusher, or one of the
+// convenience wrappers defined in nsContentUtils.h).
+namespace xpc {
+namespace danger {
+
+NS_EXPORT_(bool) PushJSContext(JSContext *aCx);
+NS_EXPORT_(void) PopJSContext();
+
+bool IsJSContextOnStack(JSContext *aCx);
+
+} /* namespace danger */
+} /* namespace xpc */
 
 namespace mozilla {
 namespace dom {
@@ -464,30 +498,18 @@ inline bool IsDOMProxy(JSObject *obj)
 
 typedef JSObject*
 (*DefineInterface)(JSContext *cx, JS::Handle<JSObject*> global,
-                   JS::Handle<jsid> id, bool defineOnGlobal);
+                   JS::Handle<jsid> id, bool *enabled);
 
 typedef JSObject*
 (*ConstructNavigatorProperty)(JSContext *cx, JS::Handle<JSObject*> naviObj);
 
-// Check whether a constructor should be enabled for the given object.
-// Note that the object should NOT be an Xray, since Xrays will end up
-// defining constructors on the underlying object.
-// This is a typedef for the function type itself, not the function
-// pointer, so it's more obvious that pointers to a ConstructorEnabled
-// can be null.
 typedef bool
-(ConstructorEnabled)(JSContext* cx, JS::Handle<JSObject*> obj);
+(*PrefEnabled)();
 
 extern bool
 DefineStaticJSVals(JSContext *cx);
 void
 Register(nsScriptNameSpaceManager* aNameSpaceManager);
-
-/**
- * A test for whether WebIDL methods that should only be visible to
- * chrome or XBL scopes should be exposed.
- */
-bool IsChromeOrXBL(JSContext* cx, JSObject* /* unused */);
 
 } // namespace dom
 } // namespace mozilla

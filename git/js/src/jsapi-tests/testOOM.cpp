@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
+#include "tests.h"
 
-#include "jsapi-tests/tests.h"
+#include "mozilla/DebugOnly.h"
 
 BEGIN_TEST(testOOM)
 {
@@ -17,10 +17,7 @@ BEGIN_TEST(testOOM)
 virtual JSRuntime * createRuntime()
 {
     JSRuntime *rt = JS_NewRuntime(0, JS_USE_HELPER_THREADS);
-    if (!rt)
-        return NULL;
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, (uint32_t)-1);
-    setNativeStackQuota(rt);
     return rt;
 }
 END_TEST(testOOM)

@@ -20,6 +20,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=868943
 
 /** Test for Bug 868943 **/
 
+SpecialPowers.addPermission("power", true, document);
+
 function testAudioPlayPause() {
   var lockState = true;
   var count = 0;
@@ -30,10 +32,8 @@ function testAudioPlayPause() {
   audio.src = "wakelock.ogg";
   content.appendChild(audio);
 
-  var startDate;
   audio.addEventListener('progress', function() {
     lockState = false;
-    startDate = new Date();
     audio.pause();
   });
 
@@ -49,9 +49,6 @@ function testAudioPlayPause() {
     // count == 2 is when the cpu wakelock is released
 
     if (count == 2) {
-      var diffDate = (new Date() - startDate);
-      ok(diffDate > 200, "There was at least 200 milliseconds between the stop and the wakelock release");
-
       content.removeChild(audio);
       navigator.mozPower.removeWakeLockListener(testAudioPlayListener);
       runTests();
@@ -71,11 +68,6 @@ function testAudioPlay() {
   audio.src = "wakelock.ogg";
   content.appendChild(audio);
 
-  var startDate;
-  audio.addEventListener('progress', function() {
-    startDate = new Date();
-  });
-
   navigator.mozPower.addWakeLockListener(function testAudioPlayListener(topic, state) {
     is(topic, "cpu", "Audio element locked the target == cpu");
     var locked = state == "locked-foreground" ||
@@ -92,9 +84,6 @@ function testAudioPlay() {
       // The next step is to unlock the resource.
       lockState = false;
     } else if (count == 2) {
-      var diffDate = (new Date() - startDate);
-      ok(diffDate > 200, "There was at least 200 milliseconds between the stop and the wakelock release");
-
       content.removeChild(audio);
       navigator.mozPower.removeWakeLockListener(testAudioPlayListener);
       runTests();
@@ -115,10 +104,8 @@ function runTests() {
   test();
 };
 
-SpecialPowers.addPermission("power", true, document);
-SpecialPowers.pushPrefEnv({"set": [["media.wakelock_timeout", 500]]}, runTests);
-
 SimpleTest.waitForExplicitFinish();
+runTests();
 
 </script>
 </pre>

@@ -6,12 +6,3 @@
 
 MODULE = 'xpcom'
 
-CPP_SOURCES += [
-    'xptiInterfaceInfo.cpp',
-    'xptiInterfaceInfoManager.cpp',
-    'xptiTypelibGuts.cpp',
-    'xptiWorkingSet.cpp',
-]
-
-LIBRARY_NAME = 'xptinfo'
-

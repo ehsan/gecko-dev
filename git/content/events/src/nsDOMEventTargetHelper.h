@@ -95,10 +95,6 @@ public:
                        JSContext* aCx,
                        JS::Value* aValue);
   using mozilla::dom::EventTarget::GetEventHandler;
-  virtual nsIDOMWindow* GetOwnerGlobal() MOZ_OVERRIDE
-  {
-    return nsPIDOMWindow::GetOuterFromCurrentInner(GetOwner());
-  }
 
   nsresult CheckInnerWindowCorrectness()
   {
@@ -126,8 +122,6 @@ protected:
   nsresult DispatchTrustedEvent(const nsAString& aEventName);
   // Make |event| trusted and dispatch |aEvent| to |this|.
   nsresult DispatchTrustedEvent(nsIDOMEvent* aEvent);
-
-  virtual void LastRelease() {}
 private:
   // Inner window or sandbox.
   nsIGlobalObject*           mParentObject;
@@ -168,21 +162,12 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,
 #define IMPL_EVENT_HANDLER(_event)                                        \
   inline mozilla::dom::EventHandlerNonNull* GetOn##_event()               \
   {                                                                       \
-    if (NS_IsMainThread()) {                                              \
-      return GetEventHandler(nsGkAtoms::on##_event, EmptyString());       \
-    }                                                                     \
-    return GetEventHandler(nullptr, NS_LITERAL_STRING(#_event));          \
+    return GetEventHandler(nsGkAtoms::on##_event);                        \
   }                                                                       \
   inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback, \
-                            mozilla::ErrorResult& aRv)                    \
+                            ErrorResult& aRv)                             \
   {                                                                       \
-    if (NS_IsMainThread()) {                                              \
-      SetEventHandler(nsGkAtoms::on##_event, EmptyString(),               \
-                      aCallback, aRv);                                    \
-    } else {                                                              \
-      SetEventHandler(nullptr, NS_LITERAL_STRING(#_event),                \
-                      aCallback, aRv);                                    \
-    }                                                                     \
+    SetEventHandler(nsGkAtoms::on##_event, aCallback, aRv);               \
   }
 
 /* Use this macro to declare functions that forward the behavior of this

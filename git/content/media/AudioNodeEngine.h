@@ -7,13 +7,13 @@
 #define MOZILLA_AUDIONODEENGINE_H_
 
 #include "AudioSegment.h"
-#include "mozilla/dom/AudioNode.h"
 #include "mozilla/dom/AudioParam.h"
 #include "mozilla/Mutex.h"
 
 namespace mozilla {
 
 namespace dom {
+class AudioNode;
 struct ThreeDPoint;
 }
 
@@ -88,22 +88,6 @@ void AllocateAudioBlock(uint32_t aChannelCount, AudioChunk* aChunk);
 void WriteZeroesToAudioBlock(AudioChunk* aChunk, uint32_t aStart, uint32_t aLength);
 
 /**
- * Copy with scale. aScale == 1.0f should be optimized.
- */
-void AudioBufferCopyWithScale(const float* aInput,
-                              float aScale,
-                              float* aOutput,
-                              uint32_t aSize);
-
-/**
- * Pointwise multiply-add operation. aScale == 1.0f should be optimized.
- */
-void AudioBufferAddWithScale(const float* aInput,
-                             float aScale,
-                             float* aOutput,
-                             uint32_t aSize);
-
-/**
  * Pointwise multiply-add operation. aScale == 1.0f should be optimized.
  */
 void AudioBlockAddChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
@@ -127,27 +111,11 @@ void AudioBlockCopyChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
                                     float aOutput[WEBAUDIO_BLOCK_SIZE]);
 
 /**
- * Vector complex multiplication on arbitrary sized buffers.
- */
-void BufferComplexMultiply(const float* aInput,
-                           const float* aScale,
-                           float* aOutput,
-                           uint32_t aSize);
-
-/**
  * In place gain. aScale == 1.0f should be optimized.
  */
-void AudioBufferInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
-                             uint32_t aChannelCount,
-                             float aScale);
-
-/**
- * In place gain. aScale == 1.0f should be optimized.
- */
-void AudioBufferInPlaceScale(float* aBlock,
-                             uint32_t aChannelCount,
-                             float aScale,
-                             uint32_t aSize);
+void AudioBlockInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
+                            uint32_t aChannelCount,
+                            float aScale);
 
 /**
  * Upmix a mono input to a stereo output, scaling the two output channels by two
@@ -172,12 +140,6 @@ AudioBlockPanStereoToStereo(const float aInputL[WEBAUDIO_BLOCK_SIZE],
                             float aOutputR[WEBAUDIO_BLOCK_SIZE]);
 
 /**
- * Return the sum of squares of all of the samples in the input.
- */
-float
-AudioBufferSumOfSquares(const float* aInput, uint32_t aLength);
-
-/**
  * All methods of this class and its subclasses are called on the
  * MediaStreamGraph thread.
  */
@@ -192,7 +154,6 @@ public:
     , mInputCount(aNode ? aNode->NumberOfInputs() : 1)
     , mOutputCount(aNode ? aNode->NumberOfOutputs() : 0)
   {
-    MOZ_ASSERT(NS_IsMainThread());
     MOZ_COUNT_CTOR(AudioNodeEngine);
   }
   virtual ~AudioNodeEngine()
@@ -214,8 +175,7 @@ public:
     NS_ERROR("Invalid SetInt32Parameter index");
   }
   virtual void SetTimelineParameter(uint32_t aIndex,
-                                    const dom::AudioParamTimeline& aValue,
-                                    TrackRate aSampleRate)
+                                    const dom::AudioParamTimeline& aValue)
   {
     NS_ERROR("Invalid SetTimelineParameter index");
   }
@@ -228,18 +188,13 @@ public:
   {
     NS_ERROR("SetBuffer called on engine that doesn't support it");
   }
-  // This consumes the contents of aData.  aData will be emptied after this returns.
-  virtual void SetRawArrayData(nsTArray<float>& aData)
-  {
-    NS_ERROR("SetRawArrayData called on an engine that doesn't support it");
-  }
 
   /**
    * Produce the next block of audio samples, given input samples aInput
    * (the mixed data for input 0).
    * aInput is guaranteed to have float sample format (if it has samples at all)
-   * and to have been resampled to the sampling rate for the stream, and to have
-   * exactly WEBAUDIO_BLOCK_SIZE samples.
+   * and to have been resampled to IdealAudioRate(), and to have exactly
+   * WEBAUDIO_BLOCK_SIZE samples.
    * *aFinished is set to false by the caller. If the callee sets it to true,
    * we'll finish the stream and not call this again.
    */

@@ -17,8 +17,6 @@ structures.
 
 from __future__ import unicode_literals
 
-import os
-
 from collections import OrderedDict
 
 
@@ -138,22 +136,6 @@ class VariablePassthru(SandboxDerived):
         SandboxDerived.__init__(self, sandbox)
         self.variables = {}
 
-class XPIDLFile(SandboxDerived):
-    """Describes an XPIDL file to be compiled."""
-
-    __slots__ = (
-        'basename',
-        'source_path',
-    )
-
-    def __init__(self, sandbox, source, module):
-        SandboxDerived.__init__(self, sandbox)
-
-        self.source_path = source
-        self.basename = os.path.basename(source)
-        self.module = module
-
-
 class Exports(SandboxDerived):
     """Sandbox container object for EXPORTS, which is a HierarchicalStringList.
 
@@ -166,18 +148,6 @@ class Exports(SandboxDerived):
     def __init__(self, sandbox, exports):
         SandboxDerived.__init__(self, sandbox)
         self.exports = exports
-
-class IPDLFile(SandboxDerived):
-    """Describes an individual .ipdl source file."""
-
-    __slots__ = (
-        'basename',
-    )
-
-    def __init__(self, sandbox, path):
-        SandboxDerived.__init__(self, sandbox)
-
-        self.basename = path
 
 class Program(SandboxDerived):
     """Sandbox container object for PROGRAM, which is a unicode string.

@@ -3,7 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "PCOMContentPermissionRequestChild.h"
+#include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/Notification.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/Preferences.h"
 #include "TabChild.h"
 #include "nsContentUtils.h"
@@ -103,20 +105,13 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(NotificationPermissionRequest)
 NS_IMETHODIMP
 NotificationPermissionRequest::Run()
 {
-  if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
+  // File are automatically granted permission.
+  nsCOMPtr<nsIURI> uri;
+  mPrincipal->GetURI(getter_AddRefs(uri));
+  bool isFile;
+  uri->SchemeIs("file", &isFile);
+  if (isFile) {
     mPermission = NotificationPermission::Granted;
-  } else {
-    // File are automatically granted permission.
-    nsCOMPtr<nsIURI> uri;
-    mPrincipal->GetURI(getter_AddRefs(uri));
-
-    if (uri) {
-      bool isFile;
-      uri->SchemeIs("file", &isFile);
-      if (isFile) {
-        mPermission = NotificationPermission::Granted;
-      }
-    }
   }
 
   // Grant permission if pref'ed on.
@@ -252,7 +247,7 @@ NotificationTask::Run()
   case eClose:
     return mNotification->CloseInternal();
   default:
-    MOZ_CRASH("Unexpected action for NotificationTask.");
+    MOZ_NOT_REACHED("Unexpected action for NotificationTask.");
   }
 }
 
@@ -380,7 +375,7 @@ Notification::RequestPermission(const GlobalObject& aGlobal,
 
   NotificationPermissionCallback* permissionCallback = nullptr;
   if (aCallback.WasPassed()) {
-    permissionCallback = &aCallback.Value();
+    permissionCallback = aCallback.Value().get();
   }
   nsCOMPtr<nsIRunnable> request =
     new NotificationPermissionRequest(principal, window, permissionCallback);
@@ -403,21 +398,15 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return NotificationPermission::Denied;
   }
-
   nsCOMPtr<nsIPrincipal> principal = sop->GetPrincipal();
-  if (nsContentUtils::IsSystemPrincipal(principal)) {
+
+  // Allow files to show notifications by default.
+  nsCOMPtr<nsIURI> uri;
+  principal->GetURI(getter_AddRefs(uri));
+  bool isFile;
+  uri->SchemeIs("file", &isFile);
+  if (isFile) {
     return NotificationPermission::Granted;
-  } else {
-    // Allow files to show notifications by default.
-    nsCOMPtr<nsIURI> uri;
-    principal->GetURI(getter_AddRefs(uri));
-    if (uri) {
-      bool isFile;
-      uri->SchemeIs("file", &isFile);
-      if (isFile) {
-        return NotificationPermission::Granted;
-      }
-    }
   }
 
   // We also allow notifications is they are pref'ed on.
@@ -431,12 +420,20 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
 
   uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
 
-  nsCOMPtr<nsIPermissionManager> permissionManager =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    ContentChild* cpc = ContentChild::GetSingleton();
 
-  permissionManager->TestPermissionFromPrincipal(principal,
-                                                 "desktop-notification",
-                                                 &permission);
+    cpc->SendTestPermissionFromPrincipal(IPC::Principal(principal),
+                                         NS_LITERAL_CSTRING("desktop-notification"),
+                                         &permission);
+  } else {
+    nsCOMPtr<nsIPermissionManager> permissionManager =
+      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+
+    permissionManager->TestPermissionFromPrincipal(principal,
+                                                   "desktop-notification",
+                                                   &permission);
+  }
 
   // Convert the result to one of the enum types.
   switch (permission) {

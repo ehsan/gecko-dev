@@ -12,7 +12,7 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = "readwrite";
+    const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
 
@@ -24,7 +24,7 @@
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -32,7 +32,7 @@
 
     db.createObjectStore(objectStoreName, { });
 
-    event = yield undefined;
+    event = yield;
 
     is(event.type, "success", "Got correct event type");
 
@@ -42,15 +42,15 @@
     request = objectStore.add(fileData.file, fileData.key);
     request.addEventListener("error", new ExpectError("UnknownError", true));
     request.onsuccess = unexpectedSuccessHandler;
-    event = yield undefined;
+    event = yield;
 
     trans.oncomplete = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     is(event.type, "complete", "Got correct event type");
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

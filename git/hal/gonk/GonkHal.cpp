@@ -34,7 +34,6 @@
 #include "hardware_legacy/uevent.h"
 #include "hardware_legacy/vibrator.h"
 #include "hardware_legacy/power.h"
-#include "libdisplay/GonkDisplay.h"
 
 #include "base/message_loop.h"
 
@@ -125,7 +124,7 @@ public:
     os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIOBSERVER
 
@@ -150,7 +149,7 @@ private:
   static bool sShuttingDown;
 };
 
-NS_IMPL_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
+NS_IMPL_THREADSAFE_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
 
 bool VibratorRunnable::sShuttingDown = false;
 
@@ -435,7 +434,7 @@ GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
     aBatteryInfo->charging() = true;
   }
 
-  if (!aBatteryInfo->charging() || (aBatteryInfo->level() < 1.0)) {
+  if (aBatteryInfo->charging() && (aBatteryInfo->level() < 1.0)) {
     aBatteryInfo->remainingTime() = dom::battery::kUnknownRemainingTime;
   } else {
     aBatteryInfo->remainingTime() = dom::battery::kDefaultRemainingTime;
@@ -514,7 +513,7 @@ GetScreenEnabled()
 void
 SetScreenEnabled(bool enabled)
 {
-  GetGonkDisplay()->SetEnabled(enabled);
+  set_screen_state(enabled);
   sScreenEnabled = enabled;
 }
 
@@ -734,6 +733,7 @@ AdjustSystemClock(int64_t aDeltaMilliseconds)
 
   if (ioctl(fd, ANDROID_ALARM_SET_RTC, &now) < 0) {
     HAL_LOG(("ANDROID_ALARM_SET_RTC failed: %s", strerror(errno)));
+    return;
   }
 
   hal::NotifySystemClockChange(aDeltaMilliseconds);
@@ -1056,10 +1056,7 @@ EnsureKernelLowMemKillerParamsSet()
   nsAutoCString adjParams;
   nsAutoCString minfreeParams;
 
-  int32_t lowerBoundOfNextOomScoreAdj = OOM_SCORE_ADJ_MIN - 1;
-  int32_t lowerBoundOfNextKillUnderMB = 0;
-
-  for (int i = NUM_PROCESS_PRIORITY - 1; i >= 0; i--) {
+  for (int i = 0; i < NUM_PROCESS_PRIORITY; i++) {
     // The system doesn't function correctly if we're missing these prefs, so
     // crash loudly.
 
@@ -1081,19 +1078,11 @@ EnsureKernelLowMemKillerParamsSet()
       MOZ_CRASH();
     }
 
-    // The LMK in kernel silently malfunctions if we assign the parameters
-    // in non-increasing order, so we add this assertion here. See bug 887192.
-    MOZ_ASSERT(oomScoreAdj > lowerBoundOfNextOomScoreAdj);
-    MOZ_ASSERT(killUnderMB > lowerBoundOfNextKillUnderMB);
-
     // adj is in oom_adj units.
     adjParams.AppendPrintf("%d,", OomAdjOfOomScoreAdj(oomScoreAdj));
 
     // minfree is in pages.
     minfreeParams.AppendPrintf("%d,", killUnderMB * 1024 * 1024 / PAGE_SIZE);
-
-    lowerBoundOfNextOomScoreAdj = oomScoreAdj;
-    lowerBoundOfNextKillUnderMB = killUnderMB;
   }
 
   // Strip off trailing commas.
@@ -1176,7 +1165,7 @@ SetNiceForPid(int aPid, int aNice)
     }
 
     int newtaskpriority =
-      std::max(origtaskpriority - origProcPriority + aNice, aNice);
+      std::max(origtaskpriority + aNice - origProcPriority, origProcPriority);
     rv = setpriority(PRIO_PROCESS, tid, newtaskpriority);
 
     if (rv) {

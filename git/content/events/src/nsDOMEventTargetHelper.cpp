@@ -17,8 +17,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetHelper)
-
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
@@ -72,8 +70,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEventTargetHelper)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsDOMEventTargetHelper,
-                                                   LastRelease())
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMEventTargetHelper)
 
 NS_IMPL_DOMTARGET_DEFAULTS(nsDOMEventTargetHelper)
 
@@ -85,7 +82,7 @@ nsDOMEventTargetHelper::~nsDOMEventTargetHelper()
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 void
@@ -292,7 +289,7 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
     handler = new EventHandlerNonNull(callable);
   }
   ErrorResult rv;
-  SetEventHandler(aType, EmptyString(), handler, rv);
+  SetEventHandler(aType, handler, rv);
   return rv.ErrorCode();
 }
 
@@ -301,7 +298,7 @@ nsDOMEventTargetHelper::GetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         JS::Value* aValue)
 {
-  EventHandlerNonNull* handler = GetEventHandler(aType, EmptyString());
+  EventHandlerNonNull* handler = GetEventHandler(aType);
   if (handler) {
     *aValue = JS::ObjectValue(*handler->Callable());
   } else {

@@ -8,7 +8,7 @@
 #include "nsIVariant.h"
 #include "nsIServiceManager.h"
 #include "nsMemory.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
@@ -84,8 +84,8 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
   if (wrappedJS) {
-    JS::Rooted<JSObject*> object(aCx, wrappedJS->GetJSObject());
-    if (!object) {
+    JS::Rooted<JSObject*> object(aCx, nullptr);
+    if (NS_FAILED(wrappedJS->GetJSObject(object.address()))) {
       return false;
     }
     aAc.construct(aCx, object);
@@ -95,7 +95,7 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    JS::Handle<JSObject*> handler(jsl->GetHandler().Ptr()->Callable());
+    JSObject *handler = jsl->GetHandler().Ptr()->Callable();
     if (handler) {
       aAc.construct(aCx, handler);
       *aJSVal = OBJECT_TO_JSVAL(handler);
@@ -111,14 +111,18 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
   aResult.SetIsVoid(true);
 
   AutoSafeJSContext cx;
-  mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
-  if (GetJSVal(cx, ac, v.address())) {
-    JSString* str = JS_ValueToSource(cx, v);
-    if (str) {
-      nsDependentJSString depStr;
-      if (depStr.init(cx, str)) {
-        aResult.Assign(depStr);
+  {
+    // Extra block to finish the auto request before calling pop
+    JSAutoRequest ar(cx);
+    mozilla::Maybe<JSAutoCompartment> ac;
+    JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
+    if (GetJSVal(cx, ac, v.address())) {
+      JSString* str = JS_ValueToSource(cx, v);
+      if (str) {
+        nsDependentJSString depStr;
+        if (depStr.init(cx, str)) {
+          aResult.Assign(depStr);
+        }
       }
     }
   }
@@ -141,13 +145,17 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
   NS_ENSURE_TRUE(isOn, NS_OK);
 
   AutoSafeJSContext cx;
-  mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
-  if (GetJSVal(cx, ac, v.address())) {
-    nsCOMPtr<jsdIValue> jsdValue;
-    rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
-    NS_ENSURE_SUCCESS(rv, rv);
-    jsdValue.forget(aRetVal);
+  {
+    // Extra block to finish the auto request before calling pop
+    JSAutoRequest ar(cx);
+    mozilla::Maybe<JSAutoCompartment> ac;
+    JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
+    if (GetJSVal(cx, ac, v.address())) {
+      nsCOMPtr<jsdIValue> jsdValue;
+      rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
+      NS_ENSURE_SUCCESS(rv, rv);
+      jsdValue.forget(aRetVal);
+    }
   }
 #endif
 
@@ -299,6 +307,7 @@ nsresult
 NS_NewEventListenerService(nsIEventListenerService** aResult)
 {
   *aResult = new nsEventListenerService();
+  NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aResult);
   return NS_OK;
 }

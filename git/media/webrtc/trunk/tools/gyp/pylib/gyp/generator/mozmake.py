@@ -9,7 +9,6 @@ import sys
 import os
 import re
 import shlex
-from mozbuild.util import FileAvoidWrite
 
 generator_wants_sorted_dependencies = True
 
@@ -103,7 +102,7 @@ endif
 # Rules for regenerating Makefiles from GYP files.
 Makefile: %(input_gypfiles)s %(generator)s
 	$(PYTHON) %(commandline)s
-	@$(TOUCH) $@
+
 endif
 """
 
@@ -146,7 +145,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
   #TODO: should compare with the existing file and not overwrite it if the
   # contents are the same!
   ensure_directory_exists(filename)
-  with FileAvoidWrite(filename) as f:
+  with open(filename, "w") as f:
     f.write(COMMON_HEADER % {'buildfile': build_file,
                              'depth': depth,
                              'topsrcdir': topsrcdir,
@@ -158,7 +157,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
       f.write(extra_data)
 
 def WriteCommonMk(path, build_files, scriptname, commandline):
-  with FileAvoidWrite(path) as f:
+  with open(path, "w") as f:
     f.write(COMMON_MK % {'input_gypfiles': ' '.join(build_files),
                          'generator': scriptname,
                          'commandline': ' '.join(commandline)})
@@ -375,10 +374,14 @@ class MakefileGenerator(object):
     else:
       # Maybe nothing?
       return False
-    WriteMakefile(output_file, data, build_file, depth, self.topsrcdir,
+    if self.flavor == 'win':
+      top = self.relative_topsrcdir
+    else:
+      top = self.topsrcdir
+    WriteMakefile(output_file, data, build_file, depth, top,
                   # we set srcdir up one directory, since the subdir
                   # doesn't actually exist in the source directory
-                  swapslashes(os.path.normpath(os.path.join(self.topsrcdir, self.relative_srcdir, os.path.split(rel_path)[0]))),
+                  swapslashes(os.path.normpath(os.path.join(top, self.relative_srcdir, os.path.split(rel_path)[0]))),
                   self.relative_srcdir,
                   self.common_mk_path)
     return True
@@ -434,10 +437,16 @@ def GenerateOutput(target_list, target_dicts, data, params):
   topdata = {'DIRS': generator.dirs}
   if generator.parallel_dirs:
     topdata['PARALLEL_DIRS'] = generator.parallel_dirs
+  if flavor == 'win':
+    top = relative_topsrcdir
+    src = srcdir
+  else:
+    top = topsrcdir
+    src = abs_srcdir
   WriteMakefile(makefile_path, topdata, params['build_files'][0],
                 depth,
-                swapslashes(topsrcdir),
-                swapslashes(abs_srcdir),
+                swapslashes(top),
+                swapslashes(src),
                 swapslashes(relative_srcdir),
                 common_mk_path)
   scriptname = "$(topsrcdir)/media/webrtc/trunk/tools/gyp/pylib/gyp/generator/mozmake.py"

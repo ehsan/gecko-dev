@@ -979,11 +979,11 @@ nsLocalFile::nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void*
 // nsLocalFile::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS4(nsLocalFile,
-                   nsILocalFile,
-                   nsIFile,
-                   nsILocalFileWin,
-                   nsIHashable)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
+                              nsILocalFile,
+                              nsIFile,
+                              nsILocalFileWin,
+                              nsIHashable)
 
 
 //-----------------------------------------------------------------------------
@@ -1826,32 +1826,43 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     int copyOK;
     DWORD dwVersion = GetVersion();
     DWORD dwMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-    DWORD dwCopyFlags = COPY_FILE_ALLOW_DECRYPTED_DESTINATION;
+    DWORD dwCopyFlags = 0;
     if (dwMajorVersion > 5) {
         bool path1Remote, path2Remote;
         if (!IsRemoteFilePath(filePath.get(), path1Remote) || 
             !IsRemoteFilePath(destPath.get(), path2Remote) ||
             path1Remote || path2Remote) {
-            dwCopyFlags |= COPY_FILE_NO_BUFFERING;
+            dwCopyFlags = COPY_FILE_NO_BUFFERING;
         }
     }
     
     if (!move)
-    {
         copyOK = ::CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
-    }
-    else
-    {
-        copyOK = ::MoveFileExW(filePath.get(), destPath.get(), MOVEFILE_REPLACE_EXISTING);
-
-        // Check if copying the source file to a different volume,
-        // as this could be an SMBV2 mapped drive.
-        if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
+    else {
+        DWORD status;
+        if (FileEncryptionStatusW(filePath.get(), &status)
+            && status == FILE_IS_ENCRYPTED)
         {
+            dwCopyFlags |= COPY_FILE_ALLOW_DECRYPTED_DESTINATION;
             copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
 
             if (copyOK)
                 DeleteFileW(filePath.get());
+        }
+        else
+        {
+            copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
+                                   MOVEFILE_REPLACE_EXISTING);
+            
+            // Check if copying the source file to a different volume,
+            // as this could be an SMBV2 mapped drive.
+            if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
+            {
+                copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
+            
+                if (copyOK)
+                    DeleteFile(filePath.get());
+            }
         }
     }
 

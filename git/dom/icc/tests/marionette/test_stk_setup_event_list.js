@@ -5,7 +5,7 @@ MARIONETTE_TIMEOUT = 30000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let icc = navigator.mozIccManager;
+let icc = navigator.mozMobileConnection.icc;
 ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
 
 function testSetupEventList(command, expect) {
@@ -52,7 +52,6 @@ let tests = [
             eventList: [7]}}
 ];
 
-// TODO - Bug 843455: Import scripts for marionette tests.
 let pendingEmulatorCmdCount = 0;
 function sendStkPduToEmulator(command, func, expect) {
   ++pendingEmulatorCmdCount;

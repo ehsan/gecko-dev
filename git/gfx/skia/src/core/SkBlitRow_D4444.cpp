@@ -216,3 +216,5 @@ SkBlitRow::Proc SkBlitRow_Factory_4444(unsigned flags)
 
     return gProcs4444[flags];
 }
+
+

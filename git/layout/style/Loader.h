@@ -20,7 +20,6 @@
 #include "nsURIHashKey.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CORSMode.h"
-#include "mozilla/MemoryReporting.h"
 
 class nsIAtom;
 class nsICSSLoaderObserver;
@@ -99,8 +98,6 @@ public:
   static PLDHashNumber HashKey(const URIPrincipalAndCORSModeHashKey* aKey) {
     return nsURIHashKey::HashKey(aKey->mKey);
   }
-
-  nsIURI* GetURI() const { return nsURIHashKey::GetKey(); }
 
   enum { ALLOW_MEMMOVE = true };
 
@@ -371,19 +368,10 @@ public:
   void UnlinkCachedSheets();
 
   // Measure our size.
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-  // Marks all the sheets at the given URI obsolete, and removes them from the
-  // cache.
-  nsresult ObsoleteSheet(nsIURI* aURI);
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   friend class SheetLoadData;
-
-  static PLDHashOperator
-  RemoveEntriesWithURI(URIPrincipalAndCORSModeHashKey* aKey,
-                       nsRefPtr<nsCSSStyleSheet> &aSheet,
-                       void* aUserData);
 
   // Note: null aSourcePrincipal indicates that the content policy and
   // CheckLoadURI checks should be skipped.

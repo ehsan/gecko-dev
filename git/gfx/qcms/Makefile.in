@@ -9,7 +9,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME = mozqcms
 LIBXUL_LIBRARY = 1
 
 CSRCS = \
@@ -56,6 +56,8 @@ ifdef GNU_CC
 endif
 endif
 endif
+
+FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 

@@ -23,16 +23,12 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
 
-ifneq (,$(filter Darwin DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
+ifeq ($(OS_TARGET), Darwin)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
   $(NULL)
-ifeq ($(OS_TARGET), Darwin)
 DEFINES += -DDARWIN
-else
-DEFINES += -DBSD
-endif
 endif
 
 ifeq ($(OS_TARGET), Linux)
@@ -60,6 +56,7 @@ DEFINES += -DWIN
 endif
 
 DEFINES += \
+   -DR_PLATFORM_INT_TYPES='"mozilla/StandardInteger.h"' \
    -DR_DEFINED_INT2=int16_t -DR_DEFINED_UINT2=uint16_t \
    -DR_DEFINED_INT4=int32_t -DR_DEFINED_UINT4=uint32_t \
    -DR_DEFINED_INT8=int64_t -DR_DEFINED_UINT8=uint64_t \
@@ -81,12 +78,6 @@ MTRANSPORT_LCPPSRCS = \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
   $(NULL)
-
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-MTRANSPORT_LCPPSRCS += \
-  gonk_addrs.cpp \
-  $(NULL)
-endif
 
 MTRANSPORT_CPPSRCS = $(addprefix $(topsrcdir)/media/mtransport/, $(MTRANSPORT_LCPPSRCS))
 

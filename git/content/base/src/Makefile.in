@@ -11,20 +11,136 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkconbase_s
-MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY	= 1
-FAIL_ON_WARNINGS = 1
+
+CPPSRCS		= \
+		Comment.cpp \
+		DirectionalityUtils.cpp \
+		DocumentType.cpp \
+		DOMImplementation.cpp \
+		EventSource.cpp \
+		FileIOObject.cpp \
+		nsAtomListUtils.cpp \
+		nsAttrAndChildArray.cpp \
+		nsAttrValue.cpp \
+		nsAttrValueOrString.cpp \
+		nsCCUncollectableMarker.cpp \
+		nsChannelPolicy.cpp \
+		nsContentAreaDragDrop.cpp \
+		nsContentIterator.cpp \
+		nsContentList.cpp \
+		nsContentPolicy.cpp \
+		nsContentSink.cpp \
+		nsContentUtils.cpp \
+		nsCopySupport.cpp \
+		nsCrossSiteListenerProxy.cpp \
+		nsCSPService.cpp \
+		nsDataDocumentContentPolicy.cpp \
+		Attr.cpp \
+		nsDOMAttributeMap.cpp \
+		nsDOMBlobBuilder.cpp \
+		nsDOMCaretPosition.cpp \
+		nsDOMFile.cpp \
+		nsDOMFileReader.cpp \
+		nsDOMLists.cpp \
+		nsDOMParser.cpp \
+		nsDOMSerializer.cpp \
+		nsDOMTokenList.cpp \
+		nsDOMSettableTokenList.cpp \
+		nsDocument.cpp \
+		nsDocumentEncoder.cpp \
+		DocumentFragment.cpp \
+		nsFrameLoader.cpp \
+		Element.cpp \
+		nsFormData.cpp \
+		nsGenConImageContent.cpp \
+		nsGenericDOMDataNode.cpp \
+		nsGkAtoms.cpp \
+		nsHTMLContentSerializer.cpp \
+		nsImageLoadingContent.cpp \
+		nsINode.cpp \
+		nsLineBreaker.cpp \
+		nsMappedAttributeElement.cpp \
+		nsMappedAttributes.cpp \
+		nsNameSpaceManager.cpp \
+		nsNoDataProtocolContentPolicy.cpp \
+		nsNodeInfo.cpp \
+		nsNodeInfoManager.cpp \
+		NodeIterator.cpp \
+		nsNodeUtils.cpp \
+		nsObjectLoadingContent.cpp \
+		nsPlainTextSerializer.cpp \
+		nsPropertyTable.cpp \
+		nsRange.cpp \
+		nsReferencedElement.cpp \
+		nsScriptElement.cpp \
+		nsScriptLoader.cpp \
+		nsStubDocumentObserver.cpp \
+		nsStubMutationObserver.cpp \
+		nsStyledElement.cpp \
+		nsStyleLinkElement.cpp \
+		nsSyncLoadService.cpp \
+		Text.cpp \
+		nsTextFragment.cpp \
+		nsTextNode.cpp \
+		nsTraversal.cpp \
+		nsTreeSanitizer.cpp \
+		TreeWalker.cpp \
+                nsViewportInfo.cpp \
+		WebSocket.cpp \
+		nsXHTMLContentSerializer.cpp \
+		nsXMLContentSerializer.cpp \
+		nsXMLHttpRequest.cpp \
+		nsXMLNameSpaceMap.cpp \
+		FragmentOrElement.cpp \
+		Link.cpp \
+		nsHostObjectProtocolHandler.cpp \
+		nsHostObjectURI.cpp \
+		nsFrameMessageManager.cpp \
+		nsInProcessTabChildGlobal.cpp \
+		ThirdPartyUtil.cpp \
+		nsDOMMutationObserver.cpp \
+		nsMixedContentBlocker.cpp \
+		$(NULL)
 
 ifdef MOZ_WEBRTC
+CPPSRCS += nsDOMDataChannel.cpp
 LOCAL_INCLUDES += \
 		-I$(topsrcdir)/netwerk/sctp/datachannel \
 		$(NULL)
 endif
 
+# Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
+# nsTextFragment.cpp
+ifneq (,$(INTEL_ARCHITECTURE))
+CPPSRCS += nsTextFragmentSSE2.cpp
+endif
+
 GQI_SRCS = contentbase.gqi
 
-include $(topsrcdir)/config/rules.mk
+# we don't want the shared lib, but we want to force the creation of a
+# static lib.
+FORCE_STATIC_LIB = 1
+
+EXTRA_COMPONENTS = \
+		contentSecurityPolicy.manifest \
+		contentAreaDropListener.js \
+		contentAreaDropListener.manifest \
+		messageWakeupService.js \
+		messageWakeupService.manifest \
+		$(NULL)
+
+EXTRA_PP_COMPONENTS = \
+		contentSecurityPolicy.js \
+		$(NULL)
+
+EXTRA_JS_MODULES = \
+		CSPUtils.jsm \
+		$(NULL)
+
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/caps/include \
@@ -38,7 +154,6 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/content/xul/document/src \
   -I$(topsrcdir)/dom/base \
   -I$(topsrcdir)/dom/ipc \
-  -I$(topsrcdir)/js/ipc \
   -I$(topsrcdir)/image/src \
   -I$(topsrcdir)/js/xpconnect/src \
   -I$(topsrcdir)/layout/base \
@@ -49,6 +164,9 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/netwerk/base/src \
   -I$(topsrcdir)/js/xpconnect/wrappers \
   $(NULL)
+
+DEFINES += -D_IMPL_NS_LAYOUT
+DEFINES += -DHB_DONT_DEFINE_STDINT
 
 # gcc requires -msse2 for this file since it uses SSE2 intrinsics.  (See bug
 # 585538 comment 12.)

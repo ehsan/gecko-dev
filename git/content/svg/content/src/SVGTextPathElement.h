@@ -51,11 +51,13 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
+  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
+
   // WebIDL
   already_AddRefed<SVGAnimatedLength> StartOffset();
-  already_AddRefed<SVGAnimatedEnumeration> Method();
-  already_AddRefed<SVGAnimatedEnumeration> Spacing();
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Method();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Spacing();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
 
  protected:
 
@@ -63,19 +65,15 @@ public:
   virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
   virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
 
-  enum { /* TEXTLENGTH, */ STARTOFFSET = 1 };
-  nsSVGLength2 mLengthAttributes[2];
-  virtual nsSVGLength2* LengthAttributes() MOZ_OVERRIDE
-    { return mLengthAttributes; }
-  static LengthInfo sLengthInfo[2];
+  enum { STARTOFFSET };
+  nsSVGLength2 mLengthAttributes[1];
+  static LengthInfo sLengthInfo[1];
 
-  enum { /* LENGTHADJUST, */ METHOD = 1, SPACING };
-  nsSVGEnum mEnumAttributes[3];
-  virtual nsSVGEnum* EnumAttributes() MOZ_OVERRIDE
-    { return mEnumAttributes; }
+  enum { METHOD, SPACING };
+  nsSVGEnum mEnumAttributes[2];
   static nsSVGEnumMapping sMethodMap[];
   static nsSVGEnumMapping sSpacingMap[];
-  static EnumInfo sEnumInfo[3];
+  static EnumInfo sEnumInfo[2];
 
   enum { HREF };
   nsSVGString mStringAttributes[1];

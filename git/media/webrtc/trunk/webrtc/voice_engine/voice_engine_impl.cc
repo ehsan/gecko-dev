@@ -22,7 +22,7 @@ namespace webrtc
 // methods. It is not the nicest solution, especially not since we already
 // have a counter in VoEBaseImpl. In other words, there is room for
 // improvement here.
-static int32_t gVoiceEngineInstanceCounter = 0;
+static WebRtc_Word32 gVoiceEngineInstanceCounter = 0;
 
 extern "C"
 {
@@ -31,12 +31,13 @@ WEBRTC_DLLEXPORT VoiceEngine* GetVoiceEngine();
 VoiceEngine* GetVoiceEngine()
 {
     VoiceEngineImpl* self = new VoiceEngineImpl();
-    if (self != NULL)
+    VoiceEngine* ve = reinterpret_cast<VoiceEngine*>(self);
+    if (ve != NULL)
     {
         self->AddRef();  // First reference.  Released in VoiceEngine::Delete.
         gVoiceEngineInstanceCounter++;
     }
-    return self;
+    return ve;
 }
 } // extern "C"
 
@@ -87,11 +88,11 @@ int VoiceEngine::SetTraceFilter(const unsigned int filter)
                  "SetTraceFilter(filter=0x%x)", filter);
 
     // Remember old filter
-    uint32_t oldFilter = 0;
+    WebRtc_UWord32 oldFilter = 0;
     Trace::LevelFilter(oldFilter);
 
     // Set new filter
-    int32_t ret = Trace::SetLevelFilter(filter);
+    WebRtc_Word32 ret = Trace::SetLevelFilter(filter);
 
     // If previous log was ignored, log again after changing filter
     if (kTraceNone == oldFilter)
@@ -127,7 +128,7 @@ bool VoiceEngine::Delete(VoiceEngine*& voiceEngine)
     if (voiceEngine == NULL)
         return false;
 
-    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
     // Release the reference that was added in GetVoiceEngine.
     int ref = s->Release();
     voiceEngine = NULL;

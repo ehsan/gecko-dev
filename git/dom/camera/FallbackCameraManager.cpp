@@ -4,10 +4,6 @@
 
 #include "DOMCameraManager.h"
 
-#include "mozilla/ErrorResult.h"
-
-using namespace mozilla;
-
 // From nsDOMCameraManager.
 nsresult
 nsDOMCameraManager::GetNumberOfCameras(int32_t& aDeviceCount)
@@ -21,8 +17,9 @@ nsDOMCameraManager::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv)
+/* [implicit_jscontext] jsval getListOfCameras (); */
+NS_IMETHODIMP
+nsDOMCameraManager::GetListOfCameras(JSContext* cx, JS::Value* _retval)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -5,16 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/HTMLAnchorElement.h"
-
 #include "mozilla/dom/HTMLAnchorElementBinding.h"
-#include "mozilla/MemoryReporting.h"
+
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
 #include "nsGkAtoms.h"
-#include "nsHTMLDNSPrefetch.h"
-#include "nsIDocument.h"
 #include "nsIPresShell.h"
+#include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsHTMLDNSPrefetch.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
@@ -32,7 +31,8 @@ enum {
   HTML_ANCHOR_DNS_PREFETCH_DEFERRED =     ANCHOR_ELEMENT_FLAG_BIT(1)
 };
 
-ASSERT_NODE_FLAGS_SPACE(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 2);
+// Make sure we have enough space for those bits
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 #undef ANCHOR_ELEMENT_FLAG_BIT
 
@@ -40,8 +40,19 @@ HTMLAnchorElement::~HTMLAnchorElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(HTMLAnchorElement, nsGenericHTMLElement,
-                             nsIDOMHTMLAnchorElement, Link)
+NS_IMPL_ADDREF_INHERITED(HTMLAnchorElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLAnchorElement, Element)
+
+// QueryInterface implementation for HTMLAnchorElement
+NS_INTERFACE_TABLE_HEAD(HTMLAnchorElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE3(HTMLAnchorElement,
+                                   nsIDOMHTMLAnchorElement,
+                                   nsILink,
+                                   Link)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLAnchorElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLAnchorElement)
 
@@ -319,6 +330,12 @@ HTMLAnchorElement::SetPing(const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, true);
 }
 
+nsLinkState
+HTMLAnchorElement::GetLinkState() const
+{
+  return Link::GetLinkState();
+}
+
 already_AddRefed<nsIURI>
 HTMLAnchorElement::GetHrefURI() const
 {
@@ -403,7 +420,7 @@ HTMLAnchorElement::IntrinsicState() const
 }
 
 size_t
-HTMLAnchorElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+HTMLAnchorElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return nsGenericHTMLElement::SizeOfExcludingThis(aMallocSizeOf) +
          Link::SizeOfExcludingThis(aMallocSizeOf);

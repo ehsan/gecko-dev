@@ -8,8 +8,6 @@
 
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
-  <script type="application/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js" />
 
   <script type="application/javascript"
           src="../common.js" />
@@ -24,14 +22,14 @@
     ////////////////////////////////////////////////////////////////////////////
     // Invokers
 
-    function openMenu(aButtonID, aMenuItemRole)
+    function openMenu(aButtonID)
     {
-      var menuItemRole = aMenuItemRole || ROLE_MENUITEM;
-      this.button = getAccessible(aButtonID);
-      this.menupopup = this.button.firstChild;
+      this.buttonNode = getNode(aButtonID);
+      this.menupoupNode = this.buttonNode.firstChild;
 
-      var checker = new invokerChecker(EVENT_REORDER, this.menupopup);
-      this.__proto__ = new synthClick(aButtonID, checker);
+      this.eventSeq = [
+        new invokerChecker(EVENT_REORDER, this.menupoupNode)
+      ];
 
       this.invoke = function openMenu_invoke()
       {
@@ -39,9 +37,9 @@
           { PUSHBUTTON: [
             { MENUPOPUP: [ ] }
           ] };
-        testAccessibleTree(this.button, tree);
+        testAccessibleTree(this.buttonNode, tree);
 
-        this.__proto__.invoke();
+        this.buttonNode.open = true;
       }
 
       this.finalCheck = function openMenu_finalCheck()
@@ -49,18 +47,16 @@
         var tree =
           { PUSHBUTTON: [
             { MENUPOPUP: [
-              { role: menuItemRole, children: [ ] },
-              { role: menuItemRole, children: [ ] }
+              { MENUITEM: [ ] },
+              { MENUITEM: [ ] }
             ] }
           ] };
-        testAccessibleTree(this.button, tree);
-
-        synthesizeKey("VK_ESCAPE", { });
+        testAccessibleTree(this.buttonNode, tree);
       }
 
       this.getID = function openMenu_getID()
       {
-        return "open menu of the button " + prettyName(aButtonID);
+        return "open menu for button " + prettyName(aButtonID);
       }
     }
 
@@ -96,8 +92,6 @@
             { PUSHBUTTON: [ ] }
           ] };
         testAccessibleTree(this.buttonNode, tree);
-
-        this.buttonNode.open = false;
       }
 
       this.getID = function openMenu_getID()
@@ -122,8 +116,6 @@
       gQueue.push(new openMenu("button3"));
       gQueue.push(new openMenuButton("button4"));
 
-      var columnPickerBtn = getAccessible("tree").firstChild.lastChild;
-      gQueue.push(new openMenu(columnPickerBtn, ROLE_CHECK_MENU_ITEM));
       gQueue.invoke(); // SimpleTest.finish()
     }
 
@@ -137,17 +129,12 @@
       <a target="_blank"
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=249292"
          title="Ensure accessible children for toolbarbutton types 'menu' and 'menu-button'">
-        Bug 249292
+        Mozilla Bug 249292
       </a>
       <a target="_blank"
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=630486"
-         title="Don't force accessible creation for popup children">
-        Bug 630486
-      </a>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=722265"
-         title="Column header selection popup no longer exposed to accessibility APIs">
-        Bug 722265
+         title="Don't force accessible creation for popup children.">
+        Mozilla Bug 630486
       </a>
       <br/>
       <p id="display"></p>
@@ -158,39 +145,31 @@
     </body>
 
     <vbox flex="1">
-      <button id="button1" type="menu" label="button">
+      <button id="button1" type="menu" label="hello">
         <menupopup>
           <menuitem label="menuitem"/>
           <menuitem label="menuitem"/>
         </menupopup>
       </button>
-      <button id="button2" type="menu-button" label="menu button">
+      <button id="button2" type="menu-button" label="hello">
         <menupopup>
           <menuitem label="menuitem"/>
           <menuitem label="menuitem"/>
         </menupopup>
       </button>
 
-      <toolbarbutton id="button3" type="menu" label="toolbarbutton">
+      <toolbarbutton id="button3" type="menu" label="hello">
         <menupopup>
           <menuitem label="menuitem"/>
           <menuitem label="menuitem"/>
         </menupopup>
       </toolbarbutton>
-      <toolbarbutton id="button4" type="menu-button" label="menu toolbarbutton">
+      <toolbarbutton id="button4" type="menu-button" label="hello">
         <menupopup>
           <menuitem label="menuitem"/>
           <menuitem label="menuitem"/>
         </menupopup>
       </toolbarbutton>
-
-      <tree id="tree" flex="1">
-        <treecols>
-          <treecol id="col" flex="1" primary="true" label="column"/>
-          <treecol id="col2" flex="1" label="another column"/>
-        </treecols>
-        <treechildren/>
-      </tree>
     </vbox>
   </hbox>
 

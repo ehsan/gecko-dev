@@ -174,8 +174,8 @@ public:
   InitGonkCameraControl(nsGonkCameraControl* aCameraControl, nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
     : mCameraControl(aCameraControl)
     , mDOMCameraControl(aDOMCameraControl)
-    , mOnSuccessCb(new nsMainThreadPtrHolder<nsICameraGetCameraCallback>(onSuccess))
-    , mOnErrorCb(new nsMainThreadPtrHolder<nsICameraErrorCallback>(onError))
+    , mOnSuccessCb(onSuccess)
+    , mOnErrorCb(onError)
     , mWindowId(aWindowId)
   {
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
@@ -195,8 +195,8 @@ public:
   nsRefPtr<nsGonkCameraControl> mCameraControl;
   // Raw pointer to DOM-facing camera control--it must NS_ADDREF itself for us
   nsDOMCameraControl* mDOMCameraControl;
-  nsMainThreadPtrHandle<nsICameraGetCameraCallback> mOnSuccessCb;
-  nsMainThreadPtrHandle<nsICameraErrorCallback> mOnErrorCb;
+  nsCOMPtr<nsICameraGetCameraCallback> mOnSuccessCb;
+  nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
   uint64_t mWindowId;
 };
 
@@ -676,8 +676,6 @@ nsGonkCameraControl::StartPreviewImpl(StartPreviewTask* aStartPreview)
   if (aStartPreview->mDOMPreview) {
     mDOMPreview->Started();
   }
-
-  OnPreviewStateChange(PREVIEW_STARTED);
   return NS_OK;
 }
 
@@ -696,7 +694,6 @@ nsGonkCameraControl::StopPreviewInternal(bool aForced)
     mDOMPreview = nullptr;
   }
 
-  OnPreviewStateChange(PREVIEW_STOPPED);
   return NS_OK;
 }
 
@@ -866,10 +863,6 @@ nsGonkCameraControl::TakePictureImpl(TakePictureTask* aTakePicture)
   if (mCameraHw->TakePicture() != OK) {
     return NS_ERROR_FAILURE;
   }
-  
-  // In Gonk, taking a picture implicitly kills the preview stream,
-  // so we need to reflect that here.
-  OnPreviewStateChange(PREVIEW_STOPPED);
   return NS_OK;
 }
 
@@ -1047,21 +1040,9 @@ nsGonkCameraControl::TakePictureComplete(uint8_t* aData, uint32_t aLength)
 }
 
 void
-nsGonkCameraControl::TakePictureError()
-{
-  nsCOMPtr<nsIRunnable> takePictureError = new CameraErrorResult(mTakePictureOnErrorCb, NS_LITERAL_STRING("FAILURE"), mWindowId);
-  mTakePictureOnSuccessCb = nullptr;
-  mTakePictureOnErrorCb = nullptr;
-  nsresult rv = NS_DispatchToMainThread(takePictureError);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch takePicture() onError callback to main thread!");
-  }
-}
-
-void
 nsGonkCameraControl::SetPreviewSize(uint32_t aWidth, uint32_t aHeight)
 {
-  android::Vector<Size> previewSizes;
+  Vector<Size> previewSizes;
   uint32_t bestWidth = aWidth;
   uint32_t bestHeight = aHeight;
   uint32_t minSizeDelta = UINT32_MAX;
@@ -1444,7 +1425,7 @@ nsGonkCameraControl::GetVideoSizes(nsTArray<idl::CameraSize>& aVideoSizes)
 {
   aVideoSizes.Clear();
 
-  android::Vector<Size> sizes;
+  Vector<Size> sizes;
   mParams.getSupportedVideoSizes(sizes);
   if (sizes.size() == 0) {
     DOM_CAMERA_LOGI("Camera doesn't support video independent of the preview\n");
@@ -1475,12 +1456,6 @@ ReceiveImage(nsGonkCameraControl* gc, uint8_t* aData, uint32_t aLength)
 }
 
 void
-ReceiveImageError(nsGonkCameraControl* gc)
-{
-  gc->TakePictureError();
-}
-
-void
 AutoFocusComplete(nsGonkCameraControl* gc, bool aSuccess)
 {
   gc->AutoFocusComplete(aSuccess);
@@ -1493,8 +1468,8 @@ GonkFrameBuilder(Image* aImage, void* aBuffer, uint32_t aWidth, uint32_t aHeight
    * Cast the generic Image back to our platform-specific type and
    * populate it.
    */
-  GrallocImage* videoImage = static_cast<GrallocImage*>(aImage);
-  GrallocImage::GrallocData data;
+  GonkIOSurfaceImage* videoImage = static_cast<GonkIOSurfaceImage*>(aImage);
+  GonkIOSurfaceImage::Data data;
   data.mGraphicBuffer = static_cast<layers::GraphicBufferLocked*>(aBuffer);
   data.mPicSize = gfxIntSize(aWidth, aHeight);
   videoImage->SetData(data);
@@ -1503,7 +1478,7 @@ GonkFrameBuilder(Image* aImage, void* aBuffer, uint32_t aWidth, uint32_t aHeight
 void
 ReceiveFrame(nsGonkCameraControl* gc, layers::GraphicBufferLocked* aBuffer)
 {
-  if (!gc->ReceiveFrame(aBuffer, ImageFormat::GRALLOC_PLANAR_YCBCR, GonkFrameBuilder)) {
+  if (!gc->ReceiveFrame(aBuffer, ImageFormat::GONK_IO_SURFACE, GonkFrameBuilder)) {
     aBuffer->Unlock();
   }
 }

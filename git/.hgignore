@@ -47,9 +47,6 @@ _OPT\.OBJ/
 \.cproject$
 \.settings/
 
-# Ignore the directory that JetBrains IDEs create
-\.idea/
-
 # Python stuff installed at build time.
 ^python/psutil/.*\.so
 ^python/psutil/.*\.pyd

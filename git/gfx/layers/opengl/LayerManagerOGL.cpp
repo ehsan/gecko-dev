@@ -249,6 +249,7 @@ LayerManagerOGL::ReadDrawFPSPref::Run()
 {
   // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
   Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
+  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
   return NS_OK;
 }
 
@@ -291,7 +292,7 @@ LayerManagerOGL::Initialize(bool force)
   }
 
   // initialise a common shader to check that we can actually compile a shader
-  if (!mPrograms[RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
+  if (!mPrograms[gl::RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
 #ifdef MOZ_WIDGET_ANDROID
     NS_RUNTIMEABORT("Shader initialization failed");
 #endif
@@ -339,7 +340,7 @@ LayerManagerOGL::Initialize(bool force)
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              nullptr);
+                              NULL);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -439,6 +440,7 @@ LayerManagerOGL::Initialize(bool force)
   if (NS_IsMainThread()) {
     // NOTE: This must match the code in ReadDrawFPSPref::Run().
     Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
+    Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
   } else {
     // We have to dispatch an event to the main thread to read the pref.
     NS_DispatchToMainThread(new ReadDrawFPSPref());
@@ -564,7 +566,7 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     mThebesLayerCallbackData = nullptr;
   }
 
-  mTarget = nullptr;
+  mTarget = NULL;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   Log();
@@ -686,6 +688,8 @@ LayerManagerOGL::RootLayer() const
 }
 
 bool LayerManagerOGL::sDrawFPS = false;
+bool LayerManagerOGL::sFrameCounter = false;
+
 
 // |aTexCoordRect| is the rectangle from the texture that we want to
 // draw using the given program.  The program already has a necessary
@@ -782,7 +786,6 @@ LayerManagerOGL::Render()
       // thread, and undoes all the care we take with layers txns being
       // sent atomically with rotation changes
       mWidget->GetClientBounds(rect);
-      rect.x = rect.y = 0;
     }
   }
   WorldTransformRect(rect);
@@ -892,6 +895,8 @@ LayerManagerOGL::Render()
 
   if (mFPS) {
     mFPS->DrawFPS(TimeStamp::Now(), mGLContext, GetProgram(Copy2DProgramType));
+  } else if (sFrameCounter) {
+    FPSState::DrawFrameCounter(mGLContext);
   }
 
   if (mGLContext->IsDoubleBuffered()) {
@@ -1078,7 +1083,7 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                           0,
                           LOCAL_GL_RGBA,
                           LOCAL_GL_UNSIGNED_BYTE,
-                          nullptr);
+                          NULL);
   mGLContext->fBindTexture(mFBOTextureTarget, 0);
 
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
@@ -1176,7 +1181,7 @@ GetFrameBufferInternalFormat(GLContext* gl,
   return LOCAL_GL_RGBA;
 }
 
-bool
+void
 LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                                       GLuint aCurrentFrameBuffer,
                                       GLuint *aFBO, GLuint *aTexture)
@@ -1236,7 +1241,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            nullptr);
+                            NULL);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);
@@ -1269,12 +1274,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
     msg.AppendInt(aRect.width);
     msg.Append(", aRect.height ");
     msg.AppendInt(aRect.height);
-    NS_WARNING(msg.get());
-
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-    mGLContext->fDeleteFramebuffers(1, &fbo);
-    mGLContext->fDeleteTextures(1, &tex);
-    return false;
+    NS_RUNTIMEABORT(msg.get());
   }
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);
@@ -1287,7 +1287,6 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
 
   *aFBO = fbo;
   *aTexture = tex;
-  return true;
 }
 
 TemporaryRef<DrawTarget>

@@ -7,8 +7,9 @@
 
 interface nsIDOMEventListener;
 interface nsIDOMBlob;
+interface nsIDOMDOMError;
 
-[scriptable, builtinclass, uuid(39ea2c73-7711-4cea-9f73-3166c24dfa69)]
+[scriptable, builtinclass, uuid(81a8d00b-2982-44f6-aecf-faac0d0819d6)]
 interface nsIDOMFileReader : nsIDOMEventTarget
 {
   [implicit_jscontext]
@@ -26,9 +27,7 @@ interface nsIDOMFileReader : nsIDOMEventTarget
 
   [implicit_jscontext]
   readonly attribute jsval result;
-
-  // This is a DOMError
-  readonly attribute nsISupports error;
+  readonly attribute nsIDOMDOMError error;
 
   [implicit_jscontext] attribute jsval onloadstart;
   [implicit_jscontext] attribute jsval onprogress;

@@ -4,11 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/RegExpStatics-inl.h"
-
-#include "vm/RegExpStaticsObject.h"
+#include "vm/RegExpStatics.h"
 
 #include "jsobjinlines.h"
+
+#include "vm/RegExpObject-inl.h"
+#include "vm/RegExpStatics-inl.h"
 
 using namespace js;
 
@@ -35,7 +36,7 @@ resc_trace(JSTracer *trc, JSObject *obj)
     res->mark(trc);
 }
 
-Class RegExpStaticsObject::class_ = {
+Class js::RegExpStaticsClass = {
     "RegExpStatics",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub,         /* addProperty */
@@ -48,15 +49,15 @@ Class RegExpStaticsObject::class_ = {
     resc_finalize,
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
     resc_trace
 };
 
 JSObject *
 RegExpStatics::create(JSContext *cx, GlobalObject *parent)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsObject::class_, NULL, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsClass, NULL, parent);
     if (!obj)
         return NULL;
     RegExpStatics *res = cx->new_<RegExpStatics>();
@@ -78,7 +79,7 @@ RegExpStatics::executeLazy(JSContext *cx)
 
     /* Retrieve or create the RegExpShared in this compartment. */
     RegExpGuard g(cx);
-    if (!cx->compartment()->regExps.get(cx, lazySource, lazyFlags, &g))
+    if (!cx->compartment->regExps.get(cx, lazySource, lazyFlags, &g))
         return false;
 
     /*

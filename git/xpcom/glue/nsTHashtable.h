@@ -9,9 +9,7 @@
 #include "nscore.h"
 #include "pldhash.h"
 #include "nsDebug.h"
-#include <new>
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
+#include NEW_H
 #include "mozilla/fallible.h"
 
 // helper function for nsTHashtable::Clear()
@@ -46,10 +44,9 @@ PL_DHashStubEnumRemove(PLDHashTable    *table,
  *
  *     EntryType(KeyTypePointer aKey);
  *
- *     // A copy or move constructor must be defined, even if AllowMemMove() ==
- *     // true, otherwise you will cause link errors.
- *     EntryType(const EntryType& aEnt);   // Either this...
- *     EntryType(MoveRef<EntryType> aEnt); // ...or this
+ *     // the copy constructor must be defined, even if AllowMemMove() == true
+ *     // or you will cause link errors!
+ *     EntryType(const EntryType& aEnt);
  *
  *     // the destructor must be defined... or you will cause link errors!
  *     ~EntryType();
@@ -65,7 +62,7 @@ PL_DHashStubEnumRemove(PLDHashTable    *table,
  *
  *     // ALLOW_MEMMOVE can we move this class with memmove(), or do we have
  *     // to use the copy constructor?
- *     enum { ALLOW_MEMMOVE = true/false };
+ *     enum { ALLOW_MEMMOVE = PR_(TRUE or FALSE) };
  *   }</pre>
  *
  * @see nsInterfaceHashtable
@@ -89,8 +86,6 @@ public:
    * destructor, cleans up and deallocates
    */
   ~nsTHashtable();
-
-  nsTHashtable(mozilla::MoveRef<nsTHashtable<EntryType> > aOther);
 
   /**
    * Initialize the table.  This function must be called before any other
@@ -261,7 +256,7 @@ public:
    * @return    summed size of the things pointed to by the entries
    */
   typedef size_t (* SizeOfEntryExcludingThisFun)(EntryType* aEntry,
-                                                 mozilla::MallocSizeOf mallocSizeOf,
+                                                 nsMallocSizeOfFun mallocSizeOf,
                                                  void *arg);
 
   /**
@@ -277,7 +272,7 @@ public:
    * @return    the summed size of all the entries
    */
   size_t SizeOfExcludingThis(SizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                             mozilla::MallocSizeOf mallocSizeOf, void *userArg = NULL) const
+                             nsMallocSizeOfFun mallocSizeOf, void *userArg = NULL) const
   {
     if (!IsInitialized()) {
       return 0;
@@ -360,7 +355,7 @@ protected:
   };
   
   static size_t s_SizeOfStub(PLDHashEntryHdr *entry,
-                             mozilla::MallocSizeOf mallocSizeOf,
+                             nsMallocSizeOfFun mallocSizeOf,
                              void *arg);
 
 private:
@@ -380,15 +375,6 @@ nsTHashtable<EntryType>::nsTHashtable()
 {
   // entrySize is our "I'm initialized" indicator
   mTable.entrySize = 0;
-}
-
-template<class EntryType>
-nsTHashtable<EntryType>::nsTHashtable(
-  mozilla::MoveRef<nsTHashtable<EntryType> > aOther)
-  : mTable(aOther->mTable)
-{
-  aOther->mTable = PLDHashTable();
-  aOther->mTable.entrySize = 0;
 }
 
 template<class EntryType>
@@ -461,12 +447,10 @@ nsTHashtable<EntryType>::s_CopyEntry(PLDHashTable          *table,
                                      const PLDHashEntryHdr *from,
                                      PLDHashEntryHdr       *to)
 {
-  using mozilla::Move;
-
   EntryType* fromEntry =
     const_cast<EntryType*>(reinterpret_cast<const EntryType*>(from));
 
-  new(to) EntryType(Move(*fromEntry));
+  new(to) EntryType(*fromEntry);
 
   fromEntry->~EntryType();
 }
@@ -505,7 +489,7 @@ nsTHashtable<EntryType>::s_EnumStub(PLDHashTable    *table,
 template<class EntryType>
 size_t
 nsTHashtable<EntryType>::s_SizeOfStub(PLDHashEntryHdr *entry,
-                                      mozilla::MallocSizeOf mallocSizeOf,
+                                      nsMallocSizeOfFun mallocSizeOf,
                                       void *arg)
 {
   // dereferences the function-pointer to the user's enumeration function

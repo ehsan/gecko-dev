@@ -21,7 +21,7 @@ class gfxContext;
  * override DrawWithXib, and then call Draw(). The drawing will be subjected
  * to all Thebes transformations, clipping etc.
  */
-class gfxXlibNativeRenderer {
+class THEBES_API gfxXlibNativeRenderer {
 public:
     /**
      * Perform the native drawing.

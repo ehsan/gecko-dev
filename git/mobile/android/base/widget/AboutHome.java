@@ -10,13 +10,11 @@ import java.util.EnumSet;
 import org.mozilla.gecko.GeckoApplication;
 import org.mozilla.gecko.LightweightTheme;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.ScrollAnimator;
 import org.mozilla.gecko.db.BrowserContract;
 
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.database.ContentObserver;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -39,13 +37,11 @@ public class AboutHome extends Fragment {
     private LoadCompleteListener mLoadCompleteListener;
     private LightweightTheme mLightweightTheme;
     private ContentObserver mTabsContentObserver;
-    private int mTopPadding;
     private AboutHomeView mAboutHomeView;
     private AddonsSection mAddonsSection;
     private LastTabsSection mLastTabsSection;
     private RemoteTabsSection mRemoteTabsSection;
     private TopSitesView mTopSitesView;
-    private ScrollAnimator mScrollAnimator;
 
     public interface UriLoadListener {
         public void onAboutHomeUriLoad(String uriSpec);
@@ -53,10 +49,6 @@ public class AboutHome extends Fragment {
 
     public interface LoadCompleteListener {
         public void onAboutHomeLoadComplete();
-    }
-
-    public static AboutHome newInstance() {
-        return new AboutHome();
     }
 
     @Override
@@ -106,13 +98,6 @@ public class AboutHome extends Fragment {
         mAboutHomeView.setLightweightTheme(mLightweightTheme);
         mLightweightTheme.addListener(mAboutHomeView);
 
-        // ScrollAnimator implements the View.OnGenericMotionListener
-        // interface, which was added in API level 12.
-        if (Build.VERSION.SDK_INT >= 12) {
-            mScrollAnimator = new ScrollAnimator();
-            mAboutHomeView.setOnGenericMotionListener(mScrollAnimator);
-        }
-
         return mAboutHomeView;
     }
 
@@ -120,7 +105,6 @@ public class AboutHome extends Fragment {
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        view.setPadding(0, mTopPadding, 0, 0);
         ((PromoBox) view.findViewById(R.id.promo_box)).showRandomPromo();
         update(AboutHome.UpdateFlags.ALL);
 
@@ -146,11 +130,6 @@ public class AboutHome extends Fragment {
         mLightweightTheme.removeListener(mAboutHomeView);
         getActivity().getContentResolver().unregisterContentObserver(mTabsContentObserver);
         mTopSitesView.onDestroy();
-
-        if (mScrollAnimator != null) {
-            mScrollAnimator.cancel();
-        }
-        mScrollAnimator = null;
 
         mAboutHomeView = null;
         mAddonsSection = null;
@@ -189,33 +168,28 @@ public class AboutHome extends Fragment {
             return true;
         }
 
-        final int itemId = item.getItemId();
+        switch (item.getItemId()) {
+            case R.id.abouthome_open_new_tab:
+                mTopSitesView.openNewTab(info);
+                return true;
 
-        if (itemId == R.id.abouthome_open_new_tab) {
-            mTopSitesView.openNewTab(info);
-            return true;
+            case R.id.abouthome_open_private_tab:
+                mTopSitesView.openNewPrivateTab(info);
+                return true;
+
+            case R.id.abouthome_topsites_edit:
+                mTopSitesView.editSite(info);
+                return true;
+
+            case R.id.abouthome_topsites_unpin:
+                mTopSitesView.unpinSite(info, TopSitesView.UnpinFlags.REMOVE_PIN);
+                return true;
+
+            case R.id.abouthome_topsites_pin:
+                mTopSitesView.pinSite(info);
+                return true;
+
         }
-
-        if (itemId == R.id.abouthome_open_private_tab) {
-            mTopSitesView.openNewPrivateTab(info);
-            return true;
-        }
-
-        if (itemId == R.id.abouthome_topsites_edit) {
-            mTopSitesView.editSite(info);
-            return true;
-        }
-
-        if (itemId == R.id.abouthome_topsites_unpin) {
-            mTopSitesView.unpinSite(info, TopSitesView.UnpinFlags.REMOVE_PIN);
-            return true;
-        }
-
-        if (itemId == R.id.abouthome_topsites_pin) {
-            mTopSitesView.pinSite(info);
-            return true;
-        }
-
         return super.onContextItemSelected(item);
     }
 
@@ -250,28 +224,5 @@ public class AboutHome extends Fragment {
             mLastTabsSection.show();
         else
             mLastTabsSection.hide();
-    }
-
-    public void requestFocus() {
-        View view = getView();
-        if (view != null) {
-            view.requestFocus();
-        }
-    }
-
-    public void setTopPadding(int topPadding) {
-        View view = getView();
-        if (view != null) {
-            view.setPadding(0, topPadding, 0, 0);
-        }
-
-        // If the padding has changed but the view hasn't been created yet,
-        // store the padding values here; they will be used later in
-        // onViewCreated().
-        mTopPadding = topPadding;
-    }
-
-    public int getTopPadding() {
-        return mTopPadding;
     }
 }

@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedNumber;
+interface SVGAnimatedString;
+
 interface SVGFEGaussianBlurElement : SVGElement {
   readonly attribute SVGAnimatedString in1;
   readonly attribute SVGAnimatedNumber stdDeviationX;

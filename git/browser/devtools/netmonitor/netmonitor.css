@@ -3,19 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#toolbar-labels {
-  overflow: hidden;
-}
-
 #details-pane-toggle[disabled] {
   visibility: hidden;
 }
 
 #response-content-image-box {
-  overflow: auto;
-}
-
-#custom-pane {
   overflow: auto;
 }
 
@@ -28,24 +20,12 @@
   #toolbar-spacer,
   #details-pane-toggle,
   #details-pane[pane-collapsed],
-  .requests-menu-waterfall,
-  .requests-menu-footer-label {
-    display: none;
-  }
-}
-
-@media (min-width: 701px) and (max-width: 1024px) {
-  #body:not([pane-collapsed]) .requests-menu-footer-button,
-  #body:not([pane-collapsed]) .requests-menu-footer-spacer {
+  .requests-menu-waterfall {
     display: none;
   }
 }
 
 @media (min-width: 701px) {
-  #requests-menu-spacer-start {
-    display: none;
-  }
-
   #network-table[waterfall-overflows] .requests-menu-waterfall {
     display: none;
   }

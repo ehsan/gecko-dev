@@ -288,21 +288,12 @@ static void
 DoCommandCallback(const char *aCommand, void *aData)
 {
   nsIControllers *controllers = static_cast<nsIControllers*>(aData);
-  if (!controllers) {
-    return;
-  }
-
-  nsCOMPtr<nsIController> controller;
-  controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-  if (!controller) {
-    return;
-  }
-
-  bool commandEnabled;
-  nsresult rv = controller->IsCommandEnabled(aCommand, &commandEnabled);
-  NS_ENSURE_SUCCESS_VOID(rv);
-  if (commandEnabled) {
-    controller->DoCommand(aCommand);
+  if (controllers) {
+    nsCOMPtr<nsIController> controller;
+    controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
+    if (controller) {
+      controller->DoCommand(aCommand);
+    }
   }
 }
 
@@ -310,7 +301,7 @@ nsresult
 nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType)
 {
   bool prevent;
-  aKeyEvent->GetDefaultPrevented(&prevent);
+  aKeyEvent->GetPreventDefault(&prevent);
   if (prevent)
     return NS_OK;
 
@@ -329,7 +320,7 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   if (!el) {
     if (mUserHandler) {
       WalkHandlersInternal(aKeyEvent, aEventType, mUserHandler);
-      aKeyEvent->GetDefaultPrevented(&prevent);
+      aKeyEvent->GetPreventDefault(&prevent);
       if (prevent)
         return NS_OK; // Handled by the user bindings. Our work here is done.
     }

@@ -77,7 +77,6 @@ enum DeviceVendor {
   VendorNVIDIA,
   VendorAMD,
   VendorATI,
-  VendorMicrosoft,
   DeviceVendorMax
 };
 
@@ -213,7 +212,7 @@ inline void PadDriverDecimal(char *aString)
 }
 
 inline bool
-ParseDriverVersion(const nsAString& aVersion, uint64_t *aNumericVersion)
+ParseDriverVersion(nsAString& aVersion, uint64_t *aNumericVersion)
 {
 #if defined(XP_WIN)
   int a, b, c, d;

@@ -353,22 +353,13 @@ nsDocShellTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aShell)
 {
    NS_ENSURE_ARG_POINTER(aShell);
 
-   if (mTreeOwner)
+   if(mTreeOwner)
        return mTreeOwner->GetPrimaryContentShell(aShell);
 
    *aShell = (mPrimaryContentShell ? mPrimaryContentShell : mWebBrowser->mDocShell);
    NS_IF_ADDREF(*aShell);
 
    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShellTreeOwner::GetContentWindow(JSContext* aCx, JS::Value* aVal)
-{
-  if (mTreeOwner)
-    return mTreeOwner->GetContentWindow(aCx, aVal);
-
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -915,7 +906,7 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
   NS_ENSURE_TRUE(dragEvent, NS_ERROR_INVALID_ARG);
 
   bool defaultPrevented;
-  aEvent->GetDefaultPrevented(&defaultPrevented);
+  aEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return NS_OK;
   }
@@ -994,7 +985,7 @@ class DefaultTooltipTextProvider MOZ_FINAL : public nsITooltipTextProvider
 public:
     DefaultTooltipTextProvider();
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSITOOLTIPTEXTPROVIDER
     
 protected:
@@ -1003,7 +994,7 @@ protected:
     nsCOMPtr<nsIAtom>   mTag_window;
 };
 
-NS_IMPL_ISUPPORTS1(DefaultTooltipTextProvider, nsITooltipTextProvider)
+NS_IMPL_THREADSAFE_ISUPPORTS1(DefaultTooltipTextProvider, nsITooltipTextProvider)
 
 DefaultTooltipTextProvider::DefaultTooltipTextProvider()
 {
@@ -1650,7 +1641,7 @@ ChromeContextMenuListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   NS_ENSURE_TRUE(mouseEvent, NS_ERROR_UNEXPECTED);
 
   bool isDefaultPrevented = false;
-  aMouseEvent->GetDefaultPrevented(&isDefaultPrevented);
+  aMouseEvent->GetPreventDefault(&isDefaultPrevented);
   if (isDefaultPrevented) {
     return NS_OK;
   }

@@ -12,10 +12,10 @@
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsCSSProps.h"
+#include "nsContentUtils.h"
 #include "nsStyleUtil.h"
 #include "CSSCalc.h"
 #include "nsNetUtil.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/Likely.h"
 
@@ -615,7 +615,8 @@ nsCSSValue::EqualsFunction(nsCSSKeyword aFunctionId) const
                     func->Item(0).GetUnit() == eCSSUnit_Enumerated,
                     "illegally structured function value");
 
-  nsCSSKeyword thisFunctionId = func->Item(0).GetKeywordValue();
+  nsCSSKeyword thisFunctionId =
+    static_cast<nsCSSKeyword>(func->Item(0).GetIntValue());
   return thisFunctionId == aFunctionId;
 }
 
@@ -774,38 +775,13 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
     const nsCSSValue& functionName = array->Item(0);
     if (functionName.GetUnit() == eCSSUnit_Enumerated) {
       // We assume that the first argument is always of nsCSSKeyword type.
-      const nsCSSKeyword functionId = functionName.GetKeywordValue();
-      NS_ConvertASCIItoUTF16 ident(nsCSSKeywords::GetStringValue(functionId));
-      // Bug 721136: Normalize the identifier to lowercase, except that things
-      // like scaleX should have the last character capitalized.  This matches
-      // what other browsers do.
-      switch (functionId) {
-        case eCSSKeyword_rotatex:
-        case eCSSKeyword_scalex:
-        case eCSSKeyword_skewx:
-        case eCSSKeyword_translatex:
-          ident.Replace(ident.Length() - 1, 1, PRUnichar('X'));
-          break;
-
-        case eCSSKeyword_rotatey:
-        case eCSSKeyword_scaley:
-        case eCSSKeyword_skewy:
-        case eCSSKeyword_translatey:
-          ident.Replace(ident.Length() - 1, 1, PRUnichar('Y'));
-          break;
-
-        case eCSSKeyword_rotatez:
-        case eCSSKeyword_scalez:
-        case eCSSKeyword_translatez:
-          ident.Replace(ident.Length() - 1, 1, PRUnichar('Z'));
-          break;
-
-        default:
-          break;
-      }
-      nsStyleUtil::AppendEscapedCSSIdent(ident, aResult);
+      const nsCSSKeyword functionId =
+        static_cast<nsCSSKeyword>(functionName.GetIntValue());
+      nsStyleUtil::AppendEscapedCSSIdent(
+        NS_ConvertASCIItoUTF16(nsCSSKeywords::GetStringValue(functionId)),
+        aResult);
     } else {
-      MOZ_ASSERT(false, "should no longer have non-enumerated functions");
+      functionName.AppendToString(aProperty, aResult);
     }
     aResult.AppendLiteral("(");
 
@@ -832,20 +808,6 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
   else if (eCSSUnit_Enumerated == unit) {
     int32_t intValue = GetIntValue();
     switch(aProperty) {
-
-
-    case eCSSProperty_text_combine_horizontal:
-      if (intValue <= NS_STYLE_TEXT_COMBINE_HORIZ_ALL) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else if (intValue == NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2) {
-        aResult.AppendLiteral("digits 2");
-      } else if (intValue == NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_3) {
-        aResult.AppendLiteral("digits 3");
-      } else {
-        aResult.AppendLiteral("digits 4");
-      }
-      break;
 
     case eCSSProperty_text_decoration_line:
       if (NS_STYLE_TEXT_DECORATION_LINE_NONE == intValue) {
@@ -876,7 +838,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
       break;
 
     case eCSSProperty_paint_order:
-      static_assert
+      MOZ_STATIC_ASSERT
         (NS_STYLE_PAINT_ORDER_BITWIDTH * NS_STYLE_PAINT_ORDER_LAST_VALUE <= 8,
          "SVGStyleStruct::mPaintOrder and the following cast not big enough");
       nsStyleUtil::AppendPaintOrderValue(static_cast<uint8_t>(GetIntValue()),
@@ -1249,7 +1211,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
 }
 
 size_t
-nsCSSValue::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValue::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 
@@ -1450,7 +1412,7 @@ nsCSSValueList::operator==(const nsCSSValueList& aOther) const
 }
 
 size_t
-nsCSSValueList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSValueList* v = this;
@@ -1463,7 +1425,7 @@ nsCSSValueList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-nsCSSValueList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueList_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1536,7 +1498,7 @@ void nsCSSRect::SetAllSidesTo(const nsCSSValue& aValue)
 }
 
 size_t
-nsCSSRect_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSRect_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mTop   .SizeOfExcludingThis(aMallocSizeOf);
@@ -1546,9 +1508,9 @@ nsCSSRect_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   return n;
 }
 
-static_assert(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
-              NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
-              "box side constants not top/right/bottom/left == 0/1/2/3");
+MOZ_STATIC_ASSERT(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
+                  NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
+                  "box side constants not top/right/bottom/left == 0/1/2/3");
 
 /* static */ const nsCSSRect::side_type nsCSSRect::sides[4] = {
   &nsCSSRect::mTop,
@@ -1571,7 +1533,7 @@ nsCSSValuePair::AppendToString(nsCSSProperty aProperty,
 }
 
 size_t
-nsCSSValuePair::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePair::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1580,7 +1542,7 @@ nsCSSValuePair::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-nsCSSValuePair_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePair_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1606,7 +1568,7 @@ nsCSSValueTriplet::AppendToString(nsCSSProperty aProperty,
 }
 
 size_t
-nsCSSValueTriplet_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueTriplet_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1679,7 +1641,7 @@ nsCSSValuePairList::operator==(const nsCSSValuePairList& aOther) const
 }
 
 size_t
-nsCSSValuePairList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePairList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSValuePairList* v = this;
@@ -1693,7 +1655,7 @@ nsCSSValuePairList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) con
 }
 
 size_t
-nsCSSValuePairList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePairList_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1703,7 +1665,7 @@ nsCSSValuePairList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
 }
 
 size_t
-nsCSSValue::Array::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValue::Array::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   for (size_t i = 0; i < mCount; i++) {
@@ -1790,7 +1752,7 @@ css::URLValue::GetURI() const
 }
 
 size_t
-css::URLValue::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+css::URLValue::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -1881,7 +1843,7 @@ nsCSSValueGradientStop::~nsCSSValueGradientStop()
 }
 
 size_t
-nsCSSValueGradientStop::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueGradientStop::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mLocation.SizeOfExcludingThis(aMallocSizeOf);
@@ -1903,7 +1865,7 @@ nsCSSValueGradient::nsCSSValueGradient(bool aIsRadial,
 }
 
 size_t
-nsCSSValueGradient::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueGradient::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mBgPos.SizeOfExcludingThis(aMallocSizeOf);
@@ -1946,9 +1908,9 @@ nsCSSCornerSizes::Reset()
   }
 }
 
-static_assert(NS_CORNER_TOP_LEFT == 0 && NS_CORNER_TOP_RIGHT == 1 &&
-              NS_CORNER_BOTTOM_RIGHT == 2 && NS_CORNER_BOTTOM_LEFT == 3,
-              "box corner constants not tl/tr/br/bl == 0/1/2/3");
+MOZ_STATIC_ASSERT(NS_CORNER_TOP_LEFT == 0 && NS_CORNER_TOP_RIGHT == 1 &&
+                  NS_CORNER_BOTTOM_RIGHT == 2 && NS_CORNER_BOTTOM_LEFT == 3,
+                  "box corner constants not tl/tr/br/bl == 0/1/2/3");
 
 /* static */ const nsCSSCornerSizes::corner_type
 nsCSSCornerSizes::corners[4] = {

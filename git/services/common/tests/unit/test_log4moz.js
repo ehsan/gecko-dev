@@ -1,16 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/osfile.jsm");
 
 Cu.import("resource://services-common/log4moz.js");
 
 let testFormatter = {
   format: function format(message) {
-    return message.loggerName + "\t" +
-      message.levelDesc + "\t" +
-      message.message + "\n";
+    return message.loggerName + "\t" + message.levelDesc + "\t" +
+           message.message + "\n";
   }
 };
 
@@ -41,9 +40,8 @@ add_test(function test_Logger() {
   log.debug("this should be logged but not appended.");
 
   do_check_eq(appender.messages.length, 1);
-
-  let msgRe = /\d+\ttest.logger\t\INFO\tinfo test/;
-  do_check_true(msgRe.test(appender.messages[0]));
+  do_check_true(appender.messages[0].indexOf("info test") > 0);
+  do_check_true(appender.messages[0].indexOf("INFO") > 0);
 
   run_next_test();
 });
@@ -66,113 +64,6 @@ add_test(function test_Logger_parent() {
 
   do_check_eq(gpAppender.messages.length, 1);
   do_check_true(gpAppender.messages[0].indexOf("child info test") > 0);
-
-  run_next_test();
-});
-
-// A utility method for checking object equivalence.
-// Fields with a reqular expression value in expected will be tested
-// against the corresponding value in actual. Otherwise objects
-// are expected to have the same keys and equal values.
-function checkObjects(expected, actual) {
-  do_check_true(expected instanceof Object);
-  do_check_true(actual instanceof Object);
-  for (let key in expected) {
-    do_check_neq(actual[key], undefined);
-    if (expected[key] instanceof RegExp) {
-      do_check_true(expected[key].test(actual[key].toString()));
-    } else {
-      if (expected[key] instanceof Object) {
-        checkObjects(expected[key], actual[key]);
-      } else {
-        do_check_eq(expected[key], actual[key]);
-      }
-    }
-  }
-
-  for (let key in actual) {
-    do_check_neq(expected[key], undefined);
-  }
-}
-
-add_test(function test_StructuredLogCommands() {
-  let appender = new MockAppender(new Log4Moz.StructuredFormatter());
-  let logger = Log4Moz.repository.getLogger("test.StructuredOutput");
-  logger.addAppender(appender);
-  logger.level = Log4Moz.Level.Info;
-
-  logger.logStructured("test_message", {_message: "message string one"});
-  logger.logStructured("test_message", {_message: "message string two",
-                                        _level: "ERROR",
-                                        source_file: "test_log4moz.js"});
-  logger.logStructured("test_message");
-  logger.logStructured("test_message", {source_file: "test_log4moz.js",
-                                        message_position: 4});
-
-  let messageOne = {"_time": /\d+/,
-                    "_namespace": "test.StructuredOutput",
-                    "_level": "INFO",
-                    "_message": "message string one",
-                    "action": "test_message"};
-
-  let messageTwo = {"_time": /\d+/,
-                    "_namespace": "test.StructuredOutput",
-                    "_level": "ERROR",
-                    "_message": "message string two",
-                    "action": "test_message",
-                    "source_file": "test_log4moz.js"};
-
-  let messageThree = {"_time": /\d+/,
-                      "_namespace": "test.StructuredOutput",
-                      "_level": "INFO",
-                      "action": "test_message"};
-
-  let messageFour = {"_time": /\d+/,
-                     "_namespace": "test.StructuredOutput",
-                     "_level": "INFO",
-                     "action": "test_message",
-                     "source_file": "test_log4moz.js",
-                     "message_position": 4};
-
-  checkObjects(messageOne, JSON.parse(appender.messages[0]));
-  checkObjects(messageTwo, JSON.parse(appender.messages[1]));
-  checkObjects(messageThree, JSON.parse(appender.messages[2]));
-  checkObjects(messageFour, JSON.parse(appender.messages[3]));
-
-  let errored = false;
-  try {
-    logger.logStructured("", {_message: "invalid message"});
-  } catch (e) {
-    errored = true;
-    do_check_eq(e, "An action is required when logging a structured message.");
-  } finally {
-    do_check_true(errored);
-  }
-
-  let errored = false;
-  try {
-    logger.logStructured("message_action", "invalid params");
-  } catch (e) {
-    errored = true;
-    do_check_eq(e, "The params argument is required to be an object.");
-  } finally {
-    do_check_true(errored);
-  }
-
-  // Logging with unstructured interface should produce the same messages
-  // as the structured interface for these cases.
-  let appender = new MockAppender(new Log4Moz.StructuredFormatter());
-  let logger = Log4Moz.repository.getLogger("test.StructuredOutput1");
-  messageOne._namespace = "test.StructuredOutput1";
-  messageTwo._namespace = "test.StructuredOutput1";
-  logger.addAppender(appender);
-  logger.level = Log4Moz.Level.All;
-  logger.info("message string one", {action: "test_message"});
-  logger.error("message string two", {action: "test_message",
-                                      source_file: "test_log4moz.js"});
-
-  checkObjects(messageOne, JSON.parse(appender.messages[0]));
-  checkObjects(messageTwo, JSON.parse(appender.messages[1]));
 
   run_next_test();
 });
@@ -209,107 +100,41 @@ add_test(function test_StorageStreamAppender() {
   run_next_test();
 });
 
-function fileContents(path) {
-  let decoder = new TextDecoder();
-  return OS.File.read(path).then(array => {
-    return decoder.decode(array);
-  });
+function readFile(file) {
+  let fstream = Cc["@mozilla.org/network/file-input-stream;1"]
+                  .createInstance(Ci.nsIFileInputStream);
+  fstream.init(file, -1, 0, 0);
+  let data = NetUtil.readInputStreamToString(fstream, fstream.available());
+  fstream.close();
+  return data;
 }
 
-add_task(function test_FileAppender() {
+add_test(function test_FileAppender() {
   // This directory does not exist yet
-  let dir = OS.Path.join(do_get_profile().path, "test_log4moz");
-  do_check_false(yield OS.File.exists(dir));
-  let path = OS.Path.join(dir, "test_FileAppender");
-  let appender = new Log4Moz.FileAppender(path, testFormatter);
+  let dir = FileUtils.getFile("ProfD", ["test_log4moz"]);
+  do_check_false(dir.exists());
+
+  let file = dir.clone();
+  file.append("test_FileAppender");
+  let appender = new Log4Moz.FileAppender(file, testFormatter);
+
+  // Logging against to a file that can't be created won't do harm.
   let logger = Log4Moz.repository.getLogger("test.FileAppender");
   logger.addAppender(appender);
-
-  // Logging to a file that can't be created won't do harm.
-  do_check_false(yield OS.File.exists(path));
-  logger.info("OHAI!");
-
-  yield OS.File.makeDir(dir);
   logger.info("OHAI");
-  yield appender._lastWritePromise;
 
-  do_check_eq((yield fileContents(path)),
-              "test.FileAppender\tINFO\tOHAI\n");
-
+  // The file will be written Once the directory leading up to the file exists.
+  dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
   logger.info("OHAI");
-  yield appender._lastWritePromise;
-
-  do_check_eq((yield fileContents(path)),
-              "test.FileAppender\tINFO\tOHAI\n" +
-              "test.FileAppender\tINFO\tOHAI\n");
+  do_check_true(file.exists());
+  do_check_eq(readFile(file), "test.FileAppender\tINFO\tOHAI\n");
 
   // Reset the appender and log some more.
-  yield appender.reset();
-  do_check_false(yield OS.File.exists(path));
-
+  appender.reset();
+  do_check_false(file.exists());
   logger.debug("O RLY?!?");
-  yield appender._lastWritePromise;
-  do_check_eq((yield fileContents(path)),
-              "test.FileAppender\tDEBUG\tO RLY?!?\n");
+  do_check_true(file.exists());
+  do_check_eq(readFile(file), "test.FileAppender\tDEBUG\tO RLY?!?\n");
 
-  yield appender.reset();
-  logger.debug("1");
-  logger.info("2");
-  logger.info("3");
-  logger.info("4");
-  logger.info("5");
-  // Waiting on only the last promise should account for all of these.
-  yield appender._lastWritePromise;
-
-  // Messages ought to be logged in order.
-  do_check_eq((yield fileContents(path)),
-              "test.FileAppender\tDEBUG\t1\n" +
-              "test.FileAppender\tINFO\t2\n" +
-              "test.FileAppender\tINFO\t3\n" +
-              "test.FileAppender\tINFO\t4\n" +
-              "test.FileAppender\tINFO\t5\n");
+  run_next_test();
 });
-
-add_task(function test_BoundedFileAppender() {
-  let dir = OS.Path.join(do_get_profile().path, "test_log4moz");
-  let path = OS.Path.join(dir, "test_BoundedFileAppender");
-  // This appender will hold about two lines at a time.
-  let appender = new Log4Moz.BoundedFileAppender(path, testFormatter, 40);
-  let logger = Log4Moz.repository.getLogger("test.BoundedFileAppender");
-  logger.addAppender(appender);
-
-  logger.info("ONE");
-  logger.info("TWO");
-  yield appender._lastWritePromise;
-
-  do_check_eq((yield fileContents(path)),
-              "test.BoundedFileAppender\tINFO\tONE\n" +
-              "test.BoundedFileAppender\tINFO\tTWO\n");
-
-  logger.info("THREE");
-  logger.info("FOUR");
-
-  do_check_neq(appender._removeFilePromise, undefined);
-  yield appender._removeFilePromise;
-  yield appender._lastWritePromise;
-
-  do_check_eq((yield fileContents(path)),
-              "test.BoundedFileAppender\tINFO\tTHREE\n" +
-              "test.BoundedFileAppender\tINFO\tFOUR\n");
-
-  yield appender.reset();
-  logger.info("ONE");
-  logger.info("TWO");
-  logger.info("THREE");
-  logger.info("FOUR");
-
-  do_check_neq(appender._removeFilePromise, undefined);
-  yield appender._removeFilePromise;
-  yield appender._lastWritePromise;
-
-  do_check_eq((yield fileContents(path)),
-              "test.BoundedFileAppender\tINFO\tTHREE\n" +
-              "test.BoundedFileAppender\tINFO\tFOUR\n");
-
-});
-

@@ -7,9 +7,7 @@
 
 #include "SkBitmapSource.h"
 
-SkBitmapSource::SkBitmapSource(const SkBitmap& bitmap)
-  : INHERITED(0),
-    fBitmap(bitmap) {
+SkBitmapSource::SkBitmapSource(const SkBitmap& bitmap) : fBitmap(bitmap) {
 }
 
 SkBitmapSource::SkBitmapSource(SkFlattenableReadBuffer& buffer)
@@ -27,3 +25,5 @@ bool SkBitmapSource::onFilterImage(Proxy*, const SkBitmap&, const SkMatrix&,
     *result = fBitmap;
     return true;
 }
+
+SK_DEFINE_FLATTENABLE_REGISTRAR(SkBitmapSource)

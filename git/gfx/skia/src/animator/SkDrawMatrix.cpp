@@ -61,7 +61,7 @@ SkDrawMatrix::~SkDrawMatrix() {
         delete *part;
 }
 
-bool SkDrawMatrix::addChild(SkAnimateMaker& maker, SkDisplayable* child) {
+bool SkDrawMatrix::add(SkAnimateMaker& maker, SkDisplayable* child) {
     SkASSERT(child && child->isMatrixPart());
     SkMatrixPart* part = (SkMatrixPart*) child;
     *fParts.append() = part;
@@ -266,3 +266,4 @@ bool SkDrawMatrix::setProperty(int index, SkScriptValue& scriptValue) {
     fConcat = fMatrix;
     return true;
 }
+

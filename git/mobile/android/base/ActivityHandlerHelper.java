@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.ActivityResultHandlerMap;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -29,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
-public class ActivityHandlerHelper implements GeckoEventListener {
+public class ActivityHandlerHelper {
     private static final String LOGTAG = "GeckoActivityHandlerHelper";
 
     private final ConcurrentLinkedQueue<String> mFilePickerResult;
@@ -39,10 +38,6 @@ public class ActivityHandlerHelper implements GeckoEventListener {
     private final AwesomebarResultHandler mAwesomebarResultHandler;
     private final CameraImageResultHandler mCameraImageResultHandler;
     private final CameraVideoResultHandler mCameraVideoResultHandler;
-
-    public interface FileResultHandler {
-        public void gotFile(String filename);
-    }
 
     @SuppressWarnings("serial")
     public ActivityHandlerHelper() {
@@ -61,34 +56,6 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         mAwesomebarResultHandler = new AwesomebarResultHandler();
         mCameraImageResultHandler = new CameraImageResultHandler(mFilePickerResult);
         mCameraVideoResultHandler = new CameraVideoResultHandler(mFilePickerResult);
-        GeckoAppShell.getEventDispatcher().registerEventListener("FilePicker:Show", this);
-    }
-
-    @Override
-    public void handleMessage(String event, final JSONObject message) {
-        if (event.equals("FilePicker:Show")) {
-            String mimeType = "*/*";
-            String mode = message.optString("mode");
-
-            if ("mimeType".equals(mode))
-                mimeType = message.optString("mimeType");
-            else if ("extension".equals(mode))
-                mimeType = GeckoAppShell.getMimeTypeFromExtensions(message.optString("extensions"));
-
-            Log.i(LOGTAG, "Mime: " + mimeType);
-
-            showFilePickerAsync(GeckoAppShell.getGeckoInterface().getActivity(), mimeType, new FileResultHandler() {
-                public void gotFile(String filename) {
-                    try {
-                        message.put("file", filename);
-                    } catch (JSONException ex) {
-                        Log.i(LOGTAG, "Can't add filename to message " + filename);
-                    }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
-                        "FilePicker:Result", message.toString()));
-                }
-            });
-        }
     }
 
     public int makeRequestCodeForAwesomebar() {
@@ -99,13 +66,9 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         return mActivityResultHandlerMap.put(aHandler);
     }
 
-    public void startIntentForActivity (Activity activity, Intent intent, ActivityResultHandler activityResultHandler) {
-        activity.startActivityForResult(intent, mActivityResultHandlerMap.put(activityResultHandler));
-    }
-
-    private int addIntentActivitiesToList(Context context, Intent intent, ArrayList<Prompt.PromptListItem> items, ArrayList<Intent> aIntents) {
+    private int addIntentActivitiesToList(Context context, Intent intent, ArrayList<PromptService.PromptListItem> items, ArrayList<Intent> aIntents) {
         PackageManager pm = context.getPackageManager();
-        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GeckoAppShell.getGeckoInterface().getActivity().getComponentName(), null, intent, 0);
+        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GeckoApp.mAppContext.getComponentName(), null, intent, 0);
 
         if (lri == null) {
             return 0;
@@ -117,7 +80,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
                     ri.activityInfo.applicationInfo.packageName,
                     ri.activityInfo.name));
 
-            Prompt.PromptListItem item = new Prompt.PromptListItem(ri.loadLabel(pm).toString());
+            PromptService.PromptListItem item = new PromptService.PromptListItem(ri.loadLabel(pm).toString());
             item.icon = ri.loadIcon(pm);
             items.add(item);
             aIntents.add(rintent);
@@ -126,7 +89,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         return lri.size();
     }
 
-    private int addFilePickingActivities(Context context, ArrayList<Prompt.PromptListItem> aItems, String aType, ArrayList<Intent> aIntents) {
+    private int addFilePickingActivities(Context context, ArrayList<PromptService.PromptListItem> aItems, String aType, ArrayList<Intent> aIntents) {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType(aType);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -134,8 +97,8 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         return addIntentActivitiesToList(context, intent, aItems, aIntents);
     }
 
-    private Prompt.PromptListItem[] getItemsAndIntentsForFilePicker(Context context, String aMimeType, ArrayList<Intent> aIntents) {
-        ArrayList<Prompt.PromptListItem> items = new ArrayList<Prompt.PromptListItem>();
+    private PromptService.PromptListItem[] getItemsAndIntentsForFilePicker(Context context, String aMimeType, ArrayList<Intent> aIntents) {
+        ArrayList<PromptService.PromptListItem> items = new ArrayList<PromptService.PromptListItem>();
 
         if (aMimeType.equals("audio/*")) {
             if (addFilePickingActivities(context, items, "audio/*", aIntents) <= 0) {
@@ -171,7 +134,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
             addFilePickingActivities(context, items, "*/*", aIntents);
         }
 
-        return items.toArray(new Prompt.PromptListItem[] {});
+        return items.toArray(new PromptService.PromptListItem[] {});
     }
 
     private String getFilePickerTitle(Context context, String aMimeType) {
@@ -186,65 +149,9 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         }
     }
 
-    private interface IntentHandler {
-        public void gotIntent(Intent intent);
-    }
-
-    /* Gets an intent that can open a particular mimetype. Will show a prompt with a list
-     * of Activities that can handle the mietype. Asynchronously calls the handler when
-     * one of the intents is selected. If the caller passes in null for the handler, will still
-     * prompt for the activity, but will throw away the result.
-     */
-    private void getFilePickerIntentAsync(final Context context, String aMimeType, final IntentHandler handler) {
-        final ArrayList<Intent> intents = new ArrayList<Intent>();
-        final Prompt.PromptListItem[] items =
-            getItemsAndIntentsForFilePicker(context, aMimeType, intents);
-
-        if (intents.size() == 0) {
-            Log.i(LOGTAG, "no activities for the file picker!");
-            handler.gotIntent(null);
-            return;
-        }
-
-        if (intents.size() == 1) {
-            handler.gotIntent(intents.get(0));
-            return;
-        }
-
-        final Prompt prompt = new Prompt(context, new Prompt.PromptCallback() {
-            public void onPromptFinished(String promptServiceResult) {
-                if (handler == null) {
-                    return;
-                }
-
-                int itemId = -1;
-                try {
-                    itemId = new JSONObject(promptServiceResult).getInt("button");
-                } catch (JSONException e) {
-                    Log.e(LOGTAG, "result from promptservice was invalid: ", e);
-                }
-
-                if (itemId == -1) {
-                    handler.gotIntent(null);
-                } else {
-                    handler.gotIntent(intents.get(itemId));
-                }
-            }
-        });
-
-        final String title = getFilePickerTitle(context, aMimeType);
-        // Runnable has to be called to show an intent-like
-        // context menu UI using the PromptService.
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override public void run() {
-                prompt.show(title, "", items, false);
-            }
-        });
-    }
-
     private Intent getFilePickerIntent(Context context, String aMimeType) {
         ArrayList<Intent> intents = new ArrayList<Intent>();
-        final Prompt.PromptListItem[] items =
+        final PromptService.PromptListItem[] items =
             getItemsAndIntentsForFilePicker(context, aMimeType, intents);
 
         if (intents.size() == 0) {
@@ -256,18 +163,18 @@ public class ActivityHandlerHelper implements GeckoEventListener {
             return intents.get(0);
         }
 
-        final PromptService ps = GeckoAppShell.getGeckoInterface().getPromptService();
+        final PromptService ps = GeckoApp.mAppContext.getPromptService();
         final String title = getFilePickerTitle(context, aMimeType);
 
         // Runnable has to be called to show an intent-like
         // context menu UI using the PromptService.
         ThreadUtils.postToUiThread(new Runnable() {
             @Override public void run() {
-                ps.show(title, "", items, false, null);
+                ps.show(title, "", items, false);
             }
         });
 
-        String promptServiceResult = ps.getResponse(null);
+        String promptServiceResult = ps.getResponse();
         int itemId = -1;
         try {
             itemId = new JSONObject(promptServiceResult).getInt("button");
@@ -316,40 +223,6 @@ public class ActivityHandlerHelper implements GeckoEventListener {
             GeckoAppShell.processNextNativeEvent(true);
         }
         return filePickerResult;
-    }
-
-    /* Allows the user to pick an activity to load files from using a list prompt. Then opens the activity and
-     * sends the file returned to the passed in handler. If a null handler is passed in, will still
-     * pick and launch the file picker, but will throw away the result.
-     */
-    public void showFilePickerAsync(final Activity parentActivity, String aMimeType, final FileResultHandler handler) {
-        getFilePickerIntentAsync(parentActivity, aMimeType, new IntentHandler() {
-            public void gotIntent(Intent intent) {
-                if (handler == null) {
-                    return;
-                }
-
-                if (intent == null) {
-                    handler.gotFile("");
-                    return;
-                }
-
-                if (MediaStore.ACTION_IMAGE_CAPTURE.equals(intent.getAction())) {
-                    CameraImageResultHandler cam = new CameraImageResultHandler(handler);
-                    parentActivity.startActivityForResult(intent, mActivityResultHandlerMap.put(cam));
-                } else if (MediaStore.ACTION_VIDEO_CAPTURE.equals(intent.getAction())) {
-                    CameraVideoResultHandler vid = new CameraVideoResultHandler(handler);
-                    parentActivity.startActivityForResult(intent, mActivityResultHandlerMap.put(vid));
-                } else if (Intent.ACTION_GET_CONTENT.equals(intent.getAction())) {
-                    FilePickerResultHandlerSync file = new FilePickerResultHandlerSync(handler);
-                    parentActivity.startActivityForResult(intent, mActivityResultHandlerMap.put(file));
-                } else {
-                    Log.e(LOGTAG, "We should not get an intent with another action!");
-                    handler.gotFile("");
-                    return;
-                }
-            }
-        });
     }
 
     boolean handleActivityResult(int requestCode, int resultCode, Intent data) {

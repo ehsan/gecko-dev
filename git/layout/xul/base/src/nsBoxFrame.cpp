@@ -35,7 +35,6 @@
 #include "nsBoxFrame.h"
 #include "mozilla/dom/Touch.h"
 #include "nsStyleContext.h"
-#include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsINameSpaceManager.h"
@@ -61,7 +60,6 @@
 #include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
-#include "nsThemeConstants.h"
 #include <algorithm>
 
 // Needed for Print Preview
@@ -1891,10 +1889,7 @@ bool
 IsBoxOrdinalLEQ(nsIFrame* aFrame1,
                 nsIFrame* aFrame2)
 {
-  // If we've got a placeholder frame, use its out-of-flow frame's ordinal val.
-  nsIFrame* aRealFrame1 = nsPlaceholderFrame::GetRealFrameFor(aFrame1);
-  nsIFrame* aRealFrame2 = nsPlaceholderFrame::GetRealFrameFor(aFrame2);
-  return aRealFrame1->GetOrdinal() <= aRealFrame2->GetOrdinal();
+  return aFrame1->GetOrdinal() <= aFrame2->GetOrdinal();
 }
 
 void 
@@ -2078,13 +2073,14 @@ nsBoxFrame::GetEventPoint(nsGUIEvent* aEvent, nsIntPoint &aPoint) {
       return false;
     }
 
-    dom::Touch* touch = touchEvent->touches.SafeElementAt(0);
+    nsIDOMTouch *touch = touchEvent->touches.SafeElementAt(0);
     if (!touch) {
       return false;
     }
-    aPoint = touch->mRefPoint;
+    Touch* domtouch = static_cast<Touch*>(touch);
+    aPoint = domtouch->mRefPoint;
   } else {
-    aPoint = LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
+    aPoint = aEvent->refPoint;
   }
   return true;
 }

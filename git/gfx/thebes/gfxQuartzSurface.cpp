@@ -16,7 +16,7 @@ gfxQuartzSurface::MakeInvalid()
 
 gfxQuartzSurface::gfxQuartzSurface(const gfxSize& desiredSize, gfxImageFormat format,
                                    bool aForPrinting)
-    : mCGContext(nullptr), mSize(desiredSize), mForPrinting(aForPrinting)
+    : mCGContext(NULL), mSize(desiredSize), mForPrinting(aForPrinting)
 {
     gfxIntSize size((unsigned int) floor(desiredSize.width),
                     (unsigned int) floor(desiredSize.height));
@@ -125,29 +125,6 @@ gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,
     }
 }
 
-gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,
-                                   const gfxIntSize& aSize,
-                                   long stride,
-                                   gfxImageFormat format,
-                                   bool aForPrinting)
-    : mCGContext(nullptr), mSize(aSize.width, aSize.height), mForPrinting(aForPrinting)
-{
-    if (!CheckSurfaceSize(aSize))
-        MakeInvalid();
-
-    cairo_surface_t *surf = cairo_quartz_surface_create_for_data
-        (data, (cairo_format_t) format, aSize.width, aSize.height, stride);
-
-    mCGContext = cairo_quartz_surface_get_cg_context (surf);
-
-    CGContextRetain(mCGContext);
-
-    Init(surf);
-    if (mSurfaceValid) {
-      RecordMemoryUsed(mSize.height * stride + sizeof(gfxQuartzSurface));
-    }
-}
-
 already_AddRefed<gfxASurface>
 gfxQuartzSurface::CreateSimilarSurface(gfxContentType aType,
                                        const gfxIntSize& aSize)
@@ -192,9 +169,10 @@ already_AddRefed<gfxImageSurface> gfxQuartzSurface::GetAsImageSurface()
     // shares the refcounts of Cairo surfaces. However, Wrap also adds a
     // reference to the image. We need to remove one of these references
     // explicitly so we don't leak.
-    img->Release();
+    gfxImageSurface* imgSurface = static_cast<gfxImageSurface*> (img.forget().get());
+    imgSurface->Release();
 
-    return img.forget().downcast<gfxImageSurface>();
+    return imgSurface;
 }
 
 gfxQuartzSurface::~gfxQuartzSurface()

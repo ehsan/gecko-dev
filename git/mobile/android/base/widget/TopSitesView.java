@@ -124,11 +124,6 @@ public class TopSitesView extends GridView {
                 // We can assume that the adapter count and view count are the same in this case because our grid view
                 // force all items to be visible all the time
                 View view = getChildAt(info.position);
-                // The grid view might get temporarily out of sync with the
-                // adapter refreshes (e.g. on device rotation)
-                if (view == null) {
-                    return;
-                }
                 TopSitesViewHolder holder = (TopSitesViewHolder) view.getTag();
                 if (TextUtils.isEmpty(holder.getUrl())) {
                     menu.findItem(R.id.abouthome_open_new_tab).setVisible(false);
@@ -293,9 +288,8 @@ public class TopSitesView extends GridView {
 
             // The grid view might get temporarily out of sync with the
             // adapter refreshes (e.g. on device rotation)
-            if (view == null) {
+            if (view == null)
                 continue;
-            }
 
             TopSitesViewHolder holder = (TopSitesViewHolder)view.getTag();
             final String url = holder.getUrl();
@@ -322,8 +316,7 @@ public class TopSitesView extends GridView {
                 if (b == null)
                     continue;
 
-                Bitmap thumbnail = null;
-                thumbnail = BitmapUtils.decodeByteArray(b);
+                Bitmap thumbnail = BitmapUtils.decodeByteArray(b);
                 if (thumbnail == null)
                     continue;
 
@@ -390,6 +383,7 @@ public class TopSitesView extends GridView {
         }
 
         public void setTitle(String title) {
+            Log.i(LOGTAG, "setTitle " + title + " from " + mTitle);
             if (mTitle != null && mTitle.equals(title))
                 return;
             mTitle = title;
@@ -401,6 +395,7 @@ public class TopSitesView extends GridView {
         }
 
         public void setUrl(String url) {
+            Log.i(LOGTAG, "setUrl " + url + " from " + mUrl);
             if (mUrl != null && mUrl.equals(url)) {
                 return;
             }
@@ -480,6 +475,7 @@ public class TopSitesView extends GridView {
                 viewHolder = (TopSitesViewHolder) convertView.getTag();
             }
 
+            Log.i(LOGTAG, "Build");
             viewHolder.setTitle(title);
             viewHolder.setUrl(url);
             viewHolder.setPinned(pinned);
@@ -512,11 +508,6 @@ public class TopSitesView extends GridView {
     private void clearThumbnailsWithUrl(final String url) {
         for (int i = 0; i < mTopSitesAdapter.getCount(); i++) {
             final View view = getChildAt(i);
-            // The grid view might get temporarily out of sync with the
-            // adapter refreshes (e.g. on device rotation)
-            if (view == null) {
-                continue;
-            }
             final TopSitesViewHolder holder = (TopSitesViewHolder) view.getTag();
 
             if (holder.getUrl().equals(url)) {
@@ -557,11 +548,6 @@ public class TopSitesView extends GridView {
         final int position = info.position;
 
         final View v = getChildAt(position);
-        // The grid view might get temporarily out of sync with the
-        // adapter refreshes (e.g. on device rotation)
-        if (v == null) {
-            return;
-        }
         final TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
         final String url = holder.getUrl();
         // Quickly update the view so that there isn't as much lag between the request and response
@@ -580,11 +566,6 @@ public class TopSitesView extends GridView {
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
         final int position = info.position;
         View v = getChildAt(position);
-        // The grid view might get temporarily out of sync with the
-        // adapter refreshes (e.g. on device rotation)
-        if (v == null) {
-            return;
-        }
 
         final TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
         holder.setPinned(true);
@@ -616,11 +597,6 @@ public class TopSitesView extends GridView {
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
         int position = info.position;
         View v = getChildAt(position);
-        // The grid view might get temporarily out of sync with the
-        // adapter refreshes (e.g. on device rotation)
-        if (v == null) {
-            return;
-        }
 
         TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
         // Decode "user-entered" URLs before showing them to the user to edit.
@@ -643,11 +619,6 @@ public class TopSitesView extends GridView {
                     return;
 
                 final View v = getChildAt(position);
-                // The grid view might get temporarily out of sync with the
-                // adapter refreshes (e.g. on device rotation)
-                if (v == null) {
-                    return;
-                }
                 final TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
 
                 String title = data.getStringExtra(AwesomeBar.TITLE_KEY);
@@ -667,6 +638,7 @@ public class TopSitesView extends GridView {
                 }
 
                 clearThumbnailsWithUrl(url);
+                Log.i(LOGTAG, "Edit done: " + url + " " + title);
 
                 holder.setUrl(url);
                 holder.setTitle(title);
@@ -682,23 +654,17 @@ public class TopSitesView extends GridView {
                         List<String> urls = new ArrayList<String>();
                         urls.add(holder.getUrl());
 
-                        Bitmap bitmap = null;
-                        Cursor c = null;
-
-                        try {
-                            c = BrowserDB.getThumbnailsForUrls(resolver, urls);
-                            if (c != null && c.moveToFirst()) {
-                                final byte[] b = c.getBlob(c.getColumnIndexOrThrow(Thumbnails.DATA));
-
-                                if (b != null) {
-                                    bitmap = BitmapUtils.decodeByteArray(b);
-                                }
-                            }
-                        } finally {
-                            if (c != null) {
-                                c.close();
-                            }
+                        Cursor c = BrowserDB.getThumbnailsForUrls(resolver, urls);
+                        if (c == null || !c.moveToFirst()) {
+                            return null;
                         }
+
+                        final byte[] b = c.getBlob(c.getColumnIndexOrThrow(Thumbnails.DATA));
+                        Bitmap bitmap = null;
+                        if (b != null) {
+                            bitmap = BitmapUtils.decodeByteArray(b);
+                        }
+                        c.close();
 
                         return bitmap;
                     }

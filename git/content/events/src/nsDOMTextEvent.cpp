@@ -6,7 +6,6 @@
 
 #include "nsDOMTextEvent.h"
 #include "nsPrivateTextRange.h"
-#include "prtime.h"
 
 nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
@@ -48,6 +47,7 @@ nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
       }
     }
   }
+  SetIsDOMBinding();
 }
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTextEvent, nsDOMUIEvent)

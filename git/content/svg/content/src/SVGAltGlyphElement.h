@@ -31,9 +31,10 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
   void GetGlyphRef(nsAString & aGlyphRef);
   void SetGlyphRef(const nsAString & aGlyphRef, ErrorResult& rv);
   void GetFormat(nsAString & aFormat);
@@ -42,21 +43,12 @@ public:
 protected:
 
   // nsSVGElement overrides
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
   virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
 
   enum { HREF };
   nsSVGString mStringAttributes[1];
   static StringInfo sStringInfo[1];
 
-  nsSVGEnum mEnumAttributes[1];
-  virtual nsSVGEnum* EnumAttributes() MOZ_OVERRIDE
-    { return mEnumAttributes; }
-
-  nsSVGLength2 mLengthAttributes[1];
-  virtual nsSVGLength2* LengthAttributes() MOZ_OVERRIDE
-    { return mLengthAttributes; }
 };
 
 } // namespace dom

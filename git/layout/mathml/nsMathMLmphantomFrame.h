@@ -21,10 +21,10 @@ public:
   friend nsIFrame* NS_NewMathMLmphantomFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 

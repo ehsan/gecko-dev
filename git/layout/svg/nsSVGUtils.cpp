@@ -451,17 +451,118 @@ nsSVGUtils::OuterSVGIsCallingReflowSVG(nsIFrame *aFrame)
   return GetOuterSVGFrame(aFrame)->IsCallingReflowSVG();
 }
 
-bool
-nsSVGUtils::AnyOuterSVGIsCallingReflowSVG(nsIFrame* aFrame)
+void
+nsSVGUtils::InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate,
+                             const nsRect *aBoundsSubArea, uint32_t aFlags)
 {
-  nsSVGOuterSVGFrame* outer = GetOuterSVGFrame(aFrame);
-  do {
-    if (outer->IsCallingReflowSVG()) {
-      return true;
+  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG) &&
+                    !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG),
+                    "Passed bad frame!");
+
+  NS_ASSERTION(aDuringUpdate == OuterSVGIsCallingReflowSVG(aFrame),
+               "aDuringUpdate lies!");
+
+  // Rendering observers must be notified about changes to the frames that they
+  // are observing _before_ ReflowSVG is called on the SVG frame tree, so we
+  // only need to notify observers if we're not under an ReflowSVG call.
+  // In fact, it would actually be wrong to notify observers while under
+  // ReflowSVG because the observers will try to mark themselves as dirty
+  // and, since ReflowSVG would be in the process of _removeing_ dirty bits
+  // from frames, that would mess things up.
+  if (!aDuringUpdate) {
+    NS_ASSERTION(!OuterSVGIsCallingReflowSVG(aFrame),
+                 "Must not InvalidateRenderingObservers() under "
+                 "nsISVGChildFrame::ReflowSVG!");
+
+    nsSVGEffects::InvalidateRenderingObservers(aFrame);
+  }
+
+  // Must come after InvalidateRenderingObservers
+  if (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
+    return;
+  }
+
+  // XXXjwatt: can this come before InvalidateRenderingObservers?
+  if (aFrame->GetStateBits() &
+      (NS_FRAME_IS_DIRTY | NS_FRAME_FIRST_REFLOW)) {
+    // Nothing to do if we're already dirty, or if the outer-<svg>
+    // hasn't yet had its initial reflow.
+    return;
+  }
+
+  aFrame->InvalidateFrameSubtree();
+
+  if ((aFrame->GetType() == nsGkAtoms::svgPathGeometryFrame ||
+      aFrame->GetType() == nsGkAtoms::svgGlyphFrame) &&
+      NS_SVGDisplayListPaintingEnabled()) {
+    return;
+  }
+
+  // Okay, so now we pass the area that needs to be invalidated up our parent
+  // chain, accounting for filter effects and transforms as we go, until we
+  // reach our nsSVGOuterSVGFrame where we can invalidate:
+
+  nsRect invalidArea;
+  if (aBoundsSubArea) {
+    invalidArea = *aBoundsSubArea;
+  } else {
+    invalidArea = aFrame->GetVisualOverflowRect();
+    // GetVisualOverflowRect() already includes filter effects and transforms,
+    // so advance to our parent before the loop below:
+    invalidArea += aFrame->GetPosition();
+    aFrame = aFrame->GetParent();
+  }
+
+  int32_t appUnitsPerCSSPx = aFrame->PresContext()->AppUnitsPerCSSPixel();
+
+  while (aFrame) {
+    if ((aFrame->GetStateBits() & NS_FRAME_IS_DIRTY)) {
+      // This ancestor frame has already been invalidated, so nothing to do.
+      return;
     }
-    outer = GetOuterSVGFrame(outer->GetParent());
-  } while (outer);
-  return false;
+    if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG) {
+      break;
+    }
+    if (aFrame->GetType() == nsGkAtoms::svgInnerSVGFrame &&
+        aFrame->StyleDisplay()->IsScrollableOverflow()) {
+      // Clip rect to the viewport established by this inner-<svg>:
+      float x, y, width, height;
+      static_cast<SVGSVGElement*>(aFrame->GetContent())->
+        GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
+      if (width <= 0.0f || height <= 0.0f) {
+        return; // Nothing to invalidate
+      }
+      nsRect viewportRect =
+        nsLayoutUtils::RoundGfxRectToAppRect(gfxRect(0.0, 0.0, width, height),
+                                             appUnitsPerCSSPx);
+      invalidArea = invalidArea.Intersect(viewportRect);
+      if (invalidArea.IsEmpty()) {
+        return; // Nothing to invalidate
+      }
+    }
+    nsSVGFilterFrame *filterFrame = nsSVGEffects::GetFilterFrame(aFrame);
+    if (filterFrame) {
+      invalidArea =
+        filterFrame->GetPostFilterDirtyArea(aFrame, invalidArea);
+    }
+    if (aFrame->IsTransformed()) {
+      invalidArea =
+        nsDisplayTransform::TransformRect(invalidArea, aFrame, nsPoint(0, 0));
+    }
+    invalidArea += aFrame->GetPosition();
+    aFrame = aFrame->GetParent();
+  }
+
+  if (!aFrame) {
+    // We seem to be able to get here, even though SVG frames are never created
+    // without an ancestor nsSVGOuterSVGFrame. See bug 767996.
+    return;
+  }
+
+  NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,
+               "SVG frames must always have an nsSVGOuterSVGFrame ancestor!");
+
+  static_cast<nsSVGOuterSVGFrame*>(aFrame)->InvalidateSVG(invalidArea);
 }
 
 void
@@ -481,7 +582,7 @@ nsSVGUtils::ScheduleReflowSVG(nsIFrame *aFrame)
   // calls InvalidateBounds) or nsSVGDisplayContainerFrame::InsertFrames
   // (at which point the frame has no observers).
 
-  if (aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) {
+  if (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
     return;
   }
 
@@ -624,7 +725,7 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
   nsISVGChildFrame* svg = do_QueryFrame(aFrame);
   if (!svg)
     return nullptr;
-  *aRect = (aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) ?
+  *aRect = (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) ?
              nsRect(0, 0, 0, 0) : svg->GetCoveredRegion();
   return GetOuterSVGFrame(aFrame);
 }
@@ -638,7 +739,7 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, uint32_t aFor)
     return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
   }
 
-  if (!(aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == nsISVGChildFrame::FOR_PAINTING &&
          NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == nsISVGChildFrame::FOR_HIT_TESTING &&
@@ -744,7 +845,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
                                   nsIFrame *aFrame)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) ||
+               (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) ||
                aFrame->PresContext()->IsGlyph(),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
@@ -773,7 +874,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   nsSVGFilterFrame *filterFrame = effectProperties.GetFilterFrame(&isOK);
 
   if (aDirtyRect &&
-      !(aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+      !(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     // Here we convert aFrame's paint bounds to outer-<svg> device space,
     // compare it to aDirtyRect, and return early if they don't intersect.
     // We don't do this optimization for nondisplay SVG since nondisplay
@@ -844,7 +945,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
-    if (!(aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+    if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
       // aFrame has a valid visual overflow rect, so clip to it before calling
       // PushGroup() to minimize the size of the surfaces we'll composite:
       gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
@@ -1269,7 +1370,7 @@ nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
       type != nsGkAtoms::svgPathGeometryFrame) {
     return false;
   }
-  if (aFrame->StyleSVGReset()->SingleFilter()) {
+  if (aFrame->StyleSVGReset()->mFilter) {
     return false;
   }
   // XXX The SVG WG is intending to allow fill, stroke and markers on <image>
@@ -1277,7 +1378,7 @@ nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
     return true;
   }
   const nsStyleSVG *style = aFrame->StyleSVG();
-  if (style->HasMarker()) {
+  if (style->mMarkerStart || style->mMarkerMid || style->mMarkerEnd) {
     return false;
   }
   if (style->mFill.mType == eStyleSVGPaintType_None ||
@@ -1334,13 +1435,13 @@ nsSVGUtils::GetFirstNonAAncestorFrame(nsIFrame* aStartFrame)
 gfxMatrix
 nsSVGUtils::GetStrokeTransform(nsIFrame *aFrame)
 {
-  if (aFrame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
-    aFrame = aFrame->GetParent();
-  }
-
   if (aFrame->StyleSVGReset()->mVectorEffect ==
       NS_STYLE_VECTOR_EFFECT_NON_SCALING_STROKE) {
  
+    if (aFrame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
+      aFrame = aFrame->GetParent();
+    }
+
     nsIContent *content = aFrame->GetContent();
     NS_ABORT_IF_FALSE(content->IsSVG(), "bad cast");
 
@@ -1635,9 +1736,8 @@ nsSVGUtils::GetStrokeWidth(nsIFrame* aFrame, gfxTextObjectPaint *aObjectPaint)
 }
 
 void
-nsSVGUtils::SetupCairoStrokeBBoxGeometry(nsIFrame* aFrame,
-                                         gfxContext *aContext,
-                                         gfxTextObjectPaint *aObjectPaint)
+nsSVGUtils::SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext *aContext,
+                                     gfxTextObjectPaint *aObjectPaint)
 {
   float width = GetStrokeWidth(aFrame, aObjectPaint);
   if (width <= 0)
@@ -1733,18 +1833,22 @@ GetStrokeDashData(nsIFrame* aFrame,
     *aDashOffset = aObjectPaint->GetStrokeDashOffset();
   } else {
     *aDashOffset = nsSVGUtils::CoordToFloat(presContext,
-                                            ctx,
-                                            style->mStrokeDashoffset);
+                                           ctx,
+                                           style->mStrokeDashoffset);
   }
   
+  if (content->IsNodeOfType(nsINode::eTEXT)) {
+    content = content->GetParent();
+  }
+
   return (totalLength > 0.0);
 }
 
 void
-nsSVGUtils::SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext* aContext,
-                                     gfxTextObjectPaint *aObjectPaint)
+nsSVGUtils::SetupCairoStrokeHitGeometry(nsIFrame* aFrame, gfxContext* aContext,
+                                        gfxTextObjectPaint *aObjectPaint)
 {
-  SetupCairoStrokeBBoxGeometry(aFrame, aContext, aObjectPaint);
+  SetupCairoStrokeGeometry(aFrame, aContext, aObjectPaint);
 
   AutoFallibleTArray<gfxFloat, 10> dashes;
   gfxFloat dashOffset;
@@ -1819,7 +1923,7 @@ nsSVGUtils::SetupCairoStroke(nsIFrame* aFrame, gfxContext* aContext,
   if (!HasStroke(aFrame, aObjectPaint)) {
     return false;
   }
-  SetupCairoStrokeGeometry(aFrame, aContext, aObjectPaint);
+  SetupCairoStrokeHitGeometry(aFrame, aContext, aObjectPaint);
 
   return SetupCairoStrokePaint(aFrame, aContext, aObjectPaint);
 }

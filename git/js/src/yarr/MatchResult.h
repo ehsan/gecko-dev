@@ -25,10 +25,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_MatchResult_h
-#define yarr_MatchResult_h
+#ifndef MatchResult_h
+#define MatchResult_h
 
-#include "yarr/wtfbridge.h"
+#include "wtfbridge.h"
 
 typedef uint64_t EncodedMatchResult;
 
@@ -75,4 +75,4 @@ struct MatchResult {
     int end;
 };
 
-#endif /* yarr_MatchResult_h */
+#endif

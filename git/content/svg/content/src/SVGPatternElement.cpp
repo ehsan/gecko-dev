@@ -67,7 +67,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGPatternElement)
 already_AddRefed<SVGAnimatedRect>
 SVGPatternElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsRefPtr<SVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
@@ -80,13 +82,13 @@ SVGPatternElement::PreserveAspectRatio()
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGPatternElement::PatternUnits()
 {
   return mEnumAttributes[PATTERNUNITS].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGPatternElement::PatternContentUnits()
 {
   return mEnumAttributes[PATTERNCONTENTUNITS].ToDOMAnimatedEnum(this);
@@ -125,7 +127,7 @@ SVGPatternElement::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGPatternElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

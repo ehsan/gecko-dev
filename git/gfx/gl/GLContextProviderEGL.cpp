@@ -20,7 +20,6 @@
 #elif defined(MOZ_WIDGET_GONK)
 #define GET_NATIVE_WINDOW(aWidget) ((EGLNativeWindowType)aWidget->GetNativeData(NS_NATIVE_WINDOW))
 #include "HwcComposer2D.h"
-#include "libdisplay/GonkDisplay.h"
 #endif
 
 #if defined(MOZ_X11)
@@ -67,7 +66,7 @@ using namespace android;
 // a little helper
 class AutoDestroyHWND {
 public:
-    AutoDestroyHWND(HWND aWnd = nullptr)
+    AutoDestroyHWND(HWND aWnd = NULL)
         : mWnd(aWnd)
     {
     }
@@ -84,7 +83,7 @@ public:
 
     HWND forget() {
         HWND w = mWnd;
-        mWnd = nullptr;
+        mWnd = NULL;
         return w;
     }
 
@@ -120,7 +119,6 @@ public:
 
 #include "gfxCrashReporterUtils.h"
 
-using namespace mozilla::gfx;
 
 #if defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_WIDGET_GONK)
 static bool gUseBackingSurface = true;
@@ -270,12 +268,12 @@ public:
         , mTemporaryEGLImageTexture(0)
     {
         // any EGL contexts will always be GLESv2
-        SetProfileVersion(ContextProfile::OpenGLES, 200);
+        SetIsGLES2(true);
 
 #ifdef DEBUG
         printf_stderr("Initializing context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
 #endif
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION <= 15
+#ifdef MOZ_WIDGET_GONK
         if (!mIsOffscreen) {
             mHwc = HwcComposer2D::GetInstance();
             MOZ_ASSERT(!mHwc->Initialized());
@@ -555,7 +553,7 @@ public:
 #else
             EGLConfig config;
             CreateConfig(&config);
-            mSurface = CreateSurfaceForWindow(nullptr, config);
+            mSurface = CreateSurfaceForWindow(NULL, config);
 #endif
         }
         return sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
@@ -570,7 +568,7 @@ public:
             sEGLLibrary.fMakeCurrent(EGL_DISPLAY(), EGL_NO_SURFACE, EGL_NO_SURFACE,
                                      EGL_NO_CONTEXT);
             sEGLLibrary.fDestroySurface(EGL_DISPLAY(), mSurface);
-            mSurface = nullptr;
+            mSurface = NULL;
         }
     }
 
@@ -595,8 +593,9 @@ public:
     {
         if (mSurface && !mPlatformContext) {
 #ifdef MOZ_WIDGET_GONK
-            if (!mIsOffscreen)
-                return GetGonkDisplay()->SwapBuffers(EGL_DISPLAY(), mSurface);
+            if (mHwc)
+                return !mHwc->swapBuffers((hwc_display_t)EGL_DISPLAY(),
+                                          (hwc_surface_t)mSurface);
             else
 #endif
                 return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mSurface);
@@ -609,15 +608,13 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
+                       TextureImage::Flags aFlags = TextureImage::NoFlags);
 
     // a function to generate Tiles for Tiled Texture Image
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                TextureImage::Flags aFlags = TextureImage::NoFlags,
-                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
     // hold a reference to the given surface
     // for the lifetime of this context.
     void HoldSurface(gfxASurface *aSurf) {
@@ -984,7 +981,7 @@ bool GLContextEGL::GetSharedHandleDetails(SharedTextureShareType shareType,
         SurfaceTextureWrapper* surfaceWrapper = reinterpret_cast<SurfaceTextureWrapper*>(wrapper);
 
         details.mTarget = LOCAL_GL_TEXTURE_EXTERNAL;
-        details.mTextureFormat = FORMAT_R8G8B8A8;
+        details.mProgramType = RGBALayerExternalProgramType;
         surfaceWrapper->SurfaceTexture()->GetTransformMatrix(details.mTextureTransform);
         break;
     }
@@ -992,7 +989,7 @@ bool GLContextEGL::GetSharedHandleDetails(SharedTextureShareType shareType,
 
     case SharedHandleType::Image:
         details.mTarget = LOCAL_GL_TEXTURE_2D;
-        details.mTextureFormat = FORMAT_R8G8B8A8;
+        details.mProgramType = RGBALayerProgramType;
         break;
 
     default:
@@ -1105,11 +1102,10 @@ public:
                     ContentType aContentType,
                     GLContext* aContext,
                     Flags aFlags = TextureImage::NoFlags,
-                    TextureState aTextureState = Created,
-                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
+                    TextureState aTextureState = Created)
         : TextureImage(aSize, aWrapMode, aContentType, aFlags)
         , mGLContext(aContext)
-        , mUpdateFormat(aImageFormat)
+        , mUpdateFormat(gfxASurface::ImageFormatUnknown)
         , mEGLImage(nullptr)
         , mTexture(aTexture)
         , mSurface(nullptr)
@@ -1117,27 +1113,25 @@ public:
         , mTextureState(aTextureState)
         , mBound(false)
     {
-        if (mUpdateFormat == gfxASurface::ImageFormatUnknown) {
-            mUpdateFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType());
-        }
+        mUpdateFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType());
 
         if (gUseBackingSurface) {
             if (mUpdateFormat != gfxASurface::ImageFormatARGB32) {
-                mTextureFormat = FORMAT_R8G8B8X8;
+                mShaderType = RGBXLayerProgramType;
             } else {
-                mTextureFormat = FORMAT_R8G8B8A8;
+                mShaderType = RGBALayerProgramType;
             }
             Resize(aSize);
         } else {
             if (mUpdateFormat == gfxASurface::ImageFormatRGB16_565) {
-                mTextureFormat = FORMAT_R8G8B8X8;
+                mShaderType = RGBXLayerProgramType;
             } else if (mUpdateFormat == gfxASurface::ImageFormatRGB24) {
                 // RGB24 means really RGBX for Thebes, which means we have to
                 // use the right shader and ignore the uninitialized alpha
                 // value.
-                mTextureFormat = FORMAT_B8G8R8X8;
+                mShaderType = BGRXLayerProgramType;
             } else {
-                mTextureFormat = FORMAT_B8G8R8A8;
+                mShaderType = BGRALayerProgramType;
             }
         }
     }
@@ -1196,7 +1190,7 @@ public:
         //printf_stderr("BeginUpdate with updateRect [%d %d %d %d]\n", mUpdateRect.x, mUpdateRect.y, mUpdateRect.width, mUpdateRect.height);
         if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(mUpdateRect)) {
             NS_ERROR("update outside of image");
-            return nullptr;
+            return NULL;
         }
 
         if (mBackingSurface) {
@@ -1302,7 +1296,7 @@ public:
             region = aRegion;
         }
 
-        mTextureFormat =
+        mShaderType =
           mGLContext->UploadSurfaceToTexture(aSurf,
                                               region,
                                               mTexture,
@@ -1362,7 +1356,7 @@ public:
                                     0,
                                     GLFormatForImage(mUpdateFormat),
                                     GLTypeForImage(mUpdateFormat),
-                                    nullptr);
+                                    NULL);
         }
 
         mTextureState = Allocated;
@@ -1534,18 +1528,16 @@ already_AddRefed<TextureImage>
 GLContextEGL::CreateTextureImage(const nsIntSize& aSize,
                                  TextureImage::ContentType aContentType,
                                  GLenum aWrapMode,
-                                 TextureImage::Flags aFlags,
-                                 TextureImage::ImageFormat aImageFormat)
+                                 TextureImage::Flags aFlags)
 {
-    nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags, aImageFormat);
+    nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags);
     return t.forget();
 }
 
 already_AddRefed<TextureImage>
 GLContextEGL::TileGenFunc(const nsIntSize& aSize,
                           TextureImage::ContentType aContentType,
-                          TextureImage::Flags aFlags,
-                          TextureImage::ImageFormat aImageFormat)
+                          TextureImage::Flags aFlags)
 {
   MakeCurrent();
 
@@ -1553,8 +1545,7 @@ GLContextEGL::TileGenFunc(const nsIntSize& aSize,
   fGenTextures(1, &texture);
 
   nsRefPtr<TextureImageEGL> teximage =
-      new TextureImageEGL(texture, aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType,
-                          this, aFlags, TextureImage::Created, aImageFormat);
+      new TextureImageEGL(texture, aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, this, aFlags);
   
   teximage->BindTexture(LOCAL_GL_TEXTURE0);
 
@@ -1602,9 +1593,6 @@ static const EGLint kEGLConfigAttribsRGBA32[] = {
     LOCAL_EGL_GREEN_SIZE,      8,
     LOCAL_EGL_BLUE_SIZE,       8,
     LOCAL_EGL_ALPHA_SIZE,      8,
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-    LOCAL_EGL_FRAMEBUFFER_TARGET_ANDROID, LOCAL_EGL_TRUE,
-#endif
     LOCAL_EGL_NONE
 };
 

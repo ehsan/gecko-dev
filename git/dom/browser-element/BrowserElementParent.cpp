@@ -149,7 +149,8 @@ BrowserElementParent::OpenWindowOOP(TabParent* aOpenerTabParent,
                                     const nsAString& aFeatures)
 {
   // Create an iframe owned by the same document which owns openerFrameElement.
-  nsCOMPtr<Element> openerFrameElement = aOpenerTabParent->GetOwnerElement();
+  nsCOMPtr<Element> openerFrameElement =
+    do_QueryInterface(aOpenerTabParent->GetOwnerElement());
   NS_ENSURE_TRUE(openerFrameElement, false);
   nsRefPtr<HTMLIFrameElement> popupFrameElement =
     CreateIframe(openerFrameElement, aName, /* aRemote = */ true);
@@ -244,8 +245,8 @@ class DispatchAsyncScrollEventRunnable : public nsRunnable
 {
 public:
   DispatchAsyncScrollEventRunnable(TabParent* aTabParent,
-                                   const CSSRect& aContentRect,
-                                   const CSSSize& aContentSize)
+                                   const gfx::Rect& aContentRect,
+                                   const gfx::Size& aContentSize)
     : mTabParent(aTabParent)
     , mContentRect(aContentRect)
     , mContentSize(aContentSize)
@@ -255,13 +256,14 @@ public:
 
 private:
   nsRefPtr<TabParent> mTabParent;
-  const CSSRect mContentRect;
-  const CSSSize mContentSize;
+  const gfx::Rect mContentRect;
+  const gfx::Size mContentSize;
 };
 
 NS_IMETHODIMP DispatchAsyncScrollEventRunnable::Run()
 {
-  nsCOMPtr<Element> frameElement = mTabParent->GetOwnerElement();
+  nsIDOMElement* element = mTabParent->GetOwnerElement();
+  nsCOMPtr<Element> frameElement = do_QueryInterface(element);
   // Create the event's detail object.
   nsRefPtr<nsAsyncScrollEventDetail> detail =
     new nsAsyncScrollEventDetail(mContentRect.x, mContentRect.y,
@@ -275,8 +277,8 @@ NS_IMETHODIMP DispatchAsyncScrollEventRunnable::Run()
 
 bool
 BrowserElementParent::DispatchAsyncScrollEvent(TabParent* aTabParent,
-                                               const CSSRect& aContentRect,
-                                               const CSSSize& aContentSize)
+                                               const gfx::Rect& aContentRect,
+                                               const gfx::Size& aContentSize)
 {
   nsRefPtr<DispatchAsyncScrollEventRunnable> runnable =
     new DispatchAsyncScrollEventRunnable(aTabParent, aContentRect,

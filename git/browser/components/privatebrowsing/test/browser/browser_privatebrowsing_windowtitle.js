@@ -44,13 +44,9 @@ function test() {
       let browser = aWindow.gBrowser.selectedBrowser;
       browser.stop();
       // ensure that the test is run after the titlebar has been updated
-      browser.addEventListener("load", function () {
-        browser.removeEventListener("load", arguments.callee, true);
+      browser.addEventListener("pageshow", function () {
+        browser.removeEventListener("pageshow", arguments.callee, false);
         executeSoon(function () {
-          if (aWindow.document.title != expected_title) {
-            executeSoon(arguments.callee);
-            return;
-          }
           is(aWindow.document.title, expected_title, "The window title for " + url +
              " is correct (" + (insidePB ? "inside" : "outside") +
              " private browsing mode)");
@@ -58,11 +54,8 @@ function test() {
           let win = aWindow.gBrowser.replaceTabWithWindow(tab);
           win.addEventListener("load", function() {
             win.removeEventListener("load", arguments.callee, false);
+
             executeSoon(function() {
-              if (win.document.title != expected_title) {
-                executeSoon(arguments.callee);
-                return;
-              }
               is(win.document.title, expected_title, "The window title for " + url +
                  " detached tab is correct (" + (insidePB ? "inside" : "outside") +
                  " private browsing mode)");
@@ -73,7 +66,7 @@ function test() {
             });
           }, false);
         });
-      }, true);
+      }, false);
 
       browser.loadURI(url);
     });

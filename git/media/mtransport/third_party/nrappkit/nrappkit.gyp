@@ -137,7 +137,7 @@
           
           'defines' : [
               'SANITY_CHECKS',
-	      'R_PLATFORM_INT_TYPES=\'<stdint.h>\'',
+	      'R_PLATFORM_INT_TYPES=\'"mozilla/StandardInteger.h"\'',
 	      'R_DEFINED_INT2=int16_t',
 	      'R_DEFINED_UINT2=uint16_t',
 	      'R_DEFINED_INT4=int32_t',
@@ -147,18 +147,8 @@
           ],
           
           'conditions' : [
-              ## Mac and BSDs
+              ## Mac
               [ 'OS == "mac"', {
-                'defines' : [
-                    'DARWIN',
-                ],
-              }],
-              [ 'os_bsd == 1', {
-                'defines' : [
-                    'BSD',
-                ],
-              }],
-              [ 'OS == "mac" or os_bsd == 1', {
                 'cflags_mozilla': [
                     '-Wall',
                     '-Wno-parentheses',
@@ -166,6 +156,7 @@
                     '-Wmissing-prototypes',
                  ],
                  'defines' : [
+                     'DARWIN',
                      'HAVE_LIBM=1',
                      'HAVE_STRDUP=1',
                      'HAVE_STRLCPY=1',

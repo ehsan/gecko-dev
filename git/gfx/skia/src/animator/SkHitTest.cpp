@@ -25,7 +25,7 @@ DEFINE_GET_MEMBER(SkHitTest);
 SkHitTest::SkHitTest() : value(false) {
 }
 
-bool SkHitTest::draw(SkAnimateMaker&) {
+bool SkHitTest::draw(SkAnimateMaker& maker) {
     hits.setCount(bullets.count());
     value = false;
     int bulletCount = bullets.count();
@@ -51,7 +51,7 @@ bool SkHitTest::draw(SkAnimateMaker&) {
     return false;
 }
 
-bool SkHitTest::enable(SkAnimateMaker&) {
+bool SkHitTest::enable(SkAnimateMaker& maker) {
     for (int bIndex = 0; bIndex < bullets.count(); bIndex++) {
         SkDisplayable* bullet = bullets[bIndex];
         bullet->enableBounder();
@@ -67,8 +67,9 @@ bool SkHitTest::hasEnable() const {
     return true;
 }
 
-const SkMemberInfo* SkHitTest::preferredChild(SkDisplayTypes) {
+const SkMemberInfo* SkHitTest::preferredChild(SkDisplayTypes type) {
     if (bullets.count() == 0)
         return getMember("bullets");
     return getMember("targets"); // !!! cwap! need to refer to member through enum like kScope instead
 }
+

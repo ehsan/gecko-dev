@@ -11,7 +11,33 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME = dom_indexeddb_s
 LIBXUL_LIBRARY = 1
+FORCE_STATIC_LIB = 1
 FAIL_ON_WARNINGS := 1
+
+CPPSRCS = \
+  AsyncConnectionHelper.cpp \
+  CheckPermissionsHelper.cpp \
+  Client.cpp \
+  DatabaseInfo.cpp \
+  FileInfo.cpp \
+  FileManager.cpp \
+  IDBCursor.cpp \
+  IDBDatabase.cpp \
+  IDBEvents.cpp \
+  IDBFactory.cpp \
+  IDBFileHandle.cpp \
+  IDBIndex.cpp \
+  IDBKeyRange.cpp \
+  IDBObjectStore.cpp \
+  IDBRequest.cpp \
+  IDBTransaction.cpp \
+  IDBWrapperCache.cpp \
+  IndexedDatabaseManager.cpp \
+  Key.cpp \
+  KeyPath.cpp \
+  OpenDatabaseHelper.cpp \
+  TransactionThreadPool.cpp \
+  $(NULL)
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/caps/include \
@@ -24,7 +50,11 @@ LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/build \
   $(NULL)
 
+DEFINES += -D_IMPL_NS_LAYOUT
 
-include $(topsrcdir)/config/rules.mk
+# Make sure to quickstub as much as possible here! See
+# js/xpconnect/src/dom_quickstubs.qsconf.
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
 

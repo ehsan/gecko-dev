@@ -15,11 +15,10 @@
 #include "nsStringFwd.h"
 
 class nsPresState;
-template<typename> class already_AddRefed;
 
 #define NS_ILAYOUTHISTORYSTATE_IID \
-{ 0x5208993e, 0xd812, 0x431e, \
-  { 0x95, 0x9c, 0xc3, 0x84, 0x5b, 0x6e, 0x5a, 0xce } }
+{ 0x003919e2, 0x5e6b, 0x4d76, \
+ { 0xa9, 0x4f, 0xbc, 0x5d, 0x15, 0x5b, 0x1c, 0x67 } }
 
 class nsILayoutHistoryState : public nsISupports {
  public: 
@@ -31,35 +30,35 @@ class nsILayoutHistoryState : public nsISupports {
    * It will be freed when RemoveState() is called or when the
    * LayoutHistoryState is destroyed.
    */
-  virtual void AddState(const nsCString& aKey, nsPresState* aState) = 0;
+  NS_IMETHOD AddState(const nsCString& aKey, nsPresState* aState) = 0;
 
   /**
    * Look up the state object for |aKey|.
    */
-  virtual nsPresState* GetState(const nsCString& aKey) = 0;
+  NS_IMETHOD GetState(const nsCString& aKey, nsPresState** aState) = 0;
 
   /**
    * Remove the state object for |aKey|.
    */
-  virtual void RemoveState(const nsCString& aKey) = 0;
+  NS_IMETHOD RemoveState(const nsCString& aKey) = 0;
 
   /**
    * Check whether this history has any states in it
    */
-  virtual bool HasStates() const = 0;
+  NS_IMETHOD_(bool) HasStates() const = 0;
 
   /**
    * Sets whether this history can contain only scroll position history
    * or all possible history
    */
-  virtual void SetScrollPositionOnly(const bool aFlag) = 0;
+   NS_IMETHOD SetScrollPositionOnly(const bool aFlag) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsILayoutHistoryState,
                               NS_ILAYOUTHISTORYSTATE_IID)
 
-already_AddRefed<nsILayoutHistoryState>
-NS_NewLayoutHistoryState();
+nsresult
+NS_NewLayoutHistoryState(nsILayoutHistoryState** aState);
 
 #endif /* _nsILayoutHistoryState_h */
 

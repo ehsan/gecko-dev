@@ -16,7 +16,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -46,6 +46,6 @@ function testSteps()
     };
   }
 
-  yield undefined;
+  yield;
 }
 

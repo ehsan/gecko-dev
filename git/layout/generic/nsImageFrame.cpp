@@ -36,6 +36,7 @@
 #include "nsContainerFrame.h"
 #include "prprf.h"
 #include "nsCSSRendering.h"
+#include "nsILink.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsINameSpaceManager.h"
@@ -68,12 +69,8 @@
 #include "gfxRect.h"
 #include "ImageLayers.h"
 #include "ImageContainer.h"
-#include "nsStyleSet.h"
-#include "nsBlockFrame.h"
 
 #include "mozilla/Preferences.h"
-
-#include "mozilla/dom/Link.h"
 
 using namespace mozilla;
 
@@ -202,6 +199,12 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
+      // Push a null JSContext on the stack so that code that runs
+      // within the below code doesn't think it's being called by
+      // JS. See bug 604262.
+      nsCxPusher pusher;
+      pusher.PushNull();
+
       // Notify our image loading content that we are going away so it can
       // deregister with our refresh driver.
       imageLoader->FrameDestroyed(this);
@@ -237,7 +240,15 @@ nsImageFrame::Init(nsIContent*      aContent,
     NS_RUNTIMEABORT("Why do we have an nsImageFrame here at all?");
   }
 
-  imageLoader->AddObserver(mListener);
+  {
+    // Push a null JSContext on the stack so that code that runs
+    // within the below code doesn't think it's being called by
+    // JS. See bug 604262.
+    nsCxPusher pusher;
+    pusher.PushNull();
+
+    imageLoader->AddObserver(mListener);
+  }
 
   nsPresContext *aPresContext = PresContext();
   
@@ -888,7 +899,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
     // We include the altFeedbackSize in our visual overflow, but not in our
     // scrollable overflow, since it doesn't really need to be scrolled to
     // outside the image.
-    static_assert(eOverflowType_LENGTH == 2, "Unknown overflow types?");
+    MOZ_STATIC_ASSERT(eOverflowType_LENGTH == 2, "Unknown overflow types?");
     nsRect& visualOverflow = aMetrics.VisualOverflow();
     visualOverflow.UnionRect(visualOverflow, altFeedbackSize);
   }
@@ -1218,19 +1229,6 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
     PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage, flags);
 }
 
-void
-nsDisplayImage::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                          const nsDisplayItemGeometry* aGeometry,
-                                          nsRegion* aInvalidRegion)
-{
-  if (aBuilder->ShouldSyncDecodeImages() && mImage && !mImage->IsDecoded()) {
-    bool snap;
-    aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
-  }
-
-  nsDisplayImageContainer::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
-}
-
 already_AddRefed<ImageContainer>
 nsDisplayImage::GetContainer(LayerManager* aManager,
                              nsDisplayListBuilder* aBuilder)
@@ -1259,43 +1257,35 @@ nsDisplayImage::GetLayerState(nsDisplayListBuilder* aBuilder,
                               LayerManager* aManager,
                               const FrameLayerBuilder::ContainerParameters& aParameters)
 {
-  bool animated = false;
-  if (!nsLayoutUtils::AnimatedImageLayersEnabled() ||
-      mImage->GetType() != imgIContainer::TYPE_RASTER ||
-      NS_FAILED(mImage->GetAnimated(&animated)) ||
-      !animated) {
-    if (!aManager->IsCompositingCheap() ||
-        !nsLayoutUtils::GPUImageScalingEnabled()) {
-      return LAYER_NONE;
-    }
+  if (mImage->GetType() != imgIContainer::TYPE_RASTER ||
+      !aManager->IsCompositingCheap() ||
+      !nsLayoutUtils::GPUImageScalingEnabled()) {
+    return LAYER_NONE;
   }
 
-  if (!animated) {
-    int32_t imageWidth;
-    int32_t imageHeight;
-    mImage->GetWidth(&imageWidth);
-    mImage->GetHeight(&imageHeight);
+  int32_t imageWidth;
+  int32_t imageHeight;
+  mImage->GetWidth(&imageWidth);
+  mImage->GetHeight(&imageHeight);
 
-    NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
+  NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
 
-    gfxRect destRect = GetDestRect();
+  gfxRect destRect = GetDestRect();
 
-    destRect.width *= aParameters.mXScale;
-    destRect.height *= aParameters.mYScale;
+  destRect.width *= aParameters.mXScale;
+  destRect.height *= aParameters.mYScale;
 
-    // Calculate the scaling factor for the frame.
-    gfxSize scale = gfxSize(destRect.width / imageWidth,
-                            destRect.height / imageHeight);
+  // Calculate the scaling factor for the frame.
+  gfxSize scale = gfxSize(destRect.width / imageWidth, destRect.height / imageHeight);
 
-    // If we are not scaling at all, no point in separating this into a layer.
-    if (scale.width == 1.0f && scale.height == 1.0f) {
-      return LAYER_NONE;
-    }
+  // If we are not scaling at all, no point in separating this into a layer.
+  if (scale.width == 1.0f && scale.height == 1.0f) {
+    return LAYER_NONE;
+  }
 
-    // If the target size is pretty small, no point in using a layer.
-    if (destRect.width * destRect.height < 64 * 64) {
-      return LAYER_NONE;
-    }
+  // If the target size is pretty small, no point in using a layer.
+  if (destRect.width * destRect.height < 64 * 64) {
+    return LAYER_NONE;
   }
 
   nsRefPtr<ImageContainer> container;
@@ -1316,13 +1306,7 @@ nsDisplayImage::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsresult rv = mImage->GetImageContainer(aManager, getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
-    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, this));
-  if (!layer) {
-    layer = aManager->CreateImageLayer();
-    if (!layer)
-      return nullptr;
-  }
+  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
   layer->SetContainer(container);
   ConfigureLayer(layer, aParameters.mOffset);
   return layer.forget();
@@ -1565,7 +1549,7 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
   // Walk up the content tree, looking for an nsIDOMAnchorElement
   for (nsIContent* content = mContent->GetParent();
        content; content = content->GetParent()) {
-    nsCOMPtr<dom::Link> link(do_QueryInterface(content));
+    nsCOMPtr<nsILink> link(do_QueryInterface(content));
     if (link) {
       nsCOMPtr<nsIURI> href = content->GetHrefURI();
       if (href) {
@@ -1704,12 +1688,14 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
           ResolveStyleFor(area->AsElement(), StyleContext());
-      FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
-                                     aCursor);
-      if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
-        aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+      if (areaStyle) {
+        FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
+                                       aCursor);
+        if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
+          aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+        }
+        return NS_OK;
       }
-      return NS_OK;
     }
   }
   return nsFrame::GetCursor(aPoint, aCursor);
@@ -1772,7 +1758,7 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 #endif
 
 int
-nsImageFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsImageFrame::GetSkipSides() const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {

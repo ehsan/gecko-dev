@@ -8,17 +8,11 @@ const Cu = Components.utils;
 
 let tempScope = {};
 Cu.import("resource://gre/modules/Services.jsm", tempScope);
-let Services = tempScope.Services;
-// Disable logging for faster test runs. Set this pref to true if you want to
-// debug a test in your try runs.
-let gEnableLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-Services.prefs.setBoolPref("devtools.debugger.log", true);
-
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm", tempScope);
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm", tempScope);
 Cu.import("resource:///modules/source-editor.jsm", tempScope);
 Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
-Cu.import("resource://gre/modules/devtools/Loader.jsm", tempScope);
+let Services = tempScope.Services;
 let SourceEditor = tempScope.SourceEditor;
 let DebuggerServer = tempScope.DebuggerServer;
 let DebuggerTransport = tempScope.DebuggerTransport;
@@ -29,23 +23,18 @@ let TargetFactory = devtools.TargetFactory;
 
 // Import the GCLI test helper
 let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
+Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
 
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/debugger/test/";
 const TAB1_URL = EXAMPLE_URL + "browser_dbg_tab1.html";
 const TAB2_URL = EXAMPLE_URL + "browser_dbg_tab2.html";
 const STACK_URL = EXAMPLE_URL + "browser_dbg_stack.html";
 
-// Enable remote debugging for the relevant tests.
+// Enable logging and remote debugging for the relevant tests.
 let gEnableRemote = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
+let gEnableLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
-
-// Redeclare dbg_assert with a fatal behavior.
-function dbg_assert(cond, e) {
-  if (!cond) {
-    throw e;
-  }
-}
+Services.prefs.setBoolPref("devtools.debugger.log", true);
 
 registerCleanupFunction(function() {
   Services.prefs.setBoolPref("devtools.debugger.remote-enabled", gEnableRemote);
@@ -80,20 +69,19 @@ function addTab(aURL, aOnload, aWindow) {
   targetBrowser.selectedTab = targetBrowser.addTab(aURL);
 
   let tab = targetBrowser.selectedTab;
-  let browser = tab.linkedBrowser;
-  let win = browser.contentWindow;
+  let win = tab.linkedBrowser.contentWindow;
   let expectedReadyState = aURL == "about:blank" ? ["interactive", "complete"] : ["complete"];
 
   if (aOnload) {
     let handler = function() {
-      if (browser.currentURI.spec != aURL ||
+      if (tab.linkedBrowser.currentURI.spec != aURL ||
           expectedReadyState.indexOf((win.document || {}).readyState) == -1) {
         return;
       }
-      browser.removeEventListener("load", handler, true);
+      tab.removeEventListener("load", handler, false);
       executeSoon(aOnload);
     }
-    browser.addEventListener("load", handler, true);
+    tab.addEventListener("load", handler, false);
   }
 
   return tab;
@@ -153,11 +141,11 @@ function attach_tab_actor_for_url(aClient, aURL, aCallback) {
 
 function attach_thread_actor_for_url(aClient, aURL, aCallback) {
   attach_tab_actor_for_url(aClient, aURL, function(aTabActor, aResponse) {
-    aClient.attachThread(aResponse.threadActor, function(aResponse, aThreadClient) {
+    aClient.attachThread(actor.threadActor, function(aResponse, aThreadClient) {
       // We don't care about the pause right now (use
       // get_actor_for_url() if you do), so resume it.
       aThreadClient.resume(function(aResponse) {
-        aCallback(aThreadClient);
+        aCallback(actor);
       });
     });
   });
@@ -202,12 +190,35 @@ function debug_tab_pane(aURL, aOnDebugging, aBeforeTabAdded) {
   });
 }
 
+function debug_remote(aURL, aOnDebugging, aBeforeTabAdded) {
+  // Make any necessary preparations (start the debugger server etc.)
+  if (aBeforeTabAdded) {
+    aBeforeTabAdded();
+  }
+
+  let tab = addTab(aURL, function() {
+    let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
+
+    info("Opening Remote Debugger");
+    let win = DebuggerUI.toggleRemoteDebugger();
+
+    // Wait for the initial resume...
+    win.panelWin.gClient.addOneTimeListener("resumed", function() {
+      info("Remote Debugger has started");
+      win._dbgwin.DebuggerView.Variables.lazyEmpty = false;
+      win._dbgwin.DebuggerView.Variables.lazyAppend = false;
+      win._dbgwin.DebuggerView.Variables.lazyExpand = false;
+      aOnDebugging(tab, debuggee, win);
+    });
+  });
+}
+
 function debug_chrome(aURL, aOnClosing, aOnDebugging) {
   let tab = addTab(aURL, function() {
     let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
 
     info("Opening Browser Debugger");
-    let win = BrowserDebuggerProcess.init(aOnClosing, function(process) {
+    let win = DebuggerUI.toggleChromeDebugger(aOnClosing, function(process) {
 
       // The remote debugging process has started...
       info("Browser Debugger has started");

@@ -54,7 +54,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsSandboxFlags.h"
@@ -505,12 +504,6 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       WinHasOption(features.get(), "-moz-internal-modal", 0, nullptr)) {
     windowIsModalContentDialog = true;
 
-    // CHROME_MODAL gets inherited by dependent windows, which affects various
-    // platform-specific window state (especially on OSX). So we need some way
-    // to determine that this window was actually opened by nsGlobalWindow::
-    // ShowModalDialog(), and that somebody is actually going to be watching
-    // for return values and all that.
-    chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL_CONTENT_WINDOW;
     chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
@@ -520,7 +513,20 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
   nsCOMPtr<nsIScriptSecurityManager>
     sm(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
 
-  bool isCallerChrome = nsContentUtils::IsCallerChrome();
+  NS_ENSURE_TRUE(sm, NS_ERROR_FAILURE);
+
+  // Remember who's calling us. This code used to assume a null
+  // subject principal if it failed to get the principal, but that's
+  // just not safe, so bail on errors here.
+  nsCOMPtr<nsIPrincipal> callerPrincipal;
+  rv = sm->GetSubjectPrincipal(getter_AddRefs(callerPrincipal));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool isCallerChrome = true;
+  if (callerPrincipal) {
+    rv = sm->IsSystemPrincipal(callerPrincipal, &isCallerChrome);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   JSContext *cx = GetJSContextFromWindow(aParent);
 
@@ -636,10 +642,6 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       nsCOMPtr<nsIWidget> parentWidget;
       if (parentWindow)
         parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
-      // NOTE: the logic for this visibility check is duplicated in
-      // nsIDOMWindowUtils::isParentWindowMainWidgetVisible - if we change
-      // how a window is determined "visible" in this context then we should
-      // also adjust that attribute and/or any consumers of it...
       if (parentWidget && !parentWidget->IsVisible())
         return NS_ERROR_NOT_AVAILABLE;
     }
@@ -738,7 +740,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(*_retval));
     NS_ENSURE_TRUE(piwin, NS_ERROR_UNEXPECTED);
 
-    rv = piwin->SetArguments(argv);
+    rv = piwin->SetArguments(argv, callerPrincipal);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -966,10 +968,17 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     // we need that to show a modal window.
     NS_ENSURE_TRUE(newChrome, NS_ERROR_NOT_AVAILABLE);
 
+    nsCOMPtr<nsPIDOMWindow> modalContentWindow;
+
     // Dispatch dialog events etc, but we only want to do that if
     // we're opening a modal content window (the helper classes are
     // no-ops if given no window), for chrome dialogs we don't want to
     // do any of that (it's done elsewhere for us).
+
+    if (windowIsModalContentDialog) {
+      modalContentWindow = do_QueryInterface(*_retval);
+    }
+
     nsAutoWindowStateHelper windowStateHelper(aParent);
 
     if (!windowStateHelper.DefaultEnabled()) {
@@ -993,7 +1002,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       // Reset popup state while opening a modal dialog, and firing
       // events about the dialog, to prevent the current state from
       // being active the whole time a modal dialog is open.
-      nsAutoPopupStatePusher popupStatePusher(openAbused);
+      nsAutoPopupStatePusher popupStatePusher(modalContentWindow, openAbused);
   
       newChrome->ShowAsModal();
     }

@@ -34,17 +34,20 @@ public class testNewTab extends BaseTest {
                      "Checking elements", "all elements present");
 
         int expectedTabCount = 1;
-        getTabCount(expectedTabCount);
+        String tabCountText = tabCount.getText();
+        tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "Initial number of tabs correct");
 
         addTab(url);
         expectedTabCount++;
-        getTabCount(expectedTabCount);
+        tabCountText = tabCount.getText();
+        tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "Number of tabs increased");
 
         addTab(url2);
         expectedTabCount++;
-        getTabCount(expectedTabCount);
+        tabCountText = tabCount.getText();
+        tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "Number of tabs increased");
 
         // cleanup: close all opened tabs
@@ -100,18 +103,5 @@ public class testNewTab extends BaseTest {
             mAsserter.ok(success, "Checking tab closed", "number of tabs now "+tabCountInt);
         }
     }
-
-    private void getTabCount(final int expected) {
-        waitForTest(new BooleanTest() {
-            @Override
-            public boolean test() {
-                String newTabCountText = tabCount.getText();
-                tabCountInt = Integer.parseInt(newTabCountText);
-                if (tabCountInt == expected) {
-                    return true;
-                }
-                return false;
-            }
-        }, MAX_WAIT_MS);
-    }
 }
+

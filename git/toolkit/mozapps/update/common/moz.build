@@ -14,21 +14,8 @@ EXPORTS += [
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXPORTS += [
-        'pathhash.h',
-        'uachelper.h',
-        'updatehelper.cpp',
         'updatehelper.h',
-    ]
-    CPP_SOURCES += [
         'updatehelper.cpp',
-        'uachelper.cpp',
-        'pathhash.cpp',
+        'uachelper.h',
+        'pathhash.h',
     ]
-
-CPP_SOURCES += [
-    'readstrings.cpp',
-    'updatelogging.cpp',
-]
-
-LIBRARY_NAME = 'updatecommon'
-

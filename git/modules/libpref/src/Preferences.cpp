@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/ContentChild.h"
 
 #include "mozilla/Attributes.h"
@@ -165,7 +164,7 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(PreferencesMallocSizeOf)
 static size_t
 SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
                                  const nsRefPtr<ValueObserver>& aData,
-                                 mozilla::MallocSizeOf aMallocSizeOf,
+                                 nsMallocSizeOfFun aMallocSizeOf,
                                  void*)
 {
   size_t n = 0;
@@ -327,8 +326,8 @@ Preferences::~Preferences()
  * nsISupports Implementation
  */
 
-NS_IMPL_ADDREF(Preferences)
-NS_IMPL_RELEASE(Preferences)
+NS_IMPL_THREADSAFE_ADDREF(Preferences)
+NS_IMPL_THREADSAFE_RELEASE(Preferences)
 
 NS_INTERFACE_MAP_BEGIN(Preferences)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefService)
@@ -391,7 +390,6 @@ Preferences::Init()
   rv = observerService->AddObserver(this, "profile-before-change", true);
 
   observerService->AddObserver(this, "load-extension-defaults", true);
-  observerService->AddObserver(this, "suspend_process_notification", true);
 
   return(rv);
 }
@@ -427,11 +425,6 @@ Preferences::Observe(nsISupports *aSubject, const char *aTopic,
   } else if (!nsCRT::strcmp(aTopic, "reload-default-prefs")) {
     // Reload the default prefs from file.
     pref_InitInitialObjects();
-  } else if (!nsCRT::strcmp(aTopic, "suspend_process_notification")) {
-    // Our process is being suspended. The OS may wake our process later,
-    // or it may kill the process. In case our process is going to be killed
-    // from the suspended state, we save preferences before suspending.
-    rv = SavePrefFile(nullptr);
   }
   return rv;
 }

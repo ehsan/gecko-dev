@@ -27,11 +27,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_OSAllocator_h
-#define yarr_OSAllocator_h
+#ifndef OSAllocator_h
+#define OSAllocator_h
 
 #include <stdlib.h>
-#include "yarr/wtfbridge.h"
+#include "wtfbridge.h"
 #include "assembler/wtf/VMTags.h"
 #include "assembler/wtf/Assertions.h"
 
@@ -100,4 +100,4 @@ inline void OSAllocator::decommitAndRelease(void* base, size_t size)
 
 using WTF::OSAllocator;
 
-#endif /* yarr_OSAllocator_h */
+#endif // OSAllocator_h

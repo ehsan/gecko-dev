@@ -37,10 +37,6 @@ function test() {
 
   let uri = Services.io.newFileURI(dir);
 
-  const PREF = "devtools.webconsole.persistlog";
-  Services.prefs.setBoolPref(PREF, true);
-  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
-
   addTab("data:text/html;charset=utf8,<p>test file URI");
   browser.addEventListener("load", function tabLoad() {
     browser.removeEventListener("load", tabLoad, true);

@@ -12,7 +12,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "pldhash.h"
-#include <new>
+#include NEW_H
 
 #include "nsStringGlue.h"
 #include "nsCRTGlue.h"
@@ -22,7 +22,6 @@
 #include <string.h>
 
 #include "mozilla/HashFunctions.h"
-#include "mozilla/Move.h"
 
 namespace mozilla {
 
@@ -363,37 +362,6 @@ typedef nsPtrHashKey<const void> nsVoidPtrHashKey;
 typedef nsClearingPtrHashKey<const void> nsClearingVoidPtrHashKey;
 
 /**
- * hashkey wrapper using a function pointer KeyType
- *
- * @see nsTHashtable::EntryType for specification
- */
-template<class T>
-class nsFuncPtrHashKey : public PLDHashEntryHdr
-{
- public:
-  typedef T &KeyType;
-  typedef const T *KeyTypePointer;
-
-  nsFuncPtrHashKey(const T *key) : mKey(*const_cast<T*>(key)) {}
-  nsFuncPtrHashKey(const nsFuncPtrHashKey<T> &toCopy) : mKey(toCopy.mKey) {}
-  ~nsFuncPtrHashKey() {}
-
-  KeyType GetKey() const { return const_cast<T&>(mKey); }
-
-  bool KeyEquals(KeyTypePointer key) const { return *key == mKey; }
-
-  static KeyTypePointer KeyToPointer(KeyType key) { return &key; }
-  static PLDHashNumber HashKey(KeyTypePointer key)
-  {
-    return NS_PTR_TO_INT32(*key) >> 2;
-  }
-  enum { ALLOW_MEMMOVE = true };
-
- protected:
-  T mKey;
-};
-
-/**
  * hashkey wrapper using nsID KeyType
  *
  * @see nsTHashtable::EntryType for specification
@@ -472,13 +440,6 @@ public:
 
   nsCharPtrHashKey(const char* aKey) : mKey(strdup(aKey)) { }
   nsCharPtrHashKey(const nsCharPtrHashKey& toCopy) : mKey(strdup(toCopy.mKey)) { }
-
-  nsCharPtrHashKey(mozilla::MoveRef<nsCharPtrHashKey> other)
-    : mKey(other->mKey)
-  {
-    other->mKey = nullptr;
-  }
-
   ~nsCharPtrHashKey() { if (mKey) free(const_cast<char *>(mKey)); }
 
   const char* GetKey() const { return mKey; }
@@ -509,13 +470,6 @@ public:
 
   nsUnicharPtrHashKey(const PRUnichar* aKey) : mKey(NS_strdup(aKey)) { }
   nsUnicharPtrHashKey(const nsUnicharPtrHashKey& toCopy) : mKey(NS_strdup(toCopy.mKey)) { }
-
-  nsUnicharPtrHashKey(mozilla::MoveRef<nsUnicharPtrHashKey> other)
-    : mKey(other->mKey)
-  {
-    other->mKey = nullptr;
-  }
-
   ~nsUnicharPtrHashKey() { if (mKey) NS_Free(const_cast<PRUnichar *>(mKey)); }
 
   const PRUnichar* GetKey() const { return mKey; }

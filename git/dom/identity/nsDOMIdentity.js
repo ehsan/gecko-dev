@@ -21,13 +21,7 @@ const MAX_RP_CALLS = 100;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "checkDeprecated",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "checkRenamed",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "objectCopy",
-                                  "resource://gre/modules/identity/IdentityUtils.jsm");
+Cu.import("resource://gre/modules/identity/IdentityUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",
@@ -219,13 +213,6 @@ nsDOMIdentity.prototype = {
     opts.siteName = aOptions.siteName || undefined;
     opts.siteLogo = aOptions.siteLogo || undefined;
 
-    opts.oncancel = function get_oncancel() {
-      if (aCallback) {
-        aCallback(null);
-        aCallback = null;
-      }
-    };
-
     if (checkDeprecated(aOptions, "silent")) {
       // Silent has been deprecated, do nothing. Placing the check here
       // prevents the callback from being called twice, once with null and
@@ -241,6 +228,12 @@ nsDOMIdentity.prototype = {
     var self = this;
     this.watch({
       _internal: true,
+      oncancel: function get_oncancel() {
+        if (aCallback) {
+          aCallback(null);
+          aCallback = null;
+        }
+      },
       onlogin: function get_onlogin(assertion, internalParams) {
         if (assertion && aCallback && internalParams && !internalParams.silent) {
           aCallback(assertion);

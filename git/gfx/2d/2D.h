@@ -11,13 +11,6 @@
 #include "Rect.h"
 #include "Matrix.h"
 #include "UserData.h"
-
-// GenericRefCountedBase allows us to hold on to refcounted objects of any type
-// (contrary to RefCounted<T> which requires knowing the type T) and, in particular,
-// without having a dependency on that type. This is used for DrawTargetSkia
-// to be able to hold on to a GLContext.
-#include "mozilla/GenericRefCounted.h"
-
 // This RefPtr class isn't ideal for usage in Azure, as it doesn't allow T**
 // outparams using the &-operator. But it will have to do as there's no easy
 // solution.
@@ -35,15 +28,9 @@ typedef _cairo_scaled_font cairo_scaled_font_t;
 
 struct ID3D10Device1;
 struct ID3D10Texture2D;
-struct ID3D11Device;
-struct ID2D1Device;
 struct IDWriteRenderingParams;
 
 class GrContext;
-struct GrGLInterface;
-
-struct CGContext;
-typedef struct CGContext *CGContextRef;
 
 namespace mozilla {
 
@@ -292,7 +279,7 @@ public:
    * aFilter Resampling filter used for resampling the image.
    */
   SurfacePattern(SourceSurface *aSourceSurface, ExtendMode aExtendMode,
-                 const Matrix &aMatrix = Matrix(), Filter aFilter = FILTER_GOOD)
+                 const Matrix &aMatrix = Matrix(), Filter aFilter = FILTER_LINEAR)
     : mSurface(aSourceSurface)
     , mExtendMode(aExtendMode)
     , mFilter(aFilter)
@@ -309,7 +296,7 @@ public:
 
 /*
  * This is the base class for source surfaces. These objects are surfaces
- * which may be used as a source in a SurfacePattern or a DrawSurface call.
+ * which may be used as a source in a SurfacePattern of a DrawSurface call.
  * They cannot be drawn to directly.
  */
 class SourceSurface : public RefCounted<SourceSurface>
@@ -704,7 +691,7 @@ public:
                           const GlyphBuffer &aBuffer,
                           const Pattern &aPattern,
                           const DrawOptions &aOptions = DrawOptions(),
-                          const GlyphRenderingOptions *aRenderingOptions = nullptr) = 0;
+                          const GlyphRenderingOptions *aRenderingOptions = NULL) = 0;
 
   /*
    * This takes a source pattern and a mask, and composites the source pattern
@@ -718,21 +705,6 @@ public:
   virtual void Mask(const Pattern &aSource,
                     const Pattern &aMask,
                     const DrawOptions &aOptions = DrawOptions()) = 0;
-
-  /*
-   * This takes a source pattern and a mask, and composites the source pattern
-   * onto the destination surface using the alpha channel of the mask source.
-   * The operation is bound by the extents of the mask.
-   *
-   * aSource Source pattern
-   * aMask Mask surface
-   * aOffset a transformed offset that the surface is masked at
-   * aOptions Drawing options
-   */
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions()) = 0;
 
   /*
    * Push a clip to the DrawTarget.
@@ -839,9 +811,7 @@ public:
   /* Tries to get a native surface for a DrawTarget, this may fail if the
    * draw target cannot convert to this surface type.
    */
-  virtual void *GetNativeSurface(NativeSurfaceType aType) { return nullptr; }
-
-  virtual bool IsDualDrawTarget() { return false; }
+  virtual void *GetNativeSurface(NativeSurfaceType aType) { return NULL; }
 
   void AddUserData(UserDataKey *key, void *userData, void (*destroy)(void*)) {
     mUserData.Add(key, userData, destroy);
@@ -870,20 +840,6 @@ public:
   bool GetPermitSubpixelAA() {
     return mPermitSubpixelAA;
   }
-
-  virtual GenericRefCountedBase* GetGLContext() const {
-    return nullptr;
-  }
-
-#ifdef USE_SKIA_GPU
-  virtual void InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
-                                            GrGLInterface* aGrGLInterface,
-                                            const IntSize &aSize,
-                                            SurfaceFormat aFormat)
-  {
-    MOZ_CRASH();
-  }
-#endif
 
 protected:
   UserData mUserData;
@@ -965,21 +921,7 @@ public:
 
 #ifdef USE_SKIA_GPU
   static TemporaryRef<DrawTarget>
-    CreateDrawTargetSkiaWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
-                                                      GrGLInterface* aGrGLInterface,
-                                                      const IntSize &aSize,
-                                                      SurfaceFormat aFormat);
-#endif
-
-#if defined(USE_SKIA) && defined(MOZ_ENABLE_FREETYPE)
-  static TemporaryRef<GlyphRenderingOptions>
-    CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHinting);
-#endif
-  static TemporaryRef<DrawTarget>
-    CreateDualDrawTarget(DrawTarget *targetA, DrawTarget *targetB);
-
-#ifdef XP_MACOSX
-  static TemporaryRef<DrawTarget> CreateDrawTargetForCairoCGContext(CGContextRef cg, const IntSize& aSize);
+    CreateSkiaDrawTargetForFBO(unsigned int aFBOID, GrContext *aContext, const IntSize &aSize, SurfaceFormat aFormat);
 #endif
 
 #ifdef WIN32
@@ -991,11 +933,6 @@ public:
 
   static void SetDirect3D10Device(ID3D10Device1 *aDevice);
   static ID3D10Device1 *GetDirect3D10Device();
-#ifdef USE_D2D1_1
-  static void SetDirect3D11Device(ID3D11Device *aDevice);
-  static ID3D11Device *GetDirect3D11Device();
-  static ID2D1Device *GetD2D1Device();
-#endif
 
   static TemporaryRef<GlyphRenderingOptions>
     CreateDWriteGlyphRenderingOptions(IDWriteRenderingParams *aParams);
@@ -1006,71 +943,10 @@ public:
 
 private:
   static ID3D10Device1 *mD3D10Device;
-#ifdef USE_D2D1_1
-  static ID3D11Device *mD3D11Device;
-  static ID2D1Device *mD2D1Device;
-#endif
 #endif
 
   static DrawEventRecorder *mRecorder;
 };
-
-#ifdef XP_MACOSX
-/* This is a helper class that let's you borrow a CGContextRef from a
- * DrawTargetCG. This is used for drawing themed widgets.
- *
- * Callers should check the cg member after constructing the object
- * to see if it succeeded. The DrawTarget should not be used while
- * the context is borrowed. */
-class BorrowedCGContext
-{
-public:
-  BorrowedCGContext()
-    : cg(nullptr)
-    , mDT(nullptr)
-  { }
-
-  BorrowedCGContext(DrawTarget *aDT)
-    : mDT(aDT)
-  {
-    cg = BorrowCGContextFromDrawTarget(aDT);
-  }
-
-  // We can optionally Init after construction in
-  // case we don't know what the DT will be at construction
-  // time.
-  CGContextRef Init(DrawTarget *aDT)
-  {
-    MOZ_ASSERT(!mDT, "Can't initialize twice!");
-    mDT = aDT;
-    cg = BorrowCGContextFromDrawTarget(aDT);
-    return cg;
-  }
-
-  // The caller needs to call Finish if cg is non-null when
-  // they are done with the context. This is currently explicit
-  // instead of happening implicitly in the destructor to make
-  // what's happening in the caller more clear. It also
-  // let's you resume using the DrawTarget in the same scope.
-  void Finish()
-  {
-    if (cg) {
-      ReturnCGContextToDrawTarget(mDT, cg);
-      cg = nullptr;
-    }
-  }
-
-  ~BorrowedCGContext() {
-    MOZ_ASSERT(!cg);
-  }
-
-  CGContextRef cg;
-private:
-  static CGContextRef BorrowCGContextFromDrawTarget(DrawTarget *aDT);
-  static void ReturnCGContextToDrawTarget(DrawTarget *aDT, CGContextRef cg);
-  DrawTarget *mDT;
-};
-#endif
 
 }
 }

@@ -44,8 +44,6 @@ nsSVGElement::StringInfo SVGUseElement::sStringInfo[1] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(SVGUseElement)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SVGUseElement,
                                                 SVGUseElementBase)
   nsAutoScriptBlocker scriptBlocker;
@@ -64,8 +62,10 @@ NS_IMPL_ADDREF_INHERITED(SVGUseElement,SVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGUseElement,SVGUseElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGUseElement)
-  NS_INTERFACE_TABLE_INHERITED1(SVGUseElement, nsIMutationObserver)
-NS_INTERFACE_TABLE_TAIL_INHERITING(SVGUseElementBase)
+  NS_NODE_INTERFACE_TABLE4(SVGUseElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement,
+                           nsIMutationObserver)
+NS_INTERFACE_MAP_END_INHERITING(SVGUseElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -99,6 +99,9 @@ SVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nullptr;
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   SVGUseElement *it = new SVGUseElement(ni.forget());
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip(it);
   nsresult rv1 = it->Init();
@@ -114,10 +117,12 @@ SVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   return NS_FAILED(rv1) ? rv1 : rv2;
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGUseElement::Href()
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(this);
+  nsCOMPtr<nsIDOMSVGAnimatedString> href;
+  mStringAttributes[HREF].ToDOMAnimatedString(getter_AddRefs(href), this);
+  return href.forget();
 }
 
 //----------------------------------------------------------------------

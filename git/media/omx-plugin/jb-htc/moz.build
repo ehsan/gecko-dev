@@ -5,11 +5,4 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MODULE = 'omxpluginjb-htc'
-NO_DIST_INSTALL = True
-
-CPP_SOURCES += [
-    'OmxPluginJB-HTC.cpp',
-]
-
-LIBRARY_NAME = 'omxpluginjb-htc'
 

@@ -6,7 +6,6 @@
 
 interface mozIDOMApplication;
 interface mozIApplication;
-interface nsIURI;
 
 %{C++
 #define APPS_SERVICE_CID { 0x05072afa, 0x92fe, 0x45bf, { 0xae, 0x22, 0x39, 0xb6, 0x9c, 0x11, 0x70, 0x58 } }
@@ -17,7 +16,7 @@ interface nsIURI;
  * This service allows accessing some DOMApplicationRegistry methods from
  * non-javascript code.
  */
-[scriptable, uuid(9b23d8f0-b2f3-46af-bff4-3df6c3cb69db)]
+[scriptable, uuid(1113c6e3-28a2-4315-be10-8b3230eecc0f)]
 interface nsIAppsService : nsISupports
 {
   mozIDOMApplication getAppByManifestURL(in DOMString manifestURL);
@@ -41,6 +40,13 @@ interface nsIAppsService : nsISupports
   DOMString getManifestURLByLocalId(in unsigned long localId);
 
   /**
+   * Returns the app that is related to the message.
+   * This is a helper to not have to worry about what is the actual structure
+   * of the message when listening to one.
+   */
+  mozIApplication getAppFromObserverMessage(in DOMString message);
+
+  /**
    * Returns the CSP associated to this localId.
    */
   DOMString getCSPByLocalId(in unsigned long localId);
@@ -56,12 +62,6 @@ interface nsIAppsService : nsISupports
   DOMString getWebAppsBasePath();
 
   jsval getAppInfo(in DOMString appId);
-
-  /**
-   * Returns a URI to redirect to when we get a redirection to 'uri'.
-   * Returns null if no redirection is declared for this uri.
-   */
-  nsIURI getRedirect(in unsigned long localId, in nsIURI uri);
 
   /**
    * Returns the localId if the app was installed from a store

@@ -9,7 +9,6 @@
 #define GrGLSL_DEFINED
 
 #include "gl/GrGLInterface.h"
-#include "GrTypesPriv.h"
 
 class GrGLShaderVar;
 class SkString;
@@ -18,7 +17,7 @@ class SkString;
 // down the GLSL version to one of these enums.
 enum GrGLSLGeneration {
     /**
-     * Desktop GLSL 1.10 and ES2 shading language (based on desktop GLSL 1.20)
+     * Desktop GLSL 1.10 and ES2 shading lang (based on desktop GLSL 1.20)
      */
     k110_GrGLSLGeneration,
     /**
@@ -26,13 +25,25 @@ enum GrGLSLGeneration {
      */
     k130_GrGLSLGeneration,
     /**
-     * Desktop GLSL 1.40
-     */
-    k140_GrGLSLGeneration,
-    /**
-     * Desktop GLSL 1.50
+     * Dekstop GLSL 1.50
      */
     k150_GrGLSLGeneration,
+};
+
+/**
+ * Types of shader-language-specific boxed variables we can create.
+ * (Currently only GrGLShaderVars, but should be applicable to other shader
+ * langauges.)
+ */
+enum GrSLType {
+    kVoid_GrSLType,
+    kFloat_GrSLType,
+    kVec2f_GrSLType,
+    kVec3f_GrSLType,
+    kVec4f_GrSLType,
+    kMat33f_GrSLType,
+    kMat44f_GrSLType,
+    kSampler2D_GrSLType
 };
 
 enum GrSLConstantVec {
@@ -42,7 +53,7 @@ enum GrSLConstantVec {
 };
 
 namespace {
-static inline int GrSLTypeToVecLength(GrSLType type) {
+inline int GrSLTypeToVecLength(GrSLType type) {
     static const int kVecLengths[] = {
         0, // kVoid_GrSLType
         1, // kFloat_GrSLType
@@ -57,14 +68,14 @@ static inline int GrSLTypeToVecLength(GrSLType type) {
     return kVecLengths[type];
 }
 
-static inline const char* GrGLSLOnesVecf(int count) {
+const char* GrGLSLOnesVecf(int count) {
     static const char* kONESVEC[] = {"ERROR", "1.0", "vec2(1,1)",
                                      "vec3(1,1,1)", "vec4(1,1,1,1)"};
     GrAssert(count >= 1 && count < (int)GR_ARRAY_COUNT(kONESVEC));
     return kONESVEC[count];
 }
 
-static inline const char* GrGLSLZerosVecf(int count) {
+const char* GrGLSLZerosVecf(int count) {
     static const char* kZEROSVEC[] = {"ERROR", "0.0", "vec2(0,0)",
                                       "vec3(0,0,0)", "vec4(0,0,0,0)"};
     GrAssert(count >= 1 && count < (int)GR_ARRAY_COUNT(kZEROSVEC));
@@ -79,7 +90,7 @@ GrGLSLGeneration GrGetGLSLGeneration(GrGLBinding binding,
                                      const GrGLInterface* gl);
 
 /**
- * Returns a string to include at the beginning of a shader to declare the GLSL
+ * Returns a string to include at the begining of a shader to declare the GLSL
  * version.
  */
 const char* GrGetGLSLVersionDecl(GrGLBinding binding,
@@ -125,7 +136,7 @@ const char* GrGLSLVectorNonhomogCoords(GrSLType type);
   * vec4(0,0,0,0) is assumed. It is an error to pass kNone for default<i> if in<i> is NULL or "".
   * Note that when if function determines that the result is a zeros or ones vec then any expression
   * represented by in0 or in1 will not be emitted. The return value indicates whether a zeros, ones
-  * or neither was appended.
+  * or neither was appeneded.
   */
 GrSLConstantVec GrGLSLModulate4f(SkString* outAppend,
                                  const char* in0,
@@ -135,10 +146,10 @@ GrSLConstantVec GrGLSLModulate4f(SkString* outAppend,
 
 /**
  * Does an inplace mul, *=, of vec4VarName by mulFactor. If mulFactorDefault is not kNone then
- * mulFactor may be either "" or NULL. In this case either nothing will be appended (kOnes) or an
+ * mulFactor may be either "" or NULL. In this case either nothing will be appened (kOnes) or an
  * assignment of vec(0,0,0,0) will be appended (kZeros). The assignment is prepended by tabCnt tabs.
  * A semicolon and newline are added after the assignment. (TODO: Remove tabCnt when we auto-insert
- * tabs to GrGLEffect-generated lines.) If a zeros vec is assigned then the return value is
+ * tabs to custom stage-generated lines.) If a zeros vec is assigned then the return value is
  * kZeros, otherwise kNone.
  */
 GrSLConstantVec GrGLSLMulVarBy4f(SkString* outAppend,

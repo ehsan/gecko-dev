@@ -20,6 +20,7 @@ void GrGLRenderTarget::init(const Desc& desc,
     fTexFBOID               = desc.fTexFBOID;
     fMSColorRenderbufferID  = desc.fMSColorRenderbufferID;
     fViewport               = viewport;
+    fOwnIDs                 = desc.fOwnIDs;
     fTexIDObj               = texID;
     GrSafeRef(fTexIDObj);
 }
@@ -27,15 +28,13 @@ void GrGLRenderTarget::init(const Desc& desc,
 namespace {
 GrTextureDesc MakeDesc(GrTextureFlags flags,
                        int width, int height,
-                       GrPixelConfig config, int sampleCnt,
-                       GrSurfaceOrigin origin) {
+                       GrPixelConfig config, int sampleCnt) {
     GrTextureDesc temp;
     temp.fFlags = flags;
     temp.fWidth = width;
     temp.fHeight = height;
     temp.fConfig = config;
     temp.fSampleCnt = sampleCnt;
-    temp.fOrigin = origin;
     return temp;
 }
 
@@ -47,12 +46,10 @@ GrGLRenderTarget::GrGLRenderTarget(GrGpuGL* gpu,
                                    GrGLTexID* texID,
                                    GrGLTexture* texture)
     : INHERITED(gpu,
-                desc.fIsWrapped,
                 texture,
                 MakeDesc(kNone_GrTextureFlags,
                          viewport.fWidth, viewport.fHeight,
-                         desc.fConfig, desc.fSampleCnt,
-                         desc.fOrigin)) {
+                         desc.fConfig, desc.fSampleCnt)) {
     GrAssert(NULL != texID);
     GrAssert(NULL != texture);
     // FBO 0 can't also be a texture, right?
@@ -70,18 +67,16 @@ GrGLRenderTarget::GrGLRenderTarget(GrGpuGL* gpu,
                                    const Desc& desc,
                                    const GrGLIRect& viewport)
     : INHERITED(gpu,
-                desc.fIsWrapped,
                 NULL,
                 MakeDesc(kNone_GrTextureFlags,
                          viewport.fWidth, viewport.fHeight,
-                         desc.fConfig, desc.fSampleCnt,
-                         desc.fOrigin)) {
+                         desc.fConfig, desc.fSampleCnt)) {
     this->init(desc, viewport, NULL);
 }
 
 void GrGLRenderTarget::onRelease() {
     GPUGL->notifyRenderTargetDelete(this);
-    if (!this->isWrapped()) {
+    if (fOwnIDs) {
         if (fTexFBOID) {
             GL_CALL(DeleteFramebuffers(1, &fTexFBOID));
         }
@@ -110,3 +105,4 @@ void GrGLRenderTarget::onAbandon() {
     }
     INHERITED::onAbandon();
 }
+

@@ -10,9 +10,16 @@ VPATH     = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME   = nkwebsocket_s
-MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY = 1
+FORCE_STATIC_LIB = 1
 FAIL_ON_WARNINGS = 1
+
+CPPSRCS = \
+  WebSocketChannel.cpp \
+  WebSocketChannelParent.cpp \
+  WebSocketChannelChild.cpp \
+  BaseWebSocketChannel.cpp \
+  $(NULL)
 
 LOCAL_INCLUDES = \
   -I$(srcdir)/../../base/src \
@@ -21,6 +28,8 @@ LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/ds \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
 
+DEFINES += -DIMPL_NS_NET

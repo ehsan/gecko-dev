@@ -13,7 +13,6 @@
 #include "nsIX509Cert3.h"
 #include "nsICMSMessage.h"
 #include "nsICMSMessage2.h"
-#include "nsProxyRelease.h"
 
 class nsBaseVerificationJob
 {
@@ -26,7 +25,7 @@ class nsCertVerificationJob : public nsBaseVerificationJob
 {
 public:
   nsCOMPtr<nsIX509Cert> mCert;
-  nsMainThreadPtrHandle<nsICertVerificationListener> mListener;
+  nsCOMPtr<nsICertVerificationListener> mListener;
 
   void Run();
 };
@@ -37,7 +36,7 @@ public:
   nsCertVerificationResult();
   virtual ~nsCertVerificationResult();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSICERTVERIFICATIONRESULT
 
 private:

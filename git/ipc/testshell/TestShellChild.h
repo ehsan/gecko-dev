@@ -13,6 +13,10 @@
 
 namespace mozilla {
 
+namespace jsipc {
+class PContextWrapperChild;
+}
+
 namespace ipc {
 
 class XPCShellEnvironment;
@@ -26,15 +30,18 @@ public:
   RecvExecuteCommand(const nsString& aCommand);
 
   PTestShellCommandChild*
-  AllocPTestShellCommandChild(const nsString& aCommand);
+  AllocPTestShellCommand(const nsString& aCommand);
 
   bool
   RecvPTestShellCommandConstructor(PTestShellCommandChild* aActor,
                                    const nsString& aCommand);
 
   bool
-  DeallocPTestShellCommandChild(PTestShellCommandChild* aCommand);
+  DeallocPTestShellCommand(PTestShellCommandChild* aCommand);
 
+  PContextWrapperChild* AllocPContextWrapper();
+  bool DeallocPContextWrapper(PContextWrapperChild* actor);
+  
 private:
   nsAutoPtr<XPCShellEnvironment> mXPCShell;
 };

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsDOMClassInfoID.h"
 #include "nsDOMCommandEvent.h"
-#include "prtime.h"
 
 nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
                                      nsPresContext* aPresContext,
@@ -18,6 +18,7 @@ nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
   } else {
     mEventIsInternal = true;
   }
+  SetIsDOMBinding();
 }
 
 nsDOMCommandEvent::~nsDOMCommandEvent()
@@ -28,8 +29,11 @@ nsDOMCommandEvent::~nsDOMCommandEvent()
   }
 }
 
+DOMCI_DATA(CommandEvent, nsDOMCommandEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMCommandEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCommandEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CommandEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMCommandEvent, nsDOMEvent)
@@ -66,6 +70,9 @@ nsresult NS_NewDOMCommandEvent(nsIDOMEvent** aInstancePtrResult,
                                nsCommandEvent* aEvent)
 {
   nsDOMCommandEvent* it = new nsDOMCommandEvent(aOwner, aPresContext, aEvent);
+  if (nullptr == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   return CallQueryInterface(it, aInstancePtrResult);
 }

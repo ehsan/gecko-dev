@@ -18,23 +18,27 @@
 #include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
 #include "nsRegion.h"
 #include "FrameLayerBuilder.h"
+#include "nsThemeConstants.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayListInvalidation.h"
 #include "DisplayListClipState.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include <stdlib.h>
 #include <algorithm>
 
+class nsIPresShell;
 class nsIContent;
 class nsRenderingContext;
+class nsDeviceContext;
 class nsDisplayTableItem;
-class nsISelection;
+class nsDisplayItem;
 
 namespace mozilla {
 namespace layers {
@@ -331,14 +335,6 @@ public:
    */
   void EnterPresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
   /**
-   * For print-preview documents, we sometimes need to build display items for
-   * the same frames multiple times in the same presentation, with different
-   * clipping. Between each such batch of items, call
-   * ResetMarkedFramesForDisplayList to make sure that the results of
-   * MarkFramesForDisplayList do not carry over between batches.
-   */
-  void ResetMarkedFramesForDisplayList();
-  /**
    * Notify the display list builder that we're leaving a presshell.
    */
   void LeavePresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
@@ -458,11 +454,11 @@ public:
    * Notifies the builder that a particular themed widget exists
    * at the given rectangle within the currently built display list.
    * For certain appearance values (currently only
-   * NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR, NS_THEME_TOOLBAR and
-   * NS_THEME_WINDOW_TITLEBAR) this gets called during every display list
-   * construction, for every themed widget of the right type within the
-   * display list, except for themed widgets which are transformed or have
-   * effects applied to them (e.g. CSS opacity or filters).
+   * NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR and NS_THEME_TOOLBAR) this gets
+   * called during every display list construction, for every themed widget of
+   * the right type within the display list, except for themed widgets which
+   * are transformed or have effects applied to them (e.g. CSS opacity or
+   * filters).
    *
    * @param aWidgetType the -moz-appearance value for the themed widget
    * @param aRect the device-pixel rect relative to the widget's displayRoot
@@ -570,15 +566,12 @@ public:
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
 
   struct OutOfFlowDisplayData {
-    OutOfFlowDisplayData(const DisplayItemClip& aContainingBlockClip,
+    OutOfFlowDisplayData(const DisplayItemClip* aContainingBlockClip,
                          const nsRect &aDirtyRect)
       : mContainingBlockClip(aContainingBlockClip)
       , mDirtyRect(aDirtyRect)
     {}
-    OutOfFlowDisplayData(const nsRect &aDirtyRect)
-      : mDirtyRect(aDirtyRect)
-    {}
-    DisplayItemClip mContainingBlockClip;
+    const DisplayItemClip* mContainingBlockClip;
     nsRect mDirtyRect;
   };
   static void DestroyOutOfFlowDisplayData(void* aPropertyValue)
@@ -934,16 +927,6 @@ public:
   }
 
   /**
-   * For display items types that just draw a background we use this function
-   * to do any invalidation that might be needed if we are asked to sync decode
-   * images.
-   */
-  void AddInvalidRegionForSyncDecodeBackgroundImages(
-    nsDisplayListBuilder* aBuilder,
-    const nsDisplayItemGeometry* aGeometry,
-    nsRegion* aInvalidRegion);
-
-  /**
    * Called when the area rendered by this display item has changed (been
    * invalidated or changed geometry) since the last paint. This includes
    * when the display item was not rendered at all in the last paint.
@@ -998,12 +981,6 @@ public:
    * active. Requires setting the pref layers.force-active=true.
    */
   static bool ForceActiveLayers();
-
-  /**
-   * Returns the maximum number of layers that should be created
-   * or -1 for no limit. Requires setting the pref layers.max-acitve.
-   */
-  static int32_t MaxActiveLayers();
 
   /**
    * @return LAYER_NONE if BuildLayer will return null. In this case
@@ -1501,7 +1478,8 @@ public:
     PAINT_USE_WIDGET_LAYERS = 0x01,
     PAINT_FLUSH_LAYERS = 0x02,
     PAINT_EXISTING_TRANSACTION = 0x04,
-    PAINT_NO_COMPOSITE = 0x08
+    PAINT_NO_COMPOSITE = 0x08,
+    PAINT_NO_CLEAR_INVALIDATIONS = 0x10
   };
   void PaintRoot(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
                  uint32_t aFlags) const;
@@ -1683,7 +1661,7 @@ public:
                                                         nsDisplayListBuilder* aBuilder) = 0;
   virtual void ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset) = 0;
 
-  virtual bool SupportsOptimizingToImage() MOZ_OVERRIDE { return true; }
+  virtual bool SupportsOptimizingToImage() { return true; }
 };
 
 /**
@@ -1868,7 +1846,7 @@ public:
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
+                                         nsRegion* aInvalidRegion);
 };
 
 /**
@@ -1924,7 +1902,7 @@ public:
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE
+                                         nsRegion* aInvalidRegion)
   {
     const nsDisplayItemBoundsGeometry* geometry = static_cast<const nsDisplayItemBoundsGeometry*>(aGeometry);
     ComputeInvalidationRegionDifference(aBuilder, geometry, aInvalidRegion);
@@ -1950,15 +1928,17 @@ public:
    * nsCSSRendering::FindBackground, or null if FindBackground returned false.
    */
   nsDisplayBackgroundImage(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                           uint32_t aLayer,
+                           uint32_t aLayer, bool aIsThemed,
                            const nsStyleBackground* aBackgroundStyle);
   virtual ~nsDisplayBackgroundImage();
 
   // This will create and append new items for all the layers of the
-  // background. Returns whether we appended a themed background.
-  static bool AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
-                                         nsIFrame* aFrame,
-                                         nsDisplayList* aList);
+  // background. If given, aBackground will be set with the address of the
+  // bottom-most background item.
+  static nsresult AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
+                                             nsIFrame* aFrame,
+                                             nsDisplayList* aList,
+                                             nsDisplayBackgroundImage** aBackground = nullptr);
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
@@ -1985,6 +1965,8 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
   virtual uint32_t GetPerFrameKey() MOZ_OVERRIDE;
   NS_DISPLAY_DECL_NAME("Background", TYPE_BACKGROUND)
+  // Returns the value of GetUnderlyingFrame()->IsThemed(), but cached
+  bool IsThemed() { return mIsThemed; }
 
   /**
    * Return the background positioning area.
@@ -2018,6 +2000,9 @@ public:
   static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, nsPresContext* aPresContext, uint8_t aClip,
                                       const nsRect& aRect, bool* aSnap);
 
+#ifdef MOZ_DUMP_PAINTING
+  virtual void WriteDebugInfo(FILE *aOutput);
+#endif
 protected:
   typedef class mozilla::layers::ImageContainer ImageContainer;
   typedef class mozilla::layers::ImageLayer ImageLayer;
@@ -2026,7 +2011,7 @@ protected:
   bool IsSingleFixedPositionImage(nsDisplayListBuilder* aBuilder,
                                   const nsRect& aClipRect,
                                   gfxRect* aDestRect);
-  nsRect GetBoundsInternal(nsDisplayListBuilder* aBuilder);
+  nsRect GetBoundsInternal();
 
   void PaintInternal(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
                      const nsRect& aBounds, nsRect* aClipRect);
@@ -2041,59 +2026,11 @@ protected:
   nsRect mBounds;
   uint32_t mLayer;
 
+  nsITheme::Transparency mThemeTransparency;
+  /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
+  bool mIsThemed;
   /* true if this item represents the bottom-most background layer */
   bool mIsBottommostLayer;
-};
-
-
-/**
- * A display item to paint the native theme background for a frame.
- */
-class nsDisplayThemedBackground : public nsDisplayItem {
-public:
-  nsDisplayThemedBackground(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame);
-  virtual ~nsDisplayThemedBackground();
-
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap) MOZ_OVERRIDE;
-  virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE;
-  /**
-   * GetBounds() returns the background painting area.
-   */
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
-  NS_DISPLAY_DECL_NAME("ThemedBackground", TYPE_THEMED_BACKGROUND)
-
-  /**
-   * Return the background positioning area.
-   * (GetBounds() returns the background painting area.)
-   * Can be called only when mBackgroundStyle is non-null.
-   */
-  nsRect GetPositioningArea();
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
-  {
-    return new nsDisplayThemedBackgroundGeometry(this, aBuilder);
-  }
-
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
-
-#ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE;
-#endif
-protected:
-  nsRect GetBoundsInternal();
-
-  void PaintInternal(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
-                     const nsRect& aBounds, nsRect* aClipRect);
-
-  nsRect mBounds;
-  nsITheme::Transparency mThemeTransparency;
-  uint8_t mAppearance;
 };
 
 class nsDisplayBackgroundColor : public nsDisplayItem
@@ -2128,7 +2065,7 @@ public:
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE
+                                         nsRegion* aInvalidRegion)
   {
     const nsDisplayItemBoundsGeometry* geometry = static_cast<const nsDisplayItemBoundsGeometry*>(aGeometry);
     ComputeInvalidationRegionDifference(aBuilder, geometry, aInvalidRegion);
@@ -2136,7 +2073,7 @@ public:
 
   NS_DISPLAY_DECL_NAME("BackgroundColor", TYPE_BACKGROUND_COLOR)
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE {
+  virtual void WriteDebugInfo(FILE *aOutput) {
     fprintf(aOutput, "(rgba %d,%d,%d,%d)", 
             NS_GET_R(mColor), NS_GET_G(mColor),
             NS_GET_B(mColor), NS_GET_A(mColor));
@@ -2222,7 +2159,7 @@ public:
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE
+                                         nsRegion* aInvalidRegion)
   {
     const nsDisplayBoxShadowInnerGeometry* geometry = static_cast<const nsDisplayBoxShadowInnerGeometry*>(aGeometry);
     if (!geometry->mPaddingRect.IsEqualInterior(GetPaddingRect())) {
@@ -2338,7 +2275,7 @@ public:
   {
     aFrames->AppendElements(mMergedFrames);
   }
-  virtual bool IsInvalid(nsRect& aRect) MOZ_OVERRIDE
+  virtual bool IsInvalid(nsRect& aRect)
   {
     if (mFrame->IsInvalid(aRect) && aRect.IsEmpty()) {
       return true;
@@ -2471,12 +2408,12 @@ public:
   }
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
 #ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(FILE *aOutput) MOZ_OVERRIDE {
+  virtual void WriteDebugInfo(FILE *aOutput) {
     fprintf(aOutput, "(opacity %f)", mFrame->StyleDisplay()->mOpacity);
   }
 #endif
 
-  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
+  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder);
 };
 
 /**

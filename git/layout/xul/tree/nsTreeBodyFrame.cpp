@@ -45,6 +45,7 @@
 #include "nsBoxLayoutState.h"
 #include "nsTreeContentView.h"
 #include "nsTreeUtils.h"
+#include "nsChildIterator.h"
 #include "nsITheme.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
@@ -114,7 +115,6 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
- mOriginalHorzWidth(-1),
  mHorzWidth(0),
  mAdjustWidth(0),
  mRowHeight(0),
@@ -376,7 +376,6 @@ nsTreeBodyFrame::EnsureView()
         // Scroll to the given row.
         // XXX is this optimal if we haven't laid out yet?
         ScrollToRow(rowIndex);
-        ENSURE_TRUE(weakFrame.IsAlive());
 
         // Clear out the property info for the top row, but we always keep the
         // view current.
@@ -387,28 +386,15 @@ nsTreeBodyFrame::EnsureView()
 }
 
 void
-nsTreeBodyFrame::ManageReflowCallback(const nsRect& aRect, nscoord aHorzWidth)
-{
-  if (!mReflowCallbackPosted &&
-      (!aRect.IsEqualEdges(mRect) || mHorzWidth != aHorzWidth)) {
-    PresContext()->PresShell()->PostReflowCallback(this);
-    mReflowCallbackPosted = true;
-    mOriginalHorzWidth = mHorzWidth;
-  }
-  else if (mReflowCallbackPosted &&
-           mHorzWidth != aHorzWidth && mOriginalHorzWidth == aHorzWidth) {
-    PresContext()->PresShell()->CancelReflowCallback(this);
-    mReflowCallbackPosted = false;
-    mOriginalHorzWidth = -1;
-  }
-}
-
-void
 nsTreeBodyFrame::SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                            bool aRemoveOverflowArea)
 {
   nscoord horzWidth = CalcHorzWidth(GetScrollParts());
-  ManageReflowCallback(aRect, horzWidth);
+  if ((!aRect.IsEqualEdges(mRect) || mHorzWidth != horzWidth) && !mReflowCallbackPosted) {
+    mReflowCallbackPosted = true;
+    PresContext()->PresShell()->PostReflowCallback(this);
+  }
+
   mHorzWidth = horzWidth;
 
   nsLeafBoxFrame::SetBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);
@@ -871,10 +857,9 @@ nsTreeBodyFrame::UpdateScrollbars(const ScrollParts& aParts)
     curPos.AppendInt(mTopRowIndex*rowHeightAsPixels);
     aParts.mVScrollbarContent->
       SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curPos, true);
-    // 'this' might be deleted here
   }
 
-  if (weakFrame.IsAlive() && aParts.mHScrollbar) {
+  if (aParts.mHScrollbar) {
     nsAutoString curPos;
     curPos.AppendInt(mHorzPosition);
     aParts.mHScrollbarContent->
@@ -988,7 +973,7 @@ nsTreeBodyFrame::InvalidateScrollbars(const ScrollParts& aParts, nsWeakFrame& aW
       SetAttr(kNameSpaceID_None, nsGkAtoms::increment, pageStr, true);
   }
 
-  if (weakFrame.IsAlive() && mScrollbarActivity) {
+  if (mScrollbarActivity) {
     mScrollbarActivity->ActivityOccurred();
   }
 }
@@ -2790,7 +2775,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Bail out now if there's no view or we can't run script because the
   // document is a zombie
-  if (!mView || !GetContent()->GetCurrentDoc()->GetWindow())
+  if (!mView || !GetContent()->GetCurrentDoc()->GetScriptGlobalObject())
     return;
 
   aLists.Content()->AppendNewToTop(new (aBuilder)
@@ -4135,12 +4120,9 @@ nsTreeBodyFrame::ScrollHorzInternal(const ScrollParts& aParts, int32_t aPosition
   Invalidate();
 
   // Update the column scroll view
-  nsWeakFrame weakFrame(this);
   aParts.mColumnsScrollFrame->ScrollTo(nsPoint(mHorzPosition, 0),
                                        nsIScrollableFrame::INSTANT);
-  if (!weakFrame.IsAlive()) {
-    return NS_ERROR_FAILURE;
-  }
+
   // And fire off an event about it all
   PostScrollEvent();
   return NS_OK;
@@ -4157,8 +4139,7 @@ nsTreeBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, int32_t aO
     else if (aNewIndex < aOldIndex)
       ScrollToRowInternal(parts, mTopRowIndex-1);
   } else {
-    nsresult rv = ScrollHorzInternal(parts, aNewIndex);
-    if (NS_FAILED(rv)) return rv;
+    ScrollHorzInternal(parts, aNewIndex);
   }
 
   UpdateScrollbars(parts);
@@ -4182,8 +4163,7 @@ nsTreeBodyFrame::PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex
     ScrollInternal(parts, newrow);
   // Horizontal Scrollbar
   } else if (parts.mHScrollbar == aScrollbar) {
-    nsresult rv = ScrollHorzInternal(parts, aNewIndex);
-    if (NS_FAILED(rv)) return rv;
+    ScrollHorzInternal(parts, aNewIndex);
   }
 
   UpdateScrollbars(parts);

@@ -10,54 +10,44 @@ const Cu = Components.utils;
 
 const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-
-XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-  "resource://gre/modules/devtools/Loader.jsm");
-
-Object.defineProperty(this, "NetworkHelper", {
-  get: function() {
-    return devtools.require("devtools/toolkit/webconsole/network-helper");
-  },
-  configurable: true,
-  enumerable: true
-});
 
 this.EXPORTED_SYMBOLS = ["SideMenuWidget"];
 
 /**
  * A simple side menu, with the ability of grouping menu items.
- * This widget should be used in tandem with the WidgetMethods in ViewHelpers.jsm
+ *
+ * You can use this widget alone, but it works great with a MenuContainer!
+ * In that case, you should never need to access the methods in the
+ * SideMenuWidget directly, use the wrapper MenuContainer instance instead.
+ *
+ * @see ViewHelpers.jsm
+ *
+ * function MyView() {
+ *   this.node = new SideMenuWidget(document.querySelector(".my-node"));
+ * }
+ * ViewHelpers.create({ constructor: MyView, proto: MenuContainer.prototype }, {
+ *   myMethod: function() {},
+ *   ...
+ * });
  *
  * @param nsIDOMNode aNode
  *        The element associated with the widget.
- * @param Object aOptions
- *        - showArrows: Specifies if items in this container should display
- *          horizontal arrows.
- *        - showCheckboxes: Specifies if items in this container should display
- *          checkboxes.
+ * @param boolean aShowArrows
+ *        Specifies if items in this container should display horizontal arrows.
  */
-this.SideMenuWidget = function SideMenuWidget(aNode, aOptions={}) {
+this.SideMenuWidget = function SideMenuWidget(aNode, aShowArrows = true) {
   this.document = aNode.ownerDocument;
   this.window = this.document.defaultView;
   this._parent = aNode;
-
-  let { showArrows, showCheckboxes } = aOptions;
-  this._showArrows = showArrows || false;
-  this._showCheckboxes = showCheckboxes || false;
+  this._showArrows = aShowArrows;
 
   // Create an internal scrollbox container.
   this._list = this.document.createElement("scrollbox");
   this._list.className = "side-menu-widget-container";
   this._list.setAttribute("flex", "1");
   this._list.setAttribute("orient", "vertical");
-  this._list.setAttribute("with-arrow", showArrows);
-  this._list.setAttribute("with-checkboxes", showCheckboxes);
-  this._list.setAttribute("tabindex", "0");
-  this._list.addEventListener("keypress", e => this.emit("keyPress", e), false);
-  this._list.addEventListener("mousedown", e => this.emit("mousePress", e), false);
+  this._list.setAttribute("with-arrow", aShowArrows);
   this._parent.appendChild(this._list);
   this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
@@ -65,10 +55,6 @@ this.SideMenuWidget = function SideMenuWidget(aNode, aOptions={}) {
   this._groupsByName = new Map(); // Can't use a WeakMap because keys are strings.
   this._orderedGroupElementsArray = [];
   this._orderedMenuElementsArray = [];
-  this._itemsByElement = new Map();
-
-  // This widget emits events that can be handled in a MenuContainer.
-  EventEmitter.decorate(this);
 
   // Delegate some of the associated node's methods to satisfy the interface
   // required by MenuContainer instances.
@@ -107,33 +93,20 @@ SideMenuWidget.prototype = {
    *        A tooltip attribute for the displayed item.
    * @param string aGroup [optional]
    *        The group to place the displayed item into.
-   * @param Object aAttachment [optional]
-   *        Extra data for the user.
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  insertItemAt: function(aIndex, aContents, aTooltip = "", aGroup = "", aAttachment={}) {
-    aTooltip = NetworkHelper.convertToUnicode(unescape(aTooltip));
-    aGroup = NetworkHelper.convertToUnicode(unescape(aGroup));
-
+  insertItemAt: function SMW_insertItemAt(aIndex, aContents, aTooltip = "", aGroup = "") {
     // Invalidate any notices set on this widget.
     this.removeAttribute("notice");
 
-    // Maintaining scroll position at the bottom when a new item is inserted
-    // depends on several factors (the order of testing is important to avoid
-    // needlessly expensive operations that may cause reflows):
     let maintainScrollAtBottom =
-      // 1. The behavior should be enabled,
       this.autoscrollWithAppendedItems &&
-      // 2. There shouldn't currently be any selected item in the list.
-      !this._selectedItem &&
-      // 3. The new item should be appended at the end of the list.
       (aIndex < 0 || aIndex >= this._orderedMenuElementsArray.length) &&
-      // 4. The list should already be scrolled at the bottom.
       (this._list.scrollTop + this._list.clientHeight >= this._list.scrollHeight);
 
-    let group = this._getMenuGroupForName(aGroup);
-    let item = this._getMenuItemForGroup(group, aContents, aTooltip, aAttachment);
+    let group = this._getGroupForName(aGroup);
+    let item = this._getItemForGroup(group, aContents, aTooltip);
     let element = item.insertSelfAt(aIndex);
 
     if (this.maintainSelectionVisible) {
@@ -154,7 +127,7 @@ SideMenuWidget.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  getItemAtIndex: function(aIndex) {
+  getItemAtIndex: function SMW_getItemAtIndex(aIndex) {
     return this._orderedMenuElementsArray[aIndex];
   },
 
@@ -164,7 +137,7 @@ SideMenuWidget.prototype = {
    * @param nsIDOMNode aChild
    *        The element associated with the displayed item.
    */
-  removeChild: function(aChild) {
+  removeChild: function SMW_removeChild(aChild) {
     if (aChild.className == "side-menu-widget-item-contents") {
       // Remove the item itself, not the contents.
       aChild.parentNode.remove();
@@ -175,7 +148,6 @@ SideMenuWidget.prototype = {
 
     this._orderedMenuElementsArray.splice(
       this._orderedMenuElementsArray.indexOf(aChild), 1);
-    this._itemsByElement.delete(aChild);
 
     if (this._selectedItem == aChild) {
       this._selectedItem = null;
@@ -185,7 +157,7 @@ SideMenuWidget.prototype = {
   /**
    * Removes all of the child nodes from this container.
    */
-  removeAllItems: function() {
+  removeAllItems: function SMW_removeAllItems() {
     let parent = this._parent;
     let list = this._list;
 
@@ -198,7 +170,6 @@ SideMenuWidget.prototype = {
     this._groupsByName.clear();
     this._orderedGroupElementsArray.length = 0;
     this._orderedMenuElementsArray.length = 0;
-    this._itemsByElement.clear();
   },
 
   /**
@@ -237,7 +208,7 @@ SideMenuWidget.prototype = {
    * Ensures the selected element is visible.
    * @see SideMenuWidget.prototype.ensureElementIsVisible.
    */
-  ensureSelectionIsVisible: function(aFlags) {
+  ensureSelectionIsVisible: function SMW_ensureSelectionIsVisible(aFlags) {
     this.ensureElementIsVisible(this.selectedItem, aFlags);
   },
 
@@ -251,7 +222,7 @@ SideMenuWidget.prototype = {
    *        - withGroup: true if the group header should also be made visible, if possible
    *        - delayed: wait a few cycles before ensuring the selection is visible
    */
-  ensureElementIsVisible: function(aElement, aFlags = {}) {
+  ensureElementIsVisible: function SMW_ensureElementIsVisible(aElement, aFlags = {}) {
     if (!aElement) {
       return;
     }
@@ -277,7 +248,7 @@ SideMenuWidget.prototype = {
   /**
    * Shows all the groups, even the ones with no visible children.
    */
-  showEmptyGroups: function() {
+  showEmptyGroups: function SMW_showEmptyGroups() {
     for (let group of this._orderedGroupElementsArray) {
       group.hidden = false;
     }
@@ -286,7 +257,7 @@ SideMenuWidget.prototype = {
   /**
    * Hides all the groups which have no visible children.
    */
-  hideEmptyGroups: function() {
+  hideEmptyGroups: function SMW_hideEmptyGroups() {
     let visibleChildNodes = ".side-menu-widget-item-contents:not([hidden=true])";
 
     for (let group of this._orderedGroupElementsArray) {
@@ -305,7 +276,7 @@ SideMenuWidget.prototype = {
    * @return string
    *         The current attribute value.
    */
-  getAttribute: function(aName) {
+  getAttribute: function SMW_getAttribute(aName) {
     return this._parent.getAttribute(aName);
   },
 
@@ -317,7 +288,7 @@ SideMenuWidget.prototype = {
    * @param string aValue
    *        The desired attribute value.
    */
-  setAttribute: function(aName, aValue) {
+  setAttribute: function SMW_setAttribute(aName, aValue) {
     this._parent.setAttribute(aName, aValue);
 
     if (aName == "notice") {
@@ -331,28 +302,12 @@ SideMenuWidget.prototype = {
    * @param string aName
    *        The name of the attribute.
    */
-  removeAttribute: function(aName) {
+  removeAttribute: function SMW_removeAttribute(aName) {
     this._parent.removeAttribute(aName);
 
     if (aName == "notice") {
       this._removeNotice();
     }
-  },
-
-  /**
-   * Set the checkbox state for the item associated with the given node.
-   *
-   * @param nsIDOMNode aNode
-   *        The dom node for an item we want to check.
-   * @param boolean aCheckState
-   *        True to check, false to uncheck.
-   */
-  checkItem: function(aNode, aCheckState) {
-    const widgetItem = this._itemsByElement.get(aNode);
-    if (!widgetItem) {
-      throw new Error("No item for " + aNode);
-    }
-    widgetItem.check(aCheckState);
   },
 
   /**
@@ -370,7 +325,7 @@ SideMenuWidget.prototype = {
   /**
    * Creates and appends a label representing a notice in this container.
    */
-  _appendNotice: function() {
+  _appendNotice: function DVSL__appendNotice() {
     if (this._noticeTextNode || !this._noticeTextValue) {
       return;
     }
@@ -392,7 +347,7 @@ SideMenuWidget.prototype = {
   /**
    * Removes the label representing a notice in this container.
    */
-  _removeNotice: function() {
+  _removeNotice: function DVSL__removeNotice() {
     if (!this._noticeTextNode) {
       return;
     }
@@ -411,7 +366,7 @@ SideMenuWidget.prototype = {
    * @return SideMenuGroup
    *         The newly created group.
    */
-  _getMenuGroupForName: function(aName) {
+  _getGroupForName: function SMW__getGroupForName(aName) {
     let cachedGroup = this._groupsByName.get(aName);
     if (cachedGroup) {
       return cachedGroup;
@@ -425,7 +380,7 @@ SideMenuWidget.prototype = {
 
   /**
    * Gets a menu item to be displayed inside a group.
-   * @see SideMenuWidget.prototype._getMenuGroupForName
+   * @see SideMenuWidget.prototype._getGroupForName
    *
    * @param SideMenuGroup aGroup
    *        The group to contain the menu item.
@@ -433,17 +388,14 @@ SideMenuWidget.prototype = {
    *        The string or node displayed in the container.
    * @param string aTooltip [optional]
    *        A tooltip attribute for the displayed item.
-   * @param object aAttachment [optional]
-   *        The attachement object.
    */
-  _getMenuItemForGroup: function(aGroup, aContents, aTooltip, aAttachment) {
-    return new SideMenuItem(aGroup, aContents, aTooltip, this._showArrows, this._showCheckboxes, aAttachment);
+  _getItemForGroup: function SMW__getItemForGroup(aGroup, aContents, aTooltip) {
+    return new SideMenuItem(aGroup, aContents, aTooltip, this._showArrows);
   },
 
   window: null,
   document: null,
   _showArrows: false,
-  _showCheckboxes: false,
   _parent: null,
   _list: null,
   _boxObject: null,
@@ -451,7 +403,6 @@ SideMenuWidget.prototype = {
   _groupsByName: null,
   _orderedGroupElementsArray: null,
   _orderedMenuElementsArray: null,
-  _itemsByElement: null,
   _ensureVisibleTimeout: null,
   _noticeTextContainer: null,
   _noticeTextNode: null,
@@ -506,7 +457,6 @@ function SideMenuGroup(aWidget, aName) {
 SideMenuGroup.prototype = {
   get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
   get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
-  get _itemsByElement() { return this.ownerView._itemsByElement; },
 
   /**
    * Inserts this group in the parent container at the specified index.
@@ -514,7 +464,7 @@ SideMenuGroup.prototype = {
    * @param number aIndex
    *        The position in the container intended for this group.
    */
-  insertSelfAt: function(aIndex) {
+  insertSelfAt: function SMG_insertSelfAt(aIndex) {
     let ownerList = this.ownerView._list;
     let groupsArray = this._orderedGroupElementsArray;
 
@@ -533,7 +483,7 @@ SideMenuGroup.prototype = {
    * @return number
    *         The expected index.
    */
-  findExpectedIndexForSelf: function() {
+  findExpectedIndexForSelf: function SMG_findExpectedIndexForSelf() {
     let identifier = this.identifier;
     let groupsArray = this._orderedGroupElementsArray;
 
@@ -568,17 +518,14 @@ SideMenuGroup.prototype = {
  *        The string or node displayed in the container.
  * @param boolean aArrowFlag
  *        True if a horizontal arrow should be shown.
- * @param boolean aCheckboxFlag
- *        True if a checkbox should be shown.
- * @param object aAttachment [optional]
- *        The attachment object.
  */
-function SideMenuItem(aGroup, aContents, aTooltip, aArrowFlag, aCheckboxFlag, aAttachment={}) {
+function SideMenuItem(aGroup, aContents, aTooltip, aArrowFlag) {
   this.document = aGroup.document;
   this.window = aGroup.window;
   this.ownerView = aGroup;
 
-  if (aArrowFlag || aCheckboxFlag) {
+  // Show a horizontal arrow towards the content.
+  if (aArrowFlag) {
     let container = this._container = this.document.createElement("hbox");
     container.className = "side-menu-widget-item";
     container.setAttribute("tooltiptext", aTooltip);
@@ -586,23 +533,13 @@ function SideMenuItem(aGroup, aContents, aTooltip, aArrowFlag, aCheckboxFlag, aA
     let target = this._target = this.document.createElement("vbox");
     target.className = "side-menu-widget-item-contents";
 
-    // Show a checkbox before the content.
-    if (aCheckboxFlag) {
-      let checkbox = this._checkbox = this._makeCheckbox(aAttachment);
-      checkbox.setAttribute("align", "start");
-      container.appendChild(checkbox);
-    }
+    let arrow = this._arrow = this.document.createElement("hbox");
+    arrow.className = "side-menu-widget-item-arrow";
 
     container.appendChild(target);
-
-    // Show a horizontal arrow towards the content.
-    if (aArrowFlag) {
-      let arrow = this._arrow = this.document.createElement("hbox");
-      arrow.className = "side-menu-widget-item-arrow";
-      container.appendChild(arrow);
-    }
+    container.appendChild(arrow);
   }
-  // Skip a few redundant nodes when no horizontal arrow or checkbox is shown.
+  // Skip a few redundant nodes when no horizontal arrow is shown.
   else {
     let target = this._target = this._container = this.document.createElement("hbox");
     target.className = "side-menu-widget-item side-menu-widget-item-contents";
@@ -615,41 +552,6 @@ function SideMenuItem(aGroup, aContents, aTooltip, aArrowFlag, aCheckboxFlag, aA
 SideMenuItem.prototype = {
   get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
   get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
-  get _itemsByElement() { return this.ownerView._itemsByElement; },
-
-  /**
-   * Create the checkbox used when the checkbox flag is true. Emits a "check"
-   * event whenever the checkbox is checked or unchecked by the user.
-   *
-   * @param Object aAttachment
-   *        The attachment object. The following properties are used:
-   *          - checkboxState: true for checked, false for unchecked
-   8          - checkboxTooltip: The tooltip text of the checkbox
-   */
-  _makeCheckbox: function (aAttachment) {
-    let checkbox = this.document.createElement("checkbox");
-    checkbox.className = "side-menu-widget-item-checkbox";
-    checkbox.setAttribute("tooltiptext", aAttachment.checkboxTooltip);
-
-    if (aAttachment.checkboxState) {
-      checkbox.setAttribute("checked", true);
-    } else {
-      checkbox.removeAttribute("checked");
-    }
-
-    // Stop the toggling of the checkbox from selecting the list item.
-    checkbox.addEventListener("mousedown", function (event) {
-      event.stopPropagation();
-    }, false);
-
-    checkbox.addEventListener("command", function (event) {
-      ViewHelpers.dispatchEvent(checkbox, "check", {
-        checked: checkbox.checked,
-      });
-    }, false);
-
-    return checkbox;
-  },
 
   /**
    * Inserts this item in the parent group at the specified index.
@@ -659,7 +561,7 @@ SideMenuItem.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  insertSelfAt: function(aIndex) {
+  insertSelfAt: function SMI_insertSelfAt(aIndex) {
     let ownerList = this.ownerView._list;
     let menuArray = this._orderedMenuElementsArray;
 
@@ -670,26 +572,8 @@ SideMenuItem.prototype = {
       ownerList.appendChild(this._container);
       menuArray.push(this._target);
     }
-    this._itemsByElement.set(this._target, this);
 
     return this._target;
-  },
-
-  /**
-   * Check or uncheck the checkbox associated with this item.
-   *
-   * @param boolean aCheckState
-   *        True to check, false to uncheck.
-   */
-  check: function(aCheckState) {
-    if (!this._checkbox) {
-      throw new Error("Cannot check items that do not have checkboxes.");
-    }
-    if (aCheckState) {
-      this._checkbox.setAttribute("checked", true);
-    } else {
-      this._checkbox.removeAttribute("checked");
-    }
   },
 
   /**
@@ -724,6 +608,5 @@ SideMenuItem.prototype = {
   ownerView: null,
   _target: null,
   _container: null,
-  _checkbox: null,
   _arrow: null
 };

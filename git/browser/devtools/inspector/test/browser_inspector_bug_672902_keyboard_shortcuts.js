@@ -34,14 +34,25 @@ function test()
   {
     inspector = aInspector;
 
-    // Make sure the body element is selected initially.
-    node = doc.querySelector("body");
-    inspector.once("inspector-updated", () => {
-      is(inspector.selection.node, node, "Body should be selected initially.");
-      node = doc.querySelector("h1")
-      inspector.once("inspector-updated", highlightHeaderNode);
+    executeSoon(function() {
+      inspector.selection.once("new-node", highlightBodyNode);
+      // Test that navigating around without a selected node gets us to the
+      // body element.
+      node = doc.querySelector("body");
       let bc = inspector.breadcrumbs;
       bc.nodeHierarchy[bc.currentIndex].button.focus();
+      EventUtils.synthesizeKey("VK_RIGHT", { });
+    });
+  }
+
+  function highlightBodyNode()
+  {
+    is(inspector.selection.node, node, "selected body element");
+
+    executeSoon(function() {
+      inspector.selection.once("new-node", highlightHeaderNode);
+      // Test that moving to the child works.
+      node = doc.querySelector("h1");
       EventUtils.synthesizeKey("VK_RIGHT", { });
     });
   }
@@ -51,7 +62,7 @@ function test()
     is(inspector.selection.node, node, "selected h1 element");
 
     executeSoon(function() {
-      inspector.once("inspector-updated", highlightParagraphNode);
+      inspector.selection.once("new-node", highlightParagraphNode);
       // Test that moving to the next sibling works.
       node = doc.querySelector("p");
       EventUtils.synthesizeKey("VK_DOWN", { });
@@ -63,7 +74,7 @@ function test()
     is(inspector.selection.node, node, "selected p element");
 
     executeSoon(function() {
-      inspector.once("inspector-updated", highlightHeaderNodeAgain);
+      inspector.selection.once("new-node", highlightHeaderNodeAgain);
       // Test that moving to the previous sibling works.
       node = doc.querySelector("h1");
       EventUtils.synthesizeKey("VK_UP", { });
@@ -75,7 +86,7 @@ function test()
     is(inspector.selection.node, node, "selected h1 element");
 
     executeSoon(function() {
-      inspector.once("inspector-updated", highlightParentNode);
+      inspector.selection.once("new-node", highlightParentNode);
       // Test that moving to the parent works.
       node = doc.querySelector("body");
       EventUtils.synthesizeKey("VK_LEFT", { });

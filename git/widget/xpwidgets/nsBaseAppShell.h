@@ -6,7 +6,6 @@
 #ifndef nsBaseAppShell_h__
 #define nsBaseAppShell_h__
 
-#include "mozilla/Atomics.h"
 #include "nsIAppShell.h"
 #include "nsIThreadInternal.h"
 #include "nsIObserver.h"
@@ -23,7 +22,7 @@ class nsBaseAppShell : public nsIAppShell, public nsIThreadObserver,
                        public nsIObserver
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIAPPSHELL
   NS_DECL_NSITHREADOBSERVER
   NS_DECL_NSIOBSERVER
@@ -120,7 +119,7 @@ private:
    */
   bool *mBlockedWait;
   int32_t mFavorPerf;
-  mozilla::Atomic<uint32_t> mNativeEventPending;
+  int32_t mNativeEventPending;
   PRIntervalTime mStarvationDelay;
   PRIntervalTime mSwitchTime;
   PRIntervalTime mLastNativeEventTime;

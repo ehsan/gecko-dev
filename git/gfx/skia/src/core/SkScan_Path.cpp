@@ -219,6 +219,9 @@ static bool update_edge(SkEdge* edge, int last_y) {
 static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
                               SkBlitter* blitter, int start_y, int stop_y,
                               PrePostProc proc) {
+    static int gCalls;
+    gCalls++;
+
     validate_sort(prevHead->fNext);
 
     SkEdge* leftE = prevHead->fNext;
@@ -235,7 +238,10 @@ static void walk_convex_edges(SkEdge* prevHead, SkPath::FillType,
 #endif
     SkASSERT(local_top >= start_y);
 
+    int gLoops = 0;
     for (;;) {
+        gLoops++;
+
         SkASSERT(leftE->fFirstY <= stop_y);
         SkASSERT(riteE->fFirstY <= stop_y);
 
@@ -727,3 +733,4 @@ void SkScan::FillTriangle(const SkPoint pts[], const SkRasterClip& clip,
         sk_fill_triangle(pts, clipper.getClipRect(), blitter, ir);
     }
 }
+

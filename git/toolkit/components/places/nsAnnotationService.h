@@ -55,7 +55,7 @@ public:
   /**
    * Obtains the service's object.
    */
-  static already_AddRefed<nsAnnotationService> GetSingleton();
+  static nsAnnotationService* GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
@@ -92,6 +92,7 @@ protected:
   static const int kAnnoIndex_ID;
   static const int kAnnoIndex_PageOrItem;
   static const int kAnnoIndex_NameID;
+  static const int kAnnoIndex_MimeType;
   static const int kAnnoIndex_Content;
   static const int kAnnoIndex_Flags;
   static const int kAnnoIndex_Expiration;
@@ -139,6 +140,14 @@ protected:
                                        int64_t aItemId,
                                        const nsACString& aName,
                                        double aValue,
+                                       int32_t aFlags,
+                                       uint16_t aExpiration);
+  nsresult SetAnnotationBinaryInternal(nsIURI* aURI,
+                                       int64_t aItemId,
+                                       const nsACString& aName,
+                                       const uint8_t* aData,
+                                       uint32_t aDataLen,
+                                       const nsACString& aMimeType,
                                        int32_t aFlags,
                                        uint16_t aExpiration);
 

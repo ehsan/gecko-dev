@@ -5,7 +5,6 @@
 #ifndef nsIContent_h___
 #define nsIContent_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
 #include "nsIDocument.h"
 
@@ -18,7 +17,6 @@ class nsAttrValue;
 class nsAttrName;
 class nsTextFragment;
 class nsIFrame;
-class nsXBLBinding;
 
 namespace mozilla {
 namespace widget {
@@ -34,8 +32,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0x976f4cd1, 0xbdfc, 0x4a1e, \
-  { 0x82, 0x46, 0x1c, 0x13, 0x9c, 0xd3, 0x73, 0x7f } }
+{ 0x8a8b4b1d, 0x72d8, 0x428e, \
+ { 0x95, 0x75, 0xf9, 0x18, 0xba, 0xf6, 0x9e, 0xa1 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -306,18 +304,24 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_MathML);
   }
 
-  inline bool IsActiveChildrenElement() const
-  {
-    return mNodeInfo->Equals(nsGkAtoms::children, kNameSpaceID_XBL) &&
-           GetBindingParent();
-  }
-
   /**
    * Returns an atom holding the name of the attribute of type ID on
    * this content node (if applicable).  Returns null for non-element
    * content nodes.
    */
   virtual nsIAtom *GetIDAttributeName() const = 0;
+
+  /**
+   * Normalizes an attribute name and returns it as a nodeinfo if an attribute
+   * with that name exists. This method is intended for character case
+   * conversion if the content object is case insensitive (e.g. HTML). Returns
+   * the nodeinfo of the attribute with the specified name if one exists or
+   * null otherwise.
+   *
+   * @param aStr the unparsed attribute string
+   * @return the node info. May be nullptr.
+   */
+  virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const = 0;
 
   /**
    * Set attribute values. All attribute values are assumed to have a
@@ -605,47 +609,8 @@ public:
   virtual nsIContent *GetBindingParent() const = 0;
 
   /**
-   * Gets the current XBL binding that is bound to this element.
-   *
-   * @return the current binding.
-   */
-  virtual nsXBLBinding *GetXBLBinding() const = 0;
-
-  /**
-   * Sets or unsets an XBL binding for this element. Setting a
-   * binding on an element that already has a binding will remove the
-   * old binding.
-   *
-   * @param aBinding The binding to bind to this content. If nullptr is
-   *        provided as the argument, then existing binding will be
-   *        removed.
-   *
-   * @param aOldBindingManager The old binding manager that contains
-   *                           this content if this content was adopted
-   *                           to another document.
-   */
-  virtual void SetXBLBinding(nsXBLBinding* aBinding,
-                             nsBindingManager* aOldBindingManager = nullptr) = 0;
-
-  /**
-   * Gets the insertion parent element of the XBL binding.
-   * The insertion parent is our one true parent in the transformed DOM.
-   *
-   * @return the insertion parent element.
-   */
-  virtual nsIContent *GetXBLInsertionParent() const = 0;
-
-  /**
-   * Sets the insertion parent element of the XBL binding.
-   *
-   * @param aContent The insertion parent element.
-   */
-  virtual void SetXBLInsertionParent(nsIContent* aContent) = 0;
-
-  /**
    * Returns the content node that is the parent of this node in the flattened
-   * tree. For nodes that are not filtered into an insertion point, this
-   * simply returns their DOM parent in the original DOM tree.
+   * tree.
    *
    * @return the flattened tree parent
    */
@@ -665,6 +630,17 @@ public:
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
   virtual bool IsLink(nsIURI** aURI) const = 0;
+
+  /**
+   * Get the cached state of the link.  If the state is unknown, 
+   * return eLinkState_Unknown.
+   *
+   * @return The cached link state of the link.
+   */
+  virtual nsLinkState GetLinkState() const
+  {
+    return eLinkState_NotLink;
+  }
 
   /**
     * Get a pointer to the full href URI (fully resolved and canonicalized,
@@ -870,9 +846,9 @@ public:
   }
 
   // Overloaded from nsINode
-  virtual already_AddRefed<nsIURI> GetBaseURI() const MOZ_OVERRIDE;
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   virtual bool IsPurple() = 0;
   virtual void RemovePurple() = 0;

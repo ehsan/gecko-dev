@@ -98,7 +98,7 @@
 #include "CertVerifier.h"
 #include "nsIBadCertListener2.h"
 #include "nsICertOverrideService.h"
-#include "nsISiteSecurityService.h"
+#include "nsIStrictTransportSecurityService.h"
 #include "nsNSSComponent.h"
 #include "nsNSSCleaner.h"
 #include "nsRecentBadCerts.h"
@@ -109,7 +109,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"
 #include "nsIThreadPool.h"
-#include "nsNetUtil.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -121,7 +120,6 @@
 #include "secerr.h"
 #include "secport.h"
 #include "sslerr.h"
-#include "ocsp.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
@@ -315,13 +313,14 @@ CertErrorRunnable::CheckCertOverrides()
   // connections must be dropped when there are any certificate errors
   // (STS Spec section 7.3).
   bool strictTransportSecurityEnabled = false;
-  nsCOMPtr<nsISiteSecurityService> sss
-    = do_GetService(NS_SSSERVICE_CONTRACTID, &nsrv);
+  nsCOMPtr<nsIStrictTransportSecurityService> stss
+    = do_GetService(NS_STSSERVICE_CONTRACTID, &nsrv);
   if (NS_SUCCEEDED(nsrv)) {
-    nsrv = sss->IsSecureHost(nsISiteSecurityService::HEADER_HSTS,
-                             mInfoObject->GetHostName(),
-                             mProviderFlags,
-                             &strictTransportSecurityEnabled);
+    nsCOMPtr<nsISSLSocketControl> sslSocketControl = do_QueryInterface(
+      NS_ISUPPORTS_CAST(nsITransportSecurityInfo*, mInfoObject));
+    nsrv = stss->IsStsHost(mInfoObject->GetHostName(),
+                           mProviderFlags,
+                           &strictTransportSecurityEnabled);
   }
   if (NS_FAILED(nsrv)) {
     return new SSLServerCertVerificationResult(mInfoObject,
@@ -444,8 +443,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
                         TransportSecurityInfo * infoObject,
                         CERTCertificate * cert,
                         const void * fdForLogging,
-                        uint32_t providerFlags,
-                        PRTime now)
+                        uint32_t providerFlags)
 {
   MOZ_ASSERT(infoObject);
   MOZ_ASSERT(cert);
@@ -478,6 +476,8 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     return nullptr;
   }
   
+  PRTime now = PR_Now();
+
   PLArenaPool *log_arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   PLArenaPoolCleanerFalseParam log_arena_cleaner(log_arena);
   if (!log_arena) {
@@ -806,11 +806,10 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
     return SECSuccess;
 
   // If GetNegotiatedNPN() failed we will assume spdy for safety's safe
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
            ("BlockServerCertChangeForSpdy failed GetNegotiatedNPN() call."
             " Assuming spdy.\n"));
-  }
 
   // Check to see if the cert has actually changed
   ScopedCERTCertificate c(cert2->GetCert());
@@ -1086,7 +1085,7 @@ SSLServerCertVerificationJob::Run()
     }
     if (error != 0) {
       RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
-        error, mInfoObject, mCert, mFdForLogging, mProviderFlags, PR_Now()));
+        error, mInfoObject, mCert, mFdForLogging, mProviderFlags));
       if (!runnable) {
         // CreateCertErrorRunnable set a new error code
         error = PR_GetError(); 
@@ -1162,25 +1161,7 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
       PR_SetError(PR_INVALID_STATE_ERROR, 0);
       return SECFailure;
   }
-
-  // This value of "now" is used both here for OCSP stapling and later
-  // when calling CreateCertErrorRunnable.
-  PRTime now = PR_Now();
-  // SSL_PeerStapledOCSPResponses will never return a non-empty response if
-  // OCSP stapling wasn't enabled because libssl wouldn't have let the server
-  // return a stapled OCSP response.
-  // We don't own this pointer.
-  const SECItemArray *csa = SSL_PeerStapledOCSPResponses(fd);
-  // we currently only support single stapled responses
-  if (csa && csa->len == 1) {
-      CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
-      SECStatus cacheResult = CERT_CacheOCSPResponseFromSideChannel(
-          handle, serverCert, now, &csa->items[0], arg);
-      if (cacheResult != SECSuccess) {
-          return SECFailure;
-      }
-  }
-
+      
   if (BlockServerCertChangeForSpdy(socketInfo, serverCert) != SECSuccess)
     return SECFailure;
 
@@ -1227,7 +1208,7 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
   if (error != 0) {
     RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
                     error, socketInfo, serverCert,
-                    static_cast<const void *>(fd), providerFlags, now));
+                    static_cast<const void *>(fd), providerFlags));
     if (!runnable) {
       // CreateCertErrorRunnable sets a new error code when it fails
       error = PR_GetError();

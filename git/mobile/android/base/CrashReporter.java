@@ -283,7 +283,7 @@ public class CrashReporter extends Activity
             Process proc = Runtime.getRuntime().exec(new String[] {
                 "logcat", "-v", "threadtime", "-t", "200", "-d", "*:D"
             });
-            StringBuilder sb = new StringBuilder();
+            StringBuffer sb = new StringBuffer();
             br = new BufferedReader(new InputStreamReader(proc.getInputStream()));
             for (String s = br.readLine(); s != null; s = br.readLine()) {
                 sb.append(s).append('\n');
@@ -334,7 +334,7 @@ public class CrashReporter extends Activity
 
             // Add some extra information to notes so its displayed by
             // crash-stats.mozilla.org. Remove this when bug 607942 is fixed.
-            StringBuilder sb = new StringBuilder();
+            StringBuffer sb = new StringBuffer();
             sb.append(extras.containsKey(NOTES_KEY) ? extras.get(NOTES_KEY) + "\n" : "");
             if (AppConstants.MOZ_MIN_CPU_VERSION < 7) {
                 sb.append("nothumb Build\n");

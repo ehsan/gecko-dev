@@ -40,8 +40,6 @@ public class Favicons {
 
     public static final long NOT_LOADING = 0;
     public static final long FAILED_EXPIRY_NEVER = -1;
-    public static final int FLAG_PERSIST = 1;
-    public static final int FLAG_SCALE = 2;
 
     private static int sFaviconSmallSize = -1;
     private static int sFaviconLargeSize = -1;
@@ -53,7 +51,7 @@ public class Favicons {
     private LruCache<String, Bitmap> mFaviconsCache;
     private LruCache<String, Long> mFailedCache;
     private LruCache<String, Integer> mColorCache;
-    private static final String USER_AGENT = GeckoAppShell.getGeckoInterface().getDefaultUAString();
+    private static final String USER_AGENT = GeckoApp.mAppContext.getDefaultUAString();
     private AndroidHttpClient mHttpClient;
 
     public interface OnFaviconLoadedListener {
@@ -108,7 +106,7 @@ public class Favicons {
         return BrowserDB.getFaviconUrlForHistoryUrl(mContext.getContentResolver(), pageUrl);
     }
 
-    public long loadFavicon(String pageUrl, String faviconUrl, int flags,
+    public long loadFavicon(String pageUrl, String faviconUrl, boolean persist,
             OnFaviconLoadedListener listener) {
 
         // Handle the case where page url is empty
@@ -130,7 +128,7 @@ public class Favicons {
             return -1;
         }
 
-        LoadFaviconTask task = new LoadFaviconTask(ThreadUtils.getBackgroundHandler(), pageUrl, faviconUrl, flags, listener);
+        LoadFaviconTask task = new LoadFaviconTask(ThreadUtils.getBackgroundHandler(), pageUrl, faviconUrl, persist, listener);
 
         long taskId = task.getId();
         mLoadTasks.put(taskId, task);
@@ -141,12 +139,6 @@ public class Favicons {
     }
 
     public Bitmap getFaviconFromMemCache(String pageUrl) {
-        // If for some reason the key is null, simply return null
-        // and avoid an exception on the mem cache (see bug 813546)
-        if (pageUrl == null) {
-            return null;
-        }
-
         return mFaviconsCache.get(pageUrl);
     }
 
@@ -255,10 +247,10 @@ public class Favicons {
         private String mPageUrl;
         private String mFaviconUrl;
         private OnFaviconLoadedListener mListener;
-        private int mFlags;
+        private boolean mPersist;
 
         public LoadFaviconTask(Handler backgroundThreadHandler,
-                               String pageUrl, String faviconUrl, int flags,
+                               String pageUrl, String faviconUrl, boolean persist,
                                OnFaviconLoadedListener listener) {
             super(backgroundThreadHandler);
 
@@ -269,7 +261,7 @@ public class Favicons {
             mPageUrl = pageUrl;
             mFaviconUrl = faviconUrl;
             mListener = listener;
-            mFlags = flags;
+            mPersist = persist;
         }
 
         // Runs in background thread
@@ -280,7 +272,7 @@ public class Favicons {
 
         // Runs in background thread
         private void saveFaviconToDb(final Bitmap favicon) {
-            if ((mFlags & FLAG_PERSIST) == 0) {
+            if (!mPersist) {
                 return;
             }
 
@@ -379,7 +371,7 @@ public class Favicons {
             if (storedFaviconUrl != null && storedFaviconUrl.equals(mFaviconUrl)) {
                 image = loadFaviconFromDb();
                 if (image != null && image.getWidth() > 0 && image.getHeight() > 0)
-                    return ((mFlags & FLAG_SCALE) != 0) ? scaleImage(image) : image;
+                    return scaleImage(image);
             }
 
             if (isCancelled())
@@ -389,7 +381,7 @@ public class Favicons {
 
             if (image != null && image.getWidth() > 0 && image.getHeight() > 0) {
                 saveFaviconToDb(image);
-                image = ((mFlags & FLAG_SCALE) != 0) ? scaleImage(image) : image;
+                image = scaleImage(image);
             } else {
                 image = null;
             }

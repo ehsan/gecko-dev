@@ -154,6 +154,11 @@ public:
 
     enum Flags {
         kCrossProcess_Flag               = 0x01,
+
+        /**
+         *  Instructs the writer to always serialize bitmap pixel data.
+         */
+        kForceFlattenBitmapPixels_Flag   = 0x04,
     };
 
     uint32_t getFlags() const { return fFlags; }
@@ -161,6 +166,10 @@ public:
 
     bool isCrossProcess() const {
         return SkToBool(fFlags & kCrossProcess_Flag);
+    }
+
+    bool persistBitmapPixels() const {
+        return (fFlags & (kCrossProcess_Flag | kForceFlattenBitmapPixels_Flag)) != 0;
     }
 
     bool persistTypeface() const { return (fFlags & kCrossProcess_Flag) != 0; }

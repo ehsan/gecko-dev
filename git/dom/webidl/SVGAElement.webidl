@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedString;
+
 interface SVGAElement : SVGGraphicsElement {
   readonly attribute SVGAnimatedString target;
 

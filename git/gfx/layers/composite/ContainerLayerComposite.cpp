@@ -75,13 +75,13 @@ ContainerRender(ContainerT* aContainer,
       // not safe.
       if (HasOpaqueAncestorLayer(aContainer) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-        mode = gfxPlatform::ComponentAlphaEnabled() ?
+        mode = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering() ?
                                             INIT_MODE_COPY : INIT_MODE_CLEAR;
         surfaceCopyNeeded = (mode == INIT_MODE_COPY);
         surfaceRect.x += transform.x0;
         surfaceRect.y += transform.y0;
         aContainer->mSupportsComponentAlphaChildren
-          = gfxPlatform::ComponentAlphaEnabled();
+          = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering();
       }
     }
 
@@ -109,8 +109,7 @@ ContainerRender(ContainerT* aContainer,
   for (uint32_t i = 0; i < children.Length(); i++) {
     LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
 
-    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty() &&
-        !layerToRender->GetLayer()->AsContainerLayer()) {
+    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
       continue;
     }
 
@@ -150,21 +149,6 @@ ContainerRender(ContainerT* aContainer,
     aManager->GetCompositor()->DrawQuad(rect, clipRect, effectChain, opacity,
                                         transform, gfx::Point(aOffset.x, aOffset.y));
   }
-
-  if (aContainer->GetFrameMetrics().IsScrollable()) {
-    gfx::Matrix4x4 transform;
-    ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
-
-    const FrameMetrics& frame = aContainer->GetFrameMetrics();
-    LayerRect layerViewport = frame.mViewport * frame.LayersPixelsPerCSSPixel();
-    gfx::Rect rect(layerViewport.x, layerViewport.y, layerViewport.width, layerViewport.height);
-    gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
-    aManager->GetCompositor()->DrawDiagnostics(DIAGNOSTIC_CONTAINER,
-                                               rect, clipRect,
-                                               transform, gfx::Point(aOffset.x, aOffset.y));
-  }
-
-  LayerManagerComposite::RemoveMaskEffect(aContainer->GetMaskLayer());
 }
 
 ContainerLayerComposite::ContainerLayerComposite(LayerManagerComposite *aManager)

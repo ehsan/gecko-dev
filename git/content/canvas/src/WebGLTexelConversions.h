@@ -32,8 +32,8 @@
 #define __restrict
 #endif
 
-#include "WebGLTypes.h"
-#include <stdint.h>
+#include "WebGLTexture.h"
+#include "mozilla/StandardInteger.h"
 
 #if defined _MSC_VER
 #define FORCE_INLINE __forceinline

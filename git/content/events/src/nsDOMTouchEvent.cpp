@@ -1,54 +1,69 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMTouchEvent.h"
 #include "nsGUIEvent.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsPresContext.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/dom/TouchListBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
 // TouchList
+nsDOMTouchList::nsDOMTouchList(nsTArray<nsCOMPtr<nsIDOMTouch> > &aTouches)
+{
+  mPoints.AppendElements(aTouches);
+  nsJSContext::LikelyShortLivingObjectCreated();
+}
+
+DOMCI_DATA(TouchList, nsDOMTouchList)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMTouchList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTouchList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TouchList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsDOMTouchList, mParent, mPoints)
+NS_IMPL_CYCLE_COLLECTION_1(nsDOMTouchList, mPoints)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTouchList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTouchList)
 
-/* virtual */ JSObject*
-nsDOMTouchList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+NS_IMETHODIMP
+nsDOMTouchList::GetLength(uint32_t* aLength)
 {
-  return TouchListBinding::Wrap(aCx, aScope, this);
+  *aLength = mPoints.Length();
+  return NS_OK;
 }
 
-/* static */ bool
-nsDOMTouchList::PrefEnabled()
+NS_IMETHODIMP
+nsDOMTouchList::Item(uint32_t aIndex, nsIDOMTouch** aRetVal)
 {
-  return nsDOMTouchEvent::PrefEnabled();
+  NS_IF_ADDREF(*aRetVal = mPoints.SafeElementAt(aIndex, nullptr));
+  return NS_OK;
 }
 
-Touch*
-nsDOMTouchList::IdentifiedTouch(int32_t aIdentifier) const
+NS_IMETHODIMP
+nsDOMTouchList::IdentifiedTouch(int32_t aIdentifier, nsIDOMTouch** aRetVal)
 {
+  *aRetVal = nullptr;
   for (uint32_t i = 0; i < mPoints.Length(); ++i) {
-    Touch* point = mPoints[i];
-    if (point && point->Identifier() == aIdentifier) {
-      return point;
+    nsCOMPtr<nsIDOMTouch> point = mPoints[i];
+    int32_t identifier;
+    if (point && NS_SUCCEEDED(point->GetIdentifier(&identifier)) &&
+        aIdentifier == identifier) {
+      point.swap(*aRetVal);
+      break;
     }
   }
-  return nullptr;
+  return NS_OK;
 }
 
 // TouchEvent
@@ -63,13 +78,15 @@ nsDOMTouchEvent::nsDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = false;
 
     for (uint32_t i = 0; i < aEvent->touches.Length(); ++i) {
-      Touch* touch = aEvent->touches[i];
-      touch->InitializePoints(mPresContext, aEvent);
+      nsIDOMTouch *touch = aEvent->touches[i];
+      dom::Touch *domtouch = static_cast<dom::Touch*>(touch);
+      domtouch->InitializePoints(mPresContext, aEvent);
     }
   } else {
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
+  SetIsDOMBinding();
 }
 
 nsDOMTouchEvent::~nsDOMTouchEvent()
@@ -80,19 +97,30 @@ nsDOMTouchEvent::~nsDOMTouchEvent()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(nsDOMTouchEvent, nsDOMUIEvent,
-                                     mTouches,
-                                     mTargetTouches,
-                                     mChangedTouches)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTouches)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTargetTouches)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChangedTouches)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTouches)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTargetTouches)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChangedTouches)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+DOMCI_DATA(TouchEvent, nsDOMTouchEvent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMTouchEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTouchEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TouchEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
 
 
-void
+NS_IMETHODIMP
 nsDOMTouchEvent::InitTouchEvent(const nsAString& aType,
                                 bool aCanBubble,
                                 bool aCancelable,
@@ -102,25 +130,31 @@ nsDOMTouchEvent::InitTouchEvent(const nsAString& aType,
                                 bool aAltKey,
                                 bool aShiftKey,
                                 bool aMetaKey,
-                                nsDOMTouchList* aTouches,
-                                nsDOMTouchList* aTargetTouches,
-                                nsDOMTouchList* aChangedTouches,
-                                mozilla::ErrorResult& aRv)
+                                nsIDOMTouchList* aTouches,
+                                nsIDOMTouchList* aTargetTouches,
+                                nsIDOMTouchList* aChangedTouches)
 {
-  aRv = nsDOMUIEvent::InitUIEvent(aType,
-                                  aCanBubble,
-                                  aCancelable,
-                                  aView,
-                                  aDetail);
-  if (aRv.Failed()) {
-    return;
-  }
+  nsresult rv = nsDOMUIEvent::InitUIEvent(aType,
+                                          aCanBubble,
+                                          aCancelable,
+                                          aView,
+                                          aDetail);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   static_cast<nsInputEvent*>(mEvent)->InitBasicModifiers(aCtrlKey, aAltKey,
                                                          aShiftKey, aMetaKey);
-  mTouches = aTouches;
-  mTargetTouches = aTargetTouches;
-  mChangedTouches = aChangedTouches;
+  mTouches = static_cast<nsDOMTouchList*>(aTouches);
+  mTargetTouches = static_cast<nsDOMTouchList*>(aTargetTouches);
+  mChangedTouches = static_cast<nsDOMTouchList*>(aChangedTouches);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetTouches(nsIDOMTouchList** aTouches)
+{
+  NS_ENSURE_ARG_POINTER(aTouches);
+  NS_ADDREF(*aTouches = Touches());
+  return NS_OK;
 }
 
 nsDOMTouchList*
@@ -130,58 +164,103 @@ nsDOMTouchEvent::Touches()
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
     if (mEvent->message == NS_TOUCH_END || mEvent->message == NS_TOUCH_CANCEL) {
       // for touchend events, remove any changed touches from the touches array
-      nsTArray< nsRefPtr<Touch> > unchangedTouches;
-      const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+      nsTArray<nsCOMPtr<nsIDOMTouch> > unchangedTouches;
+      const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
       for (uint32_t i = 0; i < touches.Length(); ++i) {
         if (!touches[i]->mChanged) {
           unchangedTouches.AppendElement(touches[i]);
         }
       }
-      mTouches = new nsDOMTouchList(ToSupports(this), unchangedTouches);
+      mTouches = new nsDOMTouchList(unchangedTouches);
     } else {
-      mTouches = new nsDOMTouchList(ToSupports(this), touchEvent->touches);
+      mTouches = new nsDOMTouchList(touchEvent->touches);
     }
   }
   return mTouches;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetTargetTouches(nsIDOMTouchList** aTargetTouches)
+{
+  NS_ENSURE_ARG_POINTER(aTargetTouches);
+  NS_ADDREF(*aTargetTouches = TargetTouches());
+  return NS_OK;
 }
 
 nsDOMTouchList*
 nsDOMTouchEvent::TargetTouches()
 {
   if (!mTargetTouches) {
-    nsTArray< nsRefPtr<Touch> > targetTouches;
+    nsTArray<nsCOMPtr<nsIDOMTouch> > targetTouches;
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       // for touchend/cancel events, don't append to the target list if this is a
       // touch that is ending
       if ((mEvent->message != NS_TOUCH_END &&
            mEvent->message != NS_TOUCH_CANCEL) || !touches[i]->mChanged) {
-        if (touches[i]->mTarget == mEvent->originalTarget) {
+        EventTarget* targetPtr = touches[i]->GetTarget();
+        if (targetPtr == mEvent->originalTarget) {
           targetTouches.AppendElement(touches[i]);
         }
       }
     }
-    mTargetTouches = new nsDOMTouchList(ToSupports(this), targetTouches);
+    mTargetTouches = new nsDOMTouchList(targetTouches);
   }
   return mTargetTouches;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetChangedTouches(nsIDOMTouchList** aChangedTouches)
+{
+  NS_ENSURE_ARG_POINTER(aChangedTouches);
+  NS_ADDREF(*aChangedTouches = ChangedTouches());
+  return NS_OK;
 }
 
 nsDOMTouchList*
 nsDOMTouchEvent::ChangedTouches()
 {
   if (!mChangedTouches) {
-    nsTArray< nsRefPtr<Touch> > changedTouches;
+    nsTArray<nsCOMPtr<nsIDOMTouch> > changedTouches;
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       if (touches[i]->mChanged) {
         changedTouches.AppendElement(touches[i]);
       }
     }
-    mChangedTouches = new nsDOMTouchList(ToSupports(this), changedTouches);
+    mChangedTouches = new nsDOMTouchList(changedTouches);
   }
   return mChangedTouches;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetAltKey(bool* aAltKey)
+{
+  *aAltKey = AltKey();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetMetaKey(bool* aMetaKey)
+{
+  *aMetaKey = MetaKey();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetCtrlKey(bool* aCtrlKey)
+{
+  *aCtrlKey = CtrlKey();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMTouchEvent::GetShiftKey(bool* aShiftKey)
+{
+  *aShiftKey = ShiftKey();
+  return NS_OK;
 }
 
 #ifdef XP_WIN

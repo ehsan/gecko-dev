@@ -11,6 +11,8 @@
 #include "nsTArray.h"
 #include "nsRegion.h"
 #include "nsIFrame.h"
+#include "nsDisplayListInvalidation.h"
+#include "LayerTreeInvalidation.h"
 #include "ImageLayers.h"
 #include "DisplayItemClip.h"
 
@@ -18,7 +20,7 @@ class nsDisplayListBuilder;
 class nsDisplayList;
 class nsDisplayItem;
 class gfxContext;
-class nsDisplayItemGeometry;
+class nsRootPresContext;
 
 namespace mozilla {
 namespace layers {

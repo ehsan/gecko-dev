@@ -3,13 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Hal.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "DateCacheCleaner.h"
 
-#include "jsapi.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "mozilla/Hal.h"
+#include "nsContentUtils.h"
 #include "mozilla/StaticPtr.h"
-#include "nsCxPusher.h"
 
 using namespace mozilla::hal;
 
@@ -32,6 +31,7 @@ public:
   void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
   {
     mozilla::AutoSafeJSContext cx;
+    JSAutoRequest ar(cx);
     JS_ClearDateCaches(cx);
   }
 

@@ -15,13 +15,8 @@ dictionary SocketsDict {
 };
 
 dictionary HttpConnInfoDict {
-  sequence<unsigned long> rtt;
-  sequence<unsigned long> ttl;
-  sequence<DOMString> protocolVersion;
-};
-
-dictionary HalfOpenInfoDict {
-  sequence<boolean> speculative;
+	sequence<unsigned long> rtt;
+	sequence<unsigned long> ttl;
 };
 
 dictionary HttpConnDict {
@@ -29,7 +24,6 @@ dictionary HttpConnDict {
   sequence<unsigned long> port;
   sequence<HttpConnInfoDict> active;
   sequence<HttpConnInfoDict> idle;
-  sequence<HalfOpenInfoDict> halfOpens;
   sequence<boolean> spdy;
   sequence<boolean> ssl;
 };
@@ -49,14 +43,3 @@ dictionary DNSCacheDict {
   sequence<DOMString> family;
   sequence<double> expiration;
 };
-
-dictionary DNSLookupDict {
-  sequence<DOMString> address;
-  DOMString error;
-  boolean answer;
-};
-
-dictionary ConnStatusDict {
-  DOMString status;
-};
-

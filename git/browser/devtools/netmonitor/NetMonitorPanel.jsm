@@ -12,39 +12,38 @@ this.EXPORTED_SYMBOLS = ["NetMonitorPanel"];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "promise",
-  "resource://gre/modules/commonjs/sdk/core/promise.js", "Promise");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+  "resource://gre/modules/commonjs/sdk/core/promise.js");
 
-this.NetMonitorPanel = function NetMonitorPanel(iframeWindow, toolbox) {
+function NetMonitorPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this._toolbox = toolbox;
-  this._destroyer = null;
 
   this._view = this.panelWin.NetMonitorView;
   this._controller = this.panelWin.NetMonitorController;
   this._controller._target = this.target;
 
   EventEmitter.decorate(this);
-};
+}
 
 NetMonitorPanel.prototype = {
   /**
    * Open is effectively an asynchronous constructor.
    *
    * @return object
-   *         A promise that is resolved when the NetMonitor completes opening.
+   *         A Promise that is resolved when the NetMonitor completes opening.
    */
-  open: function() {
-    let targetPromise;
+  open: function NetMonitorPanel_open() {
+    let promise;
 
     // Local monitoring needs to make the target remote.
     if (!this.target.isRemote) {
-      targetPromise = this.target.makeRemote();
+      promise = this.target.makeRemote();
     } else {
-      targetPromise = promise.resolve(this.target);
+      promise = Promise.resolve(this.target);
     }
 
-    return targetPromise
+    return promise
       .then(() => this._controller.startupNetMonitor())
       .then(() => this._controller.connect())
       .then(() => {
@@ -54,22 +53,14 @@ NetMonitorPanel.prototype = {
       })
       .then(null, function onError(aReason) {
         Cu.reportError("NetMonitorPanel open failed. " +
-                       aReason.error + ": " + aReason.message);
+                       reason.error + ": " + reason.message);
       });
   },
 
   // DevToolPanel API
-
   get target() this._toolbox.target,
 
   destroy: function() {
-    // Make sure this panel is not already destroyed.
-    if (this._destroyer) {
-      return this._destroyer;
-    }
-
-    return this._destroyer = this._controller.shutdownNetMonitor().then(() => {
-      this.emit("destroyed");
-    });
+    this._controller.shutdownNetMonitor().then(() => this.emit("destroyed"));
   }
 };

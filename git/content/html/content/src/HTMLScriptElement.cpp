@@ -20,7 +20,6 @@
 #include "nsIArray.h"
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
-#include "nsISupportsImpl.h"
 #include "mozilla/dom/HTMLScriptElement.h"
 #include "mozilla/dom/HTMLScriptElementBinding.h"
 
@@ -40,6 +39,7 @@ HTMLScriptElement::HTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   : nsGenericHTMLElement(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
+  SetIsDOMBinding();
   AddMutationObserver(this);
 }
 
@@ -47,11 +47,21 @@ HTMLScriptElement::~HTMLScriptElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED4(HTMLScriptElement, nsGenericHTMLElement,
-                             nsIDOMHTMLScriptElement,
-                             nsIScriptLoaderObserver,
-                             nsIScriptElement,
-                             nsIMutationObserver)
+
+NS_IMPL_ADDREF_INHERITED(HTMLScriptElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLScriptElement, Element)
+
+// QueryInterface implementation for HTMLScriptElement
+NS_INTERFACE_TABLE_HEAD(HTMLScriptElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE4(HTMLScriptElement,
+                                   nsIDOMHTMLScriptElement,
+                                   nsIScriptLoaderObserver,
+                                   nsIScriptElement,
+                                   nsIMutationObserver)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLScriptElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 nsresult
 HTMLScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,

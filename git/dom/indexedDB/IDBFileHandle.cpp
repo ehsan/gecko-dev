@@ -7,8 +7,8 @@
 #include "IDBFileHandle.h"
 
 #include "mozilla/dom/file/File.h"
-#include "mozilla/dom/IDBFileHandleBinding.h"
 #include "mozilla/dom/quota/FileStreams.h"
+#include "nsDOMClassInfoID.h"
 
 #include "IDBDatabase.h"
 
@@ -34,13 +34,6 @@ GetFileFor(FileInfo* aFileInfo)
 }
 
 } // anonymous namespace
-
-// virtual
-JSObject*
-IDBFileHandle::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return IDBFileHandleBinding::Wrap(aCx, aScope, this);
-}
 
 // static
 already_AddRefed<IDBFileHandle>
@@ -106,13 +99,24 @@ IDBFileHandle::CreateFileObject(mozilla::dom::file::LockedFile* aLockedFile,
   return file.forget();
 }
 
-IDBDatabase*
-IDBFileHandle::Database()
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBFileHandle)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBFileHandle)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBFileHandle)
+NS_INTERFACE_MAP_END_INHERITING(FileHandle)
+
+NS_IMPL_ADDREF_INHERITED(IDBFileHandle, FileHandle)
+NS_IMPL_RELEASE_INHERITED(IDBFileHandle, FileHandle)
+
+DOMCI_DATA(IDBFileHandle, IDBFileHandle)
+
+NS_IMETHODIMP
+IDBFileHandle::GetDatabase(nsIIDBDatabase** aDatabase)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  IDBDatabase* database = static_cast<IDBDatabase*>(mFileStorage.get());
-  MOZ_ASSERT(database);
+  nsCOMPtr<nsIIDBDatabase> database = do_QueryInterface(mFileStorage);
+  NS_ASSERTION(database, "This should always succeed!");
 
-  return database;
+  database.forget(aDatabase);
+  return NS_OK;
 }

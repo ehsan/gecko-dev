@@ -68,12 +68,6 @@ void
 PathBuilderCG::Arc(const Point &aOrigin, Float aRadius, Float aStartAngle,
                  Float aEndAngle, bool aAntiClockwise)
 {
-  CGPathAddArc(mCGPath, nullptr,
-               aOrigin.x, aOrigin.y,
-               aRadius,
-               aStartAngle,
-               aEndAngle,
-               !aAntiClockwise);
 }
 
 Point

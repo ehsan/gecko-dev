@@ -15,8 +15,7 @@ class ClientColorLayer : public ColorLayer,
                          public ClientLayer {
 public:
   ClientColorLayer(ClientLayerManager* aLayerManager) :
-    ColorLayer(aLayerManager,
-               static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    ColorLayer(aLayerManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientColorLayer);
   }
@@ -41,7 +40,7 @@ public:
 
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
-    aAttrs = ColorLayerAttributes(GetColor(), GetBounds());
+    aAttrs = ColorLayerAttributes(GetColor());
   }
 
   virtual Layer* AsLayer() { return this; }

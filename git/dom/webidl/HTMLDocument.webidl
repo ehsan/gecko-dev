@@ -65,9 +65,6 @@ interface HTMLDocument : Document {
 
   void clear();
 
-  [Throws]
-  readonly attribute object all;
-
   // https://dvcs.w3.org/hg/editing/raw-file/tip/editing.html#selections
   [Throws]
   Selection getSelection();
@@ -77,4 +74,5 @@ interface HTMLDocument : Document {
   // XXXbz do we actually need these anymore?
   void                      captureEvents(long eventFlags);
   void                      releaseEvents(long eventFlags);
+  void                      routeEvent(Event evt);
 };

@@ -20,7 +20,6 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
-#include "mozilla/MemoryReporting.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsISupports.h"
@@ -36,7 +35,7 @@
 #include <stdio.h> // for FILE definition
 #include "nsChangeHint.h"
 #include "nsGUIEvent.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsEventStates.h"
 #include "nsPresArena.h"
 #include "nsIImageLoadingContent.h"
@@ -173,8 +172,7 @@ protected:
   typedef mozilla::layers::LayerManager LayerManager;
 
   enum eRenderFlag {
-    STATE_IGNORING_VIEWPORT_SCROLLING = 0x1,
-    STATE_DRAWWINDOW_NOT_FLUSHING = 0x2
+    STATE_IGNORING_VIEWPORT_SCROLLING = 0x1
   };
   typedef uint8_t RenderFlags; // for storing the above flags
 
@@ -207,7 +205,7 @@ public:
    * are also recycled using free lists.  Separate free lists are
    * maintained for each frame type (aID), which must always correspond
    * to the same aSize value.  AllocateFrame returns zero-filled memory.
-   * AllocateFrame is infallible and will abort on out-of-memory.
+   * AllocateFrame is fallible, it returns nullptr on out-of-memory.
    */
   void* AllocateFrame(nsQueryFrame::FrameIID aID, size_t aSize)
   {
@@ -232,7 +230,7 @@ public:
    * This is for allocating other types of objects (not frames).  Separate free
    * lists are maintained for each type (aID), which must always correspond to
    * the same aSize value.  AllocateByObjectID returns zero-filled memory.
-   * AllocateByObjectID is infallible and will abort on out-of-memory.
+   * AllocateByObjectID is fallible, it returns nullptr on out-of-memory.
    */
   void* AllocateByObjectID(nsPresArena::ObjectID aID, size_t aSize)
   {
@@ -258,7 +256,7 @@ public:
    * from a separate set of per-size free lists.  Note that different types
    * of objects that has the same size are allocated from the same list.
    * AllocateMisc does *not* clear the memory that it returns.
-   * AllocateMisc is infallible and will abort on out-of-memory.
+   * AllocateMisc is fallible, it returns nullptr on out-of-memory.
    *
    * @deprecated use AllocateByObjectID/FreeByObjectID instead
    */
@@ -303,7 +301,7 @@ public:
   }
 #endif
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   nsStyleSet* StyleSet() const { return mStyleSet; }
 
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
@@ -337,7 +335,7 @@ public:
    */
   virtual NS_HIDDEN_(void) ReconstructStyleDataExternal();
   NS_HIDDEN_(void) ReconstructStyleDataInternal();
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void ReconstructStyleData() { ReconstructStyleDataInternal(); }
 #else
   void ReconstructStyleData() { ReconstructStyleDataExternal(); }
@@ -418,7 +416,7 @@ public:
    */
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
   nsIFrame* GetRootFrame() const {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return mFrameManager->GetRootFrame();
 #else
     return GetRootFrameExternal();
@@ -984,8 +982,7 @@ public:
     RENDER_CARET = 0x04,
     RENDER_USE_WIDGET_LAYERS = 0x08,
     RENDER_ASYNC_DECODE_IMAGES = 0x10,
-    RENDER_DOCUMENT_RELATIVE = 0x20,
-    RENDER_DRAWWINDOW_NOT_FLUSHING = 0x40
+    RENDER_DOCUMENT_RELATIVE = 0x20
   };
   virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, uint32_t aFlags,
                                               nscolor aBackgroundColor,
@@ -1026,7 +1023,7 @@ public:
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     AddWeakFrameInternal(aWeakFrame);
 #else
     AddWeakFrameExternal(aWeakFrame);
@@ -1038,7 +1035,7 @@ public:
 
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
   {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     RemoveWeakFrameInternal(aWeakFrame);
 #else
     RemoveWeakFrameExternal(aWeakFrame);
@@ -1129,7 +1126,7 @@ public:
 
   static CapturingContentInfo gCaptureInfo;
 
-  static nsRefPtrHashtable<nsUint32HashKey, mozilla::dom::Touch> gCaptureTouchList;
+  static nsInterfaceHashtable<nsUint32HashKey, nsIDOMTouch> gCaptureTouchList;
   static bool gPreventMouseEvents;
 
   /**
@@ -1223,13 +1220,6 @@ public:
   float GetYResolution() { return mYResolution; }
 
   /**
-   * Returns whether we are in a DrawWindow() call that used the
-   * DRAWWINDOW_DO_NOT_FLUSH flag.
-   */
-  bool InDrawWindowNotFlushing() const
-  { return mRenderFlags & STATE_DRAWWINDOW_NOT_FLUSHING; }
-
-  /**
    * Set the isFirstPaint flag.
    */
   void SetIsFirstPaint(bool aIsFirstPaint) { mIsFirstPaint = aIsFirstPaint; }
@@ -1238,8 +1228,6 @@ public:
    * Get the isFirstPaint flag.
    */
   bool GetIsFirstPaint() const { return mIsFirstPaint; }
-
-  uint32_t GetPresShellId() { return mPresShellId; }
 
   /**
    * Dispatch a mouse move event based on the most recent mouse position if
@@ -1293,7 +1281,7 @@ public:
   virtual bool IsVisible() = 0;
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
 
-  virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+  virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    nsArenaMemoryStats *aArenaObjectsSize,
                                    size_t *aPresShellSize,
                                    size_t *aStyleSetsSize,
@@ -1323,25 +1311,6 @@ public:
     return mFontSizeInflationDisabledInMasterProcess;
   }
 
-  /**
-   * Determine if font size inflation is enabled. This value is cached until
-   * it becomes dirty.
-   *
-   * @returns true, if font size inflation is enabled; false otherwise.
-   */
-  bool FontSizeInflationEnabled();
-
-  /**
-   * Notify the pres shell that an event occurred making the current value of
-   * mFontSizeInflationEnabled invalid. This will schedule a recomputation of
-   * whether font size inflation is enabled on the next call to
-   * FontSizeInflationEnabled().
-   */
-  void NotifyFontSizeInflationEnabledIsDirty()
-  {
-    mFontSizeInflationEnabledIsDirty = true;
-  }
-
   virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) = 0;
 
   void InvalidatePresShellIfHidden();
@@ -1368,18 +1337,10 @@ protected:
                                                mozFlushType aFlushType);
   bool RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
                                        mozFlushType aFlushType);
-
-  /**
-   * Do computations necessary to determine if font size inflation is enabled.
-   * This value is cached after computation, as the computation is somewhat
-   * expensive.
-   */
-  void RecomputeFontSizeInflationEnabled();
-
 public:
   bool AddRefreshObserver(nsARefreshObserver* aObserver,
                             mozFlushType aFlushType) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return AddRefreshObserverInternal(aObserver, aFlushType);
 #else
     return AddRefreshObserverExternal(aObserver, aFlushType);
@@ -1388,7 +1349,7 @@ public:
 
   bool RemoveRefreshObserver(nsARefreshObserver* aObserver,
                                mozFlushType aFlushType) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return RemoveRefreshObserverInternal(aObserver, aFlushType);
 #else
     return RemoveRefreshObserverExternal(aObserver, aFlushType);
@@ -1429,26 +1390,6 @@ public:
   }
 
   void SetMaxLineBoxWidth(nscoord aMaxLineBoxWidth);
-
-  /**
-   * Returns whether or not there is a reflow on zoom event pending. A reflow
-   * on zoom event is a change to the max line box width, followed by a reflow.
-   * This subsequent reflow event should treat all frames as though they resized
-   * horizontally (and thus reflow all their descendants), rather than marking
-   * all frames dirty from the root. This is the way the pres shell indicates
-   * that an hresize reflow should take place during reflow state construction.
-   */
-  bool IsReflowOnZoomPending() {
-    return mReflowOnZoomPending;
-  }
-
-  /**
-   * Clear the flag indicating whether a reflow on zoom event is pending. This
-   * is performed at the very end of DoReflow().
-   */
-  void ClearReflowOnZoomPending() {
-    mReflowOnZoomPending = false;
-  }
 
 protected:
   friend class nsRefreshDriver;
@@ -1539,8 +1480,6 @@ protected:
   bool                      mSuppressInterruptibleReflows : 1;
   bool                      mScrollPositionClampingScrollPortSizeSet : 1;
 
-  uint32_t                  mPresShellId;
-
   // List of subtrees rooted at style scope roots that need to be restyled.
   // When a change to a scoped style sheet is made, we add the style scope
   // root to this array rather than setting mStylesHaveChanged = true, since
@@ -1559,14 +1498,6 @@ protected:
   uint32_t mFontSizeInflationLineThreshold;
   bool mFontSizeInflationForceEnabled;
   bool mFontSizeInflationDisabledInMasterProcess;
-  bool mFontSizeInflationEnabled;
-
-  // Dirty bit indicating that mFontSizeInflationEnabled needs to be recomputed.
-  bool mFontSizeInflationEnabledIsDirty;
-
-  // Flag to indicate whether or not there is a reflow on zoom event pending.
-  // See IsReflowOnZoomPending() for more information.
-  bool mReflowOnZoomPending;
 
   // The maximum width of a line box. Text on a single line that exceeds this
   // width will be wrapped. A value of 0 indicates that no limit is enforced.

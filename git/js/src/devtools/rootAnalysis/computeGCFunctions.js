@@ -2,16 +2,16 @@
 
 "use strict";
 
-loadRelativeToScript('utility.js');
-loadRelativeToScript('annotations.js');
-loadRelativeToScript('loadCallgraph.js');
+load('utility.js');
+load('annotations.js');
+load('loadCallgraph.js');
 
-if (typeof scriptArgs[0] != 'string')
+if (typeof arguments[0] != 'string')
     throw "Usage: computeGCFunctions.js <callgraph.txt>";
 
 print("Time: " + new Date);
 
-loadCallgraph(scriptArgs[0]);
+loadCallgraph(arguments[0]);
 
 for (var name in gcFunctions) {
     print("");

@@ -17,13 +17,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=836519
 
 </div>
 <pre id="test">
-<script class="testbody" type="text/javascript;version=1.7">
+<script class="testbody" type="text/javascript;version=1.8">
 
 "use strict";
 
-if (SpecialPowers.isMainProcess()) {
-  SpecialPowers.Cu.import("resource://gre/modules/ContactService.jsm");
-  SpecialPowers.Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
+// this shouldn't be necessary when bug 792594 is fixed
+if (!SpecialPowers.getBoolPref("dom.mozContacts.enabled")) {
+  let comp = SpecialPowers.wrap(SpecialPowers.Components);
+  comp.utils.import("resource://gre/modules/ContactService.jsm");
+  comp.utils.import("resource://gre/modules/PermissionPromptHelper.jsm");
+  SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
 }
 
 SpecialPowers.addPermission("contacts-write", true, document);
@@ -40,7 +43,7 @@ let adr1 = {
 };
 
 let properties1 = {
-  name: ["Testname1 TestFamilyName"],
+  name: "Testname1",
   familyName: ["TestFamilyName","Wagner"],
   givenName: ["Test1","Test2"],
   nickname: "nicktest",
@@ -48,6 +51,8 @@ let properties1 = {
   adr: adr1,
   email: [{type: ["work"], value: "x@y.com"}]
 };
+
+function tests() {
 
 function onFailure() {
   ok(false, "in on Failure!");
@@ -165,7 +170,6 @@ function addContacts() {
   for (let i = 0; i < 39; ++i) {
     createResult1 = new mozContact();
     properties1.familyName[0] = "Testname" + (i < 10 ? "0" + i : i);
-    properties1.name = properties1.givenName[0] + " " + properties1.familyName[0];
     createResult1.init(properties1);
     req = mozContacts.save(createResult1);
     req.onsuccess = function() {
@@ -175,7 +179,6 @@ function addContacts() {
   };
   createResult1 = new mozContact();
   properties1.familyName[0] = "Testname39";
-  properties1.name = properties1.givenName[0] + " Testname39";
   createResult1.init(properties1);
   req = mozContacts.save(createResult1);
   req.onsuccess = function() {
@@ -411,27 +414,6 @@ let steps = [
   },
 
   clearDatabase,
-  addContacts,
-
-  function() {
-    if (!SpecialPowers.isMainProcess()) {
-      // We stop calling continue() intentionally here to see if the cursor gets
-      // cleaned up properly in the parent.
-      ok(true, "Leaking a cursor");
-      req = mozContacts.getAll({
-        sortBy: "familyName",
-        sortOrder: "ascending"
-      });
-      req.onsuccess = function(event) {
-        next();
-      };
-      req.onerror = onFailure;
-    } else {
-      next();
-    }
-  },
-
-  clearDatabase,
 
   function() {
     ok(true, "all done!\n");
@@ -445,16 +427,28 @@ function next() {
     ok(false, "Shouldn't get here!");
     return;
   }
-  let i = index++;
   try {
-    steps[i]();
+    steps[index++]();
   } catch(ex) {
     ok(false, "Caught exception", ex);
   }
 }
 
+function permissionTest() {
+  if (gContactsEnabled) {
+    next();
+  } else {
+    is(mozContacts, null, "mozContacts is null when not enabled.");
+    SimpleTest.finish();
+  }
+}
+
+permissionTest();
+}
+
+let gContactsEnabled = SpecialPowers.getBoolPref("dom.mozContacts.enabled");
+addLoadEvent(tests);
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(next);
 </script>
 </pre>
 </body>

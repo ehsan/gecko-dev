@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedString;
+
 interface SVGElement : Element {
            attribute DOMString id;
 /*           [SetterThrows]
@@ -28,6 +30,7 @@ interface SVGElement : Element {
   [SetterThrows]
   attribute DOMString xmlspace;*/
 
+  [Throws]
   readonly attribute SVGSVGElement? ownerSVGElement;
   readonly attribute SVGElement? viewportElement;
 

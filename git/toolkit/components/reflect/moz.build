@@ -6,12 +6,3 @@
 
 MODULE = 'jsreflect'
 
-CPP_SOURCES += [
-    'reflect.cpp',
-]
-
-LIBRARY_NAME = 'jsreflect'
-
-EXTRA_JS_MODULES += [
-    'reflect.jsm',
-]

@@ -21,7 +21,7 @@ function test() {
           statusText: "OK",
           type: "xml",
           fullMimeType: "text/xml; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.04),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(1),
@@ -30,7 +30,7 @@ function test() {
           statusText: "OK",
           type: "css",
           fullMimeType: "text/css; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.03),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(2),
@@ -39,7 +39,7 @@ function test() {
           statusText: "OK",
           type: "js",
           fullMimeType: "application/javascript; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.03),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(3),
@@ -48,7 +48,7 @@ function test() {
           statusText: "OK",
           type: "json",
           fullMimeType: "application/json; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(4),
@@ -57,7 +57,7 @@ function test() {
           statusText: "Not Found",
           type: "html",
           fullMimeType: "text/html; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(5),
@@ -66,7 +66,7 @@ function test() {
           statusText: "OK",
           type: "png",
           fullMimeType: "image/png",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.75),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.75),
           time: true
         });
 
@@ -109,15 +109,14 @@ function test() {
           "The response tab in the network details pane should be selected.");
 
         function checkVisibility(aBox) {
-          is(tabpanel.querySelector("#response-content-info-header")
-            .hasAttribute("hidden"), true,
-            "The response info header doesn't have the intended visibility.");
           is(tabpanel.querySelector("#response-content-json-box")
             .hasAttribute("hidden"), aBox != "json",
             "The response content json box doesn't have the intended visibility.");
+
           is(tabpanel.querySelector("#response-content-textarea-box")
             .hasAttribute("hidden"), aBox != "textarea",
             "The response content textarea box doesn't have the intended visibility.");
+
           is(tabpanel.querySelector("#response-content-image-box")
             .hasAttribute("hidden"), aBox != "image",
             "The response content image box doesn't have the intended visibility.");
@@ -178,9 +177,9 @@ function test() {
             is(jsonScope.querySelectorAll(".variables-view-property .name")[1].getAttribute("value"),
               "__proto__", "The second json property name was incorrect.");
             is(jsonScope.querySelectorAll(".variables-view-property .value")[1].getAttribute("value"),
-              "Object", "The second json property value was incorrect.");
+              "[object Object]", "The second json property value was incorrect.");
 
-            return promise.resolve();
+            return Promise.resolve();
           }
           case "html": {
             checkVisibility("textarea");
@@ -196,7 +195,7 @@ function test() {
             checkVisibility("image");
 
             let imageNode = tabpanel.querySelector("#response-content-image");
-            let deferred = promise.defer();
+            let deferred = Promise.defer();
 
             imageNode.addEventListener("load", function onLoad() {
               imageNode.removeEventListener("load", onLoad);

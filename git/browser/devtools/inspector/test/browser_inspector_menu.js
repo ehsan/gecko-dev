@@ -31,45 +31,41 @@ function test() {
   function checkDocTypeMenuItems() {
     info("Checking context menu entries for doctype node");
     inspector.selection.setNode(doc.doctype);
-    inspector.once("inspector-updated", () => {
-      let docTypeNode = getMarkupTagNodeContaining("<!DOCTYPE html>");
+    let docTypeNode = getMarkupTagNodeContaining("<!DOCTYPE html>");
 
-      // Right-click doctype tag
-      contextMenuClick(docTypeNode);
+    // Right-click doctype tag
+    contextMenuClick(docTypeNode);
 
-      checkDisabled("node-menu-copyinner");
-      checkDisabled("node-menu-copyouter");
-      checkDisabled("node-menu-copyuniqueselector");
-      checkDisabled("node-menu-delete");
+    checkDisabled("node-menu-copyinner");
+    checkDisabled("node-menu-copyouter");
+    checkDisabled("node-menu-copyuniqueselector");
+    checkDisabled("node-menu-delete");
 
-      for (let name of ["hover", "active", "focus"]) {
-        checkDisabled("node-menu-pseudo-" + name);
-      }
+    for (let name of ["hover", "active", "focus"]) {
+      checkDisabled("node-menu-pseudo-" + name);
+    }
 
-      checkElementMenuItems();
-    });
+    checkElementMenuItems();
   }
 
   function checkElementMenuItems() {
     info("Checking context menu entries for p tag");
     inspector.selection.setNode(doc.querySelector("p"));
-    inspector.once("inspector-updated", () => {
-      let tag = getMarkupTagNodeContaining("p");
+    let tag = getMarkupTagNodeContaining("p");
 
-      // Right-click p tag
-      contextMenuClick(tag);
+    // Right-click p tag
+    contextMenuClick(tag);
 
-      checkEnabled("node-menu-copyinner");
-      checkEnabled("node-menu-copyouter");
-      checkEnabled("node-menu-copyuniqueselector");
-      checkEnabled("node-menu-delete");
+    checkEnabled("node-menu-copyinner");
+    checkEnabled("node-menu-copyouter");
+    checkEnabled("node-menu-copyuniqueselector");
+    checkEnabled("node-menu-delete");
 
-      for (let name of ["hover", "active", "focus"]) {
-        checkEnabled("node-menu-pseudo-" + name);
-      }
+    for (let name of ["hover", "active", "focus"]) {
+      checkEnabled("node-menu-pseudo-" + name);
+    }
 
-      testCopyInnerMenu();
-    });
+    testCopyInnerMenu();
   }
 
   function testCopyInnerMenu() {
@@ -103,7 +99,7 @@ function test() {
     let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
     ok(deleteNode, "the popup menu has a delete menu item");
 
-    inspector.once("markupmutation", deleteTest);
+    inspector.selection.once("detached", deleteTest);
 
     let commandEvent = document.createEvent("XULCommandEvent");
     commandEvent.initCommandEvent("command", true, true, window, 0, false, false,

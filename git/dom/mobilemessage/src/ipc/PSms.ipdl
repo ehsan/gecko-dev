@@ -26,7 +26,6 @@ struct SendSmsMessageRequest
 {
   nsString number;
   nsString message;
-  bool     silent;
 };
 
 union SendMessageRequest
@@ -89,8 +88,6 @@ sync protocol PSms {
 child:
   NotifyReceivedMessage(MobileMessageData aMessageData);
 
-  NotifyRetrievingMessage(MobileMessageData aMessageData);
-
   NotifySendingMessage(MobileMessageData aMessageData);
 
   NotifySentMessage(MobileMessageData aMessageData);
@@ -100,8 +97,6 @@ child:
   NotifyDeliverySuccessMessage(MobileMessageData aMessageData);
 
   NotifyDeliveryErrorMessage(MobileMessageData aMessageData);
-
-  NotifyReceivedSilentMessage(MobileMessageData aMessageData);
 
 parent:
   /**
@@ -124,9 +119,6 @@ parent:
 
   sync GetSegmentInfoForText(nsString aText)
       returns (SmsSegmentInfoData aResult);
-
-  AddSilentNumber(nsString aNumber);
-  RemoveSilentNumber(nsString aNumber);
 };
 
 } // namespace mobilemessage

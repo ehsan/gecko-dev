@@ -6,18 +6,14 @@
 #ifndef WEBGLBUFFER_H_
 #define WEBGLBUFFER_H_
 
-#include "WebGLObjectModel.h"
 #include "WebGLElementArrayCache.h"
-#include "GLDefs.h"
+#include "WebGLObjectModel.h"
 
 #include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace mozilla {
-
-class WebGLElementArrayCache;
 
 class WebGLBuffer MOZ_FINAL
     : public nsISupports
@@ -33,7 +29,7 @@ public:
 
     void Delete();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         size_t sizeOfCache = mCache ? mCache->SizeOfIncludingThis(aMallocSizeOf) : 0;
         return aMallocSizeOf(this) + sizeOfCache;
     }

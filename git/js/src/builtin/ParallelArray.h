@@ -4,13 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_ParallelArray_h
-#define builtin_ParallelArray_h
+#ifndef ParallelArray_h__
+#define ParallelArray_h__
 
 #include "jsapi.h"
+#include "jscntxt.h"
 #include "jsobj.h"
 
-#include "jit/Ion.h"
+#include "ion/Ion.h"
+#include "vm/ForkJoin.h"
+#include "vm/ThreadPool.h"
 
 namespace js {
 
@@ -27,8 +30,8 @@ class ParallelArrayObject : public JSObject
   public:
     static Class class_;
 
-    static bool construct(JSContext *cx, unsigned argc, Value *vp);
-    static bool constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args);
+    static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args);
 
     // Creates a new ParallelArray instance with the correct number of slots
     // and so forth.
@@ -54,4 +57,4 @@ class ParallelArrayObject : public JSObject
 extern JSObject *
 js_InitParallelArrayClass(JSContext *cx, js::HandleObject obj);
 
-#endif /* builtin_ParallelArray_h */
+#endif // ParallelArray_h__

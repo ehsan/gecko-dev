@@ -25,7 +25,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = unexpectedSuccessHandler;
-  let event = yield undefined;
+  let event = yield;
   let db = event.target.result;
 
   for (let i = 0; i < objectStoreInfo.length; i++) {
@@ -114,8 +114,8 @@ function testSteps()
   request.onsuccess = grabEventAndContinueHandler;
   request.onupgradeneeded = unexpectedSuccessHandler;
 
-  event = yield undefined;
+  event = yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

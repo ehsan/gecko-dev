@@ -8,7 +8,7 @@ const TEST_URI = "http://example.com/browser/browser/devtools/styleeditor/" +
 
 
 function test() {
-  let windowClosed = promise.defer();
+  let windowClosed = Promise.defer();
 
   helpers.addTabWithToolbar(TEST_URI, function(options) {
     return helpers.audit(options, [

@@ -7,14 +7,14 @@
 #include <string.h>
 
 #include "mozilla/DebugOnly.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include "nsDebug.h"
-#include "MediaDecoderReader.h"
 #include "OggCodecState.h"
 #include "OggDecoder.h"
 #include "nsTraceRefcnt.h"
 #include "VideoUtils.h"
+#include "MediaDecoderReader.h"
 #include <algorithm>
 
 namespace mozilla {

@@ -39,19 +39,19 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEOffsetElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEOffsetElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEOffsetElement::Dx()
 {
   return mNumberAttributes[DX].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEOffsetElement::Dy()
 {
   return mNumberAttributes[DY].ToDOMAnimatedNumber(this);

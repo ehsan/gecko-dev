@@ -125,9 +125,7 @@ public:
     bool child(Slot *ap);
     Slot* nextSibling() const { return m_sibling; }
     bool sibling(Slot *ap);
-    bool removeChild(Slot *ap);
-    bool removeSibling(Slot *ap);
-    int32 clusterMetric(const Segment* seg, uint8 metric, uint8 attrLevel);
+    uint32 clusterMetric(const Segment* seg, uint8 metric, uint8 attrLevel);
     void positionShift(Position a) { m_position += a; }
     void floodShift(Position adj);
     float just() const { return m_just; }

@@ -1045,9 +1045,13 @@ NS_IMETHODIMP imgRequestProxyStatic::GetImagePrincipal(nsIPrincipal **aPrincipal
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 imgRequestProxyStatic::Clone(imgINotificationObserver* aObserver,
-                             imgRequestProxy** aClone)
+                             imgIRequest** aClone)
 {
-  return PerformClone(aObserver, NewStaticProxy, aClone);
+  nsresult result;
+  imgRequestProxy* proxy;
+  result = PerformClone(aObserver, NewStaticProxy, &proxy);
+  *aClone = proxy;
+  return result;
 }

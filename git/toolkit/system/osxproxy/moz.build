@@ -6,9 +6,3 @@
 
 MODULE = 'osxproxy'
 
-CMMSRCS += [
-    'nsOSXSystemProxySettings.mm',
-]
-
-LIBRARY_NAME = 'osxproxy'
-

@@ -41,8 +41,7 @@ size_t SkPDFObject::getOutputSize(SkPDFCatalog* catalog, bool indirect) {
     return buffer.getOffset();
 }
 
-void SkPDFObject::getResources(const SkTSet<SkPDFObject*>& knownResourceObjects,
-                               SkTSet<SkPDFObject*>* newResourceObjects) {}
+void SkPDFObject::getResources(SkTDArray<SkPDFObject*>* resourceList) {}
 
 void SkPDFObject::emitIndirectObject(SkWStream* stream, SkPDFCatalog* catalog) {
     catalog->emitObjectNumber(stream, this);
@@ -62,29 +61,19 @@ void SkPDFObject::AddResourceHelper(SkPDFObject* resource,
     resource->ref();
 }
 
-void SkPDFObject::GetResourcesHelper(
-        const SkTDArray<SkPDFObject*>* resources,
-        const SkTSet<SkPDFObject*>& knownResourceObjects,
-        SkTSet<SkPDFObject*>* newResourceObjects) {
+void SkPDFObject::GetResourcesHelper(SkTDArray<SkPDFObject*>* resources,
+                                     SkTDArray<SkPDFObject*>* result) {
     if (resources->count()) {
-        newResourceObjects->setReserve(
-            newResourceObjects->count() + resources->count());
+        result->setReserve(result->count() + resources->count());
         for (int i = 0; i < resources->count(); i++) {
-            if (!knownResourceObjects.contains((*resources)[i]) &&
-                    !newResourceObjects->contains((*resources)[i])) {
-                newResourceObjects->add((*resources)[i]);
-                (*resources)[i]->ref();
-                (*resources)[i]->getResources(knownResourceObjects,
-                                              newResourceObjects);
-            }
+            result->push((*resources)[i]);
+            (*resources)[i]->ref();
+            (*resources)[i]->getResources(result);
         }
     }
 }
 
-SkPDFObjRef::SkPDFObjRef(SkPDFObject* obj) : fObj(obj) {
-    SkSafeRef(obj);
-}
-
+SkPDFObjRef::SkPDFObjRef(SkPDFObject* obj) : fObj(obj) {}
 SkPDFObjRef::~SkPDFObjRef() {}
 
 void SkPDFObjRef::emitObject(SkWStream* stream, SkPDFCatalog* catalog,
@@ -312,12 +301,10 @@ size_t SkPDFName::getOutputSize(SkPDFCatalog* catalog, bool indirect) {
 // static
 SkString SkPDFName::FormatName(const SkString& input) {
     SkASSERT(input.size() <= kMaxLen);
-    // TODO(vandebo) If more escaping is needed, improve the linear scan.
-    static const char escaped[] = "#/%()<>[]{}";
 
     SkString result("/");
     for (size_t i = 0; i < input.size(); i++) {
-        if (input[i] & 0x80 || input[i] < '!' || strchr(escaped, input[i])) {
+        if (input[i] & 0x80 || input[i] < '!' || input[i] == '#') {
             result.append("#");
             // Mask with 0xFF to avoid sign extension. i.e. #FFFFFF81
             result.appendHex(input[i] & 0xFF, 2);
@@ -491,7 +478,7 @@ SkPDFDict::Iter::Iter(const SkPDFDict& dict)
 
 SkPDFName* SkPDFDict::Iter::next(SkPDFObject** value) {
     if (fIter != fStop) {
-        const Rec* cur = fIter;
+        Rec* cur = fIter;
         fIter++;
         *value = cur->value;
         return cur->key;

@@ -76,7 +76,7 @@ function runTest() {
             getVersionParams();
   setUpdateURLOverride(url);
 
-  gAUS.checkForBackgroundUpdates();
+  gAUS.notify(null);
 }
 
 ]]>

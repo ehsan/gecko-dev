@@ -54,10 +54,9 @@
 #include "nsHtml5StateSnapshot.h"
 
 
-nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, jArray<int32_t,int32_t> templateModeStack, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks)
+nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks)
   : stack(stack),
     listOfActiveFormattingElements(listOfActiveFormattingElements),
-    templateModeStack(templateModeStack),
     formPointer(formPointer),
     headPointer(headPointer),
     deepTreeSurrogateParent(deepTreeSurrogateParent),
@@ -74,12 +73,6 @@ jArray<nsHtml5StackNode*,int32_t>
 nsHtml5StateSnapshot::getStack()
 {
   return stack;
-}
-
-jArray<int32_t,int32_t> 
-nsHtml5StateSnapshot::getTemplateModeStack()
-{
-  return templateModeStack;
 }
 
 jArray<nsHtml5StackNode*,int32_t> 
@@ -146,12 +139,6 @@ int32_t
 nsHtml5StateSnapshot::getStackLength()
 {
   return stack.length;
-}
-
-int32_t 
-nsHtml5StateSnapshot::getTemplateModeStackLength()
-{
-  return templateModeStack.length;
 }
 
 

@@ -9,6 +9,7 @@
 #include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
+#include "pratom.h"
 #include "prthread.h"
 
 #include "base/logging.h"
@@ -23,7 +24,7 @@ using mozilla::ipc::MessagePump;
 using mozilla::ipc::MessagePumpForChildProcess;
 using base::TimeTicks;
 
-NS_IMPL_ISUPPORTS2(DoWorkRunnable, nsIRunnable, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(DoWorkRunnable, nsIRunnable, nsITimerCallback)
 
 NS_IMETHODIMP
 DoWorkRunnable::Run()
@@ -164,11 +165,7 @@ MessagePump::ScheduleDelayedWork(const base::TimeTicks& aDelayedTime)
 
   delayed_work_time_ = aDelayedTime;
 
-  // TimeDelta's constructor initializes to 0
-  base::TimeDelta delay;
-  if (aDelayedTime > base::TimeTicks::Now())
-    delay = aDelayedTime - base::TimeTicks::Now();
-
+  base::TimeDelta delay = aDelayedTime - base::TimeTicks::Now();
   uint32_t delayMS = uint32_t(delay.InMilliseconds());
   mDelayedWorkTimer->InitWithCallback(mDoWorkEvent, delayMS,
                                       nsITimer::TYPE_ONE_SHOT);

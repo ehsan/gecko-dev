@@ -28,7 +28,6 @@ struct TiledLayerProperties
 };
 
 class Layer;
-class DeprecatedTextureHost;
 class TextureHost;
 class SurfaceDescriptor;
 
@@ -49,16 +48,27 @@ class SurfaceDescriptor;
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  CompositableHost(const TextureInfo& aTextureInfo);
+  CompositableHost(const TextureInfo& aTextureInfo)
+    : mTextureInfo(aTextureInfo)
+    , mCompositor(nullptr)
+    , mLayer(nullptr)
+  {
+    MOZ_COUNT_CTOR(CompositableHost);
+  }
 
-  virtual ~CompositableHost();
+  virtual ~CompositableHost()
+  {
+    MOZ_COUNT_DTOR(CompositableHost);
+  }
 
   static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo);
 
   virtual CompositableType GetType() = 0;
 
-  // If base class overrides, it should still call the parent implementation
-  virtual void SetCompositor(Compositor* aCompositor);
+  virtual void SetCompositor(Compositor* aCompositor)
+  {
+    mCompositor = aCompositor;
+  }
 
   // composite the contents of this buffer host to the compositor's surface
   virtual void Composite(EffectChain& aEffectChain,
@@ -90,28 +100,6 @@ public:
   }
 
   /**
-   * Update the content host using a surface that only contains the updated
-   * region.
-   *
-   * Takes ownership of aSurface, and is responsible for freeing it.
-   *
-   * @param aTextureId Texture to update.
-   * @param aSurface Surface containing the update area. Its contents are relative
-   *                 to aUpdated.TopLeft()
-   * @param aUpdated Area of the content host to update.
-   * @param aBufferRect New area covered by the content host.
-   * @param aBufferRotation New buffer rotation.
-   */
-  virtual void UpdateIncremental(TextureIdentifier aTextureId,
-                                 SurfaceDescriptor& aSurface,
-                                 const nsIntRegion& aUpdated,
-                                 const nsIntRect& aBufferRect,
-                                 const nsIntPoint& aBufferRotation)
-  {
-    MOZ_ASSERT(false, "should be implemented or not used");
-  }
-
-  /**
    * Ensure that a suitable texture host exists in this compositable. The
    * compositable host may or may not create a new texture host. If a texture
    * host is replaced, then the compositable is responsible for enusring it is
@@ -126,35 +114,11 @@ public:
    * aAllocator - the allocator used to allocate and de-allocate resources.
    * aTextureInfo - contains flags for the texture.
    */
-  virtual void EnsureDeprecatedTextureHost(TextureIdentifier aTextureId,
+  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
-                                 const TextureInfo& aTextureInfo)
-  {
-    MOZ_ASSERT(false, "should be implemented or not used");
-  }
+                                 const TextureInfo& aTextureInfo) = 0;
 
-  /**
-   * Ensure that a suitable texture host exists in this compsitable.
-   *
-   * Only used with ContentHostIncremental.
-   *
-   * No SurfaceDescriptor or TextureIdentifier is provider as we
-   * don't have a single surface for the texture contents, and we
-   * need to allocate our own one to be updated later.
-   */
-  virtual void EnsureDeprecatedTextureHostIncremental(ISurfaceAllocator* aAllocator,
-                                            const TextureInfo& aTextureInfo,
-                                            const nsIntRect& aBufferRect)
-  {
-    MOZ_ASSERT(false, "should be implemented or not used");
-  }
-
-  virtual DeprecatedTextureHost* GetDeprecatedTextureHost() { return nullptr; }
-
-  /**
-   * Returns the front buffer.
-   */
   virtual TextureHost* GetTextureHost() { return nullptr; }
 
   virtual LayerRenderState GetRenderState() = 0;
@@ -172,8 +136,6 @@ public:
                      const gfx::Matrix4x4& aTransform,
                      bool aIs3D = false);
 
-  void RemoveMaskEffect();
-
   Compositor* GetCompositor() const
   {
     return mCompositor;
@@ -186,45 +148,22 @@ public:
 
   virtual void Attach(Layer* aLayer, Compositor* aCompositor)
   {
-    MOZ_ASSERT(aCompositor, "Compositor is required");
-    MOZ_ASSERT(!IsAttached());
     SetCompositor(aCompositor);
     SetLayer(aLayer);
-    mAttached = true;
   }
-  void Detach()
-  {
+  void Detach() {
     SetLayer(nullptr);
     SetCompositor(nullptr);
-    mAttached = false;
   }
-  bool IsAttached() { return mAttached; }
-
-#ifdef MOZ_DUMP_PAINTING
-  virtual void Dump(FILE* aFile=nullptr,
-                    const char* aPrefix="",
-                    bool aDumpHtml=false) { }
-  static void DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture);
-  static void DumpTextureHost(FILE* aFile, TextureHost* aTexture);
-
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface() { return nullptr; }
-#endif
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix) { }
 #endif
 
-  void AddTextureHost(TextureHost* aTexture);
-  virtual void UseTextureHost(TextureHost* aTexture) {}
-  void RemoveTextureHost(uint64_t aTextureID);
-  TextureHost* GetTextureHost(uint64_t aTextureID);
-
 protected:
   TextureInfo mTextureInfo;
   Compositor* mCompositor;
   Layer* mLayer;
-  RefPtr<TextureHost> mFirstTexture;
-  bool mAttached;
 };
 
 class CompositableParentManager;

@@ -50,15 +50,13 @@ gTests.push({
     let span = win.document.getElementById("text1");
     win.getSelection().selectAllChildren(span);
 
-    yield waitForMs(0);
-
     // invoke selection context menu
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, span);
+    sendContextMenuClickToElement(win, span, 85, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-copy",
@@ -87,11 +85,11 @@ gTests.push({
     let link = win.document.getElementById("text2-link");
     win.getSelection().selectAllChildren(link);
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, link);
+    sendContextMenuClickToElement(win, link, 40, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-copy",
@@ -109,11 +107,11 @@ gTests.push({
 
     link = win.document.getElementById("text2-link");
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, link);
+    sendContextMenuClickToElement(win, link, 40, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-open-in-new-tab",
@@ -131,11 +129,11 @@ gTests.push({
 
     let input = win.document.getElementById("text3-input");
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-select",
                                       "context-select-all"]);
@@ -155,11 +153,11 @@ gTests.push({
     input.value = "hello, I'm sorry but I must be going.";
     input.setSelectionRange(0, 5);
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-cut",
                                       "context-copy"]);
@@ -187,11 +185,11 @@ gTests.push({
     input = win.document.getElementById("text3-input");
     input.select();
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-cut",
@@ -208,11 +206,11 @@ gTests.push({
     input = win.document.getElementById("text3-input");
     input.select();
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-cut",
@@ -232,11 +230,11 @@ gTests.push({
     input.value = "hello, I'm sorry but I must be going.";
     input.setSelectionRange(0, 5);
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-cut",
                                       "context-copy"]);
@@ -268,11 +266,11 @@ gTests.push({
     input.value = "";
 
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     // selected text context:
     checkContextUIMenuItemVisibility(["context-paste"]);
@@ -285,17 +283,16 @@ gTests.push({
     // context in empty input, no data on clipboard (??)
 
     emptyClipboard();
-    ContextUI.dismiss();
 
     input = win.document.getElementById("text3-input");
     input.value = "";
 
     promise = waitForEvent(Elements.tray, "transitionend");
-    sendContextMenuClickToElement(win, input, 20);
+    sendContextMenuClickToElement(win, input, 20, 10);
     yield promise;
 
     // should *not* be visible
-    ok(!ContextMenuUI._menuPopup.visible, "is visible");
+    ok(!ContextMenuUI._menuPopup._visible, "is visible");
 
     // the test above will invoke the app bar
     yield hideContextUI();
@@ -332,17 +329,17 @@ gTests.push({
 
     // invoke selection context menu
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(browserwin, span);
+    sendContextMenuClick(225, 310);
     yield promise;
 
     // should be visible and at a specific position
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     let notificationBox = Browser.getNotificationBox();
     let notification = notificationBox.getNotificationWithValue("popup-blocked");
     let notificationHeight = notification.boxObject.height;
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 0, 15, 175, 190);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 65, 80, notificationHeight +  155, notificationHeight + 180);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -352,54 +349,12 @@ gTests.push({
   }
 });
 
-/*
-XXX code used to diagnose bug 880739
-
-var observeLogger = {
-  observe: function (aSubject, aTopic, aData) {
-    info("observeLogger: " + aTopic);
-  },
-  QueryInterface: function (aIID) {
-    if (!aIID.equals(Ci.nsIObserver) &&
-        !aIID.equals(Ci.nsISupportsWeakReference) &&
-        !aIID.equals(Ci.nsISupports)) {
-      throw Components.results.NS_ERROR_NO_INTERFACE;
-    }
-    return this;
-  },
-  init: function init() {
-    Services.obs.addObserver(observeLogger, "dl-start", true);
-    Services.obs.addObserver(observeLogger, "dl-done", true);
-    Services.obs.addObserver(observeLogger, "dl-failed", true);
-    Services.obs.addObserver(observeLogger, "dl-scanning", true);
-    Services.obs.addObserver(observeLogger, "dl-blocked", true);
-    Services.obs.addObserver(observeLogger, "dl-dirty", true);
-    Services.obs.addObserver(observeLogger, "dl-cancel", true);
-  },
-  shutdown: function shutdown() {
-    Services.obs.removeObserver(observeLogger, "dl-start");
-    Services.obs.removeObserver(observeLogger, "dl-done");
-    Services.obs.removeObserver(observeLogger, "dl-failed");
-    Services.obs.removeObserver(observeLogger, "dl-scanning");
-    Services.obs.removeObserver(observeLogger, "dl-blocked");
-    Services.obs.removeObserver(observeLogger, "dl-dirty");
-    Services.obs.removeObserver(observeLogger, "dl-cancel");
-  }
-}
-*/
-
 // Image context menu tests
 gTests.push({
   desc: "image context menu",
-  setUp: function() {
-    // XXX code used to diagnose bug 880739
-    //observeLogger.init();
-  },
-  tearDown: function() {
-    // XXX code used to diagnose bug 880739
-    //observeLogger.shutdown();
-  },
   run: function test() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     info(chromeRoot + "browser_context_menu_tests_01.html");
     yield addTab(chromeRoot + "browser_context_menu_tests_01.html");
 
@@ -415,8 +370,6 @@ gTests.push({
 
     ////////////////////////////////////////////////////////////
     // Context menu options
-    /*
-    XXX disabled temporarily due to bug 880739
 
     // image01 - 1x1x100x100
     let promise = waitForEvent(document, "popupshown");
@@ -425,7 +378,7 @@ gTests.push({
 
     purgeEventQueue();
 
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-save-image-lib",
                                       "context-copy-image",
@@ -453,9 +406,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
 
-    // dl-start, dl-failed, dl-scanning, dl-blocked, dl-dirty, dl-cancel
-    let downloadPromise = waitForObserver("dl-done", 10000);
-
+    let downloadPromise = waitForObserver("dl-done");
     let popupPromise = waitForEvent(document, "popuphidden");
     EventUtils.synthesizeMouse(menuItem, 10, 10, {}, win);
     yield popupPromise;
@@ -464,19 +415,19 @@ gTests.push({
     purgeEventQueue();
 
     ok(saveLocationPath.exists(), "image saved");
-    */
+
     ////////////////////////////////////////////////////////////
     // Copy image
 
     let promise = waitForEvent(document, "popupshown");
     sendContextMenuClickToWindow(win, 20, 20);
     yield promise;
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    let menuItem = document.getElementById("context-copy-image");
+    menuItem = document.getElementById("context-copy-image");
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
-    let popupPromise = waitForEvent(document, "popuphidden");
+    popupPromise = waitForEvent(document, "popuphidden");
     EventUtils.synthesizeMouse(menuItem, 10, 10, {}, win);
     yield popupPromise;
 
@@ -492,7 +443,7 @@ gTests.push({
     promise = waitForEvent(document, "popupshown");
     sendContextMenuClickToWindow(win, 30, 30);
     yield promise;
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     menuItem = document.getElementById("context-copy-image-loc");
     ok(menuItem, "menu item exists");
@@ -525,7 +476,7 @@ gTests.push({
     promise = waitForEvent(document, "popupshown");
     sendContextMenuClickToWindow(win, 40, 40);
     yield promise;
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     menuItem = document.getElementById("context-open-image-tab");
     ok(menuItem, "menu item exists");
@@ -570,7 +521,7 @@ gTests.push({
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextMenuPositionRange(ContextMenuUI._panel, 265, 280, 175, 190);
 
@@ -585,7 +536,7 @@ gTests.push({
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextMenuPositionRange(ContextMenuUI._panel, 265, 280, 95, 110);
 
@@ -600,7 +551,7 @@ gTests.push({
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextMenuPositionRange(ContextMenuUI._panel, 295, 310, 540, 555);
 
@@ -615,7 +566,7 @@ gTests.push({
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextMenuPositionRange(ContextMenuUI._panel, 295, 310, 340, 355);
 
@@ -630,85 +581,14 @@ gTests.push({
     yield promise;
 
     // should be visible
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextMenuPositionRange(ContextMenuUI._panel, 265, 280, 110, 125);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
     yield promise;
-
-    Browser.closeTab(Browser.selectedTab, { forceClose: true });
   }
-});
-
-function reopenSetUp() {
-  info(chromeRoot + "browser_context_menu_tests_04.html");
-  yield addTab(chromeRoot + "browser_context_menu_tests_04.html");
-
-  // Sometimes the context UI won't actually show up.
-  // Since we're just normalizing, we don't want waitForCondition
-  // to cause an orange, so we're putting a try/catch here.
-  try {
-    yield waitForCondition(() => ContextUI.isVisible);
-    ContextUI.dismiss();
-  } catch(e) {}
-}
-
-function reopenTearDown() {
-  let promise = waitForEvent(document, "popuphidden")
-  ContextMenuUI.hide();
-  yield promise;
-  ok(!ContextMenuUI._menuPopup.visible, "popup is actually hidden");
-
-  Browser.closeTab(Browser.selectedTab, { forceClose: true });
-}
-
-function getReopenTest(aElementInputFn, aWindowInputFn) {
-  return function () {
-    let win = Browser.selectedTab.browser.contentWindow;
-    let panel = ContextMenuUI._menuPopup._panel;
-
-    let link1 = win.document.getElementById("text1-link");
-    let link2 = win.document.getElementById("text2-link");
-
-    // Show the menu on link 1
-    let showpromise = waitForEvent(panel, "popupshown");
-    aElementInputFn(win, link1);
-
-    ok((yield showpromise), "popupshown event fired");
-    ok(ContextMenuUI._menuPopup.visible, "initial popup is visible");
-
-    // Show the menu on link 2
-    let hidepromise = waitForEvent(panel, "popuphidden");
-    showpromise = waitForEvent(panel, "popupshown");
-    aElementInputFn(win, link2);
-
-    ok((yield hidepromise), "popuphidden event fired");
-    ok((yield showpromise), "popupshown event fired");
-    ok(ContextMenuUI._menuPopup.visible, "popup is still visible");
-
-    // Hide the menu
-    hidepromise = waitForEvent(panel, "popuphidden")
-    aWindowInputFn(win, 10, 10);
-
-    ok((yield hidepromise), "popuphidden event fired");
-    ok(!ContextMenuUI._menuPopup.visible, "popup is no longer visible");
-  }
-}
-
-gTests.push({
-  desc: "bug 856264 - mouse - context menu should reopen on other links",
-  setUp: reopenSetUp,
-  tearDown: reopenTearDown,
-  run: getReopenTest(sendContextMenuMouseClickToElement, sendMouseClick)
-});
-
-gTests.push({
-  desc: "bug 856264 - touch - context menu should reopen on other links",
-  setUp: reopenSetUp,
-  tearDown: reopenTearDown,
-  run: getReopenTest(sendContextMenuClickToElement, sendTap)
 });
 
 function test() {

@@ -597,8 +597,9 @@ MatrixForTransformFunction(gfx3DMatrix& aMatrix,
 nsCSSKeyword
 TransformFunctionOf(const nsCSSValue::Array* aData)
 {
-  MOZ_ASSERT(aData->Item(0).GetUnit() == eCSSUnit_Enumerated);
-  return aData->Item(0).GetKeywordValue();
+  nsAutoString keyword;
+  aData->Item(0).GetStringValue(keyword);
+  return nsCSSKeywords::LookupKeyword(keyword);
 }
 
 gfx3DMatrix

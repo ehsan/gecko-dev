@@ -11,12 +11,62 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkconevents_s
-MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY  = 1
 FAIL_ON_WARNINGS = 1
 
-include $(topsrcdir)/config/rules.mk
+CPPSRCS		= \
+		EventTarget.cpp \
+		nsEventListenerManager.cpp \
+		nsEventStateManager.cpp \
+		nsDOMEvent.cpp \
+		nsDOMDataContainerEvent.cpp \
+		nsDOMUIEvent.cpp \
+		nsDOMKeyboardEvent.cpp \
+		nsDOMTextEvent.cpp \
+		nsDOMMouseEvent.cpp \
+		nsDOMMouseScrollEvent.cpp \
+		nsDOMDragEvent.cpp \
+		nsDOMMutationEvent.cpp \
+		nsDOMDeviceMotionEvent.cpp \
+		nsDOMBeforeUnloadEvent.cpp \
+		nsDOMXULCommandEvent.cpp \
+		nsDOMCommandEvent.cpp \
+		nsDOMMessageEvent.cpp \
+		nsPaintRequest.cpp \
+		nsPrivateTextRange.cpp \
+		nsAsyncDOMEvent.cpp \
+		nsEventDispatcher.cpp \
+		nsIMEStateManager.cpp \
+		nsContentEventHandler.cpp \
+		nsEventListenerService.cpp \
+		nsDOMDataTransfer.cpp \
+		nsDOMNotifyPaintEvent.cpp \
+		nsDOMNotifyAudioAvailableEvent.cpp \
+		nsDOMSimpleGestureEvent.cpp \
+		nsDOMEventTargetHelper.cpp \
+		nsDOMScrollAreaEvent.cpp \
+		nsDOMTransitionEvent.cpp \
+		nsDOMAnimationEvent.cpp \
+		nsDOMTouchEvent.cpp \
+		nsDOMCompositionEvent.cpp \
+		nsDOMClipboardEvent.cpp \
+		DOMWheelEvent.cpp \
+		TextComposition.cpp \
+		Touch.cpp \
+		$(NULL)
+
+ifdef MOZ_GAMEPAD
+CPPSRCS += \
+  nsDOMGamepad.cpp \
+  $(NULL)
+endif
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+FORCE_STATIC_LIB = 1
+
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES	+= \
              -I$(srcdir)/../../base/src \
@@ -36,6 +86,8 @@ LOCAL_INCLUDES += \
               -I$(srcdir)/../../../dom/wifi \
               $(NULL)
 endif
+
+DEFINES += -D_IMPL_NS_LAYOUT
 
 ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER

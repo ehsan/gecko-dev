@@ -153,6 +153,7 @@ public:
     }
 
 private:
+    const SkAAClip* fAAClip;
     SkRegion        fBWRgn;
     SkAAClipBlitter fAABlitter;
     // what we return

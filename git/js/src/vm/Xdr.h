@@ -4,13 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Xdr_h
-#define vm_Xdr_h
+#ifndef Xdr_h___
+#define Xdr_h___
 
 #include "mozilla/Endian.h"
 
 #include "jsapi.h"
-#include "jsatom.h"
+#include "jsprvtd.h"
+#include "jsnum.h"
+
+#include "vm/NumericConversions.h"
 
 namespace js {
 
@@ -23,7 +26,7 @@ namespace js {
  * and saved versions. If deserialization fails, the data should be
  * invalidated if possible.
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 150);
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 143);
 
 class XDRBuffer {
   public:
@@ -95,20 +98,16 @@ class XDRState {
     XDRBuffer buf;
 
   protected:
-    JSPrincipals *principals_;
-    JSPrincipals *originPrincipals_;
+    JSPrincipals *principals;
+    JSPrincipals *originPrincipals;
 
     XDRState(JSContext *cx)
-      : buf(cx), principals_(NULL), originPrincipals_(NULL) {
+      : buf(cx), principals(NULL), originPrincipals(NULL) {
     }
 
   public:
     JSContext *cx() const {
         return buf.cx();
-    }
-
-    JSPrincipals *originPrincipals() const {
-        return originPrincipals_;
     }
 
     bool codeUint8(uint8_t *n) {
@@ -211,6 +210,21 @@ class XDRState {
 
     bool codeFunction(JS::MutableHandleObject objp);
     bool codeScript(MutableHandleScript scriptp);
+
+    void initScriptPrincipals(JSScript *script) {
+        JS_ASSERT(mode == XDR_DECODE);
+
+        /* The origin principals must be normalized at this point. */
+        JS_ASSERT_IF(principals, originPrincipals);
+        JS_ASSERT(!script->originPrincipals);
+        if (principals)
+            JS_ASSERT(script->principals() == principals);
+
+        if (originPrincipals) {
+            script->originPrincipals = originPrincipals;
+            JS_HoldPrincipals(originPrincipals);
+        }
+    }
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {
@@ -243,4 +257,4 @@ class XDRDecoder : public XDRState<XDR_DECODE> {
 
 } /* namespace js */
 
-#endif /* vm_Xdr_h */
+#endif /* Xdr_h___ */

@@ -22,12 +22,7 @@
         width="900" height="350"
         persist="screenX screenY width height sizemode">
   <script type="text/javascript" src="chrome://global/content/globalOverlay.js"/>
-  <script type="text/javascript"><![CDATA[
-function goUpdateConsoleCommands() {
-  goUpdateCommand("consoleCmd_openURL");
-  goUpdateCommand("consoleCmd_copyURL");
-}
-  // ]]></script>
+  <script type="text/javascript" src="webconsole.js"/>
 
   <commandset id="editMenuCommands"/>
 
@@ -39,13 +34,10 @@ function goUpdateConsoleCommands() {
              oncommand="goDoCommand('consoleCmd_openURL');"/>
     <command id="consoleCmd_copyURL"
              oncommand="goDoCommand('consoleCmd_copyURL');"/>
-    <command id="consoleCmd_clearOutput"
-             oncommand="goDoCommand('consoleCmd_clearOutput');"/>
-    <command id="cmd_find" oncommand="goDoCommand('cmd_find');"/>
     <command id="cmd_fullZoomEnlarge" oncommand="goDoCommand('cmd_fontSizeEnlarge');"/>
     <command id="cmd_fullZoomReduce" oncommand="goDoCommand('cmd_fontSizeReduce');"/>
     <command id="cmd_fullZoomReset" oncommand="goDoCommand('cmd_fontSizeReset');"/>
-    <command id="cmd_close" oncommand="goDoCommand('cmd_close');" disabled="true"/>
+    <command id="cmd_close" oncommand="goDoCommand('cmd_close');"/>
   </commandset>
   <keyset id="consoleKeys">
     <key id="key_fullZoomReduce"  key="&fullZoomReduceCmd.commandkey;" command="cmd_fullZoomReduce"  modifiers="accel"/>
@@ -55,15 +47,13 @@ function goUpdateConsoleCommands() {
     <key key="&fullZoomEnlargeCmd.commandkey3;" command="cmd_fullZoomEnlarge" modifiers="accel"/>
     <key id="key_fullZoomReset" key="&fullZoomResetCmd.commandkey;" command="cmd_fullZoomReset" modifiers="accel"/>
     <key key="&fullZoomResetCmd.commandkey2;" command="cmd_fullZoomReset" modifiers="accel"/>
-    <key key="&findCmd.key;" command="cmd_find" modifiers="accel"/>
-    <key key="&clearOutputCmd.key;" command="consoleCmd_clearOutput" modifiers="accel"/>
     <key key="&closeCmd.key;" command="cmd_close" modifiers="accel"/>
-    <key id="key_clearOutput" key="&clearOutputCtrl.key;" command="consoleCmd_clearOutput" modifiers="accel"/>
   </keyset>
   <keyset id="editMenuKeys"/>
 
   <popupset id="mainPopupSet">
-    <menupopup id="output-contextmenu">
+    <menupopup id="output-contextmenu"
+               onpopupshowing="ConsoleContextMenu.build(event);">
       <menuitem id="saveBodiesContextMenu" type="checkbox" label="&saveBodies.label;"
                 accesskey="&saveBodies.accesskey;"/>
       <menuitem id="menu_openURL" label="&openURL.label;"
@@ -82,15 +72,10 @@ function goUpdateConsoleCommands() {
       <toolbar class="hud-console-filter-toolbar devtools-toolbar" mode="full">
         <toolbarbutton label="&btnPageNet.label;" type="menu-button"
                        category="net" class="devtools-toolbarbutton webconsole-filter-button"
-                       tooltiptext="&btnPageNet.tooltip;"
-                       accesskeyMacOSX="&btnPageNet.accesskeyMacOSX;"
-                       accesskey="&btnPageNet.accesskey;"
-                       tabindex="3">
+                       tooltiptext="&btnPageNet.tooltip;">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox" autocheck="false"
                       prefKey="network"/>
-            <menuitem label="&btnConsoleWarnings;" type="checkbox" autocheck="false"
-                      prefKey="netwarn"/>
             <menuitem label="&btnConsoleLog;" type="checkbox" autocheck="false"
                       prefKey="networkinfo"/>
             <menuseparator id="saveBodiesSeparator" />
@@ -100,9 +85,7 @@ function goUpdateConsoleCommands() {
         </toolbarbutton>
         <toolbarbutton label="&btnPageCSS.label;" type="menu-button"
                        category="css" class="devtools-toolbarbutton webconsole-filter-button"
-                       tooltiptext="&btnPageCSS.tooltip;"
-                       accesskey="&btnPageCSS.accesskey;"
-                       tabindex="4">
+                       tooltiptext="&btnPageCSS.tooltip;">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox" autocheck="false"
                       prefKey="csserror"/>
@@ -112,23 +95,17 @@ function goUpdateConsoleCommands() {
         </toolbarbutton>
         <toolbarbutton label="&btnPageJS.label;" type="menu-button"
                        category="js" class="devtools-toolbarbutton webconsole-filter-button"
-                       tooltiptext="&btnPageJS.tooltip;"
-                       accesskey="&btnPageJS.accesskey;"
-                       tabindex="5">
+                       tooltiptext="&btnPageJS.tooltip;">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox"
                       autocheck="false" prefKey="exception"/>
             <menuitem label="&btnConsoleWarnings;" type="checkbox"
                       autocheck="false" prefKey="jswarn"/>
-            <menuitem label="&btnConsoleLog;" type="checkbox"
-                      autocheck="false" prefKey="jslog"/>
           </menupopup>
         </toolbarbutton>
         <toolbarbutton label="&btnPageSecurity.label;" type="menu-button"
                        category="security" class="devtools-toolbarbutton webconsole-filter-button"
-                       tooltiptext="&btnPageSecurity.tooltip;"
-                       accesskey="&btnPageSecurity.accesskey;"
-                       tabindex="6">
+                       tooltiptext="&btnPageSecurity.tooltip;">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox"
                       autocheck="false" prefKey="secerror"/>
@@ -138,9 +115,7 @@ function goUpdateConsoleCommands() {
         </toolbarbutton>
         <toolbarbutton label="&btnPageLogging.label;" type="menu-button"
                        category="logging" class="devtools-toolbarbutton webconsole-filter-button"
-                       tooltiptext="&btnPageLogging.tooltip;"
-                       accesskey="&btnPageLogging.accesskey2;"
-                       tabindex="7">
+                       tooltiptext="&btnPageLogging.tooltip;">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox"
                       autocheck="false" prefKey="error"/>
@@ -153,25 +128,23 @@ function goUpdateConsoleCommands() {
           </menupopup>
         </toolbarbutton>
 
-        <toolbarbutton class="webconsole-clear-console-button devtools-toolbarbutton"
-                       label="&btnClear.label;" tooltiptext="&btnClear.tooltip;"
-                       tabindex="8"/>
-
         <spacer flex="1"/>
 
         <textbox class="compact hud-filter-box devtools-searchinput" type="search"
-                 placeholder="&filterOutput.placeholder;" tabindex="2"/>
+                 placeholder="&filterOutput.placeholder;"/>
+        <toolbarbutton class="webconsole-clear-console-button devtools-toolbarbutton"
+                       label="&btnClear.label;" tooltiptext="&btnClear.tooltip;"/>
       </toolbar>
 
       <richlistbox class="hud-output-node" orient="vertical" flex="1"
                    seltype="multiple" context="output-contextmenu"
-                   style="direction:ltr;" tabindex="1"/>
+                   style="direction:ltr;"/>
 
       <hbox class="jsterm-input-container" style="direction:ltr">
         <stack class="jsterm-stack-node" flex="1">
           <textbox class="jsterm-complete-node" multiline="true" rows="1"
                    tabindex="-1"/>
-          <textbox class="jsterm-input-node" multiline="true" rows="1" tabindex="0"/>
+          <textbox class="jsterm-input-node" multiline="true" rows="1"/>
         </stack>
       </hbox>
     </vbox>

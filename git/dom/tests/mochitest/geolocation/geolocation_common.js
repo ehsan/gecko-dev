@@ -99,6 +99,11 @@ function check_geolocation(location) {
 
 function toggleGeolocationSetting(value, callback) {
   var mozSettings = window.navigator.mozSettings;
+  if (!mozSettings) {
+    addLoadEvent(toggleGeolocationSetting.bind(null, value, callback));
+    return;
+  }
+
   var lock = mozSettings.createLock();
 
   var geoenabled = {"geolocation.enabled": value};

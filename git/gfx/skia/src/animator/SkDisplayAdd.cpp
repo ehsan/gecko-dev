@@ -243,3 +243,4 @@ const SkMemberInfo SkReplace::fInfo[] = {
 #endif
 
 DEFINE_GET_MEMBER(SkReplace);
+

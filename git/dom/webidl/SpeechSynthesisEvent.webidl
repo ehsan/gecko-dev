@@ -9,18 +9,10 @@
  * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
  * liability, trademark and document use rules apply.
  */
+interface Event;
 
-[Constructor(DOMString type, optional SpeechSynthesisEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
-interface SpeechSynthesisEvent : Event
-{
+interface SpeechSynthesisEvent : Event {
   readonly attribute unsigned long charIndex;
   readonly attribute float elapsedTime;
-  readonly attribute DOMString? name;
-};
-
-dictionary SpeechSynthesisEventInit : EventInit
-{
-  unsigned long charIndex = 0;
-  float elapsedTime = 0;
-  DOMString name = "";
+  readonly attribute DOMString name;
 };

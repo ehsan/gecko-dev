@@ -6,10 +6,10 @@
 
 #include "jspropertytree.h"
 
+#include "jstypes.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
-#include "jstypes.h"
 
 #include "vm/Shape.h"
 
@@ -32,11 +32,11 @@ ShapeHasher::match(const Key k, const Lookup &l)
 }
 
 Shape *
-PropertyTree::newShape(ExclusiveContext *cx)
+PropertyTree::newShape(JSContext *cx)
 {
     Shape *shape = js_NewGCShape(cx);
     if (!shape)
-        js_ReportOutOfMemory(cx);
+        JS_ReportOutOfMemory(cx);
     return shape;
 }
 
@@ -55,13 +55,13 @@ HashChildren(Shape *kid1, Shape *kid2)
 }
 
 bool
-PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
+PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
 {
     JS_ASSERT(!parent->inDictionary());
     JS_ASSERT(!child->parent);
     JS_ASSERT(!child->inDictionary());
+    JS_ASSERT(cx->compartment == compartment);
     JS_ASSERT(child->compartment() == parent->compartment());
-    JS_ASSERT(cx->isInsideCurrentCompartment(this));
 
     KidsPointer *kidp = &parent->kids;
 
@@ -78,7 +78,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
 
         KidsHash *hash = HashChildren(shape, child);
         if (!hash) {
-            js_ReportOutOfMemory(cx);
+            JS_ReportOutOfMemory(cx);
             return false;
         }
         kidp->setHash(hash);
@@ -87,7 +87,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
     }
 
     if (!kidp->toHash()->putNew(child, child)) {
-        js_ReportOutOfMemory(cx);
+        JS_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -127,7 +127,7 @@ Shape::removeChild(Shape *child)
 }
 
 Shape *
-PropertyTree::getChild(ExclusiveContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
+PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const StackShape &child)
 {
     {
         Shape *shape = NULL;
@@ -267,8 +267,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
             str = JSID_TO_ATOM(propid);
         } else {
             JS_ASSERT(JSID_IS_OBJECT(propid));
-            RootedValue v(cx, IdToValue(propid));
-            JSString *s = ToStringSlow<CanGC>(cx, v);
+            JSString *s = ToStringSlow<CanGC>(cx, IdToValue(propid));
             fputs("object ", fp);
             str = s ? s->ensureLinear(cx) : NULL;
         }

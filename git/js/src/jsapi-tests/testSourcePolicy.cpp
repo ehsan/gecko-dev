@@ -2,9 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "tests.h"
 #include "jsscript.h"
-
-#include "jsapi-tests/tests.h"
 
 BEGIN_TEST(testBug795104)
 {
@@ -30,14 +29,14 @@ static void
 newScriptHook(JSContext *cx, const char *fn, unsigned lineno,
               JSScript *script, JSFunction *fun, void *data)
 {
-    if (!JS_StringEqualsAscii(cx, script->sourceData(cx), simpleSource, (bool *)data))
-        *((bool *)data) = false;
+    if (!JS_StringEqualsAscii(cx, script->sourceData(cx), simpleSource, (JSBool *)data))
+        *((JSBool *)data) = JS_FALSE;
 }
 
 BEGIN_TEST(testScriptSourceReentrant)
 {
     JS::CompileOptions opts(cx);
-    bool match = false;
+    JSBool match = false;
     JS_SetNewScriptHook(rt, newScriptHook, &match);
     CHECK(JS::Evaluate(cx, global, opts, simpleSource, strlen(simpleSource), NULL));
     CHECK(match);

@@ -25,8 +25,6 @@ function setUpAndTearDown() {
   yield waitForCondition(function () {
       return !SelectionHelperUI.isSelectionUIVisible;
     }, kCommonWaitMs, kCommonPollMs);
-  InputSourceHelper.isPrecise = false;
-  InputSourceHelper.fireUpdate();
 }
 
 gTests.push({
@@ -38,13 +36,15 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_frame_content.html");
 
     yield waitForCondition(function () {
-      return !BrowserUI.isStartTabVisible;
+      return !StartUI.isStartPageVisible;
       }, 10000, 100);
 
     yield hideContextUI();
 
     gWindow = Browser.selectedTab.browser.contentWindow;
     gFrame = gWindow.document.getElementById("frame1");
+
+    InputSourceHelper.isPrecise = false;
   },
 });
 
@@ -55,7 +55,7 @@ gTests.push({
   run: function test() {
     gFrame.focus();
 
-    sendContextMenuClick(165, 35);
+    sendContextMenuClick(130, 95);
 
     yield waitForCondition(function () {
         return SelectionHelperUI.isSelectionUIVisible;
@@ -88,7 +88,7 @@ gTests.push({
     let ypos = SelectionHelperUI.endMark.yPos + kMarkerOffsetY;
 
     let touchdrag = new TouchDragAndHold();
-    yield touchdrag.start(gWindow, SelectionHelperUI.endMark.xPos, ypos, 640, ypos);
+    yield touchdrag.start(gWindow, SelectionHelperUI.endMark.xPos, ypos, 600, ypos);
     touchdrag.end();
 
     yield waitForCondition(function () {
@@ -101,7 +101,7 @@ gTests.push({
        "selection test");
 
     touchdrag = new TouchDragAndHold();
-    yield touchdrag.start(gWindow, SelectionHelperUI.endMark.xPos, ypos, 320, ypos);
+    yield touchdrag.start(gWindow, SelectionHelperUI.endMark.xPos, ypos, 300, ypos);
     touchdrag.end();
 
     yield waitForCondition(function () {
@@ -124,7 +124,7 @@ gTests.push({
     gFrame.contentDocument.defaultView.scrollBy(0, 200);
     yield scrollPromise;
 
-    sendContextMenuClick(30, 240);
+    sendContextMenuClick(527, 188);
 
     yield waitForCondition(function () {
         return SelectionHelperUI.isSelectionUIVisible;
@@ -134,17 +134,17 @@ gTests.push({
     is(getTrimmedSelection(gFrame).toString(), "started", "selection test");
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToSelection(gFrame.contentDocument.defaultView);
+    sendContextMenuClick(527, 188);
 
     yield promise;
     ok(promise && !(promise instanceof Error), "promise error");
-    ok(ContextMenuUI._menuPopup.visible, "is visible");
+    ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     let menuItem = document.getElementById("context-copy");
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
     ok(popupPromise && !(popupPromise instanceof Error), "promise error");
 
@@ -185,7 +185,8 @@ gTests.push({
     gFrame.contentDocument.defaultView.scrollBy(0, 200);
     yield scrollPromise;
 
-    sendContextMenuClick(114, 130);
+    InputSourceHelper.isPrecise = false;
+    sendContextMenuClick(114, 91);
 
     yield waitForCondition(function () {
         return SelectionHelperUI.isSelectionUIVisible;
@@ -216,5 +217,7 @@ function test() {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
+
+  requestLongerTimeout(3);
   runTests();
 }

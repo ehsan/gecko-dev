@@ -7,7 +7,7 @@
 #define PROFILER_FUNCS_H
 
 #include "mozilla/NullPtr.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/TimeStamp.h"
 #include "jsfriendapi.h"
 
@@ -21,9 +21,8 @@ inline void* mozilla_sampler_call_enter(const char *aInfo, void *aFrameAddress =
 inline void  mozilla_sampler_call_exit(void* handle);
 inline void  mozilla_sampler_add_marker(const char *aInfo);
 
-void mozilla_sampler_start(int aEntries, double aInterval,
-                           const char** aFeatures, uint32_t aFeatureCount,
-                           const char** aThreadNameFilters, uint32_t aFilterCount);
+void mozilla_sampler_start(int aEntries, int aInterval, const char** aFeatures,
+                            uint32_t aFeatureCount);
 
 void mozilla_sampler_stop();
 
@@ -43,7 +42,7 @@ JSObject *mozilla_sampler_get_profile_data(JSContext *aCx);
 
 const char** mozilla_sampler_get_features();
 
-void mozilla_sampler_init(void* stackTop);
+void mozilla_sampler_init();
 
 void mozilla_sampler_shutdown();
 
@@ -59,7 +58,7 @@ void mozilla_sampler_lock();
 void mozilla_sampler_unlock();
 
 // Register/unregister threads with the profiler
-bool mozilla_sampler_register_thread(const char* name, void* stackTop);
+bool mozilla_sampler_register_thread(const char* name);
 void mozilla_sampler_unregister_thread();
 
 double mozilla_sampler_time();

@@ -111,11 +111,6 @@ public:
   // notifying the caller when the read operation is complete.
   void ProcessReadRequest(IMFAsyncResult* aResult,
                           ReadRequest* aRequestState);
-
-  // Returns the number of bytes that have been consumed by the users of this
-  // class since the last time we called this, and resets the internal counter.
-  uint32_t GetAndResetBytesConsumedCount();
-
 private:
 
   // Locks the MediaResource and performs the read. The other read methods
@@ -135,7 +130,16 @@ private:
   // shutdown.
   RefPtr<WMFSourceReaderCallback> mSourceReaderCallback;
 
-  // Resource we're wrapping.
+  // Monitor that ensures that multiple concurrent async reads are processed
+  // in serial on a resource. This prevents concurrent async reads and seeks
+  // from interleaving, to ensure that reads occur at the offset they're
+  // supposed to!
+  ReentrantMonitor mResourceMonitor;
+
+  // Resource we're wrapping. Note this object's methods are threadsafe,
+  // but because multiple reads can be processed concurrently in the thread
+  // pool we must hold mResourceMonitor whenever we seek+read to ensure that
+  // another read request's seek+read doesn't interleave.
   nsRefPtr<MediaResource> mResource;
 
   // Protects mOffset, which is accessed by the SourceReaders thread(s), and
@@ -152,17 +156,12 @@ private:
   // standard IMFAttributes class, which we store a reference to here.
   RefPtr<IMFAttributes> mAttributes;
 
-  // Number of bytes that have been consumed by callers of the read functions
-  // on this object since the last time GetAndResetBytesConsumedCount() was
-  // called.
-  uint32_t mBytesConsumed;
-
   // True if the resource has been shutdown, either because the WMFReader is
   // shutting down, or because the underlying MediaResource has closed.
   bool mIsShutdown;
 
   // IUnknown ref counting.
-  ThreadSafeAutoRefCnt mRefCnt;
+  nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
 };
 

@@ -7,6 +7,7 @@
 #include "mozilla/layers/ImageBridgeChild.h"
 
 #include "ImageContainer.h"
+#include "GonkIOSurfaceImage.h"
 #include "GrallocImages.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/ipc/CrossProcessMutex.h"
@@ -39,7 +40,7 @@ using mozilla::gfx::SourceSurface;
 namespace mozilla {
 namespace layers {
 
-Atomic<int32_t> Image::sSerialCounter(0);
+int32_t Image::sSerialCounter = 0;
 
 already_AddRefed<Image>
 ImageFactory::CreateImage(const ImageFormat *aFormats,
@@ -53,7 +54,7 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
   nsRefPtr<Image> img;
 #ifdef MOZ_WIDGET_GONK
   if (FormatInList(aFormats, aNumFormats, GRALLOC_PLANAR_YCBCR)) {
-    img = new GrallocImage();
+    img = new GrallocPlanarYCbCrImage();
     return img.forget();
   }
 #endif
@@ -69,6 +70,12 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
     img = new SharedTextureImage();
     return img.forget();
   }
+#ifdef MOZ_WIDGET_GONK
+  if (FormatInList(aFormats, aNumFormats, GONK_IO_SURFACE)) {
+    img = new GonkIOSurfaceImage();
+    return img.forget();
+  }
+#endif
 #ifdef XP_WIN
   if (FormatInList(aFormats, aNumFormats, D3D9_RGB32_TEXTURE)) {
     img = new D3D9SurfaceImage();

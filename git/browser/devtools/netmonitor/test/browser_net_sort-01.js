@@ -19,156 +19,130 @@ function test() {
         .then(() => {
           info("Testing swap(0, 0)");
           RequestsMenu.swapItemsAtIndices(0, 0);
-          RequestsMenu.refreshZebra();
           return testContents([0, 1, 2, 3, 4]);
         })
         .then(() => {
           info("Testing swap(0, 1)");
           RequestsMenu.swapItemsAtIndices(0, 1);
-          RequestsMenu.refreshZebra();
           return testContents([1, 0, 2, 3, 4]);
         })
         .then(() => {
           info("Testing swap(0, 2)");
           RequestsMenu.swapItemsAtIndices(0, 2);
-          RequestsMenu.refreshZebra();
           return testContents([1, 2, 0, 3, 4]);
         })
         .then(() => {
           info("Testing swap(0, 3)");
           RequestsMenu.swapItemsAtIndices(0, 3);
-          RequestsMenu.refreshZebra();
           return testContents([1, 2, 3, 0, 4]);
         })
         .then(() => {
           info("Testing swap(0, 4)");
           RequestsMenu.swapItemsAtIndices(0, 4);
-          RequestsMenu.refreshZebra();
           return testContents([1, 2, 3, 4, 0]);
         })
         .then(() => {
           info("Testing swap(1, 0)");
           RequestsMenu.swapItemsAtIndices(1, 0);
-          RequestsMenu.refreshZebra();
           return testContents([0, 2, 3, 4, 1]);
         })
         .then(() => {
           info("Testing swap(1, 1)");
           RequestsMenu.swapItemsAtIndices(1, 1);
-          RequestsMenu.refreshZebra();
           return testContents([0, 2, 3, 4, 1]);
         })
         .then(() => {
           info("Testing swap(1, 2)");
           RequestsMenu.swapItemsAtIndices(1, 2);
-          RequestsMenu.refreshZebra();
           return testContents([0, 1, 3, 4, 2]);
         })
         .then(() => {
           info("Testing swap(1, 3)");
           RequestsMenu.swapItemsAtIndices(1, 3);
-          RequestsMenu.refreshZebra();
           return testContents([0, 3, 1, 4, 2]);
         })
         .then(() => {
           info("Testing swap(1, 4)");
           RequestsMenu.swapItemsAtIndices(1, 4);
-          RequestsMenu.refreshZebra();
           return testContents([0, 3, 4, 1, 2]);
         })
         .then(() => {
           info("Testing swap(2, 0)");
           RequestsMenu.swapItemsAtIndices(2, 0);
-          RequestsMenu.refreshZebra();
           return testContents([2, 3, 4, 1, 0]);
         })
         .then(() => {
           info("Testing swap(2, 1)");
           RequestsMenu.swapItemsAtIndices(2, 1);
-          RequestsMenu.refreshZebra();
           return testContents([1, 3, 4, 2, 0]);
         })
         .then(() => {
           info("Testing swap(2, 2)");
           RequestsMenu.swapItemsAtIndices(2, 2);
-          RequestsMenu.refreshZebra();
           return testContents([1, 3, 4, 2, 0]);
         })
         .then(() => {
           info("Testing swap(2, 3)");
           RequestsMenu.swapItemsAtIndices(2, 3);
-          RequestsMenu.refreshZebra();
           return testContents([1, 2, 4, 3, 0]);
         })
         .then(() => {
           info("Testing swap(2, 4)");
           RequestsMenu.swapItemsAtIndices(2, 4);
-          RequestsMenu.refreshZebra();
           return testContents([1, 4, 2, 3, 0]);
         })
         .then(() => {
           info("Testing swap(3, 0)");
           RequestsMenu.swapItemsAtIndices(3, 0);
-          RequestsMenu.refreshZebra();
           return testContents([1, 4, 2, 0, 3]);
         })
         .then(() => {
           info("Testing swap(3, 1)");
           RequestsMenu.swapItemsAtIndices(3, 1);
-          RequestsMenu.refreshZebra();
           return testContents([3, 4, 2, 0, 1]);
         })
         .then(() => {
           info("Testing swap(3, 2)");
           RequestsMenu.swapItemsAtIndices(3, 2);
-          RequestsMenu.refreshZebra();
           return testContents([2, 4, 3, 0, 1]);
         })
         .then(() => {
           info("Testing swap(3, 3)");
           RequestsMenu.swapItemsAtIndices(3, 3);
-          RequestsMenu.refreshZebra();
           return testContents([2, 4, 3, 0, 1]);
         })
         .then(() => {
           info("Testing swap(3, 4)");
           RequestsMenu.swapItemsAtIndices(3, 4);
-          RequestsMenu.refreshZebra();
           return testContents([2, 3, 4, 0, 1]);
         })
         .then(() => {
           info("Testing swap(4, 0)");
           RequestsMenu.swapItemsAtIndices(4, 0);
-          RequestsMenu.refreshZebra();
           return testContents([2, 3, 0, 4, 1]);
         })
         .then(() => {
           info("Testing swap(4, 1)");
           RequestsMenu.swapItemsAtIndices(4, 1);
-          RequestsMenu.refreshZebra();
           return testContents([2, 3, 0, 1, 4]);
         })
         .then(() => {
           info("Testing swap(4, 2)");
           RequestsMenu.swapItemsAtIndices(4, 2);
-          RequestsMenu.refreshZebra();
           return testContents([4, 3, 0, 1, 2]);
         })
         .then(() => {
           info("Testing swap(4, 3)");
           RequestsMenu.swapItemsAtIndices(4, 3);
-          RequestsMenu.refreshZebra();
           return testContents([3, 4, 0, 1, 2]);
         })
         .then(() => {
           info("Testing swap(4, 4)");
           RequestsMenu.swapItemsAtIndices(4, 4);
-          RequestsMenu.refreshZebra();
           return testContents([3, 4, 0, 1, 2]);
         })
         .then(() => {
-          info("Clearing sort.");
-          RequestsMenu.sortBy();
+          RequestsMenu.sortBy(null);
           return testContents([0, 1, 2, 3, 4]);
         })
         .then(() => {
@@ -178,20 +152,22 @@ function test() {
     });
 
     function testContents([a, b, c, d, e]) {
-      is(RequestsMenu.orderedItems.length, 5,
+      let deferred = Promise.defer();
+
+      is(RequestsMenu.allItems.length, 5,
         "There should be a total of 5 items in the requests menu.");
       is(RequestsMenu.visibleItems.length, 5,
         "There should be a total of 5 visbile items in the requests menu.");
 
-      is(RequestsMenu.getItemAtIndex(0), RequestsMenu.orderedItems[0],
+      is(RequestsMenu.getItemAtIndex(0), RequestsMenu.allItems[0],
         "The requests menu items aren't ordered correctly. First item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(1), RequestsMenu.orderedItems[1],
+      is(RequestsMenu.getItemAtIndex(1), RequestsMenu.allItems[1],
         "The requests menu items aren't ordered correctly. Second item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(2), RequestsMenu.orderedItems[2],
+      is(RequestsMenu.getItemAtIndex(2), RequestsMenu.allItems[2],
         "The requests menu items aren't ordered correctly. Third item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(3), RequestsMenu.orderedItems[3],
+      is(RequestsMenu.getItemAtIndex(3), RequestsMenu.allItems[3],
         "The requests menu items aren't ordered correctly. Fourth item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(4), RequestsMenu.orderedItems[4],
+      is(RequestsMenu.getItemAtIndex(4), RequestsMenu.allItems[4],
         "The requests menu items aren't ordered correctly. Fifth item is misplaced.");
 
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(a),
@@ -200,7 +176,7 @@ function test() {
           statusText: "Switching Protocols",
           type: "plain",
           fullMimeType: "text/plain; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(b),
@@ -209,7 +185,7 @@ function test() {
           statusText: "Created",
           type: "plain",
           fullMimeType: "text/plain; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(c),
@@ -218,7 +194,7 @@ function test() {
           statusText: "See Other",
           type: "plain",
           fullMimeType: "text/plain; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(d),
@@ -227,7 +203,7 @@ function test() {
           statusText: "Not Found",
           type: "plain",
           fullMimeType: "text/plain; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(e),
@@ -236,11 +212,12 @@ function test() {
           statusText: "Not Implemented",
           type: "plain",
           fullMimeType: "text/plain; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
 
-      return promise.resolve(null);
+      executeSoon(deferred.resolve);
+      return deferred.promise;
     }
 
     aDebuggee.performRequests();

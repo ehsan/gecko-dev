@@ -23,8 +23,7 @@ class PowerManager
   , public nsIDOMMozWakeLockListener
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(PowerManager, nsIDOMMozPowerManager)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZPOWERMANAGER
   NS_DECL_NSIDOMMOZWAKELOCKLISTENER
 
@@ -34,9 +33,8 @@ public:
   nsresult Init(nsIDOMWindow *aWindow);
   nsresult Shutdown();
 
-  static bool CheckPermission(nsPIDOMWindow*);
-
-  static already_AddRefed<PowerManager> CreateInstance(nsPIDOMWindow*);
+  static already_AddRefed<PowerManager>
+  CheckPermissionAndCreateInstance(nsPIDOMWindow*);
 
 private:
 

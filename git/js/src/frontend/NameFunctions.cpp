@@ -5,17 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "frontend/NameFunctions.h"
+#include "frontend/ParseNode.h"
+#include "frontend/SharedContext.h"
 
 #include "jsfun.h"
 #include "jsprf.h"
 
-#include "frontend/BytecodeCompiler.h"
-#include "frontend/ParseNode.h"
-#include "frontend/SharedContext.h"
+#include "vm/String-inl.h"
 #include "vm/StringBuffer.h"
-
-#include "jsfuninlines.h"
-#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -148,9 +145,13 @@ class NameResolver
 
               case PNK_COLON:
                 /*
-                 * Record the PNK_COLON but skip the PNK_OBJECT so we're not
+                 * If this is a PNK_COLON, but our parent is not a PNK_OBJECT,
+                 * then this is a label and we're done naming. Otherwise we
+                 * record the PNK_COLON but skip the PNK_OBJECT so we're not
                  * flagged as a contributor.
                  */
+                if (pos == 0 || !parents[pos - 1]->isKind(PNK_OBJECT))
+                    return NULL;
                 pos--;
                 /* fallthrough */
 
@@ -173,6 +174,8 @@ class NameResolver
     JSAtom *resolveFun(ParseNode *pn, HandleAtom prefix) {
         JS_ASSERT(pn != NULL && pn->isKind(PNK_FUNCTION));
         RootedFunction fun(cx, pn->pn_funbox->function());
+        if (nparents == 0)
+            return NULL;
 
         StringBuffer buf(cx);
         this->buf = &buf;
@@ -180,7 +183,7 @@ class NameResolver
         /* If the function already has a name, use that */
         if (fun->displayAtom() != NULL) {
             if (prefix == NULL)
-                return fun->displayAtom();
+                return fun->atom();
             if (!buf.append(prefix) ||
                 !buf.append("/") ||
                 !buf.append(fun->displayAtom()))
@@ -243,8 +246,6 @@ class NameResolver
             return NULL;
 
         JSAtom *atom = buf.finishAtom();
-        if (!atom)
-            return NULL;
         fun->setGuessedAtom(atom);
         return atom;
     }
@@ -313,7 +314,7 @@ class NameResolver
             resolve(cur->pn_kid3, prefix);
             break;
           case PN_CODE:
-            JS_ASSERT(cur->isKind(PNK_MODULE) || cur->isKind(PNK_FUNCTION));
+            JS_ASSERT(cur->isKind(PNK_FUNCTION));
             resolve(cur->pn_body, prefix);
             break;
           case PN_LIST:

@@ -27,6 +27,7 @@ const DENY_ACTION = Ci.nsIPermissionManager.DENY_ACTION;
 const PROMPT_ACTION = Ci.nsIPermissionManager.PROMPT_ACTION;
 
 // Permissions Matrix: https://docs.google.com/spreadsheet/ccc?key=0Akyz_Bqjgf5pdENVekxYRjBTX0dCXzItMnRyUU1RQ0E#gid=0
+// Also, keep in sync with https://mxr.mozilla.org/mozilla-central/source/extensions/cookie/Permission.txt
 
 // Permissions that are implicit:
 // battery-status, network-information, vibration,
@@ -141,11 +142,6 @@ this.PermissionsTable =  { geolocation: {
                              additional: ["indexedDB-chrome-settings"]
                            },
                            permissions: {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           phonenumberservice: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
@@ -276,11 +272,6 @@ this.PermissionsTable =  { geolocation: {
                              certified: ALLOW_ACTION
                            },
                            "keyboard": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "wappush": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION

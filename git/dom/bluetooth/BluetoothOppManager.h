@@ -17,7 +17,6 @@
 
 class nsIOutputStream;
 class nsIInputStream;
-class nsIVolumeMountLock;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -29,9 +28,6 @@ class BluetoothOppManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
   /*
    * Channel of reserved services are fixed values, please check
    * function add_reserved_service_records() in
@@ -46,17 +42,17 @@ public:
   void ServerDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
 
   /*
-   * If an application wants to send a file, first, it needs to
+   * If a application wnats to send a file, first, it needs to
    * call Connect() to create a valid RFCOMM connection. After
    * that, call SendFile()/StopSendingFile() to control file-sharing
    * process. During the file transfering process, the application
    * will receive several system messages which contain the processed
    * percentage of file. At the end, the application will get another
-   * system message indicating that the process is complete, then it can
+   * system message indicating that te process is complete, then it can
    * either call Disconnect() to close RFCOMM connection or start another
    * file-sending thread via calling SendFile() again.
    */
-  void Connect(const nsAString& aDeviceAddress,
+  void Connect(const nsAString& aDeviceObjectPath,
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();
   bool Listen();
@@ -74,7 +70,12 @@ public:
 
   void ExtractPacketHeaders(const ObexHeaderSet& aHeader);
   bool ExtractBlobHeaders();
-  void CheckPutFinal(uint32_t aNumRead);
+  nsresult HandleShutdown();
+
+  // Return true if there is an ongoing file-transfer session, please see
+  // Bug 827267 for more information.
+  bool IsTransferring();
+  void GetAddress(nsAString& aDeviceAddress);
 
   // Implement interface BluetoothSocketObserver
   void ReceiveSocketData(
@@ -87,15 +88,9 @@ public:
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
-  virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
-  virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
-  virtual bool IsConnected() MOZ_OVERRIDE;
 
 private:
   BluetoothOppManager();
-  bool Init();
-  void HandleShutdown();
-
   void StartFileTransfer();
   void StartSendingNextFile();
   void FileTransferComplete();
@@ -105,9 +100,8 @@ private:
   bool WriteToFile(const uint8_t* aData, int aDataLength);
   void DeleteReceivedFile();
   void ReplyToConnect();
-  void ReplyToDisconnectOrAbort();
+  void ReplyToDisconnect();
   void ReplyToPut(bool aFinal, bool aContinue);
-  void ReplyError(uint8_t aError);
   void AfterOppConnected();
   void AfterFirstPut();
   void AfterOppDisconnected();
@@ -116,8 +110,6 @@ private:
   void ClearQueue();
   void RetrieveSentFileName();
   void NotifyAboutFileChange();
-  bool AcquireSdcardMountLock();
-  void SendObexData(uint8_t* aData, uint8_t aOpcode, int aSize);
 
   /**
    * OBEX session status.
@@ -145,12 +137,6 @@ private:
   int mBodySegmentLength;
   int mReceivedDataBufferOffset;
   int mUpdateProgressCounter;
-
-  /**
-   * When it is true and the target service on target device couldn't be found,
-   * refreshing SDP records is necessary.
-   */
-  bool mNeedsUpdatingSdpRecords;
 
   /**
    * Set when StopSendingFile() is called.
@@ -189,12 +175,6 @@ private:
    */
   bool mWaitingForConfirmationFlag;
 
-  nsString mFileName;
-  nsString mContentType;
-  uint32_t mFileLength;
-  uint32_t mSentFileLength;
-  bool mWaitingToSendPutFinal;
-
   nsAutoArrayPtr<uint8_t> mBodySegment;
   nsAutoArrayPtr<uint8_t> mReceivedDataBuffer;
 
@@ -205,11 +185,12 @@ private:
   /**
    * A seperate member thread is required because our read calls can block
    * execution, which is not allowed to happen on the IOThread.
+   * 
    */
   nsCOMPtr<nsIThread> mReadFileThread;
   nsCOMPtr<nsIOutputStream> mOutputStream;
   nsCOMPtr<nsIInputStream> mInputStream;
-  nsCOMPtr<nsIVolumeMountLock> mMountLock;
+
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   nsRefPtr<DeviceStorageFile> mDsFile;
 

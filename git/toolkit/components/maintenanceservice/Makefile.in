@@ -9,6 +9,15 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+CPPSRCS = \
+  maintenanceservice.cpp \
+  serviceinstall.cpp \
+  workmonitor.cpp \
+  certificatecheck.cpp \
+  servicebase.cpp \
+  registrycertificates.cpp \
+  $(NULL)
+
 # For debugging purposes only
 #DEFINES += -DDISABLE_UPDATER_AUTHENTICODE_CHECK
 
@@ -18,7 +27,6 @@ DIST_PROGRAM = maintenanceservice$(BIN_SUFFIX)
 # bug 725876
 MOZ_GLUE_LDFLAGS =
 MOZ_GLUE_PROGRAM_LDFLAGS =
-STL_FLAGS=
 
 LIBS += \
   ../../mozapps/update/common/$(LIB_PREFIX)updatecommon.$(LIB_SUFFIX) \

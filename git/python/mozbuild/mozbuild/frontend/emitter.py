@@ -4,32 +4,22 @@
 
 from __future__ import unicode_literals
 
-import logging
 import os
-
-from mach.mixin.logging import LoggingMixin
-
-import mozpack.path as mozpath
 
 from .data import (
     ConfigFileSubstitution,
     DirectoryTraversal,
     Exports,
-    IPDLFile,
     Program,
     ReaderSummary,
     VariablePassthru,
-    XPIDLFile,
     XpcshellManifests,
 )
 
-from .reader import (
-    MozbuildSandbox,
-    SandboxValidationError,
-)
+from .reader import MozbuildSandbox
 
 
-class TreeMetadataEmitter(LoggingMixin):
+class TreeMetadataEmitter(object):
     """Converts the executed mozbuild files into data structures.
 
     This is a bridge between reader.py and data.py. It takes what was read by
@@ -38,8 +28,6 @@ class TreeMetadataEmitter(LoggingMixin):
     """
 
     def __init__(self, config):
-        self.populate_logger()
-
         self.config = config
 
     def emit(self, output):
@@ -85,64 +73,18 @@ class TreeMetadataEmitter(LoggingMixin):
             sub.relpath = path
             yield sub
 
-        # XPIDL source files get processed and turned into .h and .xpt files.
-        # If there are multiple XPIDL files in a directory, they get linked
-        # together into a final .xpt, which has the name defined by either
-        # MODULE or XPIDL_MODULE (if the latter is defined).
-        xpidl_module = sandbox['MODULE']
-        if sandbox['XPIDL_MODULE']:
-            xpidl_module = sandbox['XPIDL_MODULE']
-
-        if sandbox['XPIDL_SOURCES'] and not xpidl_module:
-            raise SandboxValidationError('MODULE or XPIDL_MODULE must be '
-                'defined if XPIDL_SOURCES is defined.')
-
-        if sandbox['XPIDL_SOURCES'] and sandbox['NO_DIST_INSTALL']:
-            self.log(logging.WARN, 'mozbuild_warning', dict(
-                path=sandbox.main_path),
-                '{path}: NO_DIST_INSTALL has no effect on XPIDL_SOURCES.')
-
-        for idl in sandbox['XPIDL_SOURCES']:
-            yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
-                xpidl_module)
-
         # Proxy some variables as-is until we have richer classes to represent
         # them. We should aim to keep this set small because it violates the
         # desired abstraction of the build definition away from makefiles.
         passthru = VariablePassthru(sandbox)
-        varmap = dict(
-            # Makefile.in : moz.build
-            ASFILES='ASFILES',
-            CMMSRCS='CMMSRCS',
-            CPPSRCS='CPP_SOURCES',
-            CPP_UNIT_TESTS='CPP_UNIT_TESTS',
-            CSRCS='CSRCS',
-            DEFINES='DEFINES',
-            EXTRA_COMPONENTS='EXTRA_COMPONENTS',
-            EXTRA_JS_MODULES='EXTRA_JS_MODULES',
-            EXTRA_PP_COMPONENTS='EXTRA_PP_COMPONENTS',
-            EXTRA_PP_JS_MODULES='EXTRA_PP_JS_MODULES',
-            GTEST_CMMSRCS='GTEST_CMM_SOURCES',
-            GTEST_CPPSRCS='GTEST_CPP_SOURCES',
-            GTEST_CSRCS='GTEST_C_SOURCES',
-            HOST_CPPSRCS='HOST_CPPSRCS',
-            HOST_CSRCS='HOST_CSRCS',
-            HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
-            JS_MODULES_PATH='JS_MODULES_PATH',
-            LIBRARY_NAME='LIBRARY_NAME',
-            LIBS='LIBS',
-            MODULE='MODULE',
-            SDK_LIBRARY='SDK_LIBRARY',
-            SHARED_LIBRARY_LIBS='SHARED_LIBRARY_LIBS',
-            SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
-            SSRCS='SSRCS',
-        )
-        for mak, moz in varmap.items():
-            if sandbox[moz]:
-                passthru.variables[mak] = sandbox[moz]
-
-        if sandbox['NO_DIST_INSTALL']:
-            passthru.variables['NO_DIST_INSTALL'] = '1'
+        if sandbox['MODULE']:
+            passthru.variables['MODULE'] = sandbox['MODULE']
+        if sandbox['XPIDL_SOURCES']:
+            passthru.variables['XPIDLSRCS'] = sandbox['XPIDL_SOURCES']
+        if sandbox['XPIDL_MODULE']:
+            passthru.variables['XPIDL_MODULE'] = sandbox['XPIDL_MODULE']
+        if sandbox['XPIDL_FLAGS']:
+            passthru.variables['XPIDL_FLAGS'] = sandbox['XPIDL_FLAGS']
 
         if passthru.variables:
             yield passthru
@@ -157,9 +99,6 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for manifest in sandbox.get('XPCSHELL_TESTS_MANIFESTS', []):
             yield XpcshellManifests(sandbox, manifest)
-
-        for ipdl in sandbox.get('IPDL_SOURCES', []):
-            yield IPDLFile(sandbox, ipdl)
 
     def _emit_directory_traversal_from_sandbox(self, sandbox):
         o = DirectoryTraversal(sandbox)

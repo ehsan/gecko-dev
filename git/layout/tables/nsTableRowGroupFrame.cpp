@@ -137,29 +137,11 @@ public:
   }
 #endif
 
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
 
   NS_DISPLAY_DECL_NAME("TableRowGroupBackground", TYPE_TABLE_ROW_GROUP_BACKGROUND)
 };
-
-void
-nsDisplayTableRowGroupBackground::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                                            const nsDisplayItemGeometry* aGeometry,
-                                                            nsRegion *aInvalidRegion)
-{
-  if (aBuilder->ShouldSyncDecodeImages()) {
-    if (nsTableFrame::AnyTablePartHasUndecodedBackgroundImage(mFrame, mFrame->GetNextSibling())) {
-      bool snap;
-      aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
-    }
-  }
-
-  nsDisplayTableItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
-}
 
 void
 nsDisplayTableRowGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
@@ -244,7 +226,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 int
-nsTableRowGroupFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsTableRowGroupFrame::GetSkipSides() const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {
@@ -837,7 +819,7 @@ nsTableRowGroupFrame::CollapseRowGroupIfNecessary(nscoord aYTotalOffset,
   
   SetRect(groupRect);
   overflow.UnionAllWith(nsRect(0, 0, groupRect.width, groupRect.height));
-  FinishAndStoreOverflow(overflow, groupRect.Size());
+  FinishAndStoreOverflow(overflow, nsSize(groupRect.width, groupRect.height));
   nsTableFrame::RePositionViews(this);
   nsTableFrame::InvalidateTableFrame(this, oldGroupRect, oldGroupVisualOverflow,
                                      false);
@@ -1341,15 +1323,6 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   FinishAndStoreOverflow(&aDesiredSize);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return rv;
-}
-
-bool
-nsTableRowGroupFrame::UpdateOverflow()
-{
-  // Row cursor invariants depend on the visual overflow area of the rows,
-  // which may have changed, so we need to clear the cursor now.
-  ClearRowCursor();
-  return nsContainerFrame::UpdateOverflow();
 }
 
 /* virtual */ void

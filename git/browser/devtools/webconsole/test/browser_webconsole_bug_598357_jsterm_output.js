@@ -160,7 +160,7 @@ function testGen() {
     failureFn: testNext,
   });
 
-  yield undefined;
+  yield;
 
   let outputItem = HUD.outputNode.querySelector(".hud-log:last-child");
   ok(outputItem,
@@ -185,7 +185,7 @@ function testGen() {
     failureFn: testNext,
   });
 
-  yield undefined;
+  yield;
 
   outputItem = HUD.outputNode.querySelector(".webconsole-msg-output:" +
                                             "last-child");
@@ -210,7 +210,7 @@ function testGen() {
     failureFn: testNext,
   });
 
-  yield undefined;
+  yield;
 
   outputItem = HUD.outputNode.querySelector(".webconsole-msg-output:" +
                                             "last-child");
@@ -253,12 +253,12 @@ function testGen() {
   EventUtils.sendMouseEvent({ type: "click" }, messageBody, window);
 
   if (showsVariablesView) {
-    yield undefined; // wait for the panel to open if we need to.
+    yield; // wait for the panel to open if we need to.
   }
 
   testNext();
 
-  yield undefined;
+  yield;
 }
 
 function testEnd() {

@@ -211,7 +211,7 @@ ConsoleAPI.prototype = {
   {
     let window = this._window.get();
     let metaForCall = {
-      private: PrivateBrowsingUtils.isWindowPrivate(window),
+      isPrivate: PrivateBrowsingUtils.isWindowPrivate(window),
       timeStamp: Date.now(),
       stack: this.getStackTrace(aMethod != "trace" ? 1 : null),
     };
@@ -260,17 +260,7 @@ ConsoleAPI.prototype = {
   {
     let [method, args, meta] = aCall;
 
-    let frame;
-    if (meta.stack.length) {
-      frame = meta.stack[0];
-    } else {
-      frame = {
-        filename: "",
-        lineNumber: 0,
-        functionName: "",
-      };
-    }
-
+    let frame = meta.stack[0];
     let consoleEvent = {
       ID: this._outerID,
       innerID: this._innerID,
@@ -280,7 +270,6 @@ ConsoleAPI.prototype = {
       functionName: frame.functionName,
       timeStamp: meta.timeStamp,
       arguments: args,
-      private: meta.private,
     };
 
     switch (method) {
@@ -319,7 +308,7 @@ ConsoleAPI.prototype = {
         return;
     }
 
-    this.notifyObservers(method, consoleEvent);
+    this.notifyObservers(method, consoleEvent, meta.isPrivate);
   },
 
   /**
@@ -330,11 +319,18 @@ ConsoleAPI.prototype = {
    * @param object aConsoleEvent
    *        The console event object to send to observers for the given console
    *        API call.
+   * @param boolean aPrivate
+   *        Tells whether the window is in private browsing mode.
    */
-  notifyObservers: function CA_notifyObservers(aLevel, aConsoleEvent)
+  notifyObservers: function CA_notifyObservers(aLevel, aConsoleEvent, aPrivate)
   {
     aConsoleEvent.wrappedJSObject = aConsoleEvent;
-    ConsoleAPIStorage.recordEvent(this._innerID, aConsoleEvent);
+
+    // Store non-private messages for which the inner window was not destroyed.
+    if (!aPrivate) {
+      ConsoleAPIStorage.recordEvent(this._innerID, aConsoleEvent);
+    }
+
     Services.obs.notifyObservers(aConsoleEvent, "console-api-log-event",
                                  this._outerID);
   },

@@ -139,8 +139,7 @@ class ClientContainerLayer : public ContainerLayer,
 
 public:
   ClientContainerLayer(ClientLayerManager* aManager) :
-    ContainerLayer(aManager,
-                   static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    ContainerLayer(aManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientContainerLayer);
     mSupportsComponentAlphaChildren = true;
@@ -156,10 +155,6 @@ public:
 
   virtual void RenderLayer()
   {
-    if (GetMaskLayer()) {
-      ToClientLayer(GetMaskLayer())->RenderLayer();
-    }
-    
     // Setup mSupportsComponentAlphaChildren in the same way 
     // that ContainerLayerComposite will do.
     if (UseIntermediateSurface()) {
@@ -172,7 +167,7 @@ public:
             transform3D.Is2D(&transform) && 
             !transform.HasNonIntegerTranslation()) {
           SetSupportsComponentAlphaChildren(
-            gfxPlatform::ComponentAlphaEnabled());
+            gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering());
         }
       }
     } else {
@@ -251,8 +246,7 @@ class ClientRefLayer : public RefLayer,
                        public ClientLayer {
 public:
   ClientRefLayer(ClientLayerManager* aManager) :
-    RefLayer(aManager,
-             static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    RefLayer(aManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientRefLayer);
   }

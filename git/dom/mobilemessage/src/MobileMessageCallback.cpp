@@ -5,7 +5,6 @@
 
 #include "MobileMessageCallback.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIDOMMozSmsMessage.h"
 #include "nsIDOMMozMmsMessage.h"
 #include "nsIScriptGlobalObject.h"
@@ -39,7 +38,7 @@ MobileMessageCallback::~MobileMessageCallback()
 
 
 nsresult
-MobileMessageCallback::NotifySuccess(JS::Handle<JS::Value> aResult)
+MobileMessageCallback::NotifySuccess(const JS::Value& aResult)
 {
   mDOMRequest->FireSuccess(aResult);
   return NS_OK;
@@ -59,6 +58,7 @@ MobileMessageCallback::NotifySuccess(nsISupports *aMessage)
   JS::Rooted<JSObject*> global(cx, scriptContext->GetNativeGlobal());
   NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
 
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
   JS::Rooted<JS::Value> wrappedMessage(cx);
@@ -85,17 +85,9 @@ MobileMessageCallback::NotifyError(int32_t aError)
     case nsIMobileMessageCallback::INTERNAL_ERROR:
       mDOMRequest->FireError(NS_LITERAL_STRING("InternalError"));
       break;
-    case nsIMobileMessageCallback::NO_SIM_CARD_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("NoSimCardError"));
-      break;
-    case nsIMobileMessageCallback::RADIO_DISABLED_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("RadioDisabledError"));
-      break;
-    case nsIMobileMessageCallback::INVALID_ADDRESS_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("InvalidAddressError"));
-      break;
     default: // SUCCESS_NO_ERROR is handled above.
-      MOZ_CRASH("Should never get here!");
+      MOZ_NOT_REACHED("Should never get here!");
+      return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -129,9 +121,7 @@ NS_IMETHODIMP
 MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
 {
   if (aSize == 1) {
-    AutoJSContext cx;
-    JS::Rooted<JS::Value> val(cx, aDeleted[0] ? JSVAL_TRUE : JSVAL_FALSE);
-    return NotifySuccess(val);
+    return NotifySuccess(aDeleted[0] ? JSVAL_TRUE : JSVAL_FALSE);
   }
 
   nsresult rv;
@@ -143,14 +133,14 @@ MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JS::Rooted<JSObject*> deleteArrayObj(cx, JS_NewArrayObject(cx, aSize, NULL));
-  JS::Rooted<JS::Value> value(cx);
+  JS::Value jsValTrue = BOOLEAN_TO_JSVAL(1);
+  JS::Value jsValFalse = BOOLEAN_TO_JSVAL(0);
   for (uint32_t i = 0; i < aSize; i++) {
-    value.setBoolean(aDeleted[i]);
-    JS_SetElement(cx, deleteArrayObj, i, &value);
+    JS_SetElement(cx, deleteArrayObj, i,
+                  aDeleted[i] ? &jsValTrue : &jsValFalse);
   }
 
-  JS::Rooted<JS::Value> deleteArrayVal(cx, JS::ObjectValue(*deleteArrayObj));
-  return NotifySuccess(deleteArrayVal);
+  return NotifySuccess(OBJECT_TO_JSVAL(deleteArrayObj));
 }
 
 NS_IMETHODIMP
@@ -162,9 +152,7 @@ MobileMessageCallback::NotifyDeleteMessageFailed(int32_t aError)
 NS_IMETHODIMP
 MobileMessageCallback::NotifyMessageMarkedRead(bool aRead)
 {
-  AutoJSContext cx;
-  JS::Rooted<JS::Value> val(cx, aRead ? JSVAL_TRUE : JSVAL_FALSE);
-  return NotifySuccess(val);
+  return NotifySuccess(aRead ? JSVAL_TRUE : JSVAL_FALSE);
 }
 
 NS_IMETHODIMP

@@ -19,22 +19,18 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericHTMLFrameElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFrameLoader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsGenericHTMLFrameElement, nsGenericHTMLElement)
-NS_IMPL_RELEASE_INHERITED(nsGenericHTMLFrameElement, nsGenericHTMLElement)
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsGenericHTMLFrameElement)
+NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
   NS_INTERFACE_TABLE_INHERITED3(nsGenericHTMLFrameElement,
                                 nsIFrameLoaderOwner,
                                 nsIDOMMozBrowserFrame,
                                 nsIMozBrowserFrame)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
+NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 NS_IMPL_BOOL_ATTR(nsGenericHTMLFrameElement, Mozbrowser, mozbrowser)
 
@@ -233,9 +229,7 @@ nsGenericHTMLFrameElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                               aValue, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src &&
-      (Tag() != nsGkAtoms::iframe || 
-       !HasAttr(kNameSpaceID_None,nsGkAtoms::srcdoc))) {
+  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
     // Don't propagate error here. The attribute was successfully set, that's
     // what we should reflect.
     LoadSrc();

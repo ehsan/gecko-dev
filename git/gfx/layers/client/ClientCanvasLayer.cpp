@@ -8,12 +8,6 @@
 #include "SurfaceStream.h"
 #include "SharedSurfaceGL.h"
 #include "SharedSurfaceEGL.h"
-#ifdef MOZ_WIDGET_GONK
-#include "SharedSurfaceGralloc.h"
-#endif
-#ifdef XP_MACOSX
-#include "SharedSurfaceIO.h"
-#endif
 
 using namespace mozilla::gl;
 
@@ -43,21 +37,12 @@ ClientCanvasLayer::Initialize(const Data& aData)
             factory = SurfaceFactory_EGLImage::Create(mGLContext, screen->Caps());
           } else {
             // [Basic/OGL Layers, OOPC] WebGL layer init. (Out Of Process Compositing)
-#ifdef MOZ_WIDGET_GONK
-            factory = new SurfaceFactory_Gralloc(mGLContext, screen->Caps(), ClientManager());
-#else
-            // we could do readback here maybe
-            NS_NOTREACHED("isCrossProcess but not on native B2G!");
-#endif
+            // Fall back to readback.
           }
         } else {
           // [Basic Layers, OMTC] WebGL layer init.
           // Well, this *should* work...
-#ifdef XP_MACOSX
-          factory = new SurfaceFactory_IOSurface(mGLContext, screen->Caps());
-#else
-          factory = new SurfaceFactory_GLTexture(mGLContext, nullptr, screen->Caps());
-#endif
+          factory = new SurfaceFactory_GLTexture(mGLContext, mGLContext, screen->Caps());
         }
       }
     }
@@ -81,20 +66,11 @@ ClientCanvasLayer::RenderLayer()
   }
   
   if (!mCanvasClient) {
-    TextureFlags flags = TEXTURE_IMMEDIATE_UPLOAD;
+    TextureFlags flags = 0;
     if (mNeedsYFlip) {
-      flags |= TEXTURE_NEEDS_Y_FLIP;
+      flags |= NeedsYFlip;
     }
-
-    if (!mGLContext) {
-      // GLContext's SurfaceStream handles ownership itself,
-      // and doesn't require layers to do any deallocation.
-      flags |= TEXTURE_DEALLOCATE_HOST;
-
-      // We don't support locking for buffer surfaces currently
-      flags |= TEXTURE_IMMEDIATE_UPLOAD;
-    }
-    mCanvasClient = CanvasClient::CreateCanvasClient(GetCanvasClientType(),
+    mCanvasClient = CanvasClient::CreateCanvasClient(GetCompositableClientType(),
                                                      ClientManager(), flags);
     if (!mCanvasClient) {
       return;
@@ -112,7 +88,6 @@ ClientCanvasLayer::RenderLayer()
 
   ClientManager()->Hold(this);
   mCanvasClient->Updated();
-  mCanvasClient->OnTransaction();
 }
 
 already_AddRefed<CanvasLayer>

@@ -23,6 +23,8 @@ namespace mozilla {
 
 namespace dom {
 
+class AudioContext;
+
 class AudioListener MOZ_FINAL : public nsWrapperCache,
                                 public EnableWebAudioCheck
 {
@@ -125,7 +127,6 @@ public:
   }
 
   void RegisterPannerNode(PannerNode* aPannerNode);
-  void UnregisterPannerNode(PannerNode* aPannerNode);
 
 private:
   void SendDoubleParameterToStream(uint32_t aIndex, double aValue);

@@ -67,7 +67,7 @@ nsSVGGFrame::NotifySVGChanged(uint32_t aFlags)
 gfxMatrix
 nsSVGGFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -93,11 +93,9 @@ nsSVGGFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::transform) {
-    // We don't invalidate for transform changes (the layers code does that).
-    // Also note that SVGTransformableElement::GetAttributeChangeHint will
-    // return nsChangeHint_UpdateOverflow for "transform" attribute changes
-    // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
+    // Don't invalidate (the layers code does that).
     NotifySVGChanged(TRANSFORM_CHANGED);
+    SchedulePaint();
   }
   
   return NS_OK;

@@ -6,11 +6,11 @@
 
 #pragma once
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
+#include "nsIDOMNavigatorUserMedia.h"
 #include "nsTArray.h"
 
 #include "MediaManager.h"
@@ -27,7 +27,7 @@
 #include "nsISpeechRecognitionService.h"
 #include "endpointer.h"
 
-#include "mozilla/dom/SpeechRecognitionError.h"
+#include "nsIDOMSpeechRecognitionError.h"
 
 struct JSContext;
 class nsIDOMWindow;
@@ -126,7 +126,7 @@ public:
     EVENT_COUNT
   };
 
-  void DispatchError(EventType aErrorType, SpeechRecognitionErrorCode aErrorCode, const nsAString& aMessage);
+  void DispatchError(EventType aErrorType, int aErrorCode, const nsAString& aMessage);
   uint32_t FillSamplesBuffer(const int16_t* aSamples, uint32_t aSampleCount);
   uint32_t SplitSamplesBuffer(const int16_t* aSamplesBuffer, uint32_t aSampleCount, nsTArray<already_AddRefed<SharedBuffer> >& aResult);
   AudioSegment* CreateAudioSegment(nsTArray<already_AddRefed<SharedBuffer> >& aChunks);
@@ -280,10 +280,10 @@ public:
 
   ~SpeechEvent();
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
   AudioSegment* mAudioSegment;
   nsRefPtr<SpeechRecognitionResultList> mRecognitionResultList; // TODO: make this a session being passed which also has index and stuff
-  nsRefPtr<SpeechRecognitionError> mError;
+  nsCOMPtr<nsIDOMSpeechRecognitionError> mError;
 
   friend class SpeechRecognition;
 private:

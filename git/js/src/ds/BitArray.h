@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_BitArray_h
-#define ds_BitArray_h
+#ifndef BitArray_h__
+#define BitArray_h__
 
-#include "mozilla/TemplateLib.h"
+#include "jstypes.h" 
 
-#include "jstypes.h"
+#include "js/TemplateLib.h" 
 
 namespace js {
 
@@ -54,11 +54,11 @@ class BitArray {
   private:
     inline void getMarkWordAndMask(size_t offset,
                                    uintptr_t *indexp, uintptr_t *maskp) const {
-        *indexp = offset >> mozilla::tl::FloorLog2<JS_BITS_PER_WORD>::value;
+        *indexp = offset >> tl::FloorLog2<JS_BITS_PER_WORD>::result;
         *maskp = uintptr_t(1) << (offset & (JS_BITS_PER_WORD - 1));
     }
 };
 
 } /* namespace js */
 
-#endif /* ds_BitArray_h */
+#endif

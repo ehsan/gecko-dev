@@ -4,7 +4,7 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -35,11 +35,11 @@ public class PluginLayer extends TileLayer {
                 1.0f, 0.0f, // bottom right
     };
 
-    public PluginLayer(View view, RectF rect, int maxDimension) {
+    public PluginLayer(View view, Rect rect, int maxDimension) {
         super(new BufferedCairoImage(null, 0, 0, 0), TileLayer.PaintMode.NORMAL);
 
         mView = view;
-        mContainer = GeckoAppShell.getGeckoInterface().getPluginContainer();
+        mContainer = GeckoApp.mAppContext.getPluginContainer();
 
         mView.setWillNotDraw(false);
         if (mView instanceof SurfaceView) {
@@ -93,7 +93,7 @@ public class PluginLayer extends TileLayer {
         mContainer.removeView(mView);
     }
 
-    public void reset(RectF rect) {
+    public void reset(Rect rect) {
         mLayoutParams.reset(rect);
     }
 
@@ -125,7 +125,7 @@ public class PluginLayer extends TileLayer {
         private int mMaxDimension;
         private float mLastResolution;
 
-        public PluginLayoutParams(RectF rect, int maxDimension) {
+        public PluginLayoutParams(Rect rect, int maxDimension) {
             super(0, 0, 0, 0);
 
             mMaxDimension = maxDimension;
@@ -144,8 +144,8 @@ public class PluginLayer extends TileLayer {
             }
         }
 
-        public void reset(RectF rect) {
-            mRect = rect;
+        public void reset(Rect rect) {
+            mRect = new RectF(rect);
         }
 
         public void reposition(RectF viewport, float zoomFactor) {

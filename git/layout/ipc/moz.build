@@ -12,11 +12,3 @@ EXPORTS.mozilla.layout += [
     'RenderFrameUtils.h',
 ]
 
-CPP_SOURCES += [
-    'RenderFrameChild.cpp',
-    'RenderFrameParent.cpp',
-]
-
-IPDL_SOURCES = [
-    'PRenderFrame.ipdl',
-]

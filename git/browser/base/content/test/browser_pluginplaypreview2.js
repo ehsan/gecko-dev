@@ -163,8 +163,6 @@ function test3() {
 
   registerPlayPreview('application/x-test', 'about:');
   Services.prefs.setBoolPref("plugins.click_to_play", false);
-  var plugin = getTestPlugin();
-  plugin.enabledState = Ci.nsIPluginTag.STATE_ENABLED;
   prepareTest(test4, gTestRoot + "plugin_test.html");
 }
 

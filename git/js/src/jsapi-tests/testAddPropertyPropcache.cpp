@@ -5,14 +5,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+
+#include "tests.h"
 
 /* Do the test a bunch of times, because sometimes we seem to randomly
    miss the propcache */
 static const int expectedCount = 100;
 static int callCount = 0;
 
-static bool
+static JSBool
 addProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp)
 {
   callCount++;

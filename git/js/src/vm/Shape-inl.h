@@ -4,22 +4,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Shape_inl_h
-#define vm_Shape_inl_h
+#ifndef Shape_inl_h__
+#define Shape_inl_h__
 
-#include "vm/Shape.h"
-
+#include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
+#include "jsarray.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"
+#include "vm/ArgumentsObject.h"
 #include "vm/ScopeObject.h"
+#include "vm/Shape-inl.h"
+#include "vm/StringObject.h"
 
-#include "jsatominlines.h"
 #include "jscntxtinlines.h"
+#include "jsgcinlines.h"
+#include "jsobjinlines.h"
+
+#include "vm/ScopeObject-inl.h"
 
 namespace js {
 
@@ -40,38 +49,34 @@ GetterSetterWriteBarrierPostRemove(JSRuntime *rt, JSObject **objp)
 }
 
 inline
-BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, JSObject *metadata,
-                     uint32_t objectFlags)
+BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, uint32_t objectFlags)
 {
     JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
     mozilla::PodZero(this);
     this->clasp = clasp;
     this->parent = parent;
-    this->metadata = metadata;
     this->flags = objectFlags;
     this->compartment_ = comp;
 }
 
 inline
-BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, JSObject *metadata,
-                     uint32_t objectFlags, uint8_t attrs,
-                     PropertyOp rawGetter, StrictPropertyOp rawSetter)
+BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, uint32_t objectFlags,
+                     uint8_t attrs, js::PropertyOp rawGetter, js::StrictPropertyOp rawSetter)
 {
     JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
     mozilla::PodZero(this);
     this->clasp = clasp;
     this->parent = parent;
-    this->metadata = metadata;
     this->flags = objectFlags;
     this->rawGetter = rawGetter;
     this->rawSetter = rawSetter;
     if ((attrs & JSPROP_GETTER) && rawGetter) {
         this->flags |= HAS_GETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
     }
     if ((attrs & JSPROP_SETTER) && rawSetter) {
         this->flags |= HAS_SETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
     }
     this->compartment_ = comp;
 }
@@ -82,14 +87,13 @@ BaseShape::BaseShape(const StackBaseShape &base)
     mozilla::PodZero(this);
     this->clasp = base.clasp;
     this->parent = base.parent;
-    this->metadata = base.metadata;
     this->flags = base.flags;
     this->rawGetter = base.rawGetter;
     this->rawSetter = base.rawSetter;
     if ((base.flags & HAS_GETTER_OBJECT) && base.rawGetter)
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
     if ((base.flags & HAS_SETTER_OBJECT) && base.rawSetter)
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
     this->compartment_ = base.compartment;
 }
 
@@ -98,50 +102,61 @@ BaseShape::operator=(const BaseShape &other)
 {
     clasp = other.clasp;
     parent = other.parent;
-    metadata = other.metadata;
     flags = other.flags;
     slotSpan_ = other.slotSpan_;
     if (flags & HAS_GETTER_OBJECT) {
         getterObj = other.getterObj;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &getterObj);
     } else {
         if (rawGetter)
-            GetterSetterWriteBarrierPostRemove(runtimeFromMainThread(), &getterObj);
+            GetterSetterWriteBarrierPostRemove(runtime(), &getterObj);
         rawGetter = other.rawGetter;
     }
     if (flags & HAS_SETTER_OBJECT) {
         setterObj = other.setterObj;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &setterObj);
     } else {
         if (rawSetter)
-            GetterSetterWriteBarrierPostRemove(runtimeFromMainThread(), &setterObj);
+            GetterSetterWriteBarrierPostRemove(runtime(), &setterObj);
         rawSetter = other.rawSetter;
     }
     compartment_ = other.compartment_;
     return *this;
 }
 
-inline
-StackBaseShape::StackBaseShape(ExclusiveContext *cx, Class *clasp,
-                               JSObject *parent, JSObject *metadata, uint32_t objectFlags)
-  : flags(objectFlags),
-    clasp(clasp),
-    parent(parent),
-    metadata(metadata),
-    rawGetter(NULL),
-    rawSetter(NULL),
-    compartment(cx->compartment_)
-{}
+inline bool
+BaseShape::matchesGetterSetter(PropertyOp rawGetter, StrictPropertyOp rawSetter) const
+{
+    return rawGetter == this->rawGetter && rawSetter == this->rawSetter;
+}
 
 inline
 StackBaseShape::StackBaseShape(Shape *shape)
   : flags(shape->getObjectFlags()),
     clasp(shape->getObjectClass()),
     parent(shape->getObjectParent()),
-    metadata(shape->getObjectMetadata()),
     compartment(shape->compartment())
 {
     updateGetterSetter(shape->attrs, shape->getter(), shape->setter());
+}
+
+inline void
+StackBaseShape::updateGetterSetter(uint8_t attrs,
+                                   PropertyOp rawGetter,
+                                   StrictPropertyOp rawSetter)
+{
+    flags &= ~(BaseShape::HAS_GETTER_OBJECT | BaseShape::HAS_SETTER_OBJECT);
+    if ((attrs & JSPROP_GETTER) && rawGetter) {
+        JS_ASSERT(!IsPoisonedPtr(rawGetter));
+        flags |= BaseShape::HAS_GETTER_OBJECT;
+    }
+    if ((attrs & JSPROP_SETTER) && rawSetter) {
+        JS_ASSERT(!IsPoisonedPtr(rawSetter));
+        flags |= BaseShape::HAS_SETTER_OBJECT;
+    }
+
+    this->rawGetter = rawGetter;
+    this->rawSetter = rawSetter;
 }
 
 inline void
@@ -182,7 +197,6 @@ BaseShape::assertConsistency()
         JS_ASSERT_IF(hasGetterObject(), getterObject() == unowned->getterObject());
         JS_ASSERT_IF(hasSetterObject(), setterObject() == unowned->setterObject());
         JS_ASSERT(getObjectParent() == unowned->getObjectParent());
-        JS_ASSERT(getObjectMetadata() == unowned->getObjectMetadata());
         JS_ASSERT(getObjectFlags() == unowned->getObjectFlags());
     }
 #endif
@@ -215,11 +229,44 @@ Shape::Shape(UnownedBaseShape *base, uint32_t nfixed)
     kids.setNull();
 }
 
+inline HashNumber
+StackShape::hash() const
+{
+    HashNumber hash = uintptr_t(base);
+
+    /* Accumulate from least to most random so the low bits are most random. */
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ (flags & Shape::PUBLIC_FLAGS);
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ attrs;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ shortid;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ slot_;
+    hash = JS_ROTATE_LEFT32(hash, 4) ^ JSID_BITS(propid);
+    return hash;
+}
+
+inline bool
+Shape::matches(const Shape *other) const
+{
+    return propid_.get() == other->propid_.get() &&
+           matchesParamsAfterId(other->base(), other->maybeSlot(), other->attrs,
+                                other->flags, other->shortid_);
+}
+
 inline bool
 Shape::matches(const StackShape &other) const
 {
     return propid_.get() == other.propid &&
            matchesParamsAfterId(other.base, other.slot_, other.attrs, other.flags, other.shortid);
+}
+
+inline bool
+Shape::matchesParamsAfterId(BaseShape *base, uint32_t aslot,
+                            unsigned aattrs, unsigned aflags, int ashortid) const
+{
+    return base->unowned() == this->base()->unowned() &&
+           maybeSlot() == aslot &&
+           attrs == aattrs &&
+           ((flags ^ aflags) & PUBLIC_FLAGS) == 0 &&
+           shortid_ == ashortid;
 }
 
 inline bool
@@ -234,10 +281,8 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
 #endif
     if (self->hasShortID()) {
         int16_t id = self->shortid();
-        if (id < 0) {
-            RootedValue v(cx, Int32Value(id));
-            return ValueToId<CanGC>(cx, v, idp);
-        }
+        if (id < 0)
+            return ValueToId<CanGC>(cx, Int32Value(id), idp);
         idp.set(INT_TO_JSID(id));
     } else {
         idp.set(self->propid());
@@ -246,14 +291,13 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
 }
 
 inline bool
-Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
-           MutableHandleValue vp)
+Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, MutableHandleValue vp)
 {
     JS_ASSERT(!hasDefaultGetter());
 
     if (hasGetterValue()) {
         Value fval = getterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp);
+        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp.address());
     }
 
     Rooted<Shape *> self(cx, this);
@@ -265,18 +309,17 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
 }
 
 inline bool
-Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
-           MutableHandleValue vp)
+Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, MutableHandleValue vp)
 {
     JS_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
 
     if (attrs & JSPROP_SETTER) {
         Value fval = setterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp);
+        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp.address());
     }
 
     if (attrs & JSPROP_GETTER)
-        return js_ReportGetterOnlyAssignment(cx, strict);
+        return js_ReportGetterOnlyAssignment(cx);
 
     Rooted<Shape *> self(cx, this);
     RootedId id(cx);
@@ -287,8 +330,8 @@ Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
      * |with (it) color='red';| ends up here.
      * Avoid exposing the With object to native setters.
      */
-    if (obj->is<WithObject>()) {
-        RootedObject nobj(cx, &obj->as<WithObject>().object());
+    if (obj->isWith()) {
+        RootedObject nobj(cx, &obj->asWith().object());
         return CallJSPropertyOpSetter(cx, self->setterOp(), nobj, id, strict, vp);
     }
 
@@ -365,7 +408,7 @@ inline void
 Shape::writeBarrierPre(Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!shape || !shape->runtimeFromAnyThread()->needsBarrier())
+    if (!shape || !shape->runtime()->needsBarrier())
         return;
 
     JS::Zone *zone = shape->zone();
@@ -375,6 +418,11 @@ Shape::writeBarrierPre(Shape *shape)
         JS_ASSERT(tmp == shape);
     }
 #endif
+}
+
+inline void
+Shape::writeBarrierPost(Shape *shape, void *addr)
+{
 }
 
 inline void
@@ -403,7 +451,7 @@ inline void
 BaseShape::writeBarrierPre(BaseShape *base)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!base || !base->runtimeFromAnyThread()->needsBarrier())
+    if (!base || !base->runtime()->needsBarrier())
         return;
 
     JS::Zone *zone = base->zone();
@@ -413,6 +461,11 @@ BaseShape::writeBarrierPre(BaseShape *base)
         JS_ASSERT(tmp == base);
     }
 #endif
+}
+
+inline void
+BaseShape::writeBarrierPost(BaseShape *shape, void *addr)
+{
 }
 
 inline void
@@ -442,48 +495,41 @@ BaseShape::markChildren(JSTracer *trc)
 
     if (parent)
         MarkObject(trc, &parent, "parent");
-
-    if (metadata)
-        MarkObject(trc, &metadata, "metadata");
 }
 
-inline
-AutoRooterGetterSetter::Inner::Inner(ExclusiveContext *cx, uint8_t attrs,
-                                     PropertyOp *pgetter_, StrictPropertyOp *psetter_)
-  : CustomAutoRooter(cx), attrs(attrs),
-    pgetter(pgetter_), psetter(psetter_),
-    getterRoot(cx, pgetter_), setterRoot(cx, psetter_)
+/*
+ * Property lookup hooks on objects are required to return a non-NULL shape to
+ * signify that the property has been found. For cases where the property is
+ * not actually represented by a Shape, use a dummy value. This includes all
+ * properties of non-native objects, and dense elements for native objects.
+ * Use separate APIs for these two cases.
+ */
+
+static inline void
+MarkNonNativePropertyFound(MutableHandleShape propp)
 {
-    JS_ASSERT_IF(attrs & JSPROP_GETTER, !IsPoisonedPtr(*pgetter));
-    JS_ASSERT_IF(attrs & JSPROP_SETTER, !IsPoisonedPtr(*psetter));
+    propp.set(reinterpret_cast<Shape*>(1));
 }
 
-inline
-AutoRooterGetterSetter::AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
-                                               PropertyOp *pgetter, StrictPropertyOp *psetter
-                                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+template <AllowGC allowGC>
+static inline void
+MarkDenseElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
 {
-    if (attrs & (JSPROP_GETTER | JSPROP_SETTER))
-        inner.construct(cx, attrs, pgetter, psetter);
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    propp.set(reinterpret_cast<Shape*>(1));
 }
 
-inline
-StackBaseShape::AutoRooter::AutoRooter(ExclusiveContext *cx, const StackBaseShape *base_
-                                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : CustomAutoRooter(cx), base(base_), skip(cx, base_)
+static inline bool
+IsImplicitDenseElement(Shape *prop)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    return prop == reinterpret_cast<Shape*>(1);
 }
 
-inline
-StackShape::AutoRooter::AutoRooter(ExclusiveContext *cx, const StackShape *shape_
-                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : CustomAutoRooter(cx), shape(shape_), skip(cx, shape_)
+static inline uint8_t
+GetShapeAttributes(HandleShape shape)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    return IsImplicitDenseElement(shape) ? JSPROP_ENUMERATE : shape->attributes();
 }
 
 } /* namespace js */
 
-#endif /* vm_Shape_inl_h */
+#endif /* Shape_inl_h__ */

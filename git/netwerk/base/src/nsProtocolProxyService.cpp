@@ -76,7 +76,7 @@ class nsAsyncResolveRequest MOZ_FINAL : public nsIRunnable
                                       , public nsICancelable
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     nsAsyncResolveRequest(nsProtocolProxyService *pps, nsIURI *uri,
                           uint32_t aResolveFlags,
@@ -273,7 +273,7 @@ private:
     nsCOMPtr<nsIProxyInfo>             mProxyInfo;
 };
 
-NS_IMPL_ISUPPORTS2(nsAsyncResolveRequest, nsICancelable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsAsyncResolveRequest, nsICancelable, nsIRunnable)
 
 //----------------------------------------------------------------------------
 
@@ -972,7 +972,7 @@ nsProtocolProxyService::ReloadPAC()
 // a false mainThreadResponse parameter.
 class nsAsyncBridgeRequest MOZ_FINAL  : public nsPACManCallback
 {
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
      nsAsyncBridgeRequest()
         : mMutex("nsDeprecatedCallback")
@@ -1012,7 +1012,7 @@ private:
     nsCString mPACURL;
     bool      mCompleted;
 };
-NS_IMPL_ISUPPORTS1(nsAsyncBridgeRequest, nsPACManCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsAsyncBridgeRequest, nsPACManCallback)
 
 // nsIProtocolProxyService2
 NS_IMETHODIMP
@@ -1087,16 +1087,15 @@ nsProtocolProxyService::DeprecatedBlockingResolve(nsIURI *aURI,
     return NS_OK;
 }
 
-nsresult
-nsProtocolProxyService::AsyncResolveInternal(nsIURI *uri, uint32_t flags,
-                                             nsIProtocolProxyCallback *callback,
-                                             nsICancelable **result,
-                                             bool isSyncOK)
+// nsIProtocolProxyService
+NS_IMETHODIMP
+nsProtocolProxyService::AsyncResolve(nsIURI *uri, uint32_t flags,
+                                     nsIProtocolProxyCallback *callback,
+                                     nsICancelable **result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     NS_ENSURE_ARG_POINTER(callback);
 
-    *result = nullptr;
     nsRefPtr<nsAsyncResolveRequest> ctx =
         new nsAsyncResolveRequest(this, uri, flags, callback);
 
@@ -1120,40 +1119,17 @@ nsProtocolProxyService::AsyncResolveInternal(nsIURI *uri, uint32_t flags,
         // we can do it locally
         ApplyFilters(uri, info, pi);
         ctx->SetResult(NS_OK, pi);
-        if (isSyncOK) {
-            ctx->Run();
-            return NS_OK;
-        }
-
-        rv = ctx->DispatchCallback();
-        if (NS_SUCCEEDED(rv))
-            ctx.forget(result);
-        return rv;
+        return ctx->DispatchCallback();
     }
 
     // else kick off a PAC thread query
 
     rv = mPACMan->AsyncGetProxyForURI(uri, ctx, true);
-    if (NS_SUCCEEDED(rv))
-        ctx.forget(result);
+    if (NS_SUCCEEDED(rv)) {
+        *result = ctx;
+        NS_ADDREF(*result);
+    }
     return rv;
-}
-
-// nsIProtocolProxyService
-NS_IMETHODIMP
-nsProtocolProxyService::AsyncResolve2(nsIURI *uri, uint32_t flags,
-                                      nsIProtocolProxyCallback *callback,
-                                      nsICancelable **result)
-{
-    return AsyncResolveInternal(uri, flags, callback, result, true);
-}
-
-NS_IMETHODIMP
-nsProtocolProxyService::AsyncResolve(nsIURI *uri, uint32_t flags,
-                                     nsIProtocolProxyCallback *callback,
-                                     nsICancelable **result)
-{
-    return AsyncResolveInternal(uri, flags, callback, result, false);
 }
 
 NS_IMETHODIMP

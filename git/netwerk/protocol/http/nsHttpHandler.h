@@ -26,7 +26,7 @@
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
 #include "nsITimer.h"
-#include "nsISiteSecurityService.h"
+#include "nsIStrictTransportSecurityService.h"
 #include "nsISpeculativeConnect.h"
 
 class nsHttpConnectionInfo;
@@ -41,7 +41,6 @@ namespace mozilla {
 namespace net {
 class ATokenBucketEvent;
 class EventTokenBucket;
-class Tickler;
 }
 }
 
@@ -55,7 +54,7 @@ class nsHttpHandler : public nsIHttpProtocolHandler
                     , public nsISpeculativeConnect
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIPROXIEDPROTOCOLHANDLER
     NS_DECL_NSIHTTPPROTOCOLHANDLER
@@ -98,13 +97,12 @@ public:
     bool           IsSpdyV2Enabled() { return mSpdyV2; }
     bool           IsSpdyV3Enabled() { return mSpdyV3; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
+    bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
     bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
     uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
-    uint32_t       SpdyPushAllowance()       { return mSpdyPushAllowance; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
-    bool           AllowSpdyPush()   { return mAllowSpdyPush; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
     uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
     bool           CritialRequestPrioritization() { return mCritialRequestPrioritization; }
@@ -135,10 +133,10 @@ public:
     //
     // - the handler keeps a count of active connections to enforce the
     //   steady-state max-connections pref.
-    //
+    // 
 
     // Called to kick-off a new transaction, by default the transaction
-    // will be put on the pending transaction queue if it cannot be
+    // will be put on the pending transaction queue if it cannot be 
     // initiated at this time.  Callable from any thread.
     nsresult InitiateTransaction(nsHttpTransaction *trans, int32_t priority)
     {
@@ -182,11 +180,9 @@ public:
     }
 
     nsresult SpeculativeConnect(nsHttpConnectionInfo *ci,
-                                nsIInterfaceRequestor *callbacks,
-                                uint32_t caps = 0)
+                                nsIInterfaceRequestor *callbacks)
     {
-        TickleWifi(callbacks);
-        return mConnMgr->SpeculativeConnect(ci, callbacks, caps);
+        return mConnMgr->SpeculativeConnect(ci, callbacks);
     }
 
     //
@@ -196,7 +192,7 @@ public:
     nsresult GetStreamConverterService(nsIStreamConverterService **);
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
-    nsISiteSecurityService * GetSSService();
+    nsIStrictTransportSecurityService * GetSTSService();
 
     // callable from socket thread only
     uint32_t Get32BitsOfPseudoRandom();
@@ -262,7 +258,7 @@ public:
     {
         return mPipelineRescheduleTimeout;
     }
-
+    
     PRIntervalTime GetPipelineTimeout()   { return mPipelineReadTimeout; }
 
     mozilla::net::SpdyInformation *SpdyInfo() { return &mSpdyInfo; }
@@ -304,18 +300,18 @@ private:
 private:
 
     // cached services
-    nsMainThreadPtrHandle<nsIIOService>              mIOService;
-    nsMainThreadPtrHandle<nsIStreamConverterService> mStreamConvSvc;
-    nsMainThreadPtrHandle<nsIObserverService>        mObserverService;
-    nsMainThreadPtrHandle<nsICookieService>          mCookieService;
-    nsMainThreadPtrHandle<nsISiteSecurityService>    mSSService;
+    nsCOMPtr<nsIIOService>              mIOService;
+    nsCOMPtr<nsIStreamConverterService> mStreamConvSvc;
+    nsCOMPtr<nsIObserverService>        mObserverService;
+    nsCOMPtr<nsICookieService>          mCookieService;
+    nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
     nsHttpAuthCache mPrivateAuthCache;
 
     // the connection manager
-    nsRefPtr<nsHttpConnectionMgr> mConnMgr;
+    nsHttpConnectionMgr *mConnMgr;
 
     //
     // prefs
@@ -392,7 +388,7 @@ private:
     bool           mUseCache;
 
     bool           mPromptTempRedirect;
-    // mSendSecureXSiteReferrer: default is false,
+    // mSendSecureXSiteReferrer: default is false, 
     // if true allow referrer headers between secure non-matching hosts
     bool           mSendSecureXSiteReferrer;
 
@@ -418,11 +414,10 @@ private:
     bool           mSpdyV2;
     bool           mSpdyV3;
     bool           mCoalesceSpdy;
+    bool           mUseAlternateProtocol;
     bool           mSpdyPersistentSettings;
-    bool           mAllowSpdyPush;
     uint32_t       mSpdySendingChunkSize;
     uint32_t       mSpdySendBufferSize;
-    uint32_t       mSpdyPushAllowance;
     PRIntervalTime mSpdyPingThreshold;
     PRIntervalTime mSpdyPingTimeout;
 
@@ -474,10 +469,6 @@ public:
     {
         mRequestTokenBucket = aTokenBucket;
     }
-
-private:
-    nsRefPtr<mozilla::net::Tickler> mWifiTickler;
-    void TickleWifi(nsIInterfaceRequestor *cb);
 };
 
 extern nsHttpHandler *gHttpHandler;
@@ -494,8 +485,8 @@ class nsHttpsHandler : public nsIHttpProtocolHandler
 public:
     // we basically just want to override GetScheme and GetDefaultPort...
     // all other methods should be forwarded to the nsHttpHandler instance.
-
-    NS_DECL_THREADSAFE_ISUPPORTS
+    
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_FORWARD_NSIPROXIEDPROTOCOLHANDLER (gHttpHandler->)
     NS_FORWARD_NSIHTTPPROTOCOLHANDLER    (gHttpHandler->)

@@ -14,7 +14,7 @@
 namespace mozilla {
 namespace layers {
 
-ShadowLayerParent::ShadowLayerParent() : mLayer(nullptr)
+ShadowLayerParent::ShadowLayerParent() : mLayer(NULL)
 {
 }
 
@@ -77,7 +77,7 @@ ShadowLayerParent::ActorDestroy(ActorDestroyReason why)
     return;                     // unreached
   }
 
-  mLayer = nullptr;
+  mLayer = NULL;
 }
 
 } // namespace layers

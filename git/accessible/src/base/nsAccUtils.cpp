@@ -130,7 +130,7 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
                                        nsIContent *aStartContent,
                                        nsIContent *aTopContent)
 {
-  nsAutoString live, relevant, busy;
+  nsAutoString atomic, live, relevant, busy;
   nsIContent *ancestor = aStartContent;
   while (ancestor) {
 
@@ -159,11 +159,10 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
     }
 
     // container-atomic attribute
-    if (ancestor->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_atomic,
-                              nsGkAtoms::_true, eCaseMatters)) {
-      SetAccAttr(aAttributes, nsGkAtoms::containerAtomic,
-                 NS_LITERAL_STRING("true"));
-    }
+    if (atomic.IsEmpty() &&
+        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
+        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_atomic, atomic))
+      SetAccAttr(aAttributes, nsGkAtoms::containerAtomic, atomic);
 
     // container-busy attribute
     if (busy.IsEmpty() &&

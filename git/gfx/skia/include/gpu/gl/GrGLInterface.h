@@ -146,7 +146,6 @@ public:
     GLPtr<GrGLBindFramebufferProc> fBindFramebuffer;
     GLPtr<GrGLBindRenderbufferProc> fBindRenderbuffer;
     GLPtr<GrGLBindTextureProc> fBindTexture;
-    GLPtr<GrGLBindVertexArrayProc> fBindVertexArray;
     GLPtr<GrGLBlendColorProc> fBlendColor;
     GLPtr<GrGLBlendFuncProc> fBlendFunc;
     GLPtr<GrGLBlitFramebufferProc> fBlitFramebuffer;
@@ -169,7 +168,6 @@ public:
     GLPtr<GrGLDeleteRenderbuffersProc> fDeleteRenderbuffers;
     GLPtr<GrGLDeleteShaderProc> fDeleteShader;
     GLPtr<GrGLDeleteTexturesProc> fDeleteTextures;
-    GLPtr<GrGLDeleteVertexArraysProc> fDeleteVertexArrays;
     GLPtr<GrGLDepthMaskProc> fDepthMask;
     GLPtr<GrGLDisableProc> fDisable;
     GLPtr<GrGLDisableVertexAttribArrayProc> fDisableVertexAttribArray;
@@ -184,14 +182,12 @@ public:
     GLPtr<GrGLFlushProc> fFlush;
     GLPtr<GrGLFramebufferRenderbufferProc> fFramebufferRenderbuffer;
     GLPtr<GrGLFramebufferTexture2DProc> fFramebufferTexture2D;
-    GLPtr<GrGLFramebufferTexture2DMultisampleProc> fFramebufferTexture2DMultisample;
     GLPtr<GrGLFrontFaceProc> fFrontFace;
     GLPtr<GrGLGenBuffersProc> fGenBuffers;
     GLPtr<GrGLGenFramebuffersProc> fGenFramebuffers;
     GLPtr<GrGLGenQueriesProc> fGenQueries;
     GLPtr<GrGLGenRenderbuffersProc> fGenRenderbuffers;
     GLPtr<GrGLGenTexturesProc> fGenTextures;
-    GLPtr<GrGLGenVertexArraysProc> fGenVertexArrays;
     GLPtr<GrGLGetBufferParameterivProc> fGetBufferParameteriv;
     GLPtr<GrGLGetErrorProc> fGetError;
     GLPtr<GrGLGetFramebufferAttachmentParameterivProc> fGetFramebufferAttachmentParameteriv;
@@ -207,7 +203,6 @@ public:
     GLPtr<GrGLGetShaderInfoLogProc> fGetShaderInfoLog;
     GLPtr<GrGLGetShaderivProc> fGetShaderiv;
     GLPtr<GrGLGetStringProc> fGetString;
-    GLPtr<GrGLGetStringiProc> fGetStringi;
     GLPtr<GrGLGetTexLevelParameterivProc> fGetTexLevelParameteriv;
     GLPtr<GrGLGetUniformLocationProc> fGetUniformLocation;
     GLPtr<GrGLLineWidthProc> fLineWidth;

@@ -39,8 +39,6 @@ static char *RCSSTRING __UNUSED__="$Id: ice_peer_ctx.c,v 1.2 2008/04/28 17:59:01
 #include <nr_api.h>
 #include "ice_ctx.h"
 #include "ice_peer_ctx.h"
-#include "ice_media_stream.h"
-#include "ice_util.h"
 #include "nr_crypto.h"
 #include "async_timer.h"
 
@@ -100,8 +98,6 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
   {
     nr_ice_media_stream *pstream=0;
     nr_ice_component *comp,*comp2;
-    char *lufrag,*rufrag;
-    char *lpwd,*rpwd;
     int r,_status;
 
     /*
@@ -126,25 +122,6 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
     if (r=nr_ice_peer_ctx_parse_stream_attributes_int(pctx,stream,pstream,attrs,attr_ct))
       ABORT(r);
 
-    /* Now that we have the ufrag and password, compute all the username/password
-       pairs */
-    lufrag=stream->ufrag?stream->ufrag:pctx->ctx->ufrag;
-    lpwd=stream->pwd?stream->pwd:pctx->ctx->pwd;
-    assert(lufrag);
-    assert(lpwd);
-    rufrag=pstream->ufrag?pstream->ufrag:pctx->peer_ufrag;
-    rpwd=pstream->pwd?pstream->pwd:pctx->peer_pwd;
-    if (!rufrag || !rpwd)
-      ABORT(R_BAD_DATA);
-
-    if(r=nr_concat_strings(&pstream->r2l_user,lufrag,":",rufrag,NULL))
-      ABORT(r);
-    if(r=nr_concat_strings(&pstream->l2r_user,rufrag,":",lufrag,NULL))
-      ABORT(r);
-    if(r=r_data_make(&pstream->r2l_pass, (UCHAR *)lpwd, strlen(lpwd)))
-      ABORT(r);
-    if(r=r_data_make(&pstream->l2r_pass, (UCHAR *)rpwd, strlen(rpwd)))
-      ABORT(r);
 
     STAILQ_INSERT_TAIL(&pctx->peer_streams,pstream,entry);
 
@@ -230,8 +207,6 @@ int nr_ice_peer_ctx_parse_trickle_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_
     int r,_status;
     int needs_pairing = 0;
 
-    r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) parsing trickle ICE candidate %s",pctx->ctx->label,pctx->label,candidate);
-
     pstream=STAILQ_FIRST(&pctx->peer_streams);
     while(pstream) {
       if (pstream->local_stream == stream)
@@ -303,9 +278,6 @@ int nr_ice_peer_ctx_pair_candidates(nr_ice_peer_ctx *pctx)
   {
     nr_ice_media_stream *stream;
     int r,_status;
-
-
-    r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) pairing candidates",pctx->ctx->label,pctx->label);
 
     if(STAILQ_EMPTY(&pctx->peer_streams)) {
         r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) received no media stream attribributes",pctx->ctx->label,pctx->label);
@@ -384,7 +356,6 @@ int nr_ice_peer_ctx_start_checks2(nr_ice_peer_ctx *pctx, int allow_non_first)
   {
     int r,_status;
     nr_ice_media_stream *stream;
-    int started = 0;
 
     stream=STAILQ_FIRST(&pctx->peer_streams);
     if(!stream)
@@ -395,16 +366,6 @@ int nr_ice_peer_ctx_start_checks2(nr_ice_peer_ctx *pctx, int allow_non_first)
         break;
 
       if(!allow_non_first){
-        /* This test applies if:
-
-           1. allow_non_first is 0 (i.e., non-trickle ICE)
-           2. the first stream has an empty check list.
-
-           But in the non-trickle ICE case, the other side should have provided
-           some candidates or ICE is pretty much not going to work and we're
-           just going to fail. Hence R_FAILED as opposed to R_NOT_FOUND and
-           immediate termination here.
-        */
         r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) first stream has empty check list",pctx->ctx->label,pctx->label);
         ABORT(R_FAILED);
       }
@@ -413,36 +374,15 @@ int nr_ice_peer_ctx_start_checks2(nr_ice_peer_ctx *pctx, int allow_non_first)
     }
 
     if (!stream) {
-      r_log(LOG_ICE,LOG_NOTICE,"ICE(%s): peer (%s) no streams with non-empty check lists",pctx->ctx->label,pctx->label);
+      r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) no streams with non-empty check lists",pctx->ctx->label,pctx->label);
+      ABORT(R_NOT_FOUND);
     }
-    else if (stream->ice_state == NR_ICE_MEDIA_STREAM_CHECKS_FROZEN) {
+
+    if (stream->ice_state == NR_ICE_MEDIA_STREAM_CHECKS_FROZEN) {
       if(r=nr_ice_media_stream_unfreeze_pairs(pctx,stream))
         ABORT(r);
       if(r=nr_ice_media_stream_start_checks(pctx,stream))
         ABORT(r);
-      ++started;
-    }
-
-    stream=STAILQ_FIRST(&pctx->peer_streams);
-    while (stream) {
-      int serviced = 0;
-      if (r=nr_ice_media_stream_service_pre_answer_requests(pctx, stream->local_stream, stream, &serviced))
-        ABORT(r);
-
-      if (serviced) {
-        ++started;
-      }
-      else {
-        r_log(LOG_ICE,LOG_NOTICE,"ICE(%s): peer (%s) no streams with pre-answer requests",pctx->ctx->label,pctx->label);
-      }
-
-
-      stream=STAILQ_NEXT(stream, entry);
-    }
-
-    if (!started) {
-      r_log(LOG_ICE,LOG_NOTICE,"ICE(%s): peer (%s) no checks to start",pctx->ctx->label,pctx->label);
-      ABORT(R_NOT_FOUND);
     }
 
     _status=0;

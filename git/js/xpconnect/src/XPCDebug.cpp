@@ -30,8 +30,8 @@ static void DebugDump(const char* fmt, ...)
   printf("%s", buffer);
 }
 
-bool
-xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals, bool showThisProps)
+JSBool
+xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showThisProps)
 {
     if (char* buf = xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps)) {
         DebugDump("%s\n", buf);
@@ -41,8 +41,8 @@ xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals, bool showThisProp
 }
 
 char*
-xpc_PrintJSStack(JSContext* cx, bool showArgs, bool showLocals,
-                 bool showThisProps)
+xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
+                 JSBool showThisProps)
 {
     char* buf;
     JSExceptionState *state = JS_SaveExceptionState(cx);
@@ -68,7 +68,7 @@ xpcDumpEvalErrorReporter(JSContext *cx, const char *message,
     DebugDump("Error: %s\n", message);
 }
 
-bool
+JSBool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
 {
     if (!cx || !text) {
@@ -96,6 +96,8 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
         DebugDump("%s", "invalid frame number!\n");
         return false;
     }
+
+    JSAutoRequest ar(cx);
 
     JSExceptionState* exceptionState = JS_SaveExceptionState(cx);
     JSErrorReporter older = JS_SetErrorReporter(cx, xpcDumpEvalErrorReporter);
@@ -129,7 +131,7 @@ xpc_DebuggerKeywordHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
     return JSTRAP_CONTINUE;
 }
 
-bool xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt)
+JSBool xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt)
 {
     return JS_SetDebuggerHandler(rt, xpc_DebuggerKeywordHandler, nullptr);
 }

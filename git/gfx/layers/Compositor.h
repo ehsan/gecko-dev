@@ -10,8 +10,9 @@
 #include "mozilla/gfx/Matrix.h"
 #include "gfxMatrix.h"
 #include "Layers.h"
+#include "mozilla/layers/TextureHost.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/layers/CompositorTypes.h"
+
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -93,7 +94,7 @@
  * under gfx/layers/. To add a new backend, implement at least the following
  * interfaces:
  * - Compositor (ex. CompositorOGL)
- * - TextureHost (ex. SharedTextureHostOGL)
+ * - TextureHost (ex. TextureImageTextureHost)
  * Depending on the type of data that needs to be serialized, you may need to
  * add specific TextureClient implementations.
  */
@@ -112,9 +113,6 @@ struct Effect;
 struct EffectChain;
 class Image;
 class ISurfaceAllocator;
-class NewTextureSource;
-class DataTextureSource;
-class CompositingRenderTarget;
 
 enum SurfaceInitMode
 {
@@ -172,7 +170,7 @@ class Compositor : public RefCounted<Compositor>
 public:
   Compositor()
     : mCompositorID(0)
-    , mDiagnosticTypes(DIAGNOSTIC_NONE)
+    , mDrawColoredBorders(false)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -181,18 +179,8 @@ public:
     MOZ_COUNT_DTOR(Compositor);
   }
 
-  virtual TemporaryRef<DataTextureSource> CreateDataTextureSource(TextureFlags aFlags = 0) = 0;
   virtual bool Initialize() = 0;
   virtual void Destroy() = 0;
-
-  /**
-   * Return true if the effect type is supported.
-   *
-   * By default Compositor implementations should support all effects but in
-   * some rare cases it is not possible to support an effect efficiently.
-   * This is the case for BasicCompositor with EffectYCbCr.
-   */
-  virtual bool SupportsEffect(EffectTypes aEffect) { return true; }
 
   /**
    * Request a texture host identifier that may be used for creating textures
@@ -226,7 +214,7 @@ public:
    * Clients of the compositor should call this at the start of the compositing
    * process, it might be required by texture uploads etc.
    *
-   * If aFlags == ForceMakeCurrent then we will (re-)set our context on the
+   * If aFlags == CURRENT_FORCE then we will (re-)set our context on the
    * underlying API even if it is already the current context.
    */
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) = 0;
@@ -269,7 +257,7 @@ public:
    * Declare an offset to use when rendering layers. This will be ignored when
    * rendering to a target instead of the screen.
    */
-  virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) = 0;
+  virtual void SetScreenRenderOffset(const gfx::Point& aOffset) = 0;
 
   /**
    * Tell the compositor to actually draw a quad. What to do draw and how it is
@@ -335,12 +323,16 @@ public:
    */
   virtual bool SupportsPartialTextureUpdate() = 0;
 
-  void SetDiagnosticTypes(DiagnosticTypes aDiagnostics)
+  void EnableColoredBorders()
   {
-    mDiagnosticTypes = aDiagnostics;
+    mDrawColoredBorders = true;
+  }
+  void DisableColoredBorders()
+  {
+    mDrawColoredBorders = false;
   }
 
-  void DrawDiagnostics(DiagnosticFlags aFlags,
+  void DrawDiagnostics(const gfx::Color& color,
                        const gfx::Rect& visibleRect,
                        const gfx::Rect& aClipRect,
                        const gfx::Matrix4x4& transform,
@@ -395,25 +387,17 @@ public:
   virtual const nsIntSize& GetWidgetSize() = 0;
 
   /**
-   * Debug-build assertion that can be called to ensure code is running on the
-   * compositor thread.
-   */
-  static void AssertOnCompositorThread();
-
-  /**
    * We enforce that there can only be one Compositor backend type off the main
    * thread at the same time. The backend type in use can be checked with this
    * static method. We need this for creating texture clients/hosts etc. when we
    * don't have a reference to a Compositor.
-   *
-   * This can only be used from the compositor thread!
    */
   static LayersBackend GetBackend();
 
 protected:
   uint32_t mCompositorID;
   static LayersBackend sBackend;
-  DiagnosticTypes mDiagnosticTypes;
+  bool mDrawColoredBorders;
 };
 
 } // namespace layers

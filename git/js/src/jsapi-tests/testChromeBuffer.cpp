@@ -1,10 +1,8 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 JSPrincipals system_principals = {
     1
@@ -25,13 +23,13 @@ JSClass global_class = {
 JSObject *trusted_glob = NULL;
 JSObject *trusted_fun = NULL;
 
-bool
+JSBool
 CallTrusted(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (!JS_SaveFrameChain(cx))
-        return false;
+        return JS_FALSE;
 
-    bool ok = false;
+    JSBool ok = JS_FALSE;
     {
         JSAutoCompartment ac(cx, trusted_glob);
         ok = JS_CallFunctionValue(cx, NULL, JS::ObjectValue(*trusted_fun),
@@ -45,7 +43,7 @@ BEGIN_TEST(testChromeBuffer)
 {
     JS_SetTrustedPrincipals(rt, &system_principals);
 
-    trusted_glob = JS_NewGlobalObject(cx, &global_class, &system_principals, JS::FireOnNewGlobalHook);
+    trusted_glob = JS_NewGlobalObject(cx, &global_class, &system_principals);
     CHECK(trusted_glob);
 
     if (!JS_AddNamedObjectRoot(cx, &trusted_glob, "trusted-global"))
@@ -77,13 +75,9 @@ BEGIN_TEST(testChromeBuffer)
 
         const char *paramName = "trusted";
         const char *bytes = "try {                                      "
-                            "    return untrusted(trusted);             "
+                            "  return untrusted(trusted);               "
                             "} catch (e) {                              "
-                            "    try {                                  "
-                            "        return trusted(100);               "
-                            "    } catch(e) {                           "
-                            "        return -1;                         "
-                            "    }                                      "
+                            "  return trusted(100);                     "
                             "}                                          ";
         CHECK(fun = JS_CompileFunction(cx, global, "untrusted", 1, &paramName,
                                        bytes, strlen(bytes), "", 0));
@@ -127,7 +121,7 @@ BEGIN_TEST(testChromeBuffer)
 
         JS::RootedValue rval(cx);
         CHECK(JS_CallFunction(cx, NULL, fun, 1, v.address(), rval.address()));
-        bool match;
+        JSBool match;
         CHECK(JS_StringEqualsAscii(cx, JSVAL_TO_STRING(rval), "From trusted: InternalError: too much recursion", &match));
         CHECK(match);
     }

@@ -27,13 +27,12 @@ public:
                                 TrackRate aTrackRate,
                                 TrackTicks aTrackOffset,
                                 uint32_t aTrackEvents,
-                                const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
+                                const MediaSegment& aQueuedMedia);
 
-  void NotifyFinished(MediaStreamGraph* aGraph) MOZ_OVERRIDE;
+  void NotifyFinished(MediaStreamGraph* aGraph);
 
 private:
-  template<typename SampleFormatType>
-  void ConvertAndDispatchAudioChunk(int aDuration, float aVolume, SampleFormatType* aData);
+  template<typename SampleFormatType> void ConvertAndDispatchAudioChunk(AudioChunk& aChunk);
   nsRefPtr<SpeechRecognition> mRecognition;
 };
 

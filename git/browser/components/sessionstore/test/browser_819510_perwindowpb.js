@@ -6,6 +6,11 @@ const originalState = ss.getBrowserState();
 /** Private Browsing Test for Bug 819510 **/
 function test() {
   waitForExplicitFinish();
+
+  registerCleanupFunction(function() {
+    ss.setBrowserState(originalState);
+  });
+
   runNextTest();
 }
 
@@ -28,13 +33,7 @@ function runNextTest() {
     let currentTest = tests.shift();
     waitForBrowserState(testState, currentTest);
   } else {
-    Services.obs.addObserver(
-      function observe(aSubject, aTopic, aData) {
-        Services.obs.removeObserver(observe, aTopic);
-        finish();
-      },
-      "sessionstore-browser-state-restored", false);
-    ss.setBrowserState(originalState);
+    finish();
   }
 }
 
@@ -174,7 +173,11 @@ function forceWriteState(aCallback) {
 }
 
 function testOnWindow(aIsPrivate, aCallback) {
-  whenNewWindowLoaded({private: aIsPrivate}, aCallback);
+  let win = OpenBrowserWindow({private: aIsPrivate});
+  win.addEventListener("load", function onLoad() {
+    win.removeEventListener("load", onLoad, false);
+    executeSoon(function() { aCallback(win); });
+  }, false);
 }
 
 function waitForTabLoad(aWin, aURL, aCallback) {

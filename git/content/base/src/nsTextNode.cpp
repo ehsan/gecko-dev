@@ -26,8 +26,8 @@ using namespace mozilla::dom;
 /**
  * class used to implement attr() generated content
  */
-class nsAttributeTextNode MOZ_FINAL : public nsTextNode,
-                                      public nsStubMutationObserver
+class nsAttributeTextNode : public nsTextNode,
+                            public nsStubMutationObserver
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -147,7 +147,7 @@ nsTextNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
 void nsTextNode::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  ResetDirectionSetByTextNode(this, aNullParent);
+  ResetDirectionSetByTextNode(this);
 
   nsGenericDOMDataNode::UnbindFromTree(aDeep, aNullParent);
 }

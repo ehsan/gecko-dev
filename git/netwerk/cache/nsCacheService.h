@@ -64,7 +64,7 @@ private:
 class nsCacheService : public nsICacheServiceInternal
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSICACHESERVICE
     NS_DECL_NSICACHESERVICEINTERNAL
 
@@ -292,7 +292,6 @@ private:
     void             ClearDoomList(void);
     void             DoomActiveEntries(DoomCheckFn check);
     void             CloseAllStreams();
-    void             FireClearNetworkCacheStoredAnywhereNotification();
 
     static
     PLDHashOperator  GetActiveEntries(PLDHashTable *    table,

@@ -10,7 +10,7 @@ interface nsIDOMCFStateChangeEvent : nsIDOMEvent
   /**
    * Indicates about errors while setting up the Call forwarding rule.
    */
-  readonly attribute boolean success;
+  readonly attribute bool success;
 
   /**
    * Indicates what to do with the rule.

@@ -33,7 +33,6 @@
 #include "TextInputHandler.h"
 #include "mozilla/HangMonitor.h"
 #include "GeckoProfiler.h"
-#include "pratom.h"
 
 #include "npapi.h"
 

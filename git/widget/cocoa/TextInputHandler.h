@@ -341,16 +341,6 @@ public:
   bool DispatchEvent(nsGUIEvent& aEvent);
 
   /**
-   * SetSelection() dispatches NS_SELECTION_SET event for the aRange.
-   *
-   * @param aRange                The range which will be selected.
-   * @return                      TRUE if setting selection is succeeded and
-   *                              the widget hasn't been destroyed.
-   *                              Otherwise, FALSE.
-   */
-  bool SetSelection(NSRange& aRange);
-
-  /**
    * InitKeyEvent() initializes aKeyEvent for aNativeKeyEvent.
    *
    * @param aNativeKeyEvent       A native key event for which you want to
@@ -379,22 +369,6 @@ public:
                                     const nsAString& aUnmodifiedCharacters);
 
   /**
-   * Utility method intended for testing. Attempts to construct a native key
-   * event that would have been generated during an actual key press. This
-   * *does not dispatch* the native event. Instead, it is attached to the
-   * |mNativeKeyEvent| field of the Gecko event that is passed in.
-   * @param aKeyEvent  Gecko key event to attach the native event to
-   */
-  NS_IMETHOD AttachNativeKeyEvent(nsKeyEvent& aKeyEvent);
-
-  /**
-   * GetWindowLevel() returns the window level of current focused (in Gecko)
-   * window.  E.g., if an <input> element in XUL panel has focus, this returns
-   * the XUL panel's window level.
-   */
-  NSInteger GetWindowLevel();
-
-  /**
    * IsSpecialGeckoKey() checks whether aNativeKeyCode is mapped to a special
    * Gecko keyCode.  A key is "special" if it isn't used for text input.
    *
@@ -403,30 +377,6 @@ public:
    *                              TRUE.  Otherwise, FALSE.
    */
   static bool IsSpecialGeckoKey(UInt32 aNativeKeyCode);
-
-
-  /**
-   * EnableSecureEventInput() and DisableSecureEventInput() wrap the Carbon
-   * Event Manager APIs with the same names.  In addition they keep track of
-   * how many times we've called them (in the same process) -- unlike the
-   * Carbon Event Manager APIs, which only keep track of how many times they've
-   * been called from any and all processes.
-   *
-   * The Carbon Event Manager's IsSecureEventInputEnabled() returns whether
-   * secure event input mode is enabled (in any process).  This class's
-   * IsSecureEventInputEnabled() returns whether we've made any calls to
-   * EnableSecureEventInput() that are not (yet) offset by the calls we've
-   * made to DisableSecureEventInput().
-   */
-  static void EnableSecureEventInput();
-  static void DisableSecureEventInput();
-  static bool IsSecureEventInputEnabled();
-
-  /**
-   * EnsureSecureEventInputDisabled() calls DisableSecureEventInput() until
-   * our call count becomes 0.
-   */
-  static void EnsureSecureEventInputDisabled();
 
 protected:
   nsAutoRefCnt mRefCnt;
@@ -524,14 +474,9 @@ protected:
       mCausedOtherKeyEvents = false;
     }
 
-    bool IsDefaultPrevented() const
+    bool KeyDownOrPressHandled()
     {
-      return mKeyDownHandled || mKeyPressHandled || mCausedOtherKeyEvents;
-    }
-
-    bool CanDispatchKeyPressEvent() const
-    {
-      return !mKeyPressDispatched && !IsDefaultPrevented();
+      return mKeyDownHandled || mKeyPressHandled;
     }
   };
 
@@ -660,8 +605,6 @@ private:
   };
 
   KeyboardLayoutOverride mKeyboardOverride;
-
-  static int32_t sSecureEventInputCount;
 };
 
 /**
@@ -829,8 +772,6 @@ public:
 
   virtual void OnFocusChangeInGecko(bool aFocus);
 
-  void OnSelectionChange() { mSelectedRange.location = NSNotFound; }
-
   /**
    * DispatchTextEvent() dispatches a text event on mWidget.
    *
@@ -856,12 +797,9 @@ public:
    *                              create an NSAttributedString from it and pass
    *                              that instead.
    * @param aSelectedRange        Current selected range (or caret position).
-   * @param aReplacementRange     The range which will be replaced with the
-   *                              aAttrString instead of current marked range.
    */
   void SetMarkedText(NSAttributedString* aAttrString,
-                     NSRange& aSelectedRange,
-                     NSRange* aReplacementRange = nullptr);
+                     NSRange& aSelectedRange);
 
   /**
    * ConversationIdentifier() returns an ID for the current editor.  The ID is
@@ -877,15 +815,12 @@ public:
    * which is allocated as autorelease for aRange.
    *
    * @param aRange                The range of string which you want.
-   * @param aActualRange          The actual range of the result.
    * @return                      The string in aRange.  If the string is empty,
    *                              this returns nil.  If succeeded, this returns
    *                              an instance which is allocated as autorelease.
    *                              If this has some troubles, returns nil.
    */
-  NSAttributedString* GetAttributedSubstringFromRange(
-                        NSRange& aRange,
-                        NSRange* aActualRange = nullptr);
+  NSAttributedString* GetAttributedSubstringFromRange(NSRange& aRange);
 
   /**
    * SelectedRange() returns current selected range.
@@ -904,15 +839,12 @@ public:
    * @param aRange                A range of text to examine.  Its position is
    *                              an offset from the beginning of the focused
    *                              editor or document.
-   * @param aActualRange          If this is not null, this returns the actual
-   *                              range used for computing the result.
    * @return                      An NSRect containing the first character in
    *                              aRange, in screen coordinates.
    *                              If the length of aRange is 0, the width will
    *                              be 0.
    */
-  NSRect FirstRectForCharacterRange(NSRange& aRange,
-                                    NSRange* aActualRange = nullptr);
+  NSRect FirstRectForCharacterRange(NSRange& aRange);
 
   /**
    * CharacterIndexForPoint() returns an offset of a character at aPoint.
@@ -956,8 +888,6 @@ public:
   void SetIMEOpenState(bool aOpen);
   void SetASCIICapableOnly(bool aASCIICapableOnly);
 
-  bool IsFocused();
-
   static CFArrayRef CreateAllIMEModeList();
   static void DebugPrintAllIMEModes();
 
@@ -971,15 +901,16 @@ protected:
   // See the comment in nsCocoaTextInputHandler.mm.
   nsCOMPtr<nsITimer> mTimer;
   enum {
-    kNotifyIMEOfFocusChangeInGecko = 1,
-    kDiscardIMEComposition         = 2,
-    kSyncASCIICapableOnly          = 4
+    kResetIMEWindowLevel     = 1,
+    kDiscardIMEComposition   = 2,
+    kSyncASCIICapableOnly    = 4
   };
   uint32_t mPendingMethods;
 
   IMEInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   virtual ~IMEInputHandler();
 
+  bool IsFocused();
   void ResetTimer();
 
   virtual void ExecutePendingMethods();
@@ -989,11 +920,8 @@ protected:
    * is no composition, this starts a composition and commits it immediately.
    *
    * @param aAttrString           A string which is committed.
-   * @param aReplacementRange     The range which will be replaced with the
-   *                              aAttrString instead of current selection.
    */
-  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString,
-                                         NSRange* aReplacementRange);
+  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString);
 
 private:
   // If mIsIMEComposing is true, the composition string is stored here.
@@ -1003,7 +931,6 @@ private:
   nsString mLastDispatchedCompositionString;
 
   NSRange mMarkedRange;
-  NSRange mSelectedRange;
 
   bool mIsIMEComposing;
   bool mIsIMEEnabled;
@@ -1014,14 +941,13 @@ private:
   // that time, the focus processing in Gecko might not be finished yet.  So,
   // you cannot use nsQueryContentEvent or something.
   bool mIsInFocusProcessing;
-  bool mIMEHasFocus;
 
   void KillIMEComposition();
   void SendCommittedText(NSString *aString);
   void OpenSystemPreferredLanguageIME();
 
   // Pending methods
-  void NotifyIMEOfFocusChangeInGecko();
+  void ResetIMEWindowLevel();
   void DiscardIMEComposition();
   void SyncASCIICapableOnly();
 
@@ -1151,11 +1077,8 @@ public:
    * the composition by the aAttrString.
    *
    * @param aAttrString           An inserted string.
-   * @param aReplacementRange     The range which will be replaced with the
-   *                              aAttrString instead of current selection.
    */
-  void InsertText(NSAttributedString *aAttrString,
-                  NSRange* aReplacementRange = nullptr);
+  void InsertText(NSAttributedString *aAttrString);
 
   /**
    * doCommandBySelector event handler.

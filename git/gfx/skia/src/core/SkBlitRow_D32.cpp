@@ -247,3 +247,4 @@ SkBlitRow::ColorRectProc SkBlitRow::ColorRectProcFactory() {
     SkASSERT(proc);
     return proc;
 }
+

@@ -27,7 +27,6 @@ DOM_SRCDIRS = \
   content/base/src \
   content/html/content/src \
   content/html/document/src \
-  content/media/mediasource \
   content/media/webaudio \
   content/svg/content/src \
   layout/generic \
@@ -61,3 +60,4 @@ DOM_SRCDIRS += content/media/webspeech
 endif
 
 LOCAL_INCLUDES += $(DOM_SRCDIRS:%=-I$(topsrcdir)/%)
+DEFINES += -D_IMPL_NS_LAYOUT

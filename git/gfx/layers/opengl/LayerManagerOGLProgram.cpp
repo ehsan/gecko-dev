@@ -32,19 +32,18 @@ AddCommonTextureArgs(ProgramProfileOGL& aProfile)
 {
   aProfile.mUniforms.AppendElement(Argument("uLayerOpacity"));
   aProfile.mUniforms.AppendElement(Argument("uTexture"));
-  aProfile.mUniforms.AppendElement(Argument("uTextureTransform"));
   aProfile.mAttributes.AppendElement(Argument("aTexCoord"));
 }
 
 /* static */ ProgramProfileOGL
-ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
+ProgramProfileOGL::GetProfileFor(gl::ShaderProgramType aType,
                                  MaskType aMask)
 {
   NS_ASSERTION(ProgramExists(aType, aMask), "Invalid program type.");
   ProgramProfileOGL result;
 
   switch (aType) {
-  case RGBALayerProgramType:
+  case gl::RGBALayerProgramType:
     if (aMask == Mask3d) {
       result.mVertexShaderString = sLayerMask3DVS;
       result.mFragmentShaderString = sRGBATextureLayerMask3DFS;
@@ -59,7 +58,24 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case BGRALayerProgramType:
+  case gl::RGBALayerExternalProgramType:
+    if (aMask == Mask3d) {
+      result.mVertexShaderString = sLayerMask3DVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalMask3DFS;
+    } else if (aMask == Mask2d) {
+      result.mVertexShaderString = sLayerMaskVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalMaskFS;
+    } else {
+      result.mVertexShaderString = sLayerVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalFS;
+    }
+    AddCommonArgs(result);
+    AddCommonTextureArgs(result);
+    result.mUniforms.AppendElement(Argument("uTextureTransform"));
+    result.mHasTextureTransform = true;
+    result.mTextureCount = 1;
+    break;
+  case gl::BGRALayerProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sBGRATextureLayerMaskFS;
@@ -71,7 +87,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case RGBXLayerProgramType:
+  case gl::RGBXLayerProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sRGBXTextureLayerMaskFS;
@@ -83,7 +99,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case BGRXLayerProgramType:
+  case gl::BGRXLayerProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sBGRXTextureLayerMaskFS;
@@ -95,7 +111,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case RGBARectLayerProgramType:
+  case gl::RGBARectLayerProgramType:
     if (aMask == Mask3d) {
       result.mVertexShaderString = sLayerMask3DVS;
       result.mFragmentShaderString = sRGBARectTextureLayerMask3DFS;
@@ -110,30 +126,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case RGBXRectLayerProgramType:
-    if (aMask == Mask3d) {
-      result.mVertexShaderString = sLayerMask3DVS;
-      result.mFragmentShaderString = sRGBXRectTextureLayerMask3DFS;
-    } else if (aMask == Mask2d) {
-      result.mVertexShaderString = sLayerMaskVS;
-      result.mFragmentShaderString = sRGBXRectTextureLayerMaskFS;
-    } else {
-      result.mVertexShaderString = sLayerVS;
-      result.mFragmentShaderString = sRGBXRectTextureLayerFS;
-    }
-    AddCommonArgs(result);
-    AddCommonTextureArgs(result);
-    result.mTextureCount = 1;
-    break;
-  case BGRARectLayerProgramType:
-    MOZ_ASSERT(aMask == MaskNone, "BGRARectLayerProgramType can't handle masks.");
-    result.mVertexShaderString = sLayerVS;
-    result.mFragmentShaderString = sBGRARectTextureLayerFS;
-    AddCommonArgs(result);
-    AddCommonTextureArgs(result);
-    result.mTextureCount = 1;
-    break;
-  case RGBAExternalLayerProgramType:
+  case gl::RGBAExternalLayerProgramType:
     if (aMask == Mask3d) {
       result.mVertexShaderString = sLayerMask3DVS;
       result.mFragmentShaderString = sRGBAExternalTextureLayerMask3DFS;
@@ -148,7 +141,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonTextureArgs(result);
     result.mTextureCount = 1;
     break;
-  case ColorLayerProgramType:
+  case gl::ColorLayerProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sSolidColorLayerMaskFS;
@@ -159,7 +152,7 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     AddCommonArgs(result);
     result.mUniforms.AppendElement(Argument("uRenderColor"));
     break;
-  case YCbCrLayerProgramType:
+  case gl::YCbCrLayerProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sYCbCrTextureLayerMaskFS;
@@ -172,11 +165,10 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uYTexture"));
     result.mUniforms.AppendElement(Argument("uCbTexture"));
     result.mUniforms.AppendElement(Argument("uCrTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 3;
     break;
-  case ComponentAlphaPass1ProgramType:
+  case gl::ComponentAlphaPass1ProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sComponentPassMask1FS;
@@ -188,27 +180,10 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
-  case ComponentAlphaPass1RGBProgramType:
-    if (aMask == Mask2d) {
-      result.mVertexShaderString = sLayerMaskVS;
-      result.mFragmentShaderString = sComponentPassMask1RGBFS;
-    } else {
-      result.mVertexShaderString = sLayerVS;
-      result.mFragmentShaderString = sComponentPass1RGBFS;
-    }
-    AddCommonArgs(result);
-    result.mUniforms.AppendElement(Argument("uLayerOpacity"));
-    result.mUniforms.AppendElement(Argument("uBlackTexture"));
-    result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
-    result.mAttributes.AppendElement(Argument("aTexCoord"));
-    result.mTextureCount = 2;
-    break;
-  case ComponentAlphaPass2ProgramType:
+  case gl::ComponentAlphaPass2ProgramType:
     if (aMask == Mask2d) {
       result.mVertexShaderString = sLayerMaskVS;
       result.mFragmentShaderString = sComponentPassMask2FS;
@@ -220,42 +195,23 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
-  case ComponentAlphaPass2RGBProgramType:
-    if (aMask == Mask2d) {
-      result.mVertexShaderString = sLayerMaskVS;
-      result.mFragmentShaderString = sComponentPassMask2RGBFS;
-    } else {
-      result.mVertexShaderString = sLayerVS;
-      result.mFragmentShaderString = sComponentPass2RGBFS;
-    }
-    AddCommonArgs(result);
-    result.mUniforms.AppendElement(Argument("uLayerOpacity"));
-    result.mUniforms.AppendElement(Argument("uBlackTexture"));
-    result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
-    result.mAttributes.AppendElement(Argument("aTexCoord"));
-    result.mTextureCount = 2;
-    break;
-  case Copy2DProgramType:
+  case gl::Copy2DProgramType:
     NS_ASSERTION(!aMask, "Program does not have masked variant.");
     result.mVertexShaderString = sCopyVS;
     result.mFragmentShaderString = sCopy2DFS;
     result.mUniforms.AppendElement(Argument("uTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aVertexCoord"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 1;
     break;
-  case Copy2DRectProgramType:
+  case gl::Copy2DRectProgramType:
     NS_ASSERTION(!aMask, "Program does not have masked variant.");
     result.mVertexShaderString = sCopyVS;
     result.mFragmentShaderString = sCopy2DRectFS;
     result.mUniforms.AppendElement(Argument("uTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aVertexCoord"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 1;
@@ -336,7 +292,7 @@ ShaderProgramOGL::CreateShader(GLenum aShaderType, const char *aShaderSource)
   GLint success, len = 0;
 
   GLint sh = mGL->fCreateShader(aShaderType);
-  mGL->fShaderSource(sh, 1, (const GLchar**)&aShaderSource, nullptr);
+  mGL->fShaderSource(sh, 1, (const GLchar**)&aShaderSource, NULL);
   mGL->fCompileShader(sh);
   mGL->fGetShaderiv(sh, LOCAL_GL_COMPILE_STATUS, &success);
   mGL->fGetShaderiv(sh, LOCAL_GL_INFO_LOG_LENGTH, (GLint*) &len);

@@ -73,7 +73,7 @@ public:
         AppendLiteral("\"versionchange\"");
         break;
       default:
-        MOZ_CRASH("Unknown mode!");
+        MOZ_NOT_REACHED("Unknown mode!");
     };
   }
 
@@ -154,7 +154,7 @@ public:
         AppendLiteral("\"prevunique\"");
         break;
       default:
-        MOZ_CRASH("Unknown direction!");
+        MOZ_NOT_REACHED("Unknown direction!");
     };
   }
 };

@@ -170,11 +170,11 @@
 @BINPATH@/components/dom_system_gonk.xpt
 @BINPATH@/components/dom_icc.xpt
 @BINPATH@/components/dom_cellbroadcast.xpt
-@BINPATH@/components/dom_wappush.xpt
 #endif
 #ifdef MOZ_B2G_FM
 @BINPATH@/components/dom_fm.xpt
 #endif
+@BINPATH@/components/dom_battery.xpt
 #ifdef MOZ_B2G_BT
 @BINPATH@/components/dom_bluetooth.xpt
 #endif
@@ -195,7 +195,11 @@
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_payment.xpt
+@BINPATH@/components/dom_push.xpt
 @BINPATH@/components/dom_json.xpt
+#ifdef MOZ_B2G_RIL
+@BINPATH@/components/dom_mms.xpt
+#endif
 @BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_messages.xpt
 @BINPATH@/components/dom_power.xpt
@@ -348,8 +352,8 @@
 @BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
-@BINPATH@/components/PhoneNumberService.js
-@BINPATH@/components/PhoneNumberService.manifest
+@BINPATH@/components/NavigatorPropertyHelper.js
+@BINPATH@/components/NavigatorPropertyHelper.manifest
 @BINPATH@/components/PermissionSettings.js
 @BINPATH@/components/PermissionSettings.manifest
 @BINPATH@/components/PermissionPromptService.js
@@ -472,8 +476,6 @@
 @BINPATH@/components/DOMWifiManager.manifest
 @BINPATH@/components/NetworkStatsManager.js
 @BINPATH@/components/NetworkStatsManager.manifest
-@BINPATH@/components/NetworkInterfaceListService.manifest
-@BINPATH@/components/NetworkInterfaceListService.js
 #endif
 #ifdef MOZ_B2G_FM
 @BINPATH@/components/DOMFMRadioChild.js
@@ -510,7 +512,6 @@
 @BINPATH@/components/AppsService.manifest
 @BINPATH@/components/Push.js
 @BINPATH@/components/Push.manifest
-@BINPATH@/components/PushServiceLauncher.js
 
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
@@ -525,10 +526,8 @@
 @BINPATH@/components/ActivityProxy.js
 @BINPATH@/components/ActivityRequestHandler.js
 @BINPATH@/components/ActivityWrapper.js
-@BINPATH@/components/ActivityMessageConfigurator.js
 
 @BINPATH@/components/TCPSocket.js
-@BINPATH@/components/TCPServerSocket.js
 @BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
 
@@ -603,13 +602,10 @@
 #endif
 
 ; [Layout Engine Resources]
-; Style Sheets, Graphics and other Resources used by the layout engine.
+; Style Sheets, Graphics and other Resources used by the layout engine. 
 @BINPATH@/res/EditorOverride.css
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
-@BINPATH@/res/ImageDocument.css
-@BINPATH@/res/TopLevelImageDocument.css
-@BINPATH@/res/TopLevelVideoDocument.css
 @BINPATH@/res/table-add-column-after-active.gif
 @BINPATH@/res/table-add-column-after-hover.gif
 @BINPATH@/res/table-add-column-after.gif

@@ -12,10 +12,11 @@
 #include "BluetoothSocketObserver.h"
 #include "BluetoothTelephonyListener.h"
 #include "mozilla/ipc/UnixSocket.h"
-#include "mozilla/Hal.h"
+#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothHfpManagerObserver;
 class BluetoothReplyRunnable;
 class BluetoothSocket;
 class Call;
@@ -52,12 +53,8 @@ enum BluetoothCmeError {
 
 class BluetoothHfpManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
-                          , public BatteryObserver
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
   static BluetoothHfpManager* Get();
   ~BluetoothHfpManager();
 
@@ -70,10 +67,8 @@ public:
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
-  virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
-  virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
-  void Connect(const nsAString& aDeviceAddress,
+  void Connect(const nsAString& aDeviceObjectPath,
                const bool aIsHandsfree,
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();
@@ -86,51 +81,48 @@ public:
    * @param aSend A boolean indicates whether we need to notify headset or not
    */
   void HandleCallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
-                              const nsAString& aError, const nsAString& aNumber,
-                              const bool aIsOutgoing, bool aSend);
+                              const nsAString& aNumber, const bool aIsOutgoing,
+                              bool aSend);
 
   bool IsConnected();
   bool IsScoConnected();
+  void GetAddress(nsAString& aDeviceAddress);
 
 private:
-  class CloseScoTask;
   class GetVolumeTask;
   class RespondToBLDNTask;
   class SendRingIndicatorTask;
 
-  friend class CloseScoTask;
   friend class GetVolumeTask;
   friend class RespondToBLDNTask;
   friend class SendRingIndicatorTask;
   friend class BluetoothHfpManagerObserver;
 
   BluetoothHfpManager();
-  void HandleIccInfoChanged();
-  void HandleShutdown();
-  void HandleVolumeChanged(const nsAString& aData);
-  void HandleVoiceConnectionChanged();
+  nsresult HandleIccInfoChanged();
+  nsresult HandleShutdown();
+  nsresult HandleVolumeChanged(const nsAString& aData);
+  nsresult HandleVoiceConnectionChanged();
 
   bool Init();
-  void Notify(const hal::BatteryInformation& aBatteryInfo);
+  void Cleanup();
   void Reset();
   void ResetCallArray();
-  uint32_t FindFirstCall(uint16_t aState);
-  uint32_t GetNumberOfCalls(uint16_t aState);
 
-  void DispatchConnectionStatusChanged(const nsAString& aType);
   void NotifyDialer(const nsAString& aCommand);
-  void NotifyConnectionStatusChanged(const nsAString& aType);
+  void NotifyStatusChanged(const nsAString& aType);
+  void NotifyAudioManager(const nsAString& aAddress);
 
-  bool SendCommand(const char* aCommand, uint32_t aValue = 0);
+  bool SendCommand(const char* aCommand, uint8_t aValue = 0);
   bool SendLine(const char* aMessage);
-  void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend = true);
+  void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend);
   void OnScoConnectSuccess();
   void OnScoConnectError();
   void OnScoDisconnect();
 
   int mCurrentVgs;
   int mCurrentVgm;
-  bool mBSIR;
+  uint32_t mCurrentCallIndex;
   bool mCCWA;
   bool mCLIP;
   bool mCMEE;
@@ -138,9 +130,7 @@ private:
   bool mFirstCKPD;
   int mNetworkSelectionMode;
   bool mReceiveVgsFlag;
-  bool mDialingRequestProcessed;
-  bool mIsHandsfree;
-  bool mNeedsUpdatingSdpRecords;
+  bool mBLDNProcessed;
   nsString mDeviceAddress;
   nsString mMsisdn;
   nsString mOperatorName;

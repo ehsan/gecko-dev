@@ -3,19 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
-  let ContentAreaUtils = {};
-  Services.scriptloader.loadSubScript("chrome://global/content/contentAreaUtils.js", ContentAreaUtils);
-  return ContentAreaUtils;
-});
-
-function getBridge() {
-  return Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
-}
-
-function sendMessageToJava(aMessage) {
-  return getBridge().handleGeckoMessage(JSON.stringify(aMessage));
-}
 
 var HelperApps =  {
   get defaultHttpHandlers() {
@@ -47,54 +34,28 @@ var HelperApps =  {
     let handlerInfoProto = this.protoSvc.getProtocolHandlerInfoFromOS(uri, {});
     return handlerInfoProto.possibleApplicationHandlers;
   },
-
+  
   getAppsForUri: function getAppsFor(uri) {
     let found = [];
-    let mimeType = ContentAreaUtils.getMIMETypeForURI(uri) || "";
-    // empty action string defaults to android.intent.action.VIEW
-    let msg = {
-      type: "Intent:GetHandlers",
-      mime: mimeType,
-      action: "",
-      url: uri.spec,
-      packageName: "",
-      className: ""
-    };
-    let apps = this._parseApps(JSON.parse(sendMessageToJava(msg)));
-    for (let i = 0; i < apps.length; i++) {
-      let appName = apps[i].name;
-      if (appName.length > 0 && !this.defaultHttpHandlers[appName])
-        found.push(apps[i]);
+    let handlerInfoProto = this.urlHandlerService.getURLHandlerInfoFromOS(uri, {});
+    let urlHandlers = handlerInfoProto.possibleApplicationHandlers;
+    for (var i = 0; i < urlHandlers.length; i++) {
+      let urlApp = urlHandlers.queryElementAt(i, Ci.nsIHandlerApp);
+      if (!this.defaultHttpHandlers[urlApp.name]) {
+        found.push(urlApp);
+      }
     }
     return found;
   },
-
+  
   openUriInApp: function openUriInApp(uri) {
-    let mimeType = ContentAreaUtils.getMIMETypeForURI(uri) || "";
-    let msg = {
-      type: "Intent:Open",
-      mime: mimeType,
-      action: "",
-      url: uri.spec,
-      packageName: "",
-      className: ""
-    };
-    sendMessageToJava(msg);
-  },
-
-  _parseApps: function _parseApps(aJSON) {
-    // aJSON -> {apps: [app1Label, app1Default, app1PackageName, app1ActivityName, app2Label, app2Defaut, ...]}
-    // see GeckoAppShell.java getHandlersForIntent function for details
-    let appInfo = aJSON.apps;
-    const numAttr = 4; // 4 elements per ResolveInfo: label, default, package name, activity name.
-    let apps = [];
-    for (let i = 0; i < appInfo.length; i += numAttr) {
-      apps.push({"name" : appInfo[i],
-                 "isDefault" : appInfo[i+1],
-                 "packageName" : appInfo[i+2],
-                 "activityName" : appInfo[i+3]});
+    var possibleHandlers = this.getAppsForUri(uri);
+    if (possibleHandlers.length == 1) {
+      possibleHandlers[0].launchWithURI(uri);
+    } else if (possibleHandlers.length > 0) {
+      let handlerInfoProto = this.urlHandlerService.getURLHandlerInfoFromOS(uri, {});
+      handlerInfoProto.preferredApplicationHandler.launchWithURI(uri);
     }
-    return apps;
   },
 
   showDoorhanger: function showDoorhanger(aUri, aCallback) {
@@ -119,7 +80,7 @@ var HelperApps =  {
       message = strings.formatStringFromName("helperapps.openWithApp2", [apps[0].name], 1);
     else
       message = strings.GetStringFromName("helperapps.openWithList2");
-
+  
     let buttons = [{
       label: strings.GetStringFromName("helperapps.open"),
       callback: function(aChecked) {

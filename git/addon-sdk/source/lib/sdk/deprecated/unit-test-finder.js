@@ -55,29 +55,16 @@ TestFinder.prototype = {
       function(suite) {
         // Load each test file as a main module in its own loader instance
         // `suite` is defined by cuddlefish/manifest.py:ManifestBuilder.build
-        let loader = Loader(module);
-        let suiteModule;
-
-        try {
-          suiteModule = cuddlefish.main(loader, suite);
-        }
-        catch (e) {
-          if (!/^Unsupported Application/.test(e.message))
-            throw e;
-          // If `Unsupported Application` error thrown during test,
-          // skip the test suite
-          suiteModule = {
-            'test suite skipped': assert => assert.pass(e.message)
-          };
-        }
+        var loader = Loader(module);
+        var module = cuddlefish.main(loader, suite);
 
         if (self.testInProcess)
-          for each (let name in Object.keys(suiteModule).sort()) {
+          for each (let name in Object.keys(module).sort()) {
             if(NOT_TESTS.indexOf(name) === -1 && filter(suite, name)) {
               tests.push({
-                           setup: suiteModule.setup,
-                           teardown: suiteModule.teardown,
-                           testFunction: suiteModule[name],
+                           setup: module.setup,
+                           teardown: module.teardown,
+                           testFunction: module[name],
                            name: suite + "." + name
                          });
             }

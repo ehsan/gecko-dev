@@ -8,6 +8,7 @@
 #define mozilla_dom_domrequest_h__
 
 #include "nsIDOMDOMRequest.h"
+#include "nsIDOMDOMError.h"
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/DOMRequestBinding.h"
@@ -21,9 +22,10 @@ class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
-  JS::Heap<JS::Value> mResult;
-  nsCOMPtr<nsISupports> mError;
+  JS::Value mResult;
+  nsCOMPtr<nsIDOMDOMError> mError;
   bool mDone;
+  bool mRooted;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -56,7 +58,7 @@ public:
     return mResult;
   }
 
-  nsISupports* GetError() const
+  nsIDOMDOMError* GetError() const
   {
     NS_ASSERTION(mDone || !mError,
                  "Error should be null when pending");
@@ -67,24 +69,25 @@ public:
   IMPL_EVENT_HANDLER(error)
 
 
-  void FireSuccess(JS::Handle<JS::Value> aResult);
+  void FireSuccess(JS::Value aResult);
   void FireError(const nsAString& aError);
   void FireError(nsresult aError);
-  void FireDetailedError(nsISupports* aError);
 
   DOMRequest(nsIDOMWindow* aWindow);
   DOMRequest();
 
   virtual ~DOMRequest()
   {
-    mResult = JSVAL_VOID;
-    NS_DROP_JS_OBJECTS(this, DOMRequest);
+    if (mRooted) {
+      UnrootResultVal();
+    }
   }
 
 protected:
   void FireEvent(const nsAString& aType, bool aBubble, bool aCancelable);
 
   void RootResultVal();
+  void UnrootResultVal();
 
   void Init(nsIDOMWindow* aWindow);
 };

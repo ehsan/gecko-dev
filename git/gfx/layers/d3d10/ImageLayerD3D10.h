@@ -14,12 +14,12 @@
 namespace mozilla {
 namespace layers {
 
-class ImageLayerD3D10 : public ImageLayer,
-                        public LayerD3D10
+class THEBES_API ImageLayerD3D10 : public ImageLayer,
+                                   public LayerD3D10
 {
 public:
   ImageLayerD3D10(LayerManagerD3D10 *aManager)
-    : ImageLayer(aManager, nullptr)
+    : ImageLayer(aManager, NULL)
     , LayerD3D10(aManager)
   {
     mImplData = static_cast<LayerD3D10*>(this);
@@ -56,7 +56,7 @@ struct TextureD3D10BackendData : public ImageBackendData
 
 class RemoteDXGITextureImage : public Image {
 public:
-  RemoteDXGITextureImage() : Image(nullptr, REMOTE_IMAGE_DXGI_TEXTURE) {}
+  RemoteDXGITextureImage() : Image(NULL, REMOTE_IMAGE_DXGI_TEXTURE) {}
 
   already_AddRefed<gfxASurface> GetAsSurface();
 

@@ -4,9 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxGDIFont.h"
-
-#include "mozilla/MemoryReporting.h"
-
 #include "gfxGDIShaper.h"
 #include "gfxUniscribeShaper.h"
 #include "gfxHarfBuzzShaper.h"
@@ -14,15 +11,10 @@
 #include "gfxGraphiteShaper.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxContext.h"
-#include "mozilla/Preferences.h"
-#include "nsUnicodeProperties.h"
 
 #include "cairo-win32.h"
 
 #define ROUND(x) floor((x) + 0.5)
-
-using namespace mozilla;
-using namespace mozilla::unicode;
 
 static inline cairo_antialias_t
 GetCairoAntialiasOption(gfxFont::AntialiasOption anAntialiasOption)
@@ -45,7 +37,7 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
                        bool aNeedsBold,
                        AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption),
-      mFont(nullptr),
+      mFont(NULL),
       mFontFace(nullptr),
       mMetrics(nullptr),
       mSpaceGlyph(0),
@@ -144,12 +136,7 @@ gfxGDIFont::ShapeText(gfxContext      *aContext,
     }
 
     if (!ok && mHarfBuzzShaper) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript) ||
-            (gfxWindowsPlatform::WindowsOSVersion() <
-                 gfxWindowsPlatform::kWindowsVista &&
-             ScriptShapingType(aScript) == SHAPING_INDIC &&
-             !Preferences::GetBool("gfx.font_rendering.winxp-indic-uniscribe",
-                                   false))) {
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript)) {
             ok = mHarfBuzzShaper->ShapeText(aContext, aText, aOffset, aLength,
                                             aScript, aShapedText);
         }
@@ -553,7 +540,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
     AutoSelectFont fs(dc, GetHFONT());
 
     int devWidth;
-    if (GetCharWidthI(dc, aGID, 1, nullptr, &devWidth)) {
+    if (GetCharWidthI(dc, aGID, 1, NULL, &devWidth)) {
         // ensure width is positive, 16.16 fixed-point value
         width = (devWidth & 0x7fff) << 16;
         mGlyphWidths.Put(aGID, width);
@@ -564,7 +551,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 }
 
 void
-gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+gfxGDIFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
@@ -573,7 +560,7 @@ gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxGDIFont::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+gfxGDIFont::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);

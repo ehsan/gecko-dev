@@ -5,10 +5,9 @@ const MOUSEDOWN_EVENT = 1;
 const MOUSEUP_EVENT = 2;
 const CLICK_EVENT = 4;
 const COMMAND_EVENT = 8;
-const FOCUS_EVENT = 16;
 
 const CLICK_EVENTS = MOUSEDOWN_EVENT | MOUSEUP_EVENT | CLICK_EVENT;
-const XUL_EVENTS = CLICK_EVENTS | COMMAND_EVENT;
+const ALL_EVENTS = CLICK_EVENTS | COMMAND_EVENT;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Public functions
@@ -75,9 +74,6 @@ function testActions(aArray)
 
       if (events & COMMAND_EVENT)
         eventSeq.push(new checkerOfActionInvoker("command", elm));
-
-      if (events & FOCUS_EVENT)
-        eventSeq.push(new focusChecker(elm));
     }
 
     if (actionObj.eventSeq)

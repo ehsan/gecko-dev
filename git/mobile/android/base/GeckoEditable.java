@@ -48,7 +48,6 @@ interface GeckoEditableClient {
    and also for the IC thread to listen to the Editable */
 interface GeckoEditableListener {
     // IME notification type for notifyIME(), corresponding to NotificationToIME enum in Gecko
-    final int NOTIFY_IME_OPEN_VKB = -2;
     final int NOTIFY_IME_REPLY_EVENT = -1;
     final int NOTIFY_IME_OF_FOCUS = 1;
     final int NOTIFY_IME_OF_BLUR = 2;
@@ -142,8 +141,7 @@ final class GeckoEditable
 
         static Action newReplaceText(CharSequence text, int start, int end) {
             if (start < 0 || start > end) {
-                throw new IllegalArgumentException(
-                    "invalid replace text offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid replace text offsets");
             }
             final Action action = new Action(TYPE_REPLACE_TEXT);
             action.mSequence = text;
@@ -156,8 +154,7 @@ final class GeckoEditable
             // start == -1 when the start offset should remain the same
             // end == -1 when the end offset should remain the same
             if (start < -1 || end < -1) {
-                throw new IllegalArgumentException(
-                    "invalid selection offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid selection offsets");
             }
             final Action action = new Action(TYPE_SET_SELECTION);
             action.mStart = start;
@@ -167,8 +164,7 @@ final class GeckoEditable
 
         static Action newSetSpan(Object object, int start, int end, int flags) {
             if (start < 0 || start > end) {
-                throw new IllegalArgumentException(
-                    "invalid span offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid span offsets");
             }
             final Action action = new Action(TYPE_SET_SPAN);
             action.mSpanObject = object;
@@ -350,7 +346,7 @@ final class GeckoEditable
                 Editable.class.getClassLoader(),
                 PROXY_INTERFACES, this);
 
-        LayerView v = GeckoAppShell.getLayerView();
+        LayerView v = GeckoApp.mAppContext.getLayerView();
         mListener = GeckoInputConnection.create(v, this);
 
         mIcRunHandler = mIcPostHandler = ThreadUtils.getUiHandler();
@@ -532,8 +528,18 @@ final class GeckoEditable
     @Override
     public void sendEvent(final GeckoEvent event) {
         if (DEBUG) {
-            assertOnIcThread();
             Log.d(LOGTAG, "sendEvent(" + event + ")");
+        }
+        if (!onIcThread()) {
+            // Events may get dispatched to the main thread;
+            // reroute to our IC thread instead
+            mIcRunHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    sendEvent(event);
+                }
+            });
+            return;
         }
         /*
            We are actually sending two events to Gecko here,
@@ -769,7 +775,7 @@ final class GeckoEditable
                 // Set InputConnectionHandler in notifyIMEContext because
                 // GeckoInputConnection.notifyIMEContext calls restartInput() which will invoke
                 // InputConnectionHandler.onCreateInputConnection
-                LayerView v = GeckoAppShell.getLayerView();
+                LayerView v = GeckoApp.mAppContext.getLayerView();
                 if (v != null) {
                     mListener = GeckoInputConnection.create(v, GeckoEditable.this);
                     v.setInputConnectionHandler((InputConnectionHandler)mListener);
@@ -787,8 +793,7 @@ final class GeckoEditable
             Log.d(LOGTAG, "onSelectionChange(" + start + ", " + end + ")");
         }
         if (start < 0 || start > mText.length() || end < 0 || end > mText.length()) {
-            throw new IllegalArgumentException("invalid selection notification range: " +
-                start + " to " + end + ", length: " + mText.length());
+            throw new IllegalArgumentException("invalid selection notification range");
         }
         final int seqnoWhenPosted = ++mGeckoUpdateSeqno;
 
@@ -835,24 +840,18 @@ final class GeckoEditable
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
             ThreadUtils.assertOnGeckoThread();
-            StringBuilder sb = new StringBuilder("onTextChange(");
-            debugAppend(sb, text);
-            sb.append(", ").append(start).append(", ")
-                .append(unboundedOldEnd).append(", ")
-                .append(unboundedNewEnd).append(")");
-            Log.d(LOGTAG, sb.toString());
+            Log.d(LOGTAG, "onTextChange(\"" + text + "\", " + start + ", " +
+                          unboundedOldEnd + ", " + unboundedNewEnd + ")");
         }
         if (start < 0 || start > unboundedOldEnd) {
-            throw new IllegalArgumentException("invalid text notification range: " +
-                start + " to " + unboundedOldEnd);
+            throw new IllegalArgumentException("invalid text notification range");
         }
         /* For the "end" parameters, Gecko can pass in a large
            number to denote "end of the text". Fix that here */
         final int oldEnd = unboundedOldEnd > mText.length() ? mText.length() : unboundedOldEnd;
         // new end should always match text
         if (start != 0 && unboundedNewEnd != (start + text.length())) {
-            throw new IllegalArgumentException("newEnd does not match text: " +
-                unboundedNewEnd + " vs " + (start + text.length()));
+            throw new IllegalArgumentException("newEnd does not match text");
         }
         final int newEnd = start + text.length();
 
@@ -984,10 +983,8 @@ final class GeckoEditable
             }
             Log.w(LOGTAG, "Exception in GeckoEditable." + method.getName(), e.getCause());
             Class<?> retClass = method.getReturnType();
-            if (retClass == Character.TYPE) {
-                ret = '\0';
-            } else if (retClass == Integer.TYPE) {
-                ret = 0;
+            if (retClass != Void.TYPE && retClass.isPrimitive()) {
+                ret = retClass.newInstance();
             } else if (retClass == String.class) {
                 ret = "";
             } else {
@@ -1088,8 +1085,7 @@ final class GeckoEditable
 
         CharSequence text = source;
         if (start < 0 || start > end || end > text.length()) {
-            throw new IllegalArgumentException("invalid replace offsets: " +
-                start + " to " + end + ", length: " + text.length());
+            throw new IllegalArgumentException("invalid replace offsets");
         }
         if (start != 0 || end != text.length()) {
             text = text.subSequence(start, end);

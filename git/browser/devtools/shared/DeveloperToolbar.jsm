@@ -8,13 +8,12 @@ this.EXPORTED_SYMBOLS = [ "DeveloperToolbar", "CommandUtils" ];
 
 const NS_XHTML = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/Commands.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource:///modules/devtools/Commands.jsm");
 
-const Node = Ci.nsIDOMNode;
+const Node = Components.interfaces.nsIDOMNode;
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
                                   "resource://gre/modules/devtools/Console.jsm");
@@ -25,40 +24,30 @@ XPCOMUtils.defineLazyModuleGetter(this, "gcli",
 XPCOMUtils.defineLazyModuleGetter(this, "CmdCommands",
                                   "resource:///modules/devtools/BuiltinCommands.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PageErrorListener",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-                                  "resource://gre/modules/devtools/Loader.jsm");
+                                  "resource:///modules/devtools/gDevTools.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "require",
                                   "resource://gre/modules/devtools/Require.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "EventEmitter",
-                                  "resource:///modules/devtools/shared/event-emitter.js");
-
 XPCOMUtils.defineLazyGetter(this, "prefBranch", function() {
-  let prefService = Cc["@mozilla.org/preferences-service;1"]
-                    .getService(Ci.nsIPrefService);
+  let prefService = Components.classes["@mozilla.org/preferences-service;1"]
+          .getService(Components.interfaces.nsIPrefService);
   return prefService.getBranch(null)
-                    .QueryInterface(Ci.nsIPrefBranch2);
+          .QueryInterface(Components.interfaces.nsIPrefBranch2);
 });
 
 XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function () {
   return Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
 });
 
-let Telemetry = devtools.require("devtools/shared/telemetry");
-
 const converters = require("gcli/converters");
-
-Object.defineProperty(this, "ConsoleServiceListener", {
-  get: function() {
-    return devtools.require("devtools/toolkit/webconsole/utils").ConsoleServiceListener;
-  },
-  configurable: true,
-  enumerable: true
-});
 
 /**
  * A collection of utilities to help working with commands
@@ -69,7 +58,8 @@ let CommandUtils = {
    * @param aPref The name of the preference to read
    */
   getCommandbarSpec: function CU_getCommandbarSpec(aPref) {
-    let value = prefBranch.getComplexValue(aPref, Ci.nsISupportsString).data;
+    let value = prefBranch.getComplexValue(aPref,
+                               Components.interfaces.nsISupportsString).data;
     return JSON.parse(value);
   },
 
@@ -166,7 +156,7 @@ let CommandUtils = {
       chromeWindow: chromeDocument.defaultView,
 
       document: contentDocument,
-      window: contentDocument != null ? contentDocument.defaultView : undefined
+      window: contentDocument.defaultView
     };
 
     Object.defineProperty(environment, "target", {
@@ -195,7 +185,8 @@ XPCOMUtils.defineLazyGetter(this, "isLinux", function () {
 });
 
 XPCOMUtils.defineLazyGetter(this, "OS", function () {
-  let os = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
+  let os = Components.classes["@mozilla.org/xre/app-info;1"]
+           .getService(Components.interfaces.nsIXULRuntime).OS;
   return os;
 });
 
@@ -213,7 +204,6 @@ this.DeveloperToolbar = function DeveloperToolbar(aChromeWindow, aToolbarElement
   this._element.hidden = true;
   this._doc = this._element.ownerDocument;
 
-  this._telemetry = new Telemetry();
   this._lastState = NOTIFICATIONS.HIDE;
   this._pendingShowCallback = undefined;
   this._pendingHide = false;
@@ -224,8 +214,6 @@ this.DeveloperToolbar = function DeveloperToolbar(aChromeWindow, aToolbarElement
                              .getElementById("developer-toolbar-toolbox-button");
   this._errorCounterButton._defaultTooltipText =
     this._errorCounterButton.getAttribute("tooltiptext");
-
-  EventEmitter.decorate(this);
 
   try {
     CmdCommands.refreshAutoCommands(aChromeWindow);
@@ -346,8 +334,6 @@ DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
 
   Services.prefs.setBoolPref("devtools.toolbar.visible", true);
 
-  this._telemetry.toolOpened("developertoolbar");
-
   this._notify(NOTIFICATIONS.LOAD);
   this._pendingShowCallback = aCallback;
   this._pendingHide = false;
@@ -405,10 +391,6 @@ DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
   tabbrowser.addEventListener("beforeunload", this, true);
 
   this._initErrorsCount(tabbrowser.selectedTab);
-  this._devtoolsUnloaded = this._devtoolsUnloaded.bind(this);
-  this._devtoolsLoaded = this._devtoolsLoaded.bind(this);
-  Services.obs.addObserver(this._devtoolsUnloaded, "devtools-unloaded", false);
-  Services.obs.addObserver(this._devtoolsLoaded, "devtools-loaded", false);
 
   this._element.hidden = false;
 
@@ -437,26 +419,6 @@ DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
 };
 
 /**
- * The devtools-unloaded event handler.
- * @private
- */
-DeveloperToolbar.prototype._devtoolsUnloaded = function DT__devtoolsUnloaded()
-{
-  let tabbrowser = this._chromeWindow.getBrowser();
-  Array.prototype.forEach.call(tabbrowser.tabs, this._stopErrorsCount, this);
-};
-
-/**
- * The devtools-loaded event handler.
- * @private
- */
-DeveloperToolbar.prototype._devtoolsLoaded = function DT__devtoolsLoaded()
-{
-  let tabbrowser = this._chromeWindow.getBrowser();
-  this._initErrorsCount(tabbrowser.selectedTab);
-};
-
-/**
  * Initialize the listeners needed for tracking the number of errors for a given
  * tab.
  *
@@ -473,8 +435,8 @@ DeveloperToolbar.prototype._initErrorsCount = function DT__initErrorsCount(aTab)
   }
 
   let window = aTab.linkedBrowser.contentWindow;
-  let listener = new ConsoleServiceListener(window, {
-    onConsoleServiceMessage: this._onPageError.bind(this, tabId),
+  let listener = new PageErrorListener(window, {
+    onPageError: this._onPageError.bind(this, tabId),
   });
   listener.init();
 
@@ -533,7 +495,6 @@ DeveloperToolbar.prototype.hide = function DT_hide()
   this._doc.getElementById("Tools:DevToolbar").setAttribute("checked", "false");
   this.destroy();
 
-  this._telemetry.toolClosed("developertoolbar");
   this._notify(NOTIFICATIONS.HIDE);
 };
 
@@ -552,8 +513,6 @@ DeveloperToolbar.prototype.destroy = function DT_destroy()
   tabbrowser.removeEventListener("load", this, true);
   tabbrowser.removeEventListener("beforeunload", this, true);
 
-  Services.obs.removeObserver(this._devtoolsUnloaded, "devtools-unloaded");
-  Services.obs.removeObserver(this._devtoolsLoaded, "devtools-loaded");
   Array.prototype.forEach.call(tabbrowser.tabs, this._stopErrorsCount, this);
 
   this.display.focusManager.removeMonitoredElement(this.outputPanel._frame);
@@ -716,8 +675,6 @@ function DT__updateErrorsCount(aChangedTabId)
     btn.removeAttribute("error-count");
     btn.setAttribute("tooltiptext", btn._defaultTooltipText);
   }
-
-  this.emit("errors-counter-updated");
 };
 
 /**

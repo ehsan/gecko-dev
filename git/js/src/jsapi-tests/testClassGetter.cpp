@@ -7,18 +7,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+
+#include "tests.h"
 
 int called_test_fn;
 int called_test_prop_get;
 
-static bool test_prop_get( JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp )
+static JSBool test_prop_get( JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp )
 {
     called_test_prop_get++;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 PTest(JSContext* cx, unsigned argc, jsval *vp);
 
 static JSClass ptestClass = {
@@ -34,19 +35,19 @@ static JSClass ptestClass = {
     JS_ConvertStub
 };
 
-static bool
+static JSBool
 PTest(JSContext* cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, &ptestClass, vp);
     if (!obj)
-        return false;
+        return JS_FALSE;
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-    return true;
+    return JS_TRUE;
 }
-static bool test_fn(JSContext *cx, unsigned argc, jsval *vp)
+static JSBool test_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
     called_test_fn++;
-    return true;
+    return JS_TRUE;
 }
 
 static const JSFunctionSpec ptestFunctions[] = {

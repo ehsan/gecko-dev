@@ -8,15 +8,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
-                                  "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
-XPCOMUtils.defineLazyModuleGetter(this, "Task",
-                                  "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
-                                  "resource:///modules/DownloadsCommon.jsm");
- 
+
 function Sanitizer() {}
 Sanitizer.prototype = {
   // warning to the caller: this one may raise an exception (e.g. bug #265028)
@@ -183,6 +177,15 @@ Sanitizer.prototype = {
             }
           }
         }
+
+        // clear any network geolocation provider sessions
+        var psvc = Components.classes["@mozilla.org/preferences-service;1"]
+                             .getService(Components.interfaces.nsIPrefService);
+        try {
+            var branch = psvc.getBranch("geo.wifi.access_token.");
+            branch.deleteBranch("");
+        } catch (e) {}
+
       },
 
       get canClear()
@@ -244,18 +247,13 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentWindow = windows.getNext();
-          let currentDocument = currentWindow.document;
+          let currentDocument = windows.getNext().document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar)
             searchBar.textbox.reset();
-          let tabBrowser = currentWindow.gBrowser;
-          for (let tab of tabBrowser.tabs) {
-            if (tabBrowser.isFindBarInitialized(tab))
-              tabBrowser.getFindBar(tab).clear();
-          }
-          // Clear any saved find value
-          tabBrowser._lastFindValue = "";
+          let findBar = currentDocument.getElementById("FindToolbar");
+          if (findBar)
+            findBar.clear();
         }
 
         let change = { op: "remove" };
@@ -271,8 +269,7 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentWindow = windows.getNext();
-          let currentDocument = currentWindow.document;
+          let currentDocument = windows.getNext().document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar) {
             let transactionMgr = searchBar.textbox.editor.transactionManager;
@@ -283,12 +280,8 @@ Sanitizer.prototype = {
               return false;
             }
           }
-          let tabBrowser = currentWindow.gBrowser;
-          let findBarCanClear = Array.some(tabBrowser.tabs, function (aTab) {
-            return tabBrowser.isFindBarInitialized(aTab) &&
-                   tabBrowser.getFindBar(aTab).canClear;
-          });
-          if (findBarCanClear) {
+          let findBar = currentDocument.getElementById("FindToolbar");
+          if (findBar && findBar.canClear) {
             aCallback("formdata", true, aArg);
             return false;
           }
@@ -309,47 +302,47 @@ Sanitizer.prototype = {
     downloads: {
       clear: function ()
       {
-        if (DownloadsCommon.useJSTransfer) {
-          Task.spawn(function () {
-            let filterByTime = this.range ?
-               (download => download.startTime >= this.range[0] &&
-                            download.startTime <= this.range[1]) : null;
+        var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
+                              .getService(Components.interfaces.nsIDownloadManager);
 
-            // Clear all completed/cancelled downloads
-            let publicList = yield Downloads.getPublicDownloadList();
-            publicList.removeFinished(filterByTime);
+        var dlsToRemove = [];
+        if (this.range) {
+          // First, remove the completed/cancelled downloads
+          dlMgr.removeDownloadsByTimeframe(this.range[0], this.range[1]);
 
-            let privateList = yield Downloads.getPrivateDownloadList();
-            privateList.removeFinished(filterByTime);
-          }.bind(this)).then(null, Cu.reportError);
+          // Queue up any active downloads that started in the time span as well
+          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
+            while (dlsEnum.hasMoreElements()) {
+              var dl = dlsEnum.next();
+              if (dl.startTime >= this.range[0])
+                dlsToRemove.push(dl);
+            }
+          }
         }
         else {
-          var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                                .getService(Components.interfaces.nsIDownloadManager);
-
-          if (this.range) {
-            // First, remove the completed/cancelled downloads
-            dlMgr.removeDownloadsByTimeframe(this.range[0], this.range[1]);
-          }
-          else {
-            // Clear all completed/cancelled downloads
-            dlMgr.cleanUp();
-            dlMgr.cleanUpPrivate();
+          // Clear all completed/cancelled downloads
+          dlMgr.cleanUp();
+          dlMgr.cleanUpPrivate();
+          
+          // Queue up all active ones as well
+          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
+            while (dlsEnum.hasMoreElements()) {
+              dlsToRemove.push(dlsEnum.next());
+            }
           }
         }
+
+        // Remove any queued up active downloads
+        dlsToRemove.forEach(function (dl) {
+          dl.remove();
+        });
       },
 
-      canClear : function(aCallback, aArg)
+      get canClear()
       {
-        if (DownloadsCommon.useJSTransfer) {
-          aCallback("downloads", true, aArg);
-        }
-        else {
-          var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                                .getService(Components.interfaces.nsIDownloadManager);
-          aCallback("downloads", dlMgr.canCleanUp || dlMgr.canCleanUpPrivate, aArg);
-        }
-        return false;
+        var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
+                              .getService(Components.interfaces.nsIDownloadManager);
+        return dlMgr.canCleanUp || dlMgr.canCleanUpPrivate;
       }
     },
     

@@ -27,8 +27,8 @@ class AutoResolveRefLayers;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  ViewTransform(LayerPoint aTranslation = LayerPoint(),
-                LayoutDeviceToScreenScale aScale = LayoutDeviceToScreenScale())
+  ViewTransform(gfxPoint aTranslation = gfxPoint(),
+                gfxSize aScale = gfxSize(1, 1))
     : mTranslation(aTranslation)
     , mScale(aScale)
   {}
@@ -36,20 +36,12 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0) *
-      gfx3DMatrix::ScalingMatrix(mScale.scale, mScale.scale, 1);
+      gfx3DMatrix::ScalingMatrix(mScale.width, mScale.height, 1) *
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
-  bool operator==(const ViewTransform& rhs) const {
-    return mTranslation == rhs.mTranslation && mScale == rhs.mScale;
-  }
-
-  bool operator!=(const ViewTransform& rhs) const {
-    return !(*this == rhs);
-  }
-
-  LayerPoint mTranslation;
-  LayoutDeviceToScreenScale mScale;
+  gfxPoint mTranslation;
+  gfxSize mScale;
 };
 
 /**
@@ -65,7 +57,9 @@ class AsyncCompositionManager MOZ_FINAL : public RefCounted<AsyncCompositionMana
   friend class AutoResolveRefLayers;
 public:
   AsyncCompositionManager(LayerManagerComposite* aManager)
-    : mLayerManager(aManager)
+    : mXScale(1.0)
+    , mYScale(1.0)
+    , mLayerManager(aManager)
     , mIsFirstPaint(false)
     , mLayersUpdated(false)
     , mReadyForCompose(true)
@@ -114,49 +108,49 @@ public:
   // particular document.
   bool IsFirstPaint() { return mIsFirstPaint; }
 
+  void SetTransformation(float aScale, const nsIntPoint& aScrollOffset);
+
 private:
-  void TransformScrollableLayer(Layer* aLayer, const LayoutDeviceToLayerScale& aResolution);
+  void TransformScrollableLayer(Layer* aLayer, const gfx3DMatrix& aRootTransform);
   // Return true if an AsyncPanZoomController content transform was
   // applied for |aLayer|.  *aWantNextFrame is set to true if the
   // controller wants another animation frame.
   bool ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame, Layer* aLayer,
                                         bool* aWantNextFrame);
 
-  void SetFirstPaintViewport(const LayerIntPoint& aOffset,
-                             const CSSToLayerScale& aZoom,
-                             const CSSRect& aCssPageRect);
-  void SetPageRect(const CSSRect& aCssPageRect);
-  void SyncViewportInfo(const LayerIntRect& aDisplayPort,
-                        const CSSToLayerScale& aDisplayResolution,
+  void SetFirstPaintViewport(const nsIntPoint& aOffset,
+                             float aZoom,
+                             const nsIntRect& aPageRect,
+                             const gfx::Rect& aCssPageRect);
+  void SetPageRect(const gfx::Rect& aCssPageRect);
+  void SyncViewportInfo(const nsIntRect& aDisplayPort,
+                        float aDisplayResolution,
                         bool aLayersUpdated,
-                        ScreenPoint& aScrollOffset,
-                        CSSToScreenScale& aScale,
-                        LayerMargin& aFixedLayerMargins,
-                        ScreenPoint& aOffset);
-  void SyncFrameMetrics(const ScreenPoint& aScrollOffset,
+                        nsIntPoint& aScrollOffset,
+                        float& aScaleX, float& aScaleY,
+                        gfx::Margin& aFixedLayerMargins,
+                        gfx::Point& aOffset);
+  void SyncFrameMetrics(const gfx::Point& aScrollOffset,
                         float aZoom,
-                        const CSSRect& aCssPageRect,
+                        const gfx::Rect& aCssPageRect,
                         bool aLayersUpdated,
-                        const CSSRect& aDisplayPort,
-                        const CSSToLayerScale& aDisplayResolution,
+                        const gfx::Rect& aDisplayPort,
+                        float aDisplayResolution,
                         bool aIsFirstPaint,
-                        LayerMargin& aFixedLayerMargins,
-                        ScreenPoint& aOffset);
+                        gfx::Margin& aFixedLayerMargins,
+                        gfx::Point& aOffset);
 
   /**
-   * Adds a translation to the transform of any fixed-pos layer descendant of
-   * aTransformedSubtreeRoot whose parent layer is not fixed. The translation is
-   * chosen so that the layer's anchor point relative to aTransformedSubtreeRoot's
-   * parent layer is the same as it was when aTransformedSubtreeRoot's
-   * GetLocalTransform() was aPreviousTransformForRoot.
-   * This function will also adjust layers so that the given content document
-   * fixed position margins will be respected during asynchronous panning and
-   * zooming.
+   * Recursively applies the given translation to all top-level fixed position
+   * layers that are descendants of the given layer.
+   * aScaleDiff is considered to be the scale transformation applied when
+   * displaying the layers, and is used to make sure the anchor points of
+   * fixed position layers remain in the same position.
    */
-  void AlignFixedLayersForAnchorPoint(Layer* aLayer,
-                                      Layer* aTransformedSubtreeRoot,
-                                      const gfx3DMatrix& aPreviousTransformForRoot,
-                                      const LayerMargin& aFixedLayerMargins);
+  void TransformFixedLayers(Layer* aLayer,
+                            const gfxPoint& aTranslation,
+                            const gfxSize& aScaleDiff,
+                            const gfx::Margin& aFixedLayerMargins);
 
   /**
    * DRAWING PHASE ONLY
@@ -173,7 +167,10 @@ private:
   void DetachRefLayers();
 
   TargetConfig mTargetConfig;
-  CSSRect mContentRect;
+  float mXScale;
+  float mYScale;
+  nsIntPoint mScrollOffset;
+  nsIntRect mContentRect;
 
   nsRefPtr<LayerManagerComposite> mLayerManager;
   // When this flag is set, the next composition will be the first for a

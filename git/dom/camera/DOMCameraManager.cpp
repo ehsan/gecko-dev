@@ -12,17 +12,20 @@
 #include "nsDOMClassInfo.h"
 #include "DictionaryHelpers.h"
 #include "CameraCommon.h"
-#include "mozilla/dom/CameraManagerBinding.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+using namespace dom;
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMCameraManager, mWindow)
+DOMCI_DATA(CameraManager, nsIDOMCameraManager)
+
+NS_IMPL_CYCLE_COLLECTION_1(nsDOMCameraManager,
+                           mCameraThread)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMCameraManager)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCameraManager)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CameraManager)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCameraManager)
@@ -52,14 +55,12 @@ GetCameraLog()
 WindowTable nsDOMCameraManager::sActiveWindows;
 bool nsDOMCameraManager::sActiveWindowsInitialized = false;
 
-nsDOMCameraManager::nsDOMCameraManager(nsPIDOMWindow* aWindow)
-  : mWindowId(aWindow->WindowID())
+nsDOMCameraManager::nsDOMCameraManager(uint64_t aWindowId)
+  : mWindowId(aWindowId)
   , mCameraThread(nullptr)
-  , mWindow(aWindow)
 {
   /* member initializers and constructor code */
   DOM_CAMERA_LOGT("%s:%d : this=%p, windowId=%llx\n", __func__, __LINE__, this, mWindowId);
-  SetIsDOMBinding();
 }
 
 nsDOMCameraManager::~nsDOMCameraManager()
@@ -70,26 +71,21 @@ nsDOMCameraManager::~nsDOMCameraManager()
   obs->RemoveObserver(this, "xpcom-shutdown");
 }
 
-bool
-nsDOMCameraManager::CheckPermission(nsPIDOMWindow* aWindow)
+// static creator
+already_AddRefed<nsDOMCameraManager>
+nsDOMCameraManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
 {
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(permMgr, false);
+  NS_ENSURE_TRUE(permMgr, nullptr);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
   permMgr->TestPermissionFromWindow(aWindow, "camera", &permission);
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
-    return false;
+    NS_WARNING("No permission to access camera");
+    return nullptr;
   }
 
-  return true;
-}
-
-// static creator
-already_AddRefed<nsDOMCameraManager>
-nsDOMCameraManager::CreateInstance(nsPIDOMWindow* aWindow)
-{
   // Initialize the shared active window tracker
   if (!sActiveWindowsInitialized) {
     sActiveWindows.Init();
@@ -97,7 +93,7 @@ nsDOMCameraManager::CreateInstance(nsPIDOMWindow* aWindow)
   }
 
   nsRefPtr<nsDOMCameraManager> cameraManager =
-    new nsDOMCameraManager(aWindow);
+    new nsDOMCameraManager(aWindow->WindowID());
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   obs->AddObserver(cameraManager, "xpcom-shutdown", true);
@@ -105,33 +101,35 @@ nsDOMCameraManager::CreateInstance(nsPIDOMWindow* aWindow)
   return cameraManager.forget();
 }
 
-void
-nsDOMCameraManager::GetCamera(const CameraSelector& aOptions,
-                              nsICameraGetCameraCallback* onSuccess,
-                              const Optional<nsICameraErrorCallback*>& onError,
-                              ErrorResult& aRv)
+/* [implicit_jscontext] void getCamera ([optional] in jsval aOptions, in nsICameraGetCameraCallback onSuccess, [optional] in nsICameraErrorCallback onError); */
+NS_IMETHODIMP
+nsDOMCameraManager::GetCamera(const JS::Value& aOptions, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, JSContext* cx)
 {
+  NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
+
   uint32_t cameraId = 0;  // back (or forward-facing) camera by default
-  if (aOptions.mCamera.EqualsLiteral("front")) {
+  mozilla::idl::CameraSelector selector;
+
+  nsresult rv = selector.Init(cx, &aOptions);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (selector.camera.EqualsASCII("front")) {
     cameraId = 1;
   }
 
   // reuse the same camera thread to conserve resources
   if (!mCameraThread) {
-    aRv = NS_NewThread(getter_AddRefs(mCameraThread));
-    if (aRv.Failed()) {
-      return;
-    }
+    rv = NS_NewThread(getter_AddRefs(mCameraThread));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
 
   // Creating this object will trigger the onSuccess handler
-  nsCOMPtr<nsDOMCameraControl> cameraControl =
-    new nsDOMCameraControl(cameraId, mCameraThread,
-                           onSuccess, onError.WasPassed() ? onError.Value() : nullptr, mWindowId);
+  nsCOMPtr<nsDOMCameraControl> cameraControl = new nsDOMCameraControl(cameraId, mCameraThread, onSuccess, onError, mWindowId);
 
   Register(cameraControl);
+  return NS_OK;
 }
 
 void
@@ -208,10 +206,4 @@ nsDOMCameraManager::IsWindowStillActive(uint64_t aWindowId)
   }
 
   return !!sActiveWindows.Get(aWindowId);
-}
-
-JSObject*
-nsDOMCameraManager::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return CameraManagerBinding::Wrap(aCx, aScope, this);
 }

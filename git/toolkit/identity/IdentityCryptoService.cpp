@@ -65,35 +65,13 @@ Base64UrlEncodeImpl(const nsACString & utf8Input, nsACString & result)
   return NS_OK;
 }
 
-nsresult
-Base64UrlDecodeImpl(const nsACString & base64Input, nsACString & result)
-{
-  nsresult rv = Base64Decode(base64Input, result);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsACString::char_type * out = result.BeginWriting();
-  nsACString::size_type length = result.Length();
-  // base64url encoding is defined in RFC 4648. It replaces the last two
-  // alphabet characters of base64 encoding with '-' and '_' respectively.
-  // Reverse that encoding here.
-  for (unsigned int i = 0; i < length; ++i) {
-    if (out[i] == '-') {
-      out[i] = '+';
-    } else if (out[i] == '_') {
-      out[i] = '/';
-    }
-  }
-
-  return NS_OK;
-}
-
 #define DSA_KEY_TYPE_STRING (NS_LITERAL_CSTRING("DS160"))
 #define RSA_KEY_TYPE_STRING (NS_LITERAL_CSTRING("RS256"))
 
 class KeyPair : public nsIIdentityKeyPair, public nsNSSShutDownObject
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIIDENTITYKEYPAIR
 
   KeyPair(SECKEYPrivateKey* aPrivateKey, SECKEYPublicKey* aPublicKey);
@@ -129,7 +107,7 @@ private:
   void operator=(const KeyPair &) MOZ_DELETE;
 };
 
-NS_IMPL_ISUPPORTS1(KeyPair, nsIIdentityKeyPair)
+NS_IMPL_THREADSAFE_ISUPPORTS1(KeyPair, nsIIdentityKeyPair)
 
 class KeyGenRunnable : public nsRunnable, public nsNSSShutDownObject
 {
@@ -212,7 +190,7 @@ private:
 class IdentityCryptoService MOZ_FINAL : public nsIIdentityCryptoService
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIIDENTITYCRYPTOSERVICE
 
   IdentityCryptoService() { }
@@ -231,7 +209,7 @@ private:
   void operator=(const IdentityCryptoService &) MOZ_DELETE;
 };
 
-NS_IMPL_ISUPPORTS1(IdentityCryptoService, nsIIdentityCryptoService)
+NS_IMPL_THREADSAFE_ISUPPORTS1(IdentityCryptoService, nsIIdentityCryptoService)
 
 NS_IMETHODIMP
 IdentityCryptoService::GenerateKeyPair(
@@ -259,13 +237,6 @@ IdentityCryptoService::Base64UrlEncode(const nsACString & utf8Input,
                                        nsACString & result)
 {
   return Base64UrlEncodeImpl(utf8Input, result);
-}
-
-NS_IMETHODIMP
-IdentityCryptoService::Base64UrlDecode(const nsACString & base64Input,
-                                       nsACString & result)
-{
-  return Base64UrlDecodeImpl(base64Input, result);
 }
 
 KeyPair::KeyPair(SECKEYPrivateKey * privateKey, SECKEYPublicKey * publicKey)
@@ -386,9 +357,11 @@ GenerateKeyPair(PK11SlotInfo * slot,
     return PRErrorCode_to_nsresult(PR_GetError());
   }
   if (!*publicKey) {
-	  SECKEY_DestroyPrivateKey(*privateKey);
-	  *privateKey = NULL;
-    MOZ_CRASH("PK11_GnerateKeyPair returned private key without public key");
+	SECKEY_DestroyPrivateKey(*privateKey);
+	*privateKey = NULL;
+    MOZ_NOT_REACHED("PK11_GnerateKeyPair returned private key without public "
+                    "key");
+    return NS_ERROR_UNEXPECTED;
   }
 
   return NS_OK;
@@ -455,9 +428,9 @@ GenerateDSAKeyPair(PK11SlotInfo * slot,
     0x72,0xDF,0xFA,0x89,0x62,0x33,0x39,0x7A
   };
 
-  static_assert(MOZ_ARRAY_LENGTH(P) == 1024 / CHAR_BIT, "bad DSA P");
-  static_assert(MOZ_ARRAY_LENGTH(Q) ==  160 / CHAR_BIT, "bad DSA Q");
-  static_assert(MOZ_ARRAY_LENGTH(G) == 1024 / CHAR_BIT, "bad DSA G");
+  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(P) == 1024 / CHAR_BIT, "bad DSA P");
+  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(Q) ==  160 / CHAR_BIT, "bad DSA Q");
+  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(G) == 1024 / CHAR_BIT, "bad DSA G");
 
   PQGParams pqgParams  = {
     NULL /*arena*/,
@@ -495,7 +468,8 @@ KeyGenRunnable::Run()
           mRv = GenerateDSAKeyPair(slot, &privk, &pubk);
           break;
         default:
-          MOZ_CRASH("unknown key type");
+          MOZ_NOT_REACHED("unknown key type");
+          mRv = NS_ERROR_UNEXPECTED;
         }
 
         PK11_FreeSlot(slot);

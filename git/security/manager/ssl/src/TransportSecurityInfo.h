@@ -38,7 +38,7 @@ public:
   TransportSecurityInfo();
   virtual ~TransportSecurityInfo();
   
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITRANSPORTSECURITYINFO
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSISSLSTATUSPROVIDER
@@ -90,6 +90,7 @@ private:
   uint32_t mSecurityState;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
+  nsString mShortDesc;
 
   PRErrorCode mErrorCode;
   ::mozilla::psm::SSLErrorMessageType mErrorMessageType;

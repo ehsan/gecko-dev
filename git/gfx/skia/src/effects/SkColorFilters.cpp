@@ -35,7 +35,7 @@ public:
     bool isModeValid() const { return ILLEGAL_XFERMODE_MODE != fMode; }
     SkPMColor getPMColor() const { return fPMColor; }
 
-    virtual bool asColorMode(SkColor* color, SkXfermode::Mode* mode) const SK_OVERRIDE {
+    virtual bool asColorMode(SkColor* color, SkXfermode::Mode* mode) SK_OVERRIDE {
         if (ILLEGAL_XFERMODE_MODE == fMode) {
             return false;
         }
@@ -49,12 +49,12 @@ public:
         return true;
     }
 
-    virtual uint32_t getFlags() const SK_OVERRIDE {
+    virtual uint32_t getFlags() SK_OVERRIDE {
         return fProc16 ? (kAlphaUnchanged_Flag | kHasFilter16_Flag) : 0;
     }
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) SK_OVERRIDE {
         SkPMColor       color = fPMColor;
         SkXfermodeProc  proc = fProc;
 
@@ -64,7 +64,7 @@ public:
     }
 
     virtual void filterSpan16(const uint16_t shader[], int count,
-                              uint16_t result[]) const SK_OVERRIDE {
+                              uint16_t result[]) SK_OVERRIDE {
         SkASSERT(this->getFlags() & kHasFilter16_Flag);
 
         SkPMColor        color = fPMColor;
@@ -111,7 +111,7 @@ class Src_SkModeColorFilter : public SkModeColorFilter {
 public:
     Src_SkModeColorFilter(SkColor color) : INHERITED(color, SkXfermode::kSrc_Mode) {}
 
-    virtual uint32_t getFlags() const SK_OVERRIDE {
+    virtual uint32_t getFlags() {
         if (SkGetPackedA32(this->getPMColor()) == 0xFF) {
             return kAlphaUnchanged_Flag | kHasFilter16_Flag;
         } else {
@@ -120,12 +120,12 @@ public:
     }
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
         sk_memset32(result, this->getPMColor(), count);
     }
 
     virtual void filterSpan16(const uint16_t shader[], int count,
-                              uint16_t result[]) const SK_OVERRIDE {
+                              uint16_t result[]) {
         SkASSERT(this->getFlags() & kHasFilter16_Flag);
         sk_memset16(result, SkPixel32ToPixel16(this->getPMColor()), count);
     }
@@ -144,10 +144,10 @@ class SrcOver_SkModeColorFilter : public SkModeColorFilter {
 public:
     SrcOver_SkModeColorFilter(SkColor color)
             : INHERITED(color, SkXfermode::kSrcOver_Mode) {
-        fColor32Proc = SkBlitRow::ColorProcFactory();
+        fColor32Proc = NULL;
     }
 
-    virtual uint32_t getFlags() const SK_OVERRIDE {
+    virtual uint32_t getFlags() {
         if (SkGetPackedA32(this->getPMColor()) == 0xFF) {
             return kAlphaUnchanged_Flag | kHasFilter16_Flag;
         } else {
@@ -156,12 +156,15 @@ public:
     }
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
+        if (NULL == fColor32Proc) {
+            fColor32Proc = SkBlitRow::ColorProcFactory();
+        }
         fColor32Proc(result, shader, count, this->getPMColor());
     }
 
     virtual void filterSpan16(const uint16_t shader[], int count,
-                              uint16_t result[]) const SK_OVERRIDE {
+                              uint16_t result[]) {
         SkASSERT(this->getFlags() & kHasFilter16_Flag);
         sk_memset16(result, SkPixel32ToPixel16(this->getPMColor()), count);
     }
@@ -170,9 +173,7 @@ public:
 
 protected:
     SrcOver_SkModeColorFilter(SkFlattenableReadBuffer& buffer)
-        : INHERITED(buffer) {
-            fColor32Proc = SkBlitRow::ColorProcFactory();
-        }
+        : INHERITED(buffer), fColor32Proc(NULL) {}
 
 private:
 
@@ -237,7 +238,7 @@ public:
     SkLightingColorFilter(SkColor mul, SkColor add) : fMul(mul), fAdd(add) {}
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
         unsigned scaleR = SkAlpha255To256(SkColorGetR(fMul));
         unsigned scaleG = SkAlpha255To256(SkColorGetG(fMul));
         unsigned scaleB = SkAlpha255To256(SkColorGetB(fMul));
@@ -286,7 +287,7 @@ public:
         : INHERITED(mul, add) {}
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
         unsigned addR = SkColorGetR(fAdd);
         unsigned addG = SkColorGetG(fAdd);
         unsigned addB = SkColorGetB(fAdd);
@@ -321,7 +322,7 @@ public:
         : INHERITED(mul, add) {}
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
         unsigned scaleR = SkAlpha255To256(SkColorGetR(fMul));
         unsigned scaleG = SkAlpha255To256(SkColorGetG(fMul));
         unsigned scaleB = SkAlpha255To256(SkColorGetB(fMul));
@@ -360,12 +361,12 @@ public:
         SkASSERT(SkColorGetR(mul) == SkColorGetB(mul));
     }
 
-    virtual uint32_t getFlags() const SK_OVERRIDE {
+    virtual uint32_t getFlags() {
         return this->INHERITED::getFlags() | (kAlphaUnchanged_Flag | kHasFilter16_Flag);
     }
 
     virtual void filterSpan16(const uint16_t shader[], int count,
-                              uint16_t result[]) const SK_OVERRIDE {
+                              uint16_t result[]) {
         // all mul components are the same
         unsigned scale = SkAlpha255To256(SkColorGetR(fMul));
 
@@ -392,7 +393,7 @@ public:
     : INHERITED(mul, add) {}
 
     virtual void filterSpan(const SkPMColor shader[], int count,
-                            SkPMColor result[]) const SK_OVERRIDE {
+                            SkPMColor result[]) {
         unsigned scaleR = SkAlpha255To256(SkColorGetR(fMul));
         unsigned scaleG = SkAlpha255To256(SkColorGetG(fMul));
         unsigned scaleB = SkAlpha255To256(SkColorGetB(fMul));
@@ -434,8 +435,7 @@ public:
     }
 
 protected:
-    void filterSpan(const SkPMColor src[], int count, SkPMColor
-                    result[]) const SK_OVERRIDE {
+    void filterSpan(const SkPMColor src[], int count, SkPMColor result[]) {
         if (result != src) {
             memcpy(result, src, count * sizeof(SkPMColor));
         }
@@ -490,3 +490,4 @@ SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_START(SkColorFilter)
     SK_DEFINE_FLATTENABLE_REGISTRAR_ENTRY(SkLightingColorFilter_NoPin)
     SK_DEFINE_FLATTENABLE_REGISTRAR_ENTRY(SkSimpleColorFilter)
 SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_END
+

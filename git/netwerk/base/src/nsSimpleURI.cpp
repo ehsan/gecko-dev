@@ -21,7 +21,6 @@
 #include "nsError.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIIPCSerializableURI.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/ipc/URIUtils.h"
 
 using namespace mozilla::ipc;
@@ -636,7 +635,7 @@ nsSimpleURI::SetMutable(bool value)
 //----------------------------------------------------------------------------
 
 size_t 
-nsSimpleURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsSimpleURI::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mScheme.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
          mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
@@ -644,7 +643,7 @@ nsSimpleURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-nsSimpleURI::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+nsSimpleURI::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 

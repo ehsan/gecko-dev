@@ -21,12 +21,13 @@
 #include "plstr.h"
 #include "nsIScriptExternalNameSet.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 class nsIDocShell;
 class nsString;
 class nsIClassInfo;
 class nsIIOService;
+class nsIXPConnect;
 class nsIStringBundle;
 class nsSystemPrincipal;
 struct ClassPolicy;
@@ -371,22 +372,21 @@ private:
 
     bool SubjectIsPrivileged();
 
-    static bool
-    CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
-                      JS::Handle<jsid> id, JSAccessMode mode,
-                      JS::MutableHandle<JS::Value> vp);
+    static JSBool
+    CheckObjectAccess(JSContext *cx, JSHandleObject obj,
+                      JSHandleId id, JSAccessMode mode,
+                      JSMutableHandleValue vp);
     
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static bool
+    static JSBool
     ContentSecurityPolicyPermitsJSAction(JSContext *cx);
 
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
-    static nsIPrincipal* doGetObjectPrincipal(JS::Handle<JSObject*> obj);
+    static nsIPrincipal* doGetObjectPrincipal(JSObject *obj);
 #ifdef DEBUG
     static nsIPrincipal*
-    old_doGetObjectPrincipal(JS::Handle<JSObject*> obj,
-                             bool aAllowShortCircuit = true);
+    old_doGetObjectPrincipal(JSObject *obj, bool aAllowShortCircuit = true);
 #endif
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
@@ -409,7 +409,8 @@ private:
                            uint32_t aAction);
 
     nsresult
-    LookupPolicy(nsIPrincipal* principal,
+    LookupPolicy(JSContext* cx,
+                 nsIPrincipal* principal,
                  ClassInfoData& aClassData, jsid aProperty,
                  uint32_t aAction,
                  ClassPolicy** aCachedClassPolicy,
@@ -429,6 +430,20 @@ private:
     // context.  Callers MUST pass in a non-null rv here.
     nsIPrincipal*
     GetSubjectPrincipal(JSContext* cx, nsresult* rv);
+
+    // Returns null if a principal cannot be found.  Note that rv can be NS_OK
+    // when this happens -- this means that there was no script.  Callers MUST
+    // pass in a non-null rv here.
+    static nsIPrincipal*
+    GetScriptPrincipal(JSScript* script, nsresult* rv);
+
+    // Returns null if a principal cannot be found.  Note that rv can be NS_OK
+    // when this happens -- this means that there was no script associated
+    // with the function object, and no global object associated with the scope
+    // of obj (the last object on its parent chain). Callers MUST pass in a
+    // non-null rv here.
+    static nsIPrincipal*
+    GetFunctionObjectPrincipal(JSContext* cx, JS::Handle<JSObject*> obj, nsresult* rv);
 
     /**
      * Check capability levels for an |aObj| that implements
@@ -507,6 +522,7 @@ private:
     static bool sStrictFileOriginPolicy;
 
     static nsIIOService    *sIOService;
+    static nsIXPConnect    *sXPConnect;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
 };

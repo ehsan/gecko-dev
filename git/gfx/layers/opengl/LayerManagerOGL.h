@@ -16,7 +16,7 @@
 #include <windows.h>
 #endif
 
-#define BUFFER_OFFSET(i) ((char *)nullptr + (i))
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 #include "gfxContext.h"
 #include "gfx3DMatrix.h"
@@ -43,9 +43,10 @@ struct FPSState;
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
  * This should be used only on the main thread.
  */
-class LayerManagerOGL : public LayerManager
+class THEBES_API LayerManagerOGL : public LayerManager
 {
   typedef mozilla::gl::GLContext GLContext;
+  typedef mozilla::gl::ShaderProgramType ProgramType;
 
 public:
   LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
@@ -124,29 +125,29 @@ public:
   ShaderProgramOGL* GetBasicLayerProgram(bool aOpaque, bool aIsRGB,
                                          MaskType aMask = MaskNone)
   {
-    ShaderProgramType format = BGRALayerProgramType;
+    gl::ShaderProgramType format = gl::BGRALayerProgramType;
     if (aIsRGB) {
       if (aOpaque) {
-        format = RGBXLayerProgramType;
+        format = gl::RGBXLayerProgramType;
       } else {
-        format = RGBALayerProgramType;
+        format = gl::RGBALayerProgramType;
       }
     } else {
       if (aOpaque) {
-        format = BGRXLayerProgramType;
+        format = gl::BGRXLayerProgramType;
       }
     }
     return GetProgram(format, aMask);
   }
 
-  ShaderProgramOGL* GetProgram(ShaderProgramType aType,
+  ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType,
                                Layer* aMaskLayer) {
     if (aMaskLayer)
       return GetProgram(aType, Mask2d);
     return GetProgram(aType, MaskNone);
   }
 
-  ShaderProgramOGL* GetProgram(ShaderProgramType aType,
+  ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType,
                                MaskType aMask = MaskNone) {
     NS_ASSERTION(ProgramProfileOGL::ProgramExists(aType, aMask),
                  "Invalid program type.");
@@ -157,14 +158,10 @@ public:
     return GetProgram(GetFBOLayerProgramType(), aMask);
   }
 
-  ShaderProgramType GetFBOLayerProgramType() {
+  gl::ShaderProgramType GetFBOLayerProgramType() {
     if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB)
-      return RGBARectLayerProgramType;
-    return RGBALayerProgramType;
-  }
-
-  gfx::SurfaceFormat GetFBOTextureFormat() {
-    return gfx::FORMAT_R8G8B8A8;
+      return gl::RGBARectLayerProgramType;
+    return gl::RGBALayerProgramType;
   }
 
   GLContext* gl() const { return mGLContext; }
@@ -215,7 +212,7 @@ public:
    * shaders are required to sample from the different
    * texture types.
    */
-  bool CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
+  void CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             GLuint aCurrentFrameBuffer,
                             GLuint *aFBO, GLuint *aTexture);
 
@@ -321,7 +318,7 @@ private:
   nsIntSize mSurfaceSize;
 
   /** 
-   * Context target, nullptr when drawing directly to our swap chain.
+   * Context target, NULL when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
 
@@ -398,7 +395,7 @@ private:
    * Helper method for Initialize, creates all valid variations of a program
    * and adds them to mPrograms
    */
-  void AddPrograms(ShaderProgramType aType);
+  void AddPrograms(gl::ShaderProgramType aType);
 
   /**
    * Recursive helper method for use by ComputeRenderIntegrity. Subtracts
@@ -427,6 +424,7 @@ private:
 #endif
 
   static bool sDrawFPS;
+  static bool sFrameCounter;
 };
 
 /**
@@ -451,6 +449,8 @@ public:
   virtual void Destroy() = 0;
 
   virtual Layer* GetLayer() = 0;
+
+  virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset) = 0;

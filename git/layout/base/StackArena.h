@@ -2,10 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsError.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/NullPtr.h"
+#include "nsAlgorithm.h"
+#include "nsDebug.h"
 
 namespace mozilla {
 
@@ -29,7 +28,7 @@ private:
   void Push();
   void Pop();
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // our current position in memory
   size_t mPos;

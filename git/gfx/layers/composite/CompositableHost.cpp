@@ -9,95 +9,23 @@
 #include "TiledContentHost.h"
 #include "Effects.h"
 #include "mozilla/layers/CompositableTransactionParent.h"
-#include "mozilla/layers/TextureHost.h"
 
 namespace mozilla {
 namespace layers {
-
-CompositableHost::CompositableHost(const TextureInfo& aTextureInfo)
-  : mTextureInfo(aTextureInfo)
-  , mCompositor(nullptr)
-  , mLayer(nullptr)
-  , mAttached(false)
-{
-  MOZ_COUNT_CTOR(CompositableHost);
-}
-
-CompositableHost::~CompositableHost()
-{
-  MOZ_COUNT_DTOR(CompositableHost);
-
-  RefPtr<TextureHost> it = mFirstTexture;
-  while (it) {
-    if (it->GetFlags() & TEXTURE_DEALLOCATE_HOST) {
-      it->DeallocateSharedData();
-    }
-    it = it->GetNextSibling();
-  }
-}
-
-void
-CompositableHost::AddTextureHost(TextureHost* aTexture)
-{
-  MOZ_ASSERT(aTexture);
-  MOZ_ASSERT(GetTextureHost(aTexture->GetID()) == nullptr,
-             "A texture is already present with this ID");
-  RefPtr<TextureHost> second = mFirstTexture;
-  mFirstTexture = aTexture;
-  aTexture->SetNextSibling(second);
-}
-
-void
-CompositableHost::RemoveTextureHost(uint64_t aTextureID)
-{
-  RefPtr<TextureHost> it = mFirstTexture;
-  while (it) {
-    if (it->GetNextSibling() &&
-        it->GetNextSibling()->GetID() == aTextureID) {
-      it->SetNextSibling(it->GetNextSibling()->GetNextSibling());
-    }
-    it = it->GetNextSibling();
-  }
-}
-
-TextureHost*
-CompositableHost::GetTextureHost(uint64_t aTextureID)
-{
-  RefPtr<TextureHost> it = mFirstTexture;
-  while (it) {
-    if (it->GetID() == aTextureID) {
-      return it;
-    }
-    it = it->GetNextSibling();
-  }
-  return nullptr;
-}
-
-
-void
-CompositableHost::SetCompositor(Compositor* aCompositor)
-{
-  mCompositor = aCompositor;
-  RefPtr<TextureHost> it = mFirstTexture;
-  while (!!it) {
-    it->SetCompositor(aCompositor);
-    it = it->GetNextSibling();
-  }
-}
 
 bool
 CompositableHost::Update(const SurfaceDescriptor& aImage,
                          SurfaceDescriptor* aResult)
 {
-  if (!GetDeprecatedTextureHost()) {
+  if (!GetTextureHost()) {
     *aResult = aImage;
     return false;
   }
-  MOZ_ASSERT(!GetDeprecatedTextureHost()->GetBuffer(),
+  MOZ_ASSERT(!GetTextureHost()->GetBuffer(),
              "This path not suitable for texture-level double buffering.");
-  GetDeprecatedTextureHost()->Update(aImage);
+  GetTextureHost()->Update(aImage);
   *aResult = aImage;
-  return GetDeprecatedTextureHost()->IsValid();
+  return GetTextureHost()->IsValid();
 }
 
 bool
@@ -105,18 +33,7 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
                                 const gfx::Matrix4x4& aTransform,
                                 bool aIs3D)
 {
-  RefPtr<TextureSource> source;
-  RefPtr<DeprecatedTextureHost> oldHost = GetDeprecatedTextureHost();
-  if (oldHost) {
-    oldHost->Lock();
-    source = oldHost;
-  } else {
-    RefPtr<TextureHost> host = GetTextureHost();
-    if (host) {
-      host->Lock();
-      source = host->GetTextureSources();
-    }
-  }
+  RefPtr<TextureSource> source = GetTextureHost();
 
   if (!source) {
     NS_WARNING("Using compositable with no texture host as mask layer");
@@ -131,33 +48,16 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
   return true;
 }
 
-void
-CompositableHost::RemoveMaskEffect()
-{
-  RefPtr<DeprecatedTextureHost> oldHost = GetDeprecatedTextureHost();
-  if (oldHost) {
-    oldHost->Unlock();
-  } else {
-    RefPtr<TextureHost> host = GetTextureHost();
-    if (host) {
-      host->Unlock();
-    }
-  }
-}
-
 /* static */ TemporaryRef<CompositableHost>
 CompositableHost::Create(const TextureInfo& aTextureInfo)
 {
   RefPtr<CompositableHost> result;
   switch (aTextureInfo.mCompositableType) {
-  case COMPOSITABLE_IMAGE:
-    result = new ImageHost(aTextureInfo);
-    return result;
   case BUFFER_IMAGE_BUFFERED:
-    result = new DeprecatedImageHostBuffered(aTextureInfo);
+    result = new ImageHostBuffered(aTextureInfo);
     return result;
   case BUFFER_IMAGE_SINGLE:
-    result = new DeprecatedImageHostSingle(aTextureInfo);
+    result = new ImageHostSingle(aTextureInfo);
     return result;
   case BUFFER_TILED:
     result = new TiledContentHost(aTextureInfo);
@@ -168,41 +68,11 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
   case BUFFER_CONTENT_DIRECT:
     result = new ContentHostDoubleBuffered(aTextureInfo);
     return result;
-  case BUFFER_CONTENT_INC:
-    result = new ContentHostIncremental(aTextureInfo);
-    return result;
   default:
-    MOZ_CRASH("Unknown CompositableType");
+    MOZ_NOT_REACHED("Unknown CompositableType");
+    return nullptr;
   }
 }
-
-#ifdef MOZ_DUMP_PAINTING
-void
-CompositableHost::DumpDeprecatedTextureHost(FILE* aFile, DeprecatedTextureHost* aTexture)
-{
-  if (!aTexture) {
-    return;
-  }
-  nsRefPtr<gfxImageSurface> surf = aTexture->GetAsSurface();
-  if (!surf) {
-    return;
-  }
-  surf->DumpAsDataURL(aFile ? aFile : stderr);
-}
-
-void
-CompositableHost::DumpTextureHost(FILE* aFile, TextureHost* aTexture)
-{
-  if (!aTexture) {
-    return;
-  }
-  nsRefPtr<gfxImageSurface> surf = aTexture->GetAsSurface();
-  if (!surf) {
-    return;
-  }
-  surf->DumpAsDataURL(aFile ? aFile : stderr);
-}
-#endif
 
 void
 CompositableParent::ActorDestroy(ActorDestroyReason why)

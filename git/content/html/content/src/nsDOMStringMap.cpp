@@ -10,40 +10,30 @@
 #include "nsGenericHTMLElement.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/DOMStringMapBinding.h"
-#include "nsIDOMMutationEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMStringMap)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStringMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStringMap)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   // Check that mElement exists in case the unlink code is run more than once.
   if (tmp->mElement) {
     // Call back to element to null out weak reference to this object.
     tmp->mElement->ClearDataset();
-    tmp->mElement->RemoveMutationObserver(tmp);
     tmp->mElement = nullptr;
   }
-  tmp->mExpandoAndGeneration.Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMStringMap)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-  if (tmp->PreservingWrapper()) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mExpandoAndGeneration.expando);
-  }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStringMap)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -55,8 +45,6 @@ nsDOMStringMap::nsDOMStringMap(nsGenericHTMLElement* aElement)
     mRemovingProp(false)
 {
   SetIsDOMBinding();
-
-  mElement->AddMutationObserver(this);
 }
 
 nsDOMStringMap::~nsDOMStringMap()
@@ -65,7 +53,6 @@ nsDOMStringMap::~nsDOMStringMap()
   if (mElement) {
     // Call back to element to null out weak reference to this object.
     mElement->ClearDataset();
-    mElement->RemoveMutationObserver(this);
   }
 }
 
@@ -247,18 +234,4 @@ bool nsDOMStringMap::AttrToDataProp(const nsAString& aAttr,
   }
 
   return true;
-}
-
-void
-nsDOMStringMap::AttributeChanged(nsIDocument *aDocument, Element* aElement,
-                                 int32_t aNameSpaceID, nsIAtom* aAttribute,
-                                 int32_t aModType)
-{
-  if ((aModType == nsIDOMMutationEvent::ADDITION ||
-       aModType == nsIDOMMutationEvent::REMOVAL) &&
-      aNameSpaceID == kNameSpaceID_None &&
-      StringBeginsWith(nsDependentAtomString(aAttribute),
-                       NS_LITERAL_STRING("data-"))) {
-    ++mExpandoAndGeneration.generation;
-  }
 }

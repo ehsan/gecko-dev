@@ -1,8 +1,8 @@
 // Forward to the target if the trap is not defined
-assertEq(Proxy({
+assertEq(new Proxy({
     foo: 'bar'
 }, {}).foo, 'bar');
 
-assertEq(Proxy({
+assertEq(new Proxy({
     foo: 'bar'
 }, {})['foo'], 'bar');

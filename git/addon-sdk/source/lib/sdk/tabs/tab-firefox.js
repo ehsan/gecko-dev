@@ -125,7 +125,7 @@ const TabTrait = Trait.compose(EventEmitter, {
    * listeners.
    */
   _onEvent: function _onEvent(type, tab) {
-    if (viewNS(tab).tab == this._tab)
+    if (tab == this._public)
       this._emit(type, tab);
   },
   /**
@@ -248,12 +248,8 @@ const TabTrait = Trait.compose(EventEmitter, {
    * Close the tab
    */
   close: function close(callback) {
-    // Bug 699450: the tab may already have been detached
-    if (!this._tab || !this._tab.parentNode) {
-      if (callback)
-        callback();
+    if (!this._tab)
       return;
-    }
     if (callback)
       this.once(EVENTS.close.name, callback);
     this._window.gBrowser.removeTab(this._tab);

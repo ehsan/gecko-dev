@@ -47,8 +47,8 @@ void
 gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
                              uint32_t* aSpaceGlyph)
 {
-    NS_PRECONDITION(aMetrics != nullptr, "aMetrics must not be NULL");
-    NS_PRECONDITION(aSpaceGlyph != nullptr, "aSpaceGlyph must not be NULL");
+    NS_PRECONDITION(aMetrics != NULL, "aMetrics must not be NULL");
+    NS_PRECONDITION(aSpaceGlyph != NULL, "aSpaceGlyph must not be NULL");
 
     if (MOZ_UNLIKELY(!mFace)) {
         // No face.  This unfortunate situation might happen if the font
@@ -117,12 +117,10 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
 
         // maxAscent/maxDescent get used for frame heights, and some fonts
         // don't have the HHEA table ascent/descent set (bug 279032).
-        // We use NS_round here to parallel the pixel-rounded values that
-        // freetype gives us for ftMetrics.ascender/descender.
-        aMetrics->maxAscent =
-            std::max(aMetrics->maxAscent, NS_round(aMetrics->emAscent));
-        aMetrics->maxDescent =
-            std::max(aMetrics->maxDescent, NS_round(aMetrics->emDescent));
+        if (aMetrics->emAscent > aMetrics->maxAscent)
+            aMetrics->maxAscent = aMetrics->emAscent;
+        if (aMetrics->emDescent > aMetrics->maxDescent)
+            aMetrics->maxDescent = aMetrics->emDescent;
     } else {
         aMetrics->emAscent = aMetrics->maxAscent;
         aMetrics->emDescent = aMetrics->maxDescent;
@@ -320,10 +318,35 @@ gfxFT2LockedFace::GetUVSGlyph(uint32_t aCharCode, uint32_t aVariantSelector)
     return (*sGetCharVariantPtr)(mFace, aCharCode, aVariantSelector);
 }
 
+bool
+gfxFT2LockedFace::GetFontTable(uint32_t aTag, FallibleTArray<uint8_t>& aBuffer)
+{
+    if (!mFace || !FT_IS_SFNT(mFace))
+        return false;
+
+    FT_ULong length = 0;
+    // TRUETYPE_TAG is defined equivalent to FT_MAKE_TAG
+    FT_Error error = FT_Load_Sfnt_Table(mFace, aTag, 0, NULL, &length);
+    if (error != 0)
+        return false;
+
+    if (MOZ_UNLIKELY(length > static_cast<FallibleTArray<uint8_t>::size_type>(-1))
+        || MOZ_UNLIKELY(!aBuffer.SetLength(length)))
+        return false;
+        
+    error = FT_Load_Sfnt_Table(mFace, aTag, 0, aBuffer.Elements(), &length);
+    if (MOZ_UNLIKELY(error != 0)) {
+        aBuffer.Clear();
+        return false;
+    }
+
+    return true;
+}
+
 uint32_t
 gfxFT2LockedFace::GetCharExtents(char aChar, cairo_text_extents_t* aExtents)
 {
-    NS_PRECONDITION(aExtents != nullptr, "aExtents must not be NULL");
+    NS_PRECONDITION(aExtents != NULL, "aExtents must not be NULL");
 
     if (!mFace)
         return 0;

@@ -5,8 +5,6 @@
 
 #include "ImageWrapper.h"
 
-#include "mozilla/MemoryReporting.h"
-
 using mozilla::layers::LayerManager;
 using mozilla::layers::ImageContainer;
 
@@ -40,13 +38,13 @@ ImageWrapper::SizeOfData()
 }
 
 size_t
-ImageWrapper::HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const
+ImageWrapper::HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mInnerImage->HeapSizeOfSourceWithComputedFallback(aMallocSizeOf);
 }
 
 size_t
-ImageWrapper::HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const
+ImageWrapper::HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mInnerImage->HeapSizeOfDecodedWithComputedFallback(aMallocSizeOf);
 }
@@ -233,12 +231,6 @@ ImageWrapper::StartDecoding()
   return mInnerImage->StartDecoding();
 }
 
-bool
-ImageWrapper::IsDecoded()
-{
-  return mInnerImage->IsDecoded();
-}
-
 NS_IMETHODIMP
 ImageWrapper::LockImage()
 {
@@ -285,18 +277,6 @@ NS_IMETHODIMP_(float)
 ImageWrapper::GetFrameIndex(uint32_t aWhichFrame)
 {
   return mInnerImage->GetFrameIndex(aWhichFrame);
-}
-
-NS_IMETHODIMP_(int32_t)
-ImageWrapper::GetFirstFrameDelay()
-{
-  return mInnerImage->GetFirstFrameDelay();
-}
-
-NS_IMETHODIMP_(void)
-ImageWrapper::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
-{
-  mInnerImage->SetAnimationStartTime(aTime);
 }
 
 } // namespace image

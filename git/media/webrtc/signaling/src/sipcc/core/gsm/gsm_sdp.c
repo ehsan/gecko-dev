@@ -25,8 +25,6 @@
 #include "plstr.h"
 #include "sdp_private.h"
 
-static const char* logTag = "gsm_sdp";
-
 //TODO Need to place this in a portable location
 #define MULTICAST_START_ADDRESS 0xe1000000
 #define MULTICAST_END_ADDRESS   0xefffffff
@@ -1565,7 +1563,7 @@ gsmsdp_set_sdp_direction (fsmdef_media_t *media,
  * attributes_ctp  - count of array of media line attributes
  */
 
-static cc_causes_t
+static boolean
 gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char ***ice_attribs, int *attributes_ctp)
 {
     uint16_t        num_a_lines = 0;
@@ -1576,18 +1574,18 @@ gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, cha
     result = sdp_attr_num_instances(sdp_p, level, 0, sdp_attr, &num_a_lines);
     if (result != SDP_SUCCESS) {
         GSM_ERR_MSG("enumerating ICE attributes failed");
-        return result;
+        return FALSE;
     }
 
     if (num_a_lines < 1) {
-        GSM_DEBUG("enumerating ICE attributes returned 0 attributes");
-        return CC_CAUSE_OK;
+    	GSM_ERR_MSG("enumerating ICE attributes returned 0 attributes");
+    	return TRUE;
     }
 
     *ice_attribs = (char **)cpr_malloc(num_a_lines * sizeof(char *));
 
     if (!(*ice_attribs))
-      return CC_CAUSE_OUT_OF_MEM;
+      return FALSE;
 
     *attributes_ctp = 0;
 
@@ -1595,24 +1593,19 @@ gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, cha
         result = sdp_attr_get_ice_attribute (sdp_p, level, 0, sdp_attr, (uint16_t) (i + 1),
           &ice_attrib);
         if (result != SDP_SUCCESS) {
-            GSM_ERR_MSG("Failed to retrieve ICE attribute");
-            cpr_free(*ice_attribs);
-            return result == SDP_INVALID_SDP_PTR ?
-                             CC_CAUSE_INVALID_SDP_POINTER :
-                   result == SDP_INVALID_PARAMETER ?
-                             CC_CAUSE_BAD_ICE_ATTRIBUTE :
-                   /* otherwise */
-                             CC_CAUSE_ERROR;
-        }
+    		GSM_ERR_MSG("Failed to retrieve ICE attribute");
+    		cpr_free(*ice_attribs);
+    		return FALSE;
+    	}
         (*ice_attribs)[i] = (char *) cpr_calloc(1, strlen(ice_attrib) + 1);
         if(!(*ice_attribs)[i])
-            return CC_CAUSE_OUT_OF_MEM;
+        	return FALSE;
 
         sstrncpy((*ice_attribs)[i], ice_attrib, strlen(ice_attrib) + 1);
         (*attributes_ctp)++;
     }
 
-    return CC_CAUSE_OK;
+    return TRUE;
 }
 
 /*
@@ -1642,146 +1635,6 @@ gsmsdp_set_ice_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char
     }
 
     result = sdp_attr_set_ice_attribute(sdp_p, level, 0, sdp_attr, a_instance, ice_attrib);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to set attribute");
-    }
-}
-
-/*
- * gsmsdp_set_rtcp_fb_ack_attribute
- *
- * Description:
- *
- * Adds an rtcp-fb:...ack attribute attributes to the specified SDP.
- *
- * Parameters:
- *
- * level        - The media level of the SDP where the media attribute exists.
- * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
- * ack_type     - Type of ack feedback mechanism in use
- */
-void
-gsmsdp_set_rtcp_fb_ack_attribute (uint16_t level,
-                                  void *sdp_p,
-                                  u16 payload_type,
-                                  sdp_rtcp_fb_ack_type_e ack_type)
-{
-    uint16_t      a_instance = 0;
-    sdp_result_e  result;
-
-    result = sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_RTCP_FB, &a_instance);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to add attribute");
-        return;
-    }
-
-    result = sdp_attr_set_rtcp_fb_ack(sdp_p, level, payload_type,
-                                      a_instance, ack_type);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to set attribute");
-    }
-}
-
-/*
- * gsmsdp_set_rtcp_fb_nack_attribute
- *
- * Description:
- *
- * Adds an rtcp-fb:...nack attribute attributes to the specified SDP.
- *
- * Parameters:
- *
- * level        - The media level of the SDP where the media attribute exists.
- * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
- * nack_type    - Type of nack feedback mechanism in use
- */
-void
-gsmsdp_set_rtcp_fb_nack_attribute (uint16_t level,
-                                   void *sdp_p,
-                                   u16 payload_type,
-                                   sdp_rtcp_fb_nack_type_e nack_type)
-{
-    uint16_t      a_instance = 0;
-    sdp_result_e  result;
-
-    result = sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_RTCP_FB, &a_instance);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to add attribute");
-        return;
-    }
-
-    result = sdp_attr_set_rtcp_fb_nack(sdp_p, level, payload_type,
-                                       a_instance, nack_type);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to set attribute");
-    }
-}
-
-/*
- * gsmsdp_set_rtcp_fb_trr_int_attribute
- *
- * Description:
- *
- * Adds an rtcp-fb:...trr-int attribute attributes to the specified SDP.
- *
- * Parameters:
- *
- * level        - The media level of the SDP where the media attribute exists.
- * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
- * trr_interval - Interval to set trr-int value to
- */
-void
-gsmsdp_set_rtcp_fb_trr_int_attribute (uint16_t level,
-                                      void *sdp_p,
-                                      u16 payload_type,
-                                      u32 trr_interval)
-{
-    uint16_t      a_instance = 0;
-    sdp_result_e  result;
-
-    result = sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_RTCP_FB, &a_instance);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to add attribute");
-        return;
-    }
-
-    result = sdp_attr_set_rtcp_fb_trr_int(sdp_p, level, payload_type,
-                                          a_instance, trr_interval);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to set attribute");
-    }
-}
-
-/*
- * gsmsdp_set_rtcp_fb_ccm_attribute
- *
- * Description:
- *
- * Adds an rtcp-fb:...ccm attribute attributes to the specified SDP.
- *
- * Parameters:
- *
- * level        - The media level of the SDP where the media attribute exists.
- * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
- * ccm_type     - Type of ccm feedback mechanism in use
- */
-void
-gsmsdp_set_rtcp_fb_ccm_attribute (uint16_t level,
-                                  void *sdp_p,
-                                  u16 payload_type,
-                                  sdp_rtcp_fb_ccm_type_e ccm_type)
-{
-    uint16_t      a_instance = 0;
-    sdp_result_e  result;
-
-    result = sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_RTCP_FB, &a_instance);
-    if (result != SDP_SUCCESS) {
-        GSM_ERR_MSG("Failed to add attribute");
-        return;
-    }
-
-    result = sdp_attr_set_rtcp_fb_ccm(sdp_p, level, payload_type,
-                                      a_instance, ccm_type);
     if (result != SDP_SUCCESS) {
         GSM_ERR_MSG("Failed to set attribute");
     }
@@ -4734,14 +4587,12 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
             /*
              * Negotiate rtcp-mux
              */
-            if(SDP_MEDIA_APPLICATION != media_type) {
-              sdp_res = sdp_attr_get_rtcp_mux_attribute(sdp_p->dest_sdp, i,
-                                                        0, SDP_ATTR_RTCP_MUX,
-                                                        1, &rtcp_mux);
 
-              if (SDP_SUCCESS == sdp_res) {
-                media->rtcp_mux = TRUE;
-              }
+            sdp_res = sdp_attr_get_rtcp_mux_attribute (sdp_p->dest_sdp, i,
+                                              0, SDP_ATTR_RTCP_MUX, 1, &rtcp_mux);
+
+            if (SDP_SUCCESS == sdp_res) {
+            	media->rtcp_mux = TRUE;
             }
 
             if (!unsupported_line) {
@@ -4755,10 +4606,8 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
                                               sdp_p->src_sdp, media->candidatesp[j]);
                   }
 
-                  /* Set RTCPMux if we have it turned on in our config
-                     and the other side requests it */
                   config_get_value(CFGID_RTCPMUX, &rtcpmux, sizeof(rtcpmux));
-                  if (rtcpmux && media->rtcp_mux) {
+                  if (rtcpmux) {
                     gsmsdp_set_rtcp_mux_attribute (SDP_ATTR_RTCP_MUX, media->level,
                                                    sdp_p->src_sdp, TRUE);
                   }
@@ -4813,19 +4662,6 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
             /* Not a support media type stream */
             unsupported_line = TRUE;
             break;
-        }
-
-        /* TODO (abr) -- temporarily hardcode rtcb-fb attributes to match our
-           actual behavior. This really needs to be a negotiation, with the
-           results of the negotiation propagating into the codec configuration.
-           See Bug 880067. */
-        if (media && media_type == SDP_MEDIA_VIDEO) {
-            gsmsdp_set_rtcp_fb_nack_attribute(media->level, sdp_p->src_sdp,
-                                              SDP_ALL_PAYLOADS,
-                                              SDP_RTCP_FB_NACK_UNSPECIFIED);
-            gsmsdp_set_rtcp_fb_ccm_attribute(media->level, sdp_p->src_sdp,
-                                             SDP_ALL_PAYLOADS,
-                                             SDP_RTCP_FB_CCM_FIR);
         }
 
         if (unsupported_line) {
@@ -4911,7 +4747,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
                            TODO(adam@nostrum.com): Figure out how to notify
                            when streams gain tracks */
                         ui_on_remote_stream_added(evOnRemoteStreamAdd,
-                            fcb_p->state, dcb_p->line, dcb_p->call_id,
+                            dcb_p->line, dcb_p->call_id,
                             dcb_p->caller_id.call_instance_id,
                             dcb_p->remote_media_stream_tbl->streams[j]);
 
@@ -5006,7 +4842,7 @@ gsmsdp_get_offered_media_types (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean *has_
  *
  * returns    cc_causes_t
  *            CC_CAUSE_OK - indicates success
- *            Any other code - indicates failure
+ *            CC_CAUSE_ERROR - indicates failure
  */
 static cc_causes_t
 gsmsdp_init_local_sdp (const char *peerconnection, cc_sdp_t **sdp_pp)
@@ -5022,11 +4858,8 @@ gsmsdp_init_local_sdp (const char *peerconnection, cc_sdp_t **sdp_pp)
     cpr_ip_mode_e   ip_mode;
     char           *strtok_state;
 
-    if (!peerconnection) {
-        return CC_CAUSE_NO_PEERCONNECTION;
-    }
-    if (!sdp_pp) {
-        return CC_CAUSE_NULL_POINTER;
+    if (!peerconnection || !sdp_pp) {
+        return CC_CAUSE_ERROR;
     }
 
     ip_mode = platform_get_ip_address_mode();
@@ -5066,7 +4899,7 @@ gsmsdp_init_local_sdp (const char *peerconnection, cc_sdp_t **sdp_pp)
     sdp_p = *sdp_pp;
 
     if ( sdp_p == NULL )
-       return CC_CAUSE_NO_SDP;
+       return CC_CAUSE_ERROR;
 
     local_sdp_p = sdp_p->src_sdp;
 
@@ -5279,7 +5112,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
           }
 
           config_get_value(CFGID_RTCPMUX, &rtcpmux, sizeof(rtcpmux));
-          if (SDP_MEDIA_APPLICATION != media_cap->type && rtcpmux) {
+          if (rtcpmux) {
             gsmsdp_set_rtcp_mux_attribute (SDP_ATTR_RTCP_MUX, level, dcb_p->sdp->src_sdp, TRUE);
           }
 
@@ -5317,7 +5150,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
  *
  * returns    cc_causes_t
  *            CC_CAUSE_OK - indicates success
- *            Any other code- indicates failure
+ *            CC_CAUSE_ERROR - indicates failure
  */
 cc_causes_t
 gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
@@ -5333,12 +5166,10 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
     boolean         has_audio;
     int             sdpmode = 0;
     boolean         media_enabled;
-    cc_causes_t     cause;
 
-    cause = gsmsdp_init_local_sdp(dcb_p->peerconnection, &(dcb_p->sdp));
-    if ( cause != CC_CAUSE_OK) {
-      return cause;
-    }
+    if ( CC_CAUSE_OK != gsmsdp_init_local_sdp(dcb_p->peerconnection,
+        &(dcb_p->sdp)) )
+      return CC_CAUSE_ERROR;
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
@@ -5350,7 +5181,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
         /* should not happen */
         GSM_ERR_MSG(GSM_L_C_F_PREFIX"no media capbility available",
                     dcb_p->line, dcb_p->call_id, fname);
-        return (CC_CAUSE_NO_MEDIA_CAPABILITY);
+        return (CC_CAUSE_ERROR);
     }
 
     media_cap = &media_cap_tbl->cap[0];
@@ -5397,20 +5228,6 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
                     level = level - 1;
                 }
             }
-
-            /* TODO (abr) -- temporarily hardcode rtcb-fb attributes to match
-               our actual behavior. This really needs to be a negotiation, with
-               the results of the negotiation propagating into the codec
-               configuration.  See Bug 880067. */
-            if (media_cap->type == SDP_MEDIA_VIDEO) {
-                gsmsdp_set_rtcp_fb_nack_attribute(level, dcb_p->sdp->src_sdp,
-                                                  SDP_ALL_PAYLOADS,
-                                                  SDP_RTCP_FB_NACK_UNSPECIFIED);
-                gsmsdp_set_rtcp_fb_ccm_attribute(level, dcb_p->sdp->src_sdp,
-                                                 SDP_ALL_PAYLOADS,
-                                                 SDP_RTCP_FB_CCM_FIR);
-            }
-
         }
         /* next capability */
         media_cap++;
@@ -5423,7 +5240,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
          */
         GSM_ERR_MSG(GSM_L_C_F_PREFIX"no media line for SDP",
                     dcb_p->line, dcb_p->call_id, fname);
-        return (CC_CAUSE_NO_M_LINE);
+        return (CC_CAUSE_ERROR);
     }
 
     /*
@@ -5456,7 +5273,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled,
             /* No audio, do not allow */
             GSM_ERR_MSG(GSM_L_C_F_PREFIX"no audio media line for SDP",
                     dcb_p->line, dcb_p->call_id, fname);
-            return (CC_CAUSE_NO_AUDIO);
+            return (CC_CAUSE_ERROR);
         }
     }
 
@@ -5478,7 +5295,7 @@ gsmsdp_create_options_sdp (cc_sdp_t ** sdp_pp)
     cc_sdp_t *sdp_p;
 
     /* This empty string represents to associated peerconnection object */
-    if (gsmsdp_init_local_sdp("", sdp_pp) != CC_CAUSE_OK) {
+    if (gsmsdp_init_local_sdp("", sdp_pp) == CC_CAUSE_ERROR) {
         return;
     }
 
@@ -6177,17 +5994,17 @@ gsmsdp_encode_sdp (cc_sdp_t *sdp_p, cc_msgbody_info_t *msg_body)
     uint32_t        body_length;
 
     if (!msg_body || !sdp_p) {
-        return CC_CAUSE_NULL_POINTER;
+        return CC_CAUSE_ERROR;
     }
 
     /* Support single SDP encoding for now */
     sdp_body = sipsdp_write_to_buf(sdp_p->src_sdp, &body_length);
 
     if (sdp_body == NULL) {
-        return CC_CAUSE_SDP_ENCODE_FAILED;
+        return CC_CAUSE_ERROR;
     } else if (body_length == 0) {
         cpr_free(sdp_body);
-        return CC_CAUSE_SDP_ENCODE_FAILED;
+        return CC_CAUSE_ERROR;
     }
 
     /* Clear off the bodies info */
@@ -6225,20 +6042,21 @@ cc_causes_t
 gsmsdp_encode_sdp_and_update_version (fsmdef_dcb_t *dcb_p, cc_msgbody_info_t *msg_body)
 {
     char version_str[GSMSDP_VERSION_STR_LEN];
-    cc_causes_t cause;
 
     snprintf(version_str, sizeof(version_str), "%d", dcb_p->src_sdp_version);
 
-    if ( dcb_p->sdp == NULL || dcb_p->sdp->src_sdp == NULL ) {
-        cause = gsmsdp_init_local_sdp(dcb_p->peerconnection, &(dcb_p->sdp));
-        if ( cause != CC_CAUSE_OK) {
-            return cause;
-        }
+    if ( dcb_p->sdp == NULL || dcb_p->sdp->src_sdp == NULL )
+    {
+    	if ( CC_CAUSE_OK != gsmsdp_init_local_sdp(dcb_p->peerconnection,
+            &(dcb_p->sdp)) )
+    	{
+    		return CC_CAUSE_ERROR;
+    	}
     }
     (void) sdp_set_owner_version(dcb_p->sdp->src_sdp, version_str);
 
     if (gsmsdp_encode_sdp(dcb_p->sdp, msg_body) != CC_CAUSE_OK) {
-        return CC_CAUSE_SDP_ENCODE_FAILED;
+        return CC_CAUSE_ERROR;
     }
 
     dcb_p->src_sdp_version++;
@@ -6340,7 +6158,7 @@ gsmsdp_realloc_dest_sdp (fsmdef_dcb_t *dcb_p)
     /* No SDP info block and parsed control block are available */
     if ((dcb_p->sdp == NULL) || (dcb_p->sdp->dest_sdp == NULL)) {
         /* Unable to create internal SDP structure to parse SDP. */
-        return CC_CAUSE_SDP_CREATE_FAILED;
+        return CC_CAUSE_ERROR;
     }
     return CC_CAUSE_OK;
 }
@@ -6376,21 +6194,20 @@ gsmsdp_negotiate_answer_sdp (fsm_fcb_t *fcb_p, cc_msgbody_info_t *msg_body)
         /*
          * Clear the call - we don't have any remote SDP info!
          */
-        return CC_CAUSE_NO_SDP;
+        return CC_CAUSE_ERROR;
     }
 
     /* There are SDPs to process, prepare for parsing the SDP */
-    status = gsmsdp_realloc_dest_sdp(dcb_p);
-    if (status != CC_CAUSE_OK) {
+    if (gsmsdp_realloc_dest_sdp(dcb_p) != CC_CAUSE_OK) {
         /* Unable to create internal SDP structure to parse SDP. */
-        return status;
+        return CC_CAUSE_ERROR;
     }
 
     /*
      * Parse the SDP into internal structure,
      * now just parse one
      */
-    status = CC_CAUSE_SDP_PARSE_FAILED;
+    status = CC_CAUSE_ERROR;
     for (i = 0; (i < num_sdp_bodies); i++) {
         if ((sdp_bodies[i]->body != NULL) && (sdp_bodies[i]->body_length > 0)) {
             /* Found a body */
@@ -6492,10 +6309,8 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
          * of a session. Otherwise, we will send what we have.
          */
         if (init) {
-            status = gsmsdp_create_local_sdp(dcb_p, FALSE, TRUE,
-                                             TRUE, TRUE, TRUE);
-            if ( status != CC_CAUSE_OK) {
-                return status;
+            if ( CC_CAUSE_OK != gsmsdp_create_local_sdp(dcb_p, FALSE, TRUE, TRUE, TRUE, TRUE)) {
+                return CC_CAUSE_ERROR;
             }
         } else {
             /*
@@ -6508,17 +6323,16 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
     }
 
     /* There are SDPs to process, prepare for parsing the SDP */
-    status = gsmsdp_realloc_dest_sdp(dcb_p);
-    if (status != CC_CAUSE_OK) {
+    if (gsmsdp_realloc_dest_sdp(dcb_p) != CC_CAUSE_OK) {
         /* Unable to create internal SDP structure to parse SDP. */
-        return status;
+        return CC_CAUSE_ERROR;
     }
 
     /*
      * Parse the SDP into internal structure,
      * now just parse one
      */
-    status = CC_CAUSE_SDP_PARSE_FAILED;
+    status = CC_CAUSE_ERROR;
     for (i = 0; (i < num_sdp_bodies); i++) {
         if ((sdp_bodies[i]->body != NULL) && (sdp_bodies[i]->body_length > 0)) {
             /* Found a body */
@@ -6546,76 +6360,6 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
     return (status);
 }
 
-
-/*
- * gsmsdp_check_peer_ice_attributes_exist
- *
- * Read ICE parameters from the SDP and return failure
- * if they are not complete.
- *
- * fcb_p - pointer to the fcb
- *
- */
-cc_causes_t
-gsmsdp_check_ice_attributes_exist(fsm_fcb_t *fcb_p) {
-    fsmdef_dcb_t    *dcb_p = fcb_p->dcb;
-    sdp_result_e     sdp_res;
-    char            *ufrag;
-    char            *pwd;
-    fsmdef_media_t  *media;
-    boolean          has_session_ufrag = FALSE;
-    boolean          has_session_pwd = FALSE;
-
-    /* Check for valid ICE parameters */
-    sdp_res = sdp_attr_get_ice_attribute(dcb_p->sdp->dest_sdp,
-        SDP_SESSION_LEVEL, 0, SDP_ATTR_ICE_UFRAG, 1, &ufrag);
-    if (sdp_res == SDP_SUCCESS && ufrag) {
-        has_session_ufrag = TRUE;
-    }
-
-    sdp_res = sdp_attr_get_ice_attribute(dcb_p->sdp->dest_sdp,
-        SDP_SESSION_LEVEL, 0, SDP_ATTR_ICE_PWD, 1, &pwd);
-    if (sdp_res == SDP_SUCCESS && pwd) {
-        has_session_pwd = TRUE;
-    }
-
-    if (has_session_ufrag && has_session_pwd) {
-        /* Both exist at session level, success */
-        return CC_CAUSE_OK;
-    }
-
-    /* Incomplete ICE params at session level, check all media levels */
-    GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
-        if (!GSMSDP_MEDIA_ENABLED(media)) {
-            continue;
-        }
-
-        if (!has_session_ufrag) {
-            sdp_res = sdp_attr_get_ice_attribute(dcb_p->sdp->dest_sdp,
-                media->level, 0, SDP_ATTR_ICE_UFRAG, 1, &ufrag);
-
-            if (sdp_res != SDP_SUCCESS || !ufrag) {
-                GSM_ERR_MSG(GSM_L_C_F_PREFIX"missing ICE ufrag parameter.",
-                            dcb_p->line, dcb_p->call_id, __FUNCTION__);
-                return CC_CAUSE_MISSING_ICE_ATTRIBUTES;
-            }
-        }
-
-        if (!has_session_pwd) {
-            sdp_res = sdp_attr_get_ice_attribute(dcb_p->sdp->dest_sdp,
-                media->level, 0, SDP_ATTR_ICE_PWD, 1, &pwd);
-
-            if (sdp_res != SDP_SUCCESS || !pwd) {
-                GSM_ERR_MSG(GSM_L_C_F_PREFIX"missing ICE pwd parameter.",
-                            dcb_p->line, dcb_p->call_id, __FUNCTION__);
-                return CC_CAUSE_MISSING_ICE_ATTRIBUTES;
-            }
-        }
-    }
-
-    return CC_CAUSE_OK;
-}
-
 /*
  * gsmsdp_install_peer_ice_attributes
  *
@@ -6638,7 +6382,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
     cc_sdp_t        *sdp_p = dcb_p->sdp;
     fsmdef_media_t  *media;
     int             level;
-    cc_causes_t     result;
+    short           result;
 
     /* Tolerate missing ufrag/pwd here at the session level
        because it might be at the media level */
@@ -6655,7 +6399,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
     if (ufrag && pwd) {
         vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd);
         if (vcm_res)
-            return (CC_CAUSE_SETTING_ICE_SESSION_PARAMETERS_FAILED);
+            return (CC_CAUSE_ERROR);
     }
 
     /* Now process all the media lines */
@@ -6677,8 +6421,8 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
       candidates = NULL;
       result = gsmsdp_get_ice_attributes (SDP_ATTR_ICE_CANDIDATE, media->level, sdp_p->dest_sdp,
                                           &candidates, &candidate_ct);
-      if(result != CC_CAUSE_OK)
-        return (result);
+      if(!result)
+        return (CC_CAUSE_ERROR);
 
       /* Set ICE parameters into ICE engine */
 
@@ -6697,7 +6441,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
       }
 
       if (vcm_res)
-        return (CC_CAUSE_SETTING_ICE_SESSION_PARAMETERS_FAILED);
+        return (CC_CAUSE_ERROR);
 
     }
 
@@ -6750,47 +6494,47 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
 
         if (SDP_SUCCESS == sdp_res ) {
             if (strlen(fingerprint) >= sizeof(line_to_split))
-                return CC_CAUSE_DTLS_FINGERPRINT_TOO_LONG;
+                return CC_CAUSE_ERROR;
             sstrncpy(line_to_split, fingerprint, sizeof(line_to_split));
         } else if (SDP_SUCCESS == sdp_session_res) {
             if (strlen(session_fingerprint) >= sizeof(line_to_split))
-                return CC_CAUSE_DTLS_FINGERPRINT_TOO_LONG;
+                return CC_CAUSE_ERROR;
             sstrncpy(line_to_split, session_fingerprint, sizeof(line_to_split));
         } else {
-            cause = CC_CAUSE_NO_DTLS_FINGERPRINT;
+            cause = CC_CAUSE_ERROR;
             continue;
         }
 
         if (SDP_SUCCESS == sdp_res || SDP_SUCCESS == sdp_session_res) {
             if(!(token = PL_strtok_r(line_to_split, delim, &strtok_state)))
-                return CC_CAUSE_DTLS_FINGERPRINT_PARSE_ERROR;
+                return CC_CAUSE_ERROR;
 
             if (strlen(token) >= sizeof(digest_alg))
-                return CC_CAUSE_DTLS_DIGEST_ALGORITHM_TOO_LONG;
+                return CC_CAUSE_ERROR;
 
             sstrncpy(digest_alg, token, sizeof(digest_alg));
             if(!(token = PL_strtok_r(NULL, delim, &strtok_state)))
-                return CC_CAUSE_DTLS_FINGERPRINT_PARSE_ERROR;
+                return CC_CAUSE_ERROR;
 
             if (strlen(token) >= sizeof(digest))
-                return CC_CAUSE_DTLS_DIGEST_TOO_LONG;
+                return CC_CAUSE_ERROR;
 
             sstrncpy(digest, token, sizeof(digest));
 
             if (strlen(digest_alg) >= sizeof(media->negotiated_crypto.algorithm))
-                return CC_CAUSE_DTLS_DIGEST_ALGORITHM_TOO_LONG;
+                return CC_CAUSE_ERROR;
 
             sstrncpy(media->negotiated_crypto.algorithm, digest_alg, sizeof(media->negotiated_crypto.algorithm));
             if (strlen(media->negotiated_crypto.algorithm) == 0) {
-                return CC_CAUSE_DTLS_DIGEST_ALGORITHM_EMPTY;
+                return CC_CAUSE_ERROR;
             }
 
             if (strlen(digest) >= sizeof(media->negotiated_crypto.digest))
-                return CC_CAUSE_DTLS_DIGEST_TOO_LONG;
+                return CC_CAUSE_ERROR;
 
             sstrncpy(media->negotiated_crypto.digest, digest, sizeof(media->negotiated_crypto.digest));
             if (strlen(media->negotiated_crypto.digest) == 0) {
-                return CC_CAUSE_DTLS_DIGEST_EMPTY;
+                return CC_CAUSE_ERROR;
             }
 
             /* Here we have DTLS data */
@@ -6799,7 +6543,7 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
         } else {
             GSM_DEBUG(DEB_F_PREFIX"DTLS attribute error",
                                    DEB_F_PREFIX_ARGS(GSM, __FUNCTION__));
-            return CC_CAUSE_DTLS_ATTRIBUTE_ERROR;
+            return CC_CAUSE_ERROR;
         }
     }
 
@@ -6973,8 +6717,6 @@ static boolean gsmsdp_add_remote_track(uint16_t idx, uint16_t track,
                                        fsmdef_dcb_t *dcb_p,
                                        fsmdef_media_t *media) {
   cc_media_remote_track_table_t *stream;
-  int vcm_ret;
-
   PR_ASSERT(idx < CC_MAX_STREAMS);
   if (idx >= CC_MAX_STREAMS)
     return FALSE;
@@ -6994,24 +6736,6 @@ static boolean gsmsdp_add_remote_track(uint16_t idx, uint16_t track,
       (media->type == SDP_MEDIA_VIDEO) ? TRUE : FALSE;
 
   ++stream->num_tracks;
-
-  if (media->type == SDP_MEDIA_VIDEO) {
-    vcm_ret = vcmAddRemoteStreamHint(dcb_p->peerconnection, idx, TRUE);
-  } else if (media->type == SDP_MEDIA_AUDIO) {
-    vcm_ret = vcmAddRemoteStreamHint(dcb_p->peerconnection, idx, FALSE);
-  } else {
-    // No other track types should be valid here
-    MOZ_ASSERT(FALSE);
-    // Not setting a hint for this track type will simply cause the
-    // onaddstream callback not to wait for the track to be ready.
-    vcm_ret = 0;
-  }
-
-  if (vcm_ret) {
-      CSFLogError(logTag, "%s: vcmAddRemoteStreamHint returned error: %d",
-          __FUNCTION__, vcm_ret);
-      return FALSE;
-  }
 
   return TRUE;
 }

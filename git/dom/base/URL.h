@@ -6,21 +6,15 @@
 #define URL_h___
 
 #include "nscore.h"
-#include "nsString.h"
+#include "mozilla/dom/URLBinding.h"
 
 class nsIDOMBlob;
-class nsISupports;
 
 namespace mozilla {
 
-class ErrorResult;
 class DOMMediaStream;
 
 namespace dom {
-
-class MediaSource;
-class GlobalObject;
-struct objectURLOptions;
 
 class URL MOZ_FINAL
 {
@@ -33,11 +27,6 @@ public:
   static void CreateObjectURL(const GlobalObject& aGlobal,
                               DOMMediaStream& aStream,
                               const mozilla::dom::objectURLOptions& aOptions,
-                              nsString& aResult,
-                              mozilla::ErrorResult& aError);
-  static void CreateObjectURL(const GlobalObject& aGlobal,
-                              MediaSource& aSource,
-                              const objectURLOptions& aOptions,
                               nsString& aResult,
                               mozilla::ErrorResult& aError);
   static void RevokeObjectURL(const GlobalObject& aGlobal,

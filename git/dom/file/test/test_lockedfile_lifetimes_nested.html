@@ -16,7 +16,7 @@
       let request = getFileHandle(fileStorage.key, "test.txt");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
-      let event = yield undefined;
+      let event = yield;
 
       let fileHandle = event.target.result;
       fileHandle.onerror = errorHandler;
@@ -45,11 +45,11 @@
       ok(lockedFile2, "Non-null lockedFile2");
 
       continueToNextStep();
-      yield undefined;
+      yield;
     }
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="helpers.js"></script>

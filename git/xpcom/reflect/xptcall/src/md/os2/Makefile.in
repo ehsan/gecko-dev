@@ -14,6 +14,10 @@ LIBRARY_NAME	= xptcmd
 EXPORT_LIBRARY	= ../..
 MOZILLA_INTERNAL_API = 1
 
+CPPSRCS		= \
+		../unix/xptcinvoke_gcc_x86_unix.cpp \
+		xptcstubs_gcc_x86_os2.cpp \
+		$(NULL)
 LOCAL_INCLUDES = \
 		-I$(srcdir)/../unix \
 		-I$(srcdir)/../../../../xptinfo/src \
@@ -21,11 +25,13 @@ LOCAL_INCLUDES = \
 DEFINES		+= -DMOZ_NEED_LEADING_UNDERSCORE
 
 
+include $(topsrcdir)/config/config.mk
+
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-DEFINES		+= -DIMPL_LIBXUL
+DEFINES		+= -DEXPORT_XPTC_API
 
 LOCAL_INCLUDES	+= -I$(srcdir)/../..

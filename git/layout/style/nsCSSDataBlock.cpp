@@ -9,7 +9,6 @@
  */
 
 #include "nsCSSDataBlock.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Declaration.h"
 #include "mozilla/css/ImageLoader.h"
 #include "nsRuleData.h"
@@ -227,7 +226,7 @@ nsCSSCompressedDataBlock::CreateEmptyBlock()
 }
 
 size_t
-nsCSSCompressedDataBlock::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSCompressedDataBlock::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     size_t n = aMallocSizeOf(this);
     for (uint32_t i = 0; i < mNumProps; i++) {

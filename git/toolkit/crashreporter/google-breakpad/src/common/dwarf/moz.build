@@ -6,5 +6,3 @@
 
 MODULE = 'breakpad_dwarf'
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    HOST_LIBRARY_NAME = 'host_breakpad_dwarf_s'

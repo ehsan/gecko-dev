@@ -31,19 +31,12 @@ TelephonyListener::CallStateChanged(uint32_t aCallIndex,
                                     uint16_t aCallState,
                                     const nsAString& aNumber,
                                     bool aIsActive,
-                                    bool aIsOutgoing,
-                                    bool aIsEmergency)
+                                    bool aIsOutgoing)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
+  hfp->HandleCallStateChanged(aCallIndex, aCallState, aNumber,
                               aIsOutgoing, true);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::EnumerateCallStateComplete()
-{
   return NS_OK;
 }
 
@@ -53,47 +46,18 @@ TelephonyListener::EnumerateCallState(uint32_t aCallIndex,
                                       const nsAString_internal& aNumber,
                                       bool aIsActive,
                                       bool aIsOutgoing,
-                                      bool aIsEmergency,
                                       bool* aResult)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
+  hfp->HandleCallStateChanged(aCallIndex, aCallState, aNumber,
                               aIsOutgoing, false);
   *aResult = true;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TelephonyListener::SupplementaryServiceNotification(int32_t aCallIndex,
-                                                    uint16_t aNotification)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 TelephonyListener::NotifyError(int32_t aCallIndex,
                                const nsAString& aError)
-{
-  BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-
-  if (aCallIndex > 0) {
-    // In order to not miss any related call state transition.
-    // It's possible that 3G network signal lost for unknown reason.
-    // If a call is released abnormally, NotifyError() will be called,
-    // instead of CallStateChanged(). We need to reset the call array state
-    // via setting CALL_STATE_DISCONNECTED
-    hfp->HandleCallStateChanged(aCallIndex,
-                                nsITelephonyProvider::CALL_STATE_DISCONNECTED,
-                                aError, EmptyString(), false, true);
-    NS_WARNING("Reset the call state due to call transition ends abnormally");
-  }
-
-  NS_WARNING(NS_ConvertUTF16toUTF8(aError).get());
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::NotifyCdmaCallWaiting(const nsAString& aNumber)
 {
   return NS_OK;
 }

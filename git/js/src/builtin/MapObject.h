@@ -4,13 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_MapObject_h
-#define builtin_MapObject_h
+#ifndef MapObject_h__
+#define MapObject_h__
+
+#include "mozilla/FloatingPoint.h"
+#include "mozilla/GuardObjects.h"
 
 #include "jsapi.h"
+#include "jscntxt.h"
 #include "jsobj.h"
-
-#include "vm/Runtime.h"
 
 namespace js {
 
@@ -36,7 +38,7 @@ class HashableValue {
 
     HashableValue() : value(UndefinedValue()) {}
 
-    bool setValue(JSContext *cx, HandleValue v);
+    bool setValue(JSContext *cx, const Value &v);
     HashNumber hash() const;
     bool operator==(const HashableValue &other) const;
     HashableValue mark(JSTracer *trc) const;
@@ -53,7 +55,7 @@ class AutoHashableValueRooter : private AutoGCRooter
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-    bool setValue(JSContext *cx, HandleValue v) {
+    bool setValue(JSContext *cx, const Value &v) {
         return value.setValue(cx, v);
     }
 
@@ -97,35 +99,34 @@ class MapObject : public JSObject {
     static ValueMap & extract(CallReceiver call);
     static void mark(JSTracer *trc, JSObject *obj);
     static void finalize(FreeOp *fop, JSObject *obj);
-    static bool construct(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);
 
     static bool iterator_impl(JSContext *cx, CallArgs args, IteratorKind kind);
 
     static bool size_impl(JSContext *cx, CallArgs args);
-    static bool size(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool size(JSContext *cx, unsigned argc, Value *vp);
     static bool get_impl(JSContext *cx, CallArgs args);
-    static bool get(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool get(JSContext *cx, unsigned argc, Value *vp);
     static bool has_impl(JSContext *cx, CallArgs args);
-    static bool has(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool has(JSContext *cx, unsigned argc, Value *vp);
     static bool set_impl(JSContext *cx, CallArgs args);
-    static bool set(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool set(JSContext *cx, unsigned argc, Value *vp);
     static bool delete_impl(JSContext *cx, CallArgs args);
-    static bool delete_(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool delete_(JSContext *cx, unsigned argc, Value *vp);
     static bool keys_impl(JSContext *cx, CallArgs args);
-    static bool keys(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool keys(JSContext *cx, unsigned argc, Value *vp);
     static bool values_impl(JSContext *cx, CallArgs args);
-    static bool values(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool values(JSContext *cx, unsigned argc, Value *vp);
     static bool entries_impl(JSContext *cx, CallArgs args);
-    static bool entries(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool entries(JSContext *cx, unsigned argc, Value *vp);
     static bool clear_impl(JSContext *cx, CallArgs args);
-    static bool clear(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool clear(JSContext *cx, unsigned argc, Value *vp);
 };
 
 class SetObject : public JSObject {
   public:
-    enum IteratorKind { Values, Entries };
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
@@ -135,26 +136,22 @@ class SetObject : public JSObject {
     static ValueSet & extract(CallReceiver call);
     static void mark(JSTracer *trc, JSObject *obj);
     static void finalize(FreeOp *fop, JSObject *obj);
-    static bool construct(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);
 
-    static bool iterator_impl(JSContext *cx, CallArgs args, IteratorKind kind);
-
     static bool size_impl(JSContext *cx, CallArgs args);
-    static bool size(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool size(JSContext *cx, unsigned argc, Value *vp);
     static bool has_impl(JSContext *cx, CallArgs args);
-    static bool has(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool has(JSContext *cx, unsigned argc, Value *vp);
     static bool add_impl(JSContext *cx, CallArgs args);
-    static bool add(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool add(JSContext *cx, unsigned argc, Value *vp);
     static bool delete_impl(JSContext *cx, CallArgs args);
-    static bool delete_(JSContext *cx, unsigned argc, Value *vp);
-    static bool values_impl(JSContext *cx, CallArgs args);
-    static bool values(JSContext *cx, unsigned argc, Value *vp);
-    static bool entries_impl(JSContext *cx, CallArgs args);
-    static bool entries(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool delete_(JSContext *cx, unsigned argc, Value *vp);
+    static bool iterator_impl(JSContext *cx, CallArgs args);
+    static JSBool iterator(JSContext *cx, unsigned argc, Value *vp);
     static bool clear_impl(JSContext *cx, CallArgs args);
-    static bool clear(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool clear(JSContext *cx, unsigned argc, Value *vp);
 };
 
 } /* namespace js */
@@ -165,4 +162,4 @@ js_InitMapClass(JSContext *cx, js::HandleObject obj);
 extern JSObject *
 js_InitSetClass(JSContext *cx, js::HandleObject obj);
 
-#endif /* builtin_MapObject_h */
+#endif  /* MapObject_h__ */

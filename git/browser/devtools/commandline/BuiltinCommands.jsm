@@ -13,17 +13,15 @@ this.EXPORTED_SYMBOLS = [ "CmdAddonFlags", "CmdCommands", "DEFAULT_DEBUG_PORT", 
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
-Cu.import("resource://gre/modules/osfile.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+Cu.import("resource://gre/modules/osfile.jsm")
 
 Cu.import("resource://gre/modules/devtools/gcli.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
-let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-let Telemetry = devtools.require("devtools/shared/telemetry");
-let telemetry = new Telemetry();
-
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+                                  "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
                                   "resource:///modules/devtools/gDevTools.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
                                   "resource:///modules/devtools/AppCacheUtils.jsm");
@@ -176,8 +174,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
                 gcli.lookup("addonListOutEnable")
             };
           }),
-          onclick: context.update,
-          ondblclick: context.updateExec
+          onclick: createUpdateHandler(context),
+          ondblclick: createExecuteHandler(context)
         }
       });
     }
@@ -345,6 +343,56 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     module.CmdAddonFlags.addonsLoaded = true;
     Services.obs.notifyObservers(null, "gcli_addon_commands_ready", null);
   });
+
+  /**
+   * Helper to find the 'data-command' attribute and call some action on it.
+   * @see |updateCommand()| and |executeCommand()|
+   */
+  function withCommand(element, action) {
+    var command = element.getAttribute("data-command");
+    if (!command) {
+      command = element.querySelector("*[data-command]")
+        .getAttribute("data-command");
+    }
+
+    if (command) {
+      action(command);
+    }
+    else {
+      console.warn("Missing data-command for " + util.findCssSelector(element));
+    }
+  }
+
+  /**
+   * Create a handler to update the requisition to contain the text held in the
+   * first matching data-command attribute under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createUpdateHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.update(command);
+      });
+    }
+  }
+
+  /**
+   * Create a handler to execute the text held in the data-command attribute
+   * under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createExecuteHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.exec({
+          visible: true,
+          typed: command
+        });
+      });
+    }
+  }
 
 }(this));
 
@@ -598,11 +646,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     return prefService.getBranch(null).QueryInterface(Ci.nsIPrefBranch2);
   });
 
-  XPCOMUtils.defineLazyGetter(this, 'supportsString', function() {
-    return Cc["@mozilla.org/supports-string;1"]
-             .createInstance(Ci.nsISupportsString);
-  });
-
   XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                     "resource://gre/modules/NetUtil.jsm");
   XPCOMUtils.defineLazyModuleGetter(this, "console",
@@ -649,8 +692,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         dirName = homeDir + dirName;
       }
 
-      let statPromise = OS.File.stat(dirName);
-      statPromise = statPromise.then(
+      let promise = OS.File.stat(dirName);
+      promise = promise.then(
         function onSuccess(stat) {
           if (!stat.isDir) {
             throw new Error('\'' + dirName + '\' is not a directory.');
@@ -667,7 +710,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         }
       );
 
-      statPromise.then(
+      promise.then(
         function onSuccess() {
           let iterator = new OS.File.DirectoryIterator(dirName);
           let iterPromise = iterator.forEach(
@@ -700,8 +743,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
    * we eval the script from the .mozcmd file. This should be a chrome window.
    */
   function loadCommandFile(aFileEntry, aSandboxPrincipal) {
-    let readPromise = OS.File.read(aFileEntry.path);
-    readPromise = readPromise.then(
+    let promise = OS.File.read(aFileEntry.path);
+    promise = promise.then(
       function onSuccess(array) {
         let decoder = new TextDecoder();
         let source = decoder.decode(array);
@@ -722,6 +765,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
           gcli.addCommand(commandSpec);
           commands.push(commandSpec.name);
         });
+
       },
       function onError(reason) {
         console.error("OS.File.read(" + aFileEntry.path + ") failed.");
@@ -735,9 +779,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
    */
   gcli.addCommand({
     name: "cmd",
-    get hidden() {
-      return !prefBranch.prefHasUserValue(PREF_DIR);
-    },
+    get hidden() { return !prefBranch.prefHasUserValue(PREF_DIR); },
     description: gcli.lookup("cmdDesc")
   });
 
@@ -747,49 +789,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
   gcli.addCommand({
     name: "cmd refresh",
     description: gcli.lookup("cmdRefreshDesc"),
-    get hidden() {
-      return !prefBranch.prefHasUserValue(PREF_DIR);
-    },
-    exec: function(args, context) {
+    get hidden() { return !prefBranch.prefHasUserValue(PREF_DIR); },
+    exec: function Command_cmdRefresh(args, context) {
       let chromeWindow = context.environment.chromeDocument.defaultView;
       CmdCommands.refreshAutoCommands(chromeWindow);
-
-      let dirName = prefBranch.getComplexValue(PREF_DIR,
-                                              Ci.nsISupportsString).data.trim();
-      return gcli.lookupFormat("cmdStatus", [ commands.length, dirName ]);
-    }
-  });
-
-  /**
-   * 'cmd setdir' command
-   */
-  gcli.addCommand({
-    name: "cmd setdir",
-    description: gcli.lookup("cmdSetdirDesc"),
-    params: [
-      {
-        name: "directory",
-        description: gcli.lookup("cmdSetdirDirectoryDesc"),
-        type: {
-          name: "file",
-          filetype: "directory",
-          existing: "yes"
-        },
-        defaultValue: null
-      }
-    ],
-    returnType: "string",
-    get hidden() {
-      return true; // !prefBranch.prefHasUserValue(PREF_DIR);
-    },
-    exec: function(args, context) {
-      supportsString.data = args.directory;
-      prefBranch.setComplexValue(PREF_DIR, Ci.nsISupportsString, supportsString);
-
-      let chromeWindow = context.environment.chromeDocument.defaultView;
-      CmdCommands.refreshAutoCommands(chromeWindow);
-
-      return gcli.lookupFormat("cmdStatus", [ commands.length, args.directory ]);
     }
   });
 }(this));
@@ -797,13 +800,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
 /* CmdConsole -------------------------------------------------------------- */
 
 (function(module) {
-  Object.defineProperty(this, "HUDService", {
-    get: function() {
-      return devtools.require("devtools/webconsole/hudservice");
-    },
-    configurable: true,
-    enumerable: true
-  });
+  XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
+                                    "resource:///modules/HUDService.jsm");
 
   /**
    * 'console' command
@@ -928,8 +926,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         data: {
           options: { allowEval: true },
           cookies: cookies,
-          onclick: context.update,
-          ondblclick: context.updateExec
+          onclick: createUpdateHandler(context),
+          ondblclick: createExecuteHandler(context),
         }
       });
     }
@@ -977,7 +975,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     description: gcli.lookup("cookieListDesc"),
     manual: gcli.lookup("cookieListManual"),
     returnType: "cookies",
-    exec: function(args, context) {
+    exec: function Command_cookieList(args, context) {
       let host = context.environment.document.location.host;
       if (host == null || host == "") {
         throw new Error(gcli.lookup("cookieListOutNonePage"));
@@ -1020,7 +1018,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         description: gcli.lookup("cookieRemoveKeyDesc"),
       }
     ],
-    exec: function(args, context) {
+    exec: function Command_cookieRemove(args, context) {
       let host = context.environment.document.location.host;
       let enm = cookieMgr.getCookiesFromHost(host);
 
@@ -1059,7 +1057,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         params: [
           {
             name: "path",
-            type: { name: "string", allowBlank: true },
+            type: "string",
             defaultValue: "/",
             description: gcli.lookup("cookieSetPathDesc")
           },
@@ -1093,7 +1091,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
         ]
       }
     ],
-    exec: function(args, context) {
+    exec: function Command_cookieSet(args, context) {
       let host = context.environment.document.location.host;
       let time = Date.parse(args.expires) / 1000;
 
@@ -1107,6 +1105,56 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
                     time);
     }
   });
+
+  /**
+   * Helper to find the 'data-command' attribute and call some action on it.
+   * @see |updateCommand()| and |executeCommand()|
+   */
+  function withCommand(element, action) {
+    let command = element.getAttribute("data-command");
+    if (!command) {
+      command = element.querySelector("*[data-command]")
+              .getAttribute("data-command");
+    }
+
+    if (command) {
+      action(command);
+    }
+    else {
+      console.warn("Missing data-command for " + util.findCssSelector(element));
+    }
+  }
+
+  /**
+   * Create a handler to update the requisition to contain the text held in the
+   * first matching data-command attribute under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createUpdateHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.update(command);
+      });
+    }
+  }
+
+  /**
+   * Create a handler to execute the text held in the data-command attribute
+   * under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createExecuteHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.exec({
+          visible: true,
+          typed: command
+        });
+      });
+    }
+  }
 }(this));
 
 /* CmdExport --------------------------------------------------------------- */
@@ -1541,18 +1589,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     params: [
       {
         name: "srcdir",
-        type: "string" /* {
-          name: "file",
-          filetype: "directory",
-          existing: "yes"
-        } */,
+        type: "string",
         description: gcli.lookup("toolsSrcdirDir")
       }
     ],
     returnType: "string",
     exec: function(args, context) {
-      let clobber = OS.Path.join(args.srcdir, "CLOBBER");
-      return OS.File.exists(clobber).then(function(exists) {
+      return OS.File.exists(args.srcdir + "/CLOBBER").then(function(exists) {
         if (exists) {
           let str = Cc["@mozilla.org/supports-string;1"]
                     .createInstance(Ci.nsISupportsString);
@@ -1885,7 +1928,7 @@ const { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server
 gcli.addCommand({
   name: "listen",
   description: gcli.lookup("listenDesc"),
-  manual: gcli.lookupFormat("listenManual2", [BRAND_SHORT_NAME]),
+  manual: gcli.lookup("listenManual"),
   params: [
     {
       name: "port",
@@ -2007,7 +2050,8 @@ gcli.addCommand({
     description: gcli.lookup('paintflashingToggleDesc'),
     manual: gcli.lookup('paintflashingManual'),
     exec: function(args, context) {
-      var window = context.environment.window;
+      var gBrowser = context.environment.chromeDocument.defaultView.gBrowser;
+      var window = gBrowser.contentWindow;
       var wUtils = window.QueryInterface(Ci.nsIInterfaceRequestor).
                    getInterface(Ci.nsIDOMWindowUtils);
       wUtils.paintFlashing = !wUtils.paintFlashing;
@@ -2026,15 +2070,6 @@ gcli.addCommand({
     var target = devtools.TargetFactory.forTab(tab);
     target.off("navigate", fireChange);
     target.once("navigate", fireChange);
-
-    var window = context.environment.window;
-    var wUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIDOMWindowUtils);
-    if (wUtils.paintFlashing) {
-      telemetry.toolOpened("paintflashing");
-    } else {
-      telemetry.toolClosed("paintflashing");
-    }
   }
 }(this));
 
@@ -2172,8 +2207,8 @@ gcli.addCommand({
         html: appcacheListEntries,
         data: {
           entries: entries,
-          onclick: context.update,
-          ondblclick: context.updateExec
+          onclick: createUpdateHandler(context),
+          ondblclick: createExecuteHandler(context),
         }
       });
     }
@@ -2218,50 +2253,54 @@ gcli.addCommand({
       return utils.viewEntry(args.key);
     }
   });
-}(this));
 
-/* CmdMedia ------------------------------------------------------- */
-
-(function(module) {
   /**
-   * 'media' command
+   * Helper to find the 'data-command' attribute and call some action on it.
+   * @see |updateCommand()| and |executeCommand()|
    */
-
-  gcli.addCommand({
-    name: "media",
-    description: gcli.lookup("mediaDesc")
-  });
-
-  gcli.addCommand({
-    name: "media emulate",
-    description: gcli.lookup("mediaEmulateDesc"),
-    manual: gcli.lookup("mediaEmulateManual"),
-    params: [
-      {
-        name: "type",
-        description: gcli.lookup("mediaEmulateType"),
-        type: {
-               name: "selection",
-               data: ["braille", "embossed", "handheld", "print", "projection",
-                      "screen", "speech", "tty", "tv"]
-              }
-      }
-    ],
-    exec: function(args, context) {
-      let markupDocumentViewer = context.environment.chromeWindow
-                                        .gBrowser.markupDocumentViewer;
-      markupDocumentViewer.emulateMedium(args.type);
+  function withCommand(element, action) {
+    let command = element.getAttribute("data-command");
+    if (!command) {
+      command = element.querySelector("*[data-command]")
+              .getAttribute("data-command");
     }
-  });
 
-  gcli.addCommand({
-    name: "media reset",
-    description: gcli.lookup("mediaResetDesc"),
-    manual: gcli.lookup("mediaEmulateManual"),
-    exec: function(args, context) {
-      let markupDocumentViewer = context.environment.chromeWindow
-                                        .gBrowser.markupDocumentViewer;
-      markupDocumentViewer.stopEmulatingMedium();
+    if (command) {
+      action(command);
     }
-  });
+    else {
+      console.warn("Missing data-command for " + util.findCssSelector(element));
+    }
+  }
+
+  /**
+   * Create a handler to update the requisition to contain the text held in the
+   * first matching data-command attribute under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createUpdateHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.update(command);
+      });
+    }
+  }
+
+  /**
+   * Create a handler to execute the text held in the data-command attribute
+   * under the currentTarget of the event.
+   * @param context Either a Requisition or an ExecutionContext or another object
+   * that contains an |update()| function that follows a similar contract.
+   */
+  function createExecuteHandler(context) {
+    return function(ev) {
+      withCommand(ev.currentTarget, function(command) {
+        context.exec({
+          visible: true,
+          typed: command
+        });
+      });
+    }
+  }
 }(this));

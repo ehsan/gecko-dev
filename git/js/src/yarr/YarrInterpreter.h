@@ -22,13 +22,14 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrInterpreter_h
-#define yarr_YarrInterpreter_h
+#ifndef YarrInterpreter_h
+#define YarrInterpreter_h
 
-#include "yarr/YarrPattern.h"
+#include "jscntxt.h"
+#include "YarrPattern.h"
 
 namespace WTF {
 class BumpPointerAllocator;
@@ -392,4 +393,4 @@ unsigned interpret(JSContext *cx, BytecodePattern*, const UChar* input, unsigned
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrInterpreter_h */
+#endif // YarrInterpreter_h

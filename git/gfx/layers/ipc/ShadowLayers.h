@@ -46,19 +46,17 @@ class ColorLayerComposite;
 class CanvasLayerComposite;
 class RefLayerComposite;
 class SurfaceDescriptor;
-class SurfaceDescriptorTiles;
 class ThebesBuffer;
 class TiledLayerComposer;
 class Transaction;
+class SurfaceDescriptor;
 class CanvasSurface;
-class DeprecatedTextureClientShmem;
-class ShmemTextureClient;
+class TextureClientShmem;
 class ContentClientRemote;
 class CompositableChild;
 class ImageClient;
 class CanvasClient;
 class ContentClient;
-class TextureClient;
 
 
 /**
@@ -137,12 +135,11 @@ class TextureClient;
 class ShadowLayerForwarder : public CompositableForwarder
 {
   friend class AutoOpenSurface;
-  friend class DeprecatedTextureClientShmem;
-  friend class ContentClientIncremental;
-
-  typedef gfxASurface::gfxImageFormat gfxImageFormat;
+  friend class TextureClientShmem;
 
 public:
+  typedef gfxASurface::gfxContentType gfxContentType;
+
   virtual ~ShadowLayerForwarder();
 
   /**
@@ -155,9 +152,6 @@ public:
                                    const SurfaceDescriptor& aDescriptor,
                                    const TextureInfo& aTextureInfo,
                                    const SurfaceDescriptor* aDescriptorOnWhite = nullptr) MOZ_OVERRIDE;
-  virtual void CreatedIncrementalBuffer(CompositableClient* aCompositable,
-                                        const TextureInfo& aTextureInfo,
-                                        const nsIntRect& aBufferRect) MOZ_OVERRIDE;
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aFrontDescriptor,
                                    const SurfaceDescriptor& aBackDescriptor,
@@ -232,17 +226,17 @@ public:
   void SetRoot(ShadowableLayer* aRoot);
   /**
    * Insert |aChild| after |aAfter| in |aContainer|.  |aAfter| can be
-   * nullptr to indicated that |aChild| should be appended to the end of
+   * NULL to indicated that |aChild| should be appended to the end of
    * |aContainer|'s child list.
    */
   void InsertAfter(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild,
-                   ShadowableLayer* aAfter = nullptr);
+                   ShadowableLayer* aAfter=NULL);
   void RemoveChild(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild);
   void RepositionChild(ShadowableLayer* aContainer,
                        ShadowableLayer* aChild,
-                       ShadowableLayer* aAfter = nullptr);
+                       ShadowableLayer* aAfter=NULL);
 
   /**
    * Set aMaskLayer as the mask on aLayer.
@@ -262,7 +256,7 @@ public:
    * copy on write, tiling).
    */
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) MOZ_OVERRIDE;
 
   /**
    * Notify the compositor that a compositable will be updated asynchronously
@@ -294,44 +288,11 @@ public:
                                    const ThebesBufferData& aThebesBufferData,
                                    const nsIntRegion& aUpdatedRegion) MOZ_OVERRIDE;
 
-  virtual void UpdateTextureIncremental(CompositableClient* aCompositable,
-                                        TextureIdentifier aTextureId,
-                                        SurfaceDescriptor& aDescriptor,
-                                        const nsIntRegion& aUpdatedRegion,
-                                        const nsIntRect& aBufferRect,
-                                        const nsIntPoint& aBufferRotation) MOZ_OVERRIDE;
-
   /**
    * Communicate the picture rect of an image to the compositor
    */
   void UpdatePictureRect(CompositableClient* aCompositable,
                          const nsIntRect& aRect);
-
-  /**
-   * See CompositableForwarder::AddTexture
-   */
-  virtual void AddTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::RemoveTexture
-   */
-  virtual void RemoveTexture(CompositableClient* aCompositable,
-                             uint64_t aTextureID,
-                             TextureFlags aFlags) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UpdatedTexture
-   */
-  virtual void UpdatedTexture(CompositableClient* aCompositable,
-                              TextureClient* aTexture,
-                              nsIntRegion* aRegion) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UseTexture
-   */
-  virtual void UseTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
 
   /**
    * End the current transaction and forward it to LayerManagerComposite.
@@ -353,8 +314,6 @@ public:
    */
   bool HasShadowManager() const { return !!mShadowManager; }
   PLayerTransactionChild* GetShadowManager() const { return mShadowManager; }
-
-  virtual void WindowOverlayChanged() { mWindowOverlayChanged = true; }
 
   /**
    * The following Alloc/Open/Destroy interfaces abstract over the
@@ -420,10 +379,8 @@ protected:
   PLayerTransactionChild* mShadowManager;
 
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
-  // from ISurfaceAllocator
   virtual PGrallocBufferChild* AllocGrallocBuffer(const gfxIntSize& aSize,
-                                                  uint32_t aFormat,
-                                                  uint32_t aUsage,
+                                                  gfxASurface::gfxContentType aContent,
                                                   MaybeMagicGrallocBufferHandle* aHandle) MOZ_OVERRIDE;
 #endif
 
@@ -456,18 +413,6 @@ private:
                                    OpenMode aMode,
                                    gfxIntSize* aSize,
                                    gfxASurface** aSurface);
-  // And again, for the image format.
-  // This function will return ImageFormatUnknown only if |aDescriptor|
-  // describes a non-ImageSurface.
-  static gfxImageFormat
-  GetDescriptorSurfaceImageFormat(const SurfaceDescriptor& aDescriptor,
-                                  OpenMode aMode,
-                                  gfxASurface** aSurface);
-  static bool
-  PlatformGetDescriptorSurfaceImageFormat(const SurfaceDescriptor& aDescriptor,
-                                          OpenMode aMode,
-                                          gfxImageFormat* aContent,
-                                          gfxASurface** aSurface);
 
   static already_AddRefed<gfxASurface>
   PlatformOpenDescriptor(OpenMode aMode, const SurfaceDescriptor& aDescriptor);
@@ -485,9 +430,9 @@ private:
   bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
 
   Transaction* mTxn;
-  DiagnosticTypes mDiagnosticTypes;
+
   bool mIsFirstPaint;
-  bool mWindowOverlayChanged;
+  bool mDrawColoredBorders;
 };
 
 class CompositableClient;
@@ -513,13 +458,13 @@ public:
 
   /**
    * Return the IPC handle to a Shadow*Layer referring to this if one
-   * exists, nullptr if not.
+   * exists, NULL if not.
    */
   PLayerChild* GetShadow() { return mShadow; }
 
   virtual CompositableClient* GetCompositableClient() { return nullptr; }
 protected:
-  ShadowableLayer() : mShadow(nullptr) {}
+  ShadowableLayer() : mShadow(NULL) {}
 
   PLayerChild* mShadow;
 };

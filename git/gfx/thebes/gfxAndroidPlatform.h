@@ -20,7 +20,7 @@ using mozilla::dom::FontListEntry;
 
 typedef struct FT_LibraryRec_ *FT_Library;
 
-class gfxAndroidPlatform : public gfxPlatform {
+class THEBES_API gfxAndroidPlatform : public gfxPlatform {
 public:
     gfxAndroidPlatform();
     virtual ~gfxAndroidPlatform();

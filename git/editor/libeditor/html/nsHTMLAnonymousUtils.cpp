@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
+#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsEditProperty.h"
 #include "nsError.h"
@@ -235,7 +236,7 @@ nsHTMLEditor::DeleteRefToAnonymousNode(nsIDOMElement* aElement,
             docObserver->BeginUpdate(document, UPDATE_CONTENT_MODEL);
 
           // XXX This is wrong (bug 439258).  Once it's fixed, the NS_WARNING
-          // in RestyleManager::RestyleForRemove should be changed back
+          // in nsCSSFrameConstructor::RestyleForRemove should be changed back
           // to an assertion.
           docObserver->ContentRemoved(content->GetCurrentDoc(),
                                       aParentContent, content, -1,

@@ -12,13 +12,16 @@ namespace mobilemessage {
 
 // Defined in the .cpp.
 extern const char* kSmsReceivedObserverTopic;
-extern const char* kSmsRetrievingObserverTopic;
 extern const char* kSmsSendingObserverTopic;
 extern const char* kSmsSentObserverTopic;
 extern const char* kSmsFailedObserverTopic;
 extern const char* kSmsDeliverySuccessObserverTopic;
 extern const char* kSmsDeliveryErrorObserverTopic;
-extern const char* kSilentSmsReceivedObserverTopic;
+
+extern const char* kMmsSendingObserverTopic;
+extern const char* kMmsSentObserverTopic;
+extern const char* kMmsFailedObserverTopic;
+extern const char* kMmsReceivedObserverTopic;
 
 #define DELIVERY_RECEIVED       NS_LITERAL_STRING("received")
 #define DELIVERY_SENDING        NS_LITERAL_STRING("sending")

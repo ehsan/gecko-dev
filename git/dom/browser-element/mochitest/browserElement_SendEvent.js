@@ -39,7 +39,6 @@ function runTest() {
           iframe.sendTouchEvent("touchstart", [1], [10], [10], [2], [2],
                                 [20], [0.5], 1, 0);
         } else {
-          iframe.removeEventListener('mozbrowserlocationchange', onlocchange);
           SimpleTest.finish();
         }
         break;
@@ -56,7 +55,6 @@ function runTest() {
         ok(true, "Receive a touchend event.");
         iframe.sendTouchEvent("touchcancel", [1], [10], [10], [2], [2],
                               [20], [0.5], 1, 0);
-        iframe.removeEventListener('mozbrowserlocationchange', onlocchange);
         SimpleTest.finish();
         break;
     }

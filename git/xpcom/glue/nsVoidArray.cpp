@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include <stdlib.h>
 
 #include "nsVoidArray.h"
@@ -698,7 +697,7 @@ struct SizeOfElementIncludingThisData
 {
   size_t mSize;
   nsVoidArraySizeOfElementIncludingThisFunc mSizeOfElementIncludingThis;
-  mozilla::MallocSizeOf mMallocSizeOf;
+  nsMallocSizeOfFun mMallocSizeOf;
   void *mData;      // the arg passed by the user
 };
 
@@ -713,7 +712,7 @@ SizeOfElementIncludingThisEnumerator(const void *aElement, void *aData)
 size_t
 nsVoidArray::SizeOfExcludingThis(
   nsVoidArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-  mozilla::MallocSizeOf aMallocSizeOf, void* aData) const
+  nsMallocSizeOfFun aMallocSizeOf, void* aData) const
 {
   size_t n = 0;
   // Measure the element storage.

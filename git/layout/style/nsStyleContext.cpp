@@ -48,9 +48,9 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
 {
   // This check has to be done "backward", because if it were written the
   // more natural way it wouldn't fail even when it needed to.
-  static_assert((UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
-                nsCSSPseudoElements::ePseudo_MAX,
-                "pseudo element bits no longer fit in a uint32_t");
+  MOZ_STATIC_ASSERT((UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
+                    nsCSSPseudoElements::ePseudo_MAX,
+                    "pseudo element bits no longer fit in a uint32_t");
   MOZ_ASSERT(aRuleNode);
 
   mNextSibling = this;
@@ -362,6 +362,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
   //   # The computed 'display' of a flex item is determined
   //   # by applying the table in CSS 2.1 Chapter 9.7.
   // ...which converts inline-level elements to their block-level equivalents.
+#ifdef MOZ_FLEXBOX
   if (!aSkipFlexItemStyleFixup && mParent) {
     const nsStyleDisplay* parentDisp = mParent->StyleDisplay();
     if ((parentDisp->mDisplay == NS_STYLE_DISPLAY_FLEX ||
@@ -400,6 +401,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
       }
     }
   }
+#endif // MOZ_FLEXBOX
 
   // Computer User Interface style, to trigger loads of cursors
   StyleUserInterface();
@@ -440,7 +442,6 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
   // by font-size changing, so we don't need to worry about them like
   // we worry about 'inherit' values.)
   bool compare = mRuleNode != aOther->mRuleNode;
-  DebugOnly<int> styleStructCount = 0;
 
 #define DO_STRUCT_DIFFERENCE(struct_)                                         \
   PR_BEGIN_MACRO                                                              \
@@ -459,7 +460,6 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
         NS_UpdateHint(hint, this##struct_->CalcDifference(*other##struct_));  \
       }                                                                       \
     }                                                                         \
-    styleStructCount++;                                                       \
   PR_END_MACRO
 
   // In general, we want to examine structs starting with those that can
@@ -492,9 +492,6 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
   DO_STRUCT_DIFFERENCE(Color);
 
 #undef DO_STRUCT_DIFFERENCE
-
-  MOZ_ASSERT(styleStructCount == nsStyleStructID_Length,
-             "missing a call to DO_STRUCT_DIFFERENCE");
 
   // Note that we do not check whether this->RelevantLinkVisited() !=
   // aOther->RelevantLinkVisited(); we don't need to since

@@ -6,14 +6,3 @@
 
 MODULE = 'simple'
 
-CPP_SOURCES += [
-    'SimpleTest.cpp',
-]
-
-LIBRARY_NAME = 'simpletest'
-
-EXTRA_COMPONENTS += [
-    'SimpleTest.js',
-    'SimpleTest.manifest',
-]
-

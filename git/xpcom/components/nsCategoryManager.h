@@ -11,7 +11,6 @@
 #include "plarena.h"
 #include "nsClassHashtable.h"
 #include "nsICategoryManager.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
 
@@ -77,7 +76,7 @@ public:
   ~CategoryNode();
   void operator delete(void*) { }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 private:
   CategoryNode()
@@ -123,7 +122,7 @@ public:
   static void Destroy();
 
   static int64_t GetCategoryManagerSize();
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 private:
   static nsCategoryManager* gCategoryManager;

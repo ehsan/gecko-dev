@@ -12,9 +12,3 @@ EXPORTS += [
     'nsJSProtocolHandler.h',
 ]
 
-CPP_SOURCES += [
-    'nsJSProtocolHandler.cpp',
-]
-
-LIBRARY_NAME = 'jsurl_s'
-

@@ -4,12 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsclone_h
-#define jsclone_h
+#ifndef jsclone_h___
+#define jsclone_h___
 
 #include "jsapi.h"
 #include "jscntxt.h"
 
+#include "js/HashTable.h"
 #include "js/Vector.h"
 
 namespace js {
@@ -130,7 +131,7 @@ struct JSStructuredCloneReader {
     // Any value passed to JS_ReadStructuredClone.
     void *closure;
 
-    friend bool JS_ReadTypedArray(JSStructuredCloneReader *r, jsval *vp);
+    friend JSBool JS_ReadTypedArray(JSStructuredCloneReader *r, jsval *vp);
 };
 
 struct JSStructuredCloneWriter {
@@ -158,11 +159,11 @@ struct JSStructuredCloneWriter {
 
     bool writeString(uint32_t tag, JSString *str);
     bool writeId(jsid id);
-    bool writeArrayBuffer(JS::HandleObject obj);
-    bool writeTypedArray(JS::HandleObject obj);
-    bool startObject(JS::HandleObject obj, bool *backref);
+    bool writeArrayBuffer(JSHandleObject obj);
+    bool writeTypedArray(JSHandleObject obj);
+    bool startObject(JSHandleObject obj, bool *backref);
     bool startWrite(const js::Value &v);
-    bool traverseObject(JS::HandleObject obj);
+    bool traverseObject(JSHandleObject obj);
 
     bool parseTransferable();
     void reportErrorTransferable();
@@ -200,7 +201,7 @@ struct JSStructuredCloneWriter {
     JS::RootedValue transferable;
     js::AutoObjectHashSet transferableObjects;
 
-    friend bool JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v);
+    friend JSBool JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v);
 };
 
-#endif /* jsclone_h */
+#endif /* jsclone_h___ */

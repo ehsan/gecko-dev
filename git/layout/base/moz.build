@@ -10,15 +10,12 @@ XPIDL_SOURCES += [
     'nsIStyleSheetService.idl',
 ]
 
-if CONFIG['IBMBIDI']:
-    CPP_SOURCES += [
-        'nsBidiPresUtils.cpp',
-        'nsBidi.cpp',
+if not CONFIG['MOZ_XUL']:
+    XPIDL_SOURCES += [
+        'nsIBoxObject.idl',
     ]
-
-if CONFIG['MOZ_DEBUG']:
-    CPP_SOURCES += [
-        'nsAutoLayoutPhase.cpp',
+    EXPORTS    += [
+        'nsPIBoxObject.h',
     ]
 
 XPIDL_MODULE = 'layout_base'
@@ -31,7 +28,6 @@ EXPORTS += [
     'FrameLayerBuilder.h',
     'FramePropertyTable.h',
     'StackArena.h',
-    'Units.h',
     'nsArenaMemoryStats.h',
     'nsBidi.h',
     'nsBidiPresUtils.h',
@@ -58,44 +54,10 @@ EXPORTS += [
     'nsPresState.h',
     'nsRefreshDriver.h',
     'nsStyleChangeList.h',
+    'nsStyleConsts.h',
 ]
 
 EXPORTS.mozilla += [
     'PaintTracker.h',
-]
-
-CPP_SOURCES += [
-    'DisplayItemClip.cpp',
-    'DisplayListClipState.cpp',
-    'FrameLayerBuilder.cpp',
-    'FramePropertyTable.cpp',
-    'MaskLayerImageCache.cpp',
-    'PaintTracker.cpp',
-    'PositionedEventTargeting.cpp',
-    'RestyleManager.cpp',
-    'RestyleTracker.cpp',
-    'StackArena.cpp',
-    'nsCSSColorUtils.cpp',
-    'nsCSSFrameConstructor.cpp',
-    'nsCSSRendering.cpp',
-    'nsCSSRenderingBorders.cpp',
-    'nsCaret.cpp',
-    'nsCounterManager.cpp',
-    'nsDisplayList.cpp',
-    'nsDisplayListInvalidation.cpp',
-    'nsDocumentViewer.cpp',
-    'nsFrameManager.cpp',
-    'nsFrameTraversal.cpp',
-    'nsGenConList.cpp',
-    'nsLayoutDebugger.cpp',
-    'nsLayoutHistoryState.cpp',
-    'nsLayoutUtils.cpp',
-    'nsPresArena.cpp',
-    'nsPresContext.cpp',
-    'nsPresShell.cpp',
-    'nsQuoteList.cpp',
-    'nsRefreshDriver.cpp',
-    'nsStyleChangeList.cpp',
-    'nsStyleSheetService.cpp',
 ]
 

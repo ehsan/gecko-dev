@@ -10,7 +10,6 @@
 #include "GLContext.h"
 #include "LayerManagerOGLProgram.h"
 #include "mozilla/layers/Effects.h"
-#include "nsTArray.h"
 
 #include "mozilla/TimeStamp.h"
 
@@ -24,7 +23,7 @@ class GLManagerCompositor;
 class CompositorOGL : public Compositor
 {
   typedef mozilla::gl::GLContext GLContext;
-  typedef ShaderProgramType ProgramType;
+  typedef mozilla::gl::ShaderProgramType ProgramType;
   
   friend class GLManagerCompositor;
 
@@ -34,20 +33,13 @@ public:
 
   virtual ~CompositorOGL();
 
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE;
-
   virtual bool Initialize() MOZ_OVERRIDE;
 
   virtual void Destroy() MOZ_OVERRIDE;
 
   virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {
-    return TextureFactoryIdentifier(LAYERS_OPENGL,
-                                    XRE_GetProcessType(),
-                                    GetMaxTextureSize(),
-                                    mFBOTextureTarget == LOCAL_GL_TEXTURE_2D,
-                                    SupportsPartialTextureUpdate());
+    return TextureFactoryIdentifier(LAYERS_OPENGL, GetMaxTextureSize());
   }
 
   virtual TemporaryRef<CompositingRenderTarget> 
@@ -98,7 +90,7 @@ public:
    */
   virtual void SetDestinationSurfaceSize(const gfx::IntSize& aSize) MOZ_OVERRIDE;
 
-  virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) MOZ_OVERRIDE {
+  virtual void SetScreenRenderOffset(const gfx::Point& aOffset) MOZ_OVERRIDE {
     mRenderOffset = aOffset;
   }
 
@@ -134,21 +126,11 @@ public:
   }
 
   GLContext* gl() const { return mGLContext; }
-  ShaderProgramType GetFBOLayerProgramType() const {
+  gl::ShaderProgramType GetFBOLayerProgramType() const {
     return mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB ?
-           RGBARectLayerProgramType : RGBALayerProgramType;
-  }
-  gfx::SurfaceFormat GetFBOFormat() const {
-    return gfx::FORMAT_R8G8B8A8;
+           gl::RGBARectLayerProgramType : gl::RGBALayerProgramType;
   }
 
-  /**
-   * The compositor provides with temporary textures for use with direct
-   * textruing like gralloc texture.
-   * Doing so lets us use gralloc the way it has been designed to be used
-   * (see https://wiki.mozilla.org/Platform/GFX/Gralloc)
-   */
-  GLuint GetTemporaryTexture(GLenum aUnit);
 private:
   /** 
    * Context target, nullptr when drawing directly to our swap chain.
@@ -163,7 +145,7 @@ private:
   /** The size of the surface we are rendering to */
   nsIntSize mSurfaceSize;
 
-  ScreenPoint mRenderOffset;
+  gfx::Point mRenderOffset;
 
   /** Helper-class used by Initialize **/
   class ReadDrawFPSPref MOZ_FINAL : public nsRunnable {
@@ -223,7 +205,7 @@ private:
                           gfx::Rect *aClipRectOut = nullptr,
                           gfx::Rect *aRenderBoundsOut = nullptr) MOZ_OVERRIDE;
 
-  ShaderProgramType GetProgramTypeForEffect(Effect* aEffect) const;
+  gl::ShaderProgramType GetProgramTypeForEffect(Effect* aEffect) const;
 
   /**
    * Updates all layer programs with a new projection matrix.
@@ -234,9 +216,9 @@ private:
    * Helper method for Initialize, creates all valid variations of a program
    * and adds them to mPrograms
    */
-  void AddPrograms(ShaderProgramType aType);
+  void AddPrograms(gl::ShaderProgramType aType);
 
-  ShaderProgramOGL* GetProgram(ShaderProgramType aType,
+  ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType,
                                MaskType aMask = MaskNone) {
     MOZ_ASSERT(ProgramProfileOGL::ProgramExists(aType, aMask),
                "Invalid program type.");
@@ -334,10 +316,8 @@ private:
   bool mDestroyed;
 
   nsAutoPtr<FPSState> mFPS;
-  // Textures used for direct texturing of buffers like gralloc.
-  // The index of the texture in this array must correspond to the texture unit.
-  nsTArray<GLuint> mTextures;
   static bool sDrawFPS;
+  static bool sFrameCounter;
 };
 
 }

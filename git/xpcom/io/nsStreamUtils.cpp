@@ -22,7 +22,7 @@ class nsInputStreamReadyEvent MOZ_FINAL : public nsIRunnable
                                         , public nsIInputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     nsInputStreamReadyEvent(nsIInputStreamCallback *callback,
                             nsIEventTarget *target)
@@ -91,8 +91,8 @@ private:
     nsCOMPtr<nsIEventTarget>         mTarget;
 };
 
-NS_IMPL_ISUPPORTS2(nsInputStreamReadyEvent, nsIRunnable,
-                   nsIInputStreamCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamReadyEvent, nsIRunnable,
+                              nsIInputStreamCallback)
 
 //-----------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ class nsOutputStreamReadyEvent MOZ_FINAL : public nsIRunnable
                                          , public nsIOutputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     nsOutputStreamReadyEvent(nsIOutputStreamCallback *callback,
                              nsIEventTarget *target)
@@ -169,8 +169,8 @@ private:
     nsCOMPtr<nsIEventTarget>          mTarget;
 };
 
-NS_IMPL_ISUPPORTS2(nsOutputStreamReadyEvent, nsIRunnable,
-                   nsIOutputStreamCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsOutputStreamReadyEvent, nsIRunnable,
+                              nsIOutputStreamCallback)
 
 //-----------------------------------------------------------------------------
 
@@ -205,7 +205,7 @@ class nsAStreamCopier : public nsIInputStreamCallback
                       , public nsIRunnable
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     nsAStreamCopier()
         : mLock("nsAStreamCopier.mLock")
@@ -459,10 +459,10 @@ protected:
     nsresult                       mCancelStatus;
 };
 
-NS_IMPL_ISUPPORTS3(nsAStreamCopier,
-                   nsIInputStreamCallback,
-                   nsIOutputStreamCallback,
-                   nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsAStreamCopier,
+                              nsIInputStreamCallback,
+                              nsIOutputStreamCallback,
+                              nsIRunnable)
 
 class nsStreamCopierIB MOZ_FINAL : public nsAStreamCopier
 {
@@ -772,30 +772,4 @@ NS_WriteSegmentThunk(nsIInputStream *inStr,
     nsWriteSegmentThunk *thunk = static_cast<nsWriteSegmentThunk *>(closure);
     return thunk->mFun(thunk->mStream, thunk->mClosure, buffer, offset, count,
                        countWritten);
-}
-
-NS_METHOD
-NS_FillArray(FallibleTArray<char>& aDest, nsIInputStream *aInput,
-             uint32_t aKeep, uint32_t *aNewBytes)
-{
-  MOZ_ASSERT(aInput, "null stream");
-  MOZ_ASSERT(aKeep <= aDest.Length(), "illegal keep count");
-
-  char* aBuffer = aDest.Elements();
-  int64_t keepOffset = int64_t(aDest.Length()) - aKeep;
-  if (0 != aKeep && keepOffset > 0) {
-    memmove(aBuffer, aBuffer + keepOffset, aKeep);
-  }
-
-  nsresult rv =
-    aInput->Read(aBuffer + aKeep, aDest.Capacity() - aKeep, aNewBytes);
-  if (NS_FAILED(rv)) {
-    *aNewBytes = 0;
-  }
-  // NOTE: we rely on the fact that the new slots are NOT initialized by
-  // SetLength here, see nsTArrayElementTraits::Construct() in nsTArray.h:
-  aDest.SetLength(aKeep + *aNewBytes);
-
-  MOZ_ASSERT(aDest.Length() <= aDest.Capacity(), "buffer overflow");
-  return rv;
 }

@@ -222,28 +222,23 @@ ContainerRender(Container* aContainer,
       // not safe.
       if (HasOpaqueAncestorLayer(aContainer) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-        mode = gfxPlatform::ComponentAlphaEnabled() ?
+        mode = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering() ?
           LayerManagerOGL::InitModeCopy :
           LayerManagerOGL::InitModeClear;
         framebufferRect.x += transform.x0;
         framebufferRect.y += transform.y0;
-        aContainer->mSupportsComponentAlphaChildren = gfxPlatform::ComponentAlphaEnabled();
+        aContainer->mSupportsComponentAlphaChildren = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering();
       }
     }
 
     aContainer->gl()->PushViewportRect();
     framebufferRect -= childOffset;
     if (!aManager->CompositingDisabled()) {
-      if (!aManager->CreateFBOWithTexture(framebufferRect,
-                                          mode,
-                                          aPreviousFrameBuffer,
-                                          &frameBuffer,
-                                          &containerSurface)) {
-        aContainer->gl()->PopViewportRect();
-        aContainer->gl()->PopScissorRect();
-        aContainer->gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
-        return;
-      }
+      aManager->CreateFBOWithTexture(framebufferRect,
+                                     mode,
+                                     aPreviousFrameBuffer,
+                                     &frameBuffer,
+                                     &containerSurface);
     }
     childOffset.x = visibleRect.x;
     childOffset.y = visibleRect.y;
@@ -287,7 +282,7 @@ ContainerRender(Container* aContainer,
 #ifdef MOZ_DUMP_PAINTING
     if (gfxUtils::sDumpPainting) {
       nsRefPtr<gfxImageSurface> surf = 
-        aContainer->gl()->GetTexImage(containerSurface, true, aManager->GetFBOTextureFormat());
+        aContainer->gl()->GetTexImage(containerSurface, true, aManager->GetFBOLayerProgramType());
 
       WriteSnapshotToDumpFile(aContainer, surf);
     }
@@ -322,7 +317,6 @@ ContainerRender(Container* aContainer,
       rgb->Activate();
       rgb->SetLayerQuadRect(visibleRect);
       rgb->SetLayerTransform(transform);
-      rgb->SetTextureTransform(gfx3DMatrix());
       rgb->SetLayerOpacity(opacity);
       rgb->SetRenderOffset(aOffset);
       rgb->SetTextureUnit(0);
@@ -347,7 +341,7 @@ ContainerRender(Container* aContainer,
 }
 
 ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
-  : ContainerLayer(aManager, nullptr)
+  : ContainerLayer(aManager, NULL)
   , LayerOGL(aManager)
 {
   mImplData = static_cast<LayerOGL*>(this);

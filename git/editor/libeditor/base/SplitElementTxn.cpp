@@ -29,9 +29,15 @@ SplitElementTxn::SplitElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(SplitElementTxn, EditTxn,
-                                     mParent,
-                                     mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SplitElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SplitElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(SplitElementTxn, EditTxn)
 NS_IMPL_RELEASE_INHERITED(SplitElementTxn, EditTxn)
@@ -129,8 +135,10 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
   }
 
   // this assumes Do inserted the new node in front of the prior existing node
-  nsresult rv = mEditor->JoinNodesImpl(mExistingRightNode, mNewLeftNode,
-                                       mParent);
+  nsresult result = mEditor->JoinNodesImpl(mExistingRightNode->AsDOMNode(),
+                                           mNewLeftNode->AsDOMNode(),
+                                           mParent->AsDOMNode(),
+                                           false);
 #ifdef DEBUG
   if (gNoisy) 
   { 
@@ -139,7 +147,7 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
            static_cast<void*>(mExistingRightNode.get()));
     if (gNoisy) {mEditor->DebugDumpContent(); } // DEBUG
   }
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(result))
   {
     if (gNoisy)
     {
@@ -149,7 +157,7 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
   }
 #endif
 
-  return rv;
+  return result;
 }
 
 /* redo cannot simply resplit the right node, because subsequent transactions

@@ -142,21 +142,29 @@ def main(argv):
     if options.tbpl:
         # Running all bits would take forever. Instead, we test a few interesting combinations.
         flags = [
-            [], # no flags, normal baseline and ion
-            ['--ion-eager'], # implies --baseline-eager
-            ['--ion-eager', '--ion-check-range-analysis'],
-            ['--baseline-eager'],
-            ['--baseline-eager', '--no-ti', '--no-fpu'],
-            ['--no-baseline', '--no-ion'],
-            ['--no-baseline', '--no-ion', '--no-ti'],
-        ]
+                      ['--no-baseline', '--no-jm'],
+                      ['--ion-eager'], # implies --baseline-eager
+                      ['--no-baseline'],
+                      ['--no-baseline', '--ion-eager'],
+                      ['--baseline-eager'],
+                      ['--baseline-eager', '--no-ti', '--no-fpu'],
+                      # Below, equivalents the old shell flags: ,m,am,amd,n,mn,amn,amdn,mdn
+                      ['--no-baseline', '--no-ion', '--no-jm', '--no-ti'],
+                      ['--no-baseline', '--no-ion', '--no-ti'],
+                      ['--no-baseline', '--no-ion', '--no-ti', '--always-mjit', '--debugjit'],
+                      ['--no-baseline', '--no-ion', '--no-jm'],
+                      ['--no-baseline', '--no-ion'],
+                      ['--no-baseline', '--no-ion', '--always-mjit'],
+                      ['--no-baseline', '--no-ion', '--always-mjit', '--debugjit'],
+                      ['--no-baseline', '--no-ion', '--debugjit']
+                    ]
         for test in test_list:
             for variant in flags:
                 new_test = test.copy()
                 new_test.jitflags.extend(variant)
                 job_list.append(new_test)
     elif options.ion:
-        flags = [['--baseline-eager'], ['--ion-eager']]
+        flags = [['--no-jm'], ['--ion-eager']]
         for test in test_list:
             for variant in flags:
                 new_test = test.copy()

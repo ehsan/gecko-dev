@@ -258,13 +258,13 @@ bool Module::ReportError() {
 }
 
 std::ostream& operator<<(std::ostream& stream, const Module::Expr& expr) {
-  assert(!expr.isExprInvalid());
+  assert(!expr.invalid());
   switch (expr.how_) {
     case Module::kExprSimple:
-      stream << FromUniqueString(expr.ident_) << " " << expr.offset_ << " +";
+      stream << expr.ident_ << " " << expr.offset_ << " +";
       break;
     case Module::kExprSimpleMem:
-      stream << FromUniqueString(expr.ident_) << " " << expr.offset_ << " + ^";
+      stream << expr.ident_ << " " << expr.offset_ << " + ^";
       break;
     case Module::kExprPostfix:
       stream << expr.postfix_; break;

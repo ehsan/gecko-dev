@@ -50,7 +50,6 @@ MOCHITEST_CHROME_FILES = \
 		test_bug812415.xul \
 		test_bug853283.xul \
 		test_bug853571.xul \
-		test_bug895340.xul \
 		test_APIExposer.xul \
 		test_chrometoSource.xul \
 		outoflinexulscript.js \
@@ -61,7 +60,6 @@ MOCHITEST_CHROME_FILES = \
 		test_doublewrappedcompartments.xul \
 		test_evalInSandbox.xul \
 		file_evalInSandbox.html \
-		test_evalInWindow.xul \
 		test_exnstack.xul \
 		test_expandosharing.xul \
 		file_expandosharing.jsm \

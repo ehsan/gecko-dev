@@ -10,7 +10,6 @@
 
 #include "nsIAtom.h"
 #include "nsCSSRuleProcessor.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/css/NameSpaceRule.h"
 #include "mozilla/css/GroupRule.h"
@@ -55,10 +54,11 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  virtual nsIDOMCSSRule*
-  IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
-  virtual uint32_t
-  Length() MOZ_OVERRIDE;
+  // nsIDOMCSSRuleList interface
+  NS_IMETHOD    GetLength(uint32_t* aLength); 
+  NS_IMETHOD    Item(uint32_t aIndex, nsIDOMCSSRule** aReturn); 
+
+  virtual nsIDOMCSSRule* GetItemAt(uint32_t aIndex, nsresult* aResult);
 
   void DropReference() { mStyleSheet = nullptr; }
 
@@ -94,35 +94,59 @@ NS_IMPL_ADDREF(CSSRuleListImpl)
 NS_IMPL_RELEASE(CSSRuleListImpl)
 
 
-uint32_t
-CSSRuleListImpl::Length()
+NS_IMETHODIMP    
+CSSRuleListImpl::GetLength(uint32_t* aLength)
 {
-  if (!mStyleSheet) {
-    return 0;
+  if (nullptr != mStyleSheet) {
+    int32_t count = mStyleSheet->StyleRuleCount();
+    *aLength = (uint32_t)count;
+  }
+  else {
+    *aLength = 0;
   }
 
-  return SafeCast<uint32_t>(mStyleSheet->StyleRuleCount());
+  return NS_OK;
 }
 
 nsIDOMCSSRule*    
-CSSRuleListImpl::IndexedGetter(uint32_t aIndex, bool& aFound)
+CSSRuleListImpl::GetItemAt(uint32_t aIndex, nsresult* aResult)
 {
-  aFound = false;
+  nsresult result = NS_OK;
 
   if (mStyleSheet) {
     // ensure rules have correct parent
     if (mStyleSheet->EnsureUniqueInner() !=
           nsCSSStyleSheet::eUniqueInner_CloneFailed) {
-      css::Rule* rule = mStyleSheet->GetStyleRuleAt(aIndex);
+      nsRefPtr<css::Rule> rule;
+
+      result = mStyleSheet->GetStyleRuleAt(aIndex, *getter_AddRefs(rule));
       if (rule) {
-        aFound = true;
+        *aResult = NS_OK;
         return rule->GetDOMRule();
+      }
+      if (result == NS_ERROR_ILLEGAL_VALUE) {
+        result = NS_OK; // per spec: "Return Value ... null if ... not a valid index."
       }
     }
   }
 
-  // Per spec: "Return Value ... null if ... not a valid index."
+  *aResult = result;
   return nullptr;
+}
+
+NS_IMETHODIMP    
+CSSRuleListImpl::Item(uint32_t aIndex, nsIDOMCSSRule** aReturn)
+{
+  nsresult rv;
+  nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
+  if (!rule) {
+    *aReturn = nullptr;
+
+    return rv;
+  }
+
+  NS_ADDREF(*aReturn = rule);
+  return NS_OK;
 }
 
 template <class Numeric>
@@ -821,7 +845,7 @@ nsCSSStyleSheet::RebuildChildList(css::Rule* aRule, void* aBuilder)
 }
 
 size_t
-nsCSSStyleSheet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSStyleSheet* s = this;
@@ -963,7 +987,7 @@ nsCSSStyleSheetInner::CreateNamespaceMap()
 }
 
 size_t
-nsCSSStyleSheetInner::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSStyleSheetInner::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mOrderedRules.SizeOfExcludingThis(css::Rule::SizeOfCOMArrayElementIncludingThis,
@@ -1156,8 +1180,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSStyleSheet)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSStyleSheet)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsCSSStyleSheet)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSStyleSheet)
   tmp->DropMedia();
@@ -1479,12 +1501,18 @@ nsCSSStyleSheet::StyleRuleCount() const
   return mInner->mOrderedRules.Count();
 }
 
-css::Rule*
-nsCSSStyleSheet::GetStyleRuleAt(int32_t aIndex) const
+nsresult
+nsCSSStyleSheet::GetStyleRuleAt(int32_t aIndex, css::Rule*& aRule) const
 {
   // Important: If this function is ever made scriptable, we must add
   // a security check here. See GetCssRules below for an example.
-  return mInner->mOrderedRules.SafeObjectAt(aIndex);
+  aRule = mInner->mOrderedRules.SafeObjectAt(aIndex);
+  if (aRule) {
+    NS_ADDREF(aRule);
+    return NS_OK;
+  }
+
+  return NS_ERROR_ILLEGAL_VALUE;
 }
 
 int32_t
@@ -2007,11 +2035,6 @@ nsCSSStyleSheet::DeleteRule(uint32_t aIndex)
     nsRefPtr<css::Rule> rule = mInner->mOrderedRules.ObjectAt(aIndex);
     if (rule) {
       mInner->mOrderedRules.RemoveObjectAt(aIndex);
-      if (mDocument && mDocument->StyleSheetChangeEventsEnabled()) {
-        // Force creation of the DOM rule, so that it can be put on the
-        // StyleRuleRemoved event object.
-        rule->GetDOMRule();
-      }
       rule->SetStyleSheet(nullptr);
       DidDirty();
 

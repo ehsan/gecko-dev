@@ -18,7 +18,6 @@
 #define mozilla_imagelib_RasterImage_h_
 
 #include "Image.h"
-#include "FrameBlender.h"
 #include "nsCOMPtr.h"
 #include "imgIContainer.h"
 #include "nsIProperties.h"
@@ -29,7 +28,6 @@
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
 #include "nsISupportsImpl.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/LinkedList.h"
@@ -40,10 +38,6 @@
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
-
-// This will enable FrameAnimator approach to image animation.  Before doing
-// so, make sure bug 899861 symptoms are gone.
-// #define USE_FRAME_ANIMATOR 1
 
 class nsIInputStream;
 class nsIThreadPool;
@@ -124,6 +118,10 @@ class nsIThreadPool;
  * @par
  * The mAnim structure has members only needed for animated images, so
  * it's not allocated until the second frame is added.
+ *
+ * @note
+ * mAnimationMode and mLoopCount are not in the mAnim structure because
+ * they have public setters.
  */
 
 class ScaleRequest;
@@ -137,7 +135,6 @@ class Image;
 namespace image {
 
 class Decoder;
-class FrameAnimator;
 
 class RasterImage : public ImageResource
                   , public nsIProperties
@@ -147,7 +144,7 @@ class RasterImage : public ImageResource
 #endif
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPROPERTIES
   NS_DECL_IMGICONTAINER
 #ifdef DEBUG
@@ -176,10 +173,10 @@ public:
   uint32_t GetCurrentFrameIndex();
 
   /* The total number of frames in this image. */
-  uint32_t GetNumFrames() const;
+  uint32_t GetNumFrames();
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
   virtual size_t NonHeapSizeOfDecoded() const;
   virtual size_t OutOfProcessSizeOfDecoded() const;
 
@@ -277,6 +274,34 @@ public:
     return mRequestedResolution;
   }
 
+  // "Blend" method indicates how the current image is combined with the
+  // previous image.
+  enum FrameBlendMethod {
+    // All color components of the frame, including alpha, overwrite the current
+    // contents of the frame's output buffer region
+    kBlendSource =  0,
+
+    // The frame should be composited onto the output buffer based on its alpha,
+    // using a simple OVER operation
+    kBlendOver
+  };
+
+  enum FrameDisposalMethod {
+    kDisposeClearAll         = -1, // Clear the whole image, revealing
+                                   // what was there before the gif displayed
+    kDisposeNotSpecified,   // Leave frame, let new frame draw on top
+    kDisposeKeep,           // Leave frame, let new frame draw on top
+    kDisposeClear,          // Clear the frame's area, revealing bg
+    kDisposeRestorePrevious // Restore the previous (composited) frame
+  };
+
+  // A hint as to whether an individual frame is entirely opaque, or requires
+  // alpha blending.
+  enum FrameAlpha {
+    kFrameHasAlpha,
+    kFrameOpaque
+  };
+
  nsCString GetURIString() {
     nsCString spec;
     if (GetURI()) {
@@ -325,7 +350,6 @@ private:
 
   nsresult OnImageDataCompleteCore(nsIRequest* aRequest, nsISupports*, nsresult aStatus);
 
-#ifndef USE_FRAME_ANIMATOR
   struct Anim
   {
     //! Area of the first frame that needs to be redrawn on subsequent loops.
@@ -335,11 +359,31 @@ private:
     // the time that the animation advanced to the current frame
     TimeStamp                  currentAnimationFrameTime;
 
+    //! Track the last composited frame for Optimizations (See DoComposite code)
+    int32_t                    lastCompositedFrameIndex;
+    /** For managing blending of frames
+     *
+     * Some animations will use the compositingFrame to composite images
+     * and just hand this back to the caller when it is time to draw the frame.
+     * NOTE: When clearing compositingFrame, remember to set
+     *       lastCompositedFrameIndex to -1.  Code assume that if
+     *       lastCompositedFrameIndex >= 0 then compositingFrame exists.
+     */
+    nsAutoPtr<imgFrame>        compositingFrame;
+    /** the previous composited frame, for DISPOSE_RESTORE_PREVIOUS
+     *
+     * The Previous Frame (all frames composited up to the current) needs to be
+     * stored in cases where the image specifies it wants the last frame back
+     * when it's done with the current frame.
+     */
+    nsAutoPtr<imgFrame>        compositingPrevFrame;
+
     Anim() :
-      currentAnimationFrameIndex(0)
-    {}
+      firstFrameRefreshArea(),
+      currentAnimationFrameIndex(0),
+      lastCompositedFrameIndex(-1) {}
+    ~Anim() {}
   };
-#endif
 
   /**
    * Each RasterImage has a pointer to one or zero heap-allocated
@@ -404,7 +448,7 @@ private:
   class DecodePool : public nsIObserver
   {
   public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     static DecodePool* Singleton();
@@ -547,8 +591,6 @@ private:
   nsresult CopyFrame(uint32_t aWhichFrame,
                      uint32_t aFlags,
                      gfxImageSurface **_retval);
-
-#ifndef USE_FRAME_ANIMATOR
   /**
    * Advances the animation. Typically, this will advance a single frame, but it
    * may advance multiple frames. This may happen if we have infrequently
@@ -569,15 +611,6 @@ private:
   bool AdvanceFrame(mozilla::TimeStamp aTime, nsIntRect* aDirtyRect);
 
   /**
-   * Gets the length of a single loop of this image, in milliseconds.
-   *
-   * If this image is not finished decoding, is not animated, or it is animated
-   * but does not loop, returns 0.
-   */
-  uint32_t GetSingleLoopTime() const;
-#endif
-
-  /**
    * Deletes and nulls out the frame in mFrames[framenum].
    *
    * Does not change the size of mFrames.
@@ -592,16 +625,11 @@ private:
   imgFrame* GetDrawableImgFrame(uint32_t framenum);
   imgFrame* GetCurrentImgFrame();
   uint32_t GetCurrentImgFrameIndex() const;
-#ifndef USE_FRAME_ANIMATOR
   mozilla::TimeStamp GetCurrentImgFrameEndTime() const;
-#endif
 
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
-                                                 mozilla::MallocSizeOf aMallocSizeOf) const;
+                                                 nsMallocSizeOfFun aMallocSizeOf) const;
 
-#ifdef USE_FRAME_ANIMATOR
-  void EnsureAnimExists();
-#else
   inline void EnsureAnimExists()
   {
     if (!mAnim) {
@@ -624,7 +652,44 @@ private:
       CurrentStatusTracker().RecordImageIsAnimated();
     }
   }
-#endif
+
+  /** Function for doing the frame compositing of animations
+   *
+   * @param aDirtyRect  Area that the display will need to update
+   * @param aPrevFrame  Last Frame seen/processed
+   * @param aNextFrame  Frame we need to incorperate/display
+   * @param aNextFrameIndex Position of aNextFrame in mFrames list
+   */
+  nsresult DoComposite(nsIntRect* aDirtyRect,
+                       imgFrame* aPrevFrame,
+                       imgFrame* aNextFrame,
+                       int32_t aNextFrameIndex);
+
+  /** Clears an area of <aFrame> with transparent black.
+   *
+   * @param aFrame Target Frame
+   *
+   * @note Does also clears the transparancy mask
+   */
+  static void ClearFrame(imgFrame* aFrame);
+
+  //! @overload
+  static void ClearFrame(imgFrame* aFrame, nsIntRect &aRect);
+
+  //! Copy one frames's image and mask into another
+  static bool CopyFrameImage(imgFrame *aSrcFrame,
+                               imgFrame *aDstFrame);
+
+  /** Draws one frames's image to into another,
+   * at the position specified by aRect
+   *
+   * @param aSrcFrame  Frame providing the source image
+   * @param aDstFrame  Frame where the image is drawn into
+   * @param aRect      The position and size to draw the image
+   */
+  static nsresult DrawFrameTo(imgFrame *aSrcFrame,
+                              imgFrame *aDstFrame,
+                              nsIntRect& aRect);
 
   nsresult InternalAddFrameHelper(uint32_t framenum, imgFrame *frame,
                                   uint8_t **imageData, uint32_t *imageLength,
@@ -661,7 +726,7 @@ private:
 private: // data
   nsIntSize                  mSize;
 
-  // Whether our frames were decoded using any special flags.
+  // Whether mFrames below were decoded using any special flags.
   // Some flags (e.g. unpremultiplied data) may not be compatible
   // with the browser's needs for displaying the image to the user.
   // As such, we may need to redecode if we're being asked for
@@ -672,7 +737,10 @@ private: // data
   uint32_t                   mFrameDecodeFlags;
 
   //! All the frames of the image
-  FrameBlender              mFrameBlender;
+  // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first
+  // to ensure that the frames actually exist (they may have been discarded to save
+  // memory, or we may be decoding on draw).
+  nsTArray<imgFrame*>        mFrames;
 
   // The last frame we decoded for multipart images.
   imgFrame*                  mMultipartDecodedFrame;
@@ -682,14 +750,10 @@ private: // data
   // IMPORTANT: if you use mAnim in a method, call EnsureImageIsDecoded() first to ensure
   // that the frames actually exist (they may have been discarded to save memory, or
   // we maybe decoding on draw).
-#ifdef USE_FRAME_ANIMATOR
-  FrameAnimator* mAnim;
-#else
   RasterImage::Anim*        mAnim;
 
   //! # loops remaining before animation stops (-1 no stop)
   int32_t                    mLoopCount;
-#endif
 
   // Discard members
   uint32_t                   mLockCount;
@@ -726,9 +790,9 @@ private: // data
   nsRefPtr<Decoder>          mDecoder;
   nsRefPtr<DecodeRequest>    mDecodeRequest;
   uint32_t                   mBytesDecoded;
+  // END LOCKED MEMBER VARIABLES
 
   bool                       mInDecoder;
-  // END LOCKED MEMBER VARIABLES
 
   // Boolean flags (clustered together to conserve space):
   bool                       mHasSize:1;       // Has SetSize() been called?
@@ -806,11 +870,9 @@ inline NS_IMETHODIMP RasterImage::GetAnimationMode(uint16_t *aAnimationMode) {
   return GetAnimationModeInternal(aAnimationMode);
 }
 
-#ifndef USE_FRAME_ANIMATOR
 inline NS_IMETHODIMP RasterImage::SetAnimationMode(uint16_t aAnimationMode) {
   return SetAnimationModeInternal(aAnimationMode);
 }
-#endif
 
 // Asynchronous Decode Requestor
 //

@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_GCAPI_h
-#define js_GCAPI_h
+#ifndef js_gc_api_h___
+#define js_gc_api_h___
 
-#include "js/HeapAPI.h"
-#include "js/RootingAPI.h"
+#include "HeapAPI.h"
 
 namespace JS {
 
@@ -182,9 +181,6 @@ DisableIncrementalGC(JSRuntime *rt);
 extern JS_FRIEND_API(void)
 DisableGenerationalGC(JSRuntime *rt);
 
-extern JS_FRIEND_API(void)
-EnableGenerationalGC(JSRuntime *rt);
-
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSRuntime *rt);
 
@@ -209,7 +205,7 @@ WasIncrementalGC(JSRuntime *rt);
 
 class ObjectPtr
 {
-    Heap<JSObject *> value;
+    JSObject *value;
 
   public:
     ObjectPtr() : value(NULL) {}
@@ -244,7 +240,7 @@ class ObjectPtr
     }
 
     void trace(JSTracer *trc, const char *name) {
-        JS_CallHeapObjectTracer(trc, &value, name);
+        JS_CallObjectTracer(trc, &value, name);
     }
 
     JSObject &operator*() const { return *value; }
@@ -256,7 +252,7 @@ class ObjectPtr
  * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
  * JSTRACE_SHAPE. |thing| should be non-null.
  */
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(void)
 UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
 
 /*
@@ -295,4 +291,4 @@ ExposeValueToActiveJS(const Value &v)
 
 } /* namespace JS */
 
-#endif /* js_GCAPI_h */
+#endif /* js_gc_api_h___ */

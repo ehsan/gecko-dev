@@ -4,7 +4,8 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:html="http://www.w3.org/1999/xhtml"
-     class="reftest-wait">
+     class="reftest-wait"
+     onload="startTest()">
 
   <title>Testcase for changing the 'transform' on foreignObject</title>
 
@@ -16,8 +17,11 @@
 // After the rect has rendered the transform on the 
 // foreignObject is removed and the green div should fill the viewport.
 
-  document.addEventListener("MozReftestInvalidate", doTest, false);
-  setTimeout(doTest, 4000); // fallback for running outside reftest
+  function startTest() {
+    document.addEventListener("MozReftestInvalidate", doTest, false);
+    // in case we're not gecko
+    setTimeout(doTest, 5000);
+  }
 
   function doTest() {
     document.getElementById('fo').setAttribute('transform', '');

@@ -37,11 +37,10 @@ D3D9SurfaceImage::SetData(const Data& aData)
   // DXVA surfaces aren't created sharable, so we need to copy the surface
   // to a sharable texture to that it's accessible to the layer manager's
   // device.
-  const nsIntRect& region = aData.mRegion;
   RefPtr<IDirect3DTexture9> texture;
-  HANDLE shareHandle = nullptr;
-  hr = device->CreateTexture(region.width,
-                             region.height,
+  HANDLE shareHandle = NULL;
+  hr = device->CreateTexture(desc.Width,
+                             desc.Height,
                              1,
                              D3DUSAGE_RENDERTARGET,
                              D3DFMT_X8R8G8B8,
@@ -58,8 +57,7 @@ D3D9SurfaceImage::SetData(const Data& aData)
   // Stash the surface description for later use.
   textureSurface->GetDesc(&mDesc);
 
-  RECT src = { region.x, region.y, region.x+region.width, region.y+region.height };
-  hr = device->StretchRect(surface, &src, textureSurface, nullptr, D3DTEXF_NONE);
+  hr = device->StretchRect(surface, NULL, textureSurface, NULL, D3DTEXF_NONE);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   // Flush the draw command now, so that by the time we come to draw this
@@ -73,7 +71,7 @@ D3D9SurfaceImage::SetData(const Data& aData)
 
   mTexture = texture;
   mShareHandle = shareHandle;
-  mSize = gfxIntSize(region.width, region.height);
+  mSize = gfxIntSize(aData.mSize.width, aData.mSize.height);
   mQuery = query;
 
   return S_OK;
@@ -87,7 +85,7 @@ D3D9SurfaceImage::EnsureSynchronized()
     return;
   }
   int iterations = 0;
-  while (iterations < 10 && S_FALSE == mQuery->GetData(nullptr, 0, D3DGETDATA_FLUSH)) {
+  while (iterations < 10 && S_FALSE == mQuery->GetData(NULL, 0, D3DGETDATA_FLUSH)) {
     Sleep(1);
     iterations++;
   }
@@ -155,7 +153,7 @@ D3D9SurfaceImage::GetAsSurface()
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   D3DLOCKED_RECT rect;
-  hr = systemMemorySurface->LockRect(&rect, nullptr, 0);
+  hr = systemMemorySurface->LockRect(&rect, NULL, 0);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   const unsigned char* src = (const unsigned char*)(rect.pBits);

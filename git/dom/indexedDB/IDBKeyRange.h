@@ -19,7 +19,9 @@ class mozIStorageStatement;
 BEGIN_INDEXEDDB_NAMESPACE
 
 namespace ipc {
+namespace FIXME_Bug_521898_objectstore {
 class KeyRange;
+} // namespace FIXME_Bug_521898_objectstore
 } // namespace ipc
 
 class IDBKeyRange MOZ_FINAL : public nsIIDBKeyRange
@@ -29,8 +31,8 @@ public:
   NS_DECL_NSIIDBKEYRANGE
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBKeyRange)
 
-  static bool DefineConstructors(JSContext* aCx,
-                                 JSObject* aObject);
+  static JSBool DefineConstructors(JSContext* aCx,
+                                   JSObject* aObject);
 
   static nsresult FromJSVal(JSContext* aCx,
                             const jsval& aVal,
@@ -155,8 +157,8 @@ private:
 
   Key mLower;
   Key mUpper;
-  JS::Heap<JS::Value> mCachedLowerVal;
-  JS::Heap<JS::Value> mCachedUpperVal;
+  jsval mCachedLowerVal;
+  jsval mCachedUpperVal;
   bool mLowerOpen;
   bool mUpperOpen;
   bool mIsOnly;

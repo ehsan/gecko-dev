@@ -19,7 +19,7 @@
 *  in some more global way at runtime.
 */
 
-static const struct ResultMap
+static struct ResultMap
 {nsresult rv; const char* name; const char* format;} map[] = {
 #define XPC_MSG_DEF(val, format) \
     {(val), #val, format},
@@ -31,13 +31,13 @@ static const struct ResultMap
 #define RESULT_COUNT ((sizeof(map) / sizeof(map[0]))-1)
 
 // static
-bool
+JSBool
 nsXPCException::NameAndFormatForNSResult(nsresult rv,
                                          const char** name,
                                          const char** format)
 {
 
-    for (const ResultMap* p = map; p->name; p++) {
+    for (ResultMap* p = map; p->name; p++) {
         if (rv == p->rv) {
             if (name) *name = p->name;
             if (format) *format = p->format;
@@ -48,13 +48,13 @@ nsXPCException::NameAndFormatForNSResult(nsresult rv,
 }
 
 // static
-const void*
+void*
 nsXPCException::IterateNSResults(nsresult* rv,
                                  const char** name,
                                  const char** format,
-                                 const void** iterp)
+                                 void** iterp)
 {
-    const ResultMap* p = (const ResultMap*) *iterp;
+    ResultMap* p = (ResultMap*) *iterp;
     if (!p)
         p = map;
     else
@@ -91,8 +91,8 @@ NS_INTERFACE_MAP_BEGIN(nsXPCException)
   NS_IMPL_QUERY_CLASSINFO(nsXPCException)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-NS_IMPL_ADDREF(nsXPCException)
-NS_IMPL_RELEASE(nsXPCException)
+NS_IMPL_THREADSAFE_ADDREF(nsXPCException)
+NS_IMPL_THREADSAFE_RELEASE(nsXPCException)
 
 NS_IMPL_CI_INTERFACE_GETTER1(nsXPCException, nsIXPCException)
 
@@ -297,7 +297,9 @@ nsXPCException::Initialize(const char *aMessage, nsresult aResult, const char *a
             return rc;
     } else {
         nsresult rv;
-        nsXPConnect* xpc = nsXPConnect::XPConnect();
+        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+        if (!xpc)
+            return NS_ERROR_FAILURE;
         rv = xpc->GetCurrentJSStack(&mLocation);
         if (NS_FAILED(rv))
             return rv;
@@ -365,7 +367,7 @@ nsXPCException::ToString(char **_retval)
     return final ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-bool nsXPCException::sEverMadeOneFromFactory = false;
+JSBool nsXPCException::sEverMadeOneFromFactory = false;
 
 // static
 nsresult
@@ -398,7 +400,11 @@ nsXPCException::NewException(const char *aMessage,
             location = aLocation;
             NS_ADDREF(location);
         } else {
-            nsXPConnect* xpc = nsXPConnect::XPConnect();
+            nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+            if (!xpc) {
+                NS_RELEASE(e);
+                return NS_ERROR_FAILURE;
+            }
             rv = xpc->GetCurrentJSStack(&location);
             if (NS_FAILED(rv)) {
                 NS_RELEASE(e);

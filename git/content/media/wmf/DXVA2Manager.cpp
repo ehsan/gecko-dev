@@ -26,10 +26,8 @@ public:
 
   IUnknown* GetDXVADeviceManager() MOZ_OVERRIDE;
 
-  // Copies a region (aRegion) of the video frame stored in aVideoSample
-  // into an image which is returned by aOutImage.
   HRESULT CopyToImage(IMFSample* aVideoSample,
-                      const nsIntRect& aRegion,
+                      const nsIntSize& aSize,
                       ImageContainer* aContainer,
                       Image** aOutImage) MOZ_OVERRIDE;
 
@@ -139,7 +137,7 @@ D3D9DXVA2Manager::Init()
 
 HRESULT
 D3D9DXVA2Manager::CopyToImage(IMFSample* aSample,
-                              const nsIntRect& aRegion,
+                              const nsIntSize& aSize,
                               ImageContainer* aImageContainer,
                               Image** aOutImage)
 {
@@ -161,16 +159,12 @@ D3D9DXVA2Manager::CopyToImage(IMFSample* aSample,
                "Wrong format?");
 
   D3D9SurfaceImage* videoImage = static_cast<D3D9SurfaceImage*>(image.get());
-  hr = videoImage->SetData(D3D9SurfaceImage::Data(surface, aRegion));
+  hr = videoImage->SetData(D3D9SurfaceImage::Data(surface, aSize));
 
   image.forget(aOutImage);
 
   return S_OK;
 }
-
-// Count of the number of DXVAManager's we've created. This is also the
-// number of videos we're decoding with DXVA. Use on main thread only.
-static uint32_t sDXVAVideosCount = 0;
 
 /* static */
 DXVA2Manager*
@@ -178,14 +172,6 @@ DXVA2Manager::Create()
 {
   MOZ_ASSERT(NS_IsMainThread());
   HRESULT hr;
-
-  // DXVA processing takes up a lot of GPU resources, so limit the number of
-  // videos we use DXVA with at any one time.
-  const uint32_t dxvaLimit =
-    Preferences::GetInt("media.windows-media-foundation.max-dxva-videos", 8);
-  if (sDXVAVideosCount == dxvaLimit) {
-    return nullptr;
-  }
 
   nsAutoPtr<D3D9DXVA2Manager> d3d9Manager(new D3D9DXVA2Manager());
   hr = d3d9Manager->Init();
@@ -201,13 +187,11 @@ DXVA2Manager::DXVA2Manager()
   : mLock("DXVA2Manager")
 {
   MOZ_ASSERT(NS_IsMainThread());
-  ++sDXVAVideosCount;
 }
 
 DXVA2Manager::~DXVA2Manager()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  --sDXVAVideosCount;
 }
 
 } // namespace mozilla

@@ -14,15 +14,13 @@
 #include <stdlib.h>
 #include "nscore.h"
 #include "mozilla/Scoped.h"
-#include <mozilla/RefPtr.h>
-#include <mozilla/Mutex.h>
 
 struct DBusConnection;
 
 namespace mozilla {
 namespace ipc {
 
-class RawDBusConnection : public AtomicRefCounted<RawDBusConnection>
+class RawDBusConnection
 {
   struct ScopedDBusConnectionPtrTraits : ScopedFreePtrTraits<DBusConnection>
   {
@@ -31,17 +29,13 @@ class RawDBusConnection : public AtomicRefCounted<RawDBusConnection>
 
 public:
   RawDBusConnection();
-  virtual ~RawDBusConnection();
+  ~RawDBusConnection();
   nsresult EstablishDBusConnection();
   DBusConnection* GetConnection() {
     return mConnection;
   }
-
 protected:
   Scoped<ScopedDBusConnectionPtrTraits> mConnection;
-
-private:
-  static bool sDBusIsInit;
 };
 
 }

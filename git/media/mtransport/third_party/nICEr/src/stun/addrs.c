@@ -55,9 +55,7 @@ static char *RCSSTRING __UNUSED__="$Id: addrs.c,v 1.2 2008/04/28 18:21:30 ekr Ex
 #endif
 #include <net/if.h>
 #ifndef LINUX
-#if !defined(__OpenBSD__) && !defined(__NetBSD__)
 #include <net/if_var.h>
-#endif
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <sys/sockio.h>
@@ -82,7 +80,7 @@ static char *RCSSTRING __UNUSED__="$Id: addrs.c,v 1.2 2008/04/28 18:21:30 ekr Ex
 
 
 
-#if defined(BSD) || defined(DARWIN)
+#ifdef DARWIN
 /*
  * Copyright (c) 1983, 1993
  *    The Regents of the University of California.  All rights reserved.
@@ -689,15 +687,13 @@ nr_stun_remove_duplicate_addrs(nr_transport_addr addrs[], int remove_loopback, i
     return _status;
 }
 
-#ifndef USE_PLATFORM_NR_STUN_GET_ADDRS
-
 int
 nr_stun_get_addrs(nr_transport_addr addrs[], int maxaddrs, int drop_loopback, int *count)
 {
     int _status=0;
     int i;
 
-#if defined(BSD) || defined(DARWIN)
+#ifdef DARWIN
     _status = stun_get_mib_addrs(addrs, maxaddrs, count);
 #elif defined(WIN32)
     _status = stun_get_win32_addrs(addrs, maxaddrs, count);
@@ -716,4 +712,3 @@ nr_stun_get_addrs(nr_transport_addr addrs[], int maxaddrs, int drop_loopback, in
     return _status;
 }
 
-#endif

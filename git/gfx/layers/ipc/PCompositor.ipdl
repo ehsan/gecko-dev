@@ -9,7 +9,6 @@ include LayersSurfaces;
 include protocol PGrallocBuffer;
 include protocol PLayerTransaction;
 include "mozilla/layers/CompositorTypes.h";
-include "mozilla/GfxMessageUtils.h";
 
 using mozilla::null_t;
 using mozilla::layers::TextureFactoryIdentifier;
@@ -44,8 +43,6 @@ parent:
   sync Pause();
   sync Resume();
 
-  async NotifyChildCreated(uint64_t id);
-
   // Make a snapshot of the content that would have been drawn to our
   // render target at the time this message is received.  If the size
   // or format of |inSnapshot| doesn't match our render target,
@@ -56,15 +53,8 @@ parent:
   sync MakeSnapshot(SurfaceDescriptor inSnapshot)
     returns (SurfaceDescriptor outSnapshot);
 
-  // Make sure any pending composites are started immediately and
-  // block until they are completed.
-  sync FlushRendering();
-
-  // layersBackendHints is an ordered list of preffered backends where
-  // layersBackendHints[0] is the best backend. If any hints are LAYERS_NONE
-  // that hint is ignored.
-  sync PLayerTransaction(LayersBackend[] layersBackendHints, uint64_t id)
-    returns (TextureFactoryIdentifier textureFactoryIdentifier, bool success);
+  sync PLayerTransaction(LayersBackend layersBackendHint, uint64_t id)
+    returns (TextureFactoryIdentifier textureFactoryIdentifier);
 };
 
 } // layers

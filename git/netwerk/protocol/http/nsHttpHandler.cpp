@@ -4,9 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 #include "nsHttpChannel.h"
@@ -15,11 +12,6 @@
 #include "nsHttpTransaction.h"
 #include "nsHttpAuthCache.h"
 #include "nsStandardURL.h"
-#include "nsIDOMConnection.h"
-#include "nsIDOMWindow.h"
-#include "nsIDOMNavigator.h"
-#include "nsIMozNavigatorNetwork.h"
-#include "nsINetworkProperties.h"
 #include "nsIHttpChannel.h"
 #include "nsIURL.h"
 #include "nsIStandardURL.h"
@@ -47,7 +39,6 @@
 #include "mozIApplicationClearPrivateDataParams.h"
 #include "nsICancelable.h"
 #include "EventTokenBucket.h"
-#include "Tickler.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -98,7 +89,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
 #define DONOTTRACK_HEADER_VALUE   "privacy.donottrackheader.value"
-#define DONOTTRACK_VALUE_UNSET    2
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
 #define TELEMETRY_ENABLED        "toolkit.telemetry.enabledPreRelease"
 #else
@@ -121,14 +111,19 @@ NewURI(const nsACString &aSpec,
        int32_t aDefaultPort,
        nsIURI **aURI)
 {
-    nsRefPtr<nsStandardURL> url = new nsStandardURL();
+    nsStandardURL *url = new nsStandardURL();
+    if (!url)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(url);
 
     nsresult rv = url->Init(nsIStandardURL::URLTYPE_AUTHORITY,
                             aDefaultPort, aSpec, aCharset, aBaseURI);
     if (NS_FAILED(rv)) {
+        NS_RELEASE(url);
         return rv;
     }
-    url.forget(aURI);
+
+    *aURI = url; // no QI needed
     return NS_OK;
 }
 
@@ -139,7 +134,8 @@ NewURI(const nsACString &aSpec,
 nsHttpHandler *gHttpHandler = nullptr;
 
 nsHttpHandler::nsHttpHandler()
-    : mHttpVersion(NS_HTTP_VERSION_1_1)
+    : mConnMgr(nullptr)
+    , mHttpVersion(NS_HTTP_VERSION_1_1)
     , mProxyHttpVersion(NS_HTTP_VERSION_1_1)
     , mCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
     , mReferrerLevel(0xff) // by default we always send a referrer
@@ -185,11 +181,10 @@ nsHttpHandler::nsHttpHandler()
     , mSpdyV2(true)
     , mSpdyV3(true)
     , mCoalesceSpdy(true)
+    , mUseAlternateProtocol(false)
     , mSpdyPersistentSettings(false)
-    , mAllowSpdyPush(true)
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
-    , mSpdyPushAllowance(32768)
     , mSpdyPingThreshold(PR_SecondsToInterval(58))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
     , mConnectTimeout(90000)
@@ -205,20 +200,20 @@ nsHttpHandler::nsHttpHandler()
     gHttpLog = PR_NewLogModule("nsHttp");
 #endif
 
-    LOG(("Creating nsHttpHandler [this=%p].\n", this));
+    LOG(("Creating nsHttpHandler [this=%x].\n", this));
 
-    MOZ_ASSERT(!gHttpHandler, "HTTP handler already created!");
+    NS_ASSERTION(!gHttpHandler, "HTTP handler already created!");
     gHttpHandler = this;
 }
 
 nsHttpHandler::~nsHttpHandler()
 {
-    LOG(("Deleting nsHttpHandler [this=%p]\n", this));
+    LOG(("Deleting nsHttpHandler [this=%x]\n", this));
 
     // make sure the connection manager is shutdown
     if (mConnMgr) {
         mConnMgr->Shutdown();
-        mConnMgr = nullptr;
+        NS_RELEASE(mConnMgr);
     }
 
     // Note: don't call NeckoChild::DestroyNeckoChild() here, as it's too late
@@ -228,13 +223,6 @@ nsHttpHandler::~nsHttpHandler()
     if (mPipelineTestTimer) {
         mPipelineTestTimer->Cancel();
         mPipelineTestTimer = nullptr;
-    }
-
-    if (!mDoNotTrackEnabled) {
-        Telemetry::Accumulate(Telemetry::DNT_USAGE, DONOTTRACK_VALUE_UNSET);
-    }
-    else {
-        Telemetry::Accumulate(Telemetry::DNT_USAGE, mDoNotTrackValue);
     }
 
     gHttpHandler = nullptr;
@@ -251,12 +239,11 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIIOService> service = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
+    mIOService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without io service");
         return rv;
     }
-    mIOService = new nsMainThreadPtrHolder<nsIIOService>(service);
 
     if (IsNeckoChild())
         NeckoChild::InitNeckoChild();
@@ -312,8 +299,12 @@ nsHttpHandler::Init()
 #ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
-    mProductSub.AssignLiteral("20100101");
+    mProductSub.AssignLiteral(MOZ_UA_BUILDID);
 #endif
+    if (mProductSub.IsEmpty() && appInfo)
+        appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
 #if DEBUG
     // dump user agent prefs
@@ -336,8 +327,7 @@ nsHttpHandler::Init()
                                   static_cast<nsISupports*>(static_cast<void*>(this)),
                                   NS_HTTP_STARTUP_TOPIC);
 
-    nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
-    mObserverService = new nsMainThreadPtrHolder<nsIObserverService>(obsService);
+    mObserverService = services::GetObserverService();
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", true);
         mObserverService->AddObserver(this, "profile-change-net-restore", true);
@@ -350,10 +340,6 @@ nsHttpHandler::Init()
     }
 
     MakeNewRequestTokenBucket();
-    mWifiTickler = new Tickler();
-    if (NS_FAILED(mWifiTickler->Init()))
-        mWifiTickler = nullptr;
-
     return NS_OK;
 }
 
@@ -374,8 +360,12 @@ nsHttpHandler::InitConnectionMgr()
 {
     nsresult rv;
 
-    if (!mConnMgr)
+    if (!mConnMgr) {
         mConnMgr = new nsHttpConnectionMgr();
+        if (!mConnMgr)
+            return NS_ERROR_OUT_OF_MEMORY;
+        NS_ADDREF(mConnMgr);
+    }
 
     rv = mConnMgr->Init(mMaxConnections,
                         mMaxPersistentConnectionsPerServer,
@@ -467,34 +457,27 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
 {
     if (!mStreamConvSvc) {
         nsresult rv;
-        nsCOMPtr<nsIStreamConverterService> service =
-            do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
-        if (NS_FAILED(rv))
-            return rv;
-        mStreamConvSvc = new nsMainThreadPtrHolder<nsIStreamConverterService>(service);
+        mStreamConvSvc = do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
+        if (NS_FAILED(rv)) return rv;
     }
     *result = mStreamConvSvc;
     NS_ADDREF(*result);
     return NS_OK;
 }
 
-nsISiteSecurityService*
-nsHttpHandler::GetSSService()
+nsIStrictTransportSecurityService*
+nsHttpHandler::GetSTSService()
 {
-    if (!mSSService) {
-        nsCOMPtr<nsISiteSecurityService> service = do_GetService(NS_SSSERVICE_CONTRACTID);
-        mSSService = new nsMainThreadPtrHolder<nsISiteSecurityService>(service);
-    }
-    return mSSService;
+    if (!mSTSService)
+      mSTSService = do_GetService(NS_STSSERVICE_CONTRACTID);
+    return mSTSService;
 }
 
 nsICookieService *
 nsHttpHandler::GetCookieService()
 {
-    if (!mCookieService) {
-        nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
-        mCookieService = new nsMainThreadPtrHolder<nsICookieService>(service);
-    }
+    if (!mCookieService)
+        mCookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID);
     return mCookieService;
 }
 
@@ -509,7 +492,7 @@ uint32_t
 nsHttpHandler::Get32BitsOfPseudoRandom()
 {
     // only confirm rand seeding on socket thread
-    MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
+    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     // rand() provides different amounts of PRNG on different platforms.
     // 15 or 31 bits are common amounts.
@@ -578,9 +561,9 @@ nsHttpHandler::BuildUserAgent()
 {
     LOG(("nsHttpHandler::BuildUserAgent\n"));
 
-    MOZ_ASSERT(!mLegacyAppName.IsEmpty() &&
-               !mLegacyAppVersion.IsEmpty(),
-               "HTTP cannot send practical requests without this much");
+    NS_ASSERTION(!mLegacyAppName.IsEmpty() &&
+                 !mLegacyAppVersion.IsEmpty(),
+                 "HTTP cannot send practical requests without this much");
 
     // preallocate to worst-case size, which should always be better
     // than if we didn't preallocate at all.
@@ -674,7 +657,7 @@ nsHttpHandler::InitUserAgentComponents()
 
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_B2G)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-    MOZ_ASSERT(infoService, "Could not find a system info service");
+    NS_ASSERTION(infoService, "Could not find a system info service");
 
     bool isTablet;
     nsresult rv = infoService->GetPropertyAsBool(NS_LITERAL_STRING("tablet"), &isTablet);
@@ -1132,6 +1115,13 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mCoalesceSpdy = cVar;
     }
 
+    if (PREF_CHANGED(HTTP_PREF("spdy.use-alternate-protocol"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("spdy.use-alternate-protocol"),
+                                &cVar);
+        if (NS_SUCCEEDED(rv))
+            mUseAlternateProtocol = cVar;
+    }
+
     if (PREF_CHANGED(HTTP_PREF("spdy.persistent-settings"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.persistent-settings"),
                                 &cVar);
@@ -1167,22 +1157,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         if (NS_SUCCEEDED(rv))
             mSpdyPingTimeout =
                 PR_SecondsToInterval((uint16_t) clamped(val, 0, 0x7fffffff));
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.allow-push"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.allow-push"),
-                                &cVar);
-        if (NS_SUCCEEDED(rv))
-            mAllowSpdyPush = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.push-allowance"))) {
-        rv = prefs->GetIntPref(HTTP_PREF("spdy.push-allowance"), &val);
-        if (NS_SUCCEEDED(rv)) {
-            mSpdyPushAllowance =
-                static_cast<uint32_t>
-                (clamped(val, 1024, static_cast<int32_t>(ASpdySession::kInitialRwin)));
-        }
     }
 
     // The amount of seconds to wait for a spdy ping response before
@@ -1466,7 +1440,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
             q -= dec;
             p2 += wrote;
             available -= wrote;
-            MOZ_ASSERT(available > 0, "allocated string not long enough");
+            NS_ASSERTION(available > 0, "allocated string not long enough");
         }
     }
     nsCRT::free(o_Accept);
@@ -1505,13 +1479,13 @@ nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
 // nsHttpHandler::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(nsHttpHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsIObserver,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsHttpHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsIObserver,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler::nsIProtocolHandler
@@ -1619,11 +1593,11 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
         // enable pipelining over SSL if requested
         if (mPipeliningOverSSL)
             caps |= NS_HTTP_ALLOW_PIPELINING;
-    }
 
-    if (!IsNeckoChild()) {
-        // HACK: make sure PSM gets initialized on the main thread.
-        net_EnsurePSMInit();
+        if (!IsNeckoChild()) {
+            // HACK: make sure PSM gets initialized on the main thread.
+            net_EnsurePSMInit();
+        }
     }
 
     rv = httpChannel->Init(uri, caps, proxyInfo, proxyResolveFlags, proxyURI);
@@ -1756,8 +1730,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         // clear cache of all authentication credentials.
         mAuthCache.ClearAll();
         mPrivateAuthCache.ClearAll();
-        if (mWifiTickler)
-            mWifiTickler->Cancel();
 
         // ensure connection manager is shutdown
         if (mConnMgr)
@@ -1837,9 +1809,9 @@ NS_IMETHODIMP
 nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
                                   nsIInterfaceRequestor *aCallbacks)
 {
-    nsISiteSecurityService* sss = gHttpHandler->GetSSService();
+    nsIStrictTransportSecurityService* stss = gHttpHandler->GetSTSService();
     bool isStsHost = false;
-    if (!sss)
+    if (!stss)
         return NS_OK;
 
     nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(aCallbacks);
@@ -1847,8 +1819,7 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     if (loadContext && loadContext->UsePrivateBrowsing())
         flags |= nsISocketProvider::NO_PERMANENT_STORAGE;
     nsCOMPtr<nsIURI> clone;
-    if (NS_SUCCEEDED(sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS,
-                                      aURI, flags, &isStsHost)) && isStsHost) {
+    if (NS_SUCCEEDED(stss->IsStsURI(aURI, flags, &isStsHost)) && isStsHost) {
         if (NS_SUCCEEDED(aURI->Clone(getter_AddRefs(clone)))) {
             clone->SetScheme(NS_LITERAL_CSTRING("https"));
             aURI = clone.get();
@@ -1894,68 +1865,23 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     return SpeculativeConnect(ci, aCallbacks);
 }
 
-void
-nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
-{
-    if (!cb || !mWifiTickler)
-        return;
-
-    // If B2G requires a similar mechanism nsINetworkManager, currently only avail
-    // on B2G, contains the necessary information on wifi and gateway
-
-    nsCOMPtr<nsIDOMWindow> domWindow;
-    cb->GetInterface(NS_GET_IID(nsIDOMWindow), getter_AddRefs(domWindow));
-    if (!domWindow)
-        return;
-
-    nsCOMPtr<nsIDOMNavigator> domNavigator;
-    domWindow->GetNavigator(getter_AddRefs(domNavigator));
-    nsCOMPtr<nsIMozNavigatorNetwork> networkNavigator =
-        do_QueryInterface(domNavigator);
-    if (!networkNavigator)
-        return;
-
-    nsCOMPtr<nsIDOMMozConnection> mozConnection;
-    networkNavigator->GetMozConnection(getter_AddRefs(mozConnection));
-    nsCOMPtr<nsINetworkProperties> networkProperties =
-        do_QueryInterface(mozConnection);
-    if (!networkProperties)
-        return;
-
-    uint32_t gwAddress;
-    bool isWifi;
-    nsresult rv;
-
-    rv = networkProperties->GetDhcpGateway(&gwAddress);
-    if (NS_SUCCEEDED(rv))
-        rv = networkProperties->GetIsWifi(&isWifi);
-    if (NS_FAILED(rv))
-        return;
-
-    if (!gwAddress || !isWifi)
-        return;
-
-    mWifiTickler->SetIPV4Address(gwAddress);
-    mWifiTickler->Tickle();
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpsHandler implementation
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS5(nsHttpsHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsHttpsHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 nsresult
 nsHttpsHandler::Init()
 {
     nsCOMPtr<nsIProtocolHandler> httpHandler(
             do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http"));
-    MOZ_ASSERT(httpHandler.get() != nullptr);
+    NS_ASSERTION(httpHandler.get() != nullptr, "no http handler?");
     return NS_OK;
 }
 
@@ -1992,7 +1918,7 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
-    MOZ_ASSERT(gHttpHandler);
+    NS_ABORT_IF_FALSE(gHttpHandler, "Should have a HTTP handler by now.");
     if (!gHttpHandler)
       return NS_ERROR_UNEXPECTED;
     return gHttpHandler->NewChannel(aURI, _retval);

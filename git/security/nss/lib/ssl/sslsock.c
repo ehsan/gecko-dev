@@ -30,8 +30,8 @@ struct cipherPolicyStr {
 typedef struct cipherPolicyStr cipherPolicy;
 
 /* This table contains two preconfigured policies: Export and France.
-** It is used only by the functions NSS_SetDomesticPolicy, 
-** NSS_SetExportPolicy, and NSS_SetFrancePolicy.
+** It is used only by the functions SSL_SetDomesticPolicy, 
+** SSL_SetExportPolicy, and SSL_SetFrancyPolicy.
 ** Order of entries is not important.
 */
 static cipherPolicy ssl_ciphers[] = {	   /*   Export           France   */
@@ -54,19 +54,14 @@ static cipherPolicy ssl_ciphers[] = {	   /*   Export           France   */
  {  SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA,      SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA,      SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_DSS_WITH_RC4_128_SHA,           SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  SSL_RSA_WITH_NULL_MD5,		    SSL_ALLOWED,     SSL_ALLOWED },
  {  SSL_RSA_WITH_NULL_SHA,		    SSL_ALLOWED,     SSL_ALLOWED },
- {  TLS_RSA_WITH_NULL_SHA256,		    SSL_ALLOWED,     SSL_ALLOWED },
+ {  SSL_RSA_WITH_NULL_MD5,		    SSL_ALLOWED,     SSL_ALLOWED },
  {  TLS_DHE_DSS_WITH_AES_128_CBC_SHA, 	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_RSA_WITH_AES_128_CBC_SHA,       SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_RSA_WITH_AES_128_CBC_SHA,     	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_RSA_WITH_AES_128_CBC_SHA256,        SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_DSS_WITH_AES_256_CBC_SHA, 	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_RSA_WITH_AES_256_CBC_SHA,       SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_RSA_WITH_AES_256_CBC_SHA,     	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_RSA_WITH_AES_256_CBC_SHA256,        SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_RSA_WITH_CAMELLIA_128_CBC_SHA, 	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
@@ -86,7 +81,6 @@ static cipherPolicy ssl_ciphers[] = {	   /*   Export           France   */
  {  TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,       SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,   SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,   SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDH_RSA_WITH_NULL_SHA,             SSL_ALLOWED,     SSL_ALLOWED },
  {  TLS_ECDH_RSA_WITH_RC4_128_SHA,          SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
@@ -97,7 +91,6 @@ static cipherPolicy ssl_ciphers[] = {	   /*   Export           France   */
  {  TLS_ECDHE_RSA_WITH_RC4_128_SHA,         SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,     SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
- {  TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,     SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
 #endif /* NSS_ENABLE_ECC */
  {  0,					    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED }
@@ -328,13 +321,13 @@ ssl_DupSocket(sslSocket *os)
 		if (oc->serverKeyPair && !sc->serverKeyPair)
 		    goto loser;
 	        sc->serverKeyBits = oc->serverKeyBits;
-		ss->certStatusArray[i] = !os->certStatusArray[i] ? NULL :
-				SECITEM_DupArray(NULL, os->certStatusArray[i]);
 	    }
 	    ss->stepDownKeyPair = !os->stepDownKeyPair ? NULL :
 		                  ssl3_GetKeyPairRef(os->stepDownKeyPair);
 	    ss->ephemeralECDHKeyPair = !os->ephemeralECDHKeyPair ? NULL :
 		                  ssl3_GetKeyPairRef(os->ephemeralECDHKeyPair);
+	    ss->certStatusArray = !os->certStatusArray ? NULL :
+				  SECITEM_DupArray(NULL, os->certStatusArray);
 /*
  * XXX the preceding CERT_ and SECKEY_ functions can fail and return NULL.
  * XXX We should detect this, and not just march on with NULL pointers.
@@ -437,10 +430,6 @@ ssl_DestroySocketContents(sslSocket *ss)
 	    CERT_DestroyCertificateList(sc->serverCertChain);
 	if (sc->serverKeyPair != NULL)
 	    ssl3_FreeKeyPair(sc->serverKeyPair);
-	if (ss->certStatusArray[i] != NULL) {
-	    SECITEM_FreeArray(ss->certStatusArray[i], PR_TRUE);
-	    ss->certStatusArray[i] = NULL;
-	}
     }
     if (ss->stepDownKeyPair) {
 	ssl3_FreeKeyPair(ss->stepDownKeyPair);
@@ -449,6 +438,10 @@ ssl_DestroySocketContents(sslSocket *ss)
     if (ss->ephemeralECDHKeyPair) {
 	ssl3_FreeKeyPair(ss->ephemeralECDHKeyPair);
 	ss->ephemeralECDHKeyPair = NULL;
+    }
+    if (ss->certStatusArray) {
+	SECITEM_FreeArray(ss->certStatusArray, PR_TRUE);
+	ss->certStatusArray = NULL;
     }
     SECITEM_FreeItem(&ss->opt.nextProtoNego, PR_FALSE);
     PORT_Assert(!ss->xtnData.sniNameArr);
@@ -784,15 +777,15 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRBool on)
             if (PR_FALSE != on) {
                 if (PR_SUCCESS == SSL_BypassSetup() ) {
 #ifdef NO_PKCS11_BYPASS
-                    ss->opt.bypassPKCS11 = PR_FALSE;
+                    ss->opt.bypassPKCS11   = PR_FALSE;
 #else
-                    ss->opt.bypassPKCS11 = on;
+                    ss->opt.bypassPKCS11   = on;
 #endif
                 } else {
                     rv = SECFailure;
                 }
             } else {
-                ss->opt.bypassPKCS11 = PR_FALSE;
+                ss->opt.bypassPKCS11   = PR_FALSE;
             }
 	}
 	break;
@@ -1675,15 +1668,6 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
             sc->serverCertChain = CERT_DupCertList(mc->serverCertChain);
             if (!sc->serverCertChain)
                 goto loser;
-	    if (sm->certStatusArray[i]) {
-		if (ss->certStatusArray[i]) {
-		    SECITEM_FreeArray(ss->certStatusArray[i], PR_TRUE);
-		    ss->certStatusArray[i] = NULL;
-		}
-		ss->certStatusArray[i] = SECITEM_DupArray(NULL, sm->certStatusArray[i]);
-		if (!ss->certStatusArray[i])
-		    goto loser;
-	    }
         }
         if (mc->serverKeyPair) {
             if (sc->serverKeyPair) {
@@ -1705,6 +1689,13 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
         }
         ss->ephemeralECDHKeyPair =
             ssl3_GetKeyPairRef(sm->ephemeralECDHKeyPair);
+    }
+    if (sm->certStatusArray) {
+	if (ss->certStatusArray) {
+	    SECITEM_FreeArray(ss->certStatusArray, PR_TRUE);
+	    ss->certStatusArray = NULL;
+	}
+	ss->certStatusArray = SECITEM_DupArray(NULL, sm->certStatusArray);
     }
     /* copy trust anchor names */
     if (sm->ssl3.ca_list) {
@@ -2238,8 +2229,8 @@ ssl_GetSockName(PRFileDesc *fd, PRNetAddr *name)
 }
 
 SECStatus
-SSL_SetStapledOCSPResponses(PRFileDesc *fd, const SECItemArray *responses,
-			    SSLKEAType kea)
+SSL_SetStapledOCSPResponses(PRFileDesc *fd, SECItemArray *responses,
+			    PRBool takeOwnership)
 {
     sslSocket *ss;
 
@@ -2250,20 +2241,19 @@ SSL_SetStapledOCSPResponses(PRFileDesc *fd, const SECItemArray *responses,
 	return SECFailure;
     }
 
-    if ( kea <= 0 || kea >= kt_kea_size) {
-	SSL_DBG(("%d: SSL[%d]: invalid key in SSL_SetStapledOCSPResponses",
-		 SSL_GETPID(), fd));
-	return SECFailure;
-    }
-
-    if (ss->certStatusArray[kea]) {
-        SECITEM_FreeArray(ss->certStatusArray[kea], PR_TRUE);
-        ss->certStatusArray[kea] = NULL;
+    if (ss->certStatusArray) {
+        SECITEM_FreeArray(ss->certStatusArray, PR_TRUE);
+        ss->certStatusArray = NULL;
     }
     if (responses) {
-	ss->certStatusArray[kea] = SECITEM_DupArray(NULL, responses);
+	if (takeOwnership) {
+	    ss->certStatusArray = responses;
+	}
+	else {
+	    ss->certStatusArray = SECITEM_DupArray(NULL, responses);
+	}
     }
-    return (ss->certStatusArray[kea] || !responses) ? SECSuccess : SECFailure;
+    return (ss->certStatusArray || !responses) ? SECSuccess : SECFailure;
 }
 
 SECStatus
@@ -2341,13 +2331,9 @@ ssl_Poll(PRFileDesc *fd, PRInt16 how_flags, PRInt16 *p_out_flags)
 	    } else if (new_flags & PR_POLL_WRITE) {
 		    /* The caller is trying to write, but the handshake is 
 		    ** blocked waiting for data to read, and the first 
-		    ** handshake has been sent.  So do NOT to poll on write
-		    ** unless we did false start.
+		    ** handshake has been sent.  so do NOT to poll on write.
 		    */
-		    if (!(ss->version >= SSL_LIBRARY_VERSION_3_0 &&
-			ss->ssl3.hs.canFalseStart)) {
-			new_flags ^=  PR_POLL_WRITE;   /* don't select on write. */
-		    }
+		    new_flags ^=  PR_POLL_WRITE;   /* don't select on write. */
 		    new_flags |=  PR_POLL_READ;	   /* do    select on read. */
 	    }
 	}
@@ -2967,10 +2953,10 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
 	    sc->serverCertChain = NULL;
 	    sc->serverKeyPair   = NULL;
 	    sc->serverKeyBits   = 0;
-	    ss->certStatusArray[i] = NULL;
 	}
 	ss->stepDownKeyPair    = NULL;
 	ss->dbHandle           = CERT_GetDefaultCertDB();
+	ss->certStatusArray    = NULL;
 
 	/* Provide default implementation of hooks */
 	ss->authCertificate    = SSL_AuthCertificate;

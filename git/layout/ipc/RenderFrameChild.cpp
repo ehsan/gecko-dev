@@ -45,13 +45,13 @@ RenderFrameChild::DetectScrollableSubframe()
 }
 
 PLayerTransactionChild*
-RenderFrameChild::AllocPLayerTransactionChild()
+RenderFrameChild::AllocPLayerTransaction()
 {
   return new LayerTransactionChild();
 }
 
 bool
-RenderFrameChild::DeallocPLayerTransactionChild(PLayerTransactionChild* aLayers)
+RenderFrameChild::DeallocPLayerTransaction(PLayerTransactionChild* aLayers)
 {
   delete aLayers;
   return true;

@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <math.h>
 
 #include "nsThreadUtils.h"
 
@@ -91,10 +90,6 @@ Mutex* OS::CreateMutex() {
 
 void OS::Sleep(int milliseconds) {
   usleep(1000 * milliseconds);
-}
-
-void OS::SleepMicro(int microseconds) {
-  usleep(microseconds);
 }
 
 Thread::Thread(const char* name)
@@ -197,14 +192,9 @@ Sampler::FreePlatformData(PlatformData* aData)
 
 class SamplerThread : public Thread {
  public:
-  explicit SamplerThread(double interval)
+  explicit SamplerThread(int interval)
       : Thread("SamplerThread")
-      , intervalMicro_(floor(interval * 1000 + 0.5))
-  {
-    if (intervalMicro_ <= 0) {
-      intervalMicro_ = 1;
-    }
-  }
+      , interval_(interval) {}
 
   static void AddActiveSampler(Sampler* sampler) {
     mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
@@ -212,6 +202,8 @@ class SamplerThread : public Thread {
     if (instance_ == NULL) {
       instance_ = new SamplerThread(sampler->interval());
       instance_->Start();
+    } else {
+      ASSERT(instance_->interval_ == sampler->interval());
     }
   }
 
@@ -245,7 +237,7 @@ class SamplerThread : public Thread {
             SampleContext(SamplerRegistry::sampler, thread_profile);
         }
       }
-      OS::SleepMicro(intervalMicro_);
+      OS::Sleep(interval_);
     }
   }
 
@@ -294,7 +286,7 @@ class SamplerThread : public Thread {
     thread_resume(profiled_thread);
   }
 
-  int intervalMicro_;
+  const int interval_;
   //RuntimeProfilerRateLimiter rate_limiter_;
 
   // Protects the process wide state below.
@@ -308,7 +300,7 @@ class SamplerThread : public Thread {
 
 SamplerThread* SamplerThread::instance_ = NULL;
 
-Sampler::Sampler(double interval, bool profiling, int entrySize)
+Sampler::Sampler(int interval, bool profiling, int entrySize)
     : // isolate_(isolate),
       interval_(interval),
       profiling_(profiling),
@@ -349,9 +341,7 @@ pid_t gettid()
   return (pid_t) syscall(SYS_thread_selfid);
 }
 
-bool Sampler::RegisterCurrentThread(const char* aName,
-                                    PseudoStack* aPseudoStack,
-                                    bool aIsMainThread, void* stackTop)
+bool Sampler::RegisterCurrentThread(const char* aName, PseudoStack* aPseudoStack, bool aIsMainThread)
 {
   if (!Sampler::sRegisteredThreadsMutex)
     return false;
@@ -361,13 +351,23 @@ bool Sampler::RegisterCurrentThread(const char* aName,
   ThreadInfo* info = new ThreadInfo(aName, gettid(),
     aIsMainThread, aPseudoStack);
 
-  if (sActiveSampler) {
-    sActiveSampler->RegisterThread(info);
+  bool profileThread = sActiveSampler &&
+    (aIsMainThread || sActiveSampler->ProfileThreads());
+
+  if (profileThread) {
+    // We need to create the ThreadProfile now
+    info->SetProfile(new ThreadProfile(info->Name(),
+                                       sActiveSampler->EntrySize(),
+                                       info->Stack(),
+                                       info->ThreadId(),
+                                       info->GetPlatformData(),
+                                       aIsMainThread));
+    if (sActiveSampler->ProfileJS()) {
+      info->Profile()->GetPseudoStack()->enableJSSampling();
+    }
   }
 
   sRegisteredThreads->push_back(info);
-
-  uwt__register_thread_for_profiling(stackTop);
   return true;
 }
 

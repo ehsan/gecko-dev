@@ -4,32 +4,15 @@
 
 "use strict";
 
-const {Cu, Cc, Ci} = require("chrome");
+const {Cu} = require("chrome");
 
-let promise = require("sdk/core/promise");
+let Promise = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
 
-Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 
 exports.OptionsPanel = OptionsPanel;
-
-XPCOMUtils.defineLazyGetter(this, "l10n", function() {
-  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
-  let l10n = function(aName, ...aArgs) {
-    try {
-      if (aArgs.length == 0) {
-        return bundle.GetStringFromName(aName);
-      } else {
-        return bundle.formatStringFromName(aName, aArgs, aArgs.length);
-      }
-    } catch (ex) {
-      Services.console.logStringMessage("Error reading '" + aName + "'");
-    }
-  };
-  return l10n;
-});
 
 /**
  * Represents the Options Panel in the Toolbox.
@@ -37,44 +20,26 @@ XPCOMUtils.defineLazyGetter(this, "l10n", function() {
 function OptionsPanel(iframeWindow, toolbox) {
   this.panelDoc = iframeWindow.document;
   this.panelWin = iframeWindow;
-  this.toolbox = toolbox;
-  this.isReady = false;
-
-  // Make restart method available from xul
-  this.panelWin.restart = this.restart;
 
   EventEmitter.decorate(this);
 };
 
 OptionsPanel.prototype = {
 
-  get target() {
-    return this.toolbox.target;
-  },
-
-  open: function() {
-    let deferred = promise.defer();
+  open: function OP_open() {
+    let deferred = Promise.defer();
 
     this.setupToolsList();
     this.populatePreferences();
-    this.prepareRestartPreferences();
 
-    this._disableJSClicked = this._disableJSClicked.bind(this);
-
-    let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
-    disableJSNode.addEventListener("click", this._disableJSClicked, false);
-
-    this.isReady = true;
     this.emit("ready");
     deferred.resolve(this);
     return deferred.promise;
   },
 
-  setupToolsList: function() {
+  setupToolsList: function OP_setupToolsList() {
     let defaultToolsBox = this.panelDoc.getElementById("default-tools-box");
     let additionalToolsBox = this.panelDoc.getElementById("additional-tools-box");
-    let toolsNotSupportedLabel = this.panelDoc.getElementById("tools-not-supported-label");
-    let atleastOneToolNotSupported = false;
 
     defaultToolsBox.textContent = "";
     additionalToolsBox.textContent = "";
@@ -100,36 +65,31 @@ OptionsPanel.prototype = {
       }
     };
 
-    let createToolCheckbox = tool => {
-      let checkbox = this.panelDoc.createElement("checkbox");
-      checkbox.setAttribute("id", tool.id);
-      checkbox.setAttribute("tooltiptext", tool.tooltip || "");
-      if (tool.isTargetSupported(this.target)) {
-        checkbox.setAttribute("label", tool.label);
-      }
-      else {
-        atleastOneToolNotSupported = true;
-        checkbox.setAttribute("label",
-                              l10n("options.toolNotSupportedMarker", tool.label));
-      }
-      checkbox.setAttribute("checked", pref(tool.visibilityswitch));
-      checkbox.addEventListener("command", onCheckboxClick.bind(checkbox, tool.id));
-      return checkbox;
-    };
-
     // Populating the default tools lists
     for (let tool of gDevTools.getDefaultTools()) {
       if (tool.id == "options") {
         continue;
       }
-      defaultToolsBox.appendChild(createToolCheckbox(tool));
+      let checkbox = this.panelDoc.createElement("checkbox");
+      checkbox.setAttribute("id", tool.id);
+      checkbox.setAttribute("label", tool.label);
+      checkbox.setAttribute("tooltiptext", tool.tooltip || "");
+      checkbox.setAttribute("checked", pref(tool.visibilityswitch));
+      checkbox.addEventListener("command", onCheckboxClick.bind(checkbox, tool.id));
+      defaultToolsBox.appendChild(checkbox);
     }
 
     // Populating the additional tools list that came from add-ons.
     let atleastOneAddon = false;
     for (let tool of gDevTools.getAdditionalTools()) {
       atleastOneAddon = true;
-      additionalToolsBox.appendChild(createToolCheckbox(tool));
+      let checkbox = this.panelDoc.createElement("checkbox");
+      checkbox.setAttribute("id", tool.id);
+      checkbox.setAttribute("label", tool.label);
+      checkbox.setAttribute("tooltiptext", tool.tooltip || "");
+      checkbox.setAttribute("checked", pref(tool.visibilityswitch));
+      checkbox.addEventListener("command", onCheckboxClick.bind(checkbox, tool.id));
+      additionalToolsBox.appendChild(checkbox);
     }
 
     if (!atleastOneAddon) {
@@ -137,14 +97,10 @@ OptionsPanel.prototype = {
       additionalToolsBox.previousSibling.style.display = "none";
     }
 
-    if (!atleastOneToolNotSupported) {
-      toolsNotSupportedLabel.style.display = "none";
-    }
-
     this.panelWin.focus();
   },
 
-  populatePreferences: function() {
+  populatePreferences: function OP_populatePreferences() {
     let prefCheckboxes = this.panelDoc.querySelectorAll("checkbox[data-pref]");
     for (let checkbox of prefCheckboxes) {
       checkbox.checked = Services.prefs.getBoolPref(checkbox.getAttribute("data-pref"));
@@ -180,62 +136,7 @@ OptionsPanel.prototype = {
     }
   },
 
-  /**
-   * Handles checkbox click inside hbox with class "hidden-labels-box". The
-   * labels inside the hbox are shown again when the user click on the checkbox
-   * in the box.
-   */
-  prepareRestartPreferences: function() {
-    let checkboxes = this.panelDoc.querySelectorAll(".hidden-labels-box > checkbox");
-    for (let checkbox of checkboxes) {
-      checkbox.addEventListener("command", function(target) {
-        target.parentNode.classList.toggle("visible");
-      }.bind(null, checkbox));
-    }
-  },
-
-  restart: function() {
-    let canceled = Cc["@mozilla.org/supports-PRBool;1"]
-                     .createInstance(Ci.nsISupportsPRBool);
-    Services.obs.notifyObservers(canceled, "quit-application-requested", "restart");
-    if (canceled.data) {
-      return;
-    }
-
-    // restart
-    Cc['@mozilla.org/toolkit/app-startup;1']
-      .getService(Ci.nsIAppStartup)
-      .quit(Ci.nsIAppStartup.eAttemptQuit | Ci.nsIAppStartup.eRestart);
-  },
-
-  /**
-   * Disables JavaScript for the currently loaded tab. We force a page refresh
-   * here because setting docShell.allowJavascript to true fails to block JS
-   * execution from event listeners added using addEventListener(), AJAX calls
-   * and timers. The page refresh prevents these things from being added in the
-   * first place.
-   *
-   * @param {Event} event
-   *        The event sent by checking / unchecking the disable JS checkbox.
-   */
-  _disableJSClicked: function(event) {
-    let checked = event.target.checked;
-    let linkedBrowser = this.toolbox._host.hostTab.linkedBrowser;
-    let win = linkedBrowser.contentWindow;
-    let docShell = linkedBrowser.docShell;
-
-    if (typeof this.toolbox._origAllowJavascript == "undefined") {
-      this.toolbox._origAllowJavascript = docShell.allowJavascript;
-    }
-
-    docShell.allowJavascript = !checked;
-    win.location.reload();
-  },
-
   destroy: function OP_destroy() {
-    let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
-    disableJSNode.removeEventListener("click", this._disableJSClicked, false);
-
-    this.panelWin = this.panelDoc = this.toolbox = this._disableJSClicked = null;
+    this.panelWin = this.panelDoc = null;
   }
 };

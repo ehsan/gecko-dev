@@ -3,14 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/HTMLMenuElement.h"
-
+#include "HTMLMenuElement.h"
 #include "mozilla/dom/HTMLMenuElementBinding.h"
-#include "mozilla/dom/HTMLMenuItemElement.h"
-#include "nsAttrValueInlines.h"
-#include "nsContentUtils.h"
-#include "nsEventDispatcher.h"
 #include "nsXULContextMenuBuilder.h"
+#include "nsEventDispatcher.h"
+#include "HTMLMenuItemElement.h"
+#include "nsAttrValueInlines.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Menu)
 
@@ -46,14 +44,26 @@ enum SeparatorType
 HTMLMenuElement::HTMLMenuElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo), mType(MENU_TYPE_LIST)
 {
+  SetIsDOMBinding();
 }
 
 HTMLMenuElement::~HTMLMenuElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(HTMLMenuElement, nsGenericHTMLElement,
-                             nsIDOMHTMLMenuElement, nsIHTMLMenu)
+
+NS_IMPL_ADDREF_INHERITED(HTMLMenuElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLMenuElement, Element)
+
+
+// QueryInterface implementation for HTMLMenuElement
+NS_INTERFACE_TABLE_HEAD(HTMLMenuElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLMenuElement,
+                                   nsIDOMHTMLMenuElement,
+                                   nsIHTMLMenu)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLMenuElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLMenuElement)
 

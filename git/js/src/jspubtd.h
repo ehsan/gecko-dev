@@ -4,22 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jspubtd_h
-#define jspubtd_h
+#ifndef jspubtd_h___
+#define jspubtd_h___
 
 /*
  * JS public API typedefs.
  */
 
-#include "mozilla/PodOperations.h"
-
 #include "jsprototypes.h"
 #include "jstypes.h"
-#include "jsversion.h"  // #include here so it's seen everywhere
-
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING) || defined(DEBUG)
-# define JSGC_TRACK_EXACT_ROOTS
-#endif
 
 namespace JS {
 
@@ -32,8 +25,6 @@ class Value;
 template <typename T>
 class Rooted;
 
-class JS_PUBLIC_API(AutoGCRooter);
-
 struct Zone;
 
 } /* namespace JS */
@@ -43,7 +34,7 @@ struct Zone;
  * prevents many bugs from being caught at compile time. E.g.:
  *
  *  jsid id = ...
- *  if (id)             // error
+ *  if (id == JS_TRUE)  // error
  *    ...
  *
  *  size_t n = id;      // error
@@ -159,10 +150,9 @@ typedef enum {
     JSTRACE_SCRIPT,
 
     /*
-     * Trace kinds internal to the engine. The embedding can only see them if
-     * it implements JSTraceCallback.
+     * Trace kinds internal to the engine. The embedding can only them if it
+     * implements JSTraceCallback.
      */
-    JSTRACE_LAZY_SCRIPT,
     JSTRACE_IONCODE,
     JSTRACE_SHAPE,
     JSTRACE_BASE_SHAPE,
@@ -201,16 +191,13 @@ class                                       JSStableString;  // long story
 class                                       JSString;
 
 #ifdef JS_THREADSAFE
-typedef struct PRCallOnceType   JSCallOnceType;
+typedef struct PRCallOnceType    JSCallOnceType;
 #else
-typedef bool                    JSCallOnceType;
+typedef JSBool                   JSCallOnceType;
 #endif
-typedef bool                    (*JSInitCallback)(void);
+typedef JSBool                 (*JSInitCallback)(void);
 
 namespace JS {
-
-typedef void (*OffThreadCompileCallback)(JSScript *script, void *callbackData);
-
 namespace shadow {
 
 struct Runtime
@@ -237,18 +224,6 @@ struct Runtime
 } /* namespace JS */
 
 namespace js {
-
-/*
- * Parallel operations in general can have one of three states. They may
- * succeed, fail, or "bail", where bail indicates that the code encountered an
- * unexpected condition and should be re-run sequentially. Different
- * subcategories of the "bail" state are encoded as variants of TP_RETRY_*.
- */
-enum ParallelResult { TP_SUCCESS, TP_RETRY_SEQUENTIALLY, TP_RETRY_AFTER_GC, TP_FATAL };
-
-struct ThreadSafeContext;
-struct ForkJoinSlice;
-class ExclusiveContext;
 
 class Allocator;
 
@@ -294,28 +269,18 @@ template <> struct RootKind<JSScript *> : SpecificRootKind<JSScript *, THING_ROO
 template <> struct RootKind<jsid> : SpecificRootKind<jsid, THING_ROOT_ID> {};
 template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_VALUE> {};
 
-struct ContextFriendFields
-{
-  protected:
-    JSRuntime *const     runtime_;
+struct ContextFriendFields {
+    JSRuntime *const    runtime;
 
     /* The current compartment. */
-    JSCompartment       *compartment_;
+    JSCompartment       *compartment;
 
     /* The current zone. */
     JS::Zone            *zone_;
 
-  public:
     explicit ContextFriendFields(JSRuntime *rt)
-      : runtime_(rt), compartment_(NULL), zone_(NULL), autoGCRooters(NULL)
-    {
-#ifdef JSGC_TRACK_EXACT_ROOTS
-        mozilla::PodArrayZero(thingGCRooters);
-#endif
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-        skipGCRooters = NULL;
-#endif
-    }
+      : runtime(rt), compartment(NULL), zone_(NULL)
+    { }
 
     static const ContextFriendFields *get(const JSContext *cx) {
         return reinterpret_cast<const ContextFriendFields *>(cx);
@@ -325,7 +290,7 @@ struct ContextFriendFields
         return reinterpret_cast<ContextFriendFields *>(cx);
     }
 
-#ifdef JSGC_TRACK_EXACT_ROOTS
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
@@ -344,13 +309,6 @@ struct ContextFriendFields
      */
     SkipRoot *skipGCRooters;
 #endif
-
-    /* Stack of thread-stack-allocated GC roots. */
-    JS::AutoGCRooter   *autoGCRooters;
-
-    friend JSRuntime *GetRuntime(const JSContext *cx);
-    friend JSCompartment *GetContextCompartment(const JSContext *cx);
-    friend JS::Zone *GetContextZone(const JSContext *cx);
 };
 
 class PerThreadData;
@@ -376,7 +334,7 @@ struct PerThreadDataFriendFields
 
     PerThreadDataFriendFields();
 
-#ifdef JSGC_TRACK_EXACT_ROOTS
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
@@ -422,4 +380,4 @@ struct PerThreadDataFriendFields
 
 } /* namespace js */
 
-#endif /* jspubtd_h */
+#endif /* jspubtd_h___ */

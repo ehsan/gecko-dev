@@ -143,7 +143,7 @@
 
             if (aCharset) {
               try {
-                this.docShell.parentCharset = aCharset;
+                this.docShell.parentCharset = this.mAtomService.getAtom(aCharset);
               }
               catch (e) {
               }
@@ -214,10 +214,6 @@
                 onget="return this.webNavigation.currentURI;"
                 readonly="true"/>
 
-      <property name="documentURI"
-                onget="return this.contentDocument.documentURIObject;"
-                readonly="true"/>
-
       <property name="preferences"
                 onget="return this.mPrefs.QueryInterface(Components.interfaces.nsIPrefService);"
                 readonly="true"/>
@@ -243,22 +239,6 @@
         </setter>
       </property>
 
-      <property name="imageDocument"
-                readonly="true">
-        <getter>
-          <![CDATA[
-            var document = this.contentDocument;
-            if (!document || !(document instanceof Ci.nsIImageDocument))
-              return null;
-
-            try {
-                return {width: document.imageRequest.image.width, height: document.imageRequest.image.height };
-            } catch (e) {}
-            return null;
-          ]]>
-        </getter>
-      </property>
-
       <property name="isRemoteBrowser"
                 onget="return (this.getAttribute('remote') == 'true');"
                 readonly="true"/>
@@ -269,12 +249,78 @@
 
       <field name="_webNavigation">null</field>
 
+      <field name="_remoteWebNavigation"><![CDATA[
+        ({
+          LOAD_FLAGS_MASK: 65535,
+          LOAD_FLAGS_NONE: 0,
+          LOAD_FLAGS_IS_REFRESH: 16,
+          LOAD_FLAGS_IS_LINK: 32,
+          LOAD_FLAGS_BYPASS_HISTORY: 64,
+          LOAD_FLAGS_REPLACE_HISTORY: 128,
+          LOAD_FLAGS_BYPASS_CACHE: 256,
+          LOAD_FLAGS_BYPASS_PROXY: 512,
+          LOAD_FLAGS_CHARSET_CHANGE: 1024,
+          LOAD_FLAGS_STOP_CONTENT: 2048,
+          LOAD_FLAGS_FROM_EXTERNAL: 4096,
+          LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP: 8192,
+          LOAD_FLAGS_FIRST_LOAD: 16384,
+          LOAD_FLAGS_ALLOW_POPUPS: 32768,
+          LOAD_FLAGS_BYPASS_CLASSIFIER: 65536,
+          LOAD_FLAGS_FORCE_ALLOW_COOKIES: 131072,
+
+          STOP_NETWORK: 1,
+          STOP_CONTENT: 2,
+          STOP_ALL: 3,
+
+          canGoBack: false,
+          canGoForward: false,
+          goBack: function() { this._sendMessage("WebNavigation:GoBack", {}); },
+          goForward: function() { this._sendMessage("WebNavigation:GoForward", {}); },
+          gotoIndex: function(aIndex) { this._sendMessage("WebNavigation:GotoIndex", {index: aIndex}); },
+          loadURI: function(aURI, aLoadFlags, aReferrer, aPostData, aHeaders) {
+            this._browser.userTypedValue = aURI;
+            this._browser._contentTitle = "";
+            this._sendMessage("WebNavigation:LoadURI", {uri: aURI, flags: aLoadFlags});
+          },
+          reload: function(aReloadFlags) { this._sendMessage("WebNavigation:Reload", {flags: aReloadFlags}); },
+          stop: function(aStopFlags) { this._sendMessage("WebNavigation:Stop", {flags: aStopFlags}); },
+          get document() { Components.utils.reportError("contentDocument is not available"); return null; },
+          get currentURI() {
+            if (!this._currentURI)
+               this._currentURI = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService).newURI("about:blank", null, null);
+
+            return this._currentURI;
+          },
+          set currentURI(aURI) { this.loadURI(aURI.spec, null, null, null); },
+          referringURI: null,
+          get sessionHistory() { return null; },
+          set sessionHistory(aValue) { },
+
+          _currentURI: null,
+          _browser: this,
+          _sendMessage: function(aMessage, aData) {
+            try {
+              this._browser.messageManager.sendAsyncMessage(aMessage, aData);
+            }
+            catch (e) {
+              Components.utils.reportError(e);
+            }
+         },
+
+         QueryInterface: function(aIID) {
+           if (aIID.equals(Components.interfaces.nsIWebNavigation) || aIID.equals(Components.interfaces.nsISupports))
+             return this;
+           throw Components.results.NS_NOINTERFACE;
+         }
+        })
+      ]]></field>
+
       <property name="webNavigation"
                 readonly="true">
         <getter>
         <![CDATA[
           if (!this._webNavigation)
-            this._webNavigation = this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation);
+            this._webNavigation = this.isRemoteBrowser ? this._remoteWebNavigation : this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation);
           return this._webNavigation;
         ]]>
         </getter>
@@ -314,7 +360,7 @@
               return null;
 
             var tabBrowser = this.getTabBrowser();
-            if (tabBrowser && "fastFind" in tabBrowser)
+            if (tabBrowser)
               return this._fastFind = tabBrowser.fastFind;
 
             if (!this.docShell)
@@ -519,8 +565,7 @@
             if (!this.docShell || !this.fastFind)
               return;
             var tabBrowser = this.getTabBrowser();
-            if (!tabBrowser || !("fastFind" in tabBrowser) ||
-                tabBrowser.selectedBrowser == this)
+            if (!tabBrowser || tabBrowser.mCurrentBrowser == this)
               this.fastFind.setDocShell(this.docShell);
 
             if (this._scrollable) {
@@ -669,7 +714,7 @@
       <constructor>
         <![CDATA[
           try {
-            if (this.docShell && !this.hasAttribute("disablehistory")) {
+            if (!this.hasAttribute("disablehistory")) {
               var os = Components.classes["@mozilla.org/observer-service;1"]
                                  .getService(Components.interfaces.nsIObserverService);
               os.addObserver(this, "browser:purge-session-history", false);
@@ -678,8 +723,8 @@
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history if we weren't told otherwise
-              if (!this.hasAttribute("disableglobalhistory"))
-                this.docShell.useGlobalHistory = true;
+              if (this.docShell && !this.hasAttribute("disableglobalhistory"))
+                this.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
             }
           }
           catch (e) {
@@ -1074,16 +1119,16 @@
                 this.stopScroll();
                 break;
               }
-              case "keydown": {
+              case "keypress": {
                 if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
                   // the escape key will be processed by
-                  // nsXULPopupManager::KeyDown and the panel will be closed.
-                  // So, don't consume the key event here.
+                  // nsXULPopupManager::KeyPress and the panel will be closed.
+                  // So, nothing to do here.
                   break;
                 }
-                // don't break here. we need to eat keydown events.
+                // don't break here. we need to eat keypress events.
               }
-              case "keypress":
+              case "keydown":
               case "keyup": {
                 // All keyevents should be eaten here during autoscrolling.
                 aEvent.stopPropagation();

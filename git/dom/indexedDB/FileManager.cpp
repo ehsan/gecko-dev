@@ -24,7 +24,6 @@
 #include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::quota::AssertIsOnIOThread;
 
 namespace {
 
@@ -63,7 +62,7 @@ nsresult
 FileManager::Init(nsIFile* aDirectory,
                   mozIStorageConnection* aConnection)
 {
-  AssertIsOnIOThread();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aDirectory, "Null directory!");
   NS_ASSERTION(aConnection, "Null connection!");
 
@@ -270,7 +269,7 @@ FileManager::InitDirectory(nsIFile* aDirectory,
                            nsIFile* aDatabaseFile,
                            const nsACString& aOrigin)
 {
-  AssertIsOnIOThread();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aDirectory, "Null directory!");
   NS_ASSERTION(aDatabaseFile, "Null database file!");
 
@@ -386,22 +385,11 @@ FileManager::InitDirectory(nsIFile* aDirectory,
 nsresult
 FileManager::GetUsage(nsIFile* aDirectory, uint64_t* aUsage)
 {
-  AssertIsOnIOThread();
-
-  bool exists;
-  nsresult rv = aDirectory->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!exists) {
-    *aUsage = 0;
-    return NS_OK;
-  }
+  uint64_t usage = 0;
 
   nsCOMPtr<nsISimpleEnumerator> entries;
-  rv = aDirectory->GetDirectoryEntries(getter_AddRefs(entries));
+  nsresult rv = aDirectory->GetDirectoryEntries(getter_AddRefs(entries));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  uint64_t usage = 0;
 
   bool hasMore;
   while (NS_SUCCEEDED((rv = entries->HasMoreElements(&hasMore))) && hasMore) {

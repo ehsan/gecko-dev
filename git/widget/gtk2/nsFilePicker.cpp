@@ -7,7 +7,6 @@
 
 #include <gtk/gtk.h>
 
-#include "nsGtkUtils.h"
 #include "nsIFileURL.h"
 #include "nsIURI.h"
 #include "nsIWidget.h"
@@ -32,6 +31,17 @@ using namespace mozilla;
 #define MAX_PREVIEW_SIZE 180
 
 nsIFile *nsFilePicker::mPrevDisplayDirectory = nullptr;
+
+// Some GObject functions expect functions for gpointer arguments.
+// gpointer is void* but C++ doesn't like casting functions to void*.
+template<class T> static inline gpointer
+FuncToGpointer(T aFunction)
+{
+    return reinterpret_cast<gpointer>
+        (reinterpret_cast<uintptr_t>
+         // This cast just provides a warning if T is not a function.
+         (reinterpret_cast<void (*)()>(aFunction)));
+}
 
 void
 nsFilePicker::Shutdown()
@@ -109,12 +119,6 @@ UpdateFilePreviewWidget(GtkFileChooser *file_chooser,
     return;
   }
 
-#if GTK_CHECK_VERSION(2,12,0)
-  GdkPixbuf *preview_pixbuf_temp = preview_pixbuf;
-  preview_pixbuf = gdk_pixbuf_apply_embedded_orientation(preview_pixbuf_temp);
-  g_object_unref(preview_pixbuf_temp);
-#endif
-
   // This is the easiest way to do center alignment without worrying about containers
   // Minimum 3px padding each side (hence the 6) just to make things nice
   gint x_padding = (MAX_PREVIEW_SIZE + 6 - gdk_pixbuf_get_width(preview_pixbuf)) / 2;
@@ -154,7 +158,8 @@ MakeCaseInsensitiveShellGlob(const char* aPattern) {
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
 
 nsFilePicker::nsFilePicker()
-  : mSelectedType(0),
+  : mMode(nsIFilePicker::modeOpen),
+    mSelectedType(0),
     mRunning(false),
     mAllowURLs(false)
 {
@@ -216,10 +221,12 @@ nsFilePicker::ReadValuesFromFileChooser(GtkWidget *file_chooser)
 
 void
 nsFilePicker::InitNative(nsIWidget *aParent,
-                         const nsAString& aTitle)
+                         const nsAString& aTitle,
+                         int16_t aMode)
 {
   mParentWidget = aParent;
   mTitle.Assign(aTitle);
+  mMode = aMode;
 }
 
 NS_IMETHODIMP
@@ -399,6 +406,10 @@ nsFilePicker::Open(nsIFilePickerShownCallback *aCallback)
   gtk_window_set_modal(window, TRUE);
   if (parent_widget) {
     gtk_window_set_destroy_with_parent(window, TRUE);
+    GtkWindowGroup *parentGroup = gtk_window_get_group(parent_widget);
+    if (parentGroup) {
+      gtk_window_group_add_window(parentGroup, window);
+    }
   }
 
   NS_ConvertUTF16toUTF8 defaultName(mDefault);

@@ -321,7 +321,7 @@ function run_test() {
                    do_get_addon("test_bug542391_3_1"),
                    do_get_addon("test_bug542391_4"),
                    do_get_addon("test_bug542391_5"),
-                   do_get_addon("test_bug542391_6")], function install_and_restart() {
+                   do_get_addon("test_bug542391_6")], function() {
 
     restartManager();
     check_startup_changes("installed", []);
@@ -332,8 +332,7 @@ function run_test() {
 
     AddonManager.getAddonsByIDs(["bug542391_2@tests.mozilla.org",
                                  "bug542391_4@tests.mozilla.org"],
-                                 callback_soon(function disable_and_restart([a2, a4]) {
-      do_check_true(a2 != null && a4 != null);
+                                 function([a2, a4]) {
       a2.userDisabled = true;
       a4.userDisabled = true;
       restartManager();
@@ -349,7 +348,7 @@ function run_test() {
                                    "bug542391_4@tests.mozilla.org",
                                    "bug542391_5@tests.mozilla.org",
                                    "bug542391_6@tests.mozilla.org"],
-                                   callback_soon(function(addons) {
+                                   function(addons) {
         check_state_v1(addons);
 
         WindowWatcher.expected = true;
@@ -370,10 +369,10 @@ function run_test() {
                                      function(addons) {
           check_state_v2(addons);
 
-          do_execute_soon(run_test_1);
+          run_test_1();
         });
-      }));
-    }));
+      });
+    });
   });
 }
 
@@ -409,7 +408,7 @@ function run_test_1() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_2@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -440,7 +439,7 @@ function run_test_2() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_3@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
@@ -474,7 +473,7 @@ function run_test_5() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_2@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -498,6 +497,10 @@ function run_test_6() {
                                function(addons) {
     check_state_v1_2(addons);
 
-    end_test();
+    finish_test();
   });
+}
+
+function finish_test() {
+  do_test_finished();
 }

@@ -12,7 +12,6 @@
 #include "nsIIndexedDatabaseManager.h"
 #include "nsIObserver.h"
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Mutex.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
@@ -97,18 +96,6 @@ public:
   AsyncDeleteFile(FileManager* aFileManager,
                   int64_t aFileId);
 
-  // Don't call this method in real code, it blocks the main thread!
-  // It is intended to be used by mochitests to test correctness of the special
-  // reference counting of stored blobs/files.
-  nsresult
-  BlockAndGetFileReferences(const nsACString& aOrigin,
-                            const nsAString& aDatabaseName,
-                            int64_t aFileId,
-                            int32_t* aRefCnt,
-                            int32_t* aDBRefCnt,
-                            int32_t* aSliceRefCnt,
-                            bool* aResult);
-
   static mozilla::Mutex&
   FileMutex()
   {
@@ -147,7 +134,7 @@ private:
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static mozilla::Atomic<int32_t> sLowDiskSpaceMode;
+  static int32_t sLowDiskSpaceMode;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -23,6 +23,7 @@ import java.util.GregorianCalendar;
 */
 
 public class testHistoryTab extends PixelTest {
+    private static final String ABOUT_HOME_URL = "about:home";
     private static ListView listview = null;
     private String[] mBookmarks = new String[] {
         "Browser Blank Page 01",
@@ -51,7 +52,37 @@ public class testHistoryTab extends PixelTest {
         url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
         loadAndPaint(url);
 
-        toggleBookmark();
+        mActions.sendSpecialKey(Actions.SpecialKey.MENU);
+        waitForText("Settings");
+
+        // On ICS+ phones, there is no button labeled "Bookmarks"
+        // instead we have to just dig through every button on the screen
+        ArrayList<View> images = mSolo.getCurrentViews();
+        for (int i = 0; i < images.size(); i++) {
+          final View view = images.get(i);
+          boolean found = false;
+          found = "Bookmark".equals(view.getContentDescription());
+
+          // on older android versions, try looking at the button's text
+          if (!found) {
+              if (view instanceof TextView) {
+                 found = "Bookmark".equals(((TextView)view).getText());
+              }
+          }
+
+          if (found) {
+            int[] xy = new int[2];
+            view.getLocationOnScreen(xy);
+
+            final int viewWidth = view.getWidth();
+            final int viewHeight = view.getHeight();
+            final float x = xy[0] + (viewWidth / 2.0f);
+            float y = xy[1] + (viewHeight / 2.0f);
+
+            mSolo.clickOnScreen(x, y);
+          }
+        }
+        
         mAsserter.is(mSolo.waitForText("Bookmark added"), true, "bookmark added successfully");
 
         testList(url);
@@ -182,6 +213,7 @@ public class testHistoryTab extends PixelTest {
         mSolo.clickOnView(child);
         // nothing should happen
 
+        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         mChild = null;
         boolean success = waitForTest(new BooleanTest() {
             @Override
@@ -195,17 +227,14 @@ public class testHistoryTab extends PixelTest {
             }
         }, MAX_WAIT_MS);
         if (success == true && mChild != null) {
-            Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
             mSolo.clickOnView(mChild);
             contentEventExpecter.blockForEvent();
-            contentEventExpecter.unregisterListener();
-            // TODO: Find a better way to wait for update before checking
-            // awesome bar; lesser waits result in intermittent failures
-            mSolo.sleep(2000);
+            mSolo.sleep(500);
             verifyUrl(url);
         } else {
             mAsserter.ok(false, "waiting for history item", "history item available");
         }
+        contentEventExpecter.unregisterListener();
     }
 
     @Override

@@ -6,7 +6,7 @@
 const {utils: Cu} = Components;
 
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/services-common/utils.js");
@@ -118,21 +118,17 @@ add_task(function test_collect() {
   recorder = new SessionRecorder("testing.collect.sessions.");
   recorder.onStartup();
 
-  // Collecting the provider should prune all previous sessions.
-  let sessions = recorder.getPreviousSessions();
-  do_check_eq(Object.keys(sessions).length, 6);
   yield provider.collectConstantData();
-  sessions = recorder.getPreviousSessions();
+  let sessions = recorder.getPreviousSessions();
   do_check_eq(Object.keys(sessions).length, 0);
 
-  // And those previous sessions should make it to storage.
   let daily = provider.getMeasurement("previous", 3);
   let values = yield daily.getValues();
   do_check_true(values.days.hasDay(now));
   do_check_eq(values.days.size, 1);
+
   let day = values.days.getDay(now);
   do_check_eq(day.size, 5);
-  let previousStorageCount = day.get("main").length;
 
   for (let field of ["cleanActiveTicks", "cleanTotalTime", "main", "firstPaint", "sessionRestored"]) {
     do_check_true(day.has(field));
@@ -141,11 +137,9 @@ add_task(function test_collect() {
   }
 
   let lastIndex = yield provider.getState("lastSession");
-  do_check_eq(lastIndex, "" + (previousStorageCount - 1)); // 0-indexed
+  do_check_eq(lastIndex, "5"); // 0-indexed so this is really 6.
 
-  // Fake an aborted session. If we create a 2nd recorder against the same
-  // prefs branch as a running one, this simulates what would happen if the
-  // first recorder didn't shut down.
+  // Fake an aborted sessions.
   let recorder2 = new SessionRecorder("testing.collect.sessions.");
   recorder2.onStartup();
   do_check_eq(Object.keys(recorder.getPreviousSessions()).length, 1);
@@ -154,8 +148,7 @@ add_task(function test_collect() {
 
   values = yield daily.getValues();
   day = values.days.getDay(now);
-  do_check_eq(day.size, previousStorageCount + 1);
-  previousStorageCount = day.get("main").length;
+  do_check_eq(day.size, 7);
   for (let field of ["abortedActiveTicks", "abortedTotalTime"]) {
     do_check_true(day.has(field));
     do_check_true(Array.isArray(day.get(field)));
@@ -163,27 +156,25 @@ add_task(function test_collect() {
   }
 
   lastIndex = yield provider.getState("lastSession");
-  do_check_eq(lastIndex, "" + (previousStorageCount - 1));
+  do_check_eq(lastIndex, "6");
 
-  recorder.onShutdown();
   recorder2.onShutdown();
 
-  // If we try to insert a already-inserted session, it will be ignored.
-  recorder = new SessionRecorder("testing.collect.sessions.");
-  recorder._currentIndex = recorder._currentIndex - 1;
-  recorder._prunedIndex = recorder._currentIndex;
-  recorder.onStartup();
+  // If we try to insert a lower-numbered session, it will be ignored.
+  let recorder3 = new SessionRecorder("testing.collect.sessions.");
+  recorder3._currentIndex = recorder2._currentIndex - 4;
+  recorder3._prunedIndex = recorder3._currentIndex;
+  recorder3.onStartup();
   // Session is left over from recorder2.
-  sessions = recorder.getPreviousSessions();
-  do_check_eq(Object.keys(sessions).length, 1);
-  do_check_true(previousStorageCount - 1 in sessions);
+  do_check_eq(Object.keys(recorder.getPreviousSessions()).length, 1);
   yield provider.collectConstantData();
   lastIndex = yield provider.getState("lastSession");
-  do_check_eq(lastIndex, "" + (previousStorageCount - 1));
+  do_check_eq(lastIndex, "6");
   values = yield daily.getValues();
   day = values.days.getDay(now);
-  // We should not get additional entry.
-  do_check_eq(day.get("main").length, previousStorageCount);
+  do_check_eq(day.size, 7); // We should not get additional entry.
+  recorder3.onShutdown();
+
   recorder.onShutdown();
 
   yield provider.shutdown();

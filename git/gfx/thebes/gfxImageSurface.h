@@ -6,7 +6,6 @@
 #ifndef GFX_IMAGESURFACE_H
 #define GFX_IMAGESURFACE_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxASurface.h"
 #include "gfxPoint.h"
 
@@ -25,7 +24,7 @@ class SourceSurface;
  * purpose is for storing read-only images and using it as a source surface,
  * but it can also be drawn to.
  */
-class gfxImageSurface : public gfxASurface {
+class THEBES_API gfxImageSurface : public gfxASurface {
 public:
     /**
      * Construct an image surface around an existing buffer of image data.
@@ -114,9 +113,9 @@ public:
 
     static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
-    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
         MOZ_OVERRIDE;
-    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
         MOZ_OVERRIDE;
     virtual bool SizeOfIsMeasured() const MOZ_OVERRIDE;
 
@@ -144,7 +143,7 @@ protected:
     long mStride;
 };
 
-class gfxSubimageSurface : public gfxImageSurface {
+class THEBES_API gfxSubimageSurface : public gfxImageSurface {
 protected:
     friend class gfxImageSurface;
     gfxSubimageSurface(gfxImageSurface* aParent,

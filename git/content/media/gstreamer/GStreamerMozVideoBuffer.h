@@ -6,7 +6,6 @@
 #define __GST_MOZ_VIDEO_BUFFER_H__
 
 #include <gst/gst.h>
-#include "GStreamerLoader.h"
 #include "MediaDecoderReader.h"
 
 namespace mozilla {

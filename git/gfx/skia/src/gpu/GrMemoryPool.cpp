@@ -119,7 +119,6 @@ void GrMemoryPool::DeleteBlock(BlockHeader* block) {
 }
 
 void GrMemoryPool::validate() {
-#ifdef SK_DEBUG
     BlockHeader* block = fHead;
     BlockHeader* prev = NULL;
     GrAssert(block);
@@ -157,5 +156,5 @@ void GrMemoryPool::validate() {
     } while ((block = block->fNext));
     GrAssert(allocCount == fAllocationCnt);
     GrAssert(prev == fTail);
-#endif
 }
+

@@ -1,7 +1,7 @@
 
 /* pngrutil.c - utilities to read a PNG file
  *
- * Last changed in libpng 1.5.16 [May 23, 2013]
+ * Last changed in libpng 1.5.15 [March 28, 2013]
  * Copyright (c) 1998-2013 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -17,6 +17,8 @@
 #include "pngpriv.h"
 
 #ifdef PNG_READ_SUPPORTED
+
+#define png_strtod(p,a,b) strtod(a,b)
 
 png_uint_32 PNGAPI
 png_get_uint_31(png_structp png_ptr, png_const_bytep buf)
@@ -4302,6 +4304,7 @@ png_read_reset(png_structp png_ptr)
     png_ptr->mode &= ~PNG_AFTER_IDAT;
     png_ptr->row_number = 0;
     png_ptr->pass = 0;
+    png_ptr->flags &= ~PNG_FLAG_ROW_INIT;
 }
 
 void /* PRIVATE */

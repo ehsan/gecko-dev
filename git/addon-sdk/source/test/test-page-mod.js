@@ -19,8 +19,6 @@ const { openWebpage } = require('./private-browsing/helper');
 const { isTabPBSupported, isWindowPBSupported, isGlobalPBSupported } = require('sdk/private-browsing/utils');
 const promise = require("sdk/core/promise");
 const { pb } = require('./private-browsing/helper');
-const { URL } = require("sdk/url");
-const testPageURI = require("sdk/self").data.url("test.html");
 
 /* XXX This can be used to delay closing the test Firefox instance for interactive
  * testing or visual inspection. This test is registered first so that it runs
@@ -121,16 +119,16 @@ exports.testPageModIncludes = function(test) {
     };
   }
 
-  testPageMod(test, testPageURI, [
+  testPageMod(test, "about:buildconfig", [
       createPageModTest("*", false),
       createPageModTest("*.google.com", false),
-      createPageModTest("resource:*", true),
-      createPageModTest("resource:", false),
-      createPageModTest(testPageURI, true)
+      createPageModTest("about:*", true),
+      createPageModTest("about:", false),
+      createPageModTest("about:buildconfig", true)
     ],
     function (win, done) {
-      test.waitUntil(function () win.localStorage[testPageURI],
-                     testPageURI + " page-mod to be executed")
+      test.waitUntil(function () win.localStorage["about:buildconfig"],
+                     "about:buildconfig page-mod to be executed")
           .then(function () {
             asserts.forEach(function(fn) {
               fn(test, win);
@@ -145,7 +143,7 @@ exports.testPageModErrorHandling = function(test) {
   test.assertRaises(function() {
       new PageMod();
     },
-    'The `include` option must always contain atleast one rule',
+    'pattern is undefined',
     "PageMod() throws when 'include' option is not specified.");
 };
 
@@ -1139,29 +1137,3 @@ exports["test page-mod on private tab in global pb"] = function (test) {
   });
   pb.activate();
 }
-
-// Bug 699450: Calling worker.tab.close() should not lead to exception
-exports.testWorkerTabClose = function(test) {
-  let callbackDone;
-  testPageMod(test, "about:", [{
-      include: "about:",
-      contentScript: '',
-      onAttach: function(worker) {
-        console.log("call close");
-        worker.tab.close(function () {
-          // On Fennec, tab is completely destroyed right after close event is
-          // dispatch, so we need to wait for the next event loop cycle to
-          // check for tab nulliness.
-          timer.setTimeout(function () {
-            test.assert(!worker.tab,
-                        "worker.tab should be null right after tab.close()");
-            callbackDone();
-          }, 0);
-        });
-      }
-    }],
-    function(win, done) {
-      callbackDone = done;
-    }
-  );
-};

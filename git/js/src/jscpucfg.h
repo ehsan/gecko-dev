@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscpucfg_h
-#define jscpucfg_h
+#ifndef js_cpucfg___
+#define js_cpucfg___
 
 #define JS_HAVE_LONG_LONG
 
@@ -57,8 +57,8 @@
 
 /* BSDs */
 #elif defined(JS_HAVE_MACHINE_ENDIAN_H)
-# include <machine/endian.h>
 # include <sys/types.h>
+# include <machine/endian.h>
 
 # if defined(_BYTE_ORDER)
 #  if _BYTE_ORDER == _LITTLE_ENDIAN
@@ -114,4 +114,4 @@
 # endif
 #endif
 
-#endif /* jscpucfg_h */
+#endif /* js_cpucfg___ */

@@ -12,7 +12,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   db.addEventListener("error", function(event) {
@@ -24,14 +24,14 @@ function testSteps()
   request = objectStore.add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   let key1 = event.target.result;
 
   request = objectStore.put({}, key1);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key1, "put gave the same key back");
 
@@ -40,7 +40,7 @@ function testSteps()
   request = objectStore.put({}, key2);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key2, "put gave the same key back");
 
@@ -49,7 +49,7 @@ function testSteps()
   request = objectStore.add({}, key2);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key2, "put gave the same key back");
 
@@ -158,28 +158,28 @@ function testSteps()
   request = objectStore.add({id:key1});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key1, "add gave back the same key");
 
   request = objectStore.put({id:10});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key1, "put gave back the same key");
 
   request = objectStore.put({id:10});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key1, "put gave back the same key");
 
   request = objectStore.add({id:10});
   request.addEventListener("error", new ExpectError("ConstraintError", true));
   request.onsuccess = unexpectedSuccessHandler;
-  event = yield undefined;
+  event = yield;
 
   try {
     objectStore.add({}, null);
@@ -219,14 +219,14 @@ function testSteps()
   request = objectStore.add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   key1 = event.target.result;
 
   request = objectStore.put({id:key1});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key1, "put gave the same key back");
 
@@ -235,7 +235,7 @@ function testSteps()
   request = objectStore.put({id:key2});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, key2, "put gave the same key back");
 
@@ -274,8 +274,8 @@ function testSteps()
   request = objectStore.delete(key2);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

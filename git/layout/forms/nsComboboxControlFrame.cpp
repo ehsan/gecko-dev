@@ -56,7 +56,6 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "nsTextNode.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -130,6 +129,26 @@ NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, u
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsComboboxControlFrame)
+
+namespace {
+
+class DestroyWidgetRunnable : public nsRunnable {
+public:
+  NS_DECL_NSIRUNNABLE
+
+  explicit DestroyWidgetRunnable(nsIWidget* aWidget) : mWidget(aWidget) {}
+
+private:
+  nsCOMPtr<nsIWidget> mWidget;
+};
+
+NS_IMETHODIMP DestroyWidgetRunnable::Run()
+{
+  mWidget = nullptr;
+  return NS_OK;
+}
+
+}
 
 //-----------------------------------------------------------
 // Reflow Debugging Macros
@@ -369,7 +388,12 @@ nsComboboxControlFrame::ShowList(bool aShowList)
     }
   } else {
     if (widget) {
+      nsCOMPtr<nsIRunnable> widgetDestroyer =
+        new DestroyWidgetRunnable(widget);
+      // 'widgetDestroyer' now has a strong ref on the widget so calling
+      // DestroyWidget here will not *delete* it.
       view->DestroyWidget();
+      NS_DispatchToMainThread(widgetDestroyer);
     }
   }
 
@@ -646,10 +670,9 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
     return eDropDownPositionPendingResize;
   }
 
-  // Position the drop-down below if there is room, otherwise place it above
-  // if there is room.  If there is no room for it on either side then place
-  // it below (to avoid overlapping UI like the URL bar).
-  bool b = dropdownSize.height <= below || dropdownSize.height > above;
+  // Position the drop-down below if there is room, otherwise place it
+  // on the side that has more room.
+  bool b = dropdownSize.height <= below || below >= above;
   nsPoint dropdownPosition(0, b ? GetRect().height : -dropdownSize.height);
   if (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
     // Align the right edge of the drop-down with the right edge of the control.
@@ -715,8 +738,8 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
   if (mListControlFrame) {
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    scrollbarWidth = scrollable->GetNondisappearingScrollbarWidth(
-      presContext, aRenderingContext);
+    scrollbarWidth =
+      scrollable->GetDesiredScrollbarSizes(presContext, aRenderingContext).LeftRight();
   }
 
   nscoord displayWidth = 0;
@@ -728,19 +751,11 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
 
   if (mDropdownFrame) {
     nscoord dropdownContentWidth;
-    bool isUsingOverlayScrollbars =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0;
     if (aType == nsLayoutUtils::MIN_WIDTH) {
       dropdownContentWidth = mDropdownFrame->GetMinWidth(aRenderingContext);
-      if (isUsingOverlayScrollbars) {
-        dropdownContentWidth += scrollbarWidth;
-      }
     } else {
       NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
       dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
-      if (isUsingOverlayScrollbars) {
-        dropdownContentWidth += scrollbarWidth;
-      }
     }
     dropdownContentWidth = NSCoordSaturatingSubtract(dropdownContentWidth,
                                                      scrollbarWidth,
@@ -835,8 +850,9 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   else {
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    buttonWidth = scrollable->GetNondisappearingScrollbarWidth(
-      PresContext(), aReflowState.rendContext);
+    buttonWidth =
+      scrollable->GetDesiredScrollbarSizes(PresContext(),
+                                           aReflowState.rendContext).LeftRight();
     if (buttonWidth > aReflowState.ComputedWidth()) {
       buttonWidth = 0;
     }
@@ -1326,16 +1342,29 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   styleContext = styleSet->
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
                              mStyleContext);
+  if (MOZ_UNLIKELY(!styleContext)) {
+    return nullptr;
+  }
 
   nsRefPtr<nsStyleContext> textStyleContext;
   textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
+  if (MOZ_UNLIKELY(!textStyleContext)) {
+    return nullptr;
+  }
 
-  // Start by creating our anonymous block frame
+  // Start by by creating our anonymous block frame
   mDisplayFrame = new (shell) nsComboboxDisplayFrame(styleContext, this);
+  if (MOZ_UNLIKELY(!mDisplayFrame)) {
+    return nullptr;
+  }
+
   mDisplayFrame->Init(mContent, this, nullptr);
 
   // Create a text frame and put it inside the block frame
   nsIFrame* textFrame = NS_NewTextFrame(shell, textStyleContext);
+  if (MOZ_UNLIKELY(!textFrame)) {
+    return nullptr;
+  }
 
   // initialize the text frame
   textFrame->Init(aContent, mDisplayFrame, nullptr);
@@ -1507,7 +1536,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsPresContext *presContext = PresContext();
       const nsStyleDisplay *disp = StyleDisplay();
       if ((!IsThemed(disp) ||
-           !presContext->GetTheme()->ThemeDrawsFocusForWidget(disp->mAppearance)) &&
+           !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
           mDisplayFrame && IsVisibleForPainting(aBuilder)) {
         aLists.Content()->AppendNewToTop(
           new (aBuilder) nsDisplayComboboxFocus(aBuilder, this));

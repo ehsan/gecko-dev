@@ -10,11 +10,17 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES := \
+
+TEST_FILES = \
   test_ipc.html \
   ../test/devicestorage_common.js \
   $(NULL)
 
 
-include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
+
+libs:: $(TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") \
+	$(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)\

@@ -4,48 +4,45 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_WIDGET_QT
-// Must be included first to avoid conflicts.
-#include <QtCore/QCoreApplication>
-#include <QtCore/QEventLoop>
-#include "NestedLoopTimer.h"
-#endif
-
-#include "mozilla/plugins/PluginModuleParent.h"
-
-#include "base/process_util.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/PCrashReporterParent.h"
-#include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/plugins/BrowserStreamParent.h"
-#include "mozilla/plugins/PluginInstanceParent.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
-#include "mozilla/unused.h"
-#include "nsAutoPtr.h"
-#include "nsCRT.h"
-#include "nsIFile.h"
-#include "nsIObserverService.h"
-#include "nsNPAPIPlugin.h"
-#include "nsPrintfCString.h"
-#include "PluginIdentifierParent.h"
-#include "prsystem.h"
-
-#ifdef XP_WIN
-#include "PluginHangUIParent.h"
-#include "mozilla/widget/AudioSession.h"
-#endif
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#include "nsIProfileSaveEvent.h"
-#endif
-
 #ifdef MOZ_WIDGET_GTK
 #include <glib.h>
 #elif XP_MACOSX
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
+#ifdef MOZ_WIDGET_QT
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEventLoop>
+#include "NestedLoopTimer.h"
+#endif
+
+#include "base/process_util.h"
+
+#include "mozilla/Preferences.h"
+#include "mozilla/unused.h"
+#include "mozilla/ipc/SyncChannel.h"
+#include "mozilla/plugins/PluginModuleParent.h"
+#include "mozilla/plugins/BrowserStreamParent.h"
+#include "mozilla/dom/PCrashReporterParent.h"
+#include "PluginIdentifierParent.h"
+
+#include "nsAutoPtr.h"
+#include "nsCRT.h"
+#include "nsNPAPIPlugin.h"
+#include "nsIFile.h"
+#include "nsPrintfCString.h"
+
+#include "prsystem.h"
+
+#ifdef XP_WIN
+#include "PluginHangUIParent.h"
+#include "mozilla/widget/AudioSession.h"
+#endif
+#ifdef MOZ_ENABLE_PROFILER_SPS
+#include "nsIProfileSaveEvent.h"
+#endif
+#include "mozilla/Services.h"
+#include "nsIObserverService.h"
 
 using base::KillProcess;
 
@@ -123,7 +120,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     , mGetSitesWithDataSupported(false)
     , mNPNIface(NULL)
     , mPlugin(NULL)
-    , mTaskFactory(MOZ_THIS_IN_INITIALIZER_LIST())
+    , ALLOW_THIS_IN_INITIALIZER_LIST(mTaskFactory(this))
 #ifdef XP_WIN
     , mPluginCpuUsageOnHang()
     , mHangUIParent(nullptr)
@@ -759,9 +756,9 @@ PluginModuleParent::NotifyPluginCrashed()
 }
 
 PPluginIdentifierParent*
-PluginModuleParent::AllocPPluginIdentifierParent(const nsCString& aString,
-                                                 const int32_t& aInt,
-                                                 const bool& aTemporary)
+PluginModuleParent::AllocPPluginIdentifier(const nsCString& aString,
+                                           const int32_t& aInt,
+                                           const bool& aTemporary)
 {
     if (aTemporary) {
         NS_ERROR("Plugins don't create temporary identifiers.");
@@ -783,25 +780,25 @@ PluginModuleParent::AllocPPluginIdentifierParent(const nsCString& aString,
 }
 
 bool
-PluginModuleParent::DeallocPPluginIdentifierParent(PPluginIdentifierParent* aActor)
+PluginModuleParent::DeallocPPluginIdentifier(PPluginIdentifierParent* aActor)
 {
     delete aActor;
     return true;
 }
 
 PPluginInstanceParent*
-PluginModuleParent::AllocPPluginInstanceParent(const nsCString& aMimeType,
-                                               const uint16_t& aMode,
-                                               const InfallibleTArray<nsCString>& aNames,
-                                               const InfallibleTArray<nsCString>& aValues,
-                                               NPError* rv)
+PluginModuleParent::AllocPPluginInstance(const nsCString& aMimeType,
+                                         const uint16_t& aMode,
+                                         const InfallibleTArray<nsCString>& aNames,
+                                         const InfallibleTArray<nsCString>& aValues,
+                                         NPError* rv)
 {
     NS_ERROR("Not reachable!");
     return NULL;
 }
 
 bool
-PluginModuleParent::DeallocPPluginInstanceParent(PPluginInstanceParent* aActor)
+PluginModuleParent::DeallocPPluginInstance(PPluginInstanceParent* aActor)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     delete aActor;
@@ -1195,11 +1192,9 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     uint32_t flags = 0;
 
     if (!CallNP_Initialize(flags, error)) {
-        mShutdown = true;
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
-        mShutdown = true;
         return NS_OK;
     }
 
@@ -1225,14 +1220,8 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     flags |= kAllowAsyncDrawing;
 #endif
 
-    if (!CallNP_Initialize(flags, error)) {
-        mShutdown = true;
+    if (!CallNP_Initialize(flags, error))
         return NS_ERROR_FAILURE;
-    }
-    if (*error != NPERR_NO_ERROR) {
-        mShutdown = true;
-        return NS_OK;
-    }
 
 #if defined XP_WIN
     // Send the info needed to join the chrome process's audio session to the
@@ -1547,8 +1536,8 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
 }
 
 PCrashReporterParent*
-PluginModuleParent::AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                                              uint32_t* processType)
+PluginModuleParent::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
+                                        uint32_t* processType)
 {
 #ifdef MOZ_CRASHREPORTER
     return new CrashReporterParent();
@@ -1558,7 +1547,7 @@ PluginModuleParent::AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
 }
 
 bool
-PluginModuleParent::DeallocPCrashReporterParent(PCrashReporterParent* actor)
+PluginModuleParent::DeallocPCrashReporter(PCrashReporterParent* actor)
 {
     delete actor;
     return true;

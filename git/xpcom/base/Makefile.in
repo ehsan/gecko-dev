@@ -11,13 +11,53 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= xpcombase_s
-MSVC_ENABLE_PGO := 1
 MOZILLA_INTERNAL_API =1
 LIBXUL_LIBRARY = 1
+
+# TODO: we do this in crashreporter and storage/src too, should be centralized
+ifeq ($(OS_ARCH),Linux)
+DEFINES += -DXP_LINUX
+endif
+
+CPPSRCS		= \
+		nsVersionComparatorImpl.cpp \
+		nsConsoleMessage.cpp \
+		nsConsoleService.cpp \
+		nsDebugImpl.cpp \
+		nsErrorService.cpp \
+		nsExceptionService.cpp \
+		nsMemoryImpl.cpp \
+		nsTraceRefcntImpl.cpp \
+		nsInterfaceRequestorAgg.cpp \
+		nsUUIDGenerator.cpp \
+		nsSystemInfo.cpp \
+		nsCycleCollector.cpp \
+		nsStackWalk.cpp \
+		nsMemoryReporterManager.cpp \
+		ClearOnShutdown.cpp \
+		VisualEventTracer.cpp \
+		nsErrorAsserts.cpp \
+		nsGZFileWriter.cpp \
+		nsMemoryInfoDumper.cpp \
+		nsMessageLoop.cpp \
+		AvailableMemoryTracker.cpp \
+		$(NULL)
+
+ifeq ($(OS_ARCH),Linux)
+CPPSRCS += MapsMemoryReporter.cpp
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS		+= nsMacUtilsImpl.cpp
+endif
 
 CSRCS = \
 		nsErrorAssertsC.c \
 		$(NULL)
+
+ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += nsCrashOnException.cpp
+endif
 
 ifeq ($(OS_ARCH),WINNT)
 
@@ -27,11 +67,36 @@ endif
 
 endif #if OS_ARCH == WINNT
 
-include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
+SDK_HEADERS     = \
+		nsAutoPtr.h \
+		nsError.h \
+		ErrorList.h \
+		ErrorListCxxDefines.h \
+		ErrorListCDefines.h \
+		nsISupportsBase.h \
+		nscore.h \
+		nsAtomicRefcnt.h \
+		nsCycleCollector.h \
+		nsObjCExceptions.h \
 
-ifdef MOZ_WIDGET_GTK
-CXXFLAGS        += $(TK_CFLAGS)
+ifeq ($(OS_ARCH),WINNT)
+SDK_HEADERS += \
+		nsWindowsHelpers.h \
+		$(NULL)
+endif
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+FORCE_STATIC_LIB = 1
+
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
+
+DEFINES		+= -D_IMPL_NS_COM
+
+ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+CXXFLAGS        += $(MOZ_GTK2_CFLAGS)
 endif
 
 LOCAL_INCLUDES += \

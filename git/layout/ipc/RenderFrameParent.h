@@ -25,7 +25,7 @@ namespace mozilla {
 class InputEvent;
 
 namespace layers {
-class APZCTreeManager;
+class AsyncPanZoomController;
 class GestureEventListener;
 class TargetConfig;
 class LayerTransactionParent;
@@ -96,19 +96,13 @@ public:
   void NotifyInputEvent(const nsInputEvent& aEvent,
                         nsInputEvent* aOutEvent);
 
-  void NotifyDimensionsChanged(ScreenIntSize size);
+  void NotifyDimensionsChanged(int width, int height);
 
-  void ZoomToRect(const CSSRect& aRect);
+  void ZoomToRect(const gfxRect& aRect);
 
   void ContentReceivedTouch(bool aPreventDefault);
 
   void UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
-
-  void UpdateScrollOffset(uint32_t aPresShellId,
-                          ViewID aViewId,
-                          const CSSIntPoint& aScrollOffset);
-
-  bool HitTest(const nsRect& aRect);
 
 protected:
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
@@ -118,10 +112,8 @@ protected:
   virtual bool RecvCancelDefaultPanZoom() MOZ_OVERRIDE;
   virtual bool RecvDetectScrollableSubframe() MOZ_OVERRIDE;
 
-  virtual bool RecvUpdateHitRegion(const nsRegion& aRegion) MOZ_OVERRIDE;
-
-  virtual PLayerTransactionParent* AllocPLayerTransactionParent() MOZ_OVERRIDE;
-  virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
+  virtual PLayerTransactionParent* AllocPLayerTransaction() MOZ_OVERRIDE;
+  virtual bool DeallocPLayerTransaction(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
 
 private:
   void BuildViewMap();
@@ -130,7 +122,7 @@ private:
 
   LayerTransactionParent* GetShadowLayers() const;
   uint64_t GetLayerTreeId() const;
-  Layer* GetRootLayer() const;
+  ContainerLayer* GetRootLayer() const;
 
   // When our child frame is pushing transactions directly to the
   // compositor, this is the ID of its layer tree in the compositor's
@@ -140,12 +132,10 @@ private:
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsRefPtr<ContainerLayer> mContainer;
   // When our scrolling behavior is ASYNC_PAN_ZOOM, we have a nonnull
-  // APZCTreeManager. It's used to manipulate the shadow layer tree
-  // on the compositor thread.
-  nsRefPtr<layers::APZCTreeManager> mApzcTreeManager;
+  // AsyncPanZoomController.  It's associated with the shadow layer
+  // tree on the compositor thread.
+  nsRefPtr<layers::AsyncPanZoomController> mPanZoomController;
   nsRefPtr<RemoteContentController> mContentController;
-
-  layers::APZCTreeManager* GetApzcTreeManager();
 
   // This contains the views for all the scrollable frames currently in the
   // painted region of our remote content.
@@ -168,8 +158,6 @@ private:
   bool mFrameLoaderDestroyed;
   // this is gfxRGBA because that's what ColorLayer wants.
   gfxRGBA mBackgroundColor;
-
-  nsRegion mTouchRegion;
 };
 
 } // namespace layout
@@ -199,9 +187,6 @@ public:
   virtual already_AddRefed<Layer>
   BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
              const ContainerParameters& aContainerParameters) MOZ_OVERRIDE;
-
-  void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-               HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 

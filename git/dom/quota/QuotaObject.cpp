@@ -17,7 +17,7 @@ QuotaObject::AddRef()
   if (!quotaManager) {
     NS_ERROR("Null quota manager, this shouldn't happen, possible leak!");
 
-    ++mRefCnt;
+    NS_AtomicIncrementRefcnt(mRefCnt);
 
     return;
   }
@@ -34,7 +34,7 @@ QuotaObject::Release()
   if (!quotaManager) {
     NS_ERROR("Null quota manager, this shouldn't happen, possible leak!");
 
-    nsrefcnt count = --mRefCnt;
+    nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
     if (count == 0) {
       mRefCnt = 1;
       delete this;

@@ -27,15 +27,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_RepatchBuffer_h
-#define assembler_assembler_RepatchBuffer_h
+#ifndef RepatchBuffer_h
+#define RepatchBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/MacroAssembler.h"
-#include "assembler/moco/MocoStubs.h" //MOCO
+#include <assembler/MacroAssembler.h>
+#include <moco/MocoStubs.h> //MOCO
 
 namespace JSC {
 
@@ -160,4 +160,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_RepatchBuffer_h */
+#endif // RepatchBuffer_h

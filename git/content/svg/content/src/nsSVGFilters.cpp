@@ -32,6 +32,7 @@
 #include "gfxUtils.h"
 #include "SVGContentUtils.h"
 #include <algorithm>
+#include "nsContentUtils.h"
 #include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGComponentTransferFunctionElement.h"
 #include "mozilla/dom/SVGFEDistantLightElement.h"
@@ -272,7 +273,7 @@ nsSVGFE::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGFE::Result()
 {
   return GetResultImageName().ToDOMAnimatedString(this);
@@ -386,7 +387,7 @@ SVGComponentTransferFunctionElement::AttributeAffectsRendering(int32_t aNameSpac
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGComponentTransferFunctionElement::Type()
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(this);
@@ -399,31 +400,31 @@ SVGComponentTransferFunctionElement::TableValues()
     &mNumberListAttributes[TABLEVALUES], this, TABLEVALUES);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Slope()
 {
   return mNumberAttributes[SLOPE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Intercept()
 {
   return mNumberAttributes[INTERCEPT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Amplitude()
 {
   return mNumberAttributes[AMPLITUDE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Exponent()
 {
   return mNumberAttributes[EXPONENT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Offset()
 {
   return mNumberAttributes[OFFSET].ToDOMAnimatedNumber(this);

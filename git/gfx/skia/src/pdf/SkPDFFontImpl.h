@@ -75,7 +75,8 @@ public:
 private:
     friend class SkPDFFont;  // to access the constructor
 
-    SkPDFType3Font(SkAdvancedTypefaceMetrics* info, SkTypeface* typeface, uint16_t glyphID);
+    SkPDFType3Font(SkAdvancedTypefaceMetrics* info, SkTypeface* typeface,
+                   uint16_t glyphID, SkPDFDict* relatedFontDescriptor);
 
     bool populate(int16_t glyphID);
 };

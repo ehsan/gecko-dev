@@ -14,12 +14,11 @@ include protocol PRenderFrame;
 include protocol POfflineCacheUpdate;
 include protocol PIndexedDB;
 include DOMTypes;
-include JavaScriptTypes;
 include URIParams;
 
 include "gfxMatrix.h";
 include "FrameMetrics.h";
-include "ipc/nsGUIEventIPC.h";
+include "IPC/nsGUIEventIPC.h";
 include "mozilla/dom/TabMessageUtils.h";
 include "mozilla/dom/ScreenOrientation.h";
 include "mozilla/dom/PermissionMessageUtils.h";
@@ -28,10 +27,9 @@ include "mozilla/layers/CompositorTypes.h";
 
 using IPC::Principal;
 using gfxMatrix;
+using gfxRect;
 using gfxSize;
-using CSSRect;
 using mozilla::layers::FrameMetrics;
-using FrameMetrics::ViewID;
 using mozilla::layout::ScrollingBehavior;
 using mozilla::void_t;
 using mozilla::WindowsHandle;
@@ -53,7 +51,6 @@ using nsTouchEvent;
 using RemoteDOMEvent;
 using mozilla::dom::ScreenOrientation;
 using mozilla::layers::TextureFactoryIdentifier;
-using mozilla::CSSIntPoint;
 namespace mozilla {
 namespace dom {
 
@@ -69,7 +66,7 @@ rpc protocol PBrowser
     manages PIndexedDB;
 
 both:
-    AsyncMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows);
+    AsyncMessage(nsString aMessage, ClonedMessageData aData);
 
 parent:
     /**
@@ -82,7 +79,7 @@ parent:
 
     rpc CreateWindow() returns (PBrowser window);
 
-    sync SyncMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows)
+    sync SyncMessage(nsString aMessage, ClonedMessageData aData)
       returns (nsString[] retval);
 
     /**
@@ -192,12 +189,6 @@ parent:
     SetBackgroundColor(nscolor color);
 
     /**
-     * Used to set the current text of the status tooltip.
-     * Nowadays this is mainly used for link locations on hover.
-     */
-    SetStatus(uint32_t type, nsString status);
-
-    /**
      * Initiates an asynchronous request for permission for the
      * provided principal.
      *
@@ -272,7 +263,7 @@ parent:
      * Instructs the TabParent to forward a request to zoom to a rect given in
      * CSS pixels. This rect is relative to the document.
      */
-    ZoomToRect(CSSRect aRect);
+    ZoomToRect(gfxRect aRect);
 
     /**
      * We know for sure that content has either preventDefaulted or not
@@ -288,13 +279,6 @@ parent:
      * is useful for control logic that resides outside of the remote browser.
      */
     UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
-
-    /**
-     * Notifies the parent about a scroll event. The pres shell ID and
-     * view ID identify which scrollable (sub-)frame was scrolled, and
-     * the new scroll offset for that frame is sent.
-     */
-    UpdateScrollOffset(uint32_t aPresShellId, ViewID aViewId, CSSIntPoint aScrollOffset);
 
     __delete__();
 
@@ -323,21 +307,21 @@ child:
      * the scroll offset. This message is expected to round-trip back to
      * ZoomToRect() with a rect indicating where we should zoom to.
      */
-    HandleDoubleTap(CSSIntPoint point);
+    HandleDoubleTap(nsIntPoint point);
 
     /**
      * Requests handling of a single tap. |point| is in CSS pixels, relative to
      * the scroll offset. This message is expected to send a "mousedown" and
      * "mouseup" series of events at this point.
      */
-    HandleSingleTap(CSSIntPoint point);
+    HandleSingleTap(nsIntPoint point);
 
     /**
      * Requests handling of a long tap. |point| is in CSS pixels, relative to
      * the scroll offset. This message is expected to send a "contextmenu"
      * events at this point.
      */
-    HandleLongTap(CSSIntPoint point);
+    HandleLongTap(nsIntPoint point);
 
     /**
      * Sending an activate message moves focus to the child.
@@ -412,13 +396,6 @@ child:
      * parent.
      */
     Destroy();
-
-
-    /**
-     * Tell the child side if it has to update it's touchable region
-     * to the parent.
-     */
-    SetUpdateHitRegion(bool aEnabled);
 
 /*
  * FIXME: write protocol!

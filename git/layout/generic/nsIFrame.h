@@ -22,7 +22,6 @@
 
 #include <stdio.h>
 #include "nsQueryFrame.h"
-#include "nsRegion.h"
 #include "nsStyleContext.h"
 #include "nsStyleStruct.h"
 #include "nsStyleStructFwd.h"
@@ -33,11 +32,7 @@
 #include "mozilla/layout/FrameChildList.h"
 #include "FramePropertyTable.h"
 #include "mozilla/TypedEnum.h"
-#include "nsDirection.h"
 #include <algorithm>
-#include "nsITheme.h"
-#include "gfx3DMatrix.h"
-#include "gfxASurface.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"
@@ -326,10 +321,6 @@ typedef uint64_t nsFrameState;
 // rect stored to invalidate.
 #define NS_FRAME_HAS_INVALID_RECT                   NS_FRAME_STATE_BIT(52)
 
-// Frame is not displayed directly due to it being, or being under, an SVG
-// <defs> element or an SVG resource element (<mask>, <pattern>, etc.)
-#define NS_FRAME_IS_NONDISPLAY                      NS_FRAME_STATE_BIT(53)
-
 // Box layout bits
 #define NS_STATE_IS_HORIZONTAL                      NS_FRAME_STATE_BIT(22)
 #define NS_STATE_IS_DIRECTION_NORMAL                NS_FRAME_STATE_BIT(31)
@@ -357,6 +348,11 @@ enum nsSelectionAmount {
   eSelectWordNoSpace = 8 // select a "word" without selecting the following
                          // space, no matter what the default platform
                          // behavior is
+};
+
+enum nsDirection {
+  eDirNext    = 0,
+  eDirPrevious= 1
 };
 
 enum nsSpread {
@@ -750,24 +746,24 @@ public:
     if (aContext != mStyleContext) {
       nsStyleContext* oldStyleContext = mStyleContext;
       mStyleContext = aContext;
-      aContext->AddRef();
-      DidSetStyleContext(oldStyleContext);
-      oldStyleContext->Release();
+      if (aContext) {
+        aContext->AddRef();
+        DidSetStyleContext(oldStyleContext);
+      }
+      if (oldStyleContext)
+        oldStyleContext->Release();
     }
   }
-
-  /**
-   * SetStyleContextWithoutNotification is for changes to the style
-   * context that should suppress style change processing, in other
-   * words, those that aren't really changes.  This generally means only
-   * changes that happen during frame construction.
-   */
+  
   void SetStyleContextWithoutNotification(nsStyleContext* aContext)
   {
     if (aContext != mStyleContext) {
-      mStyleContext->Release();
+      if (mStyleContext)
+        mStyleContext->Release();
       mStyleContext = aContext;
-      aContext->AddRef();
+      if (aContext) {
+        aContext->AddRef();
+      }
     }
   }
 
@@ -778,24 +774,40 @@ public:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) = 0;
 
   /**
+   * Get the style data associated with this frame.  This returns a
+   * const style struct pointer that should never be modified.  See
+   * |nsStyleContext::StyleData| for more information.
+   *
+   * The use of the typesafe functions below is preferred to direct use
+   * of this function.
+   */
+  virtual const void* StyleDataExternal(nsStyleStructID aSID) const = 0;
+
+  /**
    * Define typesafe getter functions for each style struct by
    * preprocessing the list of style structs.  These functions are the
    * preferred way to get style data.  The macro creates functions like:
    *   const nsStyleBorder* StyleBorder();
    *   const nsStyleColor* StyleColor();
-   *
-   * Callers outside of libxul should use nsIDOMWindow::GetComputedStyle()
-   * instead of these accessors.
    */
+
+#ifdef _IMPL_NS_LAYOUT
   #define STYLE_STRUCT(name_, checkdata_cb_)                                  \
     const nsStyle##name_ * Style##name_ () const {                            \
       NS_ASSERTION(mStyleContext, "No style context found!");                 \
       return mStyleContext->Style##name_ ();                                  \
     }
+#else
+  #define STYLE_STRUCT(name_, checkdata_cb_)                                  \
+    const nsStyle##name_ * Style##name_ () const {                            \
+      return static_cast<const nsStyle##name_*>(                              \
+                            StyleDataExternal(eStyleStruct_##name_));         \
+    }
+#endif
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   /** Also forward GetVisitedDependentColor to the style context */
   nscolor GetVisitedDependentColor(nsCSSProperty aProperty)
     { return mStyleContext->GetVisitedDependentColor(aProperty); }
@@ -831,8 +843,8 @@ public:
    * position.
    */
   nsRect GetRect() const { return mRect; }
-  nsPoint GetPosition() const { return mRect.TopLeft(); }
-  nsSize GetSize() const { return mRect.Size(); }
+  nsPoint GetPosition() const { return nsPoint(mRect.x, mRect.y); }
+  nsSize GetSize() const { return nsSize(mRect.width, mRect.height); }
 
   /**
    * When we change the size of the frame's border-box rect, we may need to
@@ -856,9 +868,9 @@ public:
   void SetPosition(const nsPoint& aPt) { mRect.MoveTo(aPt); }
 
   /**
-   * Return frame's position without relative positioning
+   * Return frame's computed offset due to relative positioning
    */
-  nsPoint GetNormalPosition() const;
+  nsPoint GetRelativeOffset(const nsStyleDisplay* aDisplay = nullptr) const;
 
   virtual nsPoint GetPositionOfChildIgnoringScrolling(nsIFrame* aChild)
   { return aChild->GetPosition(); }
@@ -921,7 +933,7 @@ public:
   NS_DECLARE_FRAME_PROPERTY(IBSplitSpecialSibling, nullptr)
   NS_DECLARE_FRAME_PROPERTY(IBSplitSpecialPrevSibling, nullptr)
 
-  NS_DECLARE_FRAME_PROPERTY(NormalPositionProperty, DestroyPoint)
+  NS_DECLARE_FRAME_PROPERTY(ComputedOffsetProperty, DestroyPoint)
 
   NS_DECLARE_FRAME_PROPERTY(OutlineInnerRectProperty, DestroyRect)
   NS_DECLARE_FRAME_PROPERTY(PreEffectsBBoxProperty, DestroyRect)
@@ -984,21 +996,8 @@ public:
   /**
    * Apply the result of GetSkipSides() on this frame to an nsMargin by
    * setting to zero any sides that are skipped.
-   *
-   * @param aMargin The margin to apply the result of GetSkipSides() to.
-   * @param aReflowState An optional reflow state parameter, which is used if
-   *        ApplySkipSides() is being called in the middle of reflow.
-   *
-   * @note (See also bug 743402, comment 11) GetSkipSides() and it's sister
-   *       method, ApplySkipSides() checks to see if this frame has a previous
-   *       or next continuation to determine if a side should be skipped.
-   *       Unfortunately, this only works after reflow has been completed. In
-   *       lieu of this, during reflow, an nsHTMLReflowState parameter can be
-   *       passed in, indicating that it should be used to determine if sides
-   *       should be skipped during reflow.
    */
-  void ApplySkipSides(nsMargin& aMargin,
-                      const nsHTMLReflowState* aReflowState = nullptr) const;
+  void ApplySkipSides(nsMargin& aMargin) const;
 
   /**
    * Like the frame's rect (see |GetRect|), which is the border rect,
@@ -1363,12 +1362,6 @@ public:
   virtual ContentOffsets GetContentOffsetsFromPointExternal(nsPoint aPoint,
                                                             uint32_t aFlags = 0)
   { return GetContentOffsetsFromPoint(aPoint, aFlags); }
-
-  /**
-   * Ensure that aImage gets notifed when the underlying image request loads
-   * or animates.
-   */
-  void AssociateImage(const nsStyleImage& aImage, nsPresContext* aPresContext);
 
   /**
    * This structure holds information about a cursor. mContainer represents a
@@ -2149,6 +2142,24 @@ public:
   { return mParent && mParent->GetType() == nsGkAtoms::flexContainerFrame; }
 
   /**
+   * This must only be called on frames that are display roots (see
+   * nsLayoutUtils::GetDisplayRootFrame). This causes all invalidates
+   * reaching this frame to be performed asynchronously off an event,
+   * instead of being applied to the widget immediately. Also,
+   * invalidation of areas in aExcludeRegion is ignored completely
+   * for invalidates with INVALIDATE_EXCLUDE_CURRENT_PAINT specified.
+   * These can't be nested; two invocations of
+   * BeginDeferringInvalidatesForDisplayRoot for a frame must have a
+   * EndDeferringInvalidatesForDisplayRoot between them.
+   */
+  void BeginDeferringInvalidatesForDisplayRoot(const nsRegion& aExcludeRegion);
+
+  /**
+   * Cancel the most recent BeginDeferringInvalidatesForDisplayRoot.
+   */
+  void EndDeferringInvalidatesForDisplayRoot();
+
+  /**
    * Mark this frame as using active layers. This marking will time out
    * after a short period. This call does no immediate invalidation,
    * but when the mark times out, we'll invalidate the frame's overflow
@@ -2266,12 +2277,6 @@ public:
    * The view manager flush will update the layer tree, repaint any 
    * invalid areas in the layer tree and schedule a layer tree
    * composite operation to display the layer tree.
-   *
-   * In general it is not necessary for frames to call this when they change.
-   * For example, changes that result in a reflow will have this called for
-   * them by PresContext::DoReflow when the reflow begins. Style changes that 
-   * do not trigger a reflow should have this called for them by
-   * DoApplyRenderingChangeToTree.
    *
    * @param aFlags PAINT_COMPOSITE_ONLY : No changes have been made
    * that require a layer tree update, so only schedule a layer
@@ -2406,16 +2411,8 @@ public:
   /**
    * Determine whether borders should not be painted on certain sides of the
    * frame.
-   *
-   * @note (See also bug 743402, comment 11) GetSkipSides() and it's sister
-   *       method, ApplySkipSides() checks to see if this frame has a previous
-   *       or next continuation to determine if a side should be skipped.
-   *       Unfortunately, this only works after reflow has been completed. In
-   *       lieu of this, during reflow, an nsHTMLReflowState parameter can be
-   *       passed in, indicating that it should be used to determine if sides
-   *       should be skipped during reflow.
    */
-  virtual int GetSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const { return 0; }
+  virtual int GetSkipSides() const { return 0; }
 
   /**
    * @returns true if this frame is selected.
@@ -3154,7 +3151,8 @@ public:
    */
   static void RootFrameList(nsPresContext* aPresContext,
                             FILE* out, int32_t aIndent);
-  virtual void DumpFrameTree();
+  static void DumpFrameTree(nsIFrame* aFrame);
+
 
   NS_IMETHOD  GetFrameName(nsAString& aResult) const = 0;
   NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const = 0;
@@ -3250,7 +3248,7 @@ private:
   }
 
   void Init(nsIFrame* aFrame) {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     InitInternal(aFrame);
 #else
     InitExternal(aFrame);

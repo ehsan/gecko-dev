@@ -54,9 +54,7 @@ using namespace std;
 #endif
 #include <gdk/gdkx.h>
 #include <gdk/gdk.h>
-#if (MOZ_WIDGET_GTK == 2)
 #include "gtk2xtbin.h"
-#endif
 
 #elif defined(MOZ_WIDGET_QT)
 #undef KeyPress
@@ -115,7 +113,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     , mAsyncInvalidateTask(0)
     , mCachedWindowActor(nullptr)
     , mCachedElementActor(nullptr)
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
     , mXEmbed(false)
 #endif // MOZ_WIDGET_GTK
 #if defined(OS_WIN)
@@ -163,7 +161,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
     mWsInfo.display = NULL;
     mXtClient.top_widget = NULL;
 #else
@@ -505,7 +503,7 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
             return NPERR_GENERIC_ERROR;
 
         NPWindowType newWindowType = windowed ? NPWindowTypeWindow : NPWindowTypeDrawable;
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
         if (mWindow.type != newWindowType && mWsInfo.display) {
            // plugin type has been changed but we already have a valid display
            // so update it for the recent plugin mode
@@ -1049,7 +1047,7 @@ bool PluginInstanceChild::CreateWindow(const NPRemoteWindow& aWindow)
                       aWindow.x, aWindow.y,
                       aWindow.width, aWindow.height));
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
     if (mXEmbed) {
         mWindow.window = reinterpret_cast<void*>(aWindow.window);
     }
@@ -1078,7 +1076,7 @@ void PluginInstanceChild::DeleteWindow()
   if (!mWindow.window)
       return;
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
   if (mXtClient.top_widget) {     
       xt_client_unrealize(&mXtClient);
       xt_client_destroy(&mXtClient); 
@@ -1259,7 +1257,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
 bool
 PluginInstanceChild::Initialize()
 {
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
     NPError rv;
 
     if (mWsInfo.display) {
@@ -2233,14 +2231,14 @@ PluginInstanceChild::RecvNPP_DidComposite()
 }
 
 PPluginScriptableObjectChild*
-PluginInstanceChild::AllocPPluginScriptableObjectChild()
+PluginInstanceChild::AllocPPluginScriptableObject()
 {
     AssertPluginThread();
     return new PluginScriptableObjectChild(Proxy);
 }
 
 bool
-PluginInstanceChild::DeallocPPluginScriptableObjectChild(
+PluginInstanceChild::DeallocPPluginScriptableObject(
     PPluginScriptableObjectChild* aObject)
 {
     AssertPluginThread();
@@ -2287,15 +2285,15 @@ PluginInstanceChild::AnswerPBrowserStreamConstructor(
 }
 
 PBrowserStreamChild*
-PluginInstanceChild::AllocPBrowserStreamChild(const nsCString& url,
-                                              const uint32_t& length,
-                                              const uint32_t& lastmodified,
-                                              PStreamNotifyChild* notifyData,
-                                              const nsCString& headers,
-                                              const nsCString& mimeType,
-                                              const bool& seekable,
-                                              NPError* rv,
-                                              uint16_t *stype)
+PluginInstanceChild::AllocPBrowserStream(const nsCString& url,
+                                         const uint32_t& length,
+                                         const uint32_t& lastmodified,
+                                         PStreamNotifyChild* notifyData,
+                                         const nsCString& headers,
+                                         const nsCString& mimeType,
+                                         const bool& seekable,
+                                         NPError* rv,
+                                         uint16_t *stype)
 {
     AssertPluginThread();
     return new BrowserStreamChild(this, url, length, lastmodified,
@@ -2304,7 +2302,7 @@ PluginInstanceChild::AllocPBrowserStreamChild(const nsCString& url,
 }
 
 bool
-PluginInstanceChild::DeallocPBrowserStreamChild(PBrowserStreamChild* stream)
+PluginInstanceChild::DeallocPBrowserStream(PBrowserStreamChild* stream)
 {
     AssertPluginThread();
     delete stream;
@@ -2312,16 +2310,16 @@ PluginInstanceChild::DeallocPBrowserStreamChild(PBrowserStreamChild* stream)
 }
 
 PPluginStreamChild*
-PluginInstanceChild::AllocPPluginStreamChild(const nsCString& mimeType,
-                                             const nsCString& target,
-                                             NPError* result)
+PluginInstanceChild::AllocPPluginStream(const nsCString& mimeType,
+                                        const nsCString& target,
+                                        NPError* result)
 {
     NS_RUNTIMEABORT("not callable");
     return NULL;
 }
 
 bool
-PluginInstanceChild::DeallocPPluginStreamChild(PPluginStreamChild* stream)
+PluginInstanceChild::DeallocPPluginStream(PPluginStreamChild* stream)
 {
     AssertPluginThread();
     delete stream;
@@ -2329,12 +2327,12 @@ PluginInstanceChild::DeallocPPluginStreamChild(PPluginStreamChild* stream)
 }
 
 PStreamNotifyChild*
-PluginInstanceChild::AllocPStreamNotifyChild(const nsCString& url,
-                                             const nsCString& target,
-                                             const bool& post,
-                                             const nsCString& buffer,
-                                             const bool& file,
-                                             NPError* result)
+PluginInstanceChild::AllocPStreamNotify(const nsCString& url,
+                                        const nsCString& target,
+                                        const bool& post,
+                                        const nsCString& buffer,
+                                        const bool& file,
+                                        NPError* result)
 {
     AssertPluginThread();
     NS_RUNTIMEABORT("not reached");
@@ -2405,7 +2403,7 @@ StreamNotifyChild::NPP_URLNotify(NPReason reason)
 }
 
 bool
-PluginInstanceChild::DeallocPStreamNotifyChild(PStreamNotifyChild* notifyData)
+PluginInstanceChild::DeallocPStreamNotify(PStreamNotifyChild* notifyData)
 {
     AssertPluginThread();
 
@@ -3843,7 +3841,7 @@ PluginInstanceChild::RecvUpdateBackground(const SurfaceDescriptor& aBackground,
 }
 
 PPluginBackgroundDestroyerChild*
-PluginInstanceChild::AllocPPluginBackgroundDestroyerChild()
+PluginInstanceChild::AllocPPluginBackgroundDestroyer()
 {
     return new PluginBackgroundDestroyerChild();
 }
@@ -3876,7 +3874,7 @@ PluginInstanceChild::RecvPPluginBackgroundDestroyerConstructor(
 }
 
 bool
-PluginInstanceChild::DeallocPPluginBackgroundDestroyerChild(
+PluginInstanceChild::DeallocPPluginBackgroundDestroyer(
     PPluginBackgroundDestroyerChild* aActor)
 {
     delete aActor;
@@ -4149,7 +4147,7 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
         mAsyncBitmaps.Enumerate(DeleteSurface, this);
     }
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
     if (mWindow.type == NPWindowTypeWindow && !mXEmbed) {
       xt_client_xloop_destroy();
     }

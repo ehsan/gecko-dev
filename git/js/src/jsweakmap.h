@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsweakmap_h
-#define jsweakmap_h
+#ifndef jsweakmap_h___
+#define jsweakmap_h___
 
 #include "jsapi.h"
-#include "jscompartment.h"
 #include "jsfriendapi.h"
+#include "jscompartment.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"
@@ -134,13 +134,13 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
     typedef typename Base::Range Range;
 
     explicit WeakMap(JSContext *cx, JSObject *memOf=NULL)
-        : Base(cx->runtime()), WeakMapBase(memOf, cx->compartment()) { }
+        : Base(cx), WeakMapBase(memOf, cx->compartment) { }
 
   private:
     bool markValue(JSTracer *trc, Value *x) {
         if (gc::IsMarked(x))
             return false;
-        gc::Mark(trc, x, "WeakMap entry value");
+        gc::Mark(trc, x, "WeakMap entry");
         JS_ASSERT(gc::IsMarked(x));
         return true;
     }
@@ -148,7 +148,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
     void nonMarkingTraceKeys(JSTracer *trc) {
         for (Enum e(*this); !e.empty(); e.popFront()) {
             Key key(e.front().key);
-            gc::Mark(trc, &key, "WeakMap entry key");
+            gc::Mark(trc, &key, "WeakMap Key");
             if (key != e.front().key)
                 e.rekeyFront(key, key);
         }
@@ -156,7 +156,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
 
     void nonMarkingTraceValues(JSTracer *trc) {
         for (Range r = Base::all(); !r.empty(); r.popFront())
-            gc::Mark(trc, &r.front().value, "WeakMap entry value");
+            gc::Mark(trc, &r.front().value, "WeakMap entry");
     }
 
     bool keyNeedsMark(JSObject *key) {
@@ -187,10 +187,10 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
                 if (prior != e.front().key)
                     e.rekeyFront(e.front().key);
             } else if (keyNeedsMark(e.front().key)) {
-                gc::Mark(trc, const_cast<Key *>(&e.front().key), "proxy-preserved WeakMap entry key");
+                gc::Mark(trc, const_cast<Key *>(&e.front().key), "proxy-preserved WeakMap key");
                 if (prior != e.front().key)
                     e.rekeyFront(e.front().key);
-                gc::Mark(trc, &e.front().value, "WeakMap entry value");
+                gc::Mark(trc, &e.front().value, "WeakMap entry");
                 markedAny = true;
             }
         }
@@ -244,4 +244,4 @@ protected:
 extern JSObject *
 js_InitWeakMapClass(JSContext *cx, js::HandleObject obj);
 
-#endif /* jsweakmap_h */
+#endif

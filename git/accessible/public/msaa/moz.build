@@ -15,5 +15,3 @@ EXPORTS += [
     'ISimpleDOMText_i.c',
 ]
 
-LIBRARY_NAME = 'AccessibleMarshal'
-

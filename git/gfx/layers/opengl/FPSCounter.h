@@ -70,6 +70,8 @@ struct FPSState {
 
   void DrawFPS(TimeStamp, gl::GLContext*, ShaderProgramOGL*);
 
+  static void DrawFrameCounter(gl::GLContext* context);
+
   void NotifyShadowTreeTransaction() {
     mTransactionFps.AddFrame(TimeStamp::Now());
   }

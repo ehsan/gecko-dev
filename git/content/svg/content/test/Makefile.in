@@ -45,7 +45,6 @@ MOCHITEST_FILES = \
 		test_hasFeature.xhtml \
 		$(filter disabled-for-intermittent-failures--bug-701060, test_lang.xhtml) \
 		test_nonAnimStrings.xhtml \
-		test_non-scaling-stroke.html \
 		test_pathAnimInterpolation.xhtml \
 		test_pathSeg.xhtml \
 		test_pointAtLength.xhtml \
@@ -81,11 +80,8 @@ MOCHITEST_FILES = \
 		switch-helper.svg \
 		test_text.html \
 		test_text_2.html \
-		test_text_dirty.html \
-		test_text_lengthAdjust.html \
 		test_text_scaled.html \
 		test_text_selection.html \
-		test_text_update.html \
 		text-helper.svg \
 		text-helper-scaled.svg \
 		text-helper-selection.svg \
@@ -96,7 +92,6 @@ MOCHITEST_FILES = \
 		test_viewport.html \
 		zoom-helper.svg \
 		test_zoom.xhtml \
-                test_bug872812.html \
 		$(NULL)
 
 ifneq (android,$(MOZ_WIDGET_TOOLKIT))

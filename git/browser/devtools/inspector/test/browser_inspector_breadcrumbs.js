@@ -44,7 +44,7 @@ function test()
   {
     inspector = aInspector;
     cursor = 0;
-    inspector.on("breadcrumbs-updated", nodeSelected);
+    inspector.selection.on("new-node", nodeSelected);
     executeSoon(function() {
       inspector.selection.setNode(nodes[0].node);
     });
@@ -52,16 +52,17 @@ function test()
 
   function nodeSelected()
   {
-    performTest();
-    cursor++;
-
-    if (cursor >= nodes.length) {
-      inspector.off("breadcrumbs-updated", nodeSelected);
-      finishUp();
-    } else {
-      let node = nodes[cursor].node;
-      inspector.selection.setNode(node);
-    }
+    executeSoon(function() {
+      performTest();
+      cursor++;
+      if (cursor >= nodes.length) {
+        inspector.selection.off("new-node", nodeSelected);
+        finishUp();
+      } else {
+        let node = nodes[cursor].node;
+        inspector.selection.setNode(node);
+      }
+    });
   }
 
   function performTest()

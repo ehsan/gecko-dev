@@ -68,7 +68,6 @@ public:
     return NS_OK;
   }
 
-  // Methods which are called on the IO thred.
   virtual nsresult
   InitOrigin(const nsACString& aOrigin, UsageRunnable* aUsageRunnable) = 0;
 
@@ -76,13 +75,6 @@ public:
   GetUsageForOrigin(const nsACString& aOrigin,
                     UsageRunnable* aUsageRunnable) = 0;
 
-  virtual void
-  OnOriginClearCompleted(const nsACString& aPattern) = 0;
-
-  virtual void
-  ReleaseIOThreadObjects() = 0;
-
-  // Methods which are called on the main thred.
   virtual bool
   IsFileServiceUtilized() = 0;
 
@@ -100,7 +92,13 @@ public:
   HasTransactionsForStorage(nsIOfflineStorage* aStorage) = 0;
 
   virtual void
+  OnOriginClearCompleted(const nsACString& aPattern) = 0;
+
+  virtual void
   ShutdownTransactionService() = 0;
+
+  virtual void
+  OnShutdownCompleted() = 0;
 
 protected:
   virtual ~Client()

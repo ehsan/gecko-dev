@@ -6,10 +6,15 @@
 
 XPIDL_SOURCES += [
     'SimToolKit.idl',
-    'nsIDOMIccCardLockErrorEvent.idl',
-    'nsIDOMIccInfo.idl',
+    'nsIDOMICCCardLockErrorEvent.idl',
     'nsIDOMIccManager.idl',
     'nsIIccProvider.idl',
 ]
 
 XPIDL_MODULE = 'dom_icc'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
+

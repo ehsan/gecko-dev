@@ -4,20 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ThreadPool_h
-#define vm_ThreadPool_h
+#ifndef ThreadPool_h__
+#define ThreadPool_h__
 
 #include <stddef.h>
-#include <stdint.h>
-
-#include "jsalloc.h"
-#ifdef JS_THREADSAFE
-# include "prcvar.h"
-# include "prlock.h"
-# include "prtypes.h"
-#endif
-
+#include "mozilla/StandardInteger.h"
 #include "js/Vector.h"
+#include "jsalloc.h"
+
+#ifdef JS_THREADSAFE
+#  include "prtypes.h"
+#  include "prlock.h"
+#  include "prcvar.h"
+#endif
 
 struct JSContext;
 struct JSRuntime;
@@ -49,7 +48,14 @@ class TaskExecutor
 // threads are disabled, or when manually specified for benchmarking
 // purposes).
 //
-// The way to submit a job is using |submitAll()|---in this
+// You can either submit jobs in one of two ways.  The first is
+// |submitOne()|, which submits a job to be executed by one worker
+// thread (this will fail if there are no worker threads).  The job
+// will be enqueued and executed by some worker (the current scheduler
+// uses round-robin load balancing; something more sophisticated,
+// e.g. a central queue or work stealing, might be better).
+//
+// The second way to submit a job is using |submitAll()|---in this
 // case, the job will be executed by all worker threads.  This does
 // not fail if there are no worker threads, it simply does nothing.
 // Of course, each thread may have any number of previously submitted
@@ -63,13 +69,14 @@ class ThreadPool
     friend class ThreadPoolWorker;
 
     // Initialized at startup only:
-#if defined(JS_THREADSAFE) || defined(DEBUG)
     JSRuntime *const runtime_;
-#endif
     js::Vector<ThreadPoolWorker*, 8, SystemAllocPolicy> workers_;
 
     // Number of workers we will start, when we actually start them
     size_t numWorkers_;
+
+    // Next worker for |submitOne()|. Atomically modified.
+    uint32_t nextId_;
 
     bool lazyStartWorkers(JSContext *cx);
     void terminateWorkers();
@@ -85,6 +92,7 @@ class ThreadPool
     size_t numWorkers() { return numWorkers_; }
 
     // See comment on class:
+    bool submitOne(JSContext *cx, TaskExecutor *executor);
     bool submitAll(JSContext *cx, TaskExecutor *executor);
 
     // Wait until all worker threads have finished their current set
@@ -95,4 +103,4 @@ class ThreadPool
 
 } // namespace js
 
-#endif /* vm_ThreadPool_h */
+#endif // ThreadPool_h__

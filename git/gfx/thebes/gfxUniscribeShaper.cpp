@@ -184,7 +184,7 @@ public:
             rv = ScriptPlace(placeDC, mShaper->ScriptCache(),
                              mGlyphs.Elements(), mNumGlyphs,
                              mAttr.Elements(), &sa,
-                             mAdvances.Elements(), mOffsets.Elements(), nullptr);
+                             mAdvances.Elements(), mOffsets.Elements(), NULL);
 
             if (rv == E_PENDING) {
                 SelectFont();
@@ -208,7 +208,7 @@ public:
 
         memset(sfp, 0, sizeof(SCRIPT_FONTPROPERTIES));
         sfp->cBytes = sizeof(SCRIPT_FONTPROPERTIES);
-        rv = ScriptGetFontProperties(nullptr, mShaper->ScriptCache(),
+        rv = ScriptGetFontProperties(NULL, mShaper->ScriptCache(),
                                      sfp);
         if (rv == E_PENDING) {
             SelectFont();

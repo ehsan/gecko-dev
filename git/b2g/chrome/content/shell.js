@@ -12,6 +12,7 @@ Cu.import('resource://gre/modules/DOMFMRadioParent.jsm');
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
+Cu.import('resource://gre/modules/PushService.jsm');
 Cu.import('resource://gre/modules/ObjectWrapper.jsm');
 Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
 Cu.import('resource://gre/modules/Payment.jsm');
@@ -38,6 +39,16 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'ss',
 XPCOMUtils.defineLazyServiceGetter(this, 'gSystemMessenger',
                                    '@mozilla.org/system-message-internal;1',
                                    'nsISystemMessagesInternal');
+
+#ifdef MOZ_WIDGET_GONK
+XPCOMUtils.defineLazyServiceGetter(Services, 'audioManager',
+                                   '@mozilla.org/telephony/audiomanager;1',
+                                   'nsIAudioManager');
+#else
+Services.audioManager = {
+  'masterVolume': 0
+};
+#endif
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'fm',
                                    '@mozilla.org/focus-manager;1',
@@ -128,7 +139,7 @@ var shell = {
       if (Services.prefs.getBoolPref('app.reportCrashes')) {
         this.submitCrash(crashID);
       } else {
-        this.deleteCrash(crashID);
+        debugCrashReport('app.reportCrashes is disabled');
       }
     } catch (e) {
       debugCrashReport('Can\'t fetch app.reportCrashes. Exception: ' + e);
@@ -143,13 +154,6 @@ var shell = {
         crashID: crashID,
         chrome: isChrome
       });
-    }
-  },
-
-  deleteCrash: function shell_deleteCrash(aCrashID) {
-    if (aCrashID) {
-      debugCrashReport('Deleting pending crash: ' + aCrashID);
-      shell.CrashSubmit.delete(aCrashID);
     }
   },
 
@@ -309,6 +313,14 @@ var shell = {
     IndexedDBPromptHelper.init();
     CaptivePortalLoginHelper.init();
 
+    // XXX could factor out into a settings->pref map.  Not worth it yet.
+    SettingsListener.observe("debug.fps.enabled", false, function(value) {
+      Services.prefs.setBoolPref("layers.acceleration.draw-fps", value);
+    });
+    SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) {
+      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", value);
+    });
+
     this.contentBrowser.src = homeURL;
     this.isHomeLoaded = false;
 
@@ -334,6 +346,9 @@ var shell = {
       this.timer = null;
     }
 
+#ifndef MOZ_WIDGET_GONK
+    delete Services.audioManager;
+#endif
     UserAgentOverrides.uninit();
     IndexedDBPromptHelper.uninit();
   },
@@ -366,27 +381,8 @@ var shell = {
       case evt.DOM_VK_F1: // headset button
         type = 'headset-button';
         break;
-    }
-
-    let mediaKeys = {
-      'MediaNextTrack': 'media-next-track-button',
-      'MediaPreviousTrack': 'media-previous-track-button',
-      'MediaPause': 'media-pause-button',
-      'MediaPlay': 'media-play-button',
-      'MediaPlayPause': 'media-play-pause-button',
-      'MediaStop': 'media-stop-button',
-      'MediaRewind': 'media-rewind-button',
-      'FastFwd': 'media-fast-forward-button'
-    };
-
-    let isMediaKey = false;
-    if (mediaKeys[evt.key]) {
-      isMediaKey = true;
-      type = mediaKeys[evt.key];
-    }
-
-    if (!type) {
-      return;
+      default:                      // Anything else is a real key
+        return;  // Don't filter it at all; let it propagate to Gaia
     }
 
     // If we didn't return, then the key event represents a hardware key
@@ -414,12 +410,6 @@ var shell = {
       return;
     }
 
-    if (isMediaKey) {
-      this.lastHardwareButtonEventType = type;
-      gSystemMessenger.broadcastMessage('media-button', type);
-      return;
-    }
-
     // On my device, the physical hardware buttons (sleep and volume)
     // send multiple events (press press release release), but the
     // soft home button just sends one.  This hack is to manually
@@ -434,8 +424,8 @@ var shell = {
   },
 
   lastHardwareButtonEventType: null, // property for the hack above
-  needBufferOpenAppReq: true,
-  bufferedOpenAppReqs: [],
+  needBufferSysMsgs: true,
+  bufferedSysMsgs: [],
   timer: null,
   visibleNormalAudioActive: false,
 
@@ -468,6 +458,9 @@ var shell = {
         this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
 
         this.reportCrash(true);
+
+        let chromeWindow = window.QueryInterface(Ci.nsIDOMChromeWindow);
+        chromeWindow.browserDOMWindow = new nsBrowserAccess();
 
         Cu.import('resource://gre/modules/Webapps.jsm');
         DOMApplicationRegistry.allAppsLaunchable = true;
@@ -548,18 +541,15 @@ var shell = {
                    ObjectWrapper.wrap(details, getContentWindow()));
   },
 
-  openAppForSystemMessage: function shell_openAppForSystemMessage(msg) {
+  sendSystemMessage: function shell_sendSystemMessage(msg) {
     let origin = Services.io.newURI(msg.manifest, null, null).prePath;
     this.sendChromeEvent({
       type: 'open-app',
       url: msg.uri,
       manifestURL: msg.manifest,
       isActivity: (msg.type == 'activity'),
-      onlyShowApp: msg.onlyShowApp,
-      showApp: msg.showApp,
       target: msg.target,
-      expectingSystemMessage: true,
-      extra: msg.extra
+      expectingSystemMessage: true
     });
   },
 
@@ -595,16 +585,47 @@ var shell = {
   }
 };
 
-// Listen for the request of opening app and relay them to Gaia.
-Services.obs.addObserver(function onSystemMessageOpenApp(subject, topic, data) {
+function nsBrowserAccess() {
+}
+
+nsBrowserAccess.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow]),
+
+  openURI: function openURI(uri, opener, where, context) {
+    // TODO This should be replaced by an 'open-browser-window' intent
+    let content = shell.contentBrowser.contentWindow;
+    let contentWindow = content.wrappedJSObject;
+    if (!('getApplicationManager' in contentWindow))
+      return null;
+
+    let applicationManager = contentWindow.getApplicationManager();
+    if (!applicationManager)
+      return null;
+
+    let url = uri ? uri.spec : 'about:blank';
+    let window = applicationManager.launch(url, where);
+    return window.contentWindow;
+  },
+
+  openURIInFrame: function openURIInFrame(uri, opener, where, context) {
+    throw new Error('Not Implemented');
+  },
+
+  isTabContentWindow: function isTabContentWindow(contentWindow) {
+    return contentWindow == window;
+  }
+};
+
+// Listen for system messages and relay them to Gaia.
+Services.obs.addObserver(function onSystemMessage(subject, topic, data) {
   let msg = JSON.parse(data);
-  // Buffer non-activity request until content starts to load for 10 seconds.
-  // We'll revisit this later if new kind of requests don't need to be cached.
-  if (shell.needBufferOpenAppReq && msg.type !== 'activity') {
-    shell.bufferedOpenAppReqs.push(msg);
+  // Buffer non-activity messages until content starts to load for 10 seconds.
+  // We'll revisit this later if new kind of messages don't need to be cached.
+  if (shell.needBufferSysMsgs && msg.type !== 'activity') {
+    shell.bufferedSysMsgs.push(msg);
     return;
   }
-  shell.openAppForSystemMessage(msg);
+  shell.sendSystemMessage(msg);
 }, 'system-messages-open-app', false);
 
 Services.obs.addObserver(function(aSubject, aTopic, aData) {
@@ -634,17 +655,14 @@ var CustomEventManager = {
       content.addEventListener("mozContentEvent", this, false, true);
 
       // After content starts to load for 10 seconds, send and
-      // clean up the buffered open-app requests if there is any.
-      //
-      // TODO: Bug 793420 - Remove the waiting timer for the 'open-app'
-      //                    mozChromeEvents requested by System Message
+      // clean up the buffered system messages if there is any.
       shell.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       shell.timer.initWithCallback(function timerCallback() {
-        shell.bufferedOpenAppReqs.forEach(function bufferOpenAppReq(msg) {
-          shell.openAppForSystemMessage(msg);
+        shell.bufferedSysMsgs.forEach(function sendSysMsg(msg) {
+          shell.sendSystemMessage(msg);
         });
-        shell.bufferedOpenAppReqs.length = 0;
-        shell.needBufferOpenAppReq = false;
+        shell.bufferedSysMsgs.length = 0;
+        shell.needBufferSysMsgs = false;
         shell.timer = null;
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
     }).bind(this), false);
@@ -791,7 +809,6 @@ var AlertsHelper = {
 
     if (!manifestUrl || !manifestUrl.length) {
       send(null, null);
-      return;
     }
 
     // If we have a manifest URL, get the icon and title from the manifest
@@ -980,23 +997,9 @@ let RemoteDebugger = {
     if (!DebuggerServer.initialized) {
       // Ask for remote connections.
       DebuggerServer.init(this.prompt.bind(this));
-      DebuggerServer.chromeWindowType = "navigator:browser";
-      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
-      // Until we implement unix domain socket, we enable content actors
-      // only on development devices
-      if (Services.prefs.getBoolPref("devtools.debugger.enable-content-actors")) {
-        DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/script.js");
-        DebuggerServer.addGlobalActor(DebuggerServer.ChromeDebuggerActor, "chromeDebugger");
-        DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
-        DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
-        if ("nsIProfiler" in Ci) {
-          DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/profiler.js");
-        }
-        DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/styleeditor.js");
-        DebuggerServer.enableWebappsContentActor = true;
-      }
+      DebuggerServer.addBrowserActors();
       DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
-      DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
+      DebuggerServer.addActors('chrome://browser/content/dbg-webapps-actors.js');
     }
 
     let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
@@ -1093,22 +1096,14 @@ window.addEventListener('ContentStart', function cr_onContentStart() {
   let content = shell.contentBrowser.contentWindow;
   content.addEventListener("mozContentEvent", function cr_onMozContentEvent(e) {
     if (e.detail.type == "submit-crash" && e.detail.crashID) {
-      debugCrashReport("submitting crash at user request ", e.detail.crashID);
       shell.submitCrash(e.detail.crashID);
-    } else if (e.detail.type == "delete-crash" && e.detail.crashID) {
-      debugCrashReport("deleting crash at user request ", e.detail.crashID);
-      shell.deleteCrash(e.detail.crashID);
     }
   });
 });
 
 window.addEventListener('ContentStart', function update_onContentStart() {
-  let promptCc = Cc["@mozilla.org/updates/update-prompt;1"];
-  if (!promptCc) {
-    return;
-  }
-
-  let updatePrompt = promptCc.createInstance(Ci.nsIUpdatePrompt);
+  let updatePrompt = Cc["@mozilla.org/updates/update-prompt;1"]
+                       .createInstance(Ci.nsIUpdatePrompt);
   if (!updatePrompt) {
     return;
   }
@@ -1203,19 +1198,3 @@ Services.obs.addObserver(function(aSubject, aTopic, aData) {
     pageURL: data.pageURL
   });
 }, "activity-done", false);
-
-#ifdef MOZ_WIDGET_GONK
-// Devices don't have all the same partition size for /cache where we
-// store the http cache.
-(function setHTTPCacheSize() {
-  let path = Services.prefs.getCharPref("browser.cache.disk.parent_directory");
-  let volumeService = Cc["@mozilla.org/telephony/volume-service;1"]
-                        .getService(Ci.nsIVolumeService);
-
-  let stats = volumeService.createOrGetVolumeByPath(path).getStats();
-
-  // We must set the size in KB, and keep a bit of free space.
-  let size = Math.floor(stats.totalBytes / 1024) - 1024;
-  Services.prefs.setIntPref("browser.cache.disk.capacity", size);
-}) ()
-#endif

@@ -14,8 +14,6 @@
 #include "ThebesLayerOGL.h"
 #include "gfxUtils.h"
 #include "gfxTeeSurface.h"
-#include "gfx2DGlue.h"
-#include "gfxPlatform.h"
 
 #include "base/message_loop.h"
 
@@ -92,7 +90,7 @@ public:
 
   nsIntSize GetSize() {
     if (mTexImage)
-      return ThebesIntSize(mTexImage->GetSize());
+      return mTexImage->GetSize();
     return nsIntSize(0, 0);
   }
 
@@ -136,7 +134,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     nsRefPtr<gfxImageSurface> surf = 
-      gl()->GetTexImage(mTexImage->GetTextureID(), false, mTexImage->GetTextureFormat());
+      gl()->GetTexImage(mTexImage->GetTextureID(), false, mTexImage->GetShaderProgramType());
     
     WriteSnapshotToDumpFile(mLayer, surf);
   }
@@ -149,18 +147,13 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     if (passes == 2) {
       ShaderProgramOGL* alphaProgram;
       if (pass == 1) {
-        ShaderProgramType type = gl()->GetPreferredARGB32Format() == LOCAL_GL_BGRA ?
-                                 ComponentAlphaPass1RGBProgramType :
-                                 ComponentAlphaPass1ProgramType;
-
-        alphaProgram = aManager->GetProgram(type, mLayer->GetMaskLayer());
+        alphaProgram = aManager->GetProgram(gl::ComponentAlphaPass1ProgramType,
+                                            mLayer->GetMaskLayer());
         gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
       } else {
-        ShaderProgramType type = gl()->GetPreferredARGB32Format() == LOCAL_GL_BGRA ?
-                                 ComponentAlphaPass2RGBProgramType :
-                                 ComponentAlphaPass2ProgramType;
-        alphaProgram = aManager->GetProgram(type, mLayer->GetMaskLayer());
+        alphaProgram = aManager->GetProgram(gl::ComponentAlphaPass2ProgramType,
+                                            mLayer->GetMaskLayer());
         gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
       }
@@ -173,7 +166,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
       // Note BGR: Cairo's image surfaces are always in what
       // OpenGL and our shaders consider BGR format.
       ShaderProgramOGL* basicProgram =
-        aManager->GetProgram(ShaderProgramFromSurfaceFormat(mTexImage->GetTextureFormat()),
+        aManager->GetProgram(mTexImage->GetShaderProgramType(),
                              mLayer->GetMaskLayer());
 
       basicProgram->Activate();
@@ -183,7 +176,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
 
     program->SetLayerOpacity(mLayer->GetEffectiveOpacity());
     program->SetLayerTransform(mLayer->GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetRenderOffset(aOffset);
     program->LoadMask(mLayer->GetMaskLayer());
 
@@ -205,7 +197,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
 
     // Figure out the intersecting draw region
-    nsIntSize texSize = ThebesIntSize(mTexImage->GetSize());
+    nsIntSize texSize = mTexImage->GetSize();
     nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
     textureRect.MoveBy(region.GetBounds().TopLeft());
     nsIntRegion subregion;
@@ -237,10 +229,10 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     bool usingTiles = (mTexImage->GetTileCount() > 1);
     do {
       if (mTexImageOnWhite) {
-        NS_ASSERTION(ThebesIntRect(mTexImageOnWhite->GetTileRect()) == ThebesIntRect(mTexImage->GetTileRect()), "component alpha textures should be the same size.");
+        NS_ASSERTION(mTexImageOnWhite->GetTileRect() == mTexImage->GetTileRect(), "component alpha textures should be the same size.");
       }
 
-      nsIntRect tileRect = ThebesIntRect(mTexImage->GetTileRect());
+      nsIntRect tileRect = mTexImage->GetTileRect();
 
       // Bind textures.
       TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
@@ -462,13 +454,15 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     }
 
     if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-      if (!gfxPlatform::ComponentAlphaEnabled() ||
-          !mLayer->GetParent() ||
-          !mLayer->GetParent()->SupportsComponentAlphaChildren()) {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+      mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
+#else
+      if (!mLayer->GetParent() || !mLayer->GetParent()->SupportsComponentAlphaChildren()) {
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
         contentType = gfxASurface::CONTENT_COLOR;
       }
+ #endif
     }
  
     if ((aFlags & PAINT_WILL_RESAMPLE) &&

@@ -6,25 +6,15 @@
  * The origin of this IDL file is
  * http://www.w3.org/TR/2012/WD-dom-20120105/
  *
- * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
+ * Copyright Â© 2012 W3CÂ® (MIT, ERCIM, Keio), All Rights Reserved. W3C
  * liability, trademark and document use rules apply.
  */
 
-[Constructor(DOMString type, optional CustomEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
-interface CustomEvent : Event
-{
-  [Throws]
+[Constructor(DOMString type, optional CustomEventInit eventInitDict)]
+interface CustomEvent : Event {
   readonly attribute any detail;
-
-  // initCustomEvent is a Gecko specific deprecated method.
-  [Throws]
-  void initCustomEvent(DOMString type,
-                       boolean canBubble,
-                       boolean cancelable,
-                       any detail);
 };
 
-dictionary CustomEventInit : EventInit
-{
-  any detail = null;
+dictionary CustomEventInit : EventInit {
+  any detail;
 };

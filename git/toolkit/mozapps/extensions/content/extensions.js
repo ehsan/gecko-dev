@@ -2845,8 +2845,7 @@ var gDetailView = {
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.blocked.link");
         errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;
-      } else if (!this._addon.isCompatible && (AddonManager.checkCompatibility ||
-        (this._addon.blocklistState != Ci.nsIBlocklistService.STATE_SOFTBLOCKED))) {
+      } else if (!this._addon.isCompatible) {
         this.node.setAttribute("notification", "warning");
         document.getElementById("detail-warning").textContent = gStrings.ext.formatStringFromName(
           "details.notification.incompatible",
@@ -2973,7 +2972,7 @@ var gDetailView = {
         var settings = xml.querySelectorAll(":root > setting");
 
         var firstSetting = null;
-        for (var setting of settings) {
+        for (let setting of settings) {
 
           var desc = stripTextNodes(setting).trim();
           if (!setting.hasAttribute("desc"))
@@ -2982,13 +2981,6 @@ var gDetailView = {
           var type = setting.getAttribute("type");
           if (type == "file" || type == "directory")
             setting.setAttribute("fullpath", "true");
-
-          setting = document.importNode(setting, true);
-          var style = setting.getAttribute("style");
-          if (style) {
-            setting.removeAttribute("style");
-            setting.setAttribute("style", style);
-          }
 
           rows.appendChild(setting);
           var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";

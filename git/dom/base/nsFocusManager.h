@@ -85,11 +85,6 @@ public:
   }
 
   /**
-   * Update the caret with current mode (whether in caret browsing mode or not).
-   */
-  void UpdateCaretForCaretBrowsingMode();
-
-  /**
    * Returns the content node that would be focused if aWindow was in an
    * active window. This will traverse down the frame hierarchy, starting at
    * the given window aWindow. Sets aFocusedWindow to the window with the

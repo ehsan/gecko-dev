@@ -181,9 +181,13 @@ exports.testOnOpenOnCloseListeners = function(test) {
   });
 };
 
-/*
-Disabled due to all of the Win8 PGO bustage in bug 873007.
 exports.testActiveWindow = function(test) {
+  const xulApp = require("sdk/system/xul-app");
+  if (xulApp.versionInRange(xulApp.platformVersion, "1.9.2", "1.9.2.*")) {
+    test.pass("This test is disabled on 3.6. For more information, see bug 598525");
+    return;
+  }
+
   let windows = browserWindows;
 
   // API window objects
@@ -279,7 +283,6 @@ exports.testActiveWindow = function(test) {
     });
   }
 };
-*/
 
 exports.testTrackWindows = function(test) {
   test.waitUntilDone();

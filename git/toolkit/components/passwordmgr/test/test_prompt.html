@@ -21,17 +21,13 @@ Login Manager test: username/password prompts
 SimpleTest.waitForExplicitFinish();
 
 /** Test for Login Manager: username / password prompts. **/
-var pwmgr, ioService, observerService;
+var pwmgr, ioService
 var tmplogin, login1, login2A, login2B, login2C, login2D, login2E, login3A, login3B, login4, proxyLogin;
 var mozproxy, proxiedHost = "http://mochi.test:8888";
 var proxyChannel;
 var testNum = 1;
 
 function initLogins(pi) {
-  observerService = Cc["@mozilla.org/observer-service;1"].
-                      getService(Ci.nsIObserverService);
-  observerService.addObserver(storageObserver, "passwordmgr-storage-changed", false);
-
   pwmgr = Cc["@mozilla.org/login-manager;1"].
           getService(Ci.nsILoginManager);
   ioService = Cc["@mozilla.org/network/io-service;1"].
@@ -100,8 +96,6 @@ function initLogins(pi) {
 function finishTest() {
   try {
     ok(true, "finishTest removing testing logins...");
-    observerService.removeObserver(storageObserver, "passwordmgr-storage-changed");
-
     dumpLogins(pwmgr);
     ok(true, "removing login 1...");
       pwmgr.removeLogin(login1);
@@ -139,7 +133,7 @@ proxyChannelListener.prototype = {
   onStopRequest: function(request, context, status) { }
 };
 
-var resolveCallback = SpecialPowers.wrapCallbackObject({
+var resolveCallback = {
   QueryInterface : function (iid) {
     const interfaces = [Ci.nsIProtocolProxyCallback, Ci.nsISupports];
 
@@ -160,9 +154,9 @@ var resolveCallback = SpecialPowers.wrapCallbackObject({
     // have valid ProxyInfo, but we use OnStartRequest during startup()
     // for simplicity.
     proxyChannel = ioService.newChannel(proxiedHost, null, null);
-    proxyChannel.asyncOpen(SpecialPowers.wrapCallbackObject(new proxyChannelListener()), null);
+    proxyChannel.asyncOpen(new proxyChannelListener(), null);
   }
-});
+};
 
 function startup() {
   //need to allow for arbitrary network servers defined in PAC instead of a hardcoded moz-proxy.
@@ -179,7 +173,7 @@ function addNotificationCallback(cb) {
   storageObserver.notificationCallbacks.push(cb);
 }
 
-var storageObserver = SpecialPowers.wrapCallbackObject({
+var storageObserver = {
   notificationCallbacks: [],
 
   QueryInterface : function (iid) {
@@ -235,7 +229,11 @@ var storageObserver = SpecialPowers.wrapCallbackObject({
       ok(false, "OBSERVER FAILED: " + e);
     }
   }
-});
+};
+
+var observerService = Cc["@mozilla.org/observer-service;1"].
+                      getService(Ci.nsIObserverService);
+observerService.addObserver(storageObserver, "passwordmgr-storage-changed", false);
 
 /*
  * handleDialog

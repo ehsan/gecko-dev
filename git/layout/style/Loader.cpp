@@ -16,7 +16,6 @@
 
 /* loading of CSS style sheets using the network APIs */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/css/Loader.h"
@@ -973,34 +972,6 @@ Loader::IsAlternate(const nsAString& aTitle, bool aHasAlternateRel)
   return !aTitle.Equals(mPreferredSheet);
 }
 
-/* static */ PLDHashOperator
-Loader::RemoveEntriesWithURI(URIPrincipalAndCORSModeHashKey* aKey,
-                             nsRefPtr<nsCSSStyleSheet> &aSheet,
-                             void* aUserData)
-{
-  nsIURI* obsoleteURI = static_cast<nsIURI*>(aUserData);
-  nsIURI* sheetURI = aKey->GetURI();
-  bool areEqual;
-  nsresult rv = sheetURI->Equals(obsoleteURI, &areEqual);
-  if (NS_SUCCEEDED(rv) && areEqual) {
-    return PL_DHASH_REMOVE;
-  }
-  return PL_DHASH_NEXT;
-}
-
-nsresult
-Loader::ObsoleteSheet(nsIURI* aURI)
-{
-  if (!mCompleteSheets.IsInitialized()) {
-    return NS_OK;
-  }
-  if (!aURI) {
-    return NS_ERROR_INVALID_ARG;
-  }
-  mCompleteSheets.Enumerate(RemoveEntriesWithURI, aURI);
-  return NS_OK;
-}
-
 /**
  * CheckLoadAllowed will return success if the load is allowed,
  * failure otherwise.
@@ -1134,7 +1105,6 @@ Loader::CreateSheet(nsIURI* aURI,
         LOG(("  Not cloning completed sheet %p because it's been modified",
              sheet.get()));
         sheet = nullptr;
-        fromCompleteSheets = false;
       }
     }
 
@@ -1196,8 +1166,6 @@ Loader::CreateSheet(nsIURI* aURI,
         // later modified we don't end up with two copies of our inner
         // hanging around.
         URIPrincipalAndCORSModeHashKey key(aURI, aLoaderPrincipal, aCORSMode);
-        NS_ASSERTION((*aSheet)->IsComplete(),
-                     "Should only be caching complete sheets");
         mCompleteSheets.Put(&key, *aSheet);
       }
     }
@@ -1822,8 +1790,6 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
       if (cache && cache->IsEnabled()) {
         if (!cache->GetStyleSheet(aLoadData->mURI)) {
           LOG(("  Putting sheet in XUL prototype cache"));
-          NS_ASSERTION(sheet->IsComplete(),
-                       "Should only be caching complete sheets");
           cache->PutStyleSheet(sheet);
         }
       }
@@ -1833,8 +1799,6 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
       URIPrincipalAndCORSModeHashKey key(aLoadData->mURI,
                                          aLoadData->mLoaderPrincipal,
                                          aLoadData->mSheet->GetCORSMode());
-      NS_ASSERTION(sheet->IsComplete(),
-                   "Should only be caching complete sheets");
       mCompleteSheets.Put(&key, sheet);
 #ifdef MOZ_XUL
     }
@@ -2471,13 +2435,13 @@ Loader::UnlinkCachedSheets()
 
 struct SheetMemoryCounter {
   size_t size;
-  mozilla::MallocSizeOf mallocSizeOf;
+  nsMallocSizeOfFun mallocSizeOf;
 };
 
 static size_t
 CountSheetMemory(URIPrincipalAndCORSModeHashKey* /* unused */,
                  const nsRefPtr<nsCSSStyleSheet>& aSheet,
-                 mozilla::MallocSizeOf aMallocSizeOf,
+                 nsMallocSizeOfFun aMallocSizeOf,
                  void* /* unused */)
 {
   // If aSheet has a parent, then its parent will report it so we don't
@@ -2491,7 +2455,7 @@ CountSheetMemory(URIPrincipalAndCORSModeHashKey* /* unused */,
 }
 
 size_t
-Loader::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+Loader::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t s = aMallocSizeOf(this);
 

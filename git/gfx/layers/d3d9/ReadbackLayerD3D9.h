@@ -12,13 +12,13 @@
 namespace mozilla {
 namespace layers {
 
-class ReadbackLayerD3D9 :
+class THEBES_API ReadbackLayerD3D9 :
   public ReadbackLayer,
   public LayerD3D9
 {
 public:
     ReadbackLayerD3D9(LayerManagerD3D9 *aManager)
-    : ReadbackLayer(aManager, nullptr),
+    : ReadbackLayer(aManager, NULL),
       LayerD3D9(aManager)
   {
       mImplData = static_cast<LayerD3D9*>(this);

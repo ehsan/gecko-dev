@@ -11,7 +11,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/GroupRule.h"
 #include "mozilla/Preferences.h"
 #include "nsIDOMCSSConditionRule.h"
@@ -57,7 +56,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
@@ -92,7 +91,7 @@ public:
   // @media rule methods
   nsresult SetMedia(nsMediaList* aMedia);
   
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE;
 
 protected:
@@ -115,7 +114,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
@@ -170,7 +169,7 @@ public:
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE;
 
 protected:
@@ -242,13 +241,13 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
   DECL_STYLE_RULE_INHERIT
 
-  virtual int32_t GetType() const MOZ_OVERRIDE;
+  virtual int32_t GetType() const;
   virtual already_AddRefed<mozilla::css::Rule> Clone() const;
 
   // nsIDOMCSSRule interface
@@ -260,7 +259,7 @@ public:
   void SetDesc(nsCSSFontDesc aDescID, nsCSSValue const & aValue);
   void GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 protected:
   friend class nsCSSFontFaceStyleDecl;
@@ -331,15 +330,11 @@ public:
     return mFeatureValues;
   }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   static bool PrefEnabled()
   {
-    // font-variant-alternates enabled ==> layout.css.font-features.enabled is true
-    bool fontFeaturesEnabled =
-      nsCSSProps::IsEnabled(eCSSProperty_font_variant_alternates);
-
-    return fontFeaturesEnabled;
+    return mozilla::Preferences::GetBool("layout.css.font-features.enabled");
   }
 
 protected:
@@ -367,7 +362,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
@@ -378,10 +373,10 @@ public:
   NS_DECL_NSIDOMCSSRULE
 
   // nsIDOMCSSCharsetRule methods
-  NS_IMETHOD GetEncoding(nsAString& aEncoding) MOZ_OVERRIDE;
-  NS_IMETHOD SetEncoding(const nsAString& aEncoding) MOZ_OVERRIDE;
+  NS_IMETHOD GetEncoding(nsAString& aEncoding);
+  NS_IMETHOD SetEncoding(const nsAString& aEncoding);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   nsString  mEncoding;
@@ -409,7 +404,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsCSSKeyframeStyleDeclaration,
                                                          nsICSSDeclaration)
 
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE;
+  virtual nsINode* GetParentObject();
 
 protected:
   // This reference is not reference-counted. The rule object tells us
@@ -437,12 +432,12 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
   DECL_STYLE_RULE_INHERIT
-  virtual int32_t GetType() const MOZ_OVERRIDE;
+  virtual int32_t GetType() const;
   virtual already_AddRefed<mozilla::css::Rule> Clone() const;
 
   // nsIDOMCSSRule interface
@@ -456,7 +451,7 @@ public:
 
   void ChangeDeclaration(mozilla::css::Declaration* aDeclaration);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   void DoGetKeyText(nsAString &aKeyText) const;
 
@@ -483,7 +478,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
@@ -506,11 +501,11 @@ public:
 
   // rest of GroupRule
   virtual bool UseForPresentation(nsPresContext* aPresContext,
-                                    nsMediaQueryResultCacheKey& aKey) MOZ_OVERRIDE;
+                                    nsMediaQueryResultCacheKey& aKey);
 
   const nsString& GetName() { return mName; }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private:
   uint32_t FindRuleIndexForKey(const nsAString& aKey);
@@ -537,7 +532,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsCSSPageStyleDeclaration,
                                                          nsICSSDeclaration)
 
-  virtual nsINode *GetParentObject() MOZ_OVERRIDE;
+  virtual nsINode *GetParentObject();
 
 protected:
   // This reference is not reference-counted. The rule object tells us
@@ -559,17 +554,16 @@ private:
   nsCSSPageRule(const nsCSSPageRule& aCopy);
   ~nsCSSPageRule();
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsCSSPageRule, nsIDOMCSSPageRule)
+  NS_DECL_ISUPPORTS
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
   DECL_STYLE_RULE_INHERIT
-  virtual int32_t GetType() const MOZ_OVERRIDE;
+  virtual int32_t GetType() const;
   virtual already_AddRefed<mozilla::css::Rule> Clone() const;
 
   // nsIDOMCSSRule interface
@@ -584,7 +578,7 @@ public:
 
   mozilla::css::ImportantRule* GetImportantRule();
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 private:
   nsAutoPtr<mozilla::css::Declaration>    mDeclaration;
   // lazily created when needed:
@@ -603,7 +597,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
   // Rule methods
@@ -634,7 +628,7 @@ public:
   // nsIDOMCSSSupportsRule interface
   NS_DECL_NSIDOMCSSSUPPORTSRULE
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   static bool PrefEnabled()
   {

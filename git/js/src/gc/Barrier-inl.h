@@ -4,28 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Barrier_inl_h
-#define gc_Barrier_inl_h
+#ifndef jsgc_barrier_inl_h___
+#define jsgc_barrier_inl_h___
 
 #include "gc/Barrier.h"
-
-#include "jscompartment.h"
-
 #include "gc/Marking.h"
 #include "gc/StoreBuffer.h"
 
+#include "vm/ObjectImpl-inl.h"
 #include "vm/String-inl.h"
 
 namespace js {
-
-JS_ALWAYS_INLINE JS::Zone *
-ZoneOfValue(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return value.toObject().zone();
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
-}
 
 template <typename T, typename Unioned>
 void
@@ -40,7 +29,7 @@ RelocatablePtr<T>::post()
 {
 #ifdef JSGC_GENERATIONAL
     JS_ASSERT(this->value);
-    T::writeBarrierPostRelocate(this->value, &this->value);
+    this->value->runtime()->gcStoreBuffer.putRelocatableCell((gc::Cell **)&this->value);
 #endif
 }
 
@@ -49,7 +38,7 @@ inline void
 RelocatablePtr<T>::relocate(JSRuntime *rt)
 {
 #ifdef JSGC_GENERATIONAL
-    T::writeBarrierPostRemove(this->value, &this->value);
+    rt->gcStoreBuffer.removeRelocatableCell((gc::Cell **)&this->value);
 #endif
 }
 
@@ -57,6 +46,20 @@ inline
 EncapsulatedValue::~EncapsulatedValue()
 {
     pre();
+}
+
+inline void
+EncapsulatedValue::init(const Value &v)
+{
+    JS_ASSERT(!IsPoisonedValue(v));
+    value = v;
+}
+
+inline void
+EncapsulatedValue::init(JSRuntime *rt, const Value &v)
+{
+    JS_ASSERT(!IsPoisonedValue(v));
+    value = v;
 }
 
 inline EncapsulatedValue &
@@ -81,7 +84,7 @@ inline void
 EncapsulatedValue::writeBarrierPre(const Value &value)
 {
 #ifdef JSGC_INCREMENTAL
-    if (value.isMarkable() && runtimeFromAnyThread(value)->needsBarrier())
+    if (value.isMarkable() && runtime(value)->needsBarrier())
         writeBarrierPre(ZoneOfValue(value), value);
 #endif
 }
@@ -91,7 +94,7 @@ EncapsulatedValue::writeBarrierPre(Zone *zone, const Value &value)
 {
 #ifdef JSGC_INCREMENTAL
     if (zone->needsBarrier()) {
-        JS_ASSERT_IF(value.isMarkable(), runtimeFromMainThread(value)->needsBarrier());
+        JS_ASSERT_IF(value.isMarkable(), runtime(value)->needsBarrier());
         Value tmp(value);
         js::gc::MarkValueUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == value);
@@ -182,14 +185,14 @@ HeapValue::set(Zone *zone, const Value &v)
 #ifdef DEBUG
     if (value.isMarkable()) {
         JS_ASSERT(ZoneOfValue(value) == zone ||
-                  zone->runtimeFromAnyThread()->isAtomsZone(ZoneOfValue(value)));
+                  ZoneOfValue(value) == zone->rt->atomsCompartment->zone());
     }
 #endif
 
     pre(zone);
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(zone->runtimeFromAnyThread());
+    post(zone->rt);
 }
 
 inline void
@@ -197,7 +200,7 @@ HeapValue::writeBarrierPost(const Value &value, Value *addr)
 {
 #ifdef JSGC_GENERATIONAL
     if (value.isMarkable())
-        runtimeFromMainThread(value)->gcStoreBuffer.putValue(addr);
+        runtime(value)->gcStoreBuffer.putValue(addr);
 #endif
 }
 
@@ -250,7 +253,7 @@ inline
 RelocatableValue::~RelocatableValue()
 {
     if (value.isMarkable())
-        relocate(runtimeFromMainThread(value));
+        relocate(runtime(value));
 }
 
 inline RelocatableValue &
@@ -262,9 +265,9 @@ RelocatableValue::operator=(const Value &v)
         value = v;
         post();
     } else if (value.isMarkable()) {
-        JSRuntime *rt = runtimeFromMainThread(value);
-        relocate(rt);
+        JSRuntime *rt = runtime(value);
         value = v;
+        relocate(rt);
     } else {
         value = v;
     }
@@ -280,9 +283,9 @@ RelocatableValue::operator=(const RelocatableValue &v)
         value = v.value;
         post();
     } else if (value.isMarkable()) {
-        JSRuntime *rt = runtimeFromMainThread(value);
-        relocate(rt);
+        JSRuntime *rt = runtime(value);
         value = v.value;
+        relocate(rt);
     } else {
         value = v.value;
     }
@@ -294,7 +297,7 @@ RelocatableValue::post()
 {
 #ifdef JSGC_GENERATIONAL
     JS_ASSERT(value.isMarkable());
-    runtimeFromMainThread(value)->gcStoreBuffer.putRelocatableValue(&value);
+    runtime(value)->gcStoreBuffer.putRelocatableValue(&value);
 #endif
 }
 
@@ -311,7 +314,7 @@ HeapSlot::HeapSlot(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
     : EncapsulatedValue(v)
 {
     JS_ASSERT(!IsPoisonedValue(v));
-    post(obj, kind, slot, v);
+    post(obj, kind, slot);
 }
 
 inline
@@ -319,7 +322,7 @@ HeapSlot::HeapSlot(JSObject *obj, Kind kind, uint32_t slot, const HeapSlot &s)
     : EncapsulatedValue(s.value)
 {
     JS_ASSERT(!IsPoisonedValue(s.value));
-    post(obj, kind, slot, s);
+    post(obj, kind, slot);
 }
 
 inline
@@ -332,14 +335,14 @@ inline void
 HeapSlot::init(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 {
     value = v;
-    post(obj, kind, slot, v);
+    post(obj, kind, slot);
 }
 
 inline void
 HeapSlot::init(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot, const Value &v)
 {
     value = v;
-    post(rt, obj, kind, slot, v);
+    post(rt, obj, kind, slot);
 }
 
 inline void
@@ -351,7 +354,7 @@ HeapSlot::set(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
     pre();
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(obj, kind, slot, v);
+    post(obj, kind, slot);
 }
 
 inline void
@@ -364,40 +367,35 @@ HeapSlot::set(Zone *zone, JSObject *obj, Kind kind, uint32_t slot, const Value &
     pre(zone);
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
-    post(zone->runtimeFromAnyThread(), obj, kind, slot, v);
+    post(zone->rt, obj, kind, slot);
 }
 
 inline void
-HeapSlot::writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot, Value target)
+HeapSlot::writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot)
 {
 #ifdef JSGC_GENERATIONAL
-    writeBarrierPost(obj->runtimeFromAnyThread(), obj, kind, slot, target);
+    obj->runtime()->gcStoreBuffer.putSlot(obj, kind, slot);
 #endif
 }
 
 inline void
-HeapSlot::writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot, Value target)
+HeapSlot::writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot)
 {
 #ifdef JSGC_GENERATIONAL
-    JS_ASSERT_IF(kind == Slot, obj->getSlotAddressUnchecked(slot)->get() == target);
-    JS_ASSERT_IF(kind == Element,
-                 static_cast<HeapSlot *>(obj->getDenseElements() + slot)->get() == target);
-
-    if (target.isObject())
-        rt->gcStoreBuffer.putSlot(obj, kind, slot, &target.toObject());
+    rt->gcStoreBuffer.putSlot(obj, kind, slot);
 #endif
 }
 
 inline void
-HeapSlot::post(JSObject *owner, Kind kind, uint32_t slot, Value target)
+HeapSlot::post(JSObject *owner, Kind kind, uint32_t slot)
 {
-    HeapSlot::writeBarrierPost(owner, kind, slot, target);
+    HeapSlot::writeBarrierPost(owner, kind, slot);
 }
 
 inline void
-HeapSlot::post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot, Value target)
+HeapSlot::post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot)
 {
-    HeapSlot::writeBarrierPost(rt, owner, kind, slot, target);
+    HeapSlot::writeBarrierPost(rt, owner, kind, slot);
 }
 
 #ifdef JSGC_GENERATIONAL
@@ -412,6 +410,12 @@ class DenseRangeRef : public gc::BufferableRef
       : owner(obj), start(start), end(end)
     {
         JS_ASSERT(start < end);
+    }
+
+    bool match(void *location) {
+        uint32_t len = owner->getDenseInitializedLength();
+        return location >= &owner->getDenseElement(Min(start, len)) &&
+               location <= &owner->getDenseElement(Min(end, len)) - 1;
     }
 
     void mark(JSTracer *trc) {
@@ -435,9 +439,7 @@ DenseRangeWriteBarrierPost(JSRuntime *rt, JSObject *obj, uint32_t start, uint32_
 }
 
 /*
- * This is a post barrier for HashTables whose key is a GC pointer. Any
- * insertion into a HashTable not marked as part of the runtime, with a GC
- * pointer as a key, must call this immediately after each insertion.
+ * This is a post barrier for HashTables whose key can be moved during a GC.
  */
 template <class Map, class Key>
 inline void
@@ -448,7 +450,6 @@ HashTableWriteBarrierPost(JSRuntime *rt, Map *map, const Key &key)
         rt->gcStoreBuffer.putGeneric(gc::HashKeyRef<Map, Key>(map, key));
 #endif
 }
-
 
 inline
 EncapsulatedId::~EncapsulatedId()
@@ -590,4 +591,4 @@ ReadBarrieredValue::toObject() const
 
 } /* namespace js */
 
-#endif /* gc_Barrier_inl_h */
+#endif /* jsgc_barrier_inl_h___ */

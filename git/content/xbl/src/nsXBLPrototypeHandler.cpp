@@ -9,7 +9,6 @@
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIContent.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
@@ -290,6 +289,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, &handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  JSAutoRequest ar(cx);
   JS::Rooted<JSObject*> globalObject(cx, boundGlobal->GetGlobalJSObject());
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetXBLScope(cx, globalObject));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
@@ -380,10 +380,12 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                    &argNames);
 
   // Compile the event handler in the xbl scope.
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, scopeObject);
   JS::CompileOptions options(cx);
   options.setFileAndLine(bindingURI.get(), mLineNumber)
-         .setVersion(JSVERSION_LATEST);
+         .setVersion(JSVERSION_LATEST)
+         .setUserBit(true); // Flag us as XBL
 
   JS::Rooted<JSObject*> rootedNull(cx); // See bug 781070.
   JS::Rooted<JSObject*> handlerFun(cx);
@@ -417,7 +419,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(EventTarget* aTarget, nsIDOMEvent* aEv
   if (aEvent) {
     // See if preventDefault has been set.  If so, don't execute.
     bool preventDefault = false;
-    aEvent->GetDefaultPrevented(&preventDefault);
+    aEvent->GetPreventDefault(&preventDefault);
     if (preventDefault) {
       return NS_OK;
     }
@@ -454,7 +456,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(EventTarget* aTarget, nsIDOMEvent* aEv
       if (!doc)
         return NS_ERROR_FAILURE;
 
-      privateWindow = doc->GetWindow();
+      privateWindow = do_QueryInterface(doc->GetScriptGlobalObject());
       if (!privateWindow)
         return NS_ERROR_FAILURE;
     }
@@ -951,9 +953,8 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
 }
 
 nsresult
-nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
+nsXBLPrototypeHandler::Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream)
 {
-  AssertInCompilationScope();
   nsresult rv = aStream->Read8(&mPhase);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aStream->Read8(&mType);
@@ -986,9 +987,8 @@ nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
 }
 
 nsresult
-nsXBLPrototypeHandler::Write(nsIObjectOutputStream* aStream)
+nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream)
 {
-  AssertInCompilationScope();
   // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
   // for <keyset> elements.
   if ((mType & NS_HANDLER_TYPE_XUL) || !mEventName)

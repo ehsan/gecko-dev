@@ -65,7 +65,6 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
       for (size_t j = 0; j < mTouches.Length(); j++) {
         if (mTouches[j].mIdentifier == event.mTouches[i].mIdentifier) {
           foundAlreadyExistingTouch = true;
-          break;
         }
       }
 
@@ -102,32 +101,25 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
   }
   case MultiTouchInput::MULTITOUCH_MOVE: {
     // If we move too much, bail out of the tap.
-    ScreenIntPoint delta = event.mTouches[0].mScreenPoint - mTouchStartPosition;
+    nsIntPoint touch = (nsIntPoint&)event.mTouches[0].mScreenPoint;
     if (mTouches.Length() == 1 &&
-        NS_hypot(delta.x, delta.y) >
+        NS_hypot(mTouchStartPosition.x - touch.x, mTouchStartPosition.y - touch.y) >
           mAsyncPanZoomController->GetDPI() * mAsyncPanZoomController->GetTouchStartTolerance())
     {
       HandleTapCancel(event);
     }
 
-    size_t eventTouchesMatched = 0;
+    bool foundAlreadyExistingTouch = false;
     for (size_t i = 0; i < mTouches.Length(); i++) {
-      bool isTouchRemoved = true;
       for (size_t j = 0; j < event.mTouches.Length(); j++) {
         if (mTouches[i].mIdentifier == event.mTouches[j].mIdentifier) {
-          eventTouchesMatched++;
-          isTouchRemoved = false;
+          foundAlreadyExistingTouch = true;
           mTouches[i] = event.mTouches[j];
         }
       }
-      if (isTouchRemoved) {
-        // this touch point was lifted, so remove it from our list
-        mTouches.RemoveElementAt(i);
-        i--;
-      }
     }
 
-    NS_WARN_IF_FALSE(eventTouchesMatched == event.mTouches.Length(), "Touch moved, but not in list");
+    NS_WARN_IF_FALSE(foundAlreadyExistingTouch, "Touch moved, but not in list");
 
     break;
   }
@@ -208,11 +200,14 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
   nsEventStatus rv = nsEventStatus_eIgnore;
 
   if (mTouches.Length() > 1 && !aClearTouches) {
-    const ScreenIntPoint& firstTouch = mTouches[0].mScreenPoint,
-                         secondTouch = mTouches[mTouches.Length() - 1].mScreenPoint;
-    ScreenPoint focusPoint = ScreenPoint(firstTouch + secondTouch) / 2;
-    ScreenIntPoint delta = secondTouch - firstTouch;
-    float currentSpan = float(NS_hypot(delta.x, delta.y));
+    const nsIntPoint& firstTouch = mTouches[0].mScreenPoint,
+                      secondTouch = mTouches[mTouches.Length() - 1].mScreenPoint;
+    nsIntPoint focusPoint =
+      nsIntPoint((firstTouch.x + secondTouch.x)/2,
+                 (firstTouch.y + secondTouch.y)/2);
+    float currentSpan =
+      float(NS_hypot(firstTouch.x - secondTouch.x,
+                     firstTouch.y - secondTouch.y));
 
     switch (mState) {
     case GESTURE_NONE:

@@ -300,7 +300,7 @@ GenerateGUID(nsCString& _guid)
 }
 
 bool
-IsValidGUID(const nsACString& aGUID)
+IsValidGUID(const nsCString& aGUID)
 {
   nsCString::size_type len = aGUID.Length();
   if (len != GUID_LENGTH) {
@@ -378,7 +378,7 @@ PlacesEvent::Notify()
   }
 }
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_THREADSAFE_ISUPPORTS1(
   PlacesEvent
 , nsIRunnable
 )

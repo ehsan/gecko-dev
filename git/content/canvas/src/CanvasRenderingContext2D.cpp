@@ -73,7 +73,6 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 
-#include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/ContentParent.h"
@@ -93,30 +92,19 @@
 #include "nsJSUtils.h"
 #include "XPCQuickStubs.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/TextMetrics.h"
-#include "mozilla/dom/UnionTypes.h"
 
 #ifdef USE_SKIA_GPU
-#undef free // apparently defined by some windows header, clashing with a free()
-            // method in SkTypes.h
 #include "GLContext.h"
 #include "GLContextProvider.h"
-#include "GLContextSkia.h"
 #include "SurfaceTypes.h"
-#include "nsIGfxInfo.h"
-using mozilla::gl::GLContext;
-using mozilla::gl::GLContextProvider;
 #endif
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-#include "mozilla/layers/ShadowLayers.h"
 #endif
 
 // windows.h (included by chromium code) defines this, in its infinite wisdom
@@ -133,6 +121,10 @@ namespace mgfx = mozilla::gfx;
 
 namespace mozilla {
 namespace dom {
+
+static float kDefaultFontSize = 10.0;
+static NS_NAMED_LITERAL_STRING(kDefaultFontName, "sans-serif");
+static NS_NAMED_LITERAL_STRING(kDefaultFontStyle, "10px sans-serif");
 
 // Cap sigma to avoid overly large temp surfaces.
 const Float SIGMA_MAX = 100;
@@ -402,15 +394,31 @@ CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResul
   mRawStops.AppendElement(newStop);
 }
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasGradient, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasGradient, Release)
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasGradient, NS_CANVASGRADIENTAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasGradient)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasGradient)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasGradient, mContext)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPattern, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPattern, Release)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasGradient)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasGradient)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
+
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasPattern, NS_CANVASPATTERNAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasPattern)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasPattern)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPattern, mContext)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasPattern)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasPattern)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 class CanvasRenderingContext2DUserData : public LayerUserData {
 public:
@@ -432,20 +440,10 @@ public:
     CanvasRenderingContext2DUserData* self =
       static_cast<CanvasRenderingContext2DUserData*>(aData);
     CanvasRenderingContext2D* context = self->mContext;
-    if (!context)
-      return;
-
-    GLContext* glContext = static_cast<GLContext*>(context->mTarget->GetGLContext());
-    if (!glContext)
-      return;
-
-    if (context->mTarget) {
-      // Since SkiaGL default to store drawing command until flush
-      // We will have to flush it before present.
-      context->mTarget->Flush();
+    if (self->mContext && context->mGLContext) {
+      context->mGLContext->MakeCurrent();
+      context->mGLContext->PublishFrame();
     }
-    glContext->MakeCurrent();
-    glContext->PublishFrame();
   }
 #endif
 
@@ -472,8 +470,6 @@ private:
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasRenderingContext2D)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(CanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(CanvasRenderingContext2D)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCanvasElement)
@@ -546,10 +542,6 @@ CanvasRenderingContext2D::CanvasRenderingContext2D()
 {
   sNumLivingContexts++;
   SetIsDOMBinding();
-
-#if USE_SKIA_GPU
-  mForceSoftware = false;
-#endif
 }
 
 CanvasRenderingContext2D::~CanvasRenderingContext2D()
@@ -563,12 +555,6 @@ CanvasRenderingContext2D::~CanvasRenderingContext2D()
   if (!sNumLivingContexts) {
     NS_IF_RELEASE(sErrorTarget);
   }
-
-#if USE_SKIA_GPU
-  std::vector<CanvasRenderingContext2D*>::iterator iter = std::find(DemotableContexts().begin(), DemotableContexts().end(), this);
-  if (iter != DemotableContexts().end())
-    DemotableContexts().erase(iter);
-#endif
 }
 
 JSObject*
@@ -630,10 +616,22 @@ CanvasRenderingContext2D::Reset()
 
   // Since the target changes the backing texture will change, and this will
   // no longer be valid.
+  mThebesSurface = nullptr;
   mIsEntireFrameInvalid = false;
   mPredictManyRedrawCalls = false;
 
   return NS_OK;
+}
+
+static void
+WarnAboutUnexpectedStyle(HTMLCanvasElement* canvasElement)
+{
+  nsContentUtils::ReportToConsole(
+    nsIScriptError::warningFlag,
+    "Canvas",
+    canvasElement ? canvasElement->OwnerDoc() : nullptr,
+    nsContentUtils::eDOM_PROPERTIES,
+    "UnexpectedCanvasVariantStyle");
 }
 
 void
@@ -650,18 +648,27 @@ CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
   CurrentState().SetColorStyle(whichStyle, color);
 }
 
-void
-CanvasRenderingContext2D::GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
-                                          Style aWhichStyle)
+nsISupports*
+CanvasRenderingContext2D::GetStyleAsStringOrInterface(nsAString& aStr,
+                                                      CanvasMultiGetterType& aType,
+                                                      Style aWhichStyle)
 {
   const ContextState &state = CurrentState();
+  nsISupports* supports;
   if (state.patternStyles[aWhichStyle]) {
-    aValue.SetAsCanvasPattern() = state.patternStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.patternStyles[aWhichStyle];
+    aType = CMG_STYLE_PATTERN;
   } else if (state.gradientStyles[aWhichStyle]) {
-    aValue.SetAsCanvasGradient() = state.gradientStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.gradientStyles[aWhichStyle];
+    aType = CMG_STYLE_GRADIENT;
   } else {
-    StyleColorToString(state.colorStyles[aWhichStyle], aValue.SetAsString());
+    StyleColorToString(state.colorStyles[aWhichStyle], aStr);
+    supports = nullptr;
+    aType = CMG_STYLE_STRING;
   }
+  return supports;
 }
 
 // static
@@ -701,6 +708,11 @@ CanvasRenderingContext2D::Redraw()
     return NS_OK;
   }
 
+  if (!mThebesSurface)
+    mThebesSurface =
+      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
+  mThebesSurface->MarkDirty();
+
   nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
   mCanvasElement->InvalidateCanvasContent(nullptr);
@@ -728,6 +740,11 @@ CanvasRenderingContext2D::Redraw(const mgfx::Rect &r)
     return;
   }
 
+  if (!mThebesSurface)
+    mThebesSurface =
+      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
+  mThebesSurface->MarkDirty();
+
   nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
   mCanvasElement->InvalidateCanvasContent(&r);
@@ -745,74 +762,6 @@ CanvasRenderingContext2D::RedrawUser(const gfxRect& r)
     mTarget->GetTransform().TransformBounds(ToRect(r));
   Redraw(newr);
 }
-
-#if USE_SKIA_GPU
-
-void CanvasRenderingContext2D::Demote()
-{
-  if (!IsTargetValid() || mForceSoftware)
-    return;
-
-  RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
-  RefPtr<DrawTarget> oldTarget = mTarget;
-  mTarget = nullptr;
-  mResetLayer = true;
-  mForceSoftware = true;
-
-  // Recreate target, now demoted to software only
-  EnsureTarget();
-  if (!IsTargetValid())
-    return;
-
-  // Put back the content from the old DrawTarget
-  mgfx::Rect r(0, 0, mWidth, mHeight);
-  mTarget->DrawSurface(snapshot, r, r);
-}
-
-std::vector<CanvasRenderingContext2D*>&
-CanvasRenderingContext2D::DemotableContexts()
-{
-  static std::vector<CanvasRenderingContext2D*> contexts;
-  return contexts;
-}
-
-void
-CanvasRenderingContext2D::DemoteOldestContextIfNecessary()
-{
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  const size_t kMaxContexts = 2;
-#else
-  const size_t kMaxContexts = 16;
-#endif
-
-  std::vector<CanvasRenderingContext2D*>& contexts = DemotableContexts();
-  if (contexts.size() < kMaxContexts)
-    return;
-
-  CanvasRenderingContext2D* oldest = contexts.front();
-  contexts.erase(contexts.begin());
-
-  oldest->Demote();
-}
-
-void
-CanvasRenderingContext2D::AddDemotableContext(CanvasRenderingContext2D* context)
-{
-  std::vector<CanvasRenderingContext2D*>::iterator iter = std::find(DemotableContexts().begin(), DemotableContexts().end(), context);
-  if (iter != DemotableContexts().end())
-    return;
-
-  DemotableContexts().push_back(context);
-}
-
-#define MIN_SKIA_GL_DIMENSION 16
-
-bool
-CheckSizeForSkiaGL(IntSize size) {
-  return size.width > MIN_SKIA_GL_DIMENSION && size.height > MIN_SKIA_GL_DIMENSION;
-}
-
-#endif
 
 void
 CanvasRenderingContext2D::EnsureTarget()
@@ -840,39 +789,18 @@ CanvasRenderingContext2D::EnsureTarget()
 
      if (layerManager) {
 #ifdef USE_SKIA_GPU
-      if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
-        SurfaceCaps caps = SurfaceCaps::ForRGBA();
-        caps.preserve = true;
+       if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
+         SurfaceCaps caps = SurfaceCaps::ForRGBA();
+         caps.preserve = true;
 
-#ifdef MOZ_WIDGET_GONK
-        layers::ShadowLayerForwarder *forwarder = layerManager->AsShadowForwarder();
-        if (forwarder) {
-          caps.surfaceAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
-        }
+         mGLContext = mozilla::gl::GLContextProvider::CreateOffscreen(gfxIntSize(size.width,
+                                                                                 size.height),
+                                                                      caps,
+                                                                      mozilla::gl::GLContext::ContextFlagsNone);
+         mTarget = gfxPlatform::GetPlatform()->CreateDrawTargetForFBO(0, mGLContext, size, format);
+       } else
 #endif
-
-        DemoteOldestContextIfNecessary();
-
-        nsRefPtr<GLContext> glContext;
-        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-        nsString vendor;
-
-        if (!mForceSoftware && CheckSizeForSkiaGL(size))
-        {
-          glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
-                                                         caps, GLContext::ContextFlagsNone);
-        }
-
-        if (glContext) {
-          SkAutoTUnref<GrGLInterface> i(CreateGrGLInterfaceFromGLContext(glContext));
-          mTarget = Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(glContext, i, size, format);
-          AddDemotableContext(this);
-        } else {
-          mTarget = layerManager->CreateDrawTarget(size, format);
-        }
-      } else
-#endif
-       mTarget = layerManager->CreateDrawTarget(size, format);
+         mTarget = layerManager->CreateDrawTarget(size, format);
      } else {
        mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(size, format);
      }
@@ -953,11 +881,11 @@ CanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *shell,
                                                 int32_t height)
 {
   mDocShell = shell;
+  mThebesSurface = surface;
 
   SetDimensions(width, height);
   mTarget = gfxPlatform::GetPlatform()->
     CreateDrawTargetForSurface(surface, IntSize(width, height));
-
   if (!mTarget) {
     EnsureErrorTarget();
     mTarget = sErrorTarget;
@@ -1051,8 +979,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
 
   nsresult rv;
   const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
-  static const fallible_t fallible = fallible_t();
-  nsAutoArrayPtr<char> conid(new (fallible) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
+  nsAutoArrayPtr<char> conid(new (std::nothrow) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
 
   if (!conid) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1066,7 +993,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoArrayPtr<uint8_t> imageBuffer(new (fallible) uint8_t[mWidth * mHeight * 4]);
+  nsAutoArrayPtr<uint8_t> imageBuffer(new (std::nothrow) uint8_t[mWidth * mHeight * 4]);
   if (!imageBuffer) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1243,7 +1170,7 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
   for (uint32_t i = 0; i < 6; ++i) {
     JS::Rooted<JS::Value> elt(cx);
     double d;
-    if (!JS_GetElement(cx, obj, i, &elt)) {
+    if (!JS_GetElement(cx, obj, i, elt.address())) {
       error.Throw(NS_ERROR_FAILURE);
       return false;
     }
@@ -1262,9 +1189,10 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransform(JSContext* cx,
-                                                 JS::Handle<JSObject*> currentTransform,
+                                                 JSObject& currentTransform_,
                                                  ErrorResult& error)
 {
+  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1286,9 +1214,10 @@ CanvasRenderingContext2D::GetMozCurrentTransform(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransformInverse(JSContext* cx,
-                                                        JS::Handle<JSObject*> currentTransform,
+                                                        JSObject& currentTransform_,
                                                         ErrorResult& error)
 {
+  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1327,25 +1256,92 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
 //
 
 void
-CanvasRenderingContext2D::SetStyleFromUnion(const StringOrCanvasGradientOrCanvasPattern& value,
-                                            Style whichStyle)
+CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
+                                              JS::Handle<JS::Value> value,
+                                              Style whichStyle)
 {
-  if (value.IsString()) {
-    SetStyleFromString(value.GetAsString(), whichStyle);
+  if (value.isString()) {
+    nsDependentJSString strokeStyle;
+    if (strokeStyle.init(cx, value.toString())) {
+      SetStyleFromString(strokeStyle, whichStyle);
+    }
     return;
   }
 
-  if (value.IsCanvasGradient()) {
-    SetStyleFromGradient(value.GetAsCanvasGradient(), whichStyle);
-    return;
+  if (value.isObject()) {
+    nsCOMPtr<nsISupports> holder;
+
+    CanvasGradient* gradient;
+    JS::Rooted<JS::Value> rootedVal(cx, value);
+    nsresult rv = xpc_qsUnwrapArg<CanvasGradient>(cx, value, &gradient,
+                                                  static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                                  rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromGradient(gradient, whichStyle);
+      return;
+    }
+
+    CanvasPattern* pattern;
+    rv = xpc_qsUnwrapArg<CanvasPattern>(cx, value, &pattern,
+                                        static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                        rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromPattern(pattern, whichStyle);
+      return;
+    }
   }
 
-  if (value.IsCanvasPattern()) {
-    SetStyleFromPattern(value.GetAsCanvasPattern(), whichStyle);
-    return;
-  }
+  WarnAboutUnexpectedStyle(mCanvasElement);
+}
 
-  MOZ_ASSUME_UNREACHABLE("Invalid union value");
+static JS::Value
+WrapStyle(JSContext* cx, JSObject* objArg,
+          CanvasRenderingContext2D::CanvasMultiGetterType type,
+          nsAString& str, nsISupports* supports, ErrorResult& error)
+{
+  JS::Rooted<JS::Value> v(cx);
+  bool ok;
+  switch (type) {
+    case CanvasRenderingContext2D::CMG_STYLE_STRING:
+    {
+      ok = xpc::StringToJsval(cx, str, v.address());
+      break;
+    }
+    case CanvasRenderingContext2D::CMG_STYLE_PATTERN:
+    case CanvasRenderingContext2D::CMG_STYLE_GRADIENT:
+    {
+      JS::Rooted<JSObject*> obj(cx, objArg);
+      ok = dom::WrapObject(cx, obj, supports, v.address());
+      break;
+    }
+    default:
+      MOZ_NOT_REACHED("unexpected CanvasMultiGetterType");
+  }
+  if (!ok) {
+    error.Throw(NS_ERROR_FAILURE);
+  }
+  return v;
+}
+
+
+JS::Value
+CanvasRenderingContext2D::GetStrokeStyle(JSContext* cx,
+                                         ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_STROKE);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
+}
+
+JS::Value
+CanvasRenderingContext2D::GetFillStyle(JSContext* cx,
+                                       ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_FILL);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
 }
 
 void
@@ -2080,9 +2076,6 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
     return;
   }
 
-  // add a rule to prevent text zoom from affecting the style
-  rules.AppendElement(new nsDisableTextZoomStyleRule);
-
   nsRefPtr<nsStyleContext> sc =
       styleSet->ResolveStyleForRules(parentContext, rules);
   if (!sc) {
@@ -2101,20 +2094,21 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
 
   // use CSS pixels instead of dev pixels to avoid being affected by page zoom
   const uint32_t aupcp = nsPresContext::AppUnitsPerCSSPixel();
-
-  bool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
-                      presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
-
+  // un-zoom the font size to avoid being affected by text-only zoom
+  //
   // Purposely ignore the font size that respects the user's minimum
   // font preference (fontStyle->mFont.size) in favor of the computed
   // size (fontStyle->mSize).  See
   // https://bugzilla.mozilla.org/show_bug.cgi?id=698652.
-  MOZ_ASSERT(!fontStyle->mAllowZoom,
-             "expected text zoom to be disabled on this nsStyleFont");
+  const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mSize);
+
+  bool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
+                      presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
+
   gfxFontStyle style(fontStyle->mFont.style,
                      fontStyle->mFont.weight,
                      fontStyle->mFont.stretch,
-                     NSAppUnitsToFloatPixels(fontStyle->mSize, float(aupcp)),
+                     NSAppUnitsToFloatPixels(fontSize, float(aupcp)),
                      language,
                      fontStyle->mFont.sizeAdjust,
                      fontStyle->mFont.systemFont,
@@ -2641,7 +2635,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     anchorY = -fontMetrics.emDescent;
     break;
   default:
-    MOZ_CRASH("unexpected TextBaseline");
+      MOZ_NOT_REACHED("unexpected TextBaseline");
   }
 
   processor.mPt.y += anchorY;
@@ -2706,14 +2700,12 @@ gfxFontGroup *CanvasRenderingContext2D::GetCurrentFontStyle()
   // use lazy initilization for the font group since it's rather expensive
   if (!CurrentState().fontGroup) {
     ErrorResult err;
-    NS_NAMED_LITERAL_STRING(kDefaultFontStyle, "10px sans-serif");
-    static float kDefaultFontSize = 10.0;
     SetFont(kDefaultFontStyle, err);
     if (err.Failed()) {
       gfxFontStyle style;
       style.size = kDefaultFontSize;
       CurrentState().fontGroup =
-        gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("sans-serif"),
+        gfxPlatform::GetPlatform()->CreateFontGroup(kDefaultFontName,
                                                     &style,
                                                     nullptr);
       if (CurrentState().fontGroup) {
@@ -3050,24 +3042,6 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
   RedrawUser(gfxRect(dx, dy, dw, dh));
 }
 
-#ifdef USE_SKIA_GPU
-static bool
-IsStandardCompositeOp(CompositionOp op)
-{
-    return (op == OP_SOURCE ||
-            op == OP_ATOP ||
-            op == OP_IN ||
-            op == OP_OUT ||
-            op == OP_OVER ||
-            op == OP_DEST_IN ||
-            op == OP_DEST_OUT ||
-            op == OP_DEST_OVER ||
-            op == OP_DEST_ATOP ||
-            op == OP_ADD ||
-            op == OP_XOR);
-}
-#endif
-
 void
 CanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op,
                                                       ErrorResult& error)
@@ -3106,12 +3080,6 @@ CanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op,
   else CANVAS_OP_TO_GFX_OP("luminosity", LUMINOSITY)
   // XXX ERRMSG we need to report an error to developers here! (bug 329026)
   else return;
-
-#ifdef USE_SKIA_GPU
-  if (!IsStandardCompositeOp(comp_op)) {
-    Demote();
-  }
-#endif
 
 #undef CANVAS_OP_TO_GFX_OP
   CurrentState().op = comp_op;
@@ -3156,12 +3124,6 @@ CanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op,
   else {
     error.Throw(NS_ERROR_FAILURE);
   }
-
-#ifdef USE_SKIA_GPU
-  if (!IsStandardCompositeOp(comp_op)) {
-    Demote();
-  }
-#endif
 
 #undef CANVAS_OP_TO_GFX_OP
 }
@@ -3237,62 +3199,23 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
   if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_ASYNC_DECODE_IMAGES) {
     renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
   }
-  if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH) {
-    renderDocFlags |= nsIPresShell::RENDER_DRAWWINDOW_NOT_FLUSHING;
-  }
 
   // gfxContext-over-Azure may modify the DrawTarget's transform, so
   // save and restore it
   Matrix matrix = mTarget->GetTransform();
-  double sw = matrix._11 * w;
-  double sh = matrix._22 * h;
   nsRefPtr<gfxContext> thebes;
-  nsRefPtr<gfxASurface> drawSurf;
-  if (gfxPlatform::GetPlatform()->SupportsAzureContentForDrawTarget(mTarget)) {
+  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
     thebes = new gfxContext(mTarget);
-    thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
-                                matrix._22, matrix._31, matrix._32));
   } else {
-    drawSurf =
-      gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(ceil(sw), ceil(sh)),
-                                                         gfxASurface::CONTENT_COLOR_ALPHA);
-    if (!drawSurf) {
-      error.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    drawSurf->SetDeviceOffset(gfxPoint(-floor(x), -floor(y)));
+    nsRefPtr<gfxASurface> drawSurf;
+    GetThebesSurface(getter_AddRefs(drawSurf));
     thebes = new gfxContext(drawSurf);
-    thebes->Translate(gfxPoint(floor(x), floor(y)));
-    thebes->Scale(matrix._11, matrix._22);
   }
-
+  thebes->SetMatrix(gfxMatrix(matrix._11, matrix._12, matrix._21,
+                              matrix._22, matrix._31, matrix._32));
   nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
   unused << shell->RenderDocument(r, renderDocFlags, backgroundColor, thebes);
-  if (drawSurf) {
-    gfxIntSize size = drawSurf->GetSize();
-
-    drawSurf->SetDeviceOffset(gfxPoint(0, 0));
-    nsRefPtr<gfxImageSurface> img = drawSurf->GetAsReadableARGB32ImageSurface();
-    if (!img || !img->Data()) {
-      error.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    RefPtr<SourceSurface> data =
-      mTarget->CreateSourceSurfaceFromData(img->Data(),
-                                           IntSize(size.width, size.height),
-                                           img->Stride(),
-                                           FORMAT_B8G8R8A8);
-    mgfx::Rect destRect(0, 0, w, h);
-    mgfx::Rect sourceRect(0, 0, sw, sh);
-    mTarget->DrawSurface(data, destRect, sourceRect,
-                         DrawSurfaceOptions(mgfx::FILTER_POINT),
-                         DrawOptions(1.0f, OP_SOURCE, AA_NONE));
-    mTarget->Flush();
-  } else {
-    mTarget->SetTransform(matrix);
-  }
+  mTarget->SetTransform(matrix);
 
   // note that x and y are coordinates in the document that
   // we're drawing; x and y are drawn to 0,0 in current user
@@ -3736,15 +3659,20 @@ NS_IMETHODIMP
 CanvasRenderingContext2D::GetThebesSurface(gfxASurface **surface)
 {
   EnsureTarget();
-
-  nsRefPtr<gfxASurface> thebesSurface =
+  if (!mThebesSurface) {
+    mThebesSurface =
       gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
 
-  if (!thebesSurface) {
-    return NS_ERROR_FAILURE;
+    if (!mThebesSurface) {
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    // Normally GetThebesSurfaceForDrawTarget will handle the flush, when
+    // we're returning a cached ThebesSurface we need to flush here.
+    mTarget->Flush();
   }
 
-  *surface = thebesSurface;
+  *surface = mThebesSurface;
   NS_ADDREF(*surface);
 
   return NS_OK;
@@ -3860,11 +3788,10 @@ CanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
 
   CanvasLayer::Data data;
 #ifdef USE_SKIA_GPU
-  GLContext* glContext = static_cast<GLContext*>(mTarget->GetGLContext());
-  if (glContext) {
+  if (mGLContext) {
     canvasLayer->SetPreTransactionCallback(
             CanvasRenderingContext2DUserData::PreTransactionCallback, userData);
-    data.mGLContext = glContext;
+    data.mGLContext = mGLContext;
   } else
 #endif
   {
@@ -3902,3 +3829,6 @@ CanvasRenderingContext2D::ShouldForceInactiveLayer(LayerManager *aManager)
 
 }
 }
+
+DOMCI_DATA(CanvasRenderingContext2D, mozilla::dom::CanvasRenderingContext2D)
+

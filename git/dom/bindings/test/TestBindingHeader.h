@@ -121,10 +121,6 @@ public:
   static
   already_AddRefed<TestInterface>
     Constructor(const GlobalObject&, uint32_t, IndirectlyImplementedInterface&, ErrorResult&);
-
-  static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, Date&, ErrorResult&);
   /*  static
   already_AddRefed<TestInterface>
     Constructor(const GlobalObject&, uint32_t, uint32_t,
@@ -137,20 +133,16 @@ public:
   already_AddRefed<TestInterface> Test(const GlobalObject&, const nsAString&,
                                        ErrorResult&);
   static
-  already_AddRefed<TestInterface> Test(const GlobalObject&, const nsACString&,
-                                       ErrorResult&);
-
-  static
   already_AddRefed<TestInterface> Test2(const GlobalObject&,
                                         JSContext*,
                                         const DictForConstructor&,
                                         JS::Value,
-                                        JS::Handle<JSObject*>,
-                                        JS::Handle<JSObject*>,
+                                        JSObject&,
+                                        JSObject*,
                                         const Sequence<Dict>&,
-                                        const Optional<JS::Handle<JS::Value> >&,
-                                        const Optional<JS::Handle<JSObject*> >&,
-                                        const Optional<JS::Handle<JSObject*> >&,
+                                        const Optional<LazyRootedValue>&,
+                                        const Optional<NonNullLazyRootedObject>&,
+                                        const Optional<LazyRootedObject>&,
                                         ErrorResult&);
 
   // Integer types
@@ -160,9 +152,7 @@ public:
   void PassByte(int8_t);
   int8_t ReceiveByte();
   void PassOptionalByte(const Optional<int8_t>&);
-  void PassOptionalUndefinedMissingByte(const Optional<int8_t>&);
   void PassOptionalByteWithDefault(int8_t);
-  void PassOptionalUndefinedMissingByteWithDefault(int8_t);
   void PassNullableByte(const Nullable<int8_t>&);
   void PassOptionalNullableByte(const Optional< Nullable<int8_t> >&);
   void PassVariadicByte(const Sequence<int8_t>&);
@@ -275,6 +265,7 @@ public:
   TestInterface* ReceiveWeakSelf();
   TestInterface* ReceiveWeakNullableSelf();
   void PassSelf(TestInterface&);
+  void PassSelf2(NonNull<TestInterface>&);
   void PassNullableSelf(TestInterface*);
   already_AddRefed<TestInterface> NonNullSelf();
   void SetNonNullSelf(TestInterface&);
@@ -296,6 +287,7 @@ public:
   IndirectlyImplementedInterface* ReceiveWeakOther();
   IndirectlyImplementedInterface* ReceiveWeakNullableOther();
   void PassOther(IndirectlyImplementedInterface&);
+  void PassOther2(NonNull<IndirectlyImplementedInterface>&);
   void PassNullableOther(IndirectlyImplementedInterface*);
   already_AddRefed<IndirectlyImplementedInterface> NonNullOther();
   void SetNonNullOther(IndirectlyImplementedInterface&);
@@ -310,6 +302,7 @@ public:
   TestExternalInterface* ReceiveWeakExternal();
   TestExternalInterface* ReceiveWeakNullableExternal();
   void PassExternal(TestExternalInterface*);
+  void PassExternal2(TestExternalInterface*);
   void PassNullableExternal(TestExternalInterface*);
   already_AddRefed<TestExternalInterface> NonNullExternal();
   void SetNonNullExternal(TestExternalInterface*);
@@ -324,6 +317,7 @@ public:
   TestCallbackInterface* ReceiveWeakCallbackInterface();
   TestCallbackInterface* ReceiveWeakNullableCallbackInterface();
   void PassCallbackInterface(TestCallbackInterface&);
+  void PassCallbackInterface2(OwningNonNull<TestCallbackInterface>);
   void PassNullableCallbackInterface(TestCallbackInterface*);
   already_AddRefed<TestCallbackInterface> NonNullCallbackInterface();
   void SetNonNullCallbackInterface(TestCallbackInterface&);
@@ -370,58 +364,38 @@ public:
   void ReceiveStringSequence(nsTArray<nsString>&);
   void PassStringSequence(const Sequence<nsString>&);
 
-  void ReceiveByteStringSequence(nsTArray<nsCString>&);
-  void PassByteStringSequence(const Sequence<nsCString>&);
-
   void ReceiveAnySequence(JSContext*, nsTArray<JS::Value>&);
-  void ReceiveNullableAnySequence(JSContext*, Nullable<nsTArray<JS::Value> >&);
-  void ReceiveAnySequenceSequence(JSContext*, nsTArray<nsTArray<JS::Value> >&);
-
-  void ReceiveObjectSequence(JSContext*, nsTArray<JSObject*>&);
-  void ReceiveNullableObjectSequence(JSContext*, nsTArray<JSObject*>&);
+  void ReceiveNullableAnySequence(JSContext*, Nullable<nsTArray<JS::Value> >);
 
   void PassSequenceOfSequences(const Sequence< Sequence<int32_t> >&);
   void ReceiveSequenceOfSequences(nsTArray< nsTArray<int32_t> >&);
 
   // Typed array types
-  void PassArrayBuffer(const ArrayBuffer&);
-  void PassNullableArrayBuffer(const Nullable<ArrayBuffer>&);
+  void PassArrayBuffer(ArrayBuffer&);
+  void PassNullableArrayBuffer(ArrayBuffer*);
   void PassOptionalArrayBuffer(const Optional<ArrayBuffer>&);
-  void PassOptionalNullableArrayBuffer(const Optional<Nullable<ArrayBuffer> >&);
-  void PassOptionalNullableArrayBufferWithDefaultValue(const Nullable<ArrayBuffer>&);
-  void PassArrayBufferView(const ArrayBufferView&);
-  void PassInt8Array(const Int8Array&);
-  void PassInt16Array(const Int16Array&);
-  void PassInt32Array(const Int32Array&);
-  void PassUint8Array(const Uint8Array&);
-  void PassUint16Array(const Uint16Array&);
-  void PassUint32Array(const Uint32Array&);
-  void PassUint8ClampedArray(const Uint8ClampedArray&);
-  void PassFloat32Array(const Float32Array&);
-  void PassFloat64Array(const Float64Array&);
-  void PassSequenceOfArrayBuffers(const Sequence<ArrayBuffer>&);
-  void PassSequenceOfNullableArrayBuffers(const Sequence<Nullable<ArrayBuffer> >&);
-  void PassVariadicTypedArray(const Sequence<Float32Array>&);
-  void PassVariadicNullableTypedArray(const Sequence<Nullable<Float32Array> >&);
+  void PassOptionalNullableArrayBuffer(const Optional<ArrayBuffer*>&);
+  void PassOptionalNullableArrayBufferWithDefaultValue(ArrayBuffer*);
+  void PassArrayBufferView(ArrayBufferView&);
+  void PassInt8Array(Int8Array&);
+  void PassInt16Array(Int16Array&);
+  void PassInt32Array(Int32Array&);
+  void PassUint8Array(Uint8Array&);
+  void PassUint16Array(Uint16Array&);
+  void PassUint32Array(Uint32Array&);
+  void PassUint8ClampedArray(Uint8ClampedArray&);
+  void PassFloat32Array(Float32Array&);
+  void PassFloat64Array(Float64Array&);
   JSObject* ReceiveUint8Array(JSContext*);
 
-  // DOMString types
+  // String types
   void PassString(const nsAString&);
   void PassNullableString(const nsAString&);
   void PassOptionalString(const Optional<nsAString>&);
-  void PassOptionalUndefinedMissingString(const Optional<nsAString>&);
   void PassOptionalStringWithDefaultValue(const nsAString&);
-  void PassOptionalUndefinedMissingStringWithDefaultValue(const nsAString&);
   void PassOptionalNullableString(const Optional<nsAString>&);
   void PassOptionalNullableStringWithDefaultValue(const nsAString&);
   void PassVariadicString(const Sequence<nsString>&);
-
-  // ByteString types
-  void PassByteString(const nsCString&);
-  void PassNullableByteString(const nsCString&);
-  void PassOptionalByteString(const Optional<nsCString>&);
-  void PassOptionalNullableByteString(const Optional<nsCString>&);
-  void PassVariadicByteString(const Sequence<nsCString>&);
 
   // Enumerated types
   void PassEnum(TestEnum);
@@ -454,45 +428,29 @@ public:
   already_AddRefed<TestTreatAsNullCallback> GetNullableTreatAsNullCallback();
 
   // Any types
-  void PassAny(JSContext*, JS::Handle<JS::Value>);
-  void PassVariadicAny(JSContext*, const Sequence<JS::Value>&);
-  void PassOptionalAny(JSContext*, const Optional<JS::Handle<JS::Value> >&);
-  void PassAnyDefaultNull(JSContext*, JS::Handle<JS::Value>);
-  void PassSequenceOfAny(JSContext*, const Sequence<JS::Value>&);
-  void PassNullableSequenceOfAny(JSContext*, const Nullable<Sequence<JS::Value> >&);
-  void PassOptionalSequenceOfAny(JSContext*, const Optional<Sequence<JS::Value> >&);
-  void PassOptionalNullableSequenceOfAny(JSContext*, const Optional<Nullable<Sequence<JS::Value> > >&);
-  void PassOptionalSequenceOfAnyWithDefaultValue(JSContext*, const Nullable<Sequence<JS::Value> >&);
-  void PassSequenceOfSequenceOfAny(JSContext*, const Sequence<Sequence<JS::Value> >&);
-  void PassSequenceOfNullableSequenceOfAny(JSContext*, const Sequence<Nullable<Sequence<JS::Value> > >&);
-  void PassNullableSequenceOfNullableSequenceOfAny(JSContext*, const Nullable<Sequence<Nullable<Sequence<JS::Value> > > >&);
-  void PassOptionalNullableSequenceOfNullableSequenceOfAny(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JS::Value> > > > >&);
+  void PassAny(JSContext*, JS::Value);
+  void PassOptionalAny(JSContext*, const Optional<LazyRootedValue>&);
+  void PassAnyDefaultNull(JSContext*, JS::Value);
   JS::Value ReceiveAny(JSContext*);
 
   // object types
-  void PassObject(JSContext*, JS::Handle<JSObject*>);
-  void PassVariadicObject(JSContext*, const Sequence<JSObject*>&);
-  void PassNullableObject(JSContext*, JS::Handle<JSObject*>);
-  void PassVariadicNullableObject(JSContext*, const Sequence<JSObject*>&);
-  void PassOptionalObject(JSContext*, const Optional<JS::Handle<JSObject*> >&);
-  void PassOptionalNullableObject(JSContext*, const Optional<JS::Handle<JSObject*> >&);
-  void PassOptionalNullableObjectWithDefaultValue(JSContext*, JS::Handle<JSObject*>);
-  void PassSequenceOfObject(JSContext*, const Sequence<JSObject*>&);
-  void PassSequenceOfNullableObject(JSContext*, const Sequence<JSObject*>&);
-  void PassOptionalNullableSequenceOfNullableSequenceOfObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
-  void PassOptionalNullableSequenceOfNullableSequenceOfNullableObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
+  void PassObject(JSContext*, JSObject&);
+  void PassNullableObject(JSContext*, JSObject*);
+  void PassOptionalObject(JSContext*, const Optional<NonNullLazyRootedObject>&);
+  void PassOptionalNullableObject(JSContext*, const Optional<LazyRootedObject>&);
+  void PassOptionalNullableObjectWithDefaultValue(JSContext*, JSObject*);
   JSObject* ReceiveObject(JSContext*);
   JSObject* ReceiveNullableObject(JSContext*);
 
   // Union types
   void PassUnion(JSContext*, const ObjectOrLong& arg);
-  void PassUnionWithNullable(JSContext* cx, const ObjectOrNullOrLong& arg)
+  void PassUnionWithNullable(JSContext*, const ObjectOrNullOrLong& arg)
   {
     ObjectOrLong returnValue;
     if (arg.IsNull()) {
     } else if (arg.IsObject()) {
-      JS::Rooted<JSObject*> obj(cx, arg.GetAsObject());
-      JS_GetClass(obj);
+      JSObject& obj = (JSObject&)arg.GetAsObject();
+      JS_GetClass(&obj);
       //returnValue.SetAsObject(&obj);
     } else {
       int32_t i = arg.GetAsLong();
@@ -510,16 +468,6 @@ public:
   //void PassUnionWithEnum(JSContext*, const TestEnumOrObject&);
   //void PassUnionWithCallback(JSContext*, const TestCallbackOrLong&);
   void PassUnionWithObject(JSContext*, const ObjectOrLong&);
-
-  void ReceiveUnion(const CanvasPatternOrCanvasGradientReturnValue&);
-  void ReceiveUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
-  void ReceiveNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
-  void GetWritableUnion(const CanvasPatternOrCanvasGradientReturnValue&);
-  void SetWritableUnion(const CanvasPatternOrCanvasGradient&);
-  void GetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
-  void SetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradient&);
-  void GetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
-  void SetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradient>&);
 
   // Date types
   void PassDate(Date);
@@ -542,14 +490,13 @@ public:
   // Dictionary tests
   void PassDictionary(JSContext*, const Dict&);
   void ReceiveDictionary(JSContext*, Dict&);
-  void ReceiveNullableDictionary(JSContext*, Nullable<DictInitializer>&);
   void PassOtherDictionary(const GrandparentDict&);
   void PassSequenceOfDictionaries(JSContext*, const Sequence<Dict>&);
   void PassDictionaryOrLong(JSContext*, const Dict&);
   void PassDictionaryOrLong(int32_t);
   void PassDictContainingDict(JSContext*, const DictContainingDict&);
-  void PassDictContainingSequence(JSContext*, const DictContainingSequence&);
-  void ReceiveDictContainingSequence(JSContext*, DictContainingSequence&);
+  void PassDictContainingSequence(const DictContainingSequence&);
+  void ReceiveDictContainingSequence(DictContainingSequence&);
 
   // Typedefs
   void ExerciseTypedefInterfaces1(TestInterface&);
@@ -568,24 +515,14 @@ public:
   TestInterface* Overload1(const nsAString&, TestInterface&);
   void Overload2(TestInterface&);
   void Overload2(JSContext*, const Dict&);
-  void Overload2(bool);
   void Overload2(const nsAString&);
   void Overload2(Date);
   void Overload3(TestInterface&);
   void Overload3(const TestCallback&);
-  void Overload3(bool);
+  void Overload3(const nsAString&);
   void Overload4(TestInterface&);
   void Overload4(TestCallbackInterface&);
   void Overload4(const nsAString&);
-  void Overload5(int32_t);
-  void Overload5(TestEnum);
-  void Overload6(int32_t);
-  void Overload6(bool);
-  void Overload7(int32_t);
-  void Overload7(bool);
-  void Overload7(const nsCString&);
-  void Overload8(int32_t);
-  void Overload8(TestInterface&);
 
   // Variadic handling
   void PassVariadicThirdArg(const nsAString&, int32_t,
@@ -622,12 +559,6 @@ public:
   TestInterface* PutForwardsAttr();
   TestInterface* PutForwardsAttr2();
   TestInterface* PutForwardsAttr3();
-  JS::Value JsonifierShouldSkipThis(JSContext*);
-  void SetJsonifierShouldSkipThis(JSContext*, JS::Rooted<JS::Value>&);
-  TestParentInterface* JsonifierShouldSkipThis2();
-  void SetJsonifierShouldSkipThis2(TestParentInterface&);
-  TestCallbackInterface* JsonifierShouldSkipThis3();
-  void SetJsonifierShouldSkipThis3(TestCallbackInterface&);
   void ThrowingMethod(ErrorResult& aRv);
   bool GetThrowingAttr(ErrorResult& aRv) const;
   void SetThrowingAttr(bool arg, ErrorResult& aRv);
@@ -636,9 +567,6 @@ public:
   bool ThrowingSetterAttr() const;
   void SetThrowingSetterAttr(bool arg, ErrorResult& aRv);
   int16_t LegacyCall(JS::Value, uint32_t, TestInterface&);
-  void PassArgsWithDefaults(JSContext*, const Optional<int32_t>&,
-                            TestInterface*, const Dict&, double,
-                            const Optional<float>&);
 
   // Methods and properties imported via "implements"
   bool ImplementedProperty();
@@ -747,19 +675,6 @@ private:
   void PassSequence(Sequence<int32_t> &) MOZ_DELETE;
   void PassNullableSequence(Nullable< Sequence<int32_t> >&) MOZ_DELETE;
   void PassOptionalNullableSequenceWithDefaultValue(Nullable< Sequence<int32_t> >&) MOZ_DELETE;
-  void PassSequenceOfAny(JSContext*, Sequence<JS::Value>&) MOZ_DELETE;
-  void PassNullableSequenceOfAny(JSContext*, Nullable<Sequence<JS::Value> >&) MOZ_DELETE;
-  void PassOptionalSequenceOfAny(JSContext*, Optional<Sequence<JS::Value> >&) MOZ_DELETE;
-  void PassOptionalNullableSequenceOfAny(JSContext*, Optional<Nullable<Sequence<JS::Value> > >&) MOZ_DELETE;
-  void PassOptionalSequenceOfAnyWithDefaultValue(JSContext*, Nullable<Sequence<JS::Value> >&) MOZ_DELETE;
-  void PassSequenceOfSequenceOfAny(JSContext*, Sequence<Sequence<JS::Value> >&) MOZ_DELETE;
-  void PassSequenceOfNullableSequenceOfAny(JSContext*, Sequence<Nullable<Sequence<JS::Value> > >&) MOZ_DELETE;
-  void PassNullableSequenceOfNullableSequenceOfAny(JSContext*, Nullable<Sequence<Nullable<Sequence<JS::Value> > > >&) MOZ_DELETE;
-  void PassOptionalNullableSequenceOfNullableSequenceOfAny(JSContext*, Optional<Nullable<Sequence<Nullable<Sequence<JS::Value> > > > >&) MOZ_DELETE;
-  void PassSequenceOfObject(JSContext*, Sequence<JSObject*>&) MOZ_DELETE;
-  void PassSequenceOfNullableObject(JSContext*, Sequence<JSObject*>&) MOZ_DELETE;
-  void PassOptionalNullableSequenceOfNullableSequenceOfObject(JSContext*, Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&) MOZ_DELETE;
-  void PassOptionalNullableSequenceOfNullableSequenceOfNullableObject(JSContext*, Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&) MOZ_DELETE;
 
   // Enforce that only const things are passed for optional
   void PassOptionalByte(Optional<int8_t>&) MOZ_DELETE;
@@ -783,9 +698,9 @@ private:
   void PassOptionalArrayBuffer(Optional<ArrayBuffer>&) MOZ_DELETE;
   void PassOptionalNullableArrayBuffer(Optional<ArrayBuffer*>&) MOZ_DELETE;
   void PassOptionalEnum(Optional<TestEnum>&) MOZ_DELETE;
-  void PassOptionalCallback(JSContext*, Optional<OwningNonNull<TestCallback> >&) MOZ_DELETE;
-  void PassOptionalNullableCallback(JSContext*, Optional<nsRefPtr<TestCallback> >&) MOZ_DELETE;
-  void PassOptionalAny(Optional<JS::Handle<JS::Value> >&) MOZ_DELETE;
+  void PassOptionalCallback(JSContext*, Optional<JSObject*>&) MOZ_DELETE;
+  void PassOptionalNullableCallback(JSContext*, Optional<JSObject*>&) MOZ_DELETE;
+  void PassOptionalAny(Optional<JS::Value>&) MOZ_DELETE;
 
   // And test that string stuff is always const
   void PassString(nsAString&) MOZ_DELETE;
@@ -795,13 +710,6 @@ private:
   void PassOptionalNullableString(Optional<nsAString>&) MOZ_DELETE;
   void PassOptionalNullableStringWithDefaultValue(nsAString&) MOZ_DELETE;
   void PassVariadicString(Sequence<nsString>&) MOZ_DELETE;
-
-  // cstrings should be const as well
-  void PassByteString(nsCString&) MOZ_DELETE;
-  void PassNullableByteString(nsCString&) MOZ_DELETE;
-  void PassOptionalByteString(Optional<nsCString>&) MOZ_DELETE;
-  void PassOptionalNullableByteString(Optional<nsCString>&) MOZ_DELETE;
-  void PassVariadicByteString(Sequence<nsCString>&) MOZ_DELETE;
 
   // Make sure dictionary arguments are always const
   void PassDictionary(JSContext*, Dict&) MOZ_DELETE;
@@ -829,33 +737,6 @@ private:
   void PassOptionalNullableDateWithDefaultValue(Nullable<Date>&) MOZ_DELETE;
   void PassDateSequence(Sequence<Date>&) MOZ_DELETE;
   void PassNullableDateSequence(Sequence<Nullable<Date> >&) MOZ_DELETE;
-
-  // Make sure variadics are const as needed
-  void PassVariadicAny(JSContext*, Sequence<JS::Value>&) MOZ_DELETE;
-  void PassVariadicObject(JSContext*, Sequence<JSObject*>&) MOZ_DELETE;
-  void PassVariadicNullableObject(JSContext*, Sequence<JSObject*>&) MOZ_DELETE;
-
-  // Ensure NonNull does not leak in
-  void PassSelf(NonNull<TestInterface>&) MOZ_DELETE;
-  void PassSelf(OwningNonNull<TestInterface>&) MOZ_DELETE;
-  void PassSelf(const NonNull<TestInterface>&) MOZ_DELETE;
-  void PassSelf(const OwningNonNull<TestInterface>&) MOZ_DELETE;
-  void PassOther(NonNull<IndirectlyImplementedInterface>&) MOZ_DELETE;
-  void PassOther(const NonNull<IndirectlyImplementedInterface>&) MOZ_DELETE;
-  void PassOther(OwningNonNull<IndirectlyImplementedInterface>&) MOZ_DELETE;
-  void PassOther(const OwningNonNull<IndirectlyImplementedInterface>&) MOZ_DELETE;
-  void PassCallbackInterface(OwningNonNull<TestCallbackInterface>&) MOZ_DELETE;
-  void PassCallbackInterface(const OwningNonNull<TestCallbackInterface>&) MOZ_DELETE;
-  void PassCallbackInterface(NonNull<TestCallbackInterface>&) MOZ_DELETE;
-  void PassCallbackInterface(const NonNull<TestCallbackInterface>&) MOZ_DELETE;
-  void PassCallback(OwningNonNull<TestCallback>&) MOZ_DELETE;
-  void PassCallback(const OwningNonNull<TestCallback>&) MOZ_DELETE;
-  void PassCallback(NonNull<TestCallback>&) MOZ_DELETE;
-  void PassCallback(const NonNull<TestCallback>&) MOZ_DELETE;
-  void PassString(const NonNull<nsAString>&) MOZ_DELETE;
-  void PassString(NonNull<nsAString>&) MOZ_DELETE;
-  void PassString(const OwningNonNull<nsAString>&) MOZ_DELETE;
-  void PassString(OwningNonNull<nsAString>&) MOZ_DELETE;
 };
 
 class TestIndexedGetterInterface : public nsISupports,

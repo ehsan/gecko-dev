@@ -13,7 +13,6 @@
 #include "gfxUtils.h"
 #include "imgDecoderObserver.h"
 #include "mozilla/AutoRestore.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIObserverService.h"
@@ -40,10 +39,9 @@ class SVGRootRenderingObserver MOZ_FINAL : public nsSVGRenderingObserver {
 public:
   SVGRootRenderingObserver(SVGDocumentWrapper* aDocWrapper,
                            VectorImage*        aVectorImage)
-    : nsSVGRenderingObserver()
-    , mDocWrapper(aDocWrapper)
-    , mVectorImage(aVectorImage)
-    , mHonoringInvalidations(true)
+    : nsSVGRenderingObserver(),
+      mDocWrapper(aDocWrapper),
+      mVectorImage(aVectorImage)
   {
     MOZ_ASSERT(mDocWrapper, "Need a non-null SVG document wrapper");
     MOZ_ASSERT(mVectorImage, "Need a non-null VectorImage");
@@ -56,14 +54,15 @@ public:
     mInObserverList = true;
   }
 
+  void ResumeListening()
+  {
+    // GetReferencedElement adds us back to our target's observer list.
+    GetReferencedElement();
+  }
+
   virtual ~SVGRootRenderingObserver()
   {
     StopListening();
-  }
-
-  void ResumeHonoringInvalidations()
-  {
-    mHonoringInvalidations = true;
   }
 
 protected:
@@ -77,31 +76,29 @@ protected:
     Element* elem = GetTarget();
     MOZ_ASSERT(elem, "missing root SVG node");
 
-    if (mHonoringInvalidations && !mDocWrapper->ShouldIgnoreInvalidation()) {
+    if (!mDocWrapper->ShouldIgnoreInvalidation()) {
       nsIFrame* frame = elem->GetPrimaryFrame();
       if (!frame || frame->PresContext()->PresShell()->IsDestroying()) {
         // We're being destroyed. Bail out.
         return;
       }
 
-      // Ignore further invalidations until we draw.
-      mHonoringInvalidations = false;
-
       mVectorImage->InvalidateObserver();
-    }
 
-    // Our caller might've removed us from rendering-observer list.
-    // Add ourselves back!
-    if (!mInObserverList) {
-      nsSVGEffects::AddRenderingObserver(elem, this);
-      mInObserverList = true;
-    } 
+      // We may have been removed from the observer list by our caller. Rather
+      // than add ourselves back here, we wait until Draw gets called, ensuring
+      // that we coalesce invalidations between Draw calls.
+    } else {
+      // Here we may also have been removed from the observer list, but since
+      // we're not sending an invalidation, Draw won't get called. We need to
+      // add ourselves back immediately.
+      ResumeListening();
+    }
   }
 
   // Private data
   const nsRefPtr<SVGDocumentWrapper> mDocWrapper;
   VectorImage* const mVectorImage;   // Raw pointer because it owns me.
-  bool mHonoringInvalidations;
 };
 
 class SVGParseCompleteListener MOZ_FINAL : public nsStubDocumentObserver {
@@ -230,11 +227,9 @@ class SVGDrawingCallback : public gfxDrawingCallback {
 public:
   SVGDrawingCallback(SVGDocumentWrapper* aSVGDocumentWrapper,
                      const nsIntRect& aViewport,
-                     const gfxSize& aScale,
                      uint32_t aImageFlags) :
     mSVGDocumentWrapper(aSVGDocumentWrapper),
     mViewport(aViewport),
-    mScale(aScale),
     mImageFlags(aImageFlags)
   {}
   virtual bool operator()(gfxContext* aContext,
@@ -244,7 +239,6 @@ public:
 private:
   nsRefPtr<SVGDocumentWrapper> mSVGDocumentWrapper;
   const nsIntRect mViewport;
-  const gfxSize   mScale;
   uint32_t        mImageFlags;
 };
 
@@ -274,7 +268,6 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
 
   gfxContextMatrixAutoSaveRestore contextMatrixRestorer(aContext);
   aContext->Multiply(gfxMatrix(aTransform).Invert());
-  aContext->Scale(1.0 / mScale.width, 1.0 / mScale.height);
 
   nsPresContext* presContext = presShell->GetPresContext();
   MOZ_ASSERT(presContext, "pres shell w/out pres context");
@@ -346,7 +339,7 @@ VectorImage::FrameRect(uint32_t aWhichFrame)
 }
 
 size_t
-VectorImage::HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const
+VectorImage::HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
 {
   // We're not storing the source data -- we just feed that directly to
   // our helper SVG document as we receive it, for it to parse.
@@ -355,7 +348,7 @@ VectorImage::HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocS
 }
 
 size_t
-VectorImage::HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const
+VectorImage::HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const
 {
   // XXXdholbert TODO: return num bytes used by helper SVG doc. (bug 590790)
   return 0;
@@ -445,12 +438,6 @@ VectorImage::ShouldAnimate()
   return ImageResource::ShouldAnimate() && mIsFullyLoaded && mHaveAnimations;
 }
 
-NS_IMETHODIMP_(void)
-VectorImage::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
-{
-  // We don't care about animation start time.
-}
-
 //------------------------------------------------------------------------------
 // imgIContainer methods
 
@@ -479,7 +466,6 @@ NS_IMETHODIMP_(void)
 VectorImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
   // TODO: Implement for b666446.
-  EvaluateAnimation();
 }
 
 //******************************************************************************
@@ -510,9 +496,6 @@ VectorImage::GetIntrinsicSize(nsSize* aSize)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aSize = nsSize(-1, -1);
   nsIFrame::IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
   if (rfSize.width.GetUnit() == eStyleUnit_Coord)
@@ -532,9 +515,6 @@ VectorImage::GetIntrinsicRatio(nsSize* aRatio)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aRatio = rootFrame->GetIntrinsicRatio();
   return NS_OK;
 }
@@ -569,23 +549,6 @@ VectorImage::GetAnimated(bool* aAnimated)
   *aAnimated = mSVGDocumentWrapper->IsAnimated();
   return NS_OK;
 }
-
-//******************************************************************************
-/* [notxpcom] int32_t getFirstFrameDelay (); */
-int32_t
-VectorImage::GetFirstFrameDelay()
-{
-  if (mError)
-    return -1;
-
-  if (!mSVGDocumentWrapper->IsAnimated())
-    return -1;
-
-  // We don't really have a frame delay, so just pretend that we constantly
-  // need updates.
-  return 0;
-}
-
 
 //******************************************************************************
 /* [notxpcom] boolean frameIsOpaque(in uint32_t aWhichFrame); */
@@ -703,51 +666,35 @@ VectorImage::Draw(gfxContext* aContext,
   AutoSVGRenderingState autoSVGState(aSVGContext,
                                      time,
                                      mSVGDocumentWrapper->GetRootSVGElem());
-
-  // gfxUtils::DrawPixelSnapped may rasterize this image to a temporary surface
-  // if we hit the tiling path. Unfortunately, the temporary surface isn't
-  // created at the size at which we'll ultimately draw, causing fuzzy output.
-  // To fix this we pre-apply the transform's scaling to the drawing parameters
-  // and remove the scaling from the transform, so the fact that temporary
-  // surfaces won't take the scaling into account doesn't matter. (Bug 600207.)
-  gfxSize scale(aUserSpaceToImageSpace.ScaleFactors(true));
-  gfxPoint translation(aUserSpaceToImageSpace.GetTranslation());
-
-  // Remove the scaling from the transform.
-  gfxMatrix unscale;
-  unscale.Translate(gfxPoint(translation.x / scale.width,
-                             translation.y / scale.height));
-  unscale.Scale(1.0 / scale.width, 1.0 / scale.height);
-  unscale.Translate(-translation);
-  gfxMatrix unscaledTransform(aUserSpaceToImageSpace * unscale);
-
   mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
   mSVGDocumentWrapper->FlushImageTransformInvalidation();
 
-  // Rescale drawing parameters.
-  gfxIntSize drawableSize(aViewportSize.width / scale.width,
-                          aViewportSize.height / scale.height);
-  gfxRect drawableSourceRect = unscaledTransform.Transform(aFill);
-  gfxRect drawableImageRect(0, 0, drawableSize.width, drawableSize.height);
-  gfxRect drawableSubimage(aSubimage.x, aSubimage.y,
-                           aSubimage.width, aSubimage.height);
-  drawableSubimage.ScaleRoundOut(1.0 / scale.width, 1.0 / scale.height);
+  // XXXdholbert Do we need to convert image size from
+  // CSS pixels to dev pixels here? (is gfxCallbackDrawable's 2nd arg in dev
+  // pixels?)
+  gfxIntSize imageSizeGfx(aViewportSize.width, aViewportSize.height);
+
+  // Based on imgFrame::Draw
+  gfxRect sourceRect = aUserSpaceToImageSpace.Transform(aFill);
+  gfxRect imageRect(0, 0, aViewportSize.width, aViewportSize.height);
+  gfxRect subimage(aSubimage.x, aSubimage.y, aSubimage.width, aSubimage.height);
+
 
   nsRefPtr<gfxDrawingCallback> cb =
     new SVGDrawingCallback(mSVGDocumentWrapper,
                            nsIntRect(nsIntPoint(0, 0), aViewportSize),
-                           scale,
                            aFlags);
 
-  nsRefPtr<gfxDrawable> drawable = new gfxCallbackDrawable(cb, drawableSize);
+  nsRefPtr<gfxDrawable> drawable = new gfxCallbackDrawable(cb, imageSizeGfx);
 
-  gfxUtils::DrawPixelSnapped(aContext, drawable, unscaledTransform,
-                             drawableSubimage, drawableSourceRect,
-                             drawableImageRect, aFill,
-                             gfxASurface::ImageFormatARGB32, aFilter, aFlags);
+  gfxUtils::DrawPixelSnapped(aContext, drawable,
+                             aUserSpaceToImageSpace,
+                             subimage, sourceRect, imageRect, aFill,
+                             gfxASurface::ImageFormatARGB32, aFilter);
 
+  // Allow ourselves to fire FrameChanged and OnStopFrame again.
   MOZ_ASSERT(mRenderingObserver, "Should have a rendering observer by now");
-  mRenderingObserver->ResumeHonoringInvalidations();
+  mRenderingObserver->ResumeListening();
 
   return NS_OK;
 }
@@ -768,11 +715,6 @@ VectorImage::StartDecoding()
   return NS_OK;
 }
 
-bool
-VectorImage::IsDecoded()
-{
-  return mIsFullyLoaded || mError;
-}
 
 //******************************************************************************
 /* void lockImage() */

@@ -5,19 +5,11 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
 
-#main-window:not([chromehidden~="toolbar"]) {
-%ifdef XP_MACOSX
-  min-width: 425px;
-%else
-  min-width: 390px;
-%endif
-}
-
 searchbar {
   -moz-binding: url("chrome://browser/content/search/search.xml#searchbar");
 }
 
-.browserStack > browser[remote="true"] {
+browser[remote="true"] {
   -moz-binding: url("chrome://global/content/bindings/remote-browser.xml#remote-browser");
 }
 
@@ -394,11 +386,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 /* Identity UI */
-#identity-popup-content-box:not(.chromeUI) > #identity-popup-brandName,
-#identity-popup-content-box:not(.chromeUI) > #identity-popup-chromeLabel,
-#identity-popup-content-box.chromeUI > .identity-popup-label:not(#identity-popup-brandName):not(#identity-popup-chromeLabel),
-#identity-popup-content-box.chromeUI > .identity-popup-description,
-#identity-popup.chromeUI > #identity-popup-button-container,
 #identity-popup-content-box.unknownIdentity > #identity-popup-connectedToLabel ,
 #identity-popup-content-box.unknownIdentity > #identity-popup-runByLabel ,
 #identity-popup-content-box.unknownIdentity > #identity-popup-content-host ,
@@ -421,7 +408,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 2147483647 !important;
 }
 
 #full-screen-warning-container[fade-warning-out] {
@@ -519,8 +505,8 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#click-to-play-plugins-notification");
 }
 
-.plugin-popupnotification-centeritem {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#plugin-popupnotification-center-item");
+popupnotification-centeritem {
+  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#center-item");
 }
 
 /* override hidden="true" for the status bar compatibility shim
@@ -611,7 +597,8 @@ html|*#gcli-output-frame,
 }
 
 .gclitoolbar-input-node,
-.gclitoolbar-complete-node {
+.gclitoolbar-complete-node,
+.gclitoolbar-prompt {
   direction: ltr;
 }
 
@@ -673,44 +660,4 @@ chatbar {
   -moz-binding: url("chrome://browser/content/socialchat.xml#chatbar");
   height: 0;
   max-height: 0;
-}
-
-/** See bug 872317 for why the following rule is necessary. */
-
-#downloads-indicator {
-  -moz-binding: url("chrome://browser/content/downloads/download.xml#download-toolbarbutton");
-}
-
-/* full screen chat window support */
-chatbar:-moz-full-screen-ancestor,
-chatbox:-moz-full-screen-ancestor  {
-  border: none;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  margin: 0 !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  -moz-box-sizing: border-box !important; 
-}
-
-/* hide chat chrome when chat is fullscreen */
-chatbox:-moz-full-screen-ancestor > .chat-titlebar {
-  display: none;
-}
-
-/* hide chatbar if browser tab is fullscreen */
-*:-moz-full-screen-ancestor chatbar:not(:-moz-full-screen-ancestor) {
-  display: none;
-}
-
-/* hide sidebar when fullscreen */
-*:-moz-full-screen-ancestor #social-sidebar-box:not(:-moz-full-screen-ancestor) {
-  display: none;
 }

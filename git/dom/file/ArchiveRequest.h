@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_file_domarchiverequest_h__
 #define mozilla_dom_file_domarchiverequest_h__
 
-#include "mozilla/Attributes.h"
 #include "ArchiveReader.h"
 #include "DOMRequest.h"
 
@@ -41,7 +40,7 @@ public:
                  ArchiveReader* aReader);
 
   // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
 public:
   // This is called by the DOMArchiveRequestEvent

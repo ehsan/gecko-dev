@@ -12,7 +12,6 @@
 #include "nsCacheService.h"
 #include "mozilla/FileUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include <algorithm>
@@ -44,7 +43,7 @@ public:
 
     virtual ~nsDiskCacheInputStream();
     
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
 
 private:
@@ -57,7 +56,7 @@ private:
 };
 
 
-NS_IMPL_ISUPPORTS1(nsDiskCacheInputStream, nsIInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDiskCacheInputStream, nsIInputStream)
 
 
 nsDiskCacheInputStream::nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
@@ -190,7 +189,7 @@ nsDiskCacheInputStream::IsNonBlocking(bool * nonBlocking)
 /******************************************************************************
  *  nsDiskCacheStreamIO
  *****************************************************************************/
-NS_IMPL_ISUPPORTS1(nsDiskCacheStreamIO, nsIOutputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDiskCacheStreamIO, nsIOutputStream)
 
 nsDiskCacheStreamIO::nsDiskCacheStreamIO(nsDiskCacheBinding *   binding)
     : mBinding(binding)
@@ -621,7 +620,7 @@ nsDiskCacheStreamIO::DeleteBuffer()
 }
 
 size_t
-nsDiskCacheStreamIO::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+nsDiskCacheStreamIO::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t usage = aMallocSizeOf(this);
 

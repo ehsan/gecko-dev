@@ -59,7 +59,7 @@ public final class GeckoLoader {
                 return;
             }
 
-            StringBuilder pluginSearchPath = new StringBuilder();
+            StringBuffer pluginSearchPath = new StringBuffer();
             for (int i = 0; i < pluginDirs.length; i++) {
                 pluginSearchPath.append(pluginDirs[i]);
                 pluginSearchPath.append(":");
@@ -225,7 +225,7 @@ public final class GeckoLoader {
             sSQLiteLibsLoaded = true;
         }
 
-        loadMozGlue();
+        loadMozGlue(context);
         // the extract libs parameter is being removed in bug 732069
         loadLibsSetup(context);
         loadSQLiteLibsNative(apkName, false);
@@ -239,12 +239,12 @@ public final class GeckoLoader {
             sNSSLibsLoaded = true;
         }
 
-        loadMozGlue();
+        loadMozGlue(context);
         loadLibsSetup(context);
         loadNSSLibsNative(apkName, false);
     }
 
-    public static void loadMozGlue() {
+    public static void loadMozGlue(Context context) {
         synchronized (sLibLoadingLock) {
             if (sMozGlueLoaded) {
                 return;

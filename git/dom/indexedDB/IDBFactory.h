@@ -18,6 +18,7 @@
 class nsIAtom;
 class nsIFile;
 class nsIFileURL;
+class nsIIDBOpenDBRequest;
 class nsPIDOMWindow;
 
 namespace mozilla {
@@ -98,15 +99,18 @@ public:
                int64_t aVersion,
                const nsACString& aASCIIOrigin,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval);
 
   nsresult
   OpenInternal(const nsAString& aName,
                int64_t aVersion,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval)
   {
-    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, _retval);
+    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, aCallingCx,
+                        _retval);
   }
 
   void
@@ -139,37 +143,39 @@ public:
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   // WebIDL
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName, const Optional<uint64_t>& aVersion,
-       ErrorResult& aRv)
+  already_AddRefed<nsIIDBOpenDBRequest>
+  Open(JSContext* aCx, const NonNull<nsAString>& aName,
+       const Optional<uint64_t>& aVersion, ErrorResult& aRv)
   {
-    return Open(nullptr, aName, aVersion, false, aRv);
+    return Open(aCx, nullptr, aName, aVersion, false, aRv);
   }
 
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteDatabase(const nsAString& aName, ErrorResult& aRv)
+  already_AddRefed<nsIIDBOpenDBRequest>
+  DeleteDatabase(JSContext* aCx, const NonNull<nsAString>& aName,
+                 ErrorResult& aRv)
   {
-    return Open(nullptr, aName, Optional<uint64_t>(), true, aRv);
+    return Open(aCx, nullptr, aName, Optional<uint64_t>(), true, aRv);
   }
 
   int16_t
   Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
       JS::Handle<JS::Value> aSecond, ErrorResult& aRv);
 
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal, const nsAString& aName,
+  already_AddRefed<nsIIDBOpenDBRequest>
+  OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                   const NonNull<nsAString>& aName,
                    const Optional<uint64_t>& aVersion, ErrorResult& aRv);
 
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteForPrincipal(nsIPrincipal* aPrincipal, const nsAString& aName,
-                     ErrorResult& aRv);
+  already_AddRefed<nsIIDBOpenDBRequest>
+  DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                     const NonNull<nsAString>& aName, ErrorResult& aRv);
 
 private:
   IDBFactory();
   ~IDBFactory();
 
-  already_AddRefed<IDBOpenDBRequest>
-  Open(nsIPrincipal* aPrincipal, const nsAString& aName,
+  already_AddRefed<nsIIDBOpenDBRequest>
+  Open(JSContext* aCx, nsIPrincipal* aPrincipal, const nsAString& aName,
        const Optional<uint64_t>& aVersion, bool aDelete, ErrorResult& aRv);
 
   nsCString mASCIIOrigin;
@@ -177,7 +183,7 @@ private:
   // If this factory lives on a window then mWindow must be non-null. Otherwise
   // mOwningObject must be non-null.
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  JS::Heap<JSObject*> mOwningObject;
+  JSObject* mOwningObject;
 
   IndexedDBChild* mActorChild;
   IndexedDBParent* mActorParent;

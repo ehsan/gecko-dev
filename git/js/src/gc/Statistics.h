@@ -4,14 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Statistics_h
-#define gc_Statistics_h
+#ifndef jsgc_statistics_h___
+#define jsgc_statistics_h___
+
+#include <string.h>
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsapi.h"
+#include "jsfriendapi.h"
 #include "jspubtd.h"
+#include "jsutil.h"
 
 #include "js/GCAPI.h"
 
@@ -228,4 +232,4 @@ struct AutoSCC
 } /* namespace gcstats */
 } /* namespace js */
 
-#endif /* gc_Statistics_h */
+#endif /* jsgc_statistics_h___ */

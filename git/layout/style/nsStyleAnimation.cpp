@@ -150,7 +150,9 @@ AppendFunction(nsCSSKeyword aTransformFunction)
   }
 
   nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(nargs + 1);
-  arr->Item(0).SetIntValue(aTransformFunction, eCSSUnit_Enumerated);
+  arr->Item(0).SetStringValue(
+    NS_ConvertUTF8toUTF16(nsCSSKeywords::GetStringValue(aTransformFunction)),
+    eCSSUnit_Ident);
 
   return arr.forget();
 }
@@ -343,22 +345,6 @@ SetCalcValue(const nsStyleCoord::Calc* aCalc, nsCSSValue& aValue)
   aValue.SetArrayValue(arr, eCSSUnit_Calc);
 }
 
-static void
-SetCalcValue(const CalcValue& aCalc, nsCSSValue& aValue)
-{
-  nsRefPtr<nsCSSValue::Array> arr = nsCSSValue::Array::Create(1);
-  if (!aCalc.mHasPercent) {
-    arr->Item(0).SetFloatValue(aCalc.mLength, eCSSUnit_Pixel);
-  } else {
-    nsCSSValue::Array *arr2 = nsCSSValue::Array::Create(2);
-    arr->Item(0).SetArrayValue(arr2, eCSSUnit_Calc_Plus);
-    arr2->Item(0).SetFloatValue(aCalc.mLength, eCSSUnit_Pixel);
-    arr2->Item(1).SetPercentValue(aCalc.mPercent);
-  }
-
-  aValue.SetArrayValue(arr, eCSSUnit_Calc);
-}
-
 static already_AddRefed<nsStringBuffer>
 GetURIAsUtf16StringBuffer(nsIURI* aUri)
 {
@@ -434,6 +420,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
       return true;
     }
     case eUnit_Float: {
+#ifdef MOZ_FLEXBOX
       // Special case for flex-grow and flex-shrink: animations are
       // disallowed between 0 and other values.
       if ((aProperty == eCSSProperty_flex_grow ||
@@ -443,6 +430,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
           aStartValue.GetFloatValue() != aEndValue.GetFloatValue()) {
         return false;
       }
+#endif // MOZ_FLEXBOX
 
       float startFloat = aStartValue.GetFloatValue();
       float endFloat = aEndValue.GetFloatValue();
@@ -983,18 +971,20 @@ AddCSSValueCanonicalCalc(double aCoeff1, const nsCSSValue &aValue1,
 {
   CalcValue v1 = ExtractCalcValue(aValue1);
   CalcValue v2 = ExtractCalcValue(aValue2);
-  CalcValue result;
-  result.mLength = aCoeff1 * v1.mLength + aCoeff2 * v2.mLength;
-  result.mPercent = aCoeff1 * v1.mPercent + aCoeff2 * v2.mPercent;
-  result.mHasPercent = v1.mHasPercent || v2.mHasPercent;
-  MOZ_ASSERT(result.mHasPercent || result.mPercent == 0.0f,
-             "can't have a nonzero percentage part without having percentages");
-  SetCalcValue(result, aResult);
+  NS_ABORT_IF_FALSE(v1.mHasPercent || v2.mHasPercent,
+                    "only used on properties that always have percent in calc");
+  nsRefPtr<nsCSSValue::Array> a = nsCSSValue::Array::Create(2),
+                              acalc = nsCSSValue::Array::Create(1);
+  a->Item(0).SetFloatValue(aCoeff1 * v1.mLength + aCoeff2 * v2.mLength,
+                           eCSSUnit_Pixel);
+  a->Item(1).SetPercentValue(aCoeff1 * v1.mPercent + aCoeff2 * v2.mPercent);
+  acalc->Item(0).SetArrayValue(a, eCSSUnit_Calc_Plus);
+  aResult.SetArrayValue(acalc, eCSSUnit_Calc);
 }
 
 static void
-AddCSSValueAngle(double aCoeff1, const nsCSSValue &aValue1,
-                 double aCoeff2, const nsCSSValue &aValue2,
+AddCSSValueAngle(const nsCSSValue &aValue1, double aCoeff1,
+                 const nsCSSValue &aValue2, double aCoeff2,
                  nsCSSValue &aResult)
 {
   aResult.SetFloatValue(aCoeff1 * aValue1.GetAngleValueInRadians() +
@@ -1093,8 +1083,8 @@ AddShadowItems(double aCoeff1, const nsCSSValue &aValue1,
 }
 
 static void
-AddTransformTranslate(double aCoeff1, const nsCSSValue &aValue1,
-                      double aCoeff2, const nsCSSValue &aValue2,
+AddTransformTranslate(const nsCSSValue &aValue1, double aCoeff1,
+                      const nsCSSValue &aValue2, double aCoeff2,
                       nsCSSValue &aResult)
 {
   NS_ABORT_IF_FALSE(aValue1.GetUnit() == eCSSUnit_Percent ||
@@ -1119,8 +1109,8 @@ AddTransformTranslate(double aCoeff1, const nsCSSValue &aValue1,
 }
 
 static void
-AddTransformScale(double aCoeff1, const nsCSSValue &aValue1,
-                  double aCoeff2, const nsCSSValue &aValue2,
+AddTransformScale(const nsCSSValue &aValue1, double aCoeff1,
+                  const nsCSSValue &aValue2, double aCoeff2,
                   nsCSSValue &aResult)
 {
   // Handle scale, and the two matrix components where identity is 1, by
@@ -1517,8 +1507,8 @@ nsStyleAnimation::InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
 }
 
 static nsCSSValueList*
-AddDifferentTransformLists(double aCoeff1, const nsCSSValueList* aList1,
-                           double aCoeff2, const nsCSSValueList* aList2)
+AddDifferentTransformLists(const nsCSSValueList* aList1, double aCoeff1,
+                           const nsCSSValueList* aList2, double aCoeff2)
 {
   nsAutoPtr<nsCSSValueList> result;
   nsCSSValueList **resultTail = getter_Transfers(result);
@@ -1548,8 +1538,8 @@ TransformFunctionsMatch(nsCSSKeyword func1, nsCSSKeyword func2)
 }
 
 static nsCSSValueList*
-AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
-                  double aCoeff2, const nsCSSValueList* aList2)
+AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
+                  const nsCSSValueList* aList2, double aCoeff2)
 {
   nsAutoPtr<nsCSSValueList> result;
   nsCSSValueList **resultTail = getter_Transfers(result);
@@ -1577,11 +1567,11 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
       case eCSSKeyword_translate3d: {
           NS_ABORT_IF_FALSE(a1->Count() == 4, "unexpected count");
           NS_ABORT_IF_FALSE(a2->Count() == 4, "unexpected count");
-          AddTransformTranslate(aCoeff1, a1->Item(1), aCoeff2, a2->Item(1),
+          AddTransformTranslate(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
                                 arr->Item(1));
-          AddTransformTranslate(aCoeff1, a1->Item(2), aCoeff2, a2->Item(2),
+          AddTransformTranslate(a1->Item(2), aCoeff1, a2->Item(2), aCoeff2,
                                 arr->Item(2));
-          AddTransformTranslate(aCoeff1, a1->Item(3), aCoeff2, a2->Item(3),
+          AddTransformTranslate(a1->Item(3), aCoeff1, a2->Item(3), aCoeff2,
                                 arr->Item(3));
           break;
       }
@@ -1589,11 +1579,11 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
           NS_ABORT_IF_FALSE(a1->Count() == 4, "unexpected count");
           NS_ABORT_IF_FALSE(a2->Count() == 4, "unexpected count");
 
-          AddTransformScale(aCoeff1, a1->Item(1), aCoeff2, a2->Item(1),
+          AddTransformScale(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
                             arr->Item(1));
-          AddTransformScale(aCoeff1, a1->Item(2), aCoeff2, a2->Item(2),
+          AddTransformScale(a1->Item(2), aCoeff1, a2->Item(2), aCoeff2,
                             arr->Item(2));
-          AddTransformScale(aCoeff1, a1->Item(3), aCoeff2, a2->Item(3),
+          AddTransformScale(a1->Item(3), aCoeff1, a2->Item(3), aCoeff2,
                             arr->Item(3));
 
           break;
@@ -1611,15 +1601,15 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
 
         nsCSSValue zero(0.0f, eCSSUnit_Radian);
         // Add Y component of skew.
-        AddCSSValueAngle(aCoeff1,
-                         a1->Count() == 3 ? a1->Item(2) : zero,
-                         aCoeff2,
+        AddCSSValueAngle(a1->Count() == 3 ? a1->Item(2) : zero,
+                         aCoeff1,
                          a2->Count() == 3 ? a2->Item(2) : zero,
+                         aCoeff2,
                          arr->Item(2));
 
         // Add X component of skew (which can be merged with case below
         // in non-DEBUG).
-        AddCSSValueAngle(aCoeff1, a1->Item(1), aCoeff2, a2->Item(1),
+        AddCSSValueAngle(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
                          arr->Item(1));
 
         break;
@@ -1633,7 +1623,7 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
         NS_ABORT_IF_FALSE(a1->Count() == 2, "unexpected count");
         NS_ABORT_IF_FALSE(a2->Count() == 2, "unexpected count");
 
-        AddCSSValueAngle(aCoeff1, a1->Item(1), aCoeff2, a2->Item(1),
+        AddCSSValueAngle(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
                          arr->Item(1));
 
         break;
@@ -1653,10 +1643,10 @@ AddTransformLists(double aCoeff1, const nsCSSValueList* aList1,
 
         if (aList1 == aList2) {
           *resultTail =
-            AddDifferentTransformLists(aCoeff1, &tempList1, aCoeff2, &tempList1);
+            AddDifferentTransformLists(&tempList1, aCoeff1, &tempList1, aCoeff2);
         } else {
           *resultTail =
-            AddDifferentTransformLists(aCoeff1, &tempList1, aCoeff2, &tempList2);
+            AddDifferentTransformLists(&tempList1, aCoeff1, &tempList2, aCoeff2);
         }
 
         // Now advance resultTail to point to the new tail slot.
@@ -1768,6 +1758,7 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
       return true;
     }
     case eUnit_Float: {
+#ifdef MOZ_FLEXBOX
       // Special case for flex-grow and flex-shrink: animations are
       // disallowed between 0 and other values.
       if ((aProperty == eCSSProperty_flex_grow ||
@@ -1777,6 +1768,7 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
           aValue1.GetFloatValue() != aValue2.GetFloatValue()) {
         return false;
       }
+#endif // MOZ_FLEXBOX
 
       aResultValue.SetFloatValue(RestrictValue(aProperty,
         aCoeff1 * aValue1.GetFloatValue() +
@@ -2079,11 +2071,11 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
             result->mValue.SetNoneValue();
           }
         } else {
-          result = AddTransformLists(0, list2, aCoeff2, list2);
+          result = AddTransformLists(list2, 0, list2, aCoeff2);
         }
       } else {
         if (list2->mValue.GetUnit() == eCSSUnit_None) {
-          result = AddTransformLists(0, list1, aCoeff1, list1);
+          result = AddTransformLists(list1, 0, list1, aCoeff1);
         } else {
           bool match = true;
 
@@ -2109,9 +2101,9 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
           }
 
           if (match) {
-            result = AddTransformLists(aCoeff1, list1, aCoeff2, list2);
+            result = AddTransformLists(list1, aCoeff1, list2, aCoeff2);
           } else {
-            result = AddDifferentTransformLists(aCoeff1, list1, aCoeff2, list2);
+            result = AddDifferentTransformLists(list1, aCoeff1, list2, aCoeff2);
           }
         }
       }
@@ -2690,6 +2682,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
           break;
         }
 
+#ifdef MOZ_FLEXBOX
         case eCSSProperty_order: {
           const nsStylePosition *stylePosition =
             static_cast<const nsStylePosition*>(styleStruct);
@@ -2697,6 +2690,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                                      eUnit_Integer);
           break;
         }
+#endif // MOZ_FLEXBOX
 
         case eCSSProperty_text_decoration_color: {
           const nsStyleTextReset *styleTextReset =
@@ -2824,9 +2818,9 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         case eCSSProperty_font_stretch: {
           int16_t stretch =
             static_cast<const nsStyleFont*>(styleStruct)->mFont.stretch;
-          static_assert(NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED == -4 &&
-                        NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED == 4,
-                        "font stretch constants not as expected");
+          MOZ_STATIC_ASSERT(NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED == -4 &&
+                            NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED == 4,
+                            "font stretch constants not as expected");
           if (stretch < NS_STYLE_FONT_STRETCH_ULTRA_CONDENSED ||
               stretch > NS_STYLE_FONT_STRETCH_ULTRA_EXPANDED) {
             return false;
@@ -3049,7 +3043,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_Sides_Right:
     case eStyleAnimType_Sides_Bottom:
     case eStyleAnimType_Sides_Left: {
-      static_assert(
+      MOZ_STATIC_ASSERT(
        NS_SIDE_TOP    == eStyleAnimType_Sides_Top   -eStyleAnimType_Sides_Top &&
        NS_SIDE_RIGHT  == eStyleAnimType_Sides_Right -eStyleAnimType_Sides_Top &&
        NS_SIDE_BOTTOM == eStyleAnimType_Sides_Bottom-eStyleAnimType_Sides_Top &&
@@ -3065,7 +3059,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
     case eStyleAnimType_Corner_TopRight:
     case eStyleAnimType_Corner_BottomRight:
     case eStyleAnimType_Corner_BottomLeft: {
-      static_assert(
+      MOZ_STATIC_ASSERT(
        NS_CORNER_TOP_LEFT     == eStyleAnimType_Corner_TopLeft -
                                  eStyleAnimType_Corner_TopLeft        &&
        NS_CORNER_TOP_RIGHT    == eStyleAnimType_Corner_TopRight -

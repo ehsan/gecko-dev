@@ -27,7 +27,7 @@
         uri: 'data:text/html,<title>initial load</title>',
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Now load a new page
       doPageNavigation({
@@ -47,7 +47,7 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Now go back
       doPageNavigation({
@@ -70,7 +70,7 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // And forward
       doPageNavigation({
@@ -93,7 +93,7 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       function generateDetector(state, hidden, title, name) {
         var detector = function (event) {
@@ -118,7 +118,7 @@
         
       // Now flip our docshell to not active
       document.getElementById("content").docShellIsActive = false;
-      yield undefined;
+      yield;
 
       // And navigate back; there should be no visibility state transitions
       doPageNavigation({
@@ -134,13 +134,13 @@
         unexpectedEvents: [ "visibilitychange" ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       generateDetector("visible", false, "initial load", "Going visible");
 
       // Now set the docshell active again
       document.getElementById("content").docShellIsActive = true;
-      yield undefined;
+      yield;
 
       // And forward
       doPageNavigation({
@@ -163,12 +163,12 @@
                         ],
         onNavComplete: nextTest
       });
-      yield undefined;
+      yield;
 
       // Tell the framework the test is finished.  Include the final 'yield' 
       // statement to prevent a StopIteration exception from being thrown.
       finish();
-      yield undefined;      
+      yield;      
     }
   ]]></script>
 

@@ -11,9 +11,9 @@
 #include "GrSWMaskHelper.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-bool GrSoftwarePathRenderer::canDrawPath(const SkPath&,
-                                         const SkStrokeRec&,
-                                         const GrDrawTarget*,
+bool GrSoftwarePathRenderer::canDrawPath(const SkPath& path,
+                                         GrPathFill fill,
+                                         const GrDrawTarget* target,
                                          bool antiAlias) const {
     if (!antiAlias || NULL == fContext) {
         // TODO: We could allow the SW path to also handle non-AA paths but
@@ -28,13 +28,6 @@ bool GrSoftwarePathRenderer::canDrawPath(const SkPath&,
     return true;
 }
 
-GrPathRenderer::StencilSupport GrSoftwarePathRenderer::onGetStencilSupport(
-                                                                        const SkPath&,
-                                                                        const SkStrokeRec&,
-                                                                        const GrDrawTarget*) const {
-    return GrPathRenderer::kNoSupport_StencilSupport;
-}
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +36,7 @@ namespace {
 // path bounds would be empty.
 bool get_path_and_clip_bounds(const GrDrawTarget* target,
                               const SkPath& path,
-                              const SkMatrix& matrix,
+                              const GrMatrix& matrix,
                               GrIRect* devPathBounds,
                               GrIRect* devClipBounds) {
     // compute bounds as intersection of rt size, clip, and path
@@ -82,7 +75,7 @@ bool get_path_and_clip_bounds(const GrDrawTarget* target,
 void draw_around_inv_path(GrDrawTarget* target,
                           const GrIRect& devClipBounds,
                           const GrIRect& devPathBounds) {
-    GrDrawState::AutoDeviceCoordDraw adcd(target->drawState());
+    GrDrawTarget::AutoDeviceCoordDraw adcd(target);
     if (!adcd.succeeded()) {
         return;
     }
@@ -114,7 +107,8 @@ void draw_around_inv_path(GrDrawTarget* target,
 ////////////////////////////////////////////////////////////////////////////////
 // return true on success; false on failure
 bool GrSoftwarePathRenderer::onDrawPath(const SkPath& path,
-                                        const SkStrokeRec& stroke,
+                                        GrPathFill fill,
+                                        const GrVec* translate,
                                         GrDrawTarget* target,
                                         bool antiAlias) {
 
@@ -124,20 +118,23 @@ bool GrSoftwarePathRenderer::onDrawPath(const SkPath& path,
 
     GrDrawState* drawState = target->drawState();
 
-    SkMatrix vm = drawState->getViewMatrix();
+    GrMatrix vm = drawState->getViewMatrix();
+    if (NULL != translate) {
+        vm.postTranslate(translate->fX, translate->fY);
+    }
 
     GrIRect devPathBounds, devClipBounds;
     if (!get_path_and_clip_bounds(target, path, vm,
                                   &devPathBounds, &devClipBounds)) {
-        if (path.isInverseFillType()) {
+        if (GrIsFillInverted(fill)) {
             draw_around_inv_path(target, devClipBounds, devPathBounds);
         }
         return true;
     }
 
     SkAutoTUnref<GrTexture> texture(
-            GrSWMaskHelper::DrawPathMaskToTexture(fContext, path, stroke,
-                                                  devPathBounds,
+            GrSWMaskHelper::DrawPathMaskToTexture(fContext, path,
+                                                  devPathBounds, fill,
                                                   antiAlias, &vm));
     if (NULL == texture) {
         return false;
@@ -145,7 +142,7 @@ bool GrSoftwarePathRenderer::onDrawPath(const SkPath& path,
 
     GrSWMaskHelper::DrawToTargetWithPathMask(texture, target, devPathBounds);
 
-    if (path.isInverseFillType()) {
+    if (GrIsFillInverted(fill)) {
         draw_around_inv_path(target, devClipBounds, devPathBounds);
     }
 

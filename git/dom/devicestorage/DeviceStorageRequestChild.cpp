@@ -33,8 +33,7 @@ DeviceStorageRequestChild::~DeviceStorageRequestChild() {
 }
 
 bool
-DeviceStorageRequestChild::
-  Recv__delete__(const DeviceStorageResponseValue& aValue)
+DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aValue)
 {
   if (mCallback) {
     mCallback->RequestComplete();
@@ -52,11 +51,9 @@ DeviceStorageRequestChild::
 
     case DeviceStorageResponseValue::TSuccessResponse:
     {
-      nsString fullPath;
-      mFile->GetFullPath(fullPath);
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(cx,
-        StringToJsval(mRequest->GetOwner(), fullPath));
+      nsString compositePath;
+      mFile->GetCompositePath(compositePath);
+      JS::Value result = StringToJsval(mRequest->GetOwner(), compositePath);
       mRequest->FireSuccess(result);
       break;
     }
@@ -68,9 +65,8 @@ DeviceStorageRequestChild::
       nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
 
       nsCOMPtr<nsIDOMFile> file = do_QueryInterface(blob);
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(cx,
-        InterfaceToJsval(mRequest->GetOwner(), file, &NS_GET_IID(nsIDOMFile)));
+      JS::Value result = InterfaceToJsval(mRequest->GetOwner(), file,
+                                          &NS_GET_IID(nsIDOMFile));
       mRequest->FireSuccess(result);
       break;
     }
@@ -78,8 +74,7 @@ DeviceStorageRequestChild::
     case DeviceStorageResponseValue::TFreeSpaceStorageResponse:
     {
       FreeSpaceStorageResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(cx, JS_NumberValue(double(r.freeBytes())));
+      JS::Value result = JS_NumberValue(double(r.freeBytes()));
       mRequest->FireSuccess(result);
       break;
     }
@@ -87,8 +82,7 @@ DeviceStorageRequestChild::
     case DeviceStorageResponseValue::TUsedSpaceStorageResponse:
     {
       UsedSpaceStorageResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(cx, JS_NumberValue(double(r.usedBytes())));
+      JS::Value result = JS_NumberValue(double(r.usedBytes()));
       mRequest->FireSuccess(result);
       break;
     }
@@ -96,9 +90,7 @@ DeviceStorageRequestChild::
     case DeviceStorageResponseValue::TAvailableStorageResponse:
     {
       AvailableStorageResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(
-        cx, StringToJsval(mRequest->GetOwner(), r.mountState()));
+      JS::Value result = StringToJsval(mRequest->GetOwner(), r.mountState());
       mRequest->FireSuccess(result);
       break;
     }
@@ -106,14 +98,14 @@ DeviceStorageRequestChild::
     case DeviceStorageResponseValue::TEnumerationResponse:
     {
       EnumerationResponse r = aValue;
-      nsDOMDeviceStorageCursor* cursor
-        = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
+      nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
 
       uint32_t count = r.paths().Length();
       for (uint32_t i = 0; i < count; i++) {
-        nsRefPtr<DeviceStorageFile> dsf
-          = new DeviceStorageFile(r.type(), r.paths()[i].storageName(),
-                                  r.rootdir(), r.paths()[i].name());
+        nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(r.type(),
+                                                                r.paths()[i].storageName(),
+                                                                r.rootdir(),
+                                                                r.paths()[i].name());
         cursor->mFiles.AppendElement(dsf);
       }
 
@@ -132,8 +124,7 @@ DeviceStorageRequestChild::
 }
 
 void
-DeviceStorageRequestChild::
-  SetCallback(DeviceStorageRequestChildCallback *aCallback)
+DeviceStorageRequestChild::SetCallback(DeviceStorageRequestChildCallback *aCallback)
 {
   mCallback = aCallback;
 }

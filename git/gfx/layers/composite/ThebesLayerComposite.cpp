@@ -29,7 +29,6 @@ ThebesLayerComposite::ThebesLayerComposite(LayerManagerComposite *aManager)
   : ThebesLayer(aManager, nullptr)
   , LayerComposite(aManager)
   , mBuffer(nullptr)
-  , mRequiresTiledProperties(false)
 {
   MOZ_COUNT_CTOR(ThebesLayerComposite);
   mImplData = static_cast<LayerComposite*>(this);
@@ -38,13 +37,15 @@ ThebesLayerComposite::ThebesLayerComposite(LayerManagerComposite *aManager)
 ThebesLayerComposite::~ThebesLayerComposite()
 {
   MOZ_COUNT_DTOR(ThebesLayerComposite);
-  CleanupResources();
+  if (mBuffer) {
+    mBuffer->Detach();
+  }
 }
 
 void
 ThebesLayerComposite::SetCompositableHost(CompositableHost* aHost)
 {
-  mBuffer = static_cast<ContentHost*>(aHost);
+  mBuffer= static_cast<ContentHost*>(aHost);
 }
 
 void
@@ -57,7 +58,10 @@ void
 ThebesLayerComposite::Destroy()
 {
   if (!mDestroyed) {
-    CleanupResources();
+    if (mBuffer) {
+      mBuffer->Detach();
+    }
+    mBuffer = nullptr;
     mDestroyed = true;
   }
 }
@@ -71,14 +75,13 @@ ThebesLayerComposite::GetLayer()
 TiledLayerComposer*
 ThebesLayerComposite::GetTiledLayerComposer()
 {
-  MOZ_ASSERT(mBuffer && mBuffer->IsAttached());
   return mBuffer->AsTiledLayerComposer();
 }
 
 LayerRenderState
 ThebesLayerComposite::GetRenderState()
 {
-  if (!mBuffer || !mBuffer->IsAttached() || mDestroyed) {
+  if (!mBuffer || mDestroyed) {
     return LayerRenderState();
   }
   return mBuffer->GetRenderState();
@@ -88,13 +91,9 @@ void
 ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
                                   const nsIntRect& aClipRect)
 {
-  if (!mBuffer || !mBuffer->IsAttached()) {
+  if (!mBuffer) {
     return;
   }
-
-  MOZ_ASSERT(mBuffer->GetCompositor() == mCompositeManager->GetCompositor() &&
-             mBuffer->GetLayer() == this,
-             "buffer is corrupted");
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(GetEffectiveTransform(), transform);
@@ -102,7 +101,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    nsRefPtr<gfxImageSurface> surf = mBuffer->GetAsSurface();
+    nsRefPtr<gfxImageSurface> surf = mBuffer->Dump();
     WriteSnapshotToDumpFile(this, surf);
   }
 #endif
@@ -141,26 +140,17 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     mValidRegion = tiledLayerProps.mValidRegion;
   }
 
-  LayerManagerComposite::RemoveMaskEffect(mMaskLayer);
   mCompositeManager->GetCompositor()->MakeCurrent();
 }
 
 CompositableHost*
-ThebesLayerComposite::GetCompositableHost()
-{
-  if (mBuffer->IsAttached()) {
-    return mBuffer.get();
-  }
-
-  return nullptr;
+ThebesLayerComposite::GetCompositableHost() {
+  return mBuffer.get();
 }
 
 void
 ThebesLayerComposite::CleanupResources()
 {
-  if (mBuffer) {
-    mBuffer->Detach();
-  }
   mBuffer = nullptr;
 }
 
@@ -175,8 +165,8 @@ ThebesLayerComposite::GetEffectiveResolution()
   gfxSize resolution(1, 1);
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     const FrameMetrics& metrics = parent->GetFrameMetrics();
-    resolution.width *= metrics.mResolution.scale;
-    resolution.height *= metrics.mResolution.scale;
+    resolution.width *= metrics.mResolution.width;
+    resolution.height *= metrics.mResolution.height;
   }
 
   return resolution;
@@ -209,8 +199,8 @@ ThebesLayerComposite::GetDisplayPort()
                                 metrics.mDisplayPort.height);
           displayPort.ScaleRoundOut(parentResolution.width, parentResolution.height);
       }
-      parentResolution.width /= metrics.mResolution.scale;
-      parentResolution.height /= metrics.mResolution.scale;
+      parentResolution.width /= metrics.mResolution.width;
+      parentResolution.height /= metrics.mResolution.height;
     }
     if (parent->UseIntermediateSurface()) {
       transform.PreMultiply(parent->GetTransform());
@@ -247,30 +237,25 @@ ThebesLayerComposite::GetCompositionBounds()
       scrollableLayer = parent;
     if (!parentMetrics.mDisplayPort.IsEmpty() && scrollableLayer) {
       // Get the composition bounds, so as not to waste rendering time.
-      compositionBounds = gfxRect(parentMetrics.mCompositionBounds.x,
-                                  parentMetrics.mCompositionBounds.y,
-                                  parentMetrics.mCompositionBounds.width,
-                                  parentMetrics.mCompositionBounds.height);
+      compositionBounds = gfxRect(parentMetrics.mCompositionBounds);
 
       // Calculate the scale transform applied to the root layer to determine
       // the content resolution.
       Layer* rootLayer = Manager()->GetRoot();
       const gfx3DMatrix& rootTransform = rootLayer->GetTransform();
-      LayerToCSSScale scale(rootTransform.GetXScale(),
-                            rootTransform.GetYScale());
+      float scaleX = rootTransform.GetXScale();
+      float scaleY = rootTransform.GetYScale();
 
       // Get the content document bounds, in screen-space.
       const FrameMetrics& metrics = scrollableLayer->GetFrameMetrics();
-      const LayerIntRect content = RoundedToInt(metrics.mScrollableRect / scale);
-      // !!! WTF. this code is just wrong. See bug 881451.
+      const nsIntSize& contentSize = metrics.mContentRect.Size();
       gfx::Point scrollOffset =
-        gfx::Point((metrics.mScrollOffset.x * metrics.LayersPixelsPerCSSPixel().scale) / scale.scale,
-                   (metrics.mScrollOffset.y * metrics.LayersPixelsPerCSSPixel().scale) / scale.scale);
-      const nsIntPoint contentOrigin(
-        content.x - NS_lround(scrollOffset.x),
-        content.y - NS_lround(scrollOffset.y));
+        gfx::Point((metrics.mScrollOffset.x * metrics.LayersPixelsPerCSSPixel().width) / scaleX,
+                   (metrics.mScrollOffset.y * metrics.LayersPixelsPerCSSPixel().height) / scaleY);
+      const nsIntPoint& contentOrigin = metrics.mContentRect.TopLeft() -
+        nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
       gfxRect contentRect = gfxRect(contentOrigin.x, contentOrigin.y,
-                                    content.width, content.height);
+                                    contentSize.width, contentSize.height);
       gfxRect contentBounds = scrollableLayer->GetEffectiveTransform().
         TransformBounds(contentRect);
 
@@ -289,7 +274,7 @@ ThebesLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   ThebesLayer::PrintInfo(aTo, aPrefix);
   aTo += "\n";
-  if (mBuffer && mBuffer->IsAttached()) {
+  if (mBuffer) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     mBuffer->PrintInfo(aTo, pfx.get());

@@ -42,10 +42,88 @@
 #include "CSSCalc.h"
 #include "nsMediaFeatures.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 
+// Flags for ParseVariant method
+#define VARIANT_KEYWORD         0x000001  // K
+#define VARIANT_LENGTH          0x000002  // L
+#define VARIANT_PERCENT         0x000004  // P
+#define VARIANT_COLOR           0x000008  // C eCSSUnit_Color, eCSSUnit_Ident (e.g.  "red")
+#define VARIANT_URL             0x000010  // U
+#define VARIANT_NUMBER          0x000020  // N
+#define VARIANT_INTEGER         0x000040  // I
+#define VARIANT_ANGLE           0x000080  // G
+#define VARIANT_FREQUENCY       0x000100  // F
+#define VARIANT_TIME            0x000200  // T
+#define VARIANT_STRING          0x000400  // S
+#define VARIANT_COUNTER         0x000800  //
+#define VARIANT_ATTR            0x001000  //
+#define VARIANT_IDENTIFIER      0x002000  // D
+#define VARIANT_IDENTIFIER_NO_INHERIT 0x004000 // like above, but excluding
+                                               // 'inherit' and 'initial'
+#define VARIANT_AUTO            0x010000  // A
+#define VARIANT_INHERIT         0x020000  // H eCSSUnit_Initial, eCSSUnit_Inherit
+#define VARIANT_NONE            0x040000  // O
+#define VARIANT_NORMAL          0x080000  // M
+#define VARIANT_SYSFONT         0x100000  // eCSSUnit_System_Font
+#define VARIANT_GRADIENT        0x200000  // eCSSUnit_Gradient
+#define VARIANT_TIMING_FUNCTION 0x400000  // cubic-bezier() and steps()
+#define VARIANT_ALL             0x800000  //
+#define VARIANT_IMAGE_RECT    0x01000000  // eCSSUnit_Function
+// This is an extra bit that says that a VARIANT_ANGLE allows unitless zero:
+#define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
+#define VARIANT_CALC          0x04000000  // eCSSUnit_Calc
+#define VARIANT_ELEMENT       0x08000000  // eCSSUnit_Element
+#define VARIANT_POSITIVE_DIMENSION 0x10000000 // Only lengths greater than 0.0
+#define VARIANT_NONNEGATIVE_DIMENSION 0x20000000 // Only lengths greater than or equal to 0.0
+
+// Common combinations of variants
+#define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
+#define VARIANT_LP   (VARIANT_LENGTH | VARIANT_PERCENT)
+#define VARIANT_LN   (VARIANT_LENGTH | VARIANT_NUMBER)
+#define VARIANT_AH   (VARIANT_AUTO | VARIANT_INHERIT)
+#define VARIANT_AHLP (VARIANT_AH | VARIANT_LP)
+#define VARIANT_AHI  (VARIANT_AH | VARIANT_INTEGER)
+#define VARIANT_AHK  (VARIANT_AH | VARIANT_KEYWORD)
+#define VARIANT_AHKLP (VARIANT_AHLP | VARIANT_KEYWORD)
+#define VARIANT_AHL  (VARIANT_AH | VARIANT_LENGTH)
+#define VARIANT_AHKL (VARIANT_AHK | VARIANT_LENGTH)
+#define VARIANT_HK   (VARIANT_INHERIT | VARIANT_KEYWORD)
+#define VARIANT_HKF  (VARIANT_HK | VARIANT_FREQUENCY)
+#define VARIANT_HKI  (VARIANT_HK | VARIANT_INTEGER)
+#define VARIANT_HKL  (VARIANT_HK | VARIANT_LENGTH)
+#define VARIANT_HKLP (VARIANT_HK | VARIANT_LP)
+#define VARIANT_HKLPO (VARIANT_HKLP | VARIANT_NONE)
+#define VARIANT_HL   (VARIANT_INHERIT | VARIANT_LENGTH)
+#define VARIANT_HI   (VARIANT_INHERIT | VARIANT_INTEGER)
+#define VARIANT_HLP  (VARIANT_HL | VARIANT_PERCENT)
+#define VARIANT_HLPN (VARIANT_HLP | VARIANT_NUMBER)
+#define VARIANT_HLPO (VARIANT_HLP | VARIANT_NONE)
+#define VARIANT_HTP  (VARIANT_INHERIT | VARIANT_TIME | VARIANT_PERCENT)
+#define VARIANT_HMK  (VARIANT_HK | VARIANT_NORMAL)
+#define VARIANT_HC   (VARIANT_INHERIT | VARIANT_COLOR)
+#define VARIANT_HCK  (VARIANT_HK | VARIANT_COLOR)
+#define VARIANT_HUK  (VARIANT_HK | VARIANT_URL)
+#define VARIANT_HUO  (VARIANT_INHERIT | VARIANT_URL | VARIANT_NONE)
+#define VARIANT_AHUO (VARIANT_AUTO | VARIANT_HUO)
+#define VARIANT_HPN  (VARIANT_INHERIT | VARIANT_PERCENT | VARIANT_NUMBER)
+#define VARIANT_PN   (VARIANT_PERCENT | VARIANT_NUMBER)
+#define VARIANT_ALPN (VARIANT_AL | VARIANT_PN)
+#define VARIANT_HN   (VARIANT_INHERIT | VARIANT_NUMBER)
+#define VARIANT_HON  (VARIANT_HN | VARIANT_NONE)
+#define VARIANT_HOS  (VARIANT_INHERIT | VARIANT_NONE | VARIANT_STRING)
+#define VARIANT_LPN  (VARIANT_LP | VARIANT_NUMBER)
+#define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
+#define VARIANT_UO   (VARIANT_URL | VARIANT_NONE)
+#define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
+#define VARIANT_LPCALC (VARIANT_LENGTH | VARIANT_CALC | VARIANT_PERCENT)
+#define VARIANT_LNCALC (VARIANT_LENGTH | VARIANT_CALC | VARIANT_NUMBER)
+#define VARIANT_LPNCALC (VARIANT_LNCALC | VARIANT_PERCENT)
+#define VARIANT_IMAGE (VARIANT_URL | VARIANT_NONE | VARIANT_GRADIENT | \
+                       VARIANT_IMAGE_RECT | VARIANT_ELEMENT)
+
+// This lives here because it depends on the above macros.
 const uint32_t
 nsCSSProps::kParserVariantTable[eCSSProperty_COUNT_no_shorthands] = {
 #define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, \
@@ -54,6 +132,8 @@ nsCSSProps::kParserVariantTable[eCSSProperty_COUNT_no_shorthands] = {
 #include "nsCSSPropList.h"
 #undef CSS_PROP
 };
+
+//----------------------------------------------------------------------
 
 namespace {
 
@@ -473,8 +553,10 @@ protected:
   bool ParseCalcTerm(nsCSSValue& aValue, int32_t& aVariantMask);
   bool RequireWhitespace();
 
+#ifdef MOZ_FLEXBOX
   // For "flex" shorthand property, defined in CSS3 Flexbox
   bool ParseFlex();
+#endif
 
   // for 'clip' and '-moz-image-region'
   bool ParseRect(nsCSSProperty aPropID);
@@ -509,7 +591,6 @@ protected:
   bool ParseSize();
   bool ParseTextDecoration();
   bool ParseTextDecorationLine(nsCSSValue& aValue);
-  bool ParseTextCombineHorizontal(nsCSSValue& aValue);
   bool ParseTextOverflow(nsCSSValue& aValue);
 
   bool ParseShadowItem(nsCSSValue& aValue, bool aIsBoxShadow);
@@ -593,8 +674,8 @@ protected:
   }
 
   /* Functions for transform Parsing */
-  bool ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue);
-  bool ParseFunction(nsCSSKeyword aFunction, const int32_t aAllowedTypes[],
+  bool ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue, bool& aIs3D);
+  bool ParseFunction(const nsString &aFunction, const int32_t aAllowedTypes[],
                      int32_t aVariantMaskAll, uint16_t aMinElems,
                      uint16_t aMaxElems, nsCSSValue &aValue);
   bool ParseFunctionInternals(const int32_t aVariantMask[],
@@ -605,11 +686,6 @@ protected:
 
   /* Functions for transform-origin/perspective-origin Parsing */
   bool ParseTransformOrigin(bool aPerspective);
-
-  /* Functions for filter parsing */
-  bool ParseFilter();
-  bool ParseSingleFilter(nsCSSValue* aValue);
-  bool ParseDropShadow(nsCSSValue* aValue);
 
   /* Find and return the namespace ID associated with aPrefix.
      If aPrefix has not been declared in an @namespace rule, returns
@@ -878,7 +954,8 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
 
   int32_t ruleCount = mSheet->StyleRuleCount();
   if (0 < ruleCount) {
-    const css::Rule* lastRule = mSheet->GetStyleRuleAt(ruleCount - 1);
+    css::Rule* lastRule = nullptr;
+    mSheet->GetStyleRuleAt(ruleCount - 1, lastRule);
     if (lastRule) {
       switch (lastRule->GetType()) {
         case css::Rule::CHARSET_RULE:
@@ -892,6 +969,7 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
           mSection = eCSSSection_General;
           break;
       }
+      NS_RELEASE(lastRule);
     }
   }
   else {
@@ -1713,23 +1791,14 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
       if (!mediaType) {
         NS_RUNTIMEABORT("do_GetAtom failed - out of memory?");
       }
-      if (!gotNotOrOnly && mediaType == nsGkAtoms::_not) {
-        gotNotOrOnly = true;
-        query->SetNegated();
-      } else if (!gotNotOrOnly && mediaType == nsGkAtoms::only) {
-        gotNotOrOnly = true;
-        query->SetHasOnly();
-      } else if (mediaType == nsGkAtoms::_not ||
-                 mediaType == nsGkAtoms::only ||
-                 mediaType == nsGkAtoms::_and ||
-                 mediaType == nsGkAtoms::_or) {
-        REPORT_UNEXPECTED_TOKEN(PEGatherMediaReservedMediaType);
-        UngetToken();
-        return false;
-      } else {
-        // valid media type
+      if (gotNotOrOnly ||
+          (mediaType != nsGkAtoms::_not && mediaType != nsGkAtoms::only))
         break;
-      }
+      gotNotOrOnly = true;
+      if (mediaType == nsGkAtoms::_not)
+        query->SetNegated();
+      else
+        query->SetHasOnly();
     }
     query->SetType(mediaType);
   }
@@ -2706,21 +2775,17 @@ CSSParserImpl::ParseSupportsCondition(bool& aConditionMet)
 
   UngetToken();
 
-  mScanner->ClearSeenBadToken();
-
   if (mToken.IsSymbol('(') ||
       mToken.mType == eCSSToken_Function ||
       mToken.mType == eCSSToken_URL ||
       mToken.mType == eCSSToken_Bad_URL) {
     return ParseSupportsConditionInParens(aConditionMet) &&
-           ParseSupportsConditionTerms(aConditionMet) &&
-           !mScanner->SeenBadToken();
+           ParseSupportsConditionTerms(aConditionMet);
   }
 
   if (mToken.mType == eCSSToken_Ident &&
       mToken.mIdent.LowerCaseEqualsLiteral("not")) {
-    return ParseSupportsConditionNegation(aConditionMet) &&
-           !mScanner->SeenBadToken();
+    return ParseSupportsConditionNegation(aConditionMet);
   }
 
   REPORT_UNEXPECTED_TOKEN(PESupportsConditionExpectedStart);
@@ -3980,8 +4045,6 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
                                               nsCSSPseudoClasses::Type aType)
 {
   int32_t numbers[2] = { 0, 0 };
-  int32_t sign[2] = { 1, 1 };
-  bool hasSign[2] = { false, false };
   bool lookForB = true;
 
   // Follow the whitespace rules as proposed in
@@ -3990,17 +4053,6 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
   if (! GetToken(true)) {
     REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
     return eSelectorParsingStatus_Error;
-  }
-
-  if (mToken.IsSymbol('+') || mToken.IsSymbol('-')) {
-    hasSign[0] = true;
-    if (mToken.IsSymbol('-')) {
-      sign[0] = -1;
-    }
-    if (! GetToken(false)) {
-      REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
-      return eSelectorParsingStatus_Error;
-    }
   }
 
   if (eCSSToken_Ident == mToken.mType || eCSSToken_Dimension == mToken.mType) {
@@ -4012,7 +4064,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     uint32_t truncAt = 0;
     if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
       truncAt = 1;
-    } else if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("-n-")) && !hasSign[0]) {
+    } else if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("-n-"))) {
       truncAt = 2;
     }
     if (truncAt != 0) {
@@ -4022,20 +4074,20 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
   }
 
   if (eCSSToken_Ident == mToken.mType) {
-    if (mToken.mIdent.LowerCaseEqualsLiteral("odd") && !hasSign[0]) {
+    if (mToken.mIdent.LowerCaseEqualsLiteral("odd")) {
       numbers[0] = 2;
       numbers[1] = 1;
       lookForB = false;
     }
-    else if (mToken.mIdent.LowerCaseEqualsLiteral("even") && !hasSign[0]) {
+    else if (mToken.mIdent.LowerCaseEqualsLiteral("even")) {
       numbers[0] = 2;
       numbers[1] = 0;
       lookForB = false;
     }
     else if (mToken.mIdent.LowerCaseEqualsLiteral("n")) {
-      numbers[0] = sign[0];
+      numbers[0] = 1;
     }
-    else if (mToken.mIdent.LowerCaseEqualsLiteral("-n") && !hasSign[0]) {
+    else if (mToken.mIdent.LowerCaseEqualsLiteral("-n")) {
       numbers[0] = -1;
     }
     else {
@@ -4048,43 +4100,15 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    // for +-an case
-    if (mToken.mHasSign && hasSign[0]) {
-      REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
-    }
-    int32_t intValue = mToken.mInteger * sign[0];
-    // for -a/**/n case
-    if (! GetToken(false)) {
-      numbers[1] = intValue;
-      lookForB = false;
-    }
-    else {
-      if (eCSSToken_Ident == mToken.mType && mToken.mIdent.LowerCaseEqualsLiteral("n")) {
-        numbers[0] = intValue;
-      }
-      else if (eCSSToken_Ident == mToken.mType && StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
-        numbers[0] = intValue;
-        mScanner->Backup(mToken.mIdent.Length() - 1);
-      }
-      else {
-        UngetToken();
-        numbers[1] = intValue;
-        lookForB = false;
-      }
-    }
+    numbers[1] = mToken.mInteger;
+    lookForB = false;
   }
   else if (eCSSToken_Dimension == mToken.mType) {
     if (!mToken.mIntegerValid || !mToken.mIdent.LowerCaseEqualsLiteral("n")) {
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    // for +-an case
-    if ( mToken.mHasSign && hasSign[0] ) {
-      REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
-    }
-    numbers[0] = mToken.mInteger * sign[0];
+    numbers[0] = mToken.mInteger;
   }
   // XXX If it's a ')', is that valid?  (as 0n+0)
   else {
@@ -4101,10 +4125,12 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     // The '+' or '-' sign can optionally be separated by whitespace.
     // If it is separated by whitespace from what follows it, it appears
     // as a separate token rather than part of the number token.
+    bool haveSign = false;
+    int32_t sign = 1;
     if (mToken.IsSymbol('+') || mToken.IsSymbol('-')) {
-      hasSign[1] = true;
+      haveSign = true;
       if (mToken.IsSymbol('-')) {
-        sign[1] = -1;
+        sign = -1;
       }
       if (! GetToken(true)) {
         REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
@@ -4112,12 +4138,11 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
       }
     }
     if (eCSSToken_Number != mToken.mType ||
-        !mToken.mIntegerValid || mToken.mHasSign == hasSign[1]) {
+        !mToken.mIntegerValid || mToken.mHasSign == haveSign) {
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      UngetToken();
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    numbers[1] = mToken.mInteger * sign[1];
+    numbers[1] = mToken.mInteger * sign;
     if (! GetToken(true)) {
       REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
       return eSelectorParsingStatus_Error;
@@ -4707,11 +4732,6 @@ CSSParserImpl::ParseDeclaration(css::Declaration* aDeclaration,
       REPORT_UNEXPECTED_TOKEN(PEParseDeclarationDeclExpected);
       REPORT_UNEXPECTED(PEDeclSkipped);
       OUTPUT_ERROR();
-
-      if (eCSSToken_AtKeyword == tk->mType) {
-        SkipAtRule(checkForBraces);
-        return true;  // Not a declaration, but don’t skip until ';'
-      }
     }
     // Not a declaration...
     UngetToken();
@@ -5102,7 +5122,8 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
           aValue.SetInheritValue();
           return true;
         }
-        else if (eCSSKeyword_initial == keyword) { // anything that can inherit can also take an initial val.
+        else if (eCSSKeyword__moz_initial == keyword ||
+                 eCSSKeyword_initial == keyword) { // anything that can inherit can also take an initial val.
           aValue.SetInitialValue();
           return true;
         }
@@ -5539,6 +5560,7 @@ CSSParserImpl::ParseElement(nsCSSValue& aValue)
   return false;
 }
 
+#ifdef MOZ_FLEXBOX
 // flex: none | [ <'flex-grow'> <'flex-shrink'>? || <'flex-basis'> ]
 bool
 CSSParserImpl::ParseFlex()
@@ -5655,6 +5677,7 @@ CSSParserImpl::ParseFlex()
 
   return true;
 }
+#endif
 
 // <color-stop> : <color> [ <percentage> | <length> ]?
 bool
@@ -6482,10 +6505,10 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseCounterData(aPropID);
   case eCSSProperty_cursor:
     return ParseCursor();
-  case eCSSProperty_filter:
-    return ParseFilter();
+#ifdef MOZ_FLEXBOX
   case eCSSProperty_flex:
     return ParseFlex();
+#endif // MOZ_FLEXBOX
   case eCSSProperty_font:
     return ParseFont();
   case eCSSProperty_image_region:
@@ -6609,8 +6632,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
         return ParseMarks(aValue);
       case eCSSProperty_text_decoration_line:
         return ParseTextDecorationLine(aValue);
-      case eCSSProperty_text_combine_horizontal:
-        return ParseTextCombineHorizontal(aValue);
       case eCSSProperty_text_overflow:
         return ParseTextOverflow(aValue);
       default:
@@ -6892,6 +6913,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
       nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
       int32_t dummy;
       if (keyword == eCSSKeyword_inherit ||
+          keyword == eCSSKeyword__moz_initial ||
           keyword == eCSSKeyword_initial) {
         return false;
       } else if (keyword == eCSSKeyword_none) {
@@ -6962,13 +6984,13 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
         MOZ_ASSERT(nsCSSProps::kKeywordTableTable[
                      eCSSProperty_background_clip] ==
                    nsCSSProps::kBackgroundOriginKTable);
-        static_assert(NS_STYLE_BG_CLIP_BORDER ==
-                      NS_STYLE_BG_ORIGIN_BORDER &&
-                      NS_STYLE_BG_CLIP_PADDING ==
-                      NS_STYLE_BG_ORIGIN_PADDING &&
-                      NS_STYLE_BG_CLIP_CONTENT ==
-                      NS_STYLE_BG_ORIGIN_CONTENT,
-                      "bg-clip and bg-origin style constants must agree");
+        MOZ_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
+                          NS_STYLE_BG_ORIGIN_BORDER &&
+                          NS_STYLE_BG_CLIP_PADDING ==
+                          NS_STYLE_BG_ORIGIN_PADDING &&
+                          NS_STYLE_BG_CLIP_CONTENT ==
+                          NS_STYLE_BG_ORIGIN_CONTENT,
+                          "bg-clip and bg-origin style constants must agree");
 
         if (!ParseSingleValueProperty(aState.mClip->mValue,
                                       eCSSProperty_background_clip)) {
@@ -8288,6 +8310,7 @@ CSSParserImpl::ParseRect(nsCSSProperty aPropID)
         val.SetInheritValue();
         break;
       case eCSSKeyword_initial:
+      case eCSSKeyword__moz_initial:
         if (!ExpectEndProperty()) {
           return false;
         }
@@ -8518,9 +8541,6 @@ CSSParserImpl::ParseFont()
     eCSSProperty_font_weight
   };
 
-  // font-variant-alternates enabled ==> layout.css.font-features.enabled is true
-  bool featuresEnabled =
-    nsCSSProps::IsEnabled(eCSSProperty_font_variant_alternates);
   nsCSSValue  family;
   if (ParseVariant(family, VARIANT_HK, nsCSSProps::kFontKTable)) {
     if (ExpectEndProperty()) {
@@ -8537,16 +8557,14 @@ CSSParserImpl::ParseFont()
         AppendValue(eCSSProperty_font_size_adjust, family);
         AppendValue(eCSSProperty_font_feature_settings, family);
         AppendValue(eCSSProperty_font_language_override, family);
-        if (featuresEnabled) {
-          AppendValue(eCSSProperty_font_kerning, family);
-          AppendValue(eCSSProperty_font_synthesis, family);
-          AppendValue(eCSSProperty_font_variant_alternates, family);
-          AppendValue(eCSSProperty_font_variant_caps, family);
-          AppendValue(eCSSProperty_font_variant_east_asian, family);
-          AppendValue(eCSSProperty_font_variant_ligatures, family);
-          AppendValue(eCSSProperty_font_variant_numeric, family);
-          AppendValue(eCSSProperty_font_variant_position, family);
-        }
+        AppendValue(eCSSProperty_font_kerning, family);
+        AppendValue(eCSSProperty_font_synthesis, family);
+        AppendValue(eCSSProperty_font_variant_alternates, family);
+        AppendValue(eCSSProperty_font_variant_caps, family);
+        AppendValue(eCSSProperty_font_variant_east_asian, family);
+        AppendValue(eCSSProperty_font_variant_ligatures, family);
+        AppendValue(eCSSProperty_font_variant_numeric, family);
+        AppendValue(eCSSProperty_font_variant_position, family);
       }
       else {
         AppendValue(eCSSProperty__x_system_font, family);
@@ -8561,16 +8579,14 @@ CSSParserImpl::ParseFont()
         AppendValue(eCSSProperty_font_size_adjust, systemFont);
         AppendValue(eCSSProperty_font_feature_settings, systemFont);
         AppendValue(eCSSProperty_font_language_override, systemFont);
-        if (featuresEnabled) {
-          AppendValue(eCSSProperty_font_kerning, systemFont);
-          AppendValue(eCSSProperty_font_synthesis, systemFont);
-          AppendValue(eCSSProperty_font_variant_alternates, systemFont);
-          AppendValue(eCSSProperty_font_variant_caps, systemFont);
-          AppendValue(eCSSProperty_font_variant_east_asian, systemFont);
-          AppendValue(eCSSProperty_font_variant_ligatures, systemFont);
-          AppendValue(eCSSProperty_font_variant_numeric, systemFont);
-          AppendValue(eCSSProperty_font_variant_position, systemFont);
-        }
+        AppendValue(eCSSProperty_font_kerning, systemFont);
+        AppendValue(eCSSProperty_font_synthesis, systemFont);
+        AppendValue(eCSSProperty_font_variant_alternates, systemFont);
+        AppendValue(eCSSProperty_font_variant_caps, systemFont);
+        AppendValue(eCSSProperty_font_variant_east_asian, systemFont);
+        AppendValue(eCSSProperty_font_variant_ligatures, systemFont);
+        AppendValue(eCSSProperty_font_variant_numeric, systemFont);
+        AppendValue(eCSSProperty_font_variant_position, systemFont);
       }
       return true;
     }
@@ -8600,8 +8616,7 @@ CSSParserImpl::ParseFont()
 
   // Get mandatory font-size
   nsCSSValue  size;
-  if (! ParseNonNegativeVariant(size, VARIANT_KEYWORD | VARIANT_LP,
-                                nsCSSProps::kFontSizeKTable)) {
+  if (! ParseVariant(size, VARIANT_KEYWORD | VARIANT_LP, nsCSSProps::kFontSizeKTable)) {
     return false;
   }
 
@@ -8635,24 +8650,22 @@ CSSParserImpl::ParseFont()
       AppendValue(eCSSProperty_font_size_adjust, nsCSSValue(eCSSUnit_None));
       AppendValue(eCSSProperty_font_feature_settings, nsCSSValue(eCSSUnit_Normal));
       AppendValue(eCSSProperty_font_language_override, nsCSSValue(eCSSUnit_Normal));
-      if (featuresEnabled) {
-        AppendValue(eCSSProperty_font_kerning,
-                    nsCSSValue(NS_FONT_KERNING_AUTO, eCSSUnit_Enumerated));
-        AppendValue(eCSSProperty_font_synthesis,
-                    nsCSSValue(NS_FONT_SYNTHESIS_WEIGHT | NS_FONT_SYNTHESIS_STYLE,
-                               eCSSUnit_Enumerated));
-        AppendValue(eCSSProperty_font_variant_alternates,
-                    nsCSSValue(eCSSUnit_Normal));
-        AppendValue(eCSSProperty_font_variant_caps, nsCSSValue(eCSSUnit_Normal));
-        AppendValue(eCSSProperty_font_variant_east_asian,
-                    nsCSSValue(eCSSUnit_Normal));
-        AppendValue(eCSSProperty_font_variant_ligatures,
-                    nsCSSValue(eCSSUnit_Normal));
-        AppendValue(eCSSProperty_font_variant_numeric,
-                    nsCSSValue(eCSSUnit_Normal));
-        AppendValue(eCSSProperty_font_variant_position,
-                    nsCSSValue(eCSSUnit_Normal));
-      }
+      AppendValue(eCSSProperty_font_kerning,
+                  nsCSSValue(NS_FONT_KERNING_AUTO, eCSSUnit_Enumerated));
+      AppendValue(eCSSProperty_font_synthesis,
+                  nsCSSValue(NS_FONT_SYNTHESIS_WEIGHT | NS_FONT_SYNTHESIS_STYLE,
+                             eCSSUnit_Enumerated));
+      AppendValue(eCSSProperty_font_variant_alternates,
+                  nsCSSValue(eCSSUnit_Normal));
+      AppendValue(eCSSProperty_font_variant_caps, nsCSSValue(eCSSUnit_Normal));
+      AppendValue(eCSSProperty_font_variant_east_asian,
+                  nsCSSValue(eCSSUnit_Normal));
+      AppendValue(eCSSProperty_font_variant_ligatures,
+                  nsCSSValue(eCSSUnit_Normal));
+      AppendValue(eCSSProperty_font_variant_numeric,
+                  nsCSSValue(eCSSUnit_Normal));
+      AppendValue(eCSSProperty_font_variant_position,
+                  nsCSSValue(eCSSUnit_Normal));
       return true;
     }
   }
@@ -8757,7 +8770,7 @@ CSSParserImpl::ParseSingleAlternate(int32_t& aWhichFeature,
       keyword == eCSSKeyword_character_variant) {
     maxElems = MAX_ALLOWED_FEATURES;
   }
-  return ParseFunction(keyword, nullptr, VARIANT_IDENTIFIER,
+  return ParseFunction(mToken.mIdent, nullptr, VARIANT_IDENTIFIER,
                        1, maxElems, aValue);
 }
 
@@ -8957,16 +8970,19 @@ CSSParserImpl::ParseOneFamily(nsAString& aFamily, bool& aOneKeyword)
 
       if (eCSSToken_Ident == tk->mType) {
         aOneKeyword = false;
-        // We had at least another keyword before.
-        // "If a sequence of identifiers is given as a font family name,
-        //  the computed value is the name converted to a string by joining
-        //  all the identifiers in the sequence by single spaces."
-        // -- CSS 2.1, section 15.3
-        // Whitespace tokens do not actually matter,
-        // identifier tokens can be separated by comments.
-        aFamily.Append(PRUnichar(' '));
         aFamily.Append(tk->mIdent);
-      } else if (eCSSToken_Whitespace != tk->mType) {
+      } else if (eCSSToken_Whitespace == tk->mType) {
+        // Lookahead one token and drop whitespace if we are ending the
+        // font name.
+        if (!GetToken(true))
+          break;
+
+        UngetToken();
+        if (eCSSToken_Ident == tk->mType)
+          aFamily.Append(PRUnichar(' '));
+        else
+          break;
+      } else {
         UngetToken();
         break;
       }
@@ -9007,7 +9023,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
     if (keyword == eCSSKeyword_default) {
       return false;
     }
-    if (keyword == eCSSKeyword_initial) {
+    if (keyword == eCSSKeyword__moz_initial || keyword == eCSSKeyword_initial) {
       aValue.SetInitialValue();
       return true;
     }
@@ -9036,6 +9052,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
         case eCSSKeyword_inherit:
         case eCSSKeyword_initial:
         case eCSSKeyword_default:
+        case eCSSKeyword__moz_initial:
         case eCSSKeyword__moz_use_system_font:
           return false;
         default:
@@ -9545,13 +9562,13 @@ CSSParserImpl::ParseTextDecoration()
     eDecorationBlink        = NS_STYLE_TEXT_DECORATION_LINE_BLINK,
     eDecorationPrefAnchors  = NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS
   };
-  static_assert((eDecorationNone ^ eDecorationUnderline ^
-                 eDecorationOverline ^ eDecorationLineThrough ^
-                 eDecorationBlink ^ eDecorationPrefAnchors) ==
-                (eDecorationNone | eDecorationUnderline |
-                 eDecorationOverline | eDecorationLineThrough |
-                 eDecorationBlink | eDecorationPrefAnchors),
-                "text decoration constants need to be bitmasks");
+  MOZ_STATIC_ASSERT((eDecorationNone ^ eDecorationUnderline ^
+                     eDecorationOverline ^ eDecorationLineThrough ^
+                     eDecorationBlink ^ eDecorationPrefAnchors) ==
+                    (eDecorationNone | eDecorationUnderline |
+                     eDecorationOverline | eDecorationLineThrough |
+                     eDecorationBlink | eDecorationPrefAnchors),
+                    "text decoration constants need to be bitmasks");
 
   static const int32_t kTextDecorationKTable[] = {
     eCSSKeyword_none,                   eDecorationNone,
@@ -9568,7 +9585,7 @@ CSSParserImpl::ParseTextDecoration()
     return false;
   }
 
-  nsCSSValue line, style, color;
+  nsCSSValue blink, line, style, color;
   switch (value.GetUnit()) {
     case eCSSUnit_Enumerated: {
       // We shouldn't accept decoration line style and color via
@@ -9580,6 +9597,7 @@ CSSParserImpl::ParseTextDecoration()
 
       int32_t intValue = value.GetIntValue();
       if (intValue == eDecorationNone) {
+        blink.SetIntValue(NS_STYLE_TEXT_BLINK_NONE, eCSSUnit_Enumerated);
         line.SetIntValue(NS_STYLE_TEXT_DECORATION_LINE_NONE,
                          eCSSUnit_Enumerated);
         break;
@@ -9601,14 +9619,18 @@ CSSParserImpl::ParseTextDecoration()
         intValue |= newValue;
       }
 
-      line.SetIntValue(intValue, eCSSUnit_Enumerated);
+      blink.SetIntValue((intValue & eDecorationBlink) != 0 ?
+                          NS_STYLE_TEXT_BLINK_BLINK : NS_STYLE_TEXT_BLINK_NONE,
+                        eCSSUnit_Enumerated);
+      line.SetIntValue((intValue & ~eDecorationBlink), eCSSUnit_Enumerated);
       break;
     }
     default:
-      line = color = style = value;
+      blink = line = color = style = value;
       break;
   }
 
+  AppendValue(eCSSProperty_text_blink, blink);
   AppendValue(eCSSProperty_text_decoration_line, line);
   AppendValue(eCSSProperty_text_decoration_color, color);
   AppendValue(eCSSProperty_text_decoration_style, style);
@@ -9626,7 +9648,7 @@ CSSParserImpl::ParseTextDecorationLine(nsCSSValue& aValue)
         // look for more keywords
         nsCSSValue  keyword;
         int32_t index;
-        for (index = 0; index < 3; index++) {
+        for (index = 0; index < 2; index++) {
           if (ParseEnum(keyword, nsCSSProps::kTextDecorationLineKTable)) {
             int32_t newValue = keyword.GetIntValue();
             if (newValue == NS_STYLE_TEXT_DECORATION_LINE_NONE ||
@@ -9672,49 +9694,11 @@ CSSParserImpl::ParseTextOverflow(nsCSSValue& aValue)
   return true;
 }
 
-bool
-CSSParserImpl::ParseTextCombineHorizontal(nsCSSValue& aValue)
-{
-  if (!ParseVariant(aValue, VARIANT_HK,
-                    nsCSSProps::kTextCombineHorizontalKTable)) {
-    return false;
-  }
-
-  // if 'digits', need to check for an explicit number [2, 3, 4]
-  if (eCSSUnit_Enumerated == aValue.GetUnit() &&
-      aValue.GetIntValue() == NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2) {
-    if (!GetToken(true)) {
-      return true;
-    }
-    if (mToken.mType == eCSSToken_Number && mToken.mIntegerValid) {
-      switch (mToken.mInteger) {
-        case 2:  // already set, nothing to do
-          break;
-        case 3:
-          aValue.SetIntValue(NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_3,
-                             eCSSUnit_Enumerated);
-          break;
-        case 4:
-          aValue.SetIntValue(NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_4,
-                             eCSSUnit_Enumerated);
-          break;
-        default:
-          // invalid digits value
-          return false;
-      }
-    } else {
-      UngetToken();
-    }
-  }
-  return true;
-}
-
 ///////////////////////////////////////////////////////
 // transform Parsing Implementation
 
-/* Reads a function list of arguments and consumes the closing parenthesis.
- * Do not call this function directly; it's meant to be called from
- * ParseFunction.
+/* Reads a function list of arguments.  Do not call this function
+ * directly; it's mean to be caled from ParseFunction.
  */
 bool
 CSSParserImpl::ParseFunctionInternals(const int32_t aVariantMask[],
@@ -9731,28 +9715,21 @@ CSSParserImpl::ParseFunctionInternals(const int32_t aVariantMask[],
     nsCSSValue newValue;
     int32_t m = aVariantMaskAll ? aVariantMaskAll : aVariantMask[index];
     if (!ParseVariant(newValue, m, nullptr)) {
-      break;
+      return false;
     }
 
     aOutput.AppendElement(newValue);
 
-    if (ExpectSymbol(',', true)) {
-      // Move on to the next argument if we see a comma.
-      continue;
+    // See whether to continue or whether to look for end of function.
+    if (!ExpectSymbol(',', true)) {
+      // We need to read the closing parenthesis, and also must take care
+      // that we haven't read too few symbols.
+      return ExpectSymbol(')', true) && (index + 1) >= aMinElems;
     }
-
-    if (ExpectSymbol(')', true)) {
-      // Make sure we've read enough symbols if we see a closing parenthesis.
-      return (index + 1) >= aMinElems;
-    }
-
-    // Only a comma or a closing parenthesis is valid after an argument.
-    break;
   }
 
-  // If we're here, we've hit an error without seeing a closing parenthesis or
-  // we've read too many elements without seeing a closing parenthesis.
-  SkipUntil(')');
+  // If we're here, we finished looping without hitting the end, so we read too
+  // many elements.
   return false;
 }
 
@@ -9776,7 +9753,7 @@ CSSParserImpl::ParseFunctionInternals(const int32_t aVariantMask[],
  * @param aValue (out) The value that was parsed.
  */
 bool
-CSSParserImpl::ParseFunction(nsCSSKeyword aFunction,
+CSSParserImpl::ParseFunction(const nsString &aFunction,
                              const int32_t aAllowedTypes[],
                              int32_t aAllowedTypesAll,
                              uint16_t aMinElems, uint16_t aMaxElems,
@@ -9792,6 +9769,12 @@ CSSParserImpl::ParseFunction(nsCSSKeyword aFunction,
    */
   static const arrlen_t MAX_ALLOWED_ELEMS = 0xFFFE;
 
+  /* Make a copy of the function name, since the reference is _probably_ to
+   * mToken.mIdent, which is going to get overwritten during the course of this
+   * function.
+   */
+  nsString functionName(aFunction);
+
   /* Read in a list of values as an array, failing if we can't or if
    * it's out of bounds.
    */
@@ -9801,17 +9784,23 @@ CSSParserImpl::ParseFunction(nsCSSKeyword aFunction,
     return false;
   }
 
-  /*
-   * In case the user has given us more than 2^16 - 2 arguments,
+  /* Now, convert this array into an nsCSSValue::Array object.
+   * We'll need N + 1 spots, one for the function name and the rest for the
+   * arguments.  In case the user has given us more than 2^16 - 2 arguments,
    * we'll truncate them at 2^16 - 2 arguments.
    */
-  uint16_t numArgs = std::min(foundValues.Length(), MAX_ALLOWED_ELEMS);
+  uint16_t numElements = (foundValues.Length() <= MAX_ALLOWED_ELEMS ?
+                          foundValues.Length() + 1 : MAX_ALLOWED_ELEMS);
   nsRefPtr<nsCSSValue::Array> convertedArray =
-    aValue.InitFunction(aFunction, numArgs);
+    nsCSSValue::Array::Create(numElements);
 
   /* Copy things over. */
-  for (uint16_t index = 0; index < numArgs; ++index)
+  convertedArray->Item(0).SetStringValue(functionName, eCSSUnit_Ident);
+  for (uint16_t index = 0; index + 1 < numElements; ++index)
     convertedArray->Item(index + 1) = foundValues[static_cast<arrlen_t>(index)];
+
+  /* Fill in the outparam value with the array. */
+  aValue.SetArrayValue(convertedArray, eCSSUnit_Function);
 
   /* Return it! */
   return true;
@@ -9833,7 +9822,8 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
                                         bool aIsPrefixed,
                                         uint16_t &aMinElems,
                                         uint16_t &aMaxElems,
-                                        const int32_t *& aVariantMask)
+                                        const int32_t *& aVariantMask,
+                                        bool &aIs3D)
 {
 /* These types represent the common variant masks that will be used to
    * parse out the individual functions.  The order in the enumeration
@@ -9888,6 +9878,8 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
 
   int32_t variantIndex = eNumVariantMasks;
 
+  aIs3D = false;
+
   switch (aToken) {
   case eCSSKeyword_translatex:
   case eCSSKeyword_translatey:
@@ -9901,14 +9893,17 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     variantIndex = eLengthCalc;
     aMinElems = 1U;
     aMaxElems = 1U;
+    aIs3D = true;
     break;
   case eCSSKeyword_translate3d:
     /* Exactly two lengthds or percents and a number */
     variantIndex = eTwoLengthPercentCalcsOneLengthCalc;
     aMinElems = 3U;
     aMaxElems = 3U;
+    aIs3D = true;
     break;
   case eCSSKeyword_scalez:
+    aIs3D = true;
   case eCSSKeyword_scalex:
   case eCSSKeyword_scaley:
     /* Exactly one scale factor. */
@@ -9921,9 +9916,11 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     variantIndex = eThreeNumbers;
     aMinElems = 3U;
     aMaxElems = 3U;
+    aIs3D = true;
     break;
   case eCSSKeyword_rotatex:
   case eCSSKeyword_rotatey:
+    aIs3D = true;
   case eCSSKeyword_rotate:
   case eCSSKeyword_rotatez:
     /* Exactly one angle. */
@@ -9935,6 +9932,7 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     variantIndex = eThreeNumbersOneAngle;
     aMinElems = 4U;
     aMaxElems = 4U;
+    aIs3D = true;
     break;
   case eCSSKeyword_translate:
     /* One or two lengths or percents. */
@@ -9977,12 +9975,14 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
     variantIndex = aIsPrefixed ? eMatrix3dPrefixed : eMatrix3d;
     aMinElems = 16U;
     aMaxElems = 16U;
+    aIs3D = true;
     break;
   case eCSSKeyword_perspective:
     /* Exactly one scale number. */
     variantIndex = ePositiveLength;
     aMinElems = 1U;
     aMaxElems = 1U;
+    aIs3D = true;
     break;
   default:
     /* Oh dear, we didn't match.  Report an error. */
@@ -10009,7 +10009,8 @@ static bool GetFunctionParseInformation(nsCSSKeyword aToken,
  * error if something goes wrong.
  */
 bool
-CSSParserImpl::ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue)
+CSSParserImpl::ParseSingleTransform(bool aIsPrefixed,
+                                    nsCSSValue& aValue, bool& aIs3D)
 {
   if (!GetToken(true))
     return false;
@@ -10024,10 +10025,40 @@ CSSParserImpl::ParseSingleTransform(bool aIsPrefixed, nsCSSValue& aValue)
   nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
 
   if (!GetFunctionParseInformation(keyword, aIsPrefixed,
-                                   minElems, maxElems, variantMask))
+                                   minElems, maxElems, variantMask, aIs3D))
     return false;
 
-  return ParseFunction(keyword, variantMask, 0, minElems, maxElems, aValue);
+  // Bug 721136: Normalize the identifier to lowercase, except that things
+  // like scaleX should have the last character capitalized.  This matches
+  // what other browsers do.
+  nsContentUtils::ASCIIToLower(mToken.mIdent);
+  switch (keyword) {
+    case eCSSKeyword_rotatex:
+    case eCSSKeyword_scalex:
+    case eCSSKeyword_skewx:
+    case eCSSKeyword_translatex:
+      mToken.mIdent.Replace(mToken.mIdent.Length() - 1, 1, PRUnichar('X'));
+      break;
+
+    case eCSSKeyword_rotatey:
+    case eCSSKeyword_scaley:
+    case eCSSKeyword_skewy:
+    case eCSSKeyword_translatey:
+      mToken.mIdent.Replace(mToken.mIdent.Length() - 1, 1, PRUnichar('Y'));
+      break;
+
+    case eCSSKeyword_rotatez:
+    case eCSSKeyword_scalez:
+    case eCSSKeyword_translatez:
+      mToken.mIdent.Replace(mToken.mIdent.Length() - 1, 1, PRUnichar('Z'));
+      break;
+
+    default:
+      break;
+  }
+
+  return ParseFunction(mToken.mIdent, variantMask, 0, minElems,
+                       maxElems, aValue);
 }
 
 /* Parses a transform property list by continuously reading in properties
@@ -10044,7 +10075,11 @@ bool CSSParserImpl::ParseTransform(bool aIsPrefixed)
   } else {
     nsCSSValueList* cur = value.SetListValue();
     for (;;) {
-      if (!ParseSingleTransform(aIsPrefixed, cur->mValue)) {
+      bool is3D;
+      if (!ParseSingleTransform(aIsPrefixed, cur->mValue, is3D)) {
+        return false;
+      }
+      if (is3D && !nsLayoutUtils::Are3DTransformsEnabled()) {
         return false;
       }
       if (CheckEndProperty()) {
@@ -10086,7 +10121,9 @@ bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
       value.SetPairValue(position.mXValue, position.mYValue);
     } else {
       nsCSSValue depth;
-      if (!ParseVariant(depth, VARIANT_LENGTH | VARIANT_CALC, nullptr)) {
+      if (!nsLayoutUtils::Are3DTransformsEnabled() ||
+          // only try parsing if 3-D transforms are enabled
+          !ParseVariant(depth, VARIANT_LENGTH | VARIANT_CALC, nullptr)) {
         depth.SetFloatValue(0.0f, eCSSUnit_Pixel);
       }
       value.SetTripletValue(position.mXValue, position.mYValue, depth);
@@ -10094,187 +10131,6 @@ bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
 
     AppendValue(prop, value);
   }
-  return true;
-}
-
-/**
- * Reads a drop-shadow value. At the moment the Filter Effects specification
- * just expects one shadow item. Should this ever change to a list of shadow
- * items, use ParseShadowList instead.
- */
-bool
-CSSParserImpl::ParseDropShadow(nsCSSValue* aValue)
-{
-  // Use nsCSSValueList to reuse the shadow resolving code in
-  // nsRuleNode and nsComputedDOMStyle.
-  nsCSSValue shadow;
-  nsCSSValueList* cur = shadow.SetListValue();
-  if (!ParseShadowItem(cur->mValue, false))
-    return false;
-
-  if (!ExpectSymbol(')', true))
-    return false;
-
-  nsCSSValue::Array* dropShadow = aValue->InitFunction(eCSSKeyword_drop_shadow, 1);
-
-  // Copy things over.
-  dropShadow->Item(1) = shadow;
-
-  return true;
-}
-
-/**
- * Reads a single url or filter function from the tokenizer stream, reporting an
- * error if something goes wrong.
- */
-bool
-CSSParserImpl::ParseSingleFilter(nsCSSValue* aValue)
-{
-  if (ParseVariant(*aValue, VARIANT_URL, nullptr)) {
-    return true;
-  }
-
-  if (!nsLayoutUtils::CSSFiltersEnabled()) {
-    // With CSS Filters disabled, we should only accept an SVG reference filter.
-    REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURL);
-    return false;
-  }
-
-  if (!GetToken(true)) {
-    REPORT_UNEXPECTED_EOF(PEFilterEOF);
-    return false;
-  }
-
-  if (mToken.mType != eCSSToken_Function) {
-    REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
-    return false;
-  }
-
-  nsCSSKeyword functionName = nsCSSKeywords::LookupKeyword(mToken.mIdent);
-  // Parse drop-shadow independently of the other filter functions
-  // because of its more complex characteristics.
-  if (functionName == eCSSKeyword_drop_shadow) {
-    if (ParseDropShadow(aValue)) {
-      return true;
-    } else {
-      // Unrecognized filter function.
-      REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
-      SkipUntil(')');
-      return false;
-    }
-  }
-
-  // Set up the parsing rules based on the filter function.
-  int32_t variantMask = VARIANT_PN;
-  bool rejectNegativeArgument = true;
-  bool clampArgumentToOne = false;
-  switch (functionName) {
-    case eCSSKeyword_blur:
-      variantMask = VARIANT_LCALC | VARIANT_NONNEGATIVE_DIMENSION;
-      // VARIANT_NONNEGATIVE_DIMENSION will already reject negative lengths.
-      rejectNegativeArgument = false;
-      break;
-    case eCSSKeyword_brightness:
-    case eCSSKeyword_contrast:
-    case eCSSKeyword_saturate:
-      break;
-    case eCSSKeyword_grayscale:
-    case eCSSKeyword_invert:
-    case eCSSKeyword_sepia:
-    case eCSSKeyword_opacity:
-      clampArgumentToOne = true;
-      break;
-    case eCSSKeyword_hue_rotate:
-      variantMask = VARIANT_ANGLE;
-      rejectNegativeArgument = false;
-      break;
-    default:
-      // Unrecognized filter function.
-      REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
-      SkipUntil(')');
-      return false;
-  }
-
-  // Parse the function.
-  uint16_t minElems = 1U;
-  uint16_t maxElems = 1U;
-  uint32_t allVariants = 0;
-  if (!ParseFunction(functionName, &variantMask, allVariants,
-                     minElems, maxElems, *aValue)) {
-    REPORT_UNEXPECTED(PEFilterFunctionArgumentsParsingError);
-    return false;
-  }
-
-  // Get the first and only argument to the filter function.
-  NS_ABORT_IF_FALSE(aValue->GetUnit() == eCSSUnit_Function,
-                    "expected a filter function");
-  NS_ABORT_IF_FALSE(aValue->UnitHasArrayValue(),
-                    "filter function should be an array");
-  NS_ABORT_IF_FALSE(aValue->GetArrayValue()->Count() == 2,
-                    "filter function should have exactly one argument");
-  nsCSSValue& arg = aValue->GetArrayValue()->Item(1);
-
-  if (rejectNegativeArgument &&
-      ((arg.GetUnit() == eCSSUnit_Percent && arg.GetPercentValue() < 0.0f) ||
-       (arg.GetUnit() == eCSSUnit_Number && arg.GetFloatValue() < 0.0f))) {
-    REPORT_UNEXPECTED(PEExpectedNonnegativeNP);
-    return false;
-  }
-
-  if (clampArgumentToOne) {
-    if (arg.GetUnit() == eCSSUnit_Number &&
-        arg.GetFloatValue() > 1.0f) {
-      arg.SetFloatValue(1.0f, arg.GetUnit());
-    } else if (arg.GetUnit() == eCSSUnit_Percent &&
-               arg.GetPercentValue() > 1.0f) {
-      arg.SetPercentValue(1.0f);
-    }
-  }
-
-  return true;
-}
-
-/**
- * Parses a filter property value by continuously reading in urls and/or filter
- * functions and constructing a list.
- *
- * When CSS Filters are enabled, the filter property accepts one or more SVG
- * reference filters and/or CSS filter functions.
- * e.g. filter: url(#my-filter-1) blur(3px) url(#my-filter-2) grayscale(50%);
- *
- * When CSS Filters are disabled, the filter property only accepts one SVG
- * reference filter.
- * e.g. filter: url(#my-filter);
- */
-bool
-CSSParserImpl::ParseFilter()
-{
-  nsCSSValue value;
-  if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nullptr)) {
-    // 'inherit', 'initial', and 'none' must be alone
-    if (!ExpectEndProperty()) {
-      return false;
-    }
-  } else {
-    nsCSSValueList* cur = value.SetListValue();
-    while (cur) {
-      if (!ParseSingleFilter(&cur->mValue)) {
-        return false;
-      }
-      if (CheckEndProperty()) {
-        break;
-      }
-      if (!nsLayoutUtils::CSSFiltersEnabled()) {
-        // With CSS Filters disabled, we should only accept one SVG reference
-        // filter.
-        REPORT_UNEXPECTED_TOKEN(PEExpectEndValue);
-        return false;
-      }
-      cur->mNext = new nsCSSValueList;
-      cur = cur->mNext;
-    }
-  }
-  AppendValue(eCSSProperty_filter, value);
   return true;
 }
 
@@ -10867,7 +10723,7 @@ CSSParserImpl::ParseMarker()
 bool
 CSSParserImpl::ParsePaintOrder()
 {
-  static_assert
+  MOZ_STATIC_ASSERT
     ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) > NS_STYLE_PAINT_ORDER_LAST_VALUE,
      "bitfield width insufficient for paint-order constants");
 
@@ -10879,9 +10735,9 @@ CSSParserImpl::ParsePaintOrder()
     eCSSKeyword_UNKNOWN,-1
   };
 
-  static_assert(NS_ARRAY_LENGTH(kPaintOrderKTable) ==
-                  2 * (NS_STYLE_PAINT_ORDER_LAST_VALUE + 2),
-                "missing paint-order values in kPaintOrderKTable");
+  MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(kPaintOrderKTable) ==
+                      2 * (NS_STYLE_PAINT_ORDER_LAST_VALUE + 2),
+                    "missing paint-order values in kPaintOrderKTable");
 
   nsCSSValue value;
   if (!ParseVariant(value, VARIANT_HK, kPaintOrderKTable)) {
@@ -10894,7 +10750,7 @@ CSSParserImpl::ParsePaintOrder()
 
   // Ensure that even cast to a signed int32_t when stored in CSSValue,
   // we have enough space for the entire paint-order value.
-  static_assert
+  MOZ_STATIC_ASSERT
     (NS_STYLE_PAINT_ORDER_BITWIDTH * NS_STYLE_PAINT_ORDER_LAST_VALUE < 32,
      "seen and order not big enough");
 
@@ -10938,8 +10794,8 @@ CSSParserImpl::ParsePaintOrder()
       }
     }
 
-    static_assert(NS_STYLE_PAINT_ORDER_NORMAL == 0,
-                  "unexpected value for NS_STYLE_PAINT_ORDER_NORMAL");
+    MOZ_STATIC_ASSERT(NS_STYLE_PAINT_ORDER_NORMAL == 0,
+                      "unexpected value for NS_STYLE_PAINT_ORDER_NORMAL");
     value.SetIntValue(static_cast<int32_t>(order), eCSSUnit_Enumerated);
   }
 

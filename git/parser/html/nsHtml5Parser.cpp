@@ -4,15 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsHtml5Parser.h"
-
-#include "mozilla/AutoRestore.h"
-#include "nsContentUtils.h" // for kLoadAsData
+#include "nsContentUtils.h"
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
+#include "nsHtml5Parser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5DependentUTF16Buffer.h"
-#include "nsIInputStreamChannel.h"
 
 NS_INTERFACE_TABLE_HEAD(nsHtml5Parser)
   NS_INTERFACE_TABLE2(nsHtml5Parser, nsIParser, nsISupportsWeakReference)
@@ -21,8 +18,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHtml5Parser)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHtml5Parser)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5Parser)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5Parser)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mExecutor)
@@ -218,9 +213,6 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     // This is the first document.write() on a document.open()ed document
     mExecutor->SetParser(this);
     mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
-
-    mTreeBuilder->setIsSrcdocDocument(IsSrcdocDocument());
-
     mTokenizer->start();
     mExecutor->Start();
     if (!aContentType.EqualsLiteral("text/html")) {
@@ -682,9 +674,6 @@ nsHtml5Parser::Initialize(nsIDocument* aDoc,
 
 void
 nsHtml5Parser::StartTokenizer(bool aScriptingEnabled) {
-
-  mTreeBuilder->setIsSrcdocDocument(IsSrcdocDocument());
-
   mTreeBuilder->SetPreventScriptExecution(!aScriptingEnabled);
   mTreeBuilder->setScriptingEnabled(aScriptingEnabled);
   mTokenizer->start();
@@ -708,21 +697,3 @@ nsHtml5Parser::ContinueAfterFailedCharsetSwitch()
     "Tried to continue after failed charset switch without a stream parser");
   mStreamParser->ContinueAfterFailedCharsetSwitch();
 }
-
-bool
-nsHtml5Parser::IsSrcdocDocument()
-{
-  nsresult rv;
-
-  bool isSrcdoc = false;
-  nsCOMPtr<nsIChannel> channel;
-  rv = GetChannel(getter_AddRefs(channel));
-  if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIInputStreamChannel> isr = do_QueryInterface(channel);
-    if (isr) {
-      isr->GetIsSrcdocChannel(&isSrcdoc);
-    }
-  }
-  return isSrcdoc;
-}
-

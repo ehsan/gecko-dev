@@ -144,41 +144,23 @@ const DEFAULT_SNIPPETS_URLS = [
 
 const SNIPPETS_UPDATE_INTERVAL_MS = 86400000; // 1 Day.
 
-// IndexedDB storage constants.
-const DATABASE_NAME = "abouthome";
-const DATABASE_VERSION = 1;
-const SNIPPETS_OBJECTSTORE_NAME = "snippets";
-
-// This global tracks if the page has been set up before, to prevent double inits
-let gInitialized = false;
 let gObserver = new MutationObserver(function (mutations) {
   for (let mutation of mutations) {
     if (mutation.attributeName == "searchEngineURL") {
+      gObserver.disconnect();
       setupSearchEngine();
-      if (!gInitialized) {
-        ensureSnippetsMapThen(loadSnippets);
-        gInitialized = true;
-      }
+      ensureSnippetsMapThen(loadSnippets);
       return;
     }
   }
 });
 
-window.addEventListener("pageshow", function () {
+window.addEventListener("load", function () {
   // Delay search engine setup, cause browser.js::BrowserOnAboutPageLoad runs
   // later and may use asynchronous getters.
   window.gObserver.observe(document.documentElement, { attributes: true });
   fitToWidth();
   window.addEventListener("resize", fitToWidth);
-
-  // Ask chrome to update snippets.
-  var event = new CustomEvent("AboutHomeLoad", {bubbles:true});
-  document.dispatchEvent(event);
-});
-
-window.addEventListener("pagehide", function() {
-  window.gObserver.disconnect();
-  window.removeEventListener("resize", fitToWidth);
 });
 
 // This object has the same interface as Map and is used to store and retrieve
@@ -209,87 +191,40 @@ function ensureSnippetsMapThen(aCallback)
     return;
   }
 
-  let invokeCallbacks = function () {
-    if (!gSnippetsMap) {
-      gSnippetsMap = Object.freeze(new Map());
+  // TODO (bug 789348): use a real asynchronous storage here.  This setTimeout
+  // is done just to catch bugs with the asynchronous behavior.
+  setTimeout(function() {
+    // Populate the cache from the persistent storage.
+    let cache = new Map();
+    for (let key of [ "snippets-last-update",
+                      "snippets-cached-version",
+                      "snippets" ]) {
+      cache.set(key, localStorage[key]);
     }
+
+    gSnippetsMap = Object.freeze({
+      get: function (aKey) cache.get(aKey),
+      set: function (aKey, aValue) {
+        localStorage[aKey] = aValue;
+        return cache.set(aKey, aValue);
+      },
+      has: function(aKey) cache.has(aKey),
+      delete: function(aKey) {
+        delete localStorage[aKey];
+        return cache.delete(aKey);
+      },
+      clear: function() {
+        localStorage.clear();
+        return cache.clear();
+      },
+      get size() cache.size
+    });
 
     for (let callback of gSnippetsMapCallbacks) {
       callback(gSnippetsMap);
     }
     gSnippetsMapCallbacks.length = 0;
-  }
-
-  let openRequest = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-
-  openRequest.onerror = function (event) {
-    // Try to delete the old database so that we can start this process over
-    // next time.
-    indexedDB.deleteDatabase(DATABASE_NAME);
-    invokeCallbacks();
-  };
-
-  openRequest.onupgradeneeded = function (event) {
-    let db = event.target.result;
-    if (!db.objectStoreNames.contains(SNIPPETS_OBJECTSTORE_NAME)) {
-      db.createObjectStore(SNIPPETS_OBJECTSTORE_NAME);
-    }
-  }
-
-  openRequest.onsuccess = function (event) {
-    let db = event.target.result;
-
-    db.onerror = function (event) {
-      invokeCallbacks();
-    }
-
-    db.onversionchange = function (event) {
-      event.target.close();
-      invokeCallbacks();
-    }
-
-    let cache = new Map();
-    let cursorRequest = db.transaction(SNIPPETS_OBJECTSTORE_NAME)
-                          .objectStore(SNIPPETS_OBJECTSTORE_NAME).openCursor();
-    cursorRequest.onerror = function (event) {
-      invokeCallbacks();
-    }
-
-    cursorRequest.onsuccess = function(event) {
-      let cursor = event.target.result;
-
-      // Populate the cache from the persistent storage.
-      if (cursor) {
-        cache.set(cursor.key, cursor.value);
-        cursor.continue();
-        return;
-      }
-
-      // The cache has been filled up, create the snippets map.
-      gSnippetsMap = Object.freeze({
-        get: function (aKey) cache.get(aKey),
-        set: function (aKey, aValue) {
-          db.transaction(SNIPPETS_OBJECTSTORE_NAME, "readwrite")
-            .objectStore(SNIPPETS_OBJECTSTORE_NAME).put(aValue, aKey);
-          return cache.set(aKey, aValue);
-        },
-        has: function (aKey) cache.has(aKey),
-        delete: function (aKey) {
-          db.transaction(SNIPPETS_OBJECTSTORE_NAME, "readwrite")
-            .objectStore(SNIPPETS_OBJECTSTORE_NAME).delete(aKey);
-          return cache.delete(aKey);
-        },
-        clear: function () {
-          db.transaction(SNIPPETS_OBJECTSTORE_NAME, "readwrite")
-            .objectStore(SNIPPETS_OBJECTSTORE_NAME).clear();
-          return cache.clear();
-        },
-        get size() cache.size
-      });
-
-      setTimeout(invokeCallbacks, 0);
-    }
-  }
+  }, 0);
 }
 
 function onSearchSubmit(aEvent)
@@ -298,6 +233,13 @@ function onSearchSubmit(aEvent)
   let searchURL = document.documentElement.getAttribute("searchEngineURL");
 
   if (searchURL && searchTerms.length > 0) {
+    const SEARCH_TOKENS = {
+      "_searchTerms_": encodeURIComponent(searchTerms)
+    }
+    for (let key in SEARCH_TOKENS) {
+      searchURL = searchURL.replace(key, SEARCH_TOKENS[key]);
+    }
+
     // Send an event that a search was performed. This was originally
     // added so Firefox Health Report could record that a search from
     // about:home had occurred.
@@ -305,42 +247,7 @@ function onSearchSubmit(aEvent)
     let event = new CustomEvent("AboutHomeSearchEvent", {detail: engineName});
     document.dispatchEvent(event);
 
-    const SEARCH_TOKEN = "_searchTerms_";
-    let searchPostData = document.documentElement.getAttribute("searchEnginePostData");
-    if (searchPostData) {
-      // Check if a post form already exists. If so, remove it.
-      const POST_FORM_NAME = "searchFormPost";
-      let form = document.forms[POST_FORM_NAME];
-      if (form) {
-        form.parentNode.removeChild(form);
-      }
-
-      // Create a new post form.
-      form = document.body.appendChild(document.createElement("form"));
-      form.setAttribute("name", POST_FORM_NAME);
-      // Set the URL to submit the form to.
-      form.setAttribute("action", searchURL.replace(SEARCH_TOKEN, searchTerms));
-      form.setAttribute("method", "post");
-
-      // Create new <input type=hidden> elements for search param.
-      searchPostData = searchPostData.split("&");
-      for (let postVar of searchPostData) {
-        let [name, value] = postVar.split("=");
-        if (value == SEARCH_TOKEN) {
-          value = searchTerms;
-        }
-        let input = document.createElement("input");
-        input.setAttribute("type", "hidden");
-        input.setAttribute("name", name);
-        input.setAttribute("value", value);
-        form.appendChild(input);
-      }
-      // Submit the form.
-      form.submit();
-   } else {
-      searchURL = searchURL.replace(SEARCH_TOKEN, encodeURIComponent(searchTerms));
-      window.location.href = searchURL;
-    }
+    window.location.href = searchURL;
   }
 
   aEvent.preventDefault();

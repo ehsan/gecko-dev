@@ -7,7 +7,7 @@
 #ifndef MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 #define MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "gfxASurface.h"
 #include "GLDefs.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
@@ -18,9 +18,7 @@ namespace layers {
 class CompositableClient;
 class TextureFactoryIdentifier;
 class SurfaceDescriptor;
-class SurfaceDescriptorTiles;
 class ThebesBufferData;
-class DeprecatedTextureClient;
 class TextureClient;
 class BasicTiledLayerBuffer;
 
@@ -37,12 +35,10 @@ class BasicTiledLayerBuffer;
 class CompositableForwarder : public ISurfaceAllocator
 {
   friend class AutoOpenSurface;
-  friend class DeprecatedTextureClientShmem;
+  friend class TextureClientShmem;
 public:
-  typedef gfxASurface::gfxContentType gfxContentType;
-
   CompositableForwarder()
-    : mMultiProcess(false)
+  : mMaxTextureSize(0), mCompositorBackend(layers::LAYERS_NONE)
   {}
 
   /**
@@ -72,21 +68,13 @@ public:
                                    const SurfaceDescriptor* aBackDescriptorOnWhite = nullptr) = 0;
 
   /**
-   * Notify the CompositableHost that it should create host-side-only
-   * texture(s), that we will update incrementally using UpdateTextureIncremental.
-   */
-  virtual void CreatedIncrementalBuffer(CompositableClient* aCompositable,
-                                        const TextureInfo& aTextureInfo,
-                                        const nsIntRect& aBufferRect) = 0;
-
-  /**
    * Tell the compositor that a Compositable is killing its buffer(s),
    * that is TextureClient/Hosts.
    */
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) = 0;
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTiledDescriptor) = 0;
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) = 0;
 
   /**
    * Communicate to the compositor that the texture identified by aCompositable
@@ -112,23 +100,6 @@ public:
                                    const nsIntRegion& aUpdatedRegion) = 0;
 
   /**
-   * Notify the compositor to update aTextureId using aDescriptor, and take
-   * ownership of aDescriptor.
-   *
-   * aDescriptor only contains the pixels for aUpdatedRegion, and is relative
-   * to aUpdatedRegion.TopLeft().
-   *
-   * aBufferRect/aBufferRotation define the new valid region contained
-   * within the texture after the update has been applied.
-   */
-  virtual void UpdateTextureIncremental(CompositableClient* aCompositable,
-                                        TextureIdentifier aTextureId,
-                                        SurfaceDescriptor& aDescriptor,
-                                        const nsIntRegion& aUpdatedRegion,
-                                        const nsIntRect& aBufferRect,
-                                        const nsIntPoint& aBufferRotation) = 0;
-
-  /**
    * Communicate the picture rect of a YUV image in aLayer to the compositor
    */
   virtual void UpdatePictureRect(CompositableClient* aCompositable,
@@ -144,48 +115,12 @@ public:
    */
   virtual void DestroyedThebesBuffer(const SurfaceDescriptor& aBackBufferToDestroy) = 0;
 
-  /**
-   * Tell the compositor side to create a TextureHost that corresponds to
-   * aClient.
-   */
-  virtual void AddTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) = 0;
-
-  /**
-   * Tell the compositor side to delete the TextureHost corresponding to
-   * aTextureID.
-   * By default the shared Data is deallocated along with the TextureHost, but
-   * this behaviour can be overriden by the TextureFlags passed here.
-   * XXX - This is kind of bad, but for now we have to do this, because of some
-   * edge cases caused by the lifetime of the TextureHost being limited by the
-   * lifetime of the CompositableHost. We should be able to remove this flags
-   * parameter when we remove the lifetime constraint.
-   */
-  virtual void RemoveTexture(CompositableClient* aCompositable,
-                             uint64_t aTextureID,
-                             TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) = 0;
-
-  /**
-   * Tell the CompositableHost on the compositor side what texture to use for
-   * the next composition.
-   */
-  virtual void UseTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) = 0;
-
-  /**
-   * Tell the compositor side that the shared data has been modified so that
-   * it can react accordingly (upload textures, etc.).
-   */
-  virtual void UpdatedTexture(CompositableClient* aCompositable,
-                              TextureClient* aTexture,
-                              nsIntRegion* aRegion) = 0;
-
   void IdentifyTextureHost(const TextureFactoryIdentifier& aIdentifier);
 
   /**
    * Returns the maximum texture size supported by the compositor.
    */
-  virtual int32_t GetMaxTextureSize() const { return mTextureFactoryIdentifier.mMaxTextureSize; }
+  virtual int32_t GetMaxTextureSize() const { return mMaxTextureSize; }
 
   bool IsOnCompositorSide() const MOZ_OVERRIDE { return false; }
 
@@ -196,27 +131,12 @@ public:
    */
   LayersBackend GetCompositorBackendType() const
   {
-    return mTextureFactoryIdentifier.mParentBackend;
-  }
-
-  bool SupportsTextureBlitting() const
-  {
-    return mTextureFactoryIdentifier.mSupportsTextureBlitting;
-  }
-
-  bool SupportsPartialUploads() const
-  {
-    return mTextureFactoryIdentifier.mSupportsPartialUploads;
-  }
-
-  bool ForwardsToDifferentProcess() const
-  {
-    return mMultiProcess;
+    return mCompositorBackend;
   }
 
 protected:
-  TextureFactoryIdentifier mTextureFactoryIdentifier;
-  bool mMultiProcess;
+  uint32_t mMaxTextureSize;
+  LayersBackend mCompositorBackend;
 };
 
 } // namespace

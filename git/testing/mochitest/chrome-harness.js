@@ -82,6 +82,7 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
 
   var base = "content/" + aDir + "/";
 
+  var singleTestPath;
   if (aTestPath) {
     var extraPath = aTestPath;
     var pathToCheck = base + aTestPath;
@@ -90,21 +91,21 @@ function getMochitestJarListing(aBasePath, aTestPath, aDir)
       if (pathEntry.isDirectory) {
         base = pathToCheck;
       } else {
-        var singleTestPath = basePath + '/' + base + aTestPath;
+        singleTestPath = basePath + '/' + base + aTestPath;
         var singleObject = {};
         singleObject[singleTestPath] = true;
-        return singleObject;
+        return [singleObject, singleTestPath];
       }
     }
     else if (zReader.hasEntry(pathToCheck + "/")) {
       base = pathToCheck + "/";
     }
     else {
-      return null;
+      return [];
     }
   }
   var [links, count] = zList(base, zReader, basePath, true);
-  return links;
+  return [links, null];
 }
 
 /*
@@ -165,16 +166,13 @@ function getFileListing(basePath, testPath, dir, srvScope)
   chromeDir.appendRelativePath(dir);
   basePath += '/' + dir;
 
-  if (testPath == "false" || testPath == false) {
-    testPath = "";
-  }
-
   var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
   var testsDirURI = ioSvc.newFileURI(chromeDir);
   var testsDir = ioSvc.newURI(testPath, null, testsDirURI)
                   .QueryInterface(Components.interfaces.nsIFileURL).file;
 
+  var singleTestPath;
   if (testPath != undefined) {
     var extraPath = testPath;
     
@@ -182,24 +180,24 @@ function getFileListing(basePath, testPath, dir, srvScope)
 
     // Invalid testPath...
     if (!testsDir.exists())
-      return null;
+      return [];
 
     if (testsDir.isFile()) {
-      if (fileNameRegexp.test(testsDir.leafName)) {
+      if (fileNameRegexp.test(testsDir.leafName))
         var singlePath = basePath + '/' + testPath;
         var links = {};
         links[singlePath] = true;
-        return links;
-      }
+        return [links, null];
+
       // We were passed a file that's not a test...
-      return null;
+      return [];
     }
 
     // otherwise, we were passed a directory of tests
     basePath += "/" + testPath;
   }
   var [links, count] = srvScope.list(basePath, testsDir, true);
-  return links;
+  return [links, null];
 }
 
 
@@ -326,13 +324,11 @@ function buildRelativePath(jarentryname, destdir, basepath)
   return targetFile;
 }
 
-function readConfig(filename) {
-  filename = filename || "testConfig.js";
-
+function readConfig() {
   var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"].
                     getService(Components.interfaces.nsIProperties);
   var configFile = fileLocator.get("ProfD", Components.interfaces.nsIFile);
-  configFile.append(filename);
+  configFile.append("testConfig.js");
 
   if (!configFile.exists())
     return {};
@@ -346,29 +342,10 @@ function readConfig(filename) {
   return JSON.parse(str);
 }
 
-function registerTests() {
-  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"].
-                 getService(Components.interfaces.nsIProperties).
-                 get("ProfD", Components.interfaces.nsILocalFile);
-  testsURI.append("tests.manifest");
-  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-  var manifestFile = ioSvc.newFileURI(testsURI).
-                     QueryInterface(Components.interfaces.nsIFileURL).file;
-
-  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
-                     autoRegister(manifestFile);
-}
-
-function getTestList(params, callback) {
-  registerTests();
-
-  var baseurl = 'chrome://mochitests/content';
+function getTestList() {
+  var params = {};
   if (window.parseQueryString) {
     params = parseQueryString(location.search.substring(1), true);
-  }
-  if (!params.baseurl) {
-    params.baseurl = baseurl;
   }
 
   var config = readConfig();
@@ -382,23 +359,33 @@ function getTestList(params, callback) {
     }
   }
   params = config;
-  if (params.manifestFile) {
-    getTestManifest("http://mochi.test:8888/" + params.manifestFile, params, callback);
-    return;
-  }
 
-  var links = {};
+  var baseurl = 'chrome://mochitests/content';
+  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"]
+                      .getService(Components.interfaces.nsIProperties)
+                      .get("ProfD", Components.interfaces.nsILocalFile);
+  testsURI.append("tests.manifest");
+  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
+              getService(Components.interfaces.nsIIOService);
+  var manifestFile = ioSvc.newFileURI(testsURI)
+                  .QueryInterface(Components.interfaces.nsIFileURL).file;
+
+  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
+    autoRegister(manifestFile);
+
   // load server.js in so we can share template functions
   var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                        getService(Ci.mozIJSSubScriptLoader);
   var srvScope = {};
   scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
                              srvScope);
+  var singleTestPath;
+  var links;
 
   if (getResolvedURI(baseurl).JARFile) {
-    links = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
+    [links, singleTestPath] = getMochitestJarListing(baseurl, params.testPath, params.testRoot);
   } else {
-    links = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
+    [links, singleTestPath] = getFileListing(baseurl, params.testPath, params.testRoot, srvScope);
   }
-  callback(links);
+  return [links, singleTestPath];
 }

@@ -26,3 +26,4 @@ SkFixed SkCordicTan(SkFixed a);
 #endif
 
 #endif // SkCordic
+

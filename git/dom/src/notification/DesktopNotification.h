@@ -46,14 +46,10 @@ public:
 
   DesktopNotificationCenter(nsPIDOMWindow *aWindow)
   {
-    MOZ_ASSERT(aWindow);
     mOwner = aWindow;
 
-    nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
-    MOZ_ASSERT(sop);
-
-    mPrincipal = sop->GetPrincipal();
-    MOZ_ASSERT(mPrincipal);
+    // Grab the uri of the document
+    mPrincipal = mOwner->GetDoc()->NodePrincipal();
 
     SetIsDOMBinding();
   }
@@ -160,7 +156,7 @@ class DesktopNotificationRequest : public nsIContentPermissionRequest,
   DesktopNotificationRequest(DesktopNotification* notification)
     : mDesktopNotification(notification) {}
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     nsCOMPtr<nsIContentPermissionPrompt> prompt =
       do_CreateInstance(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
@@ -174,7 +170,7 @@ class DesktopNotificationRequest : public nsIContentPermissionRequest,
   {
   }
 
- virtual bool Recv__delete__(const bool& allow) MOZ_OVERRIDE
+ bool Recv__delete__(const bool& allow)
  {
    if (allow)
      (void) Allow();
@@ -182,7 +178,7 @@ class DesktopNotificationRequest : public nsIContentPermissionRequest,
      (void) Cancel();
    return true;
  }
- virtual void IPDLRelease() MOZ_OVERRIDE { Release(); }
+ void IPDLRelease() { Release(); }
 
   nsRefPtr<DesktopNotification> mDesktopNotification;
 };

@@ -19,8 +19,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
 #include "nsDocElementCreatedNotificationRunner.h"
-#include "mozilla/Services.h"
-#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -35,9 +33,9 @@ MediaDocumentStreamListener::~MediaDocumentStreamListener()
 }
 
 
-NS_IMPL_ISUPPORTS2(MediaDocumentStreamListener,
-                   nsIRequestObserver,
-                   nsIStreamListener)
+NS_IMPL_THREADSAFE_ISUPPORTS2(MediaDocumentStreamListener,
+                              nsIRequestObserver,
+                              nsIStreamListener)
 
 
 void
@@ -168,8 +166,12 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   NS_ENSURE_TRUE(docShell, NS_OK); 
 
   nsAutoCString charset;
-  // opening in a new tab
-  docShell->GetParentCharset(charset);
+
+  nsCOMPtr<nsIAtom> csAtom;
+  docShell->GetParentCharset(getter_AddRefs(csAtom));
+  if (csAtom) {   // opening in a new tab
+    csAtom->ToUTF8String(charset);
+  }
 
   if (charset.IsEmpty() || charset.Equals("UTF-8")) {
     nsCOMPtr<nsIContentViewer> cv;

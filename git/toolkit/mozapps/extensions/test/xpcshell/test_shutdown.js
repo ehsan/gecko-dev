@@ -8,8 +8,7 @@ const IGNORE = ["escapeAddonURI", "shouldAutoUpdate", "getStartupChanges",
                 "addTypeListener", "removeTypeListener",
                 "addAddonListener", "removeAddonListener",
                 "addInstallListener", "removeInstallListener",
-                "addManagerListener", "removeManagerListener",
-                "mapURIToAddonID"];
+                "addManagerListener", "removeManagerListener"];
 
 const IGNORE_PRIVATE = ["AddonAuthor", "AddonCompatibilityOverride",
                         "AddonScreenshot", "AddonType", "startup", "shutdown",

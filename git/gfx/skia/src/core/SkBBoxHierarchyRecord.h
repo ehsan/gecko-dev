@@ -9,18 +9,16 @@
 #ifndef SkRTreeCanvas_DEFINED
 #define SkRTreeCanvas_DEFINED
 
-#include "SkBBoxHierarchy.h"
 #include "SkBBoxRecord.h"
 
 /**
  * This records bounding box information into an SkBBoxHierarchy, and clip/transform information
  * into an SkPictureStateTree to allow for efficient culling and correct playback of draws.
  */
-class SkBBoxHierarchyRecord : public SkBBoxRecord, public SkBBoxHierarchyClient {
+class SkBBoxHierarchyRecord : public SkBBoxRecord {
 public:
     /** This will take a ref of h */
-    SkBBoxHierarchyRecord(uint32_t recordFlags, SkBBoxHierarchy* h,
-                          SkDevice*);
+    SkBBoxHierarchyRecord(uint32_t recordFlags, SkBBoxHierarchy* h);
 
     virtual void handleBBox(const SkRect& bounds) SK_OVERRIDE;
 
@@ -44,15 +42,10 @@ public:
     virtual bool clipPath(const SkPath& path,
                           SkRegion::Op op = SkRegion::kIntersect_Op,
                           bool doAntiAlias = false) SK_OVERRIDE;
-    virtual bool clipRRect(const SkRRect& rrect,
-                           SkRegion::Op op = SkRegion::kIntersect_Op,
-                           bool doAntiAlias = false) SK_OVERRIDE;
-
-    // Implementation of the SkBBoxHierarchyClient interface
-    virtual bool shouldRewind(void* data) SK_OVERRIDE;
 
 private:
     typedef SkBBoxRecord INHERITED;
 };
 
 #endif
+

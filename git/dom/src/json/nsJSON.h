@@ -7,6 +7,7 @@
 #define nsJSON_h__
 
 #include "jsapi.h"
+#include "json.h"
 #include "nsIJSON.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -60,7 +61,8 @@ protected:
                           nsIInputStream* aStream,
                           int32_t aContentLength,
                           bool aNeedsConverter,
-                          JS::Value* aRetVal);
+                          JS::Value* aRetVal,
+                          DecodingMode mode = STRICT);
   nsCOMPtr<nsIURI> mURI;
 };
 
@@ -70,7 +72,8 @@ NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 class nsJSONListener : public nsIStreamListener
 {
 public:
-  nsJSONListener(JSContext *cx, JS::Value *rootVal, bool needsConverter);
+  nsJSONListener(JSContext *cx, JS::Value *rootVal, bool needsConverter,
+                 DecodingMode mode);
   virtual ~nsJSONListener();
 
   NS_DECL_ISUPPORTS
@@ -84,6 +87,7 @@ protected:
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;
   nsCString mSniffBuffer;
   nsTArray<PRUnichar> mBufferedChars;
+  DecodingMode mDecodingMode;
   nsresult ProcessBytes(const char* aBuffer, uint32_t aByteLength);
   nsresult ConsumeConverted(const char* aBuffer, uint32_t aByteLength);
   nsresult Consume(const PRUnichar *data, uint32_t len);

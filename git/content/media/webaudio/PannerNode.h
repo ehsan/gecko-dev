@@ -8,10 +8,12 @@
 #define PannerNode_h_
 
 #include "AudioNode.h"
+#include "AudioParam.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/dom/PannerNodeBinding.h"
 #include "ThreeDPoint.h"
 #include "mozilla/WeakPtr.h"
-#include "mozilla/Preferences.h"
 #include "WebAudioUtils.h"
 #include <set>
 
@@ -28,11 +30,8 @@ public:
   explicit PannerNode(AudioContext* aContext);
   virtual ~PannerNode();
 
-
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  virtual void DestroyMediaStream() MOZ_OVERRIDE;
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PannerNode, AudioNode)
@@ -43,29 +42,6 @@ public:
   }
   void SetPanningModel(PanningModelType aPanningModel)
   {
-    if (!Preferences::GetBool("media.webaudio.legacy.PannerNode")) {
-      // Do not accept the alternate enum values unless the legacy pref
-      // has been turned on.
-      switch (aPanningModel) {
-      case PanningModelType::_0:
-      case PanningModelType::_1:
-        // Do nothing in order to emulate setting an invalid enum value.
-        return;
-      default:
-        // Shut up the compiler warning
-        break;
-      }
-    }
-
-    // Handle the alternate enum values
-    switch (aPanningModel) {
-    case PanningModelType::_0: aPanningModel = PanningModelType::Equalpower; break;
-    case PanningModelType::_1: aPanningModel = PanningModelType::HRTF; break;
-    default:
-      // Shut up the compiler warning
-      break;
-    }
-
     mPanningModel = aPanningModel;
     SendInt32ParameterToStream(PANNING_MODEL, int32_t(mPanningModel));
   }
@@ -76,31 +52,6 @@ public:
   }
   void SetDistanceModel(DistanceModelType aDistanceModel)
   {
-    if (!Preferences::GetBool("media.webaudio.legacy.PannerNode")) {
-      // Do not accept the alternate enum values unless the legacy pref
-      // has been turned on.
-      switch (aDistanceModel) {
-      case DistanceModelType::_0:
-      case DistanceModelType::_1:
-      case DistanceModelType::_2:
-        // Do nothing in order to emulate setting an invalid enum value.
-        return;
-      default:
-        // Shut up the compiler warning
-        break;
-      }
-    }
-
-    // Handle the alternate enum values
-    switch (aDistanceModel) {
-    case DistanceModelType::_0: aDistanceModel = DistanceModelType::Linear; break;
-    case DistanceModelType::_1: aDistanceModel = DistanceModelType::Inverse; break;
-    case DistanceModelType::_2: aDistanceModel = DistanceModelType::Exponential; break;
-    default:
-      // Shut up the compiler warning
-      break;
-    }
-
     mDistanceModel = aDistanceModel;
     SendInt32ParameterToStream(DISTANCE_MODEL, int32_t(mDistanceModel));
   }

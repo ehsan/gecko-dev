@@ -24,7 +24,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsINetworkManager.h"
 #include "nsIRadioInterfaceLayer.h"
-#include "nsIDOMIccInfo.h"
 #include "nsIDOMMobileConnection.h"
 #include "nsJSUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -44,12 +43,12 @@ static const int kDefaultPeriod = 1000; // ms
 // While most methods of GonkGPSGeolocationProvider should only be
 // called from main thread, we deliberately put the Init and ShutdownGPS
 // methods off main thread to avoid blocking.
-NS_IMPL_ISUPPORTS3(GonkGPSGeolocationProvider,
-                   nsIGeolocationProvider,
-                   nsIRILDataCallback,
-                   nsISettingsServiceCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS3(GonkGPSGeolocationProvider,
+                              nsIGeolocationProvider,
+                              nsIRILDataCallback,
+                              nsISettingsServiceCallback)
 
-/* static */ GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton = nullptr;
+GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton;
 GpsCallbacks GonkGPSGeolocationProvider::mCallbacks = {
   sizeof(GpsCallbacks),
   LocationCallback,
@@ -295,8 +294,8 @@ GonkGPSGeolocationProvider::GetSingleton()
   if (!sSingleton)
     sSingleton = new GonkGPSGeolocationProvider();
 
-  nsRefPtr<GonkGPSGeolocationProvider> provider = sSingleton;
-  return provider.forget();
+  NS_ADDREF(sSingleton);
+  return sSingleton;
 }
 
 const GpsInterface*
@@ -323,12 +322,12 @@ GonkGPSGeolocationProvider::GetGPSInterface()
 int32_t
 GonkGPSGeolocationProvider::GetDataConnectionState()
 {
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return nsINetworkInterface::NETWORK_STATE_UNKNOWN;
   }
 
   int32_t state;
-  mRadioInterface->GetDataCallStateByType(NS_LITERAL_STRING("supl"), &state);
+  mRIL->GetDataCallStateByType(NS_LITERAL_STRING("supl"), &state);
   return state;
 }
 
@@ -376,7 +375,7 @@ GonkGPSGeolocationProvider::RequestDataConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
@@ -385,7 +384,7 @@ GonkGPSGeolocationProvider::RequestDataConnection()
     // We just get supl APN and make AGPS data connection state updated.
     RequestSettingValue("ril.supl.apn");
   } else {
-    mRadioInterface->SetupDataCallByType(NS_LITERAL_STRING("supl"));
+    mRIL->SetupDataCallByType(NS_LITERAL_STRING("supl"));
   }
 }
 
@@ -394,11 +393,11 @@ GonkGPSGeolocationProvider::ReleaseDataConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
-  mRadioInterface->DeactivateDataCallByType(NS_LITERAL_STRING("supl"));
+  mRIL->DeactivateDataCallByType(NS_LITERAL_STRING("supl"));
 }
 
 void
@@ -406,14 +405,14 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
   AGpsSetIDType type = AGPS_SETID_TYPE_NONE;
 
   nsCOMPtr<nsIRilContext> rilCtx;
-  mRadioInterface->GetRilContext(getter_AddRefs(rilCtx));
+  mRIL->GetRilContext(getter_AddRefs(rilCtx));
 
   if (rilCtx) {
     nsAutoString id;
@@ -423,7 +422,7 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
     }
 
     if (flags & AGPS_RIL_REQUEST_SETID_MSISDN) {
-      nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
+      nsCOMPtr<nsIDOMMozMobileICCInfo> iccInfo;
       rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
       if (iccInfo) {
         type = AGPS_SETID_TYPE_MSISDN;
@@ -441,12 +440,12 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface) {
+  if (!mRIL) {
     return;
   }
 
   nsCOMPtr<nsIRilContext> rilCtx;
-  mRadioInterface->GetRilContext(getter_AddRefs(rilCtx));
+  mRIL->GetRilContext(getter_AddRefs(rilCtx));
 
   AGpsRefLocation location;
 
@@ -454,7 +453,7 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
   location.type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
 
   if (rilCtx) {
-    nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
+    nsCOMPtr<nsIDOMMozMobileICCInfo> iccInfo;
     rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
     if (iccInfo) {
       nsresult result;
@@ -481,22 +480,8 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
       nsCOMPtr<nsIDOMMozMobileCellInfo> cell;
       voice->GetCell(getter_AddRefs(cell));
       if (cell) {
-        int32_t lac;
-        int64_t cid;
-
-        cell->GetGsmLocationAreaCode(&lac);
-        // The valid range of LAC is 0x0 to 0xffff which is defined in
-        // hardware/ril/include/telephony/ril.h
-        if (lac >= 0x0 && lac <= 0xffff) {
-          location.u.cellID.lac = lac;
-        }
-
-        cell->GetGsmCellId(&cid);
-        // The valid range of cell id is 0x0 to 0xffffffff which is defined in
-        // hardware/ril/include/telephony/ril.h
-        if (cid >= 0x0 && cid <= 0xffffffff) {
-          location.u.cellID.cid = cid;
-        }
+        cell->GetGsmLocationAreaCode(&location.u.cellID.lac);
+        cell->GetGsmCellId(&location.u.cellID.cid);
       }
     }
     if (mAGpsRilInterface) {
@@ -587,14 +572,9 @@ GonkGPSGeolocationProvider::SetupAGPS()
   }
 
   // Setup network state listener
-  nsCOMPtr<nsIRadioInterfaceLayer> ril = do_GetService("@mozilla.org/ril;1");
-  if (ril) {
-    // TODO: Bug 878748 - B2G GPS: acquire correct RadioInterface instance in
-    // MultiSIM configuration
-    ril->GetRadioInterface(0 /* clientId */, getter_AddRefs(mRadioInterface));
-    if (mRadioInterface) {
-      mRadioInterface->RegisterDataCallCallback(this);
-    }
+  mRIL = do_GetService("@mozilla.org/ril;1");
+  if (mRIL) {
+    mRIL->RegisterDataCallCallback(this);
   }
 
   return;
@@ -622,7 +602,7 @@ GonkGPSGeolocationProvider::Startup()
 }
 
 NS_IMETHODIMP
-GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback)
+GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback, bool aPrivate)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -640,8 +620,8 @@ GonkGPSGeolocationProvider::Shutdown()
   }
   mStarted = false;
 
-  if (mRadioInterface) {
-    mRadioInterface->UnregisterDataCallCallback(this);
+  if (mRIL) {
+    mRIL->UnregisterDataCallCallback(this);
   }
 
   mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownGPS),
@@ -699,6 +679,7 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
   if (aName.EqualsLiteral("ril.supl.apn")) {
     JSContext *cx = nsContentUtils::GetCurrentJSContext();
     NS_ENSURE_TRUE(cx, NS_OK);
+    JSAutoRequest ar(cx);
 
     // When we get the APN, we attempt to call data_call_open of AGPS.
     if (aResult.isString()) {

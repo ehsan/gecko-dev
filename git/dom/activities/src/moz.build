@@ -10,20 +10,3 @@ EXPORTS.mozilla.dom += [
     'Activity.h',
 ]
 
-CPP_SOURCES += [
-    'Activity.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'Activities.manifest',
-    'ActivityMessageConfigurator.js',
-    'ActivityOptions.js',
-    'ActivityProxy.js',
-    'ActivityRequestHandler.js',
-    'ActivityWrapper.js',
-]
-
-EXTRA_JS_MODULES += [
-    'ActivitiesService.jsm',
-    'ActivitiesServiceFilter.jsm',
-]

@@ -65,6 +65,13 @@ toolbarpaletteitem {
   background-color: #FFF !important;
 }
 
+toolbarpaletteitem[place="toolbar"] {
+  margin-left: -2px;
+  margin-right: -2px;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+}
+
 toolbarpaletteitem[place="toolbar"] > toolbarspacer {
   width: 11px;
 }
@@ -94,13 +101,6 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
 }
 
 /* ..... drag and drop feedback ..... */
-
-toolbarpaletteitem[place="toolbar"] {
-  margin-left: -2px;
-  margin-right: -2px;
-  border-left: 2px solid transparent;
-  border-right: 2px solid transparent;
-}
 
 toolbarpaletteitem[dragover="left"] {
   border-left-color: #000000;

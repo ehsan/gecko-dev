@@ -24,7 +24,7 @@ function testSteps()
     let request = indexedDB.open(name, ++j);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     let db = event.target.result;
 
@@ -45,19 +45,19 @@ function testSteps()
     request = objectStore.add(data);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     ok(event.target.result == 1 || event.target.result == 2, "Good id");
     db.close();
   }
 
   executeSoon(function() { testGenerator.next(); });
-  yield undefined;
+  yield;
 
   let request = indexedDB.open(name, j);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -73,11 +73,11 @@ function testSteps()
         is(event.target.result.value.name, "Ben", "Good object");
         executeSoon(function() { testGenerator.next(); });
       }
-      yield undefined;
+      yield;
     }
   }
 
   finishTest();
-  yield undefined;
+  yield;
 }
 

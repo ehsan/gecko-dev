@@ -8,9 +8,9 @@ let tempScope = {};
 Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
 let console = tempScope.console;
 Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js", tempScope);
-let promise = tempScope.Promise;
+let Promise = tempScope.Promise;
 
-let {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
+let {devtools} = Components.utils.import("resource:///modules/devtools/gDevTools.jsm", {});
 let TargetFactory = devtools.TargetFactory;
 
 /**
@@ -25,7 +25,7 @@ function addTab(aURL, aCallback)
     content.location = aURL;
   }
 
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   let tab = gBrowser.selectedTab;
   let target = TargetFactory.forTab(gBrowser.selectedTab);

@@ -6,9 +6,3 @@
 
 MODULE = 'windowsproxy'
 
-CPP_SOURCES += [
-    'nsWindowsSystemProxySettings.cpp',
-]
-
-LIBRARY_NAME = 'windowsproxy'
-

@@ -237,6 +237,8 @@ function optionsInit() {
   options.currvalues = {
     strict:     true,
     werror:     true,
+    methodjit:  true,
+    methodjit_always: true,
     strict_mode: true
   };
 
@@ -386,27 +388,31 @@ function jsTestDriverBrowserInit()
     // must have at least suitepath/subsuite/testcase.js
     return;
   }
+  var suitepath = testpathparts.slice(0,testpathparts.length-2).join('/');
+  var subsuite = testpathparts[testpathparts.length - 2];
+  var test     = testpathparts[testpathparts.length - 1];
 
-  document.write('<title>' + properties.test + '<\/title>');
+  document.write('<title>' + suitepath + '/' + subsuite + '/' + test + '<\/title>');
 
   // XXX bc - the first document.written script is ignored if the protocol
   // is file:. insert an empty script tag, to work around it.
   document.write('<script></script>');
 
-  // Output script tags for shell.js, then browser.js, at each level of the
-  // test path hierarchy.
-  var prepath = "";
-  var i = 0;
-  for (end = testpathparts.length - 1; i < end; i++) {
-    prepath += testpathparts[i] + "/";
-    outputscripttag(prepath + "shell.js", properties);
-    outputscripttag(prepath + "browser.js", properties);
+  // Enable a test suite that has more than two levels of directories to
+  // provide browser.js and shell.js in its base directory.
+  // This assumes that suitepath is a relative path, as is the case in the
+  // try server environment. Absolute paths are not allowed.
+  if (suitepath.indexOf('/') !== -1) {
+    var base = suitepath.slice(0, suitepath.indexOf('/'));
+    outputscripttag(base + '/shell.js', properties);
+    outputscripttag(base + '/browser.js', properties);
   }
 
-  // Output the test script itself.
-  outputscripttag(prepath + testpathparts[i], properties);
-
-  // Finally output the driver-end script to advance to the next test.
+  outputscripttag(suitepath + '/shell.js', properties);
+  outputscripttag(suitepath + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/shell.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/' + test, properties);
   outputscripttag('js-test-driver-end.js', properties);
   return;
 }

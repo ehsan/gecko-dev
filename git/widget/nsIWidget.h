@@ -8,16 +8,20 @@
 
 #include "nsISupports.h"
 #include "nsColor.h"
+#include "nsCoord.h"
 #include "nsRect.h"
+#include "nsPoint.h"
+#include "nsStringGlue.h"
 
+#include "prthread.h"
 #include "nsEvent.h"
 #include "nsCOMPtr.h"
+#include "nsITheme.h"
+#include "nsNativeWidget.h"
 #include "nsWidgetInitData.h"
-#include "nsString.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/LayersTypes.h"
-#include "mozilla/RefPtr.h"
 
 // forward declarations
 class   nsFontMetrics;
@@ -43,9 +47,6 @@ class CompositorChild;
 class LayerManager;
 class PLayerTransactionChild;
 }
-namespace gfx {
-class DrawTarget;
-}
 }
 
 /**
@@ -59,11 +60,6 @@ class DrawTarget;
  * place.
  */
 typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
-
-// Hide the native window system's real window type so as to avoid
-// including native window system types and APIs. This is necessary
-// to ensure cross-platform code.
-typedef void* nsNativeWidget;
 
 /**
  * Flags for the getNativeData function.
@@ -96,8 +92,8 @@ typedef void* nsNativeWidget;
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x1ebdb596, 0x0f90, 0x4f02, \
-  { 0x97, 0x07, 0x4e, 0xc1, 0x16, 0xcd, 0x54, 0xf6 } }
+{ 0x37b67cb4, 0x140c, 0x4d46, \
+  { 0xa9, 0xf8, 0x28, 0xcc, 0x08, 0x3d, 0x1f, 0x54 } }
 
 /*
  * Window shadow styles
@@ -109,17 +105,6 @@ typedef void* nsNativeWidget;
 #define NS_STYLE_WINDOW_SHADOW_MENU             2
 #define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
 #define NS_STYLE_WINDOW_SHADOW_SHEET            4
-
-/**
- * Transparency modes
- */
-
-enum nsTransparencyMode {
-  eTransparencyOpaque = 0,  // Fully opaque
-  eTransparencyTransparent, // Parts of the window may be transparent
-  eTransparencyGlass,       // Transparent parts of the window have Vista AeroGlass effect applied
-  eTransparencyBorderlessGlass // As above, but without a border around the opaque areas when there would otherwise be one with eTransparencyGlass
-};
 
 /**
  * Cursor types.
@@ -202,14 +187,13 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 /**
  * Preference for receiving IME updates
  *
- * If mWantUpdates is not NOTIFY_NOTHING, nsTextStateManager will observe text
- * change and/or selection change and call nsIWidget::NotifyIMEOfTextChange()
- * and/or nsIWidget::NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE).
- * Please note that the text change observing cost is very expensive especially
- * on an HTML editor has focus.
+ * If mWantUpdates is true, nsTextStateManager will observe text change and
+ * selection change and call nsIWidget::NotifyIMEOfTextChange() and
+ * nsIWidget::NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE). The observing cost is
+ * very expensive.
  * If the IME implementation on a particular platform doesn't care about
- * NotifyIMEOfTextChange() and/or NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE),
- * they should set mWantUpdates to NOTIFY_NOTHING to avoid the cost.
+ * NotifyIMEOfTextChange and NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE), they
+ * should set mWantUpdates to false to avoid the cost.
  *
  * If mWantHints is true, PuppetWidget will forward the content of text fields
  * to the chrome process to be cached. This way we return the cached content
@@ -220,25 +204,15 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
  */
 struct nsIMEUpdatePreference {
 
-  typedef int8_t Notifications;
-
-  enum
-  {
-    NOTIFY_NOTHING           = 0x0000,
-    NOTIFY_SELECTION_CHANGE  = 0x0001,
-    NOTIFY_TEXT_CHANGE       = 0x0002
-  };
-
   nsIMEUpdatePreference()
-    : mWantUpdates(NOTIFY_NOTHING), mWantHints(false)
+    : mWantUpdates(false), mWantHints(false)
   {
   }
-  nsIMEUpdatePreference(Notifications aWantUpdates, bool aWantHints)
+  nsIMEUpdatePreference(bool aWantUpdates, bool aWantHints)
     : mWantUpdates(aWantUpdates), mWantHints(aWantHints)
   {
   }
-
-  Notifications mWantUpdates;
+  bool mWantUpdates;
   bool mWantHints;
 };
 
@@ -331,11 +305,6 @@ struct IMEState {
 
 struct InputContext {
   InputContext() : mNativeIMEContext(nullptr) {}
-
-  bool IsPasswordEditor() const
-  {
-    return mHTMLInputType.LowerCaseEqualsLiteral("password");
-  }
 
   IMEState mIMEState;
 
@@ -1219,31 +1188,6 @@ class nsIWidget : public nsISupports {
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) = 0;
 
     /**
-     * Return a DrawTarget for the window which can be composited into.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * before each composition.
-     */
-    virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing() = 0;
-
-    /**
-     * Ensure that what was painted into the DrawTarget returned from
-     * StartRemoteDrawing reaches the screen.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * after each composition.
-     */
-    virtual void EndRemoteDrawing() = 0;
-
-    /**
-     * Clean up any resources used by Start/EndRemoteDrawing.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * when the compositor is destroyed.
-     */
-    virtual void CleanupRemoteDrawing() = 0;
-
-    /**
      * Called when Gecko knows which themed widgets exist in this window.
      * The passed array contains an entry for every themed widget of the right
      * type (currently only NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR and
@@ -1365,6 +1309,24 @@ class nsIWidget : public nsISupports {
      * included, including those not targeted at this nsIwidget instance.
      */
     virtual bool HasPendingInputEvent() = 0;
+
+    /**
+     * Called when when we need to begin secure keyboard input, such as when a password field
+     * gets focus.
+     *
+     * NOTE: Calls to this method may not be nested and you can only enable secure keyboard input
+     * for one widget at a time.
+     */
+    NS_IMETHOD BeginSecureKeyboardInput() = 0;
+
+    /**
+     * Called when when we need to end secure keyboard input, such as when a password field
+     * loses focus.
+     *
+     * NOTE: Calls to this method may not be nested and you can only enable secure keyboard input
+     * for one widget at a time.
+     */
+    NS_IMETHOD EndSecureKeyboardInput() = 0;
 
     /**
      * Set the background color of the window titlebar for this widget. On Mac,
@@ -1697,6 +1659,13 @@ class nsIWidget : public nsISupports {
     }
 
     /**
+     * This function is called by nsViewManager right before the retained layer 
+     * tree for this widget is about to be updated, and any required
+     * ThebesLayer painting occurs.
+     */
+    virtual void WillPaint() { }
+
+    /**
      * Get the natural bounds of this widget.  This method is only
      * meaningful for widgets for which Gecko implements screen
      * rotation natively.  When this is the case, GetBounds() returns
@@ -1756,13 +1725,6 @@ class nsIWidget : public nsISupports {
      */
     virtual Composer2D* GetComposer2D()
     { return nullptr; }
-
-    /**
-     * Some platforms (only cocoa right now) round widget coordinates to the
-     * nearest even pixels (see bug 892994), this function allows us to
-     * determine how widget coordinates will be rounded.
-     */
-    virtual int32_t RoundsWidgetCoordinatesTo() { return 1; }
 
 protected:
     /**

@@ -5,20 +5,17 @@
 
 let Cc = Components.classes;
 let Ci = Components.interfaces;
-let Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
-                                  "resource://gre/modules/FormHistory.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 function dump(a) {
-  Services.console.logStringMessage(a);
+  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
 }
 
 function sendMessageToJava(aMessage) {
-  return Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
+  return Cc["@mozilla.org/android/bridge;1"]
+           .getService(Ci.nsIAndroidBridge)
+           .handleGeckoMessage(JSON.stringify(aMessage));
 }
 
 this.EXPORTED_SYMBOLS = ["Sanitizer"];
@@ -52,16 +49,8 @@ function Sanitizer() {}
 Sanitizer.prototype = {
   clearItem: function (aItemName)
   {
-    let item = this.items[aItemName];
-    let canClear = item.canClear;
-    if (typeof canClear == "function") {
-      canClear(function clearCallback(aCanClear) {
-        if (aCanClear)
-          item.clear();
-      });
-    } else if (canClear) {
-      item.clear();
-    }
+    if (this.items[aItemName].canClear)
+      this.items[aItemName].clear();
   },
 
   items: {
@@ -90,6 +79,12 @@ Sanitizer.prototype = {
       clear: function ()
       {
         Services.cookies.removeAll();
+
+        // clear any network geolocation provider sessions
+        try {
+          var branch = Services.prefs.getBranch("geo.wifi.access_token.");
+          branch.deleteBranch("");
+        } catch (e) {dump(e);}
       },
 
       get canClear()
@@ -112,7 +107,7 @@ Sanitizer.prototype = {
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager
         var hosts = Services.logins.getAllDisabledHosts({})
-        for (var host of hosts) {
+        for each (var host in hosts) {
           Services.logins.setLoginSavingEnabled(host, true);
         }
       },
@@ -176,18 +171,14 @@ Sanitizer.prototype = {
           }
         }
 
-        FormHistory.update({ op: "remove" });
+        var formHistory = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
+        formHistory.removeAllEntries();
       },
 
-      canClear: function (aCallback)
+      get canClear()
       {
-        let count = 0;
-        let countDone = {
-          handleResult: function(aResult) { count = aResult; },
-          handleError: function(aError) { Cu.reportError(aError); },
-          handleCompletion: function(aReason) { aCallback(aReason == 0 && count > 0); }
-        };
-        FormHistory.count({}, countDone);
+        var formHistory = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
+        return formHistory.hasEntries;
       }
     },
 

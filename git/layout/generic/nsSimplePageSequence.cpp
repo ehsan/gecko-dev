@@ -56,6 +56,33 @@ GetLayoutPrintingLog()
 #define PR_PL(_p1)
 #endif
 
+// This object a shared by all the nsPageFrames 
+// parented to a SimplePageSequenceFrame
+nsSharedPageData::nsSharedPageData() :
+  mDateTimeStr(nullptr),
+  mHeadFootFont(nullptr),
+  mPageNumFormat(nullptr),
+  mPageNumAndTotalsFormat(nullptr),
+  mDocTitle(nullptr),
+  mDocURL(nullptr),
+  mReflowSize(0,0),
+  mReflowMargin(0,0,0,0),
+  mEdgePaperMargin(0,0,0,0),
+  mPageContentXMost(0),
+  mPageContentSize(0)
+{
+}
+
+nsSharedPageData::~nsSharedPageData()
+{
+  nsMemory::Free(mDateTimeStr);
+  delete mHeadFootFont;
+  nsMemory::Free(mPageNumFormat);
+  nsMemory::Free(mPageNumAndTotalsFormat);
+  if (mDocTitle) nsMemory::Free(mDocTitle);
+  if (mDocURL) nsMemory::Free(mDocURL);
+}
+
 nsIFrame*
 NS_NewSimplePageSequenceFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -78,9 +105,9 @@ nsSimplePageSequenceFrame::nsSimplePageSequenceFrame(nsStyleContext* aContext) :
   // XXX Unsafe to assume successful allocation
   mPageData = new nsSharedPageData();
   mPageData->mHeadFootFont =
-    *PresContext()->GetDefaultFont(kGenericFont_serif,
-                                   aContext->StyleFont()->mLanguage);
-  mPageData->mHeadFootFont.size = nsPresContext::CSSPointsToAppUnits(10);
+    new nsFont(*PresContext()->GetDefaultFont(kGenericFont_serif,
+                                              aContext->StyleFont()->mLanguage));
+  mPageData->mHeadFootFont->size = nsPresContext::CSSPointsToAppUnits(10);
 
   nsresult rv;
   mPageData->mPrintOptions = do_GetService(sPrintOptionsContractID, &rv);
@@ -280,7 +307,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
                                               kTimeFormatNoSeconds,
                                               ltime,
                                               formattedDateString))) {
-    SetDateTimeStr(formattedDateString);
+    PRUnichar * uStr = ToNewUnicode(formattedDateString);
+    SetDateTimeStr(uStr); // memory will be freed
   }
 
   // Return our desired size
@@ -366,14 +394,19 @@ nsSimplePageSequenceFrame::SetPageNumberFormat(const char* aPropName, const char
     pageNumberFormat.AssignASCII(aDefPropVal);
   }
 
-  SetPageNumberFormat(pageNumberFormat, aPageNumOnly);
+  // Sets the format into a static data member which will own the memory and free it
+  PRUnichar* uStr = ToNewUnicode(pageNumberFormat);
+  if (uStr != nullptr) {
+    SetPageNumberFormat(uStr, aPageNumOnly); // nsPageFrame will own the memory
+  }
+
 }
 
 NS_IMETHODIMP
-nsSimplePageSequenceFrame::StartPrint(nsPresContext*    aPresContext,
+nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
                                       nsIPrintSettings* aPrintSettings,
-                                      const nsAString&  aDocTitle,
-                                      const nsAString&  aDocURL)
+                                      PRUnichar*        aDocTitle,
+                                      PRUnichar*        aDocURL)
 {
   NS_ENSURE_ARG_POINTER(aPresContext);
   NS_ENSURE_ARG_POINTER(aPrintSettings);
@@ -382,12 +415,9 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*    aPresContext,
     mPageData->mPrintSettings = aPrintSettings;
   }
 
-  if (!aDocTitle.IsEmpty()) {
-    mPageData->mDocTitle = aDocTitle;
-  }
-  if (!aDocURL.IsEmpty()) {
-    mPageData->mDocURL = aDocURL;
-  }
+  // Only set them if they are not null
+  if (aDocTitle) mPageData->mDocTitle = aDocTitle;
+  if (aDocURL) mPageData->mDocURL   = aDocURL;
 
   aPrintSettings->GetStartPageRange(&mFromPageNum);
   aPrintSettings->GetEndPageRange(&mToPageNum);
@@ -439,7 +469,8 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*    aPresContext,
     }
   }
 
-  mPageNum = 1;
+  mPageNum          = 1;
+  mCurrentPageFrame = mFrames.FirstChild();
 
   if (mTotalPages == -1) {
     mTotalPages = totalPages;
@@ -509,6 +540,7 @@ nsSimplePageSequenceFrame::DetermineWhetherToPrintPage()
       mPrintThisPage = false;
     } else if (mPageNum > mToPageNum) {
       mPageNum++;
+      mCurrentPageFrame = nullptr;
       mPrintThisPage = false;
       return;
     } else {
@@ -545,25 +577,10 @@ nsSimplePageSequenceFrame::DetermineWhetherToPrintPage()
   }
 }
 
-nsIFrame*
-nsSimplePageSequenceFrame::GetCurrentPageFrame()
-{
-  int32_t i = 1;
-  for (nsFrameList::Enumerator childFrames(mFrames); !childFrames.AtEnd();
-       childFrames.Next()) {
-    if (i == mPageNum) {
-      return childFrames.get();
-    }
-    ++i;
-  }
-  return nullptr;
-}
-
 NS_IMETHODIMP
 nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* aDone)
 {
-  nsIFrame* currentPage = GetCurrentPageFrame();
-  if (!currentPage) {
+  if (!mCurrentPageFrame) {
     *aDone = true;
     return NS_ERROR_FAILURE;
   }
@@ -581,7 +598,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
   // process for all the canvas.
   if (!mCurrentCanvasListSetup) {
     mCurrentCanvasListSetup = true;
-    GetPrintCanvasElementsInFrame(currentPage, &mCurrentCanvasList);
+    GetPrintCanvasElementsInFrame(mCurrentPageFrame, &mCurrentCanvasList);
 
     if (mCurrentCanvasList.Length() != 0) {
       nsresult rv = NS_OK;
@@ -674,8 +691,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
   // print are 1 and then two (which is different than printing a page range, where
   // the page numbers would have been 2 and then 3)
 
-  nsIFrame* currentPage = GetCurrentPageFrame();
-  if (!currentPage) {
+  if (!mCurrentPageFrame) {
     return NS_ERROR_FAILURE;
   }
 
@@ -700,14 +716,14 @@ nsSimplePageSequenceFrame::PrintNextPage()
     height -= mMargin.top + mMargin.bottom;
     width  -= mMargin.left + mMargin.right;
     nscoord selectionY = height;
-    nsIFrame* conFrame = currentPage->GetFirstPrincipalChild();
+    nsIFrame* conFrame = mCurrentPageFrame->GetFirstPrincipalChild();
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
       nsContainerFrame::PositionChildViews(conFrame);
     }
 
     // cast the frame to be a page frame
-    nsPageFrame * pf = static_cast<nsPageFrame*>(currentPage);
+    nsPageFrame * pf = static_cast<nsPageFrame*>(mCurrentPageFrame);
     pf->SetPageNumInfo(mPageNum, mTotalPages);
     pf->SetSharedPageData(mPageData);
 
@@ -730,9 +746,10 @@ nsSimplePageSequenceFrame::PrintNextPage()
       dc->CreateRenderingContext(*getter_AddRefs(renderingContext));
       NS_ENSURE_TRUE(renderingContext, NS_ERROR_OUT_OF_MEMORY);
 
-      nsRect drawingRect(nsPoint(0, 0), currentPage->GetSize());
+      nsRect drawingRect(nsPoint(0, 0),
+                         mCurrentPageFrame->GetSize());
       nsRegion drawingRegion(drawingRect);
-      nsLayoutUtils::PaintFrame(renderingContext, currentPage,
+      nsLayoutUtils::PaintFrame(renderingContext, mCurrentPageFrame,
                                 drawingRegion, NS_RGBA(0,0,0,0),
                                 nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES);
 
@@ -767,6 +784,10 @@ nsSimplePageSequenceFrame::DoPageEnd()
   ResetPrintCanvasList();
 
   mPageNum++;
+
+  if (mCurrentPageFrame) {
+    mCurrentPageFrame = mCurrentPageFrame->GetNextSibling();
+  }
   
   return rv;
 }
@@ -797,7 +818,6 @@ nsSimplePageSequenceFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     while (child) {
       child->BuildDisplayListForStackingContext(aBuilder,
           child->GetVisualOverflowRectRelativeToSelf(), &content);
-      aBuilder->ResetMarkedFramesForDisplayList();
       child = child->GetNextSibling();
     }
   }
@@ -816,23 +836,34 @@ nsSimplePageSequenceFrame::GetType() const
 
 //------------------------------------------------------------------------------
 void
-nsSimplePageSequenceFrame::SetPageNumberFormat(const nsAString& aFormatStr, bool aForPageNumOnly)
+nsSimplePageSequenceFrame::SetPageNumberFormat(PRUnichar * aFormatStr, bool aForPageNumOnly)
 { 
+  NS_ASSERTION(aFormatStr != nullptr, "Format string cannot be null!");
   NS_ASSERTION(mPageData != nullptr, "mPageData string cannot be null!");
 
   if (aForPageNumOnly) {
+    if (mPageData->mPageNumFormat != nullptr) {
+      nsMemory::Free(mPageData->mPageNumFormat);
+    }
     mPageData->mPageNumFormat = aFormatStr;
   } else {
+    if (mPageData->mPageNumAndTotalsFormat != nullptr) {
+      nsMemory::Free(mPageData->mPageNumAndTotalsFormat);
+    }
     mPageData->mPageNumAndTotalsFormat = aFormatStr;
   }
 }
 
 //------------------------------------------------------------------------------
 void
-nsSimplePageSequenceFrame::SetDateTimeStr(const nsAString& aDateTimeStr)
+nsSimplePageSequenceFrame::SetDateTimeStr(PRUnichar * aDateTimeStr)
 { 
+  NS_ASSERTION(aDateTimeStr != nullptr, "DateTime string cannot be null!");
   NS_ASSERTION(mPageData != nullptr, "mPageData string cannot be null!");
 
+  if (mPageData->mDateTimeStr != nullptr) {
+    nsMemory::Free(mPageData->mDateTimeStr);
+  }
   mPageData->mDateTimeStr = aDateTimeStr;
 }
 

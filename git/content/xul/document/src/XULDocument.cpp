@@ -65,6 +65,8 @@
 #include "nsIObjectOutputStream.h"
 #include "nsContentList.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
@@ -89,7 +91,6 @@
 #include "mozilla/dom/XULDocumentBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
-#include "nsJSUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -313,8 +314,6 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
     return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(XULDocument)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(XULDocument, XMLDocument)
     NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
                  "Shouldn't traverse XULDocument!");
@@ -325,11 +324,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(XULDocument, XMLDocument)
     // document, so we'll traverse the table here instead of from the element.
     if (tmp->mTemplateBuilderTable)
         tmp->mTemplateBuilderTable->EnumerateRead(TraverseTemplateBuilders, &cb);
-
+        
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCurrentPrototype)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMasterPrototype)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCommandDispatcher)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrototypes);
+
+    uint32_t i, count = tmp->mPrototypes.Length();
+    for (i = 0; i < count; ++i) {
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypes[i]");
+        cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
+    }
+
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
@@ -352,10 +357,14 @@ NS_IMPL_RELEASE_INHERITED(XULDocument, XMLDocument)
 
 // QueryInterface implementation for XULDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(XULDocument)
-    NS_INTERFACE_TABLE_INHERITED5(XULDocument, nsIXULDocument,
-                                  nsIDOMXULDocument, nsIStreamLoaderObserver,
-                                  nsICSSLoaderObserver, nsIOffThreadScriptReceiver)
-NS_INTERFACE_TABLE_TAIL_INHERITING(XMLDocument)
+    NS_DOCUMENT_INTERFACE_TABLE_BEGIN(XULDocument)
+      NS_INTERFACE_TABLE_ENTRY(XULDocument, nsIXULDocument)
+      NS_INTERFACE_TABLE_ENTRY(XULDocument, nsIDOMXULDocument)
+      NS_INTERFACE_TABLE_ENTRY(XULDocument, nsIStreamLoaderObserver)
+      NS_INTERFACE_TABLE_ENTRY(XULDocument, nsICSSLoaderObserver)
+    NS_OFFSET_AND_INTERFACE_TABLE_END
+    NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_INTERFACE_MAP_END_INHERITING(XMLDocument)
 
 
 //----------------------------------------------------------------------
@@ -1212,6 +1221,13 @@ XULDocument::ResolveForwardReferences()
     return NS_OK;
 }
 
+NS_IMETHODIMP
+XULDocument::GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner)
+{
+    NS_IF_ADDREF(*aGlobalOwner = mMasterPrototype);
+    return NS_OK;
+}
+
 //----------------------------------------------------------------------
 //
 // nsIDOMDocument interface
@@ -1294,15 +1310,16 @@ XULDocument::Persist(const nsAString& aID,
     if (mApplyingPersistedAttrs)
         return NS_OK;
 
-    Element* element = nsDocument::GetElementById(aID);
-    if (!element)
+    nsresult rv;
+
+    nsIContent *element = nsDocument::GetElementById(aID);
+    if (! element)
         return NS_OK;
 
     nsCOMPtr<nsIAtom> tag;
     int32_t nameSpaceID;
 
     nsCOMPtr<nsINodeInfo> ni = element->GetExistingAttrNameFromQName(aAttr);
-    nsresult rv;
     if (ni) {
         tag = ni->NameAtom();
         nameSpaceID = ni->NamespaceID();
@@ -3463,6 +3480,7 @@ XULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, bool* aBlock)
     return NS_OK;
 }
 
+
 NS_IMETHODIMP
 XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
                               nsISupports* context,
@@ -3502,64 +3520,9 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
         return NS_OK;
     }
 
-    if (NS_SUCCEEDED(aStatus)) {
-        // If the including XUL document is a FastLoad document, and we're
-        // compiling an out-of-line script (one with src=...), then we must
-        // be writing a new FastLoad file.  If we were reading this script
-        // from the FastLoad file, XULContentSinkImpl::OpenScript (over in
-        // nsXULContentSink.cpp) would have already deserialized a non-null
-        // script->mScriptObject, causing control flow at the top of LoadScript
-        // not to reach here.
-        nsCOMPtr<nsIURI> uri = mCurrentScriptProto->mSrcURI;
-
-        // XXX should also check nsIHttpChannel::requestSucceeded
-
-        MOZ_ASSERT(!mOffThreadCompiling && mOffThreadCompileString.Length() == 0,
-                   "XULDocument can't load multiple scripts at once");
-
-        rv = nsScriptLoader::ConvertToUTF16(channel, string, stringLen,
-                                            EmptyString(), this, mOffThreadCompileString);
-        if (NS_SUCCEEDED(rv)) {
-            rv = mCurrentScriptProto->Compile(mOffThreadCompileString.get(),
-                                              mOffThreadCompileString.Length(),
-                                              uri, 1, this,
-                                              mCurrentPrototype,
-                                              this);
-            if (NS_SUCCEEDED(rv) && !mCurrentScriptProto->GetScriptObject()) {
-                // We will be notified via OnOffThreadCompileComplete when the
-                // compile finishes. Keep the contents of the compiled script
-                // alive until the compilation finishes.
-                mOffThreadCompiling = true;
-                BlockOnload();
-                return NS_OK;
-            }
-            mOffThreadCompileString.Truncate();
-        }
-    }
-
-    return OnScriptCompileComplete(mCurrentScriptProto->GetScriptObject(), rv);
-}
-
-NS_IMETHODIMP
-XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
-{
-    // Allow load events to be fired once off thread compilation finishes.
-    if (mOffThreadCompiling) {
-        mOffThreadCompiling = false;
-        UnblockOnload(false);
-    }
-
-    // After compilation finishes the script's characters are no longer needed.
-    mOffThreadCompileString.Truncate();
-
-    // When compiling off thread the script will not have been attached to the
-    // script proto yet.
-    if (aScript && !mCurrentScriptProto->GetScriptObject())
-        mCurrentScriptProto->Set(aScript);
-
     // Clear mCurrentScriptProto now, but save it first for use below in
-    // the execute code, and in the while loop that resumes walks of other
-    // documents that raced to load this script.
+    // the compile/execute code, and in the while loop that resumes walks
+    // of other documents that raced to load this script
     nsXULPrototypeScript* scriptProto = mCurrentScriptProto;
     mCurrentScriptProto = nullptr;
 
@@ -3568,52 +3531,84 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
     // new script load.
     scriptProto->mSrcLoading = false;
 
-    nsresult rv = aStatus;
-    if (NS_SUCCEEDED(rv)) {
-        rv = ExecuteScript(scriptProto);
+    if (NS_SUCCEEDED(aStatus)) {
+        // If the including XUL document is a FastLoad document, and we're
+        // compiling an out-of-line script (one with src=...), then we must
+        // be writing a new FastLoad file.  If we were reading this script
+        // from the FastLoad file, XULContentSinkImpl::OpenScript (over in
+        // nsXULContentSink.cpp) would have already deserialized a non-null
+        // script->mScriptObject, causing control flow at the top of LoadScript
+        // not to reach here.
+        nsCOMPtr<nsIURI> uri = scriptProto->mSrcURI;
 
-        // If the XUL cache is enabled, save the script object there in
-        // case different XUL documents source the same script.
-        //
-        // But don't save the script in the cache unless the master XUL
-        // document URL is a chrome: URL.  It is valid for a URL such as
-        // about:config to translate into a master document URL, whose
-        // prototype document nodes -- including prototype scripts that
-        // hold GC roots protecting their mJSObject pointers -- are not
-        // cached in the XUL prototype cache.  See StartDocumentLoad,
-        // the fillXULCache logic.
-        //
-        // A document such as about:config is free to load a script via
-        // a URL such as chrome://global/content/config.js, and we must
-        // not cache that script object without a prototype cache entry
-        // containing a companion nsXULPrototypeScript node that owns a
-        // GC root protecting the script object.  Otherwise, the script
-        // cache entry will dangle once the uncached prototype document
-        // is released when its owning XULDocument is unloaded.
-        //
-        // (See http://bugzilla.mozilla.org/show_bug.cgi?id=98207 for
-        // the true crime story.)
-        bool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
-  
-        if (useXULCache && IsChromeURI(mDocumentURI) && scriptProto->GetScriptObject()) {
-            nsXULPrototypeCache::GetInstance()->PutScript(
-                               scriptProto->mSrcURI,
-                               scriptProto->GetScriptObject());
+        // XXX should also check nsIHttpChannel::requestSucceeded
+
+        nsString stringStr;
+        rv = nsScriptLoader::ConvertToUTF16(channel, string, stringLen,
+                                            EmptyString(), this, stringStr);
+        if (NS_SUCCEEDED(rv)) {
+            rv = scriptProto->Compile(stringStr.get(), stringStr.Length(),
+                                      uri, 1, this, mCurrentPrototype);
         }
 
-        if (mIsWritingFastLoad && mCurrentPrototype != mMasterPrototype) {
-            // If we are loading an overlay script, try to serialize
-            // it to the FastLoad file here.  Master scripts will be
-            // serialized when the master prototype document gets
-            // written, at the bottom of ResumeWalk.  That way, master
-            // out-of-line scripts are serialized in the same order that
-            // they'll be read, in the FastLoad file, which reduces the
-            // number of seeks that dump the underlying stream's buffer.
+        aStatus = rv;
+        if (NS_SUCCEEDED(rv)) {
+            rv = ExecuteScript(scriptProto);
+
+            // If the XUL cache is enabled, save the script object there in
+            // case different XUL documents source the same script.
             //
-            // Ignore the return value, as we don't need to propagate
-            // a failure to write to the FastLoad file, because this
-            // method aborts that whole process on error.
-            scriptProto->SerializeOutOfLine(nullptr, mCurrentPrototype);
+            // But don't save the script in the cache unless the master XUL
+            // document URL is a chrome: URL.  It is valid for a URL such as
+            // about:config to translate into a master document URL, whose
+            // prototype document nodes -- including prototype scripts that
+            // hold GC roots protecting their mJSObject pointers -- are not
+            // cached in the XUL prototype cache.  See StartDocumentLoad,
+            // the fillXULCache logic.
+            //
+            // A document such as about:config is free to load a script via
+            // a URL such as chrome://global/content/config.js, and we must
+            // not cache that script object without a prototype cache entry
+            // containing a companion nsXULPrototypeScript node that owns a
+            // GC root protecting the script object.  Otherwise, the script
+            // cache entry will dangle once the uncached prototype document
+            // is released when its owning XULDocument is unloaded.
+            //
+            // (See http://bugzilla.mozilla.org/show_bug.cgi?id=98207 for
+            // the true crime story.)
+            bool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
+  
+            if (useXULCache && IsChromeURI(mDocumentURI)) {
+                nsXULPrototypeCache::GetInstance()->PutScript(
+                                   scriptProto->mSrcURI,
+                                   scriptProto->GetScriptObject());
+            }
+
+            if (mIsWritingFastLoad && mCurrentPrototype != mMasterPrototype) {
+                // If we are loading an overlay script, try to serialize
+                // it to the FastLoad file here.  Master scripts will be
+                // serialized when the master prototype document gets
+                // written, at the bottom of ResumeWalk.  That way, master
+                // out-of-line scripts are serialized in the same order that
+                // they'll be read, in the FastLoad file, which reduces the
+                // number of seeks that dump the underlying stream's buffer.
+                //
+                // Ignore the return value, as we don't need to propagate
+                // a failure to write to the FastLoad file, because this
+                // method aborts that whole process on error.
+                nsIScriptGlobalObject* global =
+                    mCurrentPrototype->GetScriptGlobalObject();
+
+                NS_ASSERTION(global != nullptr, "master prototype w/o global?!");
+                if (global) {
+                    nsIScriptContext *scriptContext = \
+                          global->GetScriptContext();
+                    NS_ASSERTION(scriptContext != nullptr,
+                                 "Failed to get script context for language");
+                    if (scriptContext)
+                        scriptProto->SerializeOutOfLine(nullptr, global);
+                }
+            }
         }
         // ignore any evaluation errors
     }
@@ -3647,9 +3642,9 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
     return rv;
 }
 
+
 nsresult
-XULDocument::ExecuteScript(nsIScriptContext * aContext,
-                           JS::Handle<JSScript*> aScriptObject)
+XULDocument::ExecuteScript(nsIScriptContext * aContext, JSScript* aScriptObject)
 {
     NS_PRECONDITION(aScriptObject != nullptr && aContext != nullptr, "null ptr");
     if (! aScriptObject || ! aContext)
@@ -3657,21 +3652,9 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
 
     NS_ENSURE_TRUE(mScriptGlobalObject, NS_ERROR_NOT_INITIALIZED);
 
-    if (!aContext->GetScriptsEnabled())
-        return NS_OK;
-
     // Execute the precompiled script with the given version
-    nsAutoMicroTask mt;
-    JSContext *cx = aContext->GetNativeContext();
-    AutoCxPusher pusher(cx);
     JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
-    xpc_UnmarkGrayObject(global);
-    xpc_UnmarkGrayScript(aScriptObject);
-    JSAutoCompartment ac(cx, global);
-    JS::Rooted<JS::Value> unused(cx);
-    if (!JS_ExecuteScript(cx, global, aScriptObject, unused.address()))
-        nsJSUtils::ReportPendingException(cx);
-    return NS_OK;
+    return aContext->ExecuteScript(aScriptObject, global);
 }
 
 nsresult

@@ -28,7 +28,6 @@
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "xpcpublic.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -62,7 +61,6 @@ EventSource::EventSource() :
   mGoingToDispatchAllMessages(false),
   mWithCredentials(false),
   mWaitingForOnStopRequest(false),
-  mInterrupted(false),
   mLastConvertionResult(NS_OK),
   mReadyState(CONNECTING),
   mScriptLine(0),
@@ -79,8 +77,6 @@ EventSource::~EventSource()
 //-----------------------------------------------------------------------------
 // EventSource::nsISupports
 //-----------------------------------------------------------------------------
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(EventSource)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(EventSource)
   bool isBlack = tmp->IsBlack();
@@ -349,23 +345,9 @@ EventSource::OnStartRequest(nsIRequest *aRequest,
   rv = httpChannel->GetContentType(contentType);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult status;
-  aRequest->GetStatus(&status);
-
-  if (NS_FAILED(status) || !requestSucceeded ||
-      !contentType.EqualsLiteral(TEXT_EVENT_STREAM)) {
+  if (!requestSucceeded || !contentType.EqualsLiteral(TEXT_EVENT_STREAM)) {
     DispatchFailConnection();
     return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  uint32_t httpStatus;
-  rv = httpChannel->GetResponseStatus(&httpStatus);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (httpStatus != 200) {
-    mInterrupted = true;
-    DispatchFailConnection();
-    return NS_ERROR_ABORT;
   }
 
   nsCOMPtr<nsIPrincipal> principal = mPrincipal;
@@ -988,7 +970,7 @@ EventSource::ConsoleError()
   NS_ConvertUTF8toUTF16 specUTF16(targetSpec);
   const PRUnichar *formatStrings[] = { specUTF16.get() };
 
-  if (mReadyState == CONNECTING && !mInterrupted) {
+  if (mReadyState == CONNECTING) {
     rv = PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
                              NS_LITERAL_STRING("connectionFailure").get(),
                              formatStrings, ArrayLength(formatStrings));
@@ -1253,6 +1235,7 @@ EventSource::DispatchAllMessageEvents()
     JS::Rooted<JS::Value> jsData(cx);
     {
       JSString* jsString;
+      JSAutoRequest ar(cx);
       jsString = JS_NewUCStringCopyN(cx,
                                      message->mData.get(),
                                      message->mData.Length());

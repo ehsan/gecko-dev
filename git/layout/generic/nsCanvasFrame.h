@@ -39,7 +39,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
@@ -57,7 +57,7 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
              ~(nsIFrame::eCanContainOverflowContainers));
@@ -75,8 +75,8 @@ public:
   void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
   // nsIScrollPositionListener
-  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY) MOZ_OVERRIDE;
-  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY) MOZ_OVERRIDE {}
+  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
+  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY) {}
 
   /**
    * Get the "type" of the frame
@@ -167,7 +167,7 @@ public:
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE
+                                         nsRegion* aInvalidRegion)
   {
     const nsDisplayItemBoundsGeometry* geometry = static_cast<const nsDisplayItemBoundsGeometry*>(aGeometry);
     ComputeInvalidationRegionDifference(aBuilder, geometry, aInvalidRegion);
@@ -195,8 +195,8 @@ private:
 class nsDisplayCanvasBackgroundImage : public nsDisplayBackgroundImage {
 public:
   nsDisplayCanvasBackgroundImage(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                                 uint32_t aLayer, const nsStyleBackground* aBg)
-    : nsDisplayBackgroundImage(aBuilder, aFrame, aLayer, aBg)
+                                 uint32_t aLayer, bool aIsThemed, const nsStyleBackground* aBg)
+    : nsDisplayBackgroundImage(aBuilder, aFrame, aLayer, aIsThemed, aBg)
   {}
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
@@ -217,17 +217,6 @@ public:
   
   
   NS_DISPLAY_DECL_NAME("CanvasBackgroundImage", TYPE_CANVAS_BACKGROUND_IMAGE)
-};
-
-class nsDisplayCanvasThemedBackground : public nsDisplayThemedBackground {
-public:
-  nsDisplayCanvasThemedBackground(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-    : nsDisplayThemedBackground(aBuilder, aFrame)
-  {}
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
-
-  NS_DISPLAY_DECL_NAME("CanvasThemedBackground", TYPE_CANVAS_THEMED_BACKGROUND)
 };
 
 #endif /* nsCanvasFrame_h___ */

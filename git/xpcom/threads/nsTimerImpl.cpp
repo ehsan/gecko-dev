@@ -10,7 +10,6 @@
 #include "nsThreadManager.h"
 #include "nsThreadUtils.h"
 #include "plarena.h"
-#include "pratom.h"
 #include "GeckoProfiler.h"
 
 using mozilla::TimeDuration;
@@ -107,7 +106,7 @@ public:
   NS_IMETHOD Run();
 
   nsTimerEvent(nsTimerImpl *timer, int32_t generation)
-    : mTimer(dont_AddRef(timer)), mGeneration(generation) {
+    : mTimer(timer), mGeneration(generation) {
     // timer is already addref'd for us
     MOZ_COUNT_CTOR(nsTimerEvent);
 
@@ -136,6 +135,10 @@ public:
 private:
   nsTimerEvent(); // Not implemented
   ~nsTimerEvent() {
+#ifdef DEBUG
+    if (mTimer)
+      NS_WARNING("leaking reference to nsTimerImpl");
+#endif
     MOZ_COUNT_DTOR(nsTimerEvent);
 
     MOZ_ASSERT(!sCanDeleteAllocator || sAllocatorUsers > 0,
@@ -143,7 +146,7 @@ private:
     PR_ATOMIC_DECREMENT(&sAllocatorUsers);
   }
 
-  nsRefPtr<nsTimerImpl> mTimer;
+  nsTimerImpl *mTimer;
   int32_t      mGeneration;
 
   static TimerEventAllocator* sAllocator;
@@ -189,15 +192,15 @@ void TimerEventAllocator::Free(void* aPtr)
 
 } // anonymous namespace
 
-NS_IMPL_QUERY_INTERFACE1(nsTimerImpl, nsITimer)
-NS_IMPL_ADDREF(nsTimerImpl)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE1(nsTimerImpl, nsITimer)
+NS_IMPL_THREADSAFE_ADDREF(nsTimerImpl)
 
 NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 {
   nsrefcnt count;
 
   MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
-  count = --mRefCnt;
+  count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "nsTimerImpl");
   if (count == 0) {
     mRefCnt = 1; /* stabilize */
@@ -613,7 +616,10 @@ void nsTimerEvent::DeleteAllocatorIfNeeded()
 
 NS_IMETHODIMP nsTimerEvent::Run()
 {
-  if (mGeneration != mTimer->GetGeneration())
+  nsRefPtr<nsTimerImpl> timer;
+  timer.swap(mTimer);
+
+  if (mGeneration != timer->GetGeneration())
     return NS_OK;
 
 #ifdef DEBUG_TIMERS
@@ -625,7 +631,7 @@ NS_IMETHODIMP nsTimerEvent::Run()
   }
 #endif
 
-  mTimer->Fire();
+  timer->Fire();
 
   return NS_OK;
 }

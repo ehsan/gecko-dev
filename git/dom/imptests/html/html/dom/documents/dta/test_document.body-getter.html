@@ -42,17 +42,19 @@ test(function() {
   var doc = createDocument();
   var html =
     doc.appendChild(doc.createElementNS("http://example.org/test", "html"));
-  html.appendChild(doc.createElement("body"));
+  var b =
+    html.appendChild(doc.createElement("body"));
   html.appendChild(doc.createElement("frameset"));
-  assert_equals(doc.body, null);
+  assert_equals(doc.body, b);
 }, "Body followed by frameset inside a non-HTML html element");
 test(function() {
   var doc = createDocument();
   var html =
     doc.appendChild(doc.createElementNS("http://example.org/test", "html"));
-  html.appendChild(doc.createElement("frameset"));
+  var f =
+    html.appendChild(doc.createElement("frameset"));
   html.appendChild(doc.createElement("body"));
-  assert_equals(doc.body, null);
+  assert_equals(doc.body, f);
 }, "Frameset followed by body inside a non-HTML html element");
 test(function() {
   var doc = createDocument();

@@ -50,9 +50,7 @@ class DMCli(object):
                                               { 'name': 'remote_file', 'nargs': '?' } ],
                                     'help': 'copy file/dir from device' },
                           'shell': { 'function': self.shell,
-                                    'args': [ { 'name': 'command', 'nargs': argparse.REMAINDER },
-                                              { 'name': '--root', 'action': 'store_true',
-                                                'help': 'Run command as root' }],
+                                    'args': [ { 'name': 'command', 'nargs': argparse.REMAINDER } ],
                                     'help': 'run shell command on device' },
                           'info': { 'function': self.getinfo,
                                     'args': [ { 'name': 'directive', 'nargs': '?' } ],
@@ -109,8 +107,7 @@ class DMCli(object):
                                                         'default': 'android.intent.action.VIEW' },
                                                       { 'name': '--url', 'action': 'store' },
                                                       { 'name': '--extra-args', 'action': 'store' },
-                                                      { 'name': '--mozenv', 'action': 'store',
-                                                        'help': 'Gecko environment variables to set in "KEY1=VAL1 KEY2=VAL2" format' },
+                                                      { 'name': '--mozenv', 'action': 'store' },
                                                       { 'name': '--no-fail-if-running',
                                                         'action': 'store_true',
                                                         'help': 'Don\'t fail if application is already running' }
@@ -171,14 +168,7 @@ class DMCli(object):
             subparser = subparsers.add_parser(commandname, help=commandprops['help'])
             if commandprops.get('args'):
                 for arg in commandprops['args']:
-                    # this is more elegant but doesn't work in python 2.6
-                    # (which we still use on tbpl @ mozilla where we install
-                    # this package)
-                    # kwargs = { k: v for k,v in arg.items() if k is not 'name' }
-                    kwargs = {}
-                    for (k, v) in arg.items():
-                        if k is not 'name':
-                            kwargs[k] = v
+                    kwargs = { k: v for k,v in arg.items() if k is not 'name' }
                     subparser.add_argument(arg['name'], **kwargs)
             subparser.set_defaults(func=commandprops['function'])
 
@@ -252,9 +242,9 @@ class DMCli(object):
         for name in args.process_name:
             self.dm.killProcess(name)
 
-    def shell(self, args):
+    def shell(self, args, root=False):
         buf = StringIO.StringIO()
-        self.dm.shell(args.command, buf, root=args.root)
+        self.dm.shell(args.command, buf, root=root)
         print str(buf.getvalue()[0:-1]).rstrip()
 
     def getinfo(self, args):
@@ -324,15 +314,8 @@ class DMCli(object):
         return errno.ENOENT
 
     def launchfennec(self, args):
-        mozEnv = None
-        if args.mozenv:
-            mozEnv = {}
-            keyvals = args.mozenv.split()
-            for keyval in keyvals:
-                (key, _, val) = keyval.partition("=")
-                mozEnv[key] = val
         self.dm.launchFennec(args.appname, intent=args.intent,
-                             mozEnv=mozEnv,
+                             mozEnv=args.mozenv,
                              extraArgs=args.extra_args, url=args.url,
                              failIfRunning=(not args.no_fail_if_running))
 

@@ -12,7 +12,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsMathMLTokenFrame.h"
 #include "nsTextFrame.h"
-#include "RestyleManager.h"
 #include <algorithm>
 
 nsIFrame*
@@ -32,6 +31,12 @@ nsMathMLTokenFrame::InheritAutomaticData(nsIFrame* aParent)
 {
   // let the base class get the default from our parent
   nsMathMLContainerFrame::InheritAutomaticData(aParent);
+
+  if (mContent->Tag() != nsGkAtoms::mspace_ &&
+      mContent->Tag() != nsGkAtoms::annotation_) {
+    // see if the directionality attribute is there
+    nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
+  }
 
   ProcessTextData();
 
@@ -252,7 +257,7 @@ nsMathMLTokenFrame::ProcessTextData()
     return;
 
   // explicitly request a re-resolve to pick up the change of style
-  PresContext()->RestyleManager()->
+  PresContext()->PresShell()->FrameConstructor()->
     PostRestyleEvent(mContent->AsElement(), eRestyle_Subtree, NS_STYLE_HINT_NONE);
 }
 

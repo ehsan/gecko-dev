@@ -5,11 +5,4 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MODULE = 'omxpluginfroyo'
-NO_DIST_INSTALL = True
-
-CPP_SOURCES += [
-    'OmxPluginFroyo.cpp',
-]
-
-LIBRARY_NAME = 'omxpluginfroyo'
 

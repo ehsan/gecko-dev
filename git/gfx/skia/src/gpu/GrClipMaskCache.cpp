@@ -19,3 +19,4 @@ GrClipMaskCache::GrClipMaskCache()
 void GrClipMaskCache::push() {
     SkNEW_PLACEMENT(fStack.push_back(), GrClipStackFrame);
 }
+

@@ -48,8 +48,8 @@ bool SkROLockPixelsPixelRef::onLockPixelsAreWritable() const {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static SkGrPixelRef* copyToTexturePixelRef(GrTexture* texture, SkBitmap::Config dstConfig,
-                                           const SkIRect* subset) {
+static SkGrPixelRef* copyToTexturePixelRef(GrTexture* texture,
+                                           SkBitmap::Config dstConfig) {
     if (NULL == texture) {
         return NULL;
     }
@@ -59,20 +59,8 @@ static SkGrPixelRef* copyToTexturePixelRef(GrTexture* texture, SkBitmap::Config 
     }
     GrTextureDesc desc;
 
-    SkIPoint pointStorage;
-    SkIPoint* topLeft;
-    if (subset != NULL) {
-        SkASSERT(SkIRect::MakeWH(texture->width(), texture->height()).contains(*subset));
-        // Create a new texture that is the size of subset.
-        desc.fWidth = subset->width();
-        desc.fHeight = subset->height();
-        pointStorage.set(subset->x(), subset->y());
-        topLeft = &pointStorage;
-    } else {
-        desc.fWidth  = texture->width();
-        desc.fHeight = texture->height();
-        topLeft = NULL;
-    }
+    desc.fWidth  = texture->width();
+    desc.fHeight = texture->height();
     desc.fFlags = kRenderTarget_GrTextureFlagBit | kNoStencil_GrTextureFlagBit;
     desc.fConfig = SkBitmapConfig2GrPixelConfig(dstConfig);
 
@@ -81,7 +69,7 @@ static SkGrPixelRef* copyToTexturePixelRef(GrTexture* texture, SkBitmap::Config 
         return NULL;
     }
 
-    context->copyTexture(texture, dst->asRenderTarget(), topLeft);
+    context->copyTexture(texture, dst->asRenderTarget());
 
     // TODO: figure out if this is responsible for Chrome canvas errors
 #if 0
@@ -135,7 +123,7 @@ SkGpuTexture* SkGrPixelRef::getTexture() {
     return NULL;
 }
 
-SkPixelRef* SkGrPixelRef::deepCopy(SkBitmap::Config dstConfig, const SkIRect* subset) {
+SkPixelRef* SkGrPixelRef::deepCopy(SkBitmap::Config dstConfig) {
     if (NULL == fSurface) {
         return NULL;
     }
@@ -146,7 +134,7 @@ SkPixelRef* SkGrPixelRef::deepCopy(SkBitmap::Config dstConfig, const SkIRect* su
     // a GrTexture owned elsewhere (e.g., SkGpuDevice), and cannot live
     // independently of that texture.  Texture-backed pixel refs, on the other
     // hand, own their GrTextures, and are thus self-contained.
-    return copyToTexturePixelRef(fSurface->asTexture(), dstConfig, subset);
+    return copyToTexturePixelRef(fSurface->asTexture(), dstConfig);
 }
 
 bool SkGrPixelRef::onReadPixels(SkBitmap* dst, const SkIRect* subset) {
@@ -167,13 +155,11 @@ bool SkGrPixelRef::onReadPixels(SkBitmap* dst, const SkIRect* subset) {
         height = fSurface->height();
     }
     dst->setConfig(SkBitmap::kARGB_8888_Config, width, height);
-    if (!dst->allocPixels()) {
-        SkDebugf("SkGrPixelRef::onReadPixels failed to alloc bitmap for result!\n");
-        return false;
-    }
+    dst->allocPixels();
     SkAutoLockPixels al(*dst);
     void* buffer = dst->getPixels();
     return fSurface->readPixels(left, top, width, height,
-                                kSkia8888_GrPixelConfig,
+                                kSkia8888_PM_GrPixelConfig,
                                 buffer, dst->rowBytes());
 }
+

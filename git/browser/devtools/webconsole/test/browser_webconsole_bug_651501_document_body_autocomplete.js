@@ -22,6 +22,11 @@ function consoleOpened(aHud) {
   let popup = jsterm.autocompletePopup;
   let completeNode = jsterm.completeNode;
 
+  let tmp = {};
+  Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tmp);
+  let WCU = tmp.WebConsoleUtils;
+  tmp = null;
+
   ok(!popup.isOpen, "popup is not open");
 
   popup._panel.addEventListener("popupshown", function onShown() {
@@ -95,7 +100,7 @@ function testPropertyPanel()
 function onVariablesViewReady(aEvent, aView)
 {
   findVariableViewProperties(aView, [
-    { name: "body", value: "HTMLBodyElement" },
+    { name: "body", value: "[object HTMLBodyElement]" },
   ], { webconsole: gHUD }).then(finishTest);
 }
 

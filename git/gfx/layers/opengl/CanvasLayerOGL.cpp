@@ -22,7 +22,6 @@
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/MacIOSurface.h"
-#include "SharedSurfaceIO.h"
 #endif
 
 #ifdef XP_WIN
@@ -81,7 +80,9 @@ MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
   RefPtr<MacIOSurface> ioSurface = MacIOSurface::IOSurfaceContextGetSurface((CGContextRef)aCGIOSurfaceContext);
   void *nativeCtx = aGL->GetNativeData(GLContext::NativeGLContext);
 
-  ioSurface->CGLTexImageIOSurface2D(nativeCtx);
+  ioSurface->CGLTexImageIOSurface2D(nativeCtx,
+                                    LOCAL_GL_RGBA, LOCAL_GL_BGRA,
+                                    LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, 0);
 
   aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 
@@ -130,7 +131,11 @@ CanvasLayerOGL::Initialize(const Data& aData)
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
         mPixmap = xsurf->GetGLXPixmap();
         if (mPixmap) {
-            mLayerProgram = ShaderProgramFromContentType(aData.mSurface->GetContentType());
+            if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
+                mLayerProgram = gl::RGBALayerProgramType;
+            } else {
+                mLayerProgram = gl::RGBXLayerProgramType;
+            }
             MakeTextureIfNeeded(gl(), mUploadTexture);
         }
     }
@@ -217,17 +222,9 @@ CanvasLayerOGL::UpdateSurface()
           mTexture = textureSurf->Texture();
           break;
         }
-#ifdef XP_MACOSX
-        case SharedSurfaceType::IOSurface: {
-          SharedSurface_IOSurface *ioSurf = SharedSurface_IOSurface::Cast(surf);
-          mTexture = ioSurf->Texture();
-          mTextureTarget = ioSurf->TextureTarget();
-          mLayerProgram = ioSurf->HasAlpha() ? RGBARectLayerProgramType : RGBXRectLayerProgramType;
-          break;
-        }
-#endif
         default:
-          MOZ_CRASH("Unacceptable SharedSurface type.");
+          MOZ_NOT_REACHED("Unacceptable SharedSurface type.");
+          return;
       }
     } else {
       nothingToShow = true;
@@ -240,7 +237,7 @@ CanvasLayerOGL::UpdateSurface()
                                         gfx::NATIVE_SURFACE_CGCONTEXT_ACCELERATED),
                                         gl());
         mTextureTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
-        mLayerProgram = RGBARectLayerProgramType;
+        mLayerProgram = gl::RGBARectLayerProgramType;
       }
       mDrawTarget->Flush();
       return;
@@ -248,18 +245,17 @@ CanvasLayerOGL::UpdateSurface()
 #endif
     updatedSurface = mCanvasSurface;
   } else {
-    MOZ_CRASH("Unhandled canvas layer type.");
+    MOZ_NOT_REACHED("Unhandled canvas layer type.");
+    return;
   }
 
   if (updatedSurface) {
     mOGLManager->MakeCurrent();
-    gfx::SurfaceFormat format =
-      gl()->UploadSurfaceToTexture(updatedSurface,
-                                   mBounds,
-                                   mUploadTexture,
-                                   true,//false,
-                                   nsIntPoint(0, 0));
-    mLayerProgram = ShaderProgramFromSurfaceFormat(format);
+    mLayerProgram = gl()->UploadSurfaceToTexture(updatedSurface,
+                                                 mBounds,
+                                                 mUploadTexture,
+                                                 true,//false,
+                                                 nsIntPoint(0, 0));
     mTexture = mUploadTexture;
 
     if (temporarySurface)
@@ -300,13 +296,12 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     
     drawRect.IntersectRect(drawRect, GetEffectiveVisibleRegion().GetBounds());
 
-    gfx::SurfaceFormat format =
+    mLayerProgram =
       gl()->UploadSurfaceToTexture(mCanvasSurface,
                                    nsIntRect(0, 0, drawRect.width, drawRect.height),
                                    mUploadTexture,
                                    true,
                                    drawRect.TopLeft());
-    mLayerProgram = ShaderProgramFromSurfaceFormat(format);
     mTexture = mUploadTexture;
   }
 
@@ -323,14 +318,12 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   gl()->ApplyFilterToBoundTexture(mFilter);
 
   program->Activate();
-  if (mLayerProgram == RGBARectLayerProgramType ||
-      mLayerProgram == RGBXRectLayerProgramType) {
+  if (mLayerProgram == gl::RGBARectLayerProgramType) {
     // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
-    program->SetTexCoordMultiplier(mBounds.width, mBounds.height);
+    program->SetTexCoordMultiplier(mDrawTarget->GetSize().width, mDrawTarget->GetSize().height);
   }
   program->SetLayerQuadRect(drawRect);
   program->SetLayerTransform(GetEffectiveTransform());
-  program->SetTextureTransform(gfx3DMatrix());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);

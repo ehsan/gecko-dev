@@ -31,7 +31,6 @@ self.onmessage = function onmessage_start(msg) {
     test_info();
     test_path();
     test_exists_file();
-    test_remove_file();
   } catch (x) {
     log("Catching error: " + x);
     log("Stack: " + x.stack);
@@ -339,28 +338,6 @@ function test_readall_writeall_file()
   }
   ok(!!exn && exn instanceof TypeError, "writeAtomic fails if tmpPath is not provided");
 
-  // Check that writeAtomic fails when destination path is undefined
-  exn = null;
-  try {
-    let path = undefined;
-    let options = {tmpPath: tmp_file_name};
-    OS.File.writeAtomic(path, readResult.buffer, options);
-  } catch (x) {
-    exn = x;
-  }
-  ok(!!exn && exn instanceof TypeError, "writeAtomic fails if path is undefined");
-
-  // Check that writeAtomic fails when destination path is an empty string
-  exn = null;
-  try {
-    let path = "";
-    let options = {tmpPath: tmp_file_name};
-    OS.File.writeAtomic(path, readResult.buffer, options);
-  } catch (x) {
-    exn = x;
-  }
-  ok(!!exn && exn instanceof TypeError, "writeAtomic fails if path is an empty string");
-
   // Cleanup.
   OS.File.remove(tmp_file_name);
 }
@@ -650,10 +627,8 @@ function test_info() {
   let stop = new Date();
 
   // We round down/up by 1s as file system precision is lower than Date precision
-  // (no clear specifications about that, but it seems that this can be a little
-  // over 1 second under ext3 and 2 seconds under FAT)
-  let startMs = start.getTime() - 2500;
-  let stopMs  = stop.getTime() + 2500;
+  let startMs = start.getTime() - 1000;
+  let stopMs  = stop.getTime() + 1000;
 
   (function() {
     let birth;
@@ -700,11 +675,11 @@ function test_info() {
   startMs = start.getTime() - 1000;
   stopMs  = stop.getTime() + 1000;
 
-  let birth = stat.creationDate;
+  birth = stat.creationDate;
   ok(birth.getTime() <= stopMs,
       "test_info: file 2 was created between the start of the test and now - " + start +  ", " + stop + ", " + birth);
 
-  let access = stat.lastAccessDate;
+  let access = stat.lastModificationDate;
   ok(access.getTime() >= startMs
      && access.getTime() <= stopMs,
      "test_info: file 2 was accessed between the start of the test and now - " + start + ", " + stop + ", " + access);
@@ -819,24 +794,4 @@ function test_exists_file()
   ok(!OS.File.exists(dir_name) + ".tmp", "test_exists_file: directory does not exist");
 
   info("test_exists_file: complete");
-}
-
-/**
- * Test the file |remove| method.
- */
-function test_remove_file()
-{
-  let absent_file_name = "test_osfile_front_absent.tmp";
-
-  // Check that removing absent files is handled correctly
-  let exn = should_throw(function() {
-    OS.File.remove(absent_file_name, {ignoreAbsent: false});
-  });
-  ok(!!exn, "test_remove_file: throws if there is no such file");
-
-  exn = should_throw(function() {
-    OS.File.remove(absent_file_name, {ignoreAbsent: true});
-    OS.File.remove(absent_file_name);
-  });
-  ok(!exn, "test_remove_file: ignoreAbsent works");
 }

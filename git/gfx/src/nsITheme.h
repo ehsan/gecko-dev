@@ -34,6 +34,13 @@ class nsIWidget;
 #define NS_THEMERENDERER_CID \
 { 0xd930e29b, 0x6909, 0x44e5, { 0xab, 0x4b, 0xaf, 0x10, 0xd6, 0x92, 0x37, 0x5 } }
 
+enum nsTransparencyMode {
+  eTransparencyOpaque = 0,  // Fully opaque
+  eTransparencyTransparent, // Parts of the window may be transparent
+  eTransparencyGlass,       // Transparent parts of the window have Vista AeroGlass effect applied
+  eTransparencyBorderlessGlass // As above, but without a border around the opaque areas when there would otherwise be one with eTransparencyGlass
+};
+
 /**
  * nsITheme is a service that provides platform-specific native
  * rendering for widgets.  In other words, it provides the necessary
@@ -146,7 +153,9 @@ public:
   /**
    * Does the nsITheme implementation draw its own focus ring for this widget?
    */
-  virtual bool ThemeDrawsFocusForWidget(uint8_t aWidgetType)=0;
+  virtual bool ThemeDrawsFocusForWidget(nsPresContext* aPresContext,
+                                          nsIFrame* aFrame,
+                                          uint8_t aWidgetType)=0;
   
   /**
     * Should we insert a dropmarker inside of combobox button?

@@ -9,7 +9,6 @@
 #define nsTransitionManager_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 
@@ -100,8 +99,7 @@ struct ElementTransitions MOZ_FINAL
 
 
 
-class nsTransitionManager MOZ_FINAL
-  : public mozilla::css::CommonAnimationManager
+class nsTransitionManager : public mozilla::css::CommonAnimationManager
 {
 public:
   nsTransitionManager(nsPresContext *aPresContext)
@@ -172,9 +170,9 @@ public:
 #ifdef MOZ_XUL
   virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
 #endif
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
     MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
     MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
   // nsARefreshObserver
@@ -202,10 +200,6 @@ public:
   // compare against.  When we do this, we don't bother touching frames
   // other than primary frames.
   void UpdateAllThrottledStyles();
-
-protected:
-  virtual void ElementDataRemoved() MOZ_OVERRIDE;
-  virtual void AddElementData(mozilla::css::CommonElementAnimationData* aData) MOZ_OVERRIDE;
 
 private:
   void ConsiderStartingTransition(nsCSSProperty aProperty,

@@ -3,15 +3,9 @@
  * * License, v. 2.0. If a copy of the MPL was not distributed with this
  * * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GTestRunner.h"
 #include "gtest/gtest.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/NullPtr.h"
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-#include "testing/TestHarness.h"
-#include "prenv.h"
 
 using ::testing::EmptyTestEventListener;
 using ::testing::InitGoogleTest;
@@ -43,7 +37,7 @@ public:
   }
   virtual void OnTestPartResult(const TestPartResult& aTestPartResult) MOZ_OVERRIDE {
     printf("TEST-%s | %s.%s | %s @ %s:%i\n",
-           !aTestPartResult.failed() ? "PASS" : "UNEXPECTED-FAIL",
+           aTestPartResult.failed() ? "PASS" : "UNEXPECTED-FAIL",
            mTestInfo->test_case_name(), mTestInfo->name(),
            aTestPartResult.summary(),
            aTestPartResult.file_name(), aTestPartResult.line_number());
@@ -71,7 +65,7 @@ static void ReplaceGTestLogger()
   listeners.Append(new MozillaPrinter);
 }
 
-int RunGTestFunc()
+int RunGTest()
 {
   int c = 0;
   InitGoogleTest(&c, static_cast<char**>(nullptr));
@@ -80,45 +74,9 @@ int RunGTestFunc()
     ReplaceGTestLogger();
   }
 
-  PR_SetEnv("XPCOM_DEBUG_BREAK=stack-and-abort");
-
-  ScopedXPCOM xpcom("AsyncPanZoomController");
-
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> crashreporter;
-  char *crashreporterStr = PR_GetEnv("MOZ_CRASHREPORTER");
-  if (crashreporterStr && !strcmp(crashreporterStr, "1")) {
-    //TODO: move this to an even-more-common location to use in all
-    // C++ unittests
-    crashreporter = do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-    if (crashreporter) {
-      std::cerr << "Setting up crash reporting" << std::endl;
-
-      nsCOMPtr<nsIProperties> dirsvc =
-          do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
-      nsCOMPtr<nsIFile> cwd;
-      nsresult rv = dirsvc->Get(NS_OS_CURRENT_WORKING_DIR,
-                       NS_GET_IID(nsIFile),
-                       getter_AddRefs(cwd));
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-      crashreporter->SetEnabled(true);
-      crashreporter->SetMinidumpPath(cwd);
-    }
-  }
-#endif
+  setenv("XPCOM_DEBUG_BREAK", "stack-and-abort", false);
 
   return RUN_ALL_TESTS();
 }
-
-// We use a static var 'RunGTest' defined in nsAppRunner.cpp.
-// RunGTest is initialized to NULL but if GTest (this file)
-// is linked in then RunGTest will be set here indicating
-// GTest is supported.
-class _InitRunGTest {
-public:
-  _InitRunGTest() {
-    RunGTest = RunGTestFunc;
-  }
-} InitRunGTest;
 
 }

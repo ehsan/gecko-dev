@@ -54,6 +54,10 @@ private:
     GrIndexBuffer*              fAAFillRectIndexBuffer;
     GrIndexBuffer*              fAAStrokeRectIndexBuffer;
 
+    static const uint16_t       gFillAARectIdx[];
+    static const uint16_t       gStrokeAARectIdx[];
+
+    static int aaFillRectIndexCount();
     GrIndexBuffer* aaFillRectIndexBuffer(GrGpu* gpu);
 
     static int aaStrokeRectIndexCount();

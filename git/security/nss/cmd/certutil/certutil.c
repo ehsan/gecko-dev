@@ -1202,21 +1202,6 @@ static void luG(enum usage_level ul, const char *command)
         "   -d keydir");
     FPS "%-20s Cert & Key database prefix\n",
         "   -P dbprefix");
-    FPS "%-20s\n"
-        "%-20s PKCS #11 key Attributes.\n",
-        "   --keyAttrFlags attrflags", "");
-    FPS "%-20s Comma separated list of key attribute attribute flags,\n", "");
-    FPS "%-20s selected from the following list of choices:\n", "");
-    FPS "%-20s {token | session} {public | private} {sensitive | insensitive}\n", "");
-    FPS "%-20s {modifiable | unmodifiable} {extractable | unextractable}\n", "");
-    FPS "%-20s\n",
-        "   --keyOpFlagsOn opflags");
-    FPS "%-20s\n"
-        "%-20s PKCS #11 key Operation Flags.\n",
-        "   --keyOpFlagsOff opflags", "");
-    FPS "%-20s Comma separated list of one or more of the following:\n", "");
-    FPS "%-20s encrypt, decrypt, sign, sign_recover, verify,\n", "");
-    FPS "%-20s verify_recover, wrap, unwrap, derive\n", "");
     FPS "\n");
 }
 
@@ -1448,8 +1433,6 @@ static void luR(enum usage_level ul, const char *command)
         "   -a");
     FPS "%-20s \n",
         "   See -S for available extension options");
-    FPS "%-20s \n",
-        "   See -G for available key flag options");
     FPS "\n");
 }
 
@@ -1519,7 +1502,7 @@ static void luUpgradeMerge(enum usage_level ul, const char *command)
     FPS "%-20s \n%-20s Cert database directory to upgrade from\n",
         "   --source-dir certdir", "");
     FPS "%-20s \n%-20s Cert & Key database prefix of the upgrade database\n",
-        "   --source-prefix dbprefix", "");
+        "   --soruce-prefix dbprefix", "");
     FPS "%-20s \n%-20s Unique identifier for the upgrade database\n",
         "   --upgrade-id uniqueID", "");
     FPS "%-20s \n%-20s Name of the token while it is in upgrade state\n",
@@ -1632,8 +1615,6 @@ static void luS(enum usage_level ul, const char *command)
         "   --extIA ");
     FPS "%-20s Create a subject key ID extension\n",
         "   --extSKID ");
-    FPS "%-20s \n",
-        "   See -G for available key flag options");
     FPS "%-20s Create a name constraints extension\n",
         "   --extNC ");
     FPS "\n");
@@ -1954,101 +1935,6 @@ getObjectClass(CK_ULONG classType)
     return buf;
 }
 
-typedef struct {
-    char *name;
-    int  nameSize;
-    CK_ULONG value;
-} flagArray;
-
-#define NAME_SIZE(x) #x,sizeof(#x)-1
-
-flagArray opFlagsArray[] =
-{
-    {NAME_SIZE(encrypt), CKF_ENCRYPT},
-    {NAME_SIZE(decrypt), CKF_DECRYPT},
-    {NAME_SIZE(sign), CKF_SIGN},
-    {NAME_SIZE(sign_recover), CKF_SIGN_RECOVER},
-    {NAME_SIZE(verify), CKF_VERIFY},
-    {NAME_SIZE(verify_recover), CKF_VERIFY_RECOVER},
-    {NAME_SIZE(wrap), CKF_WRAP},
-    {NAME_SIZE(unwrap), CKF_UNWRAP},
-    {NAME_SIZE(derive), CKF_DERIVE},
-};
-
-int opFlagsCount = sizeof(opFlagsArray)/sizeof(flagArray);
-
-flagArray attrFlagsArray[] =
-{
-    {NAME_SIZE(token), PK11_ATTR_TOKEN},
-    {NAME_SIZE(session), PK11_ATTR_SESSION},
-    {NAME_SIZE(private), PK11_ATTR_PRIVATE},
-    {NAME_SIZE(public), PK11_ATTR_PUBLIC},
-    {NAME_SIZE(modifiable), PK11_ATTR_MODIFIABLE},
-    {NAME_SIZE(unmodifiable), PK11_ATTR_UNMODIFIABLE},
-    {NAME_SIZE(sensitive), PK11_ATTR_SENSITIVE},
-    {NAME_SIZE(insensitive), PK11_ATTR_INSENSITIVE},
-    {NAME_SIZE(extractable), PK11_ATTR_EXTRACTABLE},
-    {NAME_SIZE(unextractable), PK11_ATTR_UNEXTRACTABLE}
-
-};
-
-int attrFlagsCount = sizeof(attrFlagsArray)/sizeof(flagArray);
-
-#define MAX_STRING 30
-CK_ULONG
-GetFlags(char *flagsString, flagArray *flagArray, int count)
-{
-   CK_ULONG flagsValue = strtol(flagsString, NULL, 0);
-   int i;
-
-   if ((flagsValue != 0) || (*flagsString == 0)) {
-	return flagsValue;
-   }
-   while (*flagsString) {
-	for (i=0; i < count; i++) {
-	    if (strncmp(flagsString, flagArray[i].name, flagArray[i].nameSize) 
-								== 0) {
-		flagsValue |= flagArray[i].value;
-		flagsString += flagArray[i].nameSize;
-		if (*flagsString != 0) {
-		    flagsString++;
-		}
-		break;
-	    }
-	}
-	if (i == count) {
-	    char name[MAX_STRING];
-	    char *tok;
-
-	    strncpy(name,flagsString, MAX_STRING);
-	    name[MAX_STRING-1] = 0;
-	    tok = strchr(name, ',');
-	    if (tok) {
-		*tok = 0;
-	    }
-	    fprintf(stderr,"Unknown flag (%s)\n",name);
-	    tok = strchr(flagsString, ',');
-	    if (tok == NULL)  {
-		break;
-	    }
-	    flagsString = tok+1;
-	}
-    }
-    return flagsValue;
-}
-
-CK_FLAGS
-GetOpFlags(char *flags)
-{
-    return GetFlags(flags, opFlagsArray, opFlagsCount);
-}
-
-PK11AttrFlags
-GetAttrFlags(char *flags)
-{
-    return GetFlags(flags, attrFlagsArray, attrFlagsCount);
-}
-
 char *mkNickname(unsigned char *data, int len)
 {
    char *nick = PORT_Alloc(len+1);
@@ -2188,9 +2074,6 @@ enum certutilOpts {
     opt_SourcePrefix,
     opt_UpgradeID,
     opt_UpgradeTokenName,
-    opt_KeyOpFlagsOn,
-    opt_KeyOpFlagsOff,
-    opt_KeyAttrFlags,
     opt_Help
 };
 
@@ -2292,12 +2175,6 @@ secuCommandFlag options_init[] =
                                                    "upgrade-id"},
 	{ /* opt_UpgradeTokenName    */  0,   PR_TRUE,  0, PR_FALSE, 
                                                    "upgrade-token-name"},
-	{ /* opt_KeyOpFlagsOn        */  0,   PR_TRUE, 0, PR_FALSE, 
-                                                   "keyOpFlagsOn"},
-	{ /* opt_KeyOpFlagsOff       */  0,   PR_TRUE, 0, PR_FALSE, 
-                                                   "keyOpFlagsOff"},
-	{ /* opt_KeyAttrFlags        */  0,   PR_TRUE, 0, PR_FALSE, 
-                                                   "keyAttrFlags"},
 };
 #define NUM_OPTIONS ((sizeof options_init)  / (sizeof options_init[0]))
 
@@ -2345,10 +2222,6 @@ certutil_main(int argc, char **argv, PRBool initialize)
     secuPWData  pwdata2         = { PW_NONE, 0 };
     PRBool      readOnly        = PR_FALSE;
     PRBool      initialized     = PR_FALSE;
-    CK_FLAGS    keyOpFlagsOn = 0;
-    CK_FLAGS    keyOpFlagsOff = 0;
-    PK11AttrFlags    keyAttrFlags = 
-		PK11_ATTR_TOKEN | PK11_ATTR_SENSITIVE | PK11_ATTR_PRIVATE;
 
     SECKEYPrivateKey *privkey = NULL;
     SECKEYPublicKey *pubkey = NULL;
@@ -2469,17 +2342,6 @@ certutil_main(int argc, char **argv, PRBool initialize)
 	}
     } else if (certutil.commands[cmd_ListKeys].activated) {
 	keytype = nullKey;
-    }
-
-    if (certutil.options[opt_KeyOpFlagsOn].activated) {
-	keyOpFlagsOn = GetOpFlags(certutil.options[opt_KeyOpFlagsOn].arg);
-    }
-    if (certutil.options[opt_KeyOpFlagsOff].activated) {
-	keyOpFlagsOff = GetOpFlags(certutil.options[opt_KeyOpFlagsOff].arg);
-	keyOpFlagsOn &=~keyOpFlagsOff; /* make off override on */
-    }
-    if (certutil.options[opt_KeyAttrFlags].activated) {
-	keyAttrFlags = GetAttrFlags(certutil.options[opt_KeyAttrFlags].arg);
     }
 
     /*  -m serial number */
@@ -3075,9 +2937,6 @@ merge_fail:
 					    certutil.options[opt_NoiseFile].arg,
 					    &pubkey, 
 					    certutil.options[opt_PQGFile].arg,
-					    keyAttrFlags,
-					    keyOpFlagsOn,
-					    keyOpFlagsOff,
 					    &pwdata);
 	    if (privkey == NULL) {
 		SECU_PrintError(progName, "unable to generate key(s)\n");
@@ -3158,8 +3017,7 @@ merge_fail:
 	certutil.commands[cmd_AddEmailCert].activated) {
 	PRBool isCreate = certutil.commands[cmd_CreateNewCert].activated;
 	rv = SECU_ReadDERFromFile(isCreate ? &certReqDER : &certDER, inFile,
-				  certutil.options[opt_ASCIIForIO].activated,
-				  PR_TRUE);
+				  certutil.options[opt_ASCIIForIO].activated);
 	if (rv)
 	    goto shutdown;
     }
@@ -3230,10 +3088,6 @@ merge_fail:
     if (certutil.commands[cmd_CreateAndAddCert].activated ||
          certutil.commands[cmd_AddCert].activated ||
 	 certutil.commands[cmd_AddEmailCert].activated) {
-	if (strstr(certutil.options[opt_Trust].arg, "u")) {
-	    fprintf(stderr, "Notice: Trust flag u is set automatically if the "
-			    "private key is present.\n");
-	}
 	rv = AddCert(slot, certHandle, name, 
 	             certutil.options[opt_Trust].arg,
 	             &certDER,

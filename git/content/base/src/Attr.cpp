@@ -57,8 +57,6 @@ Attr::Attr(nsDOMAttributeMap *aAttrMap,
   SetIsDOMBinding();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Attr)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Attr)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
@@ -68,7 +66,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Attr)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAttrMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(Attr)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Attr)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Attr)
   nsINode::Unlink(tmp);
@@ -102,9 +102,10 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 // QueryInterface implementation for Attr
 NS_INTERFACE_TABLE_HEAD(Attr)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_TABLE6(Attr, nsINode, nsIDOMAttr, nsIAttribute, nsIDOMNode,
-                      nsIDOMEventTarget, EventTarget)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(Attr)
+  NS_NODE_INTERFACE_TABLE5(Attr, nsIDOMAttr, nsIAttribute, nsIDOMNode,
+                           nsIDOMEventTarget, EventTarget)
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(Attr)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAttribute)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
@@ -112,8 +113,8 @@ NS_INTERFACE_TABLE_HEAD(Attr)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Attr)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(Attr,
-                                                   nsNodeUtils::LastRelease(this))
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(Attr,
+                                              nsNodeUtils::LastRelease(this))
 
 void
 Attr::SetMap(nsDOMAttributeMap *aMap)
@@ -368,6 +369,12 @@ Attr::IndexOf(const nsINode* aPossibleChild) const
 nsresult
 Attr::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
                               bool aNotify)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsresult
+Attr::AppendChildTo(nsIContent* aKid, bool aNotify)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

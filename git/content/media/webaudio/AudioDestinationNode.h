@@ -17,13 +17,7 @@ class AudioContext;
 class AudioDestinationNode : public AudioNode
 {
 public:
-  // This node type knows what MediaStreamGraph to use based on
-  // whether it's in offline mode.
-  AudioDestinationNode(AudioContext* aContext,
-                       bool aIsOffline,
-                       uint32_t aNumberOfChannels = 0,
-                       uint32_t aLength = 0,
-                       float aSampleRate = 0.0f);
+  AudioDestinationNode(AudioContext* aContext, MediaStreamGraph* aGraph);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -35,19 +29,6 @@ public:
     return 0;
   }
 
-  uint32_t MaxChannelCount() const;
-  virtual void SetChannelCount(uint32_t aChannelCount,
-                               ErrorResult& aRv) MOZ_OVERRIDE;
-
-  void Mute();
-  void Unmute();
-
-  void StartRendering();
-
-  void DestroyGraph();
-
-private:
-  uint32_t mFramesToProduce;
 };
 
 }

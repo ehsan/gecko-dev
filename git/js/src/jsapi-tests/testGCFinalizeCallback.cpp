@@ -2,14 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "tests.h"
+
 #include <stdarg.h>
 
-#include "jscntxt.h"
 #include "jsfriendapi.h"
-
-#include "jsapi-tests/tests.h"
-
-#include "vm/ObjectImpl-inl.h"
+#include "jscntxt.h"
 
 const unsigned BufferSize = 20;
 static unsigned FinalizeCalls = 0;
@@ -17,7 +15,7 @@ static JSFinalizeStatus StatusBuffer[BufferSize];
 static bool IsCompartmentGCBuffer[BufferSize];
 
 static void
-FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, bool isCompartmentGC)
+FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
 {
     if (FinalizeCalls < BufferSize) {
         StatusBuffer[FinalizeCalls] = status;

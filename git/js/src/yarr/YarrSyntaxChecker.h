@@ -25,11 +25,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrSyntaxChecker_h
-#define yarr_YarrSyntaxChecker_h
+#ifndef YarrSyntaxChecker_h
+#define YarrSyntaxChecker_h
 
-#include "yarr/wtfbridge.h"
-#include "yarr/YarrParser.h"
+#include "wtfbridge.h"
+#include "YarrParser.h"
 
 namespace JSC { namespace Yarr {
 
@@ -37,4 +37,5 @@ ErrorCode checkSyntax(const String& pattern);
 
 }} // JSC::YARR
 
-#endif /* yarr_YarrSyntaxChecker_h */
+#endif // YarrSyntaxChecker_h
+

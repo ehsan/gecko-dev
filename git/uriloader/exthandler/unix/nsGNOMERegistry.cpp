@@ -13,7 +13,7 @@
 #include "nsIGnomeVFSService.h"
 #include "nsIGIOService.h"
 
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #include <glib-object.h>
 #endif

@@ -8,10 +8,16 @@ TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
     'nsIDOMDOMCursor.idl',
+    'nsIDOMDOMError.idl',
     'nsIDOMDOMRequest.idl',
     'nsIEntropyCollector.idl',
     'nsIScriptChannel.idl',
     'nsISiteSpecificUserAgent.idl',
+]
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
 ]
 
 MODULE = 'dom'
@@ -23,7 +29,6 @@ EXPORTS += [
     'nsDOMClassInfoClasses.h',
     'nsDOMClassInfoID.h',
     'nsDOMJSUtils.h',
-    'nsDOMNavigationTiming.h',
     'nsDOMString.h',
     'nsFocusManager.h',
     'nsIDOMClassInfo.h',
@@ -37,12 +42,12 @@ EXPORTS += [
     'nsIScriptGlobalObjectOwner.h',
     'nsIScriptNameSpaceManager.h',
     'nsIScriptObjectPrincipal.h',
+    'nsIScriptRuntime.h',
     'nsIScriptTimeoutHandler.h',
     'nsJSEnvironment.h',
     'nsJSUtils.h',
     'nsPIDOMWindow.h',
     'nsPIWindowRoot.h',
-    'nsPerformance.h',
     'nsStructuredCloneContainer.h',
     'nsWindowMemoryReporter.h',
     'nsWrapperCache.h',
@@ -50,7 +55,6 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'BarProps.h',
     'DOMCursor.h',
     'DOMError.h',
     'DOMRequest.h',
@@ -59,52 +63,3 @@ EXPORTS.mozilla.dom += [
     'URL.h',
 ]
 
-CPP_SOURCES += [
-    'BarProps.cpp',
-    'Crypto.cpp',
-    'DOMCursor.cpp',
-    'DOMError.cpp',
-    'DOMRequest.cpp',
-    'Navigator.cpp',
-    'URL.cpp',
-    'nsContentPermissionHelper.cpp',
-    'nsDOMClassInfo.cpp',
-    'nsDOMException.cpp',
-    'nsDOMNavigationTiming.cpp',
-    'nsDOMScriptObjectFactory.cpp',
-    'nsDOMWindowList.cpp',
-    'nsDOMWindowUtils.cpp',
-    'nsFocusManager.cpp',
-    'nsGlobalWindow.cpp',
-    'nsGlobalWindowCommands.cpp',
-    'nsHistory.cpp',
-    'nsJSEnvironment.cpp',
-    'nsJSTimeoutHandler.cpp',
-    'nsJSUtils.cpp',
-    'nsLocation.cpp',
-    'nsMimeTypeArray.cpp',
-    'nsPerformance.cpp',
-    'nsPluginArray.cpp',
-    'nsQueryContentEventResult.cpp',
-    'nsScreen.cpp',
-    'nsScriptNameSpaceManager.cpp',
-    'nsStructuredCloneContainer.cpp',
-    'nsWindowMemoryReporter.cpp',
-    'nsWindowRoot.cpp',
-    'nsWrapperCache.cpp',
-    'WindowNamedPropertiesHandler.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'ConsoleAPI.js',
-    'ConsoleAPI.manifest',
-    'SiteSpecificUserAgent.js',
-    'SiteSpecificUserAgent.manifest',
-]
-
-EXTRA_JS_MODULES += [
-    'ConsoleAPIStorage.jsm',
-    'DOMRequestHelper.jsm',
-    'IndexedDBHelper.jsm',
-    'ObjectWrapper.jsm',
-]

@@ -4,13 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartment_h
-#define jscompartment_h
+#ifndef jscompartment_h___
+#define jscompartment_h___
 
-#include "mozilla/MemoryReporting.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
+#include "mozilla/Util.h"
+
+#include "jscntxt.h"
+#include "jsfun.h"
+#include "jsgc.h"
+#include "jsobj.h"
 
 #include "gc/Zone.h"
 #include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
 
 namespace js {
 
@@ -56,7 +65,6 @@ struct CrossCompartmentKey
         ObjectWrapper,
         StringWrapper,
         DebuggerScript,
-        DebuggerSource,
         DebuggerObject,
         DebuggerEnvironment
     };
@@ -108,34 +116,23 @@ struct TypeInferenceSizes;
 
 namespace js {
 class AutoDebugModeGC;
-class ArrayBufferObject;
 class DebugScopes;
-class WeakMapBase;
 }
 
 struct JSCompartment
 {
-    JS::CompartmentOptions       options_;
-
-  private:
     JS::Zone                     *zone_;
-    JSRuntime                    *runtime_;
 
-  public:
+    JSRuntime                    *rt;
     JSPrincipals                 *principals;
     bool                         isSystem;
     bool                         marked;
-
-#ifdef DEBUG
-    bool                         firedOnNewGlobalObject;
-#endif
 
     void mark() { marked = true; }
 
   private:
     friend struct JSRuntime;
     friend struct JSContext;
-    friend class js::ExclusiveContext;
     js::ReadBarriered<js::GlobalObject> global_;
 
     unsigned                     enterCompartmentDepth;
@@ -143,23 +140,9 @@ struct JSCompartment
   public:
     void enter() { enterCompartmentDepth++; }
     void leave() { enterCompartmentDepth--; }
-    bool hasBeenEntered() { return !!enterCompartmentDepth; }
 
     JS::Zone *zone() { return zone_; }
     const JS::Zone *zone() const { return zone_; }
-    JS::CompartmentOptions &options() { return options_; }
-    const JS::CompartmentOptions &options() const { return options_; }
-
-    JSRuntime *runtimeFromMainThread() {
-        JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
-        return runtime_;
-    }
-
-    // Note: Unrestricted access to the zone's runtime from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    JSRuntime *runtimeFromAnyThread() const {
-        return runtime_;
-    }
 
     /*
      * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
@@ -198,8 +181,6 @@ struct JSCompartment
 
     void                         *data;
 
-    js::ObjectMetadataCallback   objectMetadataCallback;
-
   private:
     js::WrapperMap               crossCompartmentWrappers;
 
@@ -210,10 +191,10 @@ struct JSCompartment
     js::RegExpCompartment        regExps;
 
   private:
-    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, mozilla::MallocSizeOf mallocSizeOf);
+    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, JSMallocSizeOfFun mallocSizeOf);
 
   public:
-    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *compartmentObject,
+    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                              JS::TypeInferenceSizes *tiSizes,
                              size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
                              size_t *regexpCompartment, size_t *debuggeesSet,
@@ -238,6 +219,9 @@ struct JSCompartment
     js::types::TypeObjectSet     lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
 
+    js::types::TypeObject *getNewType(JSContext *cx, js::Class *clasp, js::TaggedProto proto,
+                                      JSFunction *fun = NULL);
+
     js::types::TypeObject *getLazyType(JSContext *cx, js::Class *clasp, js::TaggedProto proto);
 
     /*
@@ -261,7 +245,7 @@ struct JSCompartment
     JSObject                     *gcIncomingGrayPointers;
 
     /* Linked list of live array buffers with >1 view. */
-    js::ArrayBufferObject        *gcLiveArrayBuffers;
+    JSObject                     *gcLiveArrayBuffers;
 
     /* Linked list of live weakmaps in this compartment. */
     js::WeakMapBase              *gcWeakMapList;
@@ -272,7 +256,7 @@ struct JSCompartment
     unsigned                     debugModeBits;  // see debugMode() below
 
   public:
-    JSCompartment(JS::Zone *zone, const JS::CompartmentOptions &options);
+    JSCompartment(JS::Zone *zone);
     ~JSCompartment();
 
     bool init(JSContext *cx);
@@ -288,7 +272,7 @@ struct JSCompartment
     bool wrapId(JSContext *cx, jsid *idp);
     bool wrap(JSContext *cx, js::PropertyOp *op);
     bool wrap(JSContext *cx, js::StrictPropertyOp *op);
-    bool wrap(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc);
+    bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     bool putWrapper(const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
@@ -310,7 +294,6 @@ struct JSCompartment
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();
-    void clearTables();
 
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
@@ -395,12 +378,6 @@ struct JSCompartment
 #endif
 };
 
-inline bool
-JSRuntime::isAtomsZone(JS::Zone *zone)
-{
-    return zone == atomsCompartment_->zone();
-}
-
 // For use when changing the debug mode flag on one or more compartments.
 // Do not run scripts in any compartment that is scheduled for GC using this
 // object. See comment in updateForDebugMode.
@@ -428,20 +405,20 @@ class js::AutoDebugModeGC
     }
 };
 
-namespace js {
+inline bool
+JSContext::typeInferenceEnabled() const
+{
+    return compartment->zone()->types.inferenceEnabled;
+}
 
 inline bool
-ExclusiveContext::typeInferenceEnabled() const
+JSContext::jaegerCompilationAllowed() const
 {
-    // Type inference cannot be enabled in compartments which are accessed off
-    // the main thread by an ExclusiveContext. TI data is stored in per-zone
-    // allocators which could otherwise race with main thread operations.
-    JS_ASSERT_IF(!isJSContext(), !compartment_->zone()->types.inferenceEnabled);
-    return compartment_->zone()->types.inferenceEnabled;
+    return compartment->zone()->types.jaegerCompilationAllowed;
 }
 
 inline js::Handle<js::GlobalObject*>
-ExclusiveContext::global() const
+JSContext::global() const
 {
     /*
      * It's safe to use |unsafeGet()| here because any compartment that is
@@ -449,21 +426,23 @@ ExclusiveContext::global() const
      * barrier on it. Once the compartment is popped, the handle is no longer
      * safe to use.
      */
-    return Handle<GlobalObject*>::fromMarkedLocation(compartment_->global_.unsafeGet());
+    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment->global_.unsafeGet());
 }
+
+namespace js {
 
 class AssertCompartmentUnchanged
 {
   public:
     AssertCompartmentUnchanged(JSContext *cx
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), oldCompartment(cx->compartment())
+      : cx(cx), oldCompartment(cx->compartment)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AssertCompartmentUnchanged() {
-        JS_ASSERT(cx->compartment() == oldCompartment);
+        JS_ASSERT(cx->compartment == oldCompartment);
     }
 
   protected:
@@ -474,15 +453,14 @@ class AssertCompartmentUnchanged
 
 class AutoCompartment
 {
-    ExclusiveContext * const cx_;
+    JSContext * const cx_;
     JSCompartment * const origin_;
 
   public:
-    inline AutoCompartment(ExclusiveContext *cx, JSObject *target);
-    inline AutoCompartment(ExclusiveContext *cx, JSCompartment *target);
+    inline AutoCompartment(JSContext *cx, JSObject *target);
     inline ~AutoCompartment();
 
-    ExclusiveContext *context() const { return cx_; }
+    JSContext *context() const { return cx_; }
     JSCompartment *origin() const { return origin_; }
 
   private:
@@ -586,4 +564,5 @@ class AutoWrapperRooter : private AutoGCRooter {
 
 } /* namespace js */
 
-#endif /* jscompartment_h */
+#endif /* jscompartment_h___ */
+

@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-browser[tabmodalPromptShowing] {
-  -moz-user-focus: none !important;
-}
-
 browser[remote="false"] {
   -moz-binding: url("chrome://browser/content/bindings/browser.xml#local-browser");
 }
 
 browser[remote="true"] {
   -moz-binding: url("chrome://browser/content/bindings/browser.xml#remote-browser");
+}
+
+#content-navigator {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#content-navigator");
 }
 
 #tabs {
@@ -40,14 +40,6 @@ settings {
 
 setting {
   display: none;
-}
-
-autoscroller {
-  -moz-binding: url('chrome://browser/content/bindings/popup.xml#element-popup');
-}
-
-circularprogressindicator {
-  -moz-binding: url('chrome://browser/content/bindings/circularprogress.xml#circular-progress-indicator');
 }
 
 setting[type="bool"] {
@@ -97,17 +89,16 @@ setting[type="menulist"] {
   -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
 }
 
-#chrome-selection-overlay,
-#content-selection-overlay {
+#selection-overlay {
   -moz-binding: url("chrome://browser/content/bindings/selectionoverlay.xml#selection-binding");
 }
 
 #urlbar-edit {
-  -moz-binding: url("chrome://browser/content/bindings/urlbar.xml#urlbar");
+  -moz-binding: url("chrome://browser/content/bindings/autocomplete.xml#autocomplete");
 }
 
-#urlbar-autocomplete {
-  -moz-binding: url("chrome://browser/content/bindings/urlbar.xml#urlbar-autocomplete");
+#start-autocomplete {
+  -moz-binding: url("chrome://browser/content/bindings/autocomplete.xml#autocomplete-popup");
 }
 
 richgrid {
@@ -164,6 +155,27 @@ richlistitem {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#richlistitem");
 }
 
+richgriditem[typeName="download"][state="-1"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-not-started");
+}
+
+richgriditem[typeName="download"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-downloading");
+}
+
+richgriditem[typeName="download"][state="1"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-done");
+}
+
+richgriditem[typeName="download"][state="2"],
+richgriditem[typeName="download"][state="3"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-retry");
+}
+
+richgriditem[typeName="download"][state="4"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-paused");
+}
+
 richlistitem[type="error"],
 richlistitem[type="warning"] {
   -moz-binding: url("chrome://browser/content/bindings/console.xml#error");
@@ -196,7 +208,18 @@ textbox {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textbox");
 }
 
-/* used in about:config */
+textbox[multiline="true"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textarea");
+}
+
+textbox[type="timed"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#timed-textbox");
+}
+
 textbox[type="search"] {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#search-textbox");
+}
+
+textbox[type="number"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#numberbox");
 }

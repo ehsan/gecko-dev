@@ -76,9 +76,6 @@ ia2AccessibleText::get_caretOffset(long *aOffset)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aOffset)
-    return E_INVALIDARG;
-
   *aOffset = -1;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -103,9 +100,6 @@ ia2AccessibleText::get_characterExtents(long aOffset,
                                         long *aWidth, long *aHeight)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aX || !aY || !aWidth || !aHeight)
-    return E_INVALIDARG;
 
   *aX = 0;
   *aY = 0;
@@ -140,9 +134,6 @@ ia2AccessibleText::get_nSelections(long *aNSelections)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aNSelections)
-    return E_INVALIDARG;
-
   *aNSelections = 0;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -166,9 +157,6 @@ ia2AccessibleText::get_offsetAtPoint(long aX, long aY,
                                      long *aOffset)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aOffset)
-    return E_INVALIDARG;
 
   *aOffset = 0;
 
@@ -197,9 +185,6 @@ ia2AccessibleText::get_selection(long aSelectionIndex, long *aStartOffset,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aStartOffset || !aEndOffset)
-    return E_INVALIDARG;
-
   *aStartOffset = 0;
   *aEndOffset = 0;
 
@@ -224,9 +209,6 @@ STDMETHODIMP
 ia2AccessibleText::get_text(long aStartOffset, long aEndOffset, BSTR *aText)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aText)
-    return E_INVALIDARG;
 
   *aText = nullptr;
 
@@ -255,9 +237,6 @@ ia2AccessibleText::get_textBeforeOffset(long aOffset,
                                         BSTR *aText)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aStartOffset || !aEndOffset || !aText)
-    return E_INVALIDARG;
 
   *aStartOffset = 0;
   *aEndOffset = 0;
@@ -306,9 +285,6 @@ ia2AccessibleText::get_textAfterOffset(long aOffset,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aStartOffset || !aEndOffset || !aText)
-    return E_INVALIDARG;
-
   *aStartOffset = 0;
   *aEndOffset = 0;
   *aText = nullptr;
@@ -355,9 +331,6 @@ ia2AccessibleText::get_textAtOffset(long aOffset,
                                     BSTR *aText)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aStartOffset || !aEndOffset || !aText)
-    return E_INVALIDARG;
 
   *aStartOffset = 0;
   *aEndOffset = 0;
@@ -450,9 +423,6 @@ ia2AccessibleText::get_nCharacters(long *aNCharacters)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aNCharacters)
-    return E_INVALIDARG;
-
   *aNCharacters = 0;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -529,9 +499,6 @@ HRESULT
 ia2AccessibleText::GetModifiedText(bool aGetInsertedText,
                                    IA2TextSegment *aText)
 {
-  if (!aText)
-    return E_INVALIDARG;
-
   uint32_t startOffset = 0, endOffset = 0;
   nsAutoString text;
 

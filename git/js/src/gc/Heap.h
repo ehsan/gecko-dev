@@ -4,14 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Heap_h
-#define gc_Heap_h
+#ifndef gc_heap_h___
+#define gc_heap_h___
 
 #include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/StandardInteger.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "jspubtd.h"
 #include "jstypes.h"
@@ -27,11 +27,6 @@ struct JSRuntime;
 }
 
 namespace js {
-
-// Whether the current thread is permitted access to any part of the specified
-// runtime or zone.
-extern bool CurrentThreadCanAccessRuntime(JSRuntime *rt);
-extern bool CurrentThreadCanAccessZone(JS::Zone *zone);
 
 class FreeOp;
 
@@ -67,7 +62,6 @@ enum AllocKind {
     FINALIZE_OBJECT16_BACKGROUND,
     FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16_BACKGROUND,
     FINALIZE_SCRIPT,
-    FINALIZE_LAZY_SCRIPT,
     FINALIZE_SHAPE,
     FINALIZE_BASE_SHAPE,
     FINALIZE_TYPE_OBJECT,
@@ -92,20 +86,14 @@ static const size_t MAX_BACKGROUND_FINALIZE_KINDS = FINALIZE_LIMIT - FINALIZE_OB
  */
 struct Cell
 {
-  public:
     inline ArenaHeader *arenaHeader() const;
     inline AllocKind tenuredGetAllocKind() const;
     MOZ_ALWAYS_INLINE bool isMarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE bool markIfUnmarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
 
-    inline JSRuntime *runtimeFromMainThread() const;
-    inline JS::Zone *tenuredZone() const;
-    inline bool tenuredIsInsideZone(JS::Zone *zone) const;
-
-    // Note: Unrestricted access to the runtime of a GC thing from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    inline JSRuntime *runtimeFromAnyThread() const;
+    inline JSRuntime *runtime() const;
+    inline Zone *tenuredZone() const;
 
 #ifdef DEBUG
     inline bool isAligned() const;
@@ -116,6 +104,12 @@ struct Cell
     inline uintptr_t address() const;
     inline Chunk *chunk() const;
 };
+
+/*
+ * This is the maximum number of arenas we allow in the FreeCommitted state
+ * before we trigger a GC_SHRINK to release free arenas to the OS.
+ */
+const static uint32_t FreeCommittedArenasThreshold = (32 << 20) / ArenaSize;
 
 /*
  * The mark bitmap has one bit per each GC cell. For multi-cell GC things this
@@ -463,7 +457,7 @@ struct ArenaHeader : public JS::shadow::ArenaHeader
         return allocKind < size_t(FINALIZE_LIMIT);
     }
 
-    void init(JS::Zone *zoneArg, AllocKind kind) {
+    void init(Zone *zoneArg, AllocKind kind) {
         JS_ASSERT(!allocated());
         JS_ASSERT(!markOverflow);
         JS_ASSERT(!allocatedDuringIncremental);
@@ -675,6 +669,10 @@ struct ChunkBitmap
 
   public:
     ChunkBitmap() { }
+    ChunkBitmap(MoveRef<ChunkBitmap> b) {
+        mozilla::PodArrayCopy(bitmap, b->bitmap);
+    }
+
 
     MOZ_ALWAYS_INLINE void getMarkWordAndMask(const Cell *cell, uint32_t color,
                                               uintptr_t **wordp, uintptr_t *maskp)
@@ -787,7 +785,7 @@ struct Chunk
         return info.numArenasFree != 0;
     }
 
-    inline void addToAvailableList(JS::Zone *zone);
+    inline void addToAvailableList(Zone *zone);
     inline void insertToAvailableList(Chunk **insertPoint);
     inline void removeFromAvailableList();
 
@@ -956,15 +954,7 @@ Cell::arenaHeader() const
 }
 
 inline JSRuntime *
-Cell::runtimeFromMainThread() const
-{
-    JSRuntime *rt = chunk()->info.runtime;
-    JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-    return rt;
-}
-
-inline JSRuntime *
-Cell::runtimeFromAnyThread() const
+Cell::runtime() const
 {
     return chunk()->info.runtime;
 }
@@ -1000,20 +990,11 @@ Cell::unmark(uint32_t color) const
     chunk()->bitmap.unmark(this, color);
 }
 
-JS::Zone *
+Zone *
 Cell::tenuredZone() const
 {
-    JS::Zone *zone = arenaHeader()->zone;
-    JS_ASSERT(CurrentThreadCanAccessZone(zone));
     JS_ASSERT(isTenured());
-    return zone;
-}
-
-bool
-Cell::tenuredIsInsideZone(JS::Zone *zone) const
-{
-    JS_ASSERT(isTenured());
-    return zone == arenaHeader()->zone;
+    return arenaHeader()->zone;
 }
 
 #ifdef DEBUG
@@ -1085,4 +1066,4 @@ InFreeList(ArenaHeader *aheader, void *thing)
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* gc_Heap_h */
+#endif /* gc_heap_h___ */

@@ -54,6 +54,8 @@
 #include "nsILoadContext.h"
 #include "nsILoadGroupChild.h"
 
+#include "nsContentUtils.h"
+
 using namespace mozilla;
 using namespace mozilla::image;
 
@@ -958,7 +960,7 @@ NS_IMETHODIMP imgLoader::FindEntryProperties(nsIURI *uri, nsIProperties **_retva
     if (mCacheTracker && entry->HasNoProxies())
       mCacheTracker->MarkUsed(entry);
 
-    nsRefPtr<imgRequest> request = entry->GetRequest();
+    nsRefPtr<imgRequest> request = getter_AddRefs(entry->GetRequest());
     if (request) {
       *_retval = request->Properties();
       NS_ADDREF(*_retval);
@@ -1005,7 +1007,7 @@ bool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
   if (cache.Get(spec, getter_AddRefs(tmpCacheEntry)) && tmpCacheEntry) {
     PR_LOG(GetImgLog(), PR_LOG_DEBUG,
            ("[this=%p] imgLoader::PutIntoCache -- Element already in the cache", nullptr));
-    nsRefPtr<imgRequest> tmpRequest = tmpCacheEntry->GetRequest();
+    nsRefPtr<imgRequest> tmpRequest = getter_AddRefs(tmpCacheEntry->GetRequest());
 
     // If it already exists, and we're putting the same key into the cache, we
     // should remove the old version.
@@ -1038,7 +1040,7 @@ bool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
     }
   }
 
-  nsRefPtr<imgRequest> request = entry->GetRequest();
+  nsRefPtr<imgRequest> request(getter_AddRefs(entry->GetRequest()));
   request->SetIsInCache(true);
 
   return true;
@@ -1407,7 +1409,7 @@ bool imgLoader::RemoveFromCache(nsIURI *aKey)
 
     entry->SetEvicted(true);
 
-    nsRefPtr<imgRequest> request = entry->GetRequest();
+    nsRefPtr<imgRequest> request(getter_AddRefs(entry->GetRequest()));
     request->SetIsInCache(false);
 
     return true;
@@ -1420,7 +1422,7 @@ bool imgLoader::RemoveFromCache(imgCacheEntry *entry)
 {
   LOG_STATIC_FUNC(GetImgLog(), "imgLoader::RemoveFromCache entry");
 
-  nsRefPtr<imgRequest> request = entry->GetRequest();
+  nsRefPtr<imgRequest> request(getter_AddRefs(entry->GetRequest()));
   if (request) {
     nsCOMPtr<nsIURI> key;
     if (NS_SUCCEEDED(request->GetURI(getter_AddRefs(key))) && key) {
@@ -1623,7 +1625,7 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
     if (ValidateEntry(entry, aURI, aInitialDocumentURI, aReferrerURI,
                       aLoadGroup, aObserver, aCX, requestFlags, true,
                       _retval, aPolicy, aLoadingPrincipal, corsmode)) {
-      request = entry->GetRequest();
+      request = getter_AddRefs(entry->GetRequest());
 
       // If this entry has no proxies, its request has no reference to the entry.
       if (entry->HasNoProxies()) {
@@ -1849,7 +1851,7 @@ nsresult imgLoader::LoadImageWithChannel(nsIChannel *channel, imgINotificationOb
       if (ValidateEntry(entry, uri, nullptr, nullptr, nullptr, aObserver, aCX,
                         requestFlags, false, nullptr, nullptr, nullptr,
                         imgIRequest::CORS_NONE)) {
-        request = entry->GetRequest();
+        request = getter_AddRefs(entry->GetRequest());
       } else {
         nsCOMPtr<nsICachingChannel> cacheChan(do_QueryInterface(channel));
         bool bUseCacheCopy;
@@ -1859,10 +1861,10 @@ nsresult imgLoader::LoadImageWithChannel(nsIChannel *channel, imgINotificationOb
         else
           bUseCacheCopy = false;
 
-        if (!bUseCacheCopy) {
+        if (!bUseCacheCopy)
           entry = nullptr;
-        } else {
-          request = entry->GetRequest();
+        else {
+          request = getter_AddRefs(entry->GetRequest());
         }
       }
 

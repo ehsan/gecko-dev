@@ -5,9 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsfun.h"  // for js::IsInternalFunctionObject
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsfun.h"  // for js::IsInternalFunctionObject
 
 #include "jsobjinlines.h"
 
@@ -27,10 +27,10 @@ BEGIN_TEST(testLookup_bug522590)
 
     // This lookup must not return an internal function object.
     JS::RootedValue r(cx);
-    CHECK(JS_LookupProperty(cx, xobj, "f", &r));
+    CHECK(JS_LookupProperty(cx, xobj, "f", r.address()));
     CHECK(r.isObject());
     JSObject *funobj = &r.toObject();
-    CHECK(funobj->is<JSFunction>());
+    CHECK(funobj->isFunction());
     CHECK(!js::IsInternalFunctionObject(funobj));
 
     return true;
@@ -49,8 +49,8 @@ static JSClass DocumentAllClass = {
     JS_ConvertStub
 };
 
-bool
-document_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned flags,
+JSBool
+document_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
                  JS::MutableHandleObject objp)
 {
     // If id is "all", resolve document.all=true.
@@ -67,7 +67,7 @@ document_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned 
             if (!docAll)
                 return false;
             JS::Rooted<JS::Value> allValue(cx, ObjectValue(*docAll));
-            bool ok = JS_DefinePropertyById(cx, obj, id, allValue, NULL, NULL, 0);
+            JSBool ok = JS_DefinePropertyById(cx, obj, id, allValue, NULL, NULL, 0);
             objp.set(ok ? obj.get() : NULL);
             return ok;
         }

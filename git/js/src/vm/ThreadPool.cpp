@@ -4,15 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/ThreadPool.h"
-
+#include "jscntxt.h"
 #include "jslock.h"
-#ifdef JS_THREADSAFE
-# include "prthread.h"
-#endif
 
 #include "vm/Monitor.h"
-#include "vm/Runtime.h"
+#include "vm/ThreadPool.h"
+
+#ifdef JS_THREADSAFE
+#  include "prthread.h"
+#endif
 
 using namespace js;
 
@@ -186,11 +186,9 @@ ThreadPoolWorker::terminate()
 // them down when requested.
 
 ThreadPool::ThreadPool(JSRuntime *rt)
-  :
-#if defined(JS_THREADSAFE) || defined(DEBUG)
-    runtime_(rt),
-#endif
-    numWorkers_(0) // updated during init()
+  : runtime_(rt),
+    numWorkers_(0), // updated during init()
+    nextId_(0)
 {
 }
 
@@ -286,9 +284,24 @@ ThreadPool::terminateWorkers()
 }
 
 bool
+ThreadPool::submitOne(JSContext *cx, TaskExecutor *executor)
+{
+    JS_ASSERT(numWorkers() > 0);
+
+    runtime_->assertValidThread();
+
+    if (!lazyStartWorkers(cx))
+        return false;
+
+    // Find next worker in round-robin fashion.
+    size_t id = JS_ATOMIC_INCREMENT(&nextId_) % numWorkers();
+    return workers_[id]->submit(executor);
+}
+
+bool
 ThreadPool::submitAll(JSContext *cx, TaskExecutor *executor)
 {
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
 
     if (!lazyStartWorkers(cx))
         return false;

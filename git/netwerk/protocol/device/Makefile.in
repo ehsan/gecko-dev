@@ -11,11 +11,25 @@ FAIL_ON_WARNINGS = 1
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME = nkdevice_s
+FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
+
+CPPSRCS = \
+  nsDeviceChannel.cpp \
+  nsDeviceProtocolHandler.cpp \
+  $(NULL)
+
+ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += AndroidCaptureProvider.cpp \
+           CameraStreamImpl.cpp \
+           $(NULL)
+endif
 
 LOCAL_INCLUDES = -I$(srcdir)/../../base/src/ \
                  $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
 
+DEFINES += -DIMPL_NS_NET

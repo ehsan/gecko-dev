@@ -76,7 +76,7 @@ class AndroidImportPreference extends MultiChoicePreference {
         final Runnable stopCallback = new Runnable() {
             @Override
             public void run() {
-                ThreadUtils.postToUiThread(new Runnable() {
+                GeckoApp.mAppContext.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         dialog.dismiss();

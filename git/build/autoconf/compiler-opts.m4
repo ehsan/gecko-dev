@@ -81,18 +81,6 @@ fi
 dnl A high level macro for selecting compiler options.
 AC_DEFUN([MOZ_COMPILER_OPTS],
 [
-  if test -z "$MOZILLA_OFFICIAL"; then
-    DEVELOPER_OPTIONS=1
-  fi
-  MOZ_ARG_ENABLE_BOOL(release,
-  [  --enable-release        Build with more conservative, release engineering-oriented options.
-                          This may slow down builds.],
-      DEVELOPER_OPTIONS=,
-      DEVELOPER_OPTIONS=1)
-
-  AC_SUBST(DEVELOPER_OPTIONS)
-
-  MOZ_DEBUGGING_OPTS
   MOZ_RTTI
 if test "$CLANG_CXX"; then
     ## We disable return-type-c-linkage because jsval is defined as a C++ type but is
@@ -115,36 +103,9 @@ if test -z "$GNU_CC"; then
     esac
 fi
 
-if test "$GNU_CC" -a -n "$DEVELOPER_OPTIONS"; then
-    dnl if the default linker is BFD ld, check if gold is available and try to use it
-    dnl for local builds only.
-    if $CC -Wl,--version 2>&1 | grep -q "GNU ld"; then
-        GOLD=$($CC -print-prog-name=ld.gold)
-        case "$GOLD" in
-        /*)
-            ;;
-        *)
-            GOLD=$(which $GOLD)
-            ;;
-        esac
-        if test -n "$GOLD"; then
-            mkdir -p $_objdir/build/unix/gold
-            ln -s "$GOLD" $_objdir/build/unix/gold/ld
-            if $CC -B $_objdir/build/unix/gold -Wl,--version 2>&1 | grep -q "GNU gold"; then
-                LDFLAGS="$LDFLAGS -B $_objdir/build/unix/gold"
-            else
-                rm -rf $_objdir/build/unix/gold
-            fi
-        fi
-    fi
-fi
-
 if test "$GNU_CC"; then
-    if test -z "$DEVELOPER_OPTIONS"; then
-        CFLAGS="$CFLAGS -ffunction-sections -fdata-sections"
-        CXXFLAGS="$CXXFLAGS -ffunction-sections -fdata-sections"
-    fi
-    CXXFLAGS="$CXXFLAGS -fno-exceptions"
+    CFLAGS="$CFLAGS -ffunction-sections -fdata-sections"
+    CXXFLAGS="$CXXFLAGS -ffunction-sections -fdata-sections -fno-exceptions"
 fi
 
 dnl ========================================================
@@ -156,7 +117,7 @@ MOZ_ARG_DISABLE_BOOL(icf,
     MOZ_DISABLE_ICF=1,
     MOZ_DISABLE_ICF= )
 
-if test "$GNU_CC" -a "$GCC_USE_GNU_LD" -a -z "$MOZ_DISABLE_ICF" -a -z "$DEVELOPER_OPTIONS"; then
+if test "$GNU_CC" -a "$GCC_USE_GNU_LD" -a -z "$MOZ_DISABLE_ICF"; then
     AC_CACHE_CHECK([whether the linker supports Identical Code Folding],
         LD_SUPPORTS_ICF,
         [echo 'int foo() {return 42;}' \
@@ -187,35 +148,32 @@ dnl ========================================================
 dnl = Automatically remove dead symbols
 dnl ========================================================
 
-if test "$GNU_CC" -a "$GCC_USE_GNU_LD" -a -z "$DEVELOPER_OPTIONS"; then
-    if test -n "$MOZ_DEBUG_FLAGS"; then
-        dnl See bug 670659
-        AC_CACHE_CHECK([whether removing dead symbols breaks debugging],
-            GC_SECTIONS_BREAKS_DEBUG_RANGES,
-            [echo 'int foo() {return 42;}' \
-                  'int bar() {return 1;}' \
-                  'int main() {return foo();}' > conftest.${ac_ext}
-            if AC_TRY_COMMAND([${CC-cc} -o conftest.${ac_objext} $CFLAGS $MOZ_DEBUG_FLAGS -c conftest.${ac_ext} 1>&2]) &&
-                AC_TRY_COMMAND([${CC-cc} -o conftest${ac_exeext} $LDFLAGS $MOZ_DEBUG_FLAGS -Wl,--gc-sections conftest.${ac_objext} $LIBS 1>&2]) &&
-                test -s conftest${ac_exeext} -a -s conftest.${ac_objext}; then
-                 if test "`$PYTHON "$_topsrcdir"/build/autoconf/check_debug_ranges.py conftest.${ac_objext} conftest.${ac_ext}`" = \
-                         "`$PYTHON "$_topsrcdir"/build/autoconf/check_debug_ranges.py conftest${ac_exeext} conftest.${ac_ext}`"; then
-                     GC_SECTIONS_BREAKS_DEBUG_RANGES=no
-                 else
-                     GC_SECTIONS_BREAKS_DEBUG_RANGES=yes
-                 fi
-             else
-                  dnl We really don't expect to get here, but just in case
-                  GC_SECTIONS_BREAKS_DEBUG_RANGES="no, but it's broken in some other way"
-             fi
-             rm -rf conftest*])
-         if test "$GC_SECTIONS_BREAKS_DEBUG_RANGES" = no; then
-             DSO_LDOPTS="$DSO_LDOPTS -Wl,--gc-sections"
-         fi
-    else
+if test "$GNU_CC" -a "$GCC_USE_GNU_LD" -a -n "$MOZ_DEBUG_FLAGS"; then
+   dnl See bug 670659
+   AC_CACHE_CHECK([whether removing dead symbols breaks debugging],
+       GC_SECTIONS_BREAKS_DEBUG_RANGES,
+       [echo 'int foo() {return 42;}' \
+             'int bar() {return 1;}' \
+             'int main() {return foo();}' > conftest.${ac_ext}
+        if AC_TRY_COMMAND([${CC-cc} -o conftest.${ac_objext} $CFLAGS $MOZ_DEBUG_FLAGS -c conftest.${ac_ext} 1>&2]) &&
+           AC_TRY_COMMAND([${CC-cc} -o conftest${ac_exeext} $LDFLAGS $MOZ_DEBUG_FLAGS -Wl,--gc-sections conftest.${ac_objext} $LIBS 1>&2]) &&
+           test -s conftest${ac_exeext} -a -s conftest.${ac_objext}; then
+            if test "`$PYTHON "$_topsrcdir"/build/autoconf/check_debug_ranges.py conftest.${ac_objext} conftest.${ac_ext}`" = \
+                    "`$PYTHON "$_topsrcdir"/build/autoconf/check_debug_ranges.py conftest${ac_exeext} conftest.${ac_ext}`"; then
+                GC_SECTIONS_BREAKS_DEBUG_RANGES=no
+            else
+                GC_SECTIONS_BREAKS_DEBUG_RANGES=yes
+            fi
+        else
+             dnl We really don't expect to get here, but just in case
+             GC_SECTIONS_BREAKS_DEBUG_RANGES="no, but it's broken in some other way"
+        fi
+        rm -rf conftest*])
+    if test "$GC_SECTIONS_BREAKS_DEBUG_RANGES" = no; then
         DSO_LDOPTS="$DSO_LDOPTS -Wl,--gc-sections"
     fi
 fi
+
 ])
 
 dnl GCC and clang will fail if given an unknown warning option like -Wfoobar. 

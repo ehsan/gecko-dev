@@ -76,8 +76,7 @@ private:
 
   nsTHashtable<nsCStringHashKey>& ScopesHavingData();
 
-  ThreadSafeAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
+  nsAutoRefCnt mRefCnt;
 
   // Held to get caches to forward answers to.
   nsRefPtr<DOMLocalStorageManager> mManager;
@@ -180,8 +179,7 @@ private:
 private:
   CacheParentBridge* NewCache(const nsACString& aScope);
 
-  ThreadSafeAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
+  nsAutoRefCnt mRefCnt;
 	
 	// True when IPC channel is open and Send*() methods are OK to use.
   bool mIPCOpen;

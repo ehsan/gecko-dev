@@ -11,8 +11,7 @@
 class nsInterfaceRequestorAgg MOZ_FINAL : public nsIInterfaceRequestor
 {
 public:
-  // XXX This needs to support threadsafe refcounting until we fix bug 243591.
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIINTERFACEREQUESTOR
 
   nsInterfaceRequestorAgg(nsIInterfaceRequestor *aFirst,
@@ -33,7 +32,8 @@ private:
   nsCOMPtr<nsIEventTarget> mConsumerTarget;
 };
 
-NS_IMPL_ISUPPORTS1(nsInterfaceRequestorAgg, nsIInterfaceRequestor)
+// XXX This needs to support threadsafe refcounting until we fix bug 243591.
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsInterfaceRequestorAgg, nsIInterfaceRequestor)
 
 NS_IMETHODIMP
 nsInterfaceRequestorAgg::GetInterface(const nsIID &aIID, void **aResult)

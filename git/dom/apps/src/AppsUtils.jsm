@@ -20,13 +20,13 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
 
 // Shared code for AppsServiceChild.jsm, Webapps.jsm and Webapps.js
 
-this.EXPORTED_SYMBOLS = ["AppsUtils", "ManifestHelper", "isAbsoluteURI"];
+this.EXPORTED_SYMBOLS = ["AppsUtils", "ManifestHelper"];
 
 function debug(s) {
   //dump("-*- AppsUtils.jsm: " + s + "\n");
 }
 
-this.isAbsoluteURI = function(aURI) {
+function isAbsoluteURI(aURI) {
   let foo = Services.io.newURI("http://foo", null, null);
   let bar = Services.io.newURI("http://bar", null, null);
   return Services.io.newURI(aURI, null, foo).prePath != foo.prePath ||
@@ -92,8 +92,7 @@ this.AppsUtils = {
       installerAppId: aApp.installerAppId || Ci.nsIScriptSecurityManager.NO_APP_ID,
       installerIsBrowser: !!aApp.installerIsBrowser,
       storeId: aApp.storeId || "",
-      storeVersion: aApp.storeVersion || 0,
-      redirects: aApp.redirects
+      storeVersion: aApp.storeVersion || 0
     };
   },
 
@@ -176,6 +175,21 @@ this.AppsUtils = {
     return "";
   },
 
+  getAppFromObserverMessage: function(aApps, aMessage) {
+    let data = JSON.parse(aMessage);
+
+    for (let id in aApps) {
+      let app = aApps[id];
+      if (app.origin != data.origin) {
+        continue;
+      }
+
+      return this.cloneAsMozIApplication(app);
+    }
+
+    return null;
+  },
+
   getCoreAppsBasePath: function getCoreAppsBasePath() {
     debug("getCoreAppsBasePath()");
     try {
@@ -199,7 +213,7 @@ this.AppsUtils = {
 #ifdef MOZ_WIDGET_GONK
     isCoreApp = app.basePath == this.getCoreAppsBasePath();
 #endif
-    debug(app.basePath + " isCoreApp: " + isCoreApp);
+    debug(app.name + " isCoreApp: " + isCoreApp);
     return { "basePath":  app.basePath + "/",
              "isCoreApp": isCoreApp };
   },
@@ -482,30 +496,6 @@ this.AppsUtils = {
 
     // Nothing failed.
     return true;
-  },
-
-  // Returns the MD5 hash of a string.
-  computeHash: function(aString) {
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                      .createInstance(Ci.nsIScriptableUnicodeConverter);
-    converter.charset = "UTF-8";
-    let result = {};
-    // Data is an array of bytes.
-    let data = converter.convertToByteArray(aString, result);
-
-    let hasher = Cc["@mozilla.org/security/hash;1"]
-                   .createInstance(Ci.nsICryptoHash);
-    hasher.init(hasher.MD5);
-    hasher.update(data, data.length);
-    // We're passing false to get the binary hash and not base64.
-    let hash = hasher.finish(false);
-
-    function toHexString(charCode) {
-      return ("0" + charCode.toString(16)).slice(-2);
-    }
-
-    // Convert the binary hash data to a hex string.
-    return [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");
   }
 }
 

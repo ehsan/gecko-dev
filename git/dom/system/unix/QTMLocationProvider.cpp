@@ -63,7 +63,7 @@ QTMLocationProvider::Startup()
 }
 
 NS_IMETHODIMP
-QTMLocationProvider::Watch(nsIGeolocationUpdate* aCallback)
+QTMLocationProvider::Watch(nsIGeolocationUpdate* aCallback, bool aRequestPrivate)
 {
     mCallback = aCallback;
 

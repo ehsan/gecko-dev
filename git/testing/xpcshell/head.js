@@ -45,17 +45,6 @@ try {
 } 
 catch (e) { }
 
-// Only if building of places is enabled.
-if (runningInParent &&
-    "mozIAsyncHistory" in Components.interfaces) {
-  // Ensure places history is enabled for xpcshell-tests as some non-FF
-  // apps disable it.
-  let (prefs = Components.classes["@mozilla.org/preferences-service;1"]
-               .getService(Components.interfaces.nsIPrefBranch)) {
-    prefs.setBoolPref("places.history.enabled", true);
-  };
-}
-
 try {
   if (runningInParent) {
     let prefs = Components.classes["@mozilla.org/preferences-service;1"]
@@ -87,7 +76,7 @@ try { // nsIXULRuntime is not available in some configurations.
           Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
           .getService(Components.interfaces.nsICrashReporter)) {
       crashReporter.enabled = true;
-      crashReporter.minidumpPath = do_get_tempdir();
+      crashReporter.minidumpPath = do_get_cwd();
     }
   }
 }
@@ -122,8 +111,8 @@ function _Timer(func, delay) {
 }
 _Timer.prototype = {
   QueryInterface: function(iid) {
-    if (iid.equals(Components.interfaces.nsITimerCallback) ||
-        iid.equals(Components.interfaces.nsISupports))
+    if (iid.Equals(Components.interfaces.nsITimerCallback) ||
+        iid.Equals(Components.interfaces.nsISupports))
       return this;
 
     throw Components.results.NS_ERROR_NO_INTERFACE;
@@ -200,7 +189,7 @@ function _dump_exception_stack(stack) {
  * @note Idle service is overridden by default.  If a test requires it, it will
  *       have to call do_get_idle() function at least once before use.
  */
-var _fakeIdleService = {
+_fakeIdleService = {
   get registrar() {
     delete this.registrar;
     return this.registrar =
@@ -344,7 +333,7 @@ function _execute_test() {
     // possible that this will mask an NS_ERROR_ABORT that happens after a
     // do_check failure though.
     if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-      let msg = "TEST-UNEXPECTED-FAIL | ";
+      msg = "TEST-UNEXPECTED-FAIL | ";
       if (e.fileName) {
         msg += e.fileName;
         if (e.lineNumber) {
@@ -403,9 +392,6 @@ function _load_files(aFiles) {
   aFiles.forEach(loadTailFile);
 }
 
-function _wrap_with_quotes_if_necessary(val) {
-  return typeof val == "string" ? '"' + val + '"' : val;
-}
 
 /************** Functions to be used from the tests **************/
 
@@ -414,7 +400,6 @@ function _wrap_with_quotes_if_necessary(val) {
  */
 function do_print(msg) {
   var caller_stack = Components.stack.caller;
-  msg = _wrap_with_quotes_if_necessary(msg);
   _dump("TEST-INFO | " + caller_stack.filename + " | " + msg + "\n");
 }
 
@@ -476,36 +461,38 @@ function do_execute_soon(callback, aName) {
  */
 function do_throw(error, stack) {
   let filename = "";
-  // If we didn't get passed a stack, maybe the error has one
-  // otherwise get it from our call context
-  stack = stack || error.stack || Components.stack.caller;
+  if (!stack) {
+    if (error instanceof Error) {
+      // |error| is an exception object
+      filename = error.fileName;
+      stack = error.stack;
+    } else {
+      stack = Components.stack.caller;
+    }
+  }
 
   if (stack instanceof Components.interfaces.nsIStackFrame)
     filename = stack.filename;
-  else if (error.fileName)
-    filename = error.fileName;
 
-  _dump_message_with_stack("TEST-UNEXPECTED-FAIL | " + filename + " | ", error, stack);
+  _dump("TEST-UNEXPECTED-FAIL | " + filename + " | " + error +
+        " - See following stack:\n");
 
-  _passed = false;
-  _do_quit();
-  throw Components.results.NS_ERROR_ABORT;
-}
-
-function _dump_stack(stack) {
   if (stack instanceof Components.interfaces.nsIStackFrame) {
     let frame = stack;
     while (frame != null) {
       _dump(frame + "\n");
       frame = frame.caller;
     }
-  }
-  else if (typeof stack == "string") {
+  } else if (typeof stack == "string") {
     let stackLines = stack.split("\n");
     for (let line of stackLines) {
       _dump(line + "\n");
     }
   }
+
+  _passed = false;
+  _do_quit();
+  throw Components.results.NS_ERROR_ABORT;
 }
 
 function do_throw_todo(text, stack) {
@@ -513,42 +500,16 @@ function do_throw_todo(text, stack) {
     stack = Components.stack.caller;
 
   _passed = false;
-  _dump_message_with_stack("TEST-UNEXPECTED-PASS | " + stack.filename + " | ",
-      text, stack);
+  _dump("TEST-UNEXPECTED-PASS | " + stack.filename + " | " + text +
+        " - See following stack:\n");
+  var frame = Components.stack;
+  while (frame != null) {
+    _dump(frame + "\n");
+    frame = frame.caller;
+  }
 
   _do_quit();
   throw Components.results.NS_ERROR_ABORT;
-}
-
-// Make a nice display string from an object that behaves
-// like Error
-function _exception_message(ex) {
-  let message = "";
-  if (ex.name) {
-    message = ex.name + ": ";
-  }
-  if (ex.message) {
-    message += ex.message;
-  }
-  if (ex.fileName) {
-    message += (" at " + ex.fileName);
-    if (ex.lineNumber) {
-      message += (":" + ex.lineNumber);
-    }
-  }
-  if (message !== "") {
-    return message;
-  }
-  // Force ex to be stringified
-  return "" + ex;
-}
-
-function _dump_message_with_stack(preamble, ex, stack) {
-  _dump(preamble + _exception_message(ex) +
-      (stack ? " - see following stack:\n" : "\n"));
-  if (stack) {
-    _dump_stack(stack);
-  }
 }
 
 function do_report_unexpected_exception(ex, text) {
@@ -556,9 +517,9 @@ function do_report_unexpected_exception(ex, text) {
   text = text ? text + " - " : "";
 
   _passed = false;
-  _dump_message_with_stack("TEST-UNEXPECTED-FAIL | " + caller_stack.filename +
-        " | " + text + "Unexpected exception ",
-        ex, ex.stack);
+  _dump("TEST-UNEXPECTED-FAIL | " + caller_stack.filename + " | " + text +
+        "Unexpected exception " + ex + ", see following stack:\n" + ex.stack +
+        "\n");
 
   _do_quit();
   throw Components.results.NS_ERROR_ABORT;
@@ -568,18 +529,33 @@ function do_note_exception(ex, text) {
   var caller_stack = Components.stack.caller;
   text = text ? text + " - " : "";
 
-  _dump_message_with_stack("TEST-INFO | " + caller_stack.filename +
-        " | " + text + "Swallowed exception ",
-        ex, ex.stack);
+  _dump("TEST-INFO | " + caller_stack.filename + " | " + text +
+        "Swallowed exception " + ex + ", see following stack:\n" + ex.stack +
+        "\n");
 }
 
 function _do_check_neq(left, right, stack, todo) {
   if (!stack)
     stack = Components.stack.caller;
 
-  var text = _wrap_with_quotes_if_necessary(left) + " != " +
-             _wrap_with_quotes_if_necessary(right);
-  do_report_result(left != right, text, stack, todo);
+  var text = left + " != " + right;
+  if (left == right) {
+    if (!todo) {
+      do_throw(text, stack);
+    } else {
+      ++_todoChecks;
+      _dump("TEST-KNOWN-FAIL | " + stack.filename + " | [" + stack.name +
+            " : " + stack.lineNumber + "] " + text +"\n");
+    }
+  } else {
+    if (!todo) {
+      ++_passedChecks;
+      _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+            stack.lineNumber + "] " + text + "\n");
+    } else {
+      do_throw_todo(text, stack);
+    }
+  }
 }
 
 function do_check_neq(left, right, stack) {
@@ -620,8 +596,7 @@ function _do_check_eq(left, right, stack, todo) {
   if (!stack)
     stack = Components.stack.caller;
 
-  var text = _wrap_with_quotes_if_necessary(left) + " == " +
-             _wrap_with_quotes_if_necessary(right);
+  var text = left + " == " + right;
   do_report_result(left == right, text, stack, todo);
 }
 
@@ -939,23 +914,6 @@ function do_register_cleanup(aFunction)
 }
 
 /**
- * Returns the directory for a temp dir, which is created by the
- * test harness. Every test gets its own temp dir.
- *
- * @return nsILocalFile of the temporary directory
- */
-function do_get_tempdir() {
-  let env = Components.classes["@mozilla.org/process/environment;1"]
-                      .getService(Components.interfaces.nsIEnvironment);
-  // the python harness sets this in the environment for us
-  let path = env.get("XPCSHELL_TEST_TEMP_DIR");
-  let file = Components.classes["@mozilla.org/file/local;1"]
-                       .createInstance(Components.interfaces.nsILocalFile);
-  file.initWithPath(path);
-  return file;
-}
-
-/**
  * Registers a directory with the profile service,
  * and return the directory as an nsILocalFile.
  *
@@ -1197,14 +1155,3 @@ function run_next_test()
     do_test_finished(_gRunningTest.name);
   }
 }
-
-try {
-  if (runningInParent) {
-    // Always use network provider for geolocation tests
-    // so we bypass the OSX dialog raised by the corelocation provider
-    let prefs = Components.classes["@mozilla.org/preferences-service;1"]
-      .getService(Components.interfaces.nsIPrefBranch);
-
-    prefs.setBoolPref("geo.provider.testing", true);
-  }
-} catch (e) { }

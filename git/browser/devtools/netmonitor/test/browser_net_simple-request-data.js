@@ -18,7 +18,7 @@ function test() {
       .then(() => teardown(aMonitor))
       .then(finish);
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.NETWORK_EVENT, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEvent", () => {
       is(RequestsMenu.selectedItem, null,
         "There shouldn't be any selected item in the requests menu.");
       is(RequestsMenu.itemCount, 1,
@@ -29,10 +29,10 @@ function test() {
       let requestItem = RequestsMenu.getItemAtIndex(0);
       let target = requestItem.target;
 
-      is(typeof requestItem.value, "string",
-        "The attached request id is incorrect.");
-      isnot(requestItem.value, "",
-        "The attached request id should not be empty.");
+      is(typeof requestItem.attachment.id, "string",
+        "The attached id is incorrect.");
+      isnot(requestItem.attachment.id, "",
+        "The attached id should not be empty.");
 
       is(typeof requestItem.attachment.startedDeltaMillis, "number",
         "The attached startedDeltaMillis is incorrect.");
@@ -81,15 +81,13 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS);
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_REQUEST_HEADERS, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:RequestHeaders", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.requestHeaders,
         "There should be a requestHeaders attachment available.");
-      ok(requestItem.attachment.requestHeaders.headers.length >= 6,
+      is(requestItem.attachment.requestHeaders.headers.length, 7,
         "The requestHeaders attachment has an incorrect |headers| property.");
-      // Can't test for an exact total number of headers, because it seems to
-      // vary across pgo/non-pgo builds.
       isnot(requestItem.attachment.requestHeaders.headersSize, 0,
         "The requestHeaders attachment has an incorrect |headersSize| property.");
       // Can't test for the exact request headers size because the value may
@@ -98,7 +96,7 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS);
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_REQUEST_COOKIES, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:RequestCookies", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.requestCookies,
@@ -109,11 +107,11 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS);
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_REQUEST_POST_DATA, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:RequestPostData", () => {
       ok(false, "Trap listener: this request doesn't have any post data.")
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_RESPONSE_HEADERS, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:ResponseHeaders", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.responseHeaders,
@@ -126,7 +124,7 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS);
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_RESPONSE_COOKIES, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:ResponseCookies", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.responseCookies,
@@ -137,7 +135,7 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS);
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.STARTED_RECEIVING_RESPONSE, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdating:ResponseStart", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       is(requestItem.attachment.httpVersion, "HTTP/1.1",
@@ -155,7 +153,7 @@ function test() {
       });
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.UPDATING_RESPONSE_CONTENT, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdating:ResponseContent", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       is(requestItem.attachment.contentSize, "12",
@@ -166,11 +164,11 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
         fullMimeType: "text/plain; charset=utf-8",
-        size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.01),
+        size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
       });
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_RESPONSE_CONTENT, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:ResponseContent", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.responseContent,
@@ -185,11 +183,11 @@ function test() {
       verifyRequestItemTarget(requestItem, "GET", SIMPLE_SJS, {
         type: "plain",
         fullMimeType: "text/plain; charset=utf-8",
-        size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.01),
+        size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
       });
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.UPDATING_EVENT_TIMINGS, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdating:EventTimings", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       is(typeof requestItem.attachment.totalTime, "number",
@@ -207,7 +205,7 @@ function test() {
       });
     });
 
-    aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RECEIVED_EVENT_TIMINGS, () => {
+    aMonitor.panelWin.once("NetMonitor:NetworkEventUpdated:EventTimings", () => {
       let requestItem = RequestsMenu.getItemAtIndex(0);
 
       ok(requestItem.attachment.eventTimings,

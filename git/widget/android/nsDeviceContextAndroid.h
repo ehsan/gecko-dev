@@ -5,17 +5,17 @@
 #include "nsIDeviceContextSpec.h"
 #include "nsCOMPtr.h"
 
-class nsDeviceContextSpecAndroid MOZ_FINAL : public nsIDeviceContextSpec
+class nsDeviceContextSpecAndroid : public nsIDeviceContextSpec
 {
 public:
     NS_DECL_ISUPPORTS
-
+    
     NS_IMETHOD GetSurfaceForPrinter(gfxASurface** surface);
 
     NS_IMETHOD Init(nsIWidget* aWidget,
                     nsIPrintSettings* aPS,
                     bool aIsPrintPreview);
-    NS_IMETHOD BeginDocument(const nsAString& aTitle,
+    NS_IMETHOD BeginDocument(PRUnichar* aTitle,
                              PRUnichar* aPrintToFileName,
                              int32_t aStartPage,
                              int32_t aEndPage);

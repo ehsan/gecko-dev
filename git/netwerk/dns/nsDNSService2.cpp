@@ -10,7 +10,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
-#include "nsIXPConnect.h"
 #include "nsProxyRelease.h"
 #include "nsReadableUtils.h"
 #include "nsString.h"
@@ -49,7 +48,7 @@ static const char kPrefDnsLocalDomains[]    = "network.dns.localDomains";
 class nsDNSRecord : public nsIDNSRecord
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIDNSRECORD
 
     nsDNSRecord(nsHostRecord *hostRecord)
@@ -69,7 +68,7 @@ private:
     bool                    mDone;
 };
 
-NS_IMPL_ISUPPORTS1(nsDNSRecord, nsIDNSRecord)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDNSRecord, nsIDNSRecord)
 
 NS_IMETHODIMP
 nsDNSRecord::GetCanonicalName(nsACString &result)
@@ -232,8 +231,7 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
     // ignore the report.
 
     if (mHostRecord->addr_info &&
-        mIterGenCnt == mHostRecord->addr_info_gencnt &&
-        mIter) {
+        mIterGenCnt == mHostRecord->addr_info_gencnt) {
         mHostRecord->ReportUnusable(&mIter->mAddress);
     }
 
@@ -246,7 +244,7 @@ class nsDNSAsyncRequest MOZ_FINAL : public nsResolveHostCallback
                                   , public nsICancelable
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSICANCELABLE
 
     nsDNSAsyncRequest(nsHostResolver   *res,
@@ -306,7 +304,7 @@ nsDNSAsyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
     return (aListener == mListener);
 }
 
-NS_IMPL_ISUPPORTS1(nsDNSAsyncRequest, nsICancelable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDNSAsyncRequest, nsICancelable)
 
 NS_IMETHODIMP
 nsDNSAsyncRequest::Cancel(nsresult reason)
@@ -372,7 +370,7 @@ nsDNSService::~nsDNSService()
 {
 }
 
-NS_IMPL_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
                               nsIObserver)
 
 NS_IMETHODIMP
@@ -532,13 +530,13 @@ public:
     , mTargetThread(aTargetThread)
   { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDNSLISTENER
 
   class OnLookupCompleteRunnable : public nsRunnable
   {
   public:
-    OnLookupCompleteRunnable(const nsMainThreadPtrHandle<nsIDNSListener>& aListener,
+    OnLookupCompleteRunnable(nsMainThreadPtrHolder<nsIDNSListener>* aListener,
                              nsICancelable* aRequest,
                              nsIDNSRecord* aRecord,
                              nsresult aStatus)
@@ -562,7 +560,7 @@ private:
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 
-NS_IMPL_ISUPPORTS1(DNSListenerProxy, nsIDNSListener)
+NS_IMPL_THREADSAFE_ISUPPORTS1(DNSListenerProxy, nsIDNSListener)
 
 NS_IMETHODIMP
 DNSListenerProxy::OnLookupComplete(nsICancelable* aRequest,
@@ -587,14 +585,13 @@ NS_IMETHODIMP
 nsDNSService::AsyncResolve(const nsACString  &hostname,
                            uint32_t           flags,
                            nsIDNSListener    *listener,
-                           nsIEventTarget    *target_,
+                           nsIEventTarget    *target,
                            nsICancelable    **result)
 {
     // grab reference to global host resolver and IDN service.  beware
     // simultaneous shutdown!!
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
-    nsCOMPtr<nsIEventTarget> target = target_;
     bool localDomain = false;
     {
         MutexAutoLock lock(mLock);
@@ -623,13 +620,6 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     if (idn && !IsASCII(*hostPtr)) {
         if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;
-    }
-
-    nsCOMPtr<nsIXPConnectWrappedJS> wrappedListener = do_QueryInterface(listener);
-    if (wrappedListener && !target) {
-        nsCOMPtr<nsIThread> mainThread;
-        NS_GetMainThread(getter_AddRefs(mainThread));
-        target = do_QueryInterface(mainThread);
     }
 
     if (target) {

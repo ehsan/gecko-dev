@@ -14,6 +14,10 @@ CHROMIUM_CONFIG_INCLUDED = 1
 
 EXTRA_DEPS += $(topsrcdir)/ipc/chromium/chromium-config.mk
 
+DEFINES += \
+  -DEXCLUDE_SKIA_DEPENDENCIES \
+  $(NULL)
+
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/ipc/chromium/src \
   -I$(topsrcdir)/ipc/glue \
@@ -68,13 +72,11 @@ DEFINES += \
   $(NULL)
 
 else # } {
-ifneq (,$(filter $(OS_ARCH),FreeBSD GNU_kFreeBSD)) # {
+ifeq ($(OS_ARCH),FreeBSD) # {
 
 OS_FREEBSD = 1
 OS_BSD = 1
-ifneq ($(OS_ARCH),GNU_kFreeBSD)
 OS_LIBS += $(call EXPAND_LIBNAME,kvm)
-endif
 DEFINES += \
   -DOS_FREEBSD=1 \
   -DOS_BSD=1 \

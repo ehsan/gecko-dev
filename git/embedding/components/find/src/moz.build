@@ -6,10 +6,3 @@
 
 MODULE = 'find'
 
-CPP_SOURCES += [
-    'nsFind.cpp',
-    'nsWebBrowserFind.cpp',
-]
-
-LIBRARY_NAME = 'find_s'
-

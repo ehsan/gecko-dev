@@ -49,7 +49,7 @@ SkGroup::~SkGroup() {
     }
 }
 
-bool SkGroup::addChild(SkAnimateMaker& , SkDisplayable* child) {
+bool SkGroup::add(SkAnimateMaker& , SkDisplayable* child) {
     SkASSERT(child);
 //  SkASSERT(child->isDrawable());
     *fChildren.append() = (SkDrawable*) child;
@@ -86,7 +86,7 @@ SkDisplayable* SkGroup::deepCopy(SkAnimateMaker* maker) {
     for (SkDrawable** ptr = fChildren.begin(); ptr < fChildren.end(); ptr++) {
         SkDisplayable* displayable = (SkDisplayable*)*ptr;
         SkDisplayable* deeperCopy = displayable->deepCopy(maker);
-        ((SkGroup*)copy)->addChild(*maker, deeperCopy);
+        ((SkGroup*)copy)->add(*maker, deeperCopy);
     }
     return copy;
 }
@@ -196,7 +196,7 @@ bool SkGroup::hasEnable() const {
     return true;
 }
 
-bool SkGroup::ifCondition(SkAnimateMaker& maker, SkDrawable*,
+bool SkGroup::ifCondition(SkAnimateMaker& maker, SkDrawable* drawable,
         SkString& conditionString) {
     if (conditionString.size() == 0)
         return true;
@@ -319,3 +319,5 @@ bool SkSave::draw(SkAnimateMaker& maker) {
     maker.fCanvas->restore();
     return result;
 }
+
+

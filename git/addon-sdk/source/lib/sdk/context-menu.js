@@ -4,11 +4,7 @@
 "use strict";
 
 module.metadata = {
-  "stability": "stable",
-  "engines": {
-    // TODO Fennec support Bug 788334
-    "Firefox": "*"
-  }
+  "stability": "stable"
 };
 
 const { Class, mix } = require("./core/heritage");
@@ -19,7 +15,7 @@ const { URL, isValidURI } = require("./url");
 const { WindowTracker, browserWindowIterator } = require("./deprecated/window-utils");
 const { isBrowser, getInnerId } = require("./window/utils");
 const { Ci } = require("chrome");
-const { MatchPattern } = require("./util/match-pattern");
+const { MatchPattern } = require("./page-mod/match-pattern");
 const { Worker } = require("./content/worker");
 const { EventTarget } = require("./event/target");
 const { emit } = require('./event/core');

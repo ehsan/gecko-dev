@@ -47,17 +47,14 @@ public:
    * Transfers ownership of aEngine to the new AudioNodeStream.
    */
   AudioNodeStream(AudioNodeEngine* aEngine,
-                  MediaStreamGraph::AudioNodeStreamKind aKind,
-                  TrackRate aSampleRate)
+                  MediaStreamGraph::AudioNodeStreamKind aKind)
     : ProcessedMediaStream(nullptr),
       mEngine(aEngine),
-      mSampleRate(aSampleRate),
       mKind(aKind),
       mNumberOfInputChannels(2),
       mMarkAsFinishedAfterThisBlock(false),
       mAudioParamStream(false)
   {
-    MOZ_ASSERT(NS_IsMainThread());
     mChannelCountMode = dom::ChannelCountMode::Max;
     mChannelInterpretation = dom::ChannelInterpretation::Speakers;
     // AudioNodes are always producing data
@@ -78,8 +75,6 @@ public:
   void SetTimelineParameter(uint32_t aIndex, const dom::AudioParamTimeline& aValue);
   void SetThreeDPointParameter(uint32_t aIndex, const dom::ThreeDPoint& aValue);
   void SetBuffer(already_AddRefed<ThreadSharedFloatArrayBufferList> aBuffer);
-  // This consumes the contents of aData.  aData will be emptied after this returns.
-  void SetRawArrayData(nsTArray<float>& aData);
   void SetChannelMixingParameters(uint32_t aNumberOfChannels,
                                   dom::ChannelCountMode aChannelCountMoe,
                                   dom::ChannelInterpretation aChannelInterpretation);
@@ -108,40 +103,20 @@ public:
   {
     return mLastChunks;
   }
-  virtual bool MainThreadNeedsUpdates() const MOZ_OVERRIDE
-  {
-    // Only source and external streams need updates on the main thread.
-    return (mKind == MediaStreamGraph::SOURCE_STREAM && mFinished) ||
-           mKind == MediaStreamGraph::EXTERNAL_STREAM;
-  }
-  virtual bool IsIntrinsicallyConsumed() const MOZ_OVERRIDE
-  {
-    return true;
-  }
 
   // Any thread
   AudioNodeEngine* Engine() { return mEngine; }
-  TrackRate SampleRate() const { return mSampleRate; }
 
 protected:
-  void AdvanceOutputSegment();
   void FinishOutput();
-  void AccumulateInputChunk(uint32_t aInputIndex, const AudioChunk& aChunk,
-                            AudioChunk* aBlock,
-                            nsTArray<float>* aDownmixBuffer);
-  void UpMixDownMixChunk(const AudioChunk* aChunk, uint32_t aOutputChannelCount,
-                         nsTArray<const void*>& aOutputChannels,
-                         nsTArray<float>& aDownmixBuffer);
 
-  uint32_t ComputeFinalOuputChannelCount(uint32_t aInputChannelCount);
+  StreamBuffer::Track* EnsureTrack();
   void ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex);
 
   // The engine that will generate output for this node.
   nsAutoPtr<AudioNodeEngine> mEngine;
   // The last block produced by this node.
   OutputChunks mLastChunks;
-  // The stream's sampling rate
-  const TrackRate mSampleRate;
   // Whether this is an internal or external stream
   MediaStreamGraph::AudioNodeStreamKind mKind;
   // The number of input channels that this stream requires. 0 means don't care.

@@ -64,3 +64,4 @@ SkImage* SkImage::NewEncodedData(SkData* data) {
 
     return SkNEW_ARGS(SkImage_Codec, (data, bitmap.width(), bitmap.height()));
 }
+

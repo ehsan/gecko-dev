@@ -6,5 +6,3 @@
 
 MODULE = 'verifymar'
 
-LIBRARY_NAME = 'verifymar'
-

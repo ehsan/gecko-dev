@@ -27,13 +27,13 @@ function testSteps()
   let request = indexedDB.open(dbName, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   request.result.createObjectStore(objStoreName, { autoIncrement: true });
 
   request.onupgradeneeded = null;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   let db = event.target.result;
 
@@ -81,11 +81,11 @@ function testSteps()
   }
   ok(true, "Created all transactions");
 
-  event = yield undefined;
+  event = yield;
 
   ok(true, "Completed transaction " + ++completedTransactionCount);
   ok(caughtError, "Caught the error event when we aborted the transaction");
 
   finishTest();
-  yield undefined;
+  yield;
 }

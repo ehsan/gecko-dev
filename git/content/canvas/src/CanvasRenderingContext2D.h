@@ -5,7 +5,6 @@
 #ifndef CanvasRenderingContext2D_h
 #define CanvasRenderingContext2D_h
 
-#include "mozilla/Attributes.h"
 #include <vector>
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsICanvasRenderingContextInternal.h"
@@ -17,22 +16,20 @@
 #include "gfxFont.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/ImageData.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/CanvasGradient.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/CanvasPattern.h"
-#include "mozilla/gfx/Rect.h"
 
 class nsXULElement;
 
 namespace mozilla {
 namespace gfx {
+struct Rect;
 class SourceSurface;
 }
 
 namespace dom {
-class HTMLImageElementOrHTMLCanvasElementOrHTMLVideoElement;
-class StringOrCanvasGradientOrCanvasPattern;
-class StringOrCanvasGradientOrCanvasPatternReturnValue;
 class TextMetrics;
 
 extern const mozilla::gfx::Float SIGMA_MAX;
@@ -49,7 +46,7 @@ class CanvasRenderingContext2D :
   public nsICanvasRenderingContextInternal,
   public nsWrapperCache
 {
-typedef HTMLImageElementOrHTMLCanvasElementOrHTMLVideoElement
+typedef mozilla::dom::HTMLImageElementOrHTMLCanvasElementOrHTMLVideoElement
   HTMLImageOrCanvasOrVideoElement;
 
 public:
@@ -93,25 +90,18 @@ public:
   void GetGlobalCompositeOperation(nsAString& op, mozilla::ErrorResult& error);
   void SetGlobalCompositeOperation(const nsAString& op,
                                    mozilla::ErrorResult& error);
+  JS::Value GetStrokeStyle(JSContext* cx, mozilla::ErrorResult& error);
 
-  void GetStrokeStyle(StringOrCanvasGradientOrCanvasPatternReturnValue& value)
+  void SetStrokeStyle(JSContext* cx, JS::Handle<JS::Value> value)
   {
-    GetStyleAsUnion(value, STYLE_STROKE);
+    SetStyleFromJSValue(cx, value, STYLE_STROKE);
   }
 
-  void SetStrokeStyle(const StringOrCanvasGradientOrCanvasPattern& value)
-  {
-    SetStyleFromUnion(value, STYLE_STROKE);
-  }
+  JS::Value GetFillStyle(JSContext* cx, mozilla::ErrorResult& error);
 
-  void GetFillStyle(StringOrCanvasGradientOrCanvasPatternReturnValue& value)
+  void SetFillStyle(JSContext* cx, JS::Handle<JS::Value> value)
   {
-    GetStyleAsUnion(value, STYLE_FILL);
-  }
-
-  void SetFillStyle(const StringOrCanvasGradientOrCanvasPattern& value)
-  {
-    SetStyleFromUnion(value, STYLE_FILL);
+    SetStyleFromJSValue(cx, value, STYLE_FILL);
   }
 
   already_AddRefed<CanvasGradient>
@@ -171,10 +161,10 @@ public:
   bool IsPointInPath(double x, double y, const CanvasWindingRule& winding);
   bool IsPointInStroke(double x, double y);
   void FillText(const nsAString& text, double x, double y,
-                const Optional<double>& maxWidth,
+                const mozilla::dom::Optional<double>& maxWidth,
                 mozilla::ErrorResult& error);
   void StrokeText(const nsAString& text, double x, double y,
-                  const Optional<double>& maxWidth,
+                  const mozilla::dom::Optional<double>& maxWidth,
                   mozilla::ErrorResult& error);
   TextMetrics*
     MeasureText(const nsAString& rawText, mozilla::ErrorResult& error);
@@ -199,18 +189,18 @@ public:
     DrawImage(image, sx, sy, sw, sh, dx, dy, dw, dh, 6, error);
   }
 
-  already_AddRefed<ImageData>
+  already_AddRefed<mozilla::dom::ImageData>
     CreateImageData(JSContext* cx, double sw, double sh,
                     mozilla::ErrorResult& error);
-  already_AddRefed<ImageData>
-    CreateImageData(JSContext* cx, ImageData& imagedata,
+  already_AddRefed<mozilla::dom::ImageData>
+    CreateImageData(JSContext* cx, mozilla::dom::ImageData& imagedata,
                     mozilla::ErrorResult& error);
-  already_AddRefed<ImageData>
+  already_AddRefed<mozilla::dom::ImageData>
     GetImageData(JSContext* cx, double sx, double sy, double sw, double sh,
                  mozilla::ErrorResult& error);
-  void PutImageData(ImageData& imageData,
+  void PutImageData(mozilla::dom::ImageData& imageData,
                     double dx, double dy, mozilla::ErrorResult& error);
-  void PutImageData(ImageData& imageData,
+  void PutImageData(mozilla::dom::ImageData& imageData,
                     double dx, double dy, double dirtyX, double dirtyY,
                     double dirtyWidth, double dirtyHeight,
                     mozilla::ErrorResult& error);
@@ -280,7 +270,7 @@ public:
   void LineTo(double x, double y)
   {
     EnsureWritablePath();
-
+    
     LineTo(mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
   }
 
@@ -317,13 +307,11 @@ public:
 
   JSObject* GetMozCurrentTransform(JSContext* cx,
                                    mozilla::ErrorResult& error) const;
-  void SetMozCurrentTransform(JSContext* cx,
-                              JS::Handle<JSObject*> currentTransform,
+  void SetMozCurrentTransform(JSContext* cx, JSObject& currentTransform,
                               mozilla::ErrorResult& error);
   JSObject* GetMozCurrentTransformInverse(JSContext* cx,
                                           mozilla::ErrorResult& error) const;
-  void SetMozCurrentTransformInverse(JSContext* cx,
-                                     JS::Handle<JSObject*> currentTransform,
+  void SetMozCurrentTransformInverse(JSContext* cx, JSObject& currentTransform, 
                                      mozilla::ErrorResult& error);
   void GetFillRule(nsAString& fillRule);
   void SetFillRule(const nsAString& fillRule);
@@ -370,31 +358,31 @@ public:
   nsresult Redraw();
 
   // nsICanvasRenderingContextInternal
-  NS_IMETHOD SetDimensions(int32_t width, int32_t height) MOZ_OVERRIDE;
-  NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, int32_t width, int32_t height) MOZ_OVERRIDE;
+  NS_IMETHOD SetDimensions(int32_t width, int32_t height);
+  NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, int32_t width, int32_t height);
 
   NS_IMETHOD Render(gfxContext *ctx,
                     gfxPattern::GraphicsFilter aFilter,
-                    uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
+                    uint32_t aFlags = RenderFlagPremultAlpha);
   NS_IMETHOD GetInputStream(const char* aMimeType,
                             const PRUnichar* aEncoderOptions,
-                            nsIInputStream **aStream) MOZ_OVERRIDE;
-  NS_IMETHOD GetThebesSurface(gfxASurface **surface) MOZ_OVERRIDE;
+                            nsIInputStream **aStream);
+  NS_IMETHOD GetThebesSurface(gfxASurface **surface);
 
-  mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() MOZ_OVERRIDE
+  mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot()
   { EnsureTarget(); return mTarget->Snapshot(); }
 
-  NS_IMETHOD SetIsOpaque(bool isOpaque) MOZ_OVERRIDE;
-  NS_IMETHOD Reset() MOZ_OVERRIDE;
+  NS_IMETHOD SetIsOpaque(bool isOpaque);
+  NS_IMETHOD Reset();
   already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                                CanvasLayer *aOldLayer,
-                                               LayerManager *aManager) MOZ_OVERRIDE;
-  virtual bool ShouldForceInactiveLayer(LayerManager *aManager) MOZ_OVERRIDE;
-  void MarkContextClean() MOZ_OVERRIDE;
-  NS_IMETHOD SetIsIPC(bool isIPC) MOZ_OVERRIDE;
+                                               LayerManager *aManager);
+  virtual bool ShouldForceInactiveLayer(LayerManager *aManager);
+  void MarkContextClean();
+  NS_IMETHOD SetIsIPC(bool isIPC);
   // this rect is in canvas device space
   void Redraw(const mozilla::gfx::Rect &r);
-  NS_IMETHOD Redraw(const gfxRect &r) MOZ_OVERRIDE { Redraw(ToRect(r)); return NS_OK; }
+  NS_IMETHOD Redraw(const gfxRect &r) { Redraw(ToRect(r)); return NS_OK; }
 
   // this rect is in mTarget's current user space
   void RedrawUser(const gfxRect &r);
@@ -483,22 +471,21 @@ protected:
   static mozilla::gfx::DrawTarget* sErrorTarget;
 
   // Some helpers.  Doesn't modify a color on failure.
-  void SetStyleFromUnion(const StringOrCanvasGradientOrCanvasPattern& value,
-                         Style whichStyle);
+  void SetStyleFromJSValue(JSContext* cx, JS::Handle<JS::Value> value,
+			   Style whichStyle);
   void SetStyleFromString(const nsAString& str, Style whichStyle);
 
-  void SetStyleFromGradient(CanvasGradient& gradient, Style whichStyle)
+  void SetStyleFromGradient(CanvasGradient *gradient, Style whichStyle)
   {
-    CurrentState().SetGradientStyle(whichStyle, &gradient);
+    CurrentState().SetGradientStyle(whichStyle, gradient);
   }
 
-  void SetStyleFromPattern(CanvasPattern& pattern, Style whichStyle)
+  void SetStyleFromPattern(CanvasPattern *pattern, Style whichStyle)
   {
-    CurrentState().SetPatternStyle(whichStyle, &pattern);
+    CurrentState().SetPatternStyle(whichStyle, pattern);
   }
 
-  void GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
-                       Style aWhichStyle);
+  nsISupports* GetStyleAsStringOrInterface(nsAString& aStr, CanvasMultiGetterType& aType, Style aWhichStyle);
 
   // Returns whether a color was successfully parsed.
   bool ParseColor(const nsAString& aString, nscolor* aColor);
@@ -545,7 +532,7 @@ protected:
   /**
    * Check if the target is valid after calling EnsureTarget.
    */
-  bool IsTargetValid() { return mTarget != sErrorTarget && mTarget != nullptr; }
+  bool IsTargetValid() { return mTarget != sErrorTarget; }
 
   /**
     * Returns the surface format this canvas should be allocated using. Takes
@@ -565,19 +552,6 @@ protected:
 
     return CurrentState().font;
   }
-
-#if USE_SKIA_GPU
-
-  // Recreate the DrawTarget in software mode
-  void Demote();
-
-  static std::vector<CanvasRenderingContext2D*>& DemotableContexts();
-  static void DemoteOldestContextIfNecessary();
-  static void AddDemotableContext(CanvasRenderingContext2D* context);
-
-  // Do not use GL
-  bool mForceSoftware;
-#endif
 
   // Member vars
   int32_t mWidth, mHeight;
@@ -656,6 +630,11 @@ protected:
   uint32_t mInvalidateCount;
   static const uint32_t kCanvasMaxInvalidateCount = 100;
 
+
+#ifdef USE_SKIA_GPU
+  nsRefPtr<gl::GLContext> mGLContext;
+#endif
+
   /**
     * Returns true if a shadow should be drawn along with a
     * drawing operation.
@@ -726,7 +705,7 @@ protected:
   nsresult DrawOrMeasureText(const nsAString& text,
                              float x,
                              float y,
-                             const Optional<double>& maxWidth,
+                             const mozilla::dom::Optional<double>& maxWidth,
                              TextDrawOperation op,
                              float* aWidth);
 

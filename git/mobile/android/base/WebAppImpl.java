@@ -71,11 +71,6 @@ public class WebAppImpl extends GeckoApp {
         try {
             mOrigin = new URL(origin);
         } catch (java.net.MalformedURLException ex) {
-            // If we can't parse the this is an app protocol, just settle for not having an origin
-            if (!origin.startsWith("app://")) {
-                return;
-            }
-
             // If that failed fall back to the origin stored in the shortcut
             Log.i(LOGTAG, "Webapp is not registered with allocator");
             try {
@@ -87,7 +82,7 @@ public class WebAppImpl extends GeckoApp {
     }
 
     @Override
-    protected void loadStartupTab(String uri) {
+    protected void initializeChrome(String uri, boolean isExternalURL) {
         String action = getIntent().getAction();
         if (GeckoApp.ACTION_WEBAPP_PREFIX.equals(action)) {
             // This action assumes the uri is not an installed WebApp. We will
@@ -98,6 +93,8 @@ public class WebAppImpl extends GeckoApp {
             startActivity(appIntent);
             finish();
         }
+
+        super.initializeChrome(uri, isExternalURL);
     }
 
     private void showSplash() {
@@ -163,30 +160,17 @@ public class WebAppImpl extends GeckoApp {
             case SELECTED:
             case LOCATION_CHANGE:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    final String urlString = tab.getURL();
-                    final URL url;
-
                     try {
-                        url = new URL(urlString);
-                    } catch (java.net.MalformedURLException ex) {
-                        mTitlebarText.setText(urlString);
+                        String title = tab.getURL();
+                        URL page = new URL(title);
+                        mTitlebarText.setText(page.getProtocol() + "://" + page.getHost());
 
-                        // If we can't parse the url, and its an app protocol hide
-                        // the titlebar and return, otherwise show the titlebar
-                        // and the full url
-                        if (!urlString.startsWith("app://")) {
-                            mTitlebar.setVisibility(View.VISIBLE);
-                        } else {
+                        if (mOrigin != null && mOrigin.getHost().equals(page.getHost()))
                             mTitlebar.setVisibility(View.GONE);
-                        }
-                        return;
-                    }
-
-                    if (mOrigin != null && mOrigin.getHost().equals(url.getHost())) {
-                        mTitlebar.setVisibility(View.GONE);
-                    } else {
-                        mTitlebarText.setText(url.getProtocol() + "://" + url.getHost());
-                        mTitlebar.setVisibility(View.VISIBLE);
+                        else
+                            mTitlebar.setVisibility(View.VISIBLE);
+                    } catch (java.net.MalformedURLException ex) {
+                        Log.e(LOGTAG, "Unable to parse url: ", ex);
                     }
                 }
                 break;
@@ -220,8 +204,8 @@ public class WebAppImpl extends GeckoApp {
     }
 
     @Override
-    protected void geckoConnected() {
-        super.geckoConnected();
-        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+    protected void connectGeckoLayerClient() {
+        super.connectGeckoLayerClient();
+        getLayerView().setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 };

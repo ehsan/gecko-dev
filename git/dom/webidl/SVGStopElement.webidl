@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedNumber;
+
 interface SVGStopElement : SVGElement {
   readonly attribute SVGAnimatedNumber offset;
 };

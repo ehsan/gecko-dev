@@ -34,7 +34,7 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedEnumeration> ClipPathUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> ClipPathUnits();
 
 protected:
 

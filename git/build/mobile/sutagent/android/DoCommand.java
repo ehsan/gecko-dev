@@ -107,7 +107,7 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.19";
+    private final String prgVersion = "SUTAgentAndroid Version 1.17";
 
     public enum Command
         {
@@ -124,7 +124,6 @@ public class DoCommand {
         ID ("id"),
         UPTIME ("uptime"),
         UPTIMEMILLIS ("uptimemillis"),
-        SUTUPTIMEMILLIS ("sutuptimemillis"),
         SETTIME ("settime"),
         SYSTIME ("systime"),
         SCREEN ("screen"),
@@ -430,8 +429,6 @@ public class DoCommand {
                     strReturn += "\n";
                     strReturn += GetUptimeMillis();
                     strReturn += "\n";
-                    strReturn += GetSutUptimeMillis();
-                    strReturn += "\n";
                     strReturn += GetScreenInfo();
                     strReturn += "\n";
                     strReturn += GetRotationInfo();
@@ -487,10 +484,6 @@ public class DoCommand {
 
                         case UPTIMEMILLIS:
                             strReturn = GetUptimeMillis();
-                            break;
-
-                        case SUTUPTIMEMILLIS:
-                            strReturn = GetSutUptimeMillis();
                             break;
 
                         case MEMORY:
@@ -1353,29 +1346,20 @@ private void CancelNotification()
         return(sRet);
         }
 
-    public void FixDataLocalPermissions()
-        {
-        String chmodResult;
-        File localDir = new java.io.File("/data/local");
-        if (!localDir.canWrite()) {
-            chmodResult = ChmodDir("/data/local");
-            Log.i("SUTAgentAndroid", "Changed permissions on /data/local to make it writable: " + chmodResult);
-        }
-        File tmpDir = new java.io.File("/data/local/tmp");
-        if (tmpDir.exists() && !tmpDir.isDirectory()) {
-            if (!tmpDir.delete()) {
-                Log.e("SUTAgentAndroid", "Could not delete file /data/local/tmp");
-            }
-        }
-        if (!tmpDir.exists() && !tmpDir.mkdirs()) {
-            Log.e("SUTAgentAndroid", "Could not create directory /data/local/tmp");
-        }
-        chmodResult = ChmodDir("/data/local/tmp");
-        Log.i("SUTAgentAndroid", "Changed permissions on /data/local/tmp to make it writable: " + chmodResult);
-        }
-
     public String GetTestRoot()
         {
+
+        // According to all the docs this should work, but I keep getting an
+        // exception when I attempt to create the file because I don't have
+        // permission, although /data/local/tmp is supposed to be world
+        // writeable/readable
+        File tmpFile = new java.io.File("/data/local/tmp/tests");
+        try{
+            tmpFile.createNewFile();
+        } catch (IOException e){
+            Log.i("SUTAgentAndroid", "Caught exception creating file in /data/local/tmp: " + e.getMessage());
+        }
+   
         String state = Environment.getExternalStorageState();
         // Ensure sdcard is mounted and NOT read only
         if (state.equalsIgnoreCase(Environment.MEDIA_MOUNTED) &&
@@ -1383,20 +1367,13 @@ private void CancelNotification()
             {
             return(Environment.getExternalStorageDirectory().getAbsolutePath());
             }
-        File tmpFile = new java.io.File("/data/local/tmp/tests");
-        try{
-            tmpFile.createNewFile();
-        } catch (IOException e){
-            Log.i("SUTAgentAndroid", "Caught exception creating file in /data/local/tmp: " + e.getMessage());
-        }
-        if (tmpFile.exists())
+        if (tmpFile.exists()) 
             {
-            tmpFile.delete();
             return("/data/local");
             }
         Log.e("SUTAgentAndroid", "ERROR: Cannot access world writeable test root");
 
-        return sErrorPrefix + " unable to determine test root";
+        return(null);
         }
 
     public String GetAppRoot(String AppName)
@@ -3089,12 +3066,6 @@ private void CancelNotification()
         return Long.toString(SystemClock.uptimeMillis());
         }
  
-    public String GetSutUptimeMillis()
-        {
-        long now = System.currentTimeMillis();
-        return "SUTagent running for "+Long.toString(now - SUTAgentAndroid.nCreateTimeMillis)+" ms";
-        }
- 
     public String NewKillProc(String sProcId, OutputStream out)
         {
         String sRet = "";
@@ -3844,7 +3815,7 @@ private void CancelNotification()
                         else {
                             // set the new file's permissions to rwxrwxrwx, if possible
                             try {
-                                Process pProc = Runtime.getRuntime().exec(this.getSuArgs("chmod 777 "+files[lcv]));
+                                Process pProc = Runtime.getRuntime().exec("chmod 777 "+files[lcv]);
                                 RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                                 outThrd.start();
                                 outThrd.joinAndStopRedirect(5000);
@@ -3864,7 +3835,7 @@ private void CancelNotification()
 
         // set the new directory's (or file's) permissions to rwxrwxrwx, if possible
         try {
-            Process pProc = Runtime.getRuntime().exec(this.getSuArgs("chmod 777 "+sTmpDir));
+            Process pProc = Runtime.getRuntime().exec("chmod 777 "+sTmpDir);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
             outThrd.start();
             outThrd.joinAndStopRedirect(5000);
@@ -3918,7 +3889,6 @@ private void CancelNotification()
             "        [id]                    - unique identifier for device\n" +
             "        [uptime]                - uptime for device\n" +
             "        [uptimemillis]          - uptime for device in milliseconds\n" +
-            "        [sutuptimemillis]       - uptime for SUT in milliseconds\n" +
             "        [systime]               - current system time\n" +
             "        [screen]                - width, height and bits per pixel for device\n" +
             "        [memory]                - physical, free, available, storage memory\n" +

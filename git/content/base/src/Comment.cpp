@@ -8,6 +8,7 @@
  */
 
 #include "nsCOMPtr.h"
+#include "mozilla/dom/Element.h" // DOMCI_NODE_DATA
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/CommentBinding.h"
 

@@ -30,17 +30,16 @@ public:
 
 protected:
   virtual PGrallocBufferChild*
-  AllocPGrallocBufferChild(const gfxIntSize&,
-                      const uint32_t&, const uint32_t&,
+  AllocPGrallocBuffer(const gfxIntSize&, const gfxContentType&,
                       MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
   virtual bool
-  DeallocPGrallocBufferChild(PGrallocBufferChild* actor) MOZ_OVERRIDE;
+  DeallocPGrallocBuffer(PGrallocBufferChild* actor) MOZ_OVERRIDE;
 
-  virtual PLayerChild* AllocPLayerChild() MOZ_OVERRIDE;
-  virtual bool DeallocPLayerChild(PLayerChild* actor) MOZ_OVERRIDE;
+  virtual PLayerChild* AllocPLayer() MOZ_OVERRIDE;
+  virtual bool DeallocPLayer(PLayerChild* actor) MOZ_OVERRIDE;
 
-  virtual PCompositableChild* AllocPCompositableChild(const TextureInfo& aInfo) MOZ_OVERRIDE;
-  virtual bool DeallocPCompositableChild(PCompositableChild* actor) MOZ_OVERRIDE;
+  virtual PCompositableChild* AllocPCompositable(const TextureInfo& aInfo) MOZ_OVERRIDE;
+  virtual bool DeallocPCompositable(PCompositableChild* actor) MOZ_OVERRIDE;
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 };
 

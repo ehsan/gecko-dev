@@ -416,7 +416,7 @@ nsMathMLContainerFrame::Stretch(nsRenderingContext& aRenderingContext,
           aDesiredStretchSize.width = mBoundingMetrics.width;
           aDesiredStretchSize.mBoundingMetrics.width = mBoundingMetrics.width;
 
-          nscoord dx = (StyleVisibility()->mDirection ?
+          nscoord dx = (NS_MATHML_IS_RTL(mPresentationData.flags) ?
                         coreData.trailingSpace : coreData.leadingSpace);
           if (dx != 0) {
             mBoundingMetrics.leftBearing += dx;
@@ -1173,7 +1173,7 @@ public:
     mX(0),
     mCarrySpace(0),
     mFromFrameType(eMathMLFrameType_UNKNOWN),
-    mRTL(aParentFrame->StyleVisibility()->mDirection)
+    mRTL(NS_MATHML_IS_RTL(aParentFrame->mPresentationData.flags))
   {
     if (!mRTL) {
       mChildFrame = aParentFrame->mFrames.FirstChild();
@@ -1544,14 +1544,6 @@ nsMathMLContainerFrame::ReportChildCountError()
   return ReportErrorToConsole("ChildCountIncorrect", &arg, 1);
 }
 
-nsresult
-nsMathMLContainerFrame::ReportInvalidChildError(nsIAtom* aChildTag)
-{
-  const PRUnichar* argv[] =
-    { aChildTag->GetUTF16String(), mContent->Tag()->GetUTF16String() };
-  return ReportErrorToConsole("InvalidChild", argv, 2);
-}
-
 //==========================
 
 nsIFrame*
@@ -1559,7 +1551,9 @@ NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                            uint32_t aFlags)
 {
   nsMathMLmathBlockFrame* it = new (aPresShell) nsMathMLmathBlockFrame(aContext);
-  it->SetFlags(aFlags);
+  if (it) {
+    it->SetFlags(aFlags);
+  }
   return it;
 }
 

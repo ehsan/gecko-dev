@@ -6,14 +6,19 @@
 #define nsScreen_h___
 
 #include "mozilla/Attributes.h"
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/EventHandlerBinding.h"
 #include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Hal.h"
 #include "nsIDOMScreen.h"
+#include "nsISupports.h"
+#include "nsIScriptContext.h"
 #include "nsCOMPtr.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsRect.h"
 
+class nsIDocShell;
 class nsDeviceContext;
 
 // Script "screen" object
@@ -24,6 +29,8 @@ class nsScreen : public nsDOMEventTargetHelper
   typedef mozilla::ErrorResult ErrorResult;
 public:
   static already_AddRefed<nsScreen> Create(nsPIDOMWindow* aWindow);
+
+  void Reset();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSCREEN

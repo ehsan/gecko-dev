@@ -33,9 +33,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "CrossSlide",
+                                  "resource:///modules/CrossSlide.jsm");
 
 /*
  * Services
@@ -110,23 +109,37 @@ let ScriptContexts = {};
   ["OfflineApps", "chrome://browser/content/helperui/OfflineApps.js"],
   ["SelectHelperUI", "chrome://browser/content/helperui/SelectHelperUI.js"],
   ["SelectionHelperUI", "chrome://browser/content/helperui/SelectionHelperUI.js"],
-  ["SelectionPrototype", "chrome://browser/content/library/SelectionPrototype.js"],
-  ["ChromeSelectionHandler", "chrome://browser/content/helperui/ChromeSelectionHandler.js"],
   ["AnimatedZoom", "chrome://browser/content/AnimatedZoom.js"],
   ["CommandUpdater", "chrome://browser/content/commandUtil.js"],
   ["ContextCommands", "chrome://browser/content/ContextCommands.js"],
   ["Bookmarks", "chrome://browser/content/bookmarks.js"],
   ["Downloads", "chrome://browser/content/downloads.js"],
+  ["BookmarksPanelView", "chrome://browser/content/bookmarks.js"],
   ["ConsolePanelView", "chrome://browser/content/console.js"],
+  ["DownloadsPanelView", "chrome://browser/content/downloads.js"],
+  ["DownloadsView", "chrome://browser/content/downloads.js"],
+  ["Downloads", "chrome://browser/content/downloads.js"],
+  ["PreferencesPanelView", "chrome://browser/content/preferences.js"],
+  ["BookmarksStartView", "chrome://browser/content/bookmarks.js"],
+  ["HistoryView", "chrome://browser/content/history.js"],
+  ["HistoryStartView", "chrome://browser/content/history.js"],
+  ["HistoryPanelView", "chrome://browser/content/history.js"],
   ["Site", "chrome://browser/content/Site.js"],
   ["TopSites", "chrome://browser/content/TopSites.js"],
+  ["TopSitesView", "chrome://browser/content/TopSites.js"],
+  ["TopSitesSnappedView", "chrome://browser/content/TopSites.js"],
+  ["TopSitesStartView", "chrome://browser/content/TopSites.js"],
   ["Sanitizer", "chrome://browser/content/sanitize.js"],
   ["SanitizeUI", "chrome://browser/content/sanitizeUI.js"],
   ["SSLExceptions", "chrome://browser/content/exceptions.js"],
   ["ItemPinHelper", "chrome://browser/content/helperui/ItemPinHelper.js"],
-  ["NavButtonSlider", "chrome://browser/content/NavButtonSlider.js"],
-  ["ContextUI", "chrome://browser/content/ContextUI.js"],
-  ["FlyoutPanelsUI", "chrome://browser/content/flyoutpanels/FlyoutPanelsUI.js"],
+#ifdef MOZ_SERVICES_SYNC
+  ["Sync", "chrome://browser/content/sync.js"],
+  ["SyncPairDevice", "chrome://browser/content/sync.js"],
+  ["RemoteTabsView", "chrome://browser/content/RemoteTabs.js"],
+  ["RemoteTabsPanelView", "chrome://browser/content/RemoteTabs.js"],
+  ["RemoteTabsStartView", "chrome://browser/content/RemoteTabs.js"],
+#endif
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {

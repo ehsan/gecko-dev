@@ -9,10 +9,10 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
+#include "nsIDOMSVGAnimatedInteger.h"
 #include "nsISMILAttr.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/SVGAnimatedInteger.h"
 
 class nsSMILValue;
 
@@ -59,7 +59,10 @@ public:
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
 
-  already_AddRefed<mozilla::dom::SVGAnimatedInteger>
+  nsresult ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
+                                PairIndex aIndex,
+                                nsSVGElement* aSVGElement);
+  already_AddRefed<nsIDOMSVGAnimatedInteger>
     ToDOMAnimatedInteger(PairIndex aIndex,
                          nsSVGElement* aSVGElement);
    // Returns a new nsISMILAttr object that the caller must delete
@@ -74,34 +77,34 @@ private:
   bool mIsBaseSet;
 
 public:
-  struct DOMAnimatedInteger MOZ_FINAL : public mozilla::dom::SVGAnimatedInteger
+  struct DOMAnimatedInteger MOZ_FINAL : public nsIDOMSVGAnimatedInteger
   {
-    DOMAnimatedInteger(nsSVGIntegerPair* aVal, PairIndex aIndex,
-                       nsSVGElement* aSVGElement)
-      : mozilla::dom::SVGAnimatedInteger(aSVGElement)
-      , mVal(aVal)
-      , mIndex(aIndex)
-    {}
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedInteger)
+
+    DOMAnimatedInteger(nsSVGIntegerPair* aVal, PairIndex aIndex, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement), mIndex(aIndex) {}
     virtual ~DOMAnimatedInteger();
 
     nsSVGIntegerPair* mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
     PairIndex mIndex; // are we the first or second integer
 
-    virtual int32_t BaseVal() MOZ_OVERRIDE
-    {
-      return mVal->GetBaseValue(mIndex);
-    }
-    virtual void SetBaseVal(int32_t aValue) MOZ_OVERRIDE
-    {
-      mVal->SetBaseValue(aValue, mIndex, mSVGElement);
-    }
+    NS_IMETHOD GetBaseVal(int32_t* aResult)
+      { *aResult = mVal->GetBaseValue(mIndex); return NS_OK; }
+    NS_IMETHOD SetBaseVal(int32_t aValue)
+      {
+        mVal->SetBaseValue(aValue, mIndex, mSVGElement);
+        return NS_OK;
+      }
 
     // Script may have modified animation parameters or timeline -- DOM getters
     // need to flush any resample requests to reflect these modifications.
-    virtual int32_t AnimVal() MOZ_OVERRIDE
+    NS_IMETHOD GetAnimVal(int32_t* aResult)
     {
       mSVGElement->FlushAnimations();
-      return mVal->GetAnimValue(mIndex);
+      *aResult = mVal->GetAnimValue(mIndex);
+      return NS_OK;
     }
   };
 
@@ -121,10 +124,10 @@ public:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const mozilla::dom::SVGAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     bool& aPreventCachingOfSandwich) const MOZ_OVERRIDE;
-    virtual nsSMILValue GetBaseValue() const MOZ_OVERRIDE;
-    virtual void ClearAnimValue() MOZ_OVERRIDE;
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue) MOZ_OVERRIDE;
+                                     bool& aPreventCachingOfSandwich) const;
+    virtual nsSMILValue GetBaseValue() const;
+    virtual void ClearAnimValue();
+    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
 };
 

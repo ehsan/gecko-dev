@@ -10,12 +10,18 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+CPPSRCS		= triplescat.cpp
+
 LIBS		= \
 		$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
 		$(LIBS_DIR) \
 		$(XPCOM_LIBS) \
 		$(NSPR_LIBS) \
 		$(NULL)
+
+ifeq ($(OS_ARCH),WINNT)
+MAPFILE=triplescat.map
+endif
 
 include $(topsrcdir)/config/rules.mk
 

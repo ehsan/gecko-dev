@@ -41,7 +41,7 @@ class CompositableHost;
 class EffectChain;
 class TiledLayerComposer;
 
-class LayerManagerComposite : public LayerManager
+class THEBES_API LayerManagerComposite : public LayerManager
 {
 public:
   LayerManagerComposite(Compositor* aCompositor);
@@ -165,8 +165,6 @@ public:
                             EffectChain& aEffect,
                             bool aIs3D = false);
 
-  static void RemoveMaskEffect(Layer* aMaskLayer);
-
   /**
    * Creates a DrawTarget which is optimized for inter-operating with this
    * layermanager.
@@ -237,11 +235,6 @@ private:
    * Render the current layer tree to the active target.
    */
   void Render();
-
-  /**
-   * Render debug overlays such as the FPS/FrameCounter above the frame.
-   */
-  void RenderDebugOverlay(const gfx::Rect& aBounds);
 
   void WorldTransformRect(nsIntRect& aRect);
 
@@ -338,17 +331,12 @@ public:
   {
     mShadowTransform = aMatrix;
   }
-  void SetShadowTransformSetByAnimation(bool aSetByAnimation)
-  {
-    mShadowTransformSetByAnimation = aSetByAnimation;
-  }
 
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
   const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nullptr; }
   const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
   const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
-  bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
 
 protected:
   gfx3DMatrix mShadowTransform;
@@ -358,7 +346,6 @@ protected:
   RefPtr<Compositor> mCompositor;
   float mShadowOpacity;
   bool mUseShadowClipRect;
-  bool mShadowTransformSetByAnimation;
   bool mDestroyed;
 };
 

@@ -91,9 +91,9 @@ struct DisallowedConversion {
   typedef int intermediateType;
 
 private:
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
-    MOZ_CRASH("This should never be instantiated!");
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
+    MOZ_NOT_REACHED("This should never be instantiated!");
+    return false;
   }
 };
 
@@ -128,8 +128,7 @@ struct PrimitiveConversionTraits_smallInt {
   // corresponding unsigned type.
   typedef int32_t jstype;
   typedef int32_t intermediateType;
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
     return JS::ToInt32(cx, v, retval);
   }
 };
@@ -158,8 +157,7 @@ template<>
 struct PrimitiveConversionTraits<int64_t, eDefault> {
   typedef int64_t jstype;
   typedef int64_t intermediateType;
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
     return JS::ToInt64(cx, v, retval);
   }
 };
@@ -168,8 +166,7 @@ template<>
 struct PrimitiveConversionTraits<uint64_t, eDefault> {
   typedef uint64_t jstype;
   typedef uint64_t intermediateType;
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
     return JS::ToUint64(cx, v, retval);
   }
 };
@@ -209,8 +206,7 @@ struct PrimitiveConversionTraits_ToCheckedIntHelper {
   typedef T jstype;
   typedef T intermediateType;
 
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
     double intermediate;
     if (!JS::ToNumber(cx, v, &intermediate)) {
       return false;
@@ -224,8 +220,8 @@ template<typename T>
 inline bool
 PrimitiveConversionTraits_EnforceRange(JSContext* cx, const double& d, T* retval)
 {
-  static_assert(std::numeric_limits<T>::is_integer,
-                "This can only be applied to integers!");
+  MOZ_STATIC_ASSERT(std::numeric_limits<T>::is_integer,
+                    "This can only be applied to integers!");
 
   if (!mozilla::IsFinite(d)) {
     return ThrowErrorMessage(cx, MSG_ENFORCE_RANGE_NON_FINITE, TypeName<T>::value());
@@ -252,8 +248,8 @@ template<typename T>
 inline bool
 PrimitiveConversionTraits_Clamp(JSContext* cx, const double& d, T* retval)
 {
-  static_assert(std::numeric_limits<T>::is_integer,
-                "This can only be applied to integers!");
+  MOZ_STATIC_ASSERT(std::numeric_limits<T>::is_integer,
+                    "This can only be applied to integers!");
 
   if (mozilla::IsNaN(d)) {
     *retval = 0;
@@ -305,10 +301,9 @@ struct PrimitiveConversionTraits<bool, B> : public DisallowedConversion<bool> {}
 
 template<>
 struct PrimitiveConversionTraits<bool, eDefault> {
-  typedef bool jstype;
+  typedef JSBool jstype;
   typedef bool intermediateType;
-  static inline bool converter(JSContext* /* unused */, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* /* unused */, JS::Value v, jstype* retval) {
     *retval = JS::ToBoolean(v);
     return true;
   }
@@ -324,8 +319,7 @@ struct PrimitiveConversionTraits<double, B> : public DisallowedConversion<double
 struct PrimitiveConversionTraits_float {
   typedef double jstype;
   typedef double intermediateType;
-  static inline bool converter(JSContext* cx, JS::Handle<JS::Value> v,
-                               jstype* retval) {
+  static inline bool converter(JSContext* cx, JS::Value v, jstype* retval) {
     return JS::ToNumber(cx, v, retval);
   }
 };
@@ -339,7 +333,7 @@ struct PrimitiveConversionTraits<double, eDefault> : PrimitiveConversionTraits_f
 
 
 template<typename T, ConversionBehavior B>
-bool ValueToPrimitive(JSContext* cx, JS::Handle<JS::Value> v, T* retval)
+bool ValueToPrimitive(JSContext* cx, JS::Value v, T* retval)
 {
   typename PrimitiveConversionTraits<T, B>::jstype t;
   if (!PrimitiveConversionTraits<T, B>::converter(cx, v, &t))

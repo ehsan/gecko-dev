@@ -92,19 +92,14 @@ class MediaPipeline : public sigslot::has_slots<> {
         rtcp_packets_sent_(0),
         rtp_packets_received_(0),
         rtcp_packets_received_(0),
+        muxed_((rtcp_transport_ == NULL) || (rtp_transport_ == rtcp_transport_)),
         pc_(pc),
         description_() {
-      // To indicate rtcp-mux rtcp_transport should be NULL.
-      // Therefore it's an error to send in the same flow for
-      // both rtp and rtcp.
-      MOZ_ASSERT(rtp_transport_ != rtcp_transport_);
-
-      if (!rtcp_transport_) {
-        rtcp_transport_ = rtp_transport;
-      }
   }
 
-  virtual ~MediaPipeline();
+  virtual ~MediaPipeline() {
+    MOZ_ASSERT(!stream_);  // Check that we have shut down already.
+  }
 
   // Must be called on the STS thread.  Must be called after ShutdownMedia_m().
   void ShutdownTransport_s();
@@ -122,14 +117,10 @@ class MediaPipeline : public sigslot::has_slots<> {
 
   virtual Direction direction() const { return direction_; }
 
-  bool IsDoingRtcpMux() const {
-    return (rtp_transport_ == rtcp_transport_);
-  }
-
   int rtp_packets_sent() const { return rtp_packets_sent_; }
-  int rtcp_packets_sent() const { return rtcp_packets_sent_; }
+  int rtcp_packets_sent() const { return rtp_packets_sent_; }
   int rtp_packets_received() const { return rtp_packets_received_; }
-  int rtcp_packets_received() const { return rtcp_packets_received_; }
+  int rtcp_packets_received() const { return rtp_packets_received_; }
 
   MediaSessionConduit *Conduit() { return conduit_; }
 
@@ -220,6 +211,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   int rtcp_packets_received_;
 
   // Written on Init. Read on STS thread.
+  bool muxed_;
   std::string pc_;
   std::string description_;
 
@@ -300,7 +292,6 @@ private:
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public:
-  // Set rtcp_transport to NULL to use rtcp-mux
   MediaPipelineTransmit(const std::string& pc,
                         nsCOMPtr<nsIEventTarget> main_thread,
                         nsCOMPtr<nsIEventTarget> sts_thread,
@@ -332,12 +323,8 @@ class MediaPipelineTransmit : public MediaPipeline {
   class PipelineListener : public MediaStreamListener {
    public:
     PipelineListener(const RefPtr<MediaSessionConduit>& conduit)
-      : conduit_(conduit),
-        active_(false),
-        last_img_(-1),
-        samples_10ms_buffer_(nullptr),
-        buffer_current_(0),
-        samplenum_10ms_(0) {}
+      : conduit_(conduit), active_(false), samples_10ms_buffer_(nullptr),
+        buffer_current_(0), samplenum_10ms_(0){}
 
     ~PipelineListener()
     {
@@ -374,8 +361,6 @@ class MediaPipelineTransmit : public MediaPipeline {
     RefPtr<MediaSessionConduit> conduit_;
     volatile bool active_;
 
-    int32_t last_img_; // serial number of last Image
-
     // These vars handle breaking audio samples into exact 10ms chunks:
     // The buffer of 10ms audio samples that we will send once full
     // (can be carried over from one call to another).
@@ -395,7 +380,6 @@ class MediaPipelineTransmit : public MediaPipeline {
 // rendering video.
 class MediaPipelineReceive : public MediaPipeline {
  public:
-  // Set rtcp_transport to NULL to use rtcp-mux
   MediaPipelineReceive(const std::string& pc,
                        nsCOMPtr<nsIEventTarget> main_thread,
                        nsCOMPtr<nsIEventTarget> sts_thread,

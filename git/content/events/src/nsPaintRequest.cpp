@@ -6,6 +6,7 @@
 #include "nsPaintRequest.h"
 
 #include "nsIFrame.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/PaintRequestBinding.h"
 #include "mozilla/dom/PaintRequestListBinding.h"
 
@@ -54,16 +55,31 @@ nsPaintRequest::GetXPCOMReason(nsAString& aResult)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsPaintRequestList, mParent)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPaintRequestList)
+NS_INTERFACE_TABLE_HEAD(nsPaintRequestList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_TABLE1(nsPaintRequestList, nsIDOMPaintRequestList)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsPaintRequestList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPaintRequestList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequestList)
 
 JSObject*
-nsPaintRequestList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+nsPaintRequestList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
-  return PaintRequestListBinding::Wrap(aCx, aScope, this);
+  return mozilla::dom::PaintRequestListBinding::Wrap(cx, scope, this);
+}
+
+NS_IMETHODIMP    
+nsPaintRequestList::GetLength(uint32_t* aLength)
+{
+  *aLength = Length();
+  return NS_OK;
+}
+
+NS_IMETHODIMP    
+nsPaintRequestList::Item(uint32_t aIndex, nsIDOMPaintRequest** aReturn)
+{
+  NS_IF_ADDREF(*aReturn = Item(aIndex));
+  return NS_OK;
 }

@@ -536,7 +536,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 void
 nsJPEGDecoder::NotifyDone()
 {
-  PostFrameStop(FrameBlender::kFrameOpaque);
+  PostFrameStop(RasterImage::kFrameOpaque);
   PostDecodeDone();
 }
 

@@ -13,7 +13,7 @@
 #if defined(OS_WIN)
 #include <windows.h>
 #include <tlhelp32.h>
-#elif defined(OS_LINUX) || defined(__GLIBC__)
+#elif defined(OS_LINUX)
 #include <dirent.h>
 #include <limits.h>
 #include <sys/types.h>
@@ -298,7 +298,7 @@ class NamedProcessIterator {
   const ProcessEntry* NextProcessEntry();
 
  private:
-#if !defined(OS_BSD) || defined(__GLIBC__)
+#if !defined(OS_BSD)
   // Determines whether there's another process (regardless of executable)
   // left in the list of all processes.  Returns true and sets entry_ to
   // that process's info if there is one, false otherwise.
@@ -316,7 +316,7 @@ class NamedProcessIterator {
 #if defined(OS_WIN)
   HANDLE snapshot_;
   bool started_iteration_;
-#elif defined(OS_LINUX) || defined(__GLIBC__)
+#elif defined(OS_LINUX)
   DIR *procfs_dir_;
 #elif defined(OS_BSD)
   std::vector<ProcessEntry> content;
@@ -325,7 +325,7 @@ class NamedProcessIterator {
   std::vector<kinfo_proc> kinfo_procs_;
   size_t index_of_kinfo_proc_;
 #endif
-#if !defined(OS_BSD) || defined(__GLIBC__)
+#if !defined(OS_BSD)
   ProcessEntry entry_;
   const ProcessFilter* filter_;
 #endif

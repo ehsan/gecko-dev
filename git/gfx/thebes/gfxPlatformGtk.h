@@ -23,7 +23,7 @@ class FontEntry;
 typedef struct FT_LibraryRec_ *FT_Library;
 #endif
 
-class gfxPlatformGtk : public gfxPlatform {
+class THEBES_API gfxPlatformGtk : public gfxPlatform {
 public:
     gfxPlatformGtk();
     virtual ~gfxPlatformGtk();
@@ -130,8 +130,6 @@ protected:
 
 private:
     virtual qcms_profile *GetPlatformCMSOutputProfile();
-
-    virtual bool SupportsOffMainThreadCompositing();
 #ifdef MOZ_X11
     static bool sUseXRender;
 #endif

@@ -86,8 +86,6 @@ public:
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW;
   void Destroy(nsPresContext* aContext);
 
-  void EnableZoom(nsPresContext* aContext, bool aEnable);
-
   nsFont  mFont;        // [inherited]
   nscoord mSize;        // [inherited] Our "computed size". Can be different
                         // from mFont.size which is our "actual size" and is
@@ -103,10 +101,6 @@ public:
 
   // was mLanguage set based on a lang attribute in the document?
   bool mExplicitLanguage;        // [inherited]
-
-  // should calls to ZoomText() and UnZoomText() be made to the font
-  // size on this nsStyleFont?
-  bool mAllowZoom;               // [inherited]
 
   // The value mSize would have had if scriptminsize had never been applied
   nscoord mScriptUnconstrainedSize;
@@ -243,12 +237,6 @@ struct nsStyleImage {
    */
   bool IsComplete() const;
   /**
-   * @return true if this image is loaded without error;
-   * always returns true if |mType| is |eStyleImageType_Gradient| or
-   * |eStyleImageType_Element|.
-   */
-  bool IsLoaded() const;
-  /**
    * @return true if it is 100% confident that this image contains no pixel
    * to draw.
    */
@@ -266,13 +254,6 @@ struct nsStyleImage {
   bool operator==(const nsStyleImage& aOther) const;
   bool operator!=(const nsStyleImage& aOther) const {
     return !(*this == aOther);
-  }
-
-  bool ImageDataEquals(const nsStyleImage& aOther) const
-  {
-    return GetType() == eStyleImageType_Image &&
-           aOther.GetType() == eStyleImageType_Image &&
-           GetImageData() == aOther.GetImageData();
   }
 
 private:
@@ -655,7 +636,7 @@ struct nsCSSShadowItem {
     MOZ_COUNT_DTOR(nsCSSShadowItem);
   }
 
-  bool operator==(const nsCSSShadowItem& aOther) const {
+  bool operator==(const nsCSSShadowItem& aOther) {
     return (mXOffset == aOther.mXOffset &&
             mYOffset == aOther.mYOffset &&
             mRadius == aOther.mRadius &&
@@ -664,7 +645,7 @@ struct nsCSSShadowItem {
             mInset == aOther.mInset &&
             (!mHasColor || mColor == aOther.mColor));
   }
-  bool operator!=(const nsCSSShadowItem& aOther) const {
+  bool operator!=(const nsCSSShadowItem& aOther) {
     return !(*this == aOther);
   }
 };
@@ -714,18 +695,6 @@ class nsCSSShadowArray {
           return true;
       }
       return false;
-    }
-
-    bool operator==(const nsCSSShadowArray& aOther) const {
-      if (mLength != aOther.Length())
-        return false;
-
-      for (uint32_t i = 0; i < mLength; ++i) {
-        if (ShadowAt(i) != aOther.ShadowAt(i))
-          return false;
-      }
-
-      return true;
     }
 
     NS_INLINE_DECL_REFCOUNTING(nsCSSShadowArray)
@@ -1122,8 +1091,11 @@ struct nsStylePosition {
   nsStyleCoord  mHeight;                // [reset] coord, percent, calc, auto
   nsStyleCoord  mMinHeight;             // [reset] coord, percent, calc
   nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
+#ifdef MOZ_FLEXBOX
   nsStyleCoord  mFlexBasis;             // [reset] coord, percent, enum, calc, auto
+#endif // MOZ_FLEXBOX
   uint8_t       mBoxSizing;             // [reset] see nsStyleConsts.h
+#ifdef MOZ_FLEXBOX
   uint8_t       mAlignItems;            // [reset] see nsStyleConsts.h
   uint8_t       mAlignSelf;             // [reset] see nsStyleConsts.h
   uint8_t       mFlexDirection;         // [reset] see nsStyleConsts.h
@@ -1131,6 +1103,7 @@ struct nsStylePosition {
   int32_t       mOrder;                 // [reset] integer
   float         mFlexGrow;              // [reset] float
   float         mFlexShrink;            // [reset] float
+#endif // MOZ_FLEXBOX
   nsStyleCoord  mZIndex;                // [reset] integer, auto
 
   bool WidthDependsOnContainer() const
@@ -1281,6 +1254,7 @@ struct nsStyleTextReset {
   nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, calc, enum (see nsStyleConsts.h)
   nsStyleTextOverflow mTextOverflow;    // [reset] enum, string
 
+  uint8_t mTextBlink;                   // [reset] see nsStyleConsts.h
   uint8_t mTextDecorationLine;          // [reset] see nsStyleConsts.h
   uint8_t mUnicodeBidi;                 // [reset] see nsStyleConsts.h
 protected:
@@ -1315,8 +1289,6 @@ struct nsStyleText {
   uint8_t mWordWrap;                    // [inherited] see nsStyleConsts.h
   uint8_t mHyphens;                     // [inherited] see nsStyleConsts.h
   uint8_t mTextSizeAdjust;              // [inherited] see nsStyleConsts.h
-  uint8_t mTextOrientation;             // [inherited] see nsStyleConsts.h
-  uint8_t mTextCombineHorizontal;       // [inherited] see nsStyleConsts.h
   int32_t mTabSize;                     // [inherited] see nsStyleConsts.h
 
   nscoord mWordSpacing;                 // [inherited]
@@ -1395,7 +1367,6 @@ struct nsStyleVisibility {
   uint8_t mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   uint8_t mVisible;                    // [inherited]
   uint8_t mPointerEvents;              // [inherited] see nsStyleConsts.h
-  uint8_t mWritingMode;                // [inherited] see nsStyleConsts.h
 
   bool IsVisible() const {
     return (mVisible == NS_STYLE_VISIBILITY_VISIBLE);
@@ -1621,7 +1592,6 @@ struct nsStyleDisplay {
   uint8_t mResize;              // [reset] see nsStyleConsts.h
   uint8_t mClipFlags;           // [reset] see nsStyleConsts.h
   uint8_t mOrient;              // [reset] see nsStyleConsts.h
-  uint8_t mMixBlendMode;        // [reset] see nsStyleConsts.h
 
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or
@@ -1665,7 +1635,9 @@ struct nsStyleDisplay {
 
   bool IsBlockOutsideStyle() const {
     return NS_STYLE_DISPLAY_BLOCK == mDisplay ||
+#ifdef MOZ_FLEXBOX
            NS_STYLE_DISPLAY_FLEX == mDisplay ||
+#endif // MOZ_FLEXBOX
            NS_STYLE_DISPLAY_LIST_ITEM == mDisplay ||
            NS_STYLE_DISPLAY_TABLE == mDisplay;
   }
@@ -1675,7 +1647,9 @@ struct nsStyleDisplay {
            NS_STYLE_DISPLAY_INLINE_BLOCK == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_TABLE == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_BOX == aDisplay ||
+#ifdef MOZ_FLEXBOX
            NS_STYLE_DISPLAY_INLINE_FLEX == aDisplay ||
+#endif // MOZ_FLEXBOX
            NS_STYLE_DISPLAY_INLINE_GRID == aDisplay ||
            NS_STYLE_DISPLAY_INLINE_STACK == aDisplay;
   }
@@ -2154,12 +2128,6 @@ struct nsStyleColumn {
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  /**
-   * This is the maximum number of columns we can process. It's used in both
-   * nsColumnSetFrame and nsRuleNode.
-   */
-  static const uint32_t kMaxColumnCount;
-
   uint32_t     mColumnCount; // [reset] see nsStyleConsts.h
   nsStyleCoord mColumnWidth; // [reset] coord, auto
   nsStyleCoord mColumnGap;   // [reset] coord, normal
@@ -2235,7 +2203,7 @@ struct nsStyleSVG {
   nsChangeHint CalcDifference(const nsStyleSVG& aOther) const;
   static nsChangeHint MaxDifference() {
     return NS_CombineHint(NS_CombineHint(nsChangeHint_UpdateEffects,
-             NS_CombineHint(nsChangeHint_NeedReflow, nsChangeHint_NeedDirtyReflow)), // XXX remove nsChangeHint_NeedDirtyReflow: bug 876085
+                                         nsChangeHint_AllReflowHints),
                                          nsChangeHint_RepaintFrame);
   }
 
@@ -2276,60 +2244,7 @@ struct nsStyleSVG {
   bool mStrokeDasharrayFromObject   : 1;
   bool mStrokeDashoffsetFromObject  : 1;
   bool mStrokeWidthFromObject       : 1;
-
-  bool HasMarker() const {
-    return mMarkerStart || mMarkerMid || mMarkerEnd;
-  }
 };
-
-struct nsStyleFilter {
-  nsStyleFilter();
-  nsStyleFilter(const nsStyleFilter& aSource);
-  ~nsStyleFilter();
-
-  nsStyleFilter& operator=(const nsStyleFilter& aOther);
-
-  bool operator==(const nsStyleFilter& aOther) const;
-
-  int32_t GetType() const {
-    return mType;
-  }
-
-  const nsStyleCoord& GetFilterParameter() const {
-    NS_ASSERTION(mType != NS_STYLE_FILTER_DROP_SHADOW &&
-                 mType != NS_STYLE_FILTER_URL &&
-                 mType != NS_STYLE_FILTER_NONE, "wrong filter type");
-    return mFilterParameter;
-  }
-  void SetFilterParameter(const nsStyleCoord& aFilterParameter,
-                          int32_t aType);
-
-  nsIURI* GetURL() const {
-    NS_ASSERTION(mType == NS_STYLE_FILTER_URL, "wrong filter type");
-    return mURL;
-  }
-  void SetURL(nsIURI* aURL);
-
-  nsCSSShadowArray* GetDropShadow() const {
-    NS_ASSERTION(mType == NS_STYLE_FILTER_DROP_SHADOW, "wrong filter type");
-    return mDropShadow;
-  }
-  void SetDropShadow(nsCSSShadowArray* aDropShadow);
-
-private:
-  void ReleaseRef();
-
-  int32_t mType; // see NS_STYLE_FILTER_* constants in nsStyleConsts.h
-  nsStyleCoord mFilterParameter; // coord, percent, factor, angle
-  union {
-    nsIURI* mURL;
-    nsCSSShadowArray* mDropShadow;
-  };
-};
-
-template<>
-struct nsTArray_CopyElements<nsStyleFilter>
-  : public nsTArray_CopyWithConstructors<nsStyleFilter> {};
 
 struct nsStyleSVGReset {
   nsStyleSVGReset();
@@ -2349,17 +2264,8 @@ struct nsStyleSVGReset {
     return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_REFLOW);
   }
 
-  // The backend only supports one SVG reference right now.
-  // Eventually, it will support multiple chained SVG reference filters and CSS
-  // filter functions.
-  nsIURI* SingleFilter() const {
-    return (mFilters.Length() == 1 &&
-            mFilters[0].GetType() == NS_STYLE_FILTER_URL) ?
-            mFilters[0].GetURL() : nullptr;
-  }
-
   nsCOMPtr<nsIURI> mClipPath;         // [reset]
-  nsTArray<nsStyleFilter> mFilters;   // [reset]
+  nsCOMPtr<nsIURI> mFilter;           // [reset]
   nsCOMPtr<nsIURI> mMask;             // [reset]
   nscolor          mStopColor;        // [reset]
   nscolor          mFloodColor;       // [reset]

@@ -12,5 +12,3 @@ EXPORTS += [
     'zlib.h',
 ]
 
-LIBRARY_NAME = 'mozz'
-

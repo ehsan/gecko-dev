@@ -9,6 +9,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME     = android
 FORCE_STATIC_LIB = 1
 
 CSRCS = \

@@ -13,20 +13,19 @@ const CoC = Components.classes;
 const CoI = Components.interfaces;
 const CoR = Components.results;
 
-const XMLNS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
-const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
-const PREF_APP_UPDATE_BILLBOARD_TEST_URL  = "app.update.billboard.test_url";
-const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
-const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
-const PREF_APP_UPDATE_LOG                 = "app.update.log";
-const PREF_APP_UPDATE_MANUAL_URL          = "app.update.url.manual";
-const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
-const PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED = "app.update.notifiedUnsupported";
-const PREF_APP_UPDATE_TEST_LOOP           = "app.update.test.loop";
-const PREF_PLUGINS_UPDATEURL              = "plugins.update.url";
+const PREF_APP_UPDATE_BACKGROUNDERRORS   = "app.update.backgroundErrors";
+const PREF_APP_UPDATE_BILLBOARD_TEST_URL = "app.update.billboard.test_url";
+const PREF_APP_UPDATE_CERT_ERRORS        = "app.update.cert.errors";
+const PREF_APP_UPDATE_ENABLED            = "app.update.enabled";
+const PREF_APP_UPDATE_LOG                = "app.update.log";
+const PREF_APP_UPDATE_MANUAL_URL         = "app.update.url.manual";
+const PREF_APP_UPDATE_NEVER_BRANCH       = "app.update.never.";
+const PREF_APP_UPDATE_TEST_LOOP          = "app.update.test.loop";
+const PREF_PLUGINS_UPDATEURL             = "plugins.update.url";
 
-const PREF_EM_HOTFIX_ID                   = "extensions.hotfix.id";
+const PREF_EM_HOTFIX_ID                  = "extensions.hotfix.id";
 
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
@@ -143,41 +142,6 @@ var gUpdates = {
   _runUnload: true,
 
   /**
-   * Submit the last page code when the wizard exited. The pageid is used to map
-   * to an integer instead of using the pageindex since pages can be added and
-   * removed which would change the page's pageindex.
-   * @param   pageID
-   */
-  _sendLastPageCodePing: function(pageID) {
-    var pageMap = { invalid: 0,
-                    dummy: 1,
-                    checking: 2,
-                    pluginupdatesfound: 3,
-                    noupdatesfound: 4,
-                    manualUpdate: 5,
-                    unsupported: 6,
-                    incompatibleCheck: 7,
-                    updatesfoundbasic: 8,
-                    updatesfoundbillboard: 9,
-                    license: 10,
-                    incompatibleList: 11,
-                    downloading: 12,
-                    errors: 13,
-                    errorextra: 14,
-                    errorpatching: 15,
-                    finished: 16,
-                    finishedBackground: 17,
-                    installed: 18 };
-    try {
-      Services.telemetry.getHistogramById("UPDATER_WIZ_LAST_PAGE_CODE").
-        add(pageMap[pageID] || pageMap.invalid);
-    }
-    catch (e) {
-      Components.utils.reportError(e);
-    }
-  },
-
-  /**
    * Helper function for setButtons
    * Resets button to original label & accesskey if string is null.
    */
@@ -286,7 +250,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardFinish" in this._pages[pageid])
       this._pages[pageid].onWizardFinish();
-    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -298,7 +261,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardCancel" in this._pages[pageid])
       this._pages[pageid].onWizardCancel();
-    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -417,11 +379,6 @@ var gUpdates = {
             this.update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE ||
             this.update.errorCode == BACKGROUNDCHECK_MULTIPLE_FAILURES) {
           aCallback("errorextra");
-          return;
-        }
-
-        if (this.update.unsupported) {
-          aCallback("unsupported");
           return;
         }
 
@@ -637,11 +594,6 @@ var gCheckingPage = {
     if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_BACKGROUNDERRORS))
       Services.prefs.clearUserPref(PREF_APP_UPDATE_BACKGROUNDERRORS);
 
-    // The preference will be set back to true if the system is still
-    // unsupported.
-    if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED))
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED);
-
     this._checker = CoC["@mozilla.org/updates/update-checker;1"].
                     createInstance(CoI.nsIUpdateChecker);
     this._checker.checkForUpdates(this.updateListener, true);
@@ -669,11 +621,6 @@ var gCheckingPage = {
       gUpdates.setUpdate(aus.selectUpdate(updates, updates.length));
       if (gUpdates.update) {
         LOG("gCheckingPage", "onCheckComplete - update found");
-        if (gUpdates.update.unsupported) {
-          gUpdates.wiz.goTo("unsupported");
-          return;
-        }
-
         if (!aus.canApplyUpdates) {
           // Prevent multiple notifications for the same update when the user is
           // unable to apply updates.
@@ -915,23 +862,6 @@ var gManualUpdatePage = {
     var manualUpdateLinkLabel = document.getElementById("manualUpdateLinkLabel");
     manualUpdateLinkLabel.value = manualURL;
     manualUpdateLinkLabel.setAttribute("url", manualURL);
-
-    gUpdates.setButtons(null, null, "okButton", true);
-    gUpdates.wiz.getButton("finish").focus();
-  }
-};
-
-/**
- * The "System Unsupported" page. Provides the user with information about their
- * system no longer being supported and an url for more information.
- */
-var gUnsupportedPage = {
-  onPageShow: function() {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED, true);
-    if (gUpdates.update.detailsURL) {
-      let unsupportedLinkLabel = document.getElementById("unsupportedLinkLabel");
-      unsupportedLinkLabel.setAttribute("url", gUpdates.update.detailsURL);
-    }
 
     gUpdates.setButtons(null, null, "okButton", true);
     gUpdates.wiz.getButton("finish").focus();
@@ -1875,6 +1805,7 @@ var gFinishedPage = {
    * in the wizard after an update has been downloaded.
    */
   onExtra1: function() {
+    // XXXrstrong - reminding the user to restart is broken (see bug 464835)
     gUpdates.wiz.cancel();
   }
 };

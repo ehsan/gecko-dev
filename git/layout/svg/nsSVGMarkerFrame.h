@@ -6,7 +6,6 @@
 #ifndef __NS_SVGMARKERFRAME_H__
 #define __NS_SVGMARKERFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "nsFrame.h"
@@ -44,7 +43,7 @@ protected:
     , mInUse(false)
     , mInUse2(false)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -63,16 +62,16 @@ public:
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgMarkerFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGMarker"), aResult);
   }
@@ -94,10 +93,9 @@ private:
   // stuff needed for callback
   nsSVGPathGeometryFrame *mMarkedFrame;
   float mStrokeWidth, mX, mY, mAutoAngle;
-  bool mIsStart;  // whether the callback is for a marker-start marker
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
 
   // A helper class to allow us to paint markers safely. The helper
   // automatically sets and clears the mInUse flag on the marker frame (to

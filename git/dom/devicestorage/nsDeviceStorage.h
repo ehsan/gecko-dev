@@ -6,7 +6,6 @@
 #define nsDeviceStorage_h
 
 class nsPIDOMWindow;
-#include "mozilla/Attributes.h"
 #include "PCOMContentPermissionRequestChild.h"
 
 #include "DOMRequest.h"
@@ -73,7 +72,7 @@ public:
 
       ~InvalidateRunnable() {}
 
-      NS_IMETHOD Run() MOZ_OVERRIDE
+      NS_IMETHOD Run()
       {
         mozilla::RefPtr<DeviceStorageUsedSpaceCache::CacheEntry> cacheEntry;
         cacheEntry = mCache->GetCacheEntry(mStorageName);
@@ -104,6 +103,9 @@ public:
     mIOThread->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
   }
 
+  nsresult GetUsedSizeForType(const nsAString& aStorageType,
+                              const nsAString& aStorageName,
+                              uint64_t* usedSize);
   nsresult AccumUsedSizes(const nsAString& aStorageName,
                           uint64_t* aPictureSize, uint64_t* aVideosSize,
                           uint64_t* aMusicSize, uint64_t* aTotalSize);
@@ -120,7 +122,6 @@ private:
   public:
     bool mDirty;
     nsString mStorageName;
-    int64_t  mFreeBytes;
     uint64_t mPicturesUsedSize;
     uint64_t mVideosUsedSize;
     uint64_t mMusicUsedSize;
@@ -165,12 +166,12 @@ private:
 class ContinueCursorEvent MOZ_FINAL : public nsRunnable
 {
 public:
-  ContinueCursorEvent(already_AddRefed<mozilla::dom::DOMRequest> aRequest);
+  ContinueCursorEvent(nsRefPtr<mozilla::dom::DOMRequest>& aRequest);
   ContinueCursorEvent(mozilla::dom::DOMRequest* aRequest);
   ~ContinueCursorEvent();
   void Continue();
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 private:
   already_AddRefed<DeviceStorageFile> GetNextFile();
   nsRefPtr<mozilla::dom::DOMRequest> mRequest;
@@ -200,12 +201,12 @@ public:
   bool mOkToCallContinue;
   PRTime mSince;
 
-  virtual bool Recv__delete__(const bool& allow) MOZ_OVERRIDE;
-  virtual void IPDLRelease() MOZ_OVERRIDE;
+  virtual bool Recv__delete__(const bool& allow);
+  virtual void IPDLRelease();
 
   void GetStorageType(nsAString & aType);
 
-  void RequestComplete() MOZ_OVERRIDE;
+  void RequestComplete();
 
 private:
   ~nsDOMDeviceStorageCursor();

@@ -21,7 +21,6 @@
 #ifndef nsScriptNameSpaceManager_h__
 #define nsScriptNameSpaceManager_h__
 
-#include "mozilla/MemoryReporting.h"
 #include "nsIScriptNameSpaceManager.h"
 #include "nsString.h"
 #include "nsID.h"
@@ -29,7 +28,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
-#include "xpcpublic.h"
 
 
 struct nsGlobalNameStruct
@@ -57,12 +55,8 @@ struct nsGlobalNameStruct
     eTypeExternalConstructorAlias
   } mType;
 
-  // mChromeOnly is only used for structs that define non-WebIDL things
-  // (possibly in addition to WebIDL ones).  In particular, it's not even
-  // initialized for eTypeNewDOMBinding structs.
-  bool mChromeOnly : 1;
-  bool mAllowXBL : 1;
-  bool mDisabled : 1;
+  bool mChromeOnly;
+  bool mDisabled;
 
   union {
     int32_t mDOMClassInfoID; // eTypeClassConstructor
@@ -77,8 +71,7 @@ struct nsGlobalNameStruct
     mozilla::dom::DefineInterface mDefineDOMInterface; // for window
     mozilla::dom::ConstructNavigatorProperty mConstructNavigatorProperty; // for navigator
   };
-  // May be null if enabled unconditionally
-  mozilla::dom::ConstructorEnabled* mConstructorEnabled;
+  mozilla::dom::PrefEnabled mPrefEnabled; // May be null if not pref controlled
 };
 
 
@@ -121,7 +114,6 @@ public:
   nsresult RegisterClassName(const char *aClassName,
                              int32_t aDOMClassInfoID,
                              bool aPrivileged,
-                             bool aXBLAllowed,
                              bool aDisabled,
                              const PRUnichar **aResult);
 
@@ -148,21 +140,19 @@ public:
 
   void RegisterDefineDOMInterface(const nsAFlatString& aName,
     mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled);
+    mozilla::dom::PrefEnabled aPrefEnabled);
 
   void RegisterNavigatorDOMConstructor(const nsAFlatString& aName,
     mozilla::dom::ConstructNavigatorProperty aNavConstructor,
-    mozilla::dom::ConstructorEnabled* aConstructorEnabled);
+    mozilla::dom::PrefEnabled aPrefEnabled);
 
   typedef PLDHashOperator
-  (* NameEnumerator)(const nsAString& aGlobalName, void* aClosure);
+  (* GlobalNameEnumerator)(const nsAString& aGlobalName, void* aClosure);
 
-  void EnumerateGlobalNames(NameEnumerator aEnumerator,
+  void EnumerateGlobalNames(GlobalNameEnumerator aEnumerator,
                             void* aClosure);
-  void EnumerateNavigatorNames(NameEnumerator aEnumerator,
-                               void* aClosure);
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 private:
   // Adds a new entry to the hash and returns the nsGlobalNameStruct
@@ -180,6 +170,7 @@ private:
 
   nsresult FillHash(nsICategoryManager *aCategoryManager,
                     const char *aCategory);
+  nsresult FillHashWithDOMInterfaces();
   nsresult RegisterInterface(const char* aIfName,
                              const nsIID *aIfIID,
                              bool* aFoundOld);

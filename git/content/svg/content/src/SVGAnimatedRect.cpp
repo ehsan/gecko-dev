@@ -12,10 +12,15 @@
 namespace mozilla {
 namespace dom {
 
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SVGAnimatedRect)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+NS_INTERFACE_MAP_END
+
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(SVGAnimatedRect, mSVGElement)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(SVGAnimatedRect, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(SVGAnimatedRect, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(SVGAnimatedRect)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(SVGAnimatedRect)
 
 SVGAnimatedRect::SVGAnimatedRect(nsSVGViewBox* aVal, nsSVGElement* aSVGElement)
   : mVal(aVal)
@@ -30,15 +35,19 @@ SVGAnimatedRect::~SVGAnimatedRect()
 }
 
 already_AddRefed<SVGIRect>
-SVGAnimatedRect::GetBaseVal()
+SVGAnimatedRect::GetBaseVal(ErrorResult& aRv)
 {
-  return mVal->ToDOMBaseVal(mSVGElement);
+  nsRefPtr<SVGIRect> rect;
+  aRv = mVal->ToDOMBaseVal(getter_AddRefs(rect), mSVGElement);
+  return rect.forget();
 }
 
 already_AddRefed<SVGIRect>
-SVGAnimatedRect::GetAnimVal()
+SVGAnimatedRect::GetAnimVal(ErrorResult& aRv)
 {
-  return mVal->ToDOMAnimVal(mSVGElement);
+  nsRefPtr<SVGIRect> rect;
+  aRv = mVal->ToDOMAnimVal(getter_AddRefs(rect), mSVGElement);
+  return rect.forget();
 }
 
 JSObject*

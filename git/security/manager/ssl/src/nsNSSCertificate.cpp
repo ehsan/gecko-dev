@@ -37,7 +37,6 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsXULAppAPI.h"
 #include "ScopedNSSTypes.h"
-#include "nsProxyRelease.h"
 
 #include "nspr.h"
 #include "certdb.h"
@@ -68,14 +67,13 @@ NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 
 /* nsNSSCertificate */
 
-NS_IMPL_ISUPPORTS7(nsNSSCertificate,
-                   nsIX509Cert,
-                   nsIX509Cert2,
-                   nsIX509Cert3,
-                   nsIIdentityInfo,
-                   nsISMimeCert,
-                   nsISerializable,
-                   nsIClassInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSCertificate, nsIX509Cert,
+                                                nsIX509Cert2,
+                                                nsIX509Cert3,
+                                                nsIIdentityInfo,
+                                                nsISMimeCert,
+                                                nsISerializable,
+                                                nsIClassInfo)
 
 /* static */
 nsNSSCertificate*
@@ -1245,6 +1243,133 @@ nsNSSCertificate::GetValidity(nsIX509CertValidity **aValidity)
 }
 
 NS_IMETHODIMP
+nsNSSCertificate::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
+{
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown())
+    return NS_ERROR_NOT_AVAILABLE;
+
+  NS_ENSURE_ARG(verificationResult);
+
+  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
+  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
+
+  SECCertificateUsage nss_usage;
+  
+  switch (usage)
+  {
+    case CERT_USAGE_SSLClient:
+      nss_usage = certificateUsageSSLClient;
+      break;
+
+    case CERT_USAGE_SSLServer:
+      nss_usage = certificateUsageSSLServer;
+      break;
+
+    case CERT_USAGE_SSLServerWithStepUp:
+      nss_usage = certificateUsageSSLServerWithStepUp;
+      break;
+
+    case CERT_USAGE_SSLCA:
+      nss_usage = certificateUsageSSLCA;
+      break;
+
+    case CERT_USAGE_EmailSigner:
+      nss_usage = certificateUsageEmailSigner;
+      break;
+
+    case CERT_USAGE_EmailRecipient:
+      nss_usage = certificateUsageEmailRecipient;
+      break;
+
+    case CERT_USAGE_ObjectSigner:
+      nss_usage = certificateUsageObjectSigner;
+      break;
+
+    case CERT_USAGE_UserCertImport:
+      nss_usage = certificateUsageUserCertImport;
+      break;
+
+    case CERT_USAGE_VerifyCA:
+      nss_usage = certificateUsageVerifyCA;
+      break;
+
+    case CERT_USAGE_ProtectedObjectSigner:
+      nss_usage = certificateUsageProtectedObjectSigner;
+      break;
+
+    case CERT_USAGE_StatusResponder:
+      nss_usage = certificateUsageStatusResponder;
+      break;
+
+    case CERT_USAGE_AnyCA:
+      nss_usage = certificateUsageAnyCA;
+      break;
+
+    default:
+      return NS_ERROR_FAILURE;
+  }
+
+  SECStatus verify_result = certVerifier->VerifyCert(mCert, nss_usage, PR_Now(),
+                                                     nullptr /*XXX pinarg*/);
+  
+  if (verify_result == SECSuccess)
+  {
+    *verificationResult = VERIFIED_OK;
+  }
+  else
+  {
+    int err = PR_GetError();
+
+    // this list was cloned from verifyFailed
+
+    switch (err)
+    {
+      case SEC_ERROR_INADEQUATE_KEY_USAGE:
+      case SEC_ERROR_INADEQUATE_CERT_TYPE:
+        *verificationResult = USAGE_NOT_ALLOWED;
+        break;
+
+      case SEC_ERROR_REVOKED_CERTIFICATE:
+        *verificationResult = CERT_REVOKED;
+        break;
+
+      case SEC_ERROR_EXPIRED_CERTIFICATE:
+        *verificationResult = CERT_EXPIRED;
+        break;
+        
+      case SEC_ERROR_UNTRUSTED_CERT:
+        *verificationResult = CERT_NOT_TRUSTED;
+        break;
+        
+      case SEC_ERROR_UNTRUSTED_ISSUER:
+        *verificationResult = ISSUER_NOT_TRUSTED;
+        break;
+        
+      case SEC_ERROR_UNKNOWN_ISSUER:
+        *verificationResult = ISSUER_UNKNOWN;
+        break;
+        
+      case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
+        *verificationResult = SIGNATURE_ALGORITHM_DISABLED;
+        break;
+
+      case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
+        *verificationResult = INVALID_CA;
+        break;
+        
+      case SEC_ERROR_CERT_USAGES_INVALID:
+      default:
+        *verificationResult = NOT_VERIFIED_UNKNOWN; 
+        break;
+    }
+  }
+  
+  return NS_OK;  
+}
+
+
+NS_IMETHODIMP
 nsNSSCertificate::GetUsagesArray(bool localOnly,
                                  uint32_t *_verified,
                                  uint32_t *_count,
@@ -1282,15 +1407,13 @@ nsNSSCertificate::GetUsagesArray(bool localOnly,
 NS_IMETHODIMP
 nsNSSCertificate::RequestUsagesArrayAsync(nsICertVerificationListener *aResultListener)
 {
-  NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_NOT_SAME_THREAD);
-
   if (!aResultListener)
     return NS_ERROR_FAILURE;
   
   nsCertVerificationJob *job = new nsCertVerificationJob;
 
   job->mCert = this;
-  job->mListener = new nsMainThreadPtrHolder<nsICertVerificationListener>(aResultListener);
+  job->mListener = aResultListener;
 
   nsresult rv = nsCertVerificationThread::addJob(job);
   if (NS_FAILED(rv))
@@ -1372,15 +1495,19 @@ nsNSSCertificate::GetASN1Structure(nsIASN1Object * *aASN1Structure)
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   NS_ENSURE_ARG_POINTER(aASN1Structure);
-  // First create the recursive structure os ASN1Objects
-  // which tells us the layout of the cert.
-  rv = CreateASN1Struct(aASN1Structure);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (!mASN1Structure) {
+    // First create the recursive structure os ASN1Objects
+    // which tells us the layout of the cert.
+    rv = CreateASN1Struct();
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 #ifdef DEBUG_javi
-  DumpASN1Object(*aASN1Structure, 0);
+    DumpASN1Object(mASN1Structure, 0);
 #endif
+  }
+  *aASN1Structure = mASN1Structure;
+  NS_IF_ADDREF(*aASN1Structure);
   return rv;
 }
 
@@ -1473,7 +1600,7 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
   return nickname;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertList, nsIX509CertList)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertList, nsIX509CertList)
 
 nsNSSCertList::nsNSSCertList(CERTCertList *certList, bool adopt)
 {
@@ -1579,7 +1706,8 @@ nsNSSCertList::GetEnumerator(nsISimpleEnumerator **_retval)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertListEnumerator, nsISimpleEnumerator)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertListEnumerator, 
+                              nsISimpleEnumerator)
 
 nsNSSCertListEnumerator::nsNSSCertListEnumerator(CERTCertList *certList)
 {

@@ -26,6 +26,7 @@
 #include "TableCellAccessible.h"
 #include "TreeWalker.h"
 
+#include "nsContentUtils.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNodeFilter.h"
@@ -629,9 +630,6 @@ Accessible::VisibilityState()
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
       return states::INVISIBLE;
 
-    if (nsLayoutUtils::IsPopup(curFrame))
-      return 0;
-
     // Offscreen state for background tab content and invisible for not selected
     // deck panel.
     nsIFrame* parentFrame = curFrame->GetParent();
@@ -825,45 +823,16 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   DocAccessible* accDocument = Document();
   NS_ENSURE_TRUE(accDocument, nullptr);
 
-  nsIFrame* rootFrame = accDocument->GetFrame();
-  NS_ENSURE_TRUE(rootFrame, nullptr);
+  nsIFrame *frame = accDocument->GetFrame();
+  NS_ENSURE_TRUE(frame, nullptr);
 
-  nsIFrame* startFrame = rootFrame;
+  nsPresContext *presContext = frame->PresContext();
 
-  // Check whether the point is at popup content.
-  nsIWidget* rootWidget = rootFrame->GetView()->GetNearestWidget(nullptr);
-  NS_ENSURE_TRUE(rootWidget, nullptr);
+  nsRect screenRect = frame->GetScreenRectInAppUnits();
+  nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
+                 presContext->DevPixelsToAppUnits(aY) - screenRect.y);
 
-  nsIntRect rootRect;
-  rootWidget->GetScreenBounds(rootRect);
-
-  nsMouseEvent dummyEvent(true, NS_MOUSE_MOVE, rootWidget,
-                          nsMouseEvent::eSynthesized);
-  dummyEvent.refPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
-
-  nsIFrame* popupFrame = nsLayoutUtils::
-    GetPopupFrameForEventCoordinates(accDocument->PresContext()->GetRootPresContext(),
-                                     &dummyEvent);
-  if (popupFrame) {
-    // If 'this' accessible is not inside the popup then ignore the popup when
-    // searching an accessible at point.
-    DocAccessible* popupDoc =
-      GetAccService()->GetDocAccessible(popupFrame->GetContent()->OwnerDoc());
-    Accessible* popupAcc =
-      popupDoc->GetAccessibleOrContainer(popupFrame->GetContent());
-    Accessible* popupChild = this;
-    while (popupChild && !popupChild->IsDoc() && popupChild != popupAcc)
-      popupChild = popupChild->Parent();
-
-    if (popupChild == popupAcc)
-      startFrame = popupFrame;
-  }
-
-  nsPresContext* presContext = startFrame->PresContext();
-  nsRect screenRect = startFrame->GetScreenRectInAppUnits();
-    nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
-                   presContext->DevPixelsToAppUnits(aY) - screenRect.y);
-  nsIFrame* foundFrame = nsLayoutUtils::GetFrameForPoint(startFrame, offset);
+  nsIFrame *foundFrame = nsLayoutUtils::GetFrameForPoint(frame, offset);
 
   nsIContent* content = nullptr;
   if (!foundFrame || !(content = foundFrame->GetContent()))
@@ -1680,12 +1649,6 @@ Accessible::Value(nsString& aValue)
     return;
   }
 
-  // Value of textbox is a textified subtree.
-  if (mRoleMapEntry->Is(nsGkAtoms::textbox)) {
-    nsTextEquivUtils::GetTextEquivFromSubtree(this, aValue);
-    return;
-  }
-
   // Value of combobox is a text of current or selected item.
   if (mRoleMapEntry->Is(nsGkAtoms::combobox)) {
     Accessible* option = CurrentItem();
@@ -2058,8 +2021,7 @@ Accessible::RelationByType(uint32_t aType)
 
       // This is an ARIA tree or treegrid that doesn't use owns, so we need to
       // get the parent the hard way.
-      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM ||
-                            mRoleMapEntry->role == roles::LISTITEM ||
+      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM || 
                             mRoleMapEntry->role == roles::ROW)) {
         rel.AppendTarget(GetGroupInfo()->ConceptualParent());
       }
@@ -2090,10 +2052,8 @@ Accessible::RelationByType(uint32_t aType)
       // also can be organized by groups.
       if (mRoleMapEntry &&
           (mRoleMapEntry->role == roles::OUTLINEITEM ||
-           mRoleMapEntry->role == roles::LISTITEM ||
            mRoleMapEntry->role == roles::ROW ||
            mRoleMapEntry->role == roles::OUTLINE ||
-           mRoleMapEntry->role == roles::LIST ||
            mRoleMapEntry->role == roles::TREE_TABLE)) {
         rel.AppendIter(new ItemIterator(this));
       }
@@ -2284,7 +2244,7 @@ Accessible::DispatchClickEvent(nsIContent *aContent, uint32_t aActionIndex)
   if (IsDefunct())
     return;
 
-  nsCOMPtr<nsIPresShell> presShell = mDoc->PresShell();
+  nsIPresShell* presShell = mDoc->PresShell();
 
   // Scroll into view.
   presShell->ScrollContentIntoView(aContent,
@@ -2292,27 +2252,13 @@ Accessible::DispatchClickEvent(nsIContent *aContent, uint32_t aActionIndex)
                                    nsIPresShell::ScrollAxis(),
                                    nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 
-  nsWeakFrame frame = aContent->GetPrimaryFrame();
-  if (!frame)
+  // Fire mouse down and mouse up events.
+  bool res = nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
+                                               aContent);
+  if (!res)
     return;
 
-  // Compute x and y coordinates.
-  nsPoint point;
-  nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget(point);
-  if (!widget)
-    return;
-
-  nsSize size = frame->GetSize();
-
-  nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
-  int32_t x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
-  int32_t y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
-
-  // Simulate a touch interaction by dispatching touch events with mouse events.
-  nsCoreUtils::DispatchTouchEvent(NS_TOUCH_START, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchTouchEvent(NS_TOUCH_END, x, y, aContent, frame, presShell, widget);
-  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, x, y, aContent, frame, presShell, widget);
+  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, aContent);
 }
 
 NS_IMETHODIMP
@@ -3307,11 +3253,10 @@ Accessible::GetLevelInternal()
     }
 
   } else if (role == roles::LISTITEM) {
-    // Expose 'level' attribute on nested lists. We support two hierarchies:
-    // a) list -> listitem -> list -> listitem (nested list is a last child
-    //   of listitem of the parent list);
-    // b) list -> listitem -> group -> listitem (nested listitems are contained
-    //   by group that is a last child of the parent listitem).
+    // Expose 'level' attribute on nested lists. We assume nested list is a last
+    // child of listitem of parent list. We don't handle the case when nested
+    // lists have more complex structure, for example when there are accessibles
+    // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
     level = 0;
@@ -3321,8 +3266,9 @@ Accessible::GetLevelInternal()
 
       if (parentRole == roles::LISTITEM)
         ++ level;
-      else if (parentRole != roles::LIST && parentRole != roles::GROUPING)
+      else if (parentRole != roles::LIST)
         break;
+
     }
 
     if (level == 0) {
@@ -3334,11 +3280,8 @@ Accessible::GetLevelInternal()
         Accessible* sibling = parent->GetChildAt(siblingIdx);
 
         Accessible* siblingChild = sibling->LastChild();
-        if (siblingChild) {
-          roles::Role lastChildRole = siblingChild->Role();
-          if (lastChildRole == roles::LIST || lastChildRole == roles::GROUPING)
-            return 1;
-        }
+        if (siblingChild && siblingChild->Role() == roles::LIST)
+          return 1;
       }
     } else {
       ++ level; // level is 1-index based
@@ -3351,14 +3294,14 @@ Accessible::GetLevelInternal()
 void
 Accessible::StaticAsserts() const
 {
-  static_assert(eLastChildrenFlag <= (2 << kChildrenFlagsBits) - 1,
-                "Accessible::mChildrenFlags was oversized by eLastChildrenFlag!");
-  static_assert(eLastStateFlag <= (2 << kStateFlagsBits) - 1,
-                "Accessible::mStateFlags was oversized by eLastStateFlag!");
-  static_assert(eLastAccType <= (2 << kTypeBits) - 1,
-                "Accessible::mType was oversized by eLastAccType!");
-  static_assert(eLastAccGenericType <= (2 << kGenericTypesBits) - 1,
-                "Accessible::mGenericType was oversized by eLastAccGenericType!");
+  MOZ_STATIC_ASSERT(eLastChildrenFlag <= (2 << kChildrenFlagsBits) - 1,
+                    "Accessible::mChildrenFlags was oversized by eLastChildrenFlag!");
+  MOZ_STATIC_ASSERT(eLastStateFlag <= (2 << kStateFlagsBits) - 1,
+                    "Accessible::mStateFlags was oversized by eLastStateFlag!");
+  MOZ_STATIC_ASSERT(eLastAccType <= (2 << kTypeBits) - 1,
+                    "Accessible::mType was oversized by eLastAccType!");
+  MOZ_STATIC_ASSERT(eLastAccGenericType <= (2 << kGenericTypesBits) - 1,
+                    "Accessible::mGenericType was oversized by eLastAccGenericType!");
 }
 
 

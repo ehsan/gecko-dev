@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "shell/jsoptparse.h"
+#include "jsoptparse.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -57,14 +57,6 @@ void
 OptionParser::setArgTerminatesOptions(const char *name, bool enabled)
 {
     findArgument(name)->setTerminatesOptions(enabled);
-}
-
-void
-OptionParser::setArgCapturesRest(const char *name)
-{
-    MOZ_ASSERT(restArgument == -1, "only one argument may be set to capture the rest");
-    restArgument = findArgumentIndex(name);
-    MOZ_ASSERT(restArgument != -1, "unknown argument name passed to setArgCapturesRest");
 }
 
 OptionParser::Result
@@ -135,7 +127,7 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
             }
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("unhandled token splitting character in text");
+            JS_NOT_REACHED("unhandled token splitting character in text");
         }
     }
 }
@@ -143,10 +135,10 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
 static const char *
 OptionFlagsToFormatInfo(char shortflag, bool isValued, size_t *length)
 {
-    static const char * const fmt[4] = { "  -%c --%s ",
-                                         "  --%s ",
-                                         "  -%c --%s=%s ",
-                                         "  --%s=%s " };
+    static const char *fmt[4] = { "  -%c --%s ",
+                                  "  --%s ",
+                                  "  -%c --%s=%s ",
+                                  "  --%s=%s " };
 
     /* How mny chars w/o longflag? */
     size_t lengths[4] = { strlen(fmt[0]) - 3,
@@ -253,7 +245,7 @@ OptionParser::extractValue(size_t argc, char **argv, size_t *i, char **value)
     char *eq = strchr(argv[*i], '=');
     if (eq) {
         *value = eq + 1;
-        if (*value[0] == '\0')
+        if (value[0] == '\0')
             return error("A value is required for option %.*s", eq - argv[*i], argv[*i]);
         return Okay;
     }
@@ -309,7 +301,8 @@ OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, boo
         return opt->asMultiStringOption()->strings.append(arg) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled option kind");
+        JS_NOT_REACHED("unhandled option kind");
+        return Fail;
     }
 }
 
@@ -336,7 +329,8 @@ OptionParser::handleArg(size_t argc, char **argv, size_t *i, bool *optionsAllowe
         return arg->asMultiStringOption()->strings.append(value) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled argument kind");
+        JS_NOT_REACHED("unhandled argument kind");
+        return Fail;
     }
 }
 
@@ -356,17 +350,10 @@ OptionParser::parseArgs(int inputArgc, char **argv)
             /* Option. */
             Option *opt;
             if (arg[1] == '-') {
-                if (arg[2] == '\0') {
-                    /* End of options */
-                    optionsAllowed = false;
-                    nextArgument = restArgument;
-                    continue;
-                } else {
-                    /* Long option. */
-                    opt = findOption(arg + 2);
-                    if (!opt)
-                        return error("Invalid long option: %s", arg);
-                }
+                /* Long option. */
+                opt = findOption(arg + 2);
+                if (!opt)
+                    return error("Invalid long option: %s", arg);
             } else {
                 /* Short option */
                 if (arg[2] != '\0')
@@ -382,8 +369,12 @@ OptionParser::parseArgs(int inputArgc, char **argv)
             r = handleArg(argc, argv, &i, &optionsAllowed);
         }
 
-        if (r != Okay)
+        switch (r) {
+          case Okay:
+            break;
+          default:
             return r;
+        }
     }
     return Okay;
 }
@@ -507,29 +498,21 @@ OptionParser::findOption(const char *longflag) const
 
 /* Argument accessors */
 
-int
-OptionParser::findArgumentIndex(const char *name) const
-{
-    for (Option * const *it = arguments.begin(); it != arguments.end(); ++it) {
-        const char *target = (*it)->longflag;
-        if (strcmp(target, name) == 0)
-            return it - arguments.begin();
-    }
-    return -1;
-}
-
 Option *
 OptionParser::findArgument(const char *name)
 {
-    int index = findArgumentIndex(name);
-    return (index == -1) ? NULL : arguments[index];
+    for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it) {
+        const char *target = (*it)->longflag;
+        if (strcmp(target, name) == 0)
+            return *it;
+    }
+    return NULL;
 }
 
 const Option *
 OptionParser::findArgument(const char *name) const
 {
-    int index = findArgumentIndex(name);
-    return (index == -1) ? NULL : arguments[index];
+    return const_cast<OptionParser *>(this)->findArgument(name);
 }
 
 const char *

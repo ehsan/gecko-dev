@@ -11,7 +11,7 @@
 #include "MediaDecoderStateMachine.h"
 #include "VideoUtils.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/CheckedInt.h"
 #include <algorithm>
@@ -202,14 +202,11 @@ bool WaveReader::DecodeAudioData()
   int64_t readSize = std::min(BLOCK_SIZE, remaining);
   int64_t frames = readSize / mFrameSize;
 
-  static_assert(uint64_t(BLOCK_SIZE) < UINT_MAX /
-                sizeof(AudioDataValue) / MAX_CHANNELS,
-                "bufferSize calculation could overflow.");
+  PR_STATIC_ASSERT(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(AudioDataValue) / MAX_CHANNELS);
   const size_t bufferSize = static_cast<size_t>(frames * mChannels);
   nsAutoArrayPtr<AudioDataValue> sampleBuffer(new AudioDataValue[bufferSize]);
 
-  static_assert(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(char),
-                "BLOCK_SIZE too large for enumerator.");
+  PR_STATIC_ASSERT(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(char));
   nsAutoArrayPtr<char> dataBuffer(new char[static_cast<size_t>(readSize)]);
 
   if (!ReadAll(dataBuffer, readSize)) {
@@ -337,15 +334,14 @@ WaveReader::LoadRIFFChunk()
     return false;
   }
 
-  static_assert(sizeof(uint32_t) * 3 <= RIFF_INITIAL_SIZE,
-                "Reads would overflow riffHeader buffer.");
+  PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= RIFF_INITIAL_SIZE);
   if (ReadUint32BE(&p) != RIFF_CHUNK_MAGIC) {
     NS_WARNING("resource data not in RIFF format");
     return false;
   }
 
   // Skip over RIFF size field.
-  p += sizeof(uint32_t);
+  p += 4;
 
   if (ReadUint32BE(&p) != WAVE_CHUNK_MAGIC) {
     NS_WARNING("Expected WAVE chunk");
@@ -370,13 +366,12 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
     return false;
   }
 
-  static_assert(sizeof(uint16_t) +
-                sizeof(uint16_t) +
-                sizeof(uint32_t) +
-                4 +
-                sizeof(uint16_t) +
-                sizeof(uint16_t) <= sizeof(waveFormat),
-                "Reads would overflow waveFormat buffer.");
+  PR_STATIC_ASSERT(sizeof(uint16_t) +
+                   sizeof(uint16_t) +
+                   sizeof(uint32_t) +
+                   4 +
+                   sizeof(uint16_t) +
+                   sizeof(uint16_t) <= sizeof(waveFormat));
   if (ReadUint16LE(&p) != WAVE_FORMAT_ENCODING_PCM) {
     NS_WARNING("WAVE is not uncompressed PCM, compressed encodings are not supported");
     return false;
@@ -405,8 +400,7 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
       return false;
     }
 
-    static_assert(sizeof(uint16_t) <= sizeof(extLength),
-                  "Reads would overflow extLength buffer.");
+    PR_STATIC_ASSERT(sizeof(uint16_t) <= sizeof(extLength));
     uint16_t extra = ReadUint16LE(&p);
     if (aChunkSize - (WAVE_FORMAT_CHUNK_SIZE + 2) != extra) {
       NS_WARNING("Invalid extended format chunk size");
@@ -415,8 +409,7 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
     extra += extra % 2;
 
     if (extra > 0) {
-      static_assert(UINT16_MAX + (UINT16_MAX % 2) < UINT_MAX / sizeof(char),
-                    "chunkExtension array too large for iterator.");
+      PR_STATIC_ASSERT(UINT16_MAX + (UINT16_MAX % 2) < UINT_MAX / sizeof(char));
       nsAutoArrayPtr<char> chunkExtension(new char[extra]);
       if (!ReadAll(chunkExtension.get(), extra)) {
         return false;
@@ -529,8 +522,7 @@ WaveReader::GetNextChunk(uint32_t* aChunk, uint32_t* aChunkSize)
     return false;
   }
 
-  static_assert(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE,
-                "Reads would overflow chunkHeader buffer.");
+  PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE);
   *aChunk = ReadUint32BE(&p);
   *aChunkSize = ReadUint32LE(&p);
 
@@ -546,8 +538,7 @@ WaveReader::LoadListChunk(uint32_t aChunkSize,
                     "LoadListChunk called with unaligned resource");
 
   static const unsigned int MAX_CHUNK_SIZE = 1 << 16;
-  static_assert(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char),
-                "MAX_CHUNK_SIZE too large for enumerator.");
+  PR_STATIC_ASSERT(MAX_CHUNK_SIZE < UINT_MAX / sizeof(char));
 
   if (aChunkSize > MAX_CHUNK_SIZE) {
     return false;
@@ -588,10 +579,8 @@ WaveReader::LoadListChunk(uint32_t aChunkSize,
       break;
     }
 
-    // Wrap the string, adjusting length to account for optional
-    // null termination in the chunk.
     nsCString val(p, length);
-    if (length > 0 && val[length - 1] == '\0') {
+    if (val[length - 1] == '\0') {
       val.SetLength(length - 1);
     }
 
@@ -634,8 +623,7 @@ WaveReader::LoadAllChunks(nsAutoPtr<HTMLMediaElement::MetadataTags> &aTags)
       return false;
     }
 
-    static_assert(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE,
-                  "Reads would overflow chunkHeader buffer.");
+    PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE);
 
     uint32_t magic = ReadUint32BE(&p);
     uint32_t chunkSize = ReadUint32LE(&p);
@@ -674,8 +662,7 @@ WaveReader::LoadAllChunks(nsAutoPtr<HTMLMediaElement::MetadataTags> &aTags)
     }
 
     static const int64_t MAX_CHUNK_SIZE = 1 << 16;
-    static_assert(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char),
-                  "MAX_CHUNK_SIZE too large for enumerator.");
+    PR_STATIC_ASSERT(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char));
     nsAutoArrayPtr<char> chunk(new char[MAX_CHUNK_SIZE]);
     while (forward.value() > 0) {
       int64_t size = std::min(forward.value(), MAX_CHUNK_SIZE);

@@ -23,7 +23,7 @@ public:
     }
     virtual ~SandboxPrivate() { }
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     nsIPrincipal *GetPrincipal()
     {

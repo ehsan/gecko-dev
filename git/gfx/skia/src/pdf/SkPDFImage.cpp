@@ -12,6 +12,7 @@
 #include "SkBitmap.h"
 #include "SkColor.h"
 #include "SkColorPriv.h"
+#include "SkPaint.h"
 #include "SkPackBits.h"
 #include "SkPDFCatalog.h"
 #include "SkRect.h"
@@ -249,7 +250,8 @@ SkPDFArray* makeIndexedColorSpace(SkColorTable* table) {
 
 // static
 SkPDFImage* SkPDFImage::CreateImage(const SkBitmap& bitmap,
-                                    const SkIRect& srcRect) {
+                                    const SkIRect& srcRect,
+                                    const SkPaint& paint) {
     if (bitmap.getConfig() == SkBitmap::kNo_Config) {
         return NULL;
     }
@@ -265,10 +267,11 @@ SkPDFImage* SkPDFImage::CreateImage(const SkBitmap& bitmap,
     }
 
     SkPDFImage* image =
-        new SkPDFImage(imageData, bitmap, srcRect, false);
+        new SkPDFImage(imageData, bitmap, srcRect, false, paint);
 
     if (alphaData != NULL) {
-        image->addSMask(new SkPDFImage(alphaData, bitmap, srcRect, true))->unref();
+        image->addSMask(new SkPDFImage(alphaData, bitmap, srcRect, true,
+                                       paint))->unref();
     }
     return image;
 }
@@ -284,13 +287,13 @@ SkPDFImage* SkPDFImage::addSMask(SkPDFImage* mask) {
     return mask;
 }
 
-void SkPDFImage::getResources(const SkTSet<SkPDFObject*>& knownResourceObjects,
-                              SkTSet<SkPDFObject*>* newResourceObjects) {
-    GetResourcesHelper(&fResources, knownResourceObjects, newResourceObjects);
+void SkPDFImage::getResources(SkTDArray<SkPDFObject*>* resourceList) {
+    GetResourcesHelper(&fResources, resourceList);
 }
 
 SkPDFImage::SkPDFImage(SkStream* imageData, const SkBitmap& bitmap,
-                       const SkIRect& srcRect, bool doingAlpha) {
+                       const SkIRect& srcRect, bool doingAlpha,
+                       const SkPaint& paint) {
     this->setData(imageData);
     SkBitmap::Config config = bitmap.getConfig();
     bool alphaOnly = (config == SkBitmap::kA1_Config ||
@@ -302,7 +305,8 @@ SkPDFImage::SkPDFImage(SkStream* imageData, const SkBitmap& bitmap,
     if (!doingAlpha && alphaOnly) {
         // For alpha only images, we stretch a single pixel of black for
         // the color/shape part.
-        SkAutoTUnref<SkPDFInt> one(new SkPDFInt(1));
+        SkRefPtr<SkPDFInt> one = new SkPDFInt(1);
+        one->unref();  // SkRefPtr and new both took a reference.
         insert("Width", one.get());
         insert("Height", one.get());
     } else {
@@ -331,12 +335,16 @@ SkPDFImage::SkPDFImage(SkStream* imageData, const SkBitmap& bitmap,
     insertInt("BitsPerComponent", bitsPerComp);
 
     if (config == SkBitmap::kRGB_565_Config) {
-        SkAutoTUnref<SkPDFInt> zeroVal(new SkPDFInt(0));
-        SkAutoTUnref<SkPDFScalar> scale5Val(
-                new SkPDFScalar(SkFloatToScalar(8.2258f)));  // 255/2^5-1
-        SkAutoTUnref<SkPDFScalar> scale6Val(
-                new SkPDFScalar(SkFloatToScalar(4.0476f)));  // 255/2^6-1
-        SkAutoTUnref<SkPDFArray> decodeValue(new SkPDFArray());
+        SkRefPtr<SkPDFInt> zeroVal = new SkPDFInt(0);
+        zeroVal->unref();  // SkRefPtr and new both took a reference.
+        SkRefPtr<SkPDFScalar> scale5Val =
+                new SkPDFScalar(SkFloatToScalar(8.2258f));  // 255/2^5-1
+        scale5Val->unref();  // SkRefPtr and new both took a reference.
+        SkRefPtr<SkPDFScalar> scale6Val =
+                new SkPDFScalar(SkFloatToScalar(4.0476f));  // 255/2^6-1
+        scale6Val->unref();  // SkRefPtr and new both took a reference.
+        SkRefPtr<SkPDFArray> decodeValue = new SkPDFArray();
+        decodeValue->unref();  // SkRefPtr and new both took a reference.
         decodeValue->reserve(6);
         decodeValue->append(zeroVal.get());
         decodeValue->append(scale5Val.get());

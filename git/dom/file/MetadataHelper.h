@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_file_metadatahelper_h__
 #define mozilla_dom_file_metadatahelper_h__
 
-#include "mozilla/Attributes.h"
 #include "FileCommon.h"
 
 #include "nsIFileStreams.h"
@@ -91,10 +90,10 @@ public:
   { }
 
   nsresult
-  DoAsyncRun(nsISupports* aStream) MOZ_OVERRIDE;
+  DoAsyncRun(nsISupports* aStream);
 
   nsresult
-  GetSuccessResult(JSContext* aCx, JS::Value* aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
 
 protected:
   class AsyncMetadataGetter : public AsyncHelper
@@ -108,7 +107,7 @@ protected:
 
   protected:
     nsresult
-    DoStreamWork(nsISupports* aStream) MOZ_OVERRIDE;
+    DoStreamWork(nsISupports* aStream);
 
   private:
     nsRefPtr<MetadataParameters> mParams;

@@ -469,28 +469,23 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         //   All JB phones except for those in blocklist below
         // Blocklist:
         //   Samsung devices from bug 812881 and 853522.
-        //   Motorola XT890 from bug 882342.
         //   All Sony devices (Bug 845734)
 
         bool isBlocklisted =
+          cModel.Find("SCH-I535", true) != -1 ||
+          cModel.Find("SGH-I747", true) != -1 ||
+          cModel.Find("SGH-T999", true) != -1 ||
+          cModel.Find("SPH-L710", true) != -1 ||
+          cModel.Find("GT-I8190", true) != -1 ||
           cModel.Find("GT-P3100", true) != -1 ||
           cModel.Find("GT-P3110", true) != -1 ||
           cModel.Find("GT-P3113", true) != -1 ||
           cModel.Find("GT-P5100", true) != -1 ||
           cModel.Find("GT-P5110", true) != -1 ||
           cModel.Find("GT-P5113", true) != -1 ||
-          cModel.Find("XT890", true) != -1 ||
-          cManufacturer.Find("Sony", true) != -1;
+          cManufacturer.Equals("Sony", nsCaseInsensitiveCStringComparator());
 
         if (isBlocklisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
-      }
-      else if (CompareVersions(mOSVersion.get(), "4.3.0") < 0)
-      {
-        // Blocklist all Sony devices
-        if (cManufacturer.Find("Sony", true) != -1) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
           return NS_OK;
         }

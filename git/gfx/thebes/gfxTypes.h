@@ -6,11 +6,15 @@
 #ifndef GFX_TYPES_H
 #define GFX_TYPES_H
 
+#include "nsAtomicRefcnt.h"
+
 /**
  * Currently needs to be 'double' for Cairo compatibility. Could
  * become 'float', perhaps, in some configurations.
  */
 typedef double gfxFloat;
+
+# define THEBES_API
 
 /**
  * Priority of a line break opportunity.

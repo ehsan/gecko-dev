@@ -31,7 +31,8 @@ interface HTMLSelectElement : HTMLElement {
   [SetterThrows, Pure]
            attribute unsigned long length;
   getter Element? item(unsigned long index);
-  HTMLOptionElement? namedItem(DOMString name);
+  [Throws]
+  object? namedItem(DOMString name);
   [Throws]
   void add((HTMLOptionElement or HTMLOptGroupElement) element, optional (HTMLElement or long)? before = null);
   void remove(long index);

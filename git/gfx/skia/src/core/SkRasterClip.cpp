@@ -291,3 +291,4 @@ void SkAAClipBlitterWrapper::init(const SkRasterClip& clip, SkBlitter* blitter) 
         fBlitter = &fAABlitter;
     }
 }
+

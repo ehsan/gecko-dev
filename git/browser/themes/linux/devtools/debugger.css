@@ -17,72 +17,6 @@
   -moz-border-start-color: transparent;
 }
 
-.side-menu-widget-item-checkbox {
- -moz-appearance: none;
-  padding: 0;
-  margin-top: 4px;
-  margin-bottom: -4px;
-  -moz-margin-start: 4px;
-  -moz-margin-end: -4px;
-  opacity: 0;
-  transition: opacity .15s ease 0s;
-}
-
-/* Only show the checkbox when the source is hovered over, is selected, or if it
- * is not checked. */
-.side-menu-widget-item:hover > .side-menu-widget-item-checkbox,
-.side-menu-widget-item.selected > .side-menu-widget-item-checkbox,
-.side-menu-widget-item-checkbox:not([checked]) {
-  opacity: 1;
-  transition: opacity .15s ease 0s;
-}
-
-.side-menu-widget-item-checkbox > .checkbox-check {
-  -moz-appearance: none;
-  background: none;
-  background-image: url(itemToggle.png);
-  background-repeat: no-repeat;
-  background-clip: content-box;
-  background-size: 32px 16px;
-  background-position: -16px 0;
-  width: 16px;
-  height: 16px;
-  border: 0;
-}
-
-.side-menu-widget-item-checkbox[checked] > .checkbox-check {
-  background-position: 0 0;
-}
-
-.side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-contents {
-  color: #888;
-}
-
-.side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-contents > .dbg-breakpoint {
-  display: none;
-}
-
-/* Black box message */
-
-#black-boxed-message {
-  background: url(background-noise-toolbar.png) rgb(61,69,76);
-  /* Prevent the container deck from aquiring the height from this message. */
-  min-height: 1px;
-  padding: 25vh 0;
-  color: white;
-}
-
-#black-boxed-message-label,
-#black-boxed-message-button {
-  text-align: center;
-  font-size: 120%;
-}
-
-#black-boxed-message-button {
-  margin-top: 1em;
-  padding: .25em;
-}
-
 /* ListWidget items */
 
 .list-widget-item {
@@ -129,7 +63,6 @@
 
 .dbg-breakpoint {
   font-family: monospace;
-  -moz-margin-start: -14px;
 }
 
 .dbg-breakpoint-line {
@@ -150,12 +83,13 @@
 
 .dbg-expression {
   height: 20px;
+  -moz-padding-start: 8px;
 }
 
 .dbg-expression-arrow {
-  width: 16px;
+  width: 10px;
   height: auto;
-  background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16);
+  background: url("chrome://browser/skin/devtools/commandline.png") 0px 4px no-repeat;
 }
 
 .dbg-expression-input {
@@ -170,12 +104,8 @@
   -moz-margin-start: 1px;
 }
 
-#filter-label {
-  -moz-margin-start: 2px;
-}
-
-#searchbox-panel-operators {
-  margin-top: 5px;
+#searchbox-panel-description {
+  margin-top: 0;
   margin-bottom: 8px;
   -moz-margin-start: 2px;
 }

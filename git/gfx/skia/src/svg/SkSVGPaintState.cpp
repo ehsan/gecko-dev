@@ -452,3 +452,4 @@ void SkSVGPaint::Pop(SkSVGPaint** head) {
     SkSVGPaint* next = (*head)->fNext;
     *head = next;
 }
+

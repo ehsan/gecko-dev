@@ -6,16 +6,15 @@
 #ifndef nsSecureBrowserUIImpl_h_
 #define nsSecureBrowserUIImpl_h_
 
-#ifdef DEBUG
-#include "mozilla/Atomics.h"
-#endif
 #include "mozilla/ReentrantMonitor.h"
 #include "nsCOMPtr.h"
+#include "nsXPIDLString.h"
 #include "nsString.h"
 #include "nsIObserver.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIStringBundle.h"
 #include "nsISecureBrowserUI.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -51,7 +50,7 @@ public:
   nsSecureBrowserUIImpl();
   virtual ~nsSecureBrowserUIImpl();
   
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIWEBPROGRESSLISTENER
   NS_DECL_NSISECUREBROWSERUI
   
@@ -70,6 +69,7 @@ protected:
   nsWeakPtr mWindow;
   nsWeakPtr mDocShell;
   nsCOMPtr<nsINetUtil> mIOService;
+  nsCOMPtr<nsIStringBundle> mStringBundle;
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsISecurityEventSink> mToplevelEventSink;
   
@@ -89,6 +89,7 @@ protected:
   bool mNewToplevelSecurityStateKnown;
   bool mIsViewSource;
 
+  nsXPIDLString mInfoTooltip;
   int32_t mDocumentRequestsInProgress;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
@@ -96,13 +97,13 @@ protected:
   bool mOnLocationChangeSeen;
 #ifdef DEBUG
   /* related to mReentrantMonitor */
-  mozilla::Atomic<int32_t> mOnStateLocationChangeReentranceDetection;
+  int32_t mOnStateLocationChangeReentranceDetection;
 #endif
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
   nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
   nsresult UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
-                               bool withUpdateStatus);
+                               bool withUpdateStatus, bool withUpdateTooltip);
   bool UpdateMyFlags(lockIconState &warnSecurityState);
   nsresult TellTheWorld(lockIconState warnSecurityState, 
                         nsIRequest* aRequest);
@@ -117,6 +118,8 @@ protected:
   nsCOMPtr<nsISSLStatus> mSSLStatus;
   nsCOMPtr<nsISupports> mCurrentToplevelSecurityInfo;
 
+  void GetBundleString(const PRUnichar* name, nsAString &outString);
+  
   nsresult CheckPost(nsIURI *formURI, nsIURI *actionURL, bool *okayToPost);
   nsresult IsURLHTTPS(nsIURI* aURL, bool *value);
   nsresult IsURLJavaScript(nsIURI* aURL, bool *value);

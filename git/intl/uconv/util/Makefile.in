@@ -10,14 +10,24 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME	= ucvutil_s
 EXPORT_LIBRARY = 1
+FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
+
+MODULE_NAME	= nsUCUtil
 
 CSRCS		= \
 		ugen.c \
 		uscan.c \
 		umap.c \
+		$(NULL)
+
+CPPSRCS		= \
+		nsUCSupport.cpp \
+		nsUCConstructors.cpp \
+		nsUnicodeDecodeHelper.cpp \
+		nsUnicodeEncodeHelper.cpp \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

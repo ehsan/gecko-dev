@@ -15,7 +15,6 @@
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/layers/ImageClient.h"
-#include "ImageContainer.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "ShadowLayers.h"
  
@@ -77,51 +76,6 @@ struct AutoEndTransaction {
   ~AutoEndTransaction() { mTxn->End(); }
   CompositableTransaction* mTxn;
 };
-
-void
-ImageBridgeChild::AddTexture(CompositableClient* aCompositable,
-                             TextureClient* aTexture)
-{
-  SurfaceDescriptor descriptor;
-  if (!aTexture->ToSurfaceDescriptor(descriptor)) {
-    NS_WARNING("ImageBridge: Failed to serialize a TextureClient");
-    return;
-  }
-  mTxn->AddEdit(OpAddTexture(nullptr, aCompositable->GetIPDLActor(),
-                             aTexture->GetID(),
-                             descriptor,
-                             aTexture->GetFlags()));
-}
-
-void
-ImageBridgeChild::RemoveTexture(CompositableClient* aCompositable,
-                                uint64_t aTexture,
-                                TextureFlags aFlags)
-{
-  mTxn->AddNoSwapEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
-                                      aTexture,
-                                      aFlags));
-}
-
-void
-ImageBridgeChild::UseTexture(CompositableClient* aCompositable,
-                             TextureClient* aTexture)
-{
-  mTxn->AddNoSwapEdit(OpUseTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   aTexture->GetID()));
-}
-
-void
-ImageBridgeChild::UpdatedTexture(CompositableClient* aCompositable,
-                                 TextureClient* aTexture,
-                                 nsIntRegion* aRegion)
-{
-  MaybeRegion region = aRegion ? MaybeRegion(*aRegion)
-                               : MaybeRegion(null_t());
-  mTxn->AddNoSwapEdit(OpUpdateTexture(nullptr, aCompositable->GetIPDLActor(),
-                                      aTexture->GetID(),
-                                      region));
-}
 
 void
 ImageBridgeChild::UpdateTexture(CompositableClient* aCompositable,
@@ -285,13 +239,13 @@ ImageBridgeChild::Connect(CompositableClient* aCompositable)
 }
 
 PCompositableChild*
-ImageBridgeChild::AllocPCompositableChild(const TextureInfo& aInfo, uint64_t* aID)
+ImageBridgeChild::AllocPCompositable(const TextureInfo& aInfo, uint64_t* aID)
 {
   return new CompositableChild();
 }
 
 bool
-ImageBridgeChild::DeallocPCompositableChild(PCompositableChild* aActor)
+ImageBridgeChild::DeallocPCompositable(PCompositableChild* aActor)
 {
   delete aActor;
   return true;
@@ -349,7 +303,6 @@ static void UpdateImageClientNow(ImageClient* aClient, ImageContainer* aContaine
   MOZ_ASSERT(aContainer);
   sImageBridgeChildSingleton->BeginTransaction();
   aClient->UpdateImage(aContainer, Layer::CONTENT_OPAQUE);
-  aClient->OnTransaction();
   sImageBridgeChildSingleton->EndTransaction();
 }
 
@@ -357,16 +310,9 @@ static void UpdateImageClientNow(ImageClient* aClient, ImageContainer* aContaine
 void ImageBridgeChild::DispatchImageClientUpdate(ImageClient* aClient,
                                                  ImageContainer* aContainer)
 {
-  if (InImageBridgeChildThread()) {
-    UpdateImageClientNow(aClient, aContainer);
-    return;
-  }
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
     FROM_HERE,
-    NewRunnableFunction<
-      void (*)(ImageClient*, ImageContainer*),
-      ImageClient*,
-      nsRefPtr<ImageContainer> >(&UpdateImageClientNow, aClient, aContainer));
+    NewRunnableFunction(&UpdateImageClientNow, aClient, aContainer));
 }
 
 void
@@ -530,14 +476,6 @@ void ImageBridgeChild::ConnectAsync(ImageBridgeParent* aParent)
                                                             this, aParent));
 }
 
-void
-ImageBridgeChild::IdentifyCompositorTextureHost(const TextureFactoryIdentifier& aIdentifier)
-{
-  if (sImageBridgeChildSingleton) {
-    sImageBridgeChildSingleton->IdentifyTextureHost(aIdentifier);
-  }
-}
-
 TemporaryRef<ImageClient>
 ImageBridgeChild::CreateImageClient(CompositableType aType)
 {
@@ -562,6 +500,8 @@ ImageBridgeChild::CreateImageClient(CompositableType aType)
 TemporaryRef<ImageClient>
 ImageBridgeChild::CreateImageClientNow(CompositableType aType)
 {
+  mCompositorBackend = LAYERS_OPENGL;
+
   RefPtr<ImageClient> client
     = ImageClient::CreateImageClient(aType, this, 0);
   MOZ_ASSERT(client, "failed to create ImageClient");
@@ -572,8 +512,8 @@ ImageBridgeChild::CreateImageClientNow(CompositableType aType)
 }
 
 PGrallocBufferChild*
-ImageBridgeChild::AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, const uint32_t&,
-                                           MaybeMagicGrallocBufferHandle*)
+ImageBridgeChild::AllocPGrallocBuffer(const gfxIntSize&, const uint32_t&, const uint32_t&,
+                                      MaybeMagicGrallocBufferHandle*)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   return GrallocBufferActor::Create();
@@ -584,7 +524,7 @@ ImageBridgeChild::AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, c
 }
 
 bool
-ImageBridgeChild::DeallocPGrallocBufferChild(PGrallocBufferChild* actor)
+ImageBridgeChild::DeallocPGrallocBuffer(PGrallocBufferChild* actor)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   delete actor;
@@ -637,7 +577,7 @@ ImageBridgeChild::AllocSurfaceDescriptorGrallocNow(const gfxIntSize& aSize,
   GrallocBufferActor* gba = static_cast<GrallocBufferActor*>(gc);
   gba->InitFromHandle(handle.get_MagicGrallocBufferHandle());
 
-  *aBuffer = SurfaceDescriptorGralloc(nullptr, gc, aSize, /* external */ false, /* swapRB */ false);
+  *aBuffer = SurfaceDescriptorGralloc(nullptr, gc, aSize, /* external */ false);
   return true;
 #else
   NS_RUNTIMEABORT("No gralloc buffers for you");
@@ -804,14 +744,13 @@ ImageBridgeChild::DeallocShmem(ipc::Shmem& aShmem)
 
 PGrallocBufferChild*
 ImageBridgeChild::AllocGrallocBuffer(const gfxIntSize& aSize,
-                                     uint32_t aFormat,
-                                     uint32_t aUsage,
+                                     gfxASurface::gfxContentType aContent,
                                      MaybeMagicGrallocBufferHandle* aHandle)
 {
 #ifdef MOZ_WIDGET_GONK
   return SendPGrallocBufferConstructor(aSize,
-                                       aFormat,
-                                       aUsage,
+                                       aContent,
+                                       GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
                                        aHandle);
 #else
   NS_RUNTIMEABORT("not implemented");

@@ -5,13 +5,14 @@
 
 package org.mozilla.gecko.db;
 
-import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Distribution;
 import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.ProfileMigrator;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserContract.CommonColumns;
+import org.mozilla.gecko.db.BrowserContract.Control;
 import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
 import org.mozilla.gecko.db.BrowserContract.Favicons;
 import org.mozilla.gecko.db.BrowserContract.History;
@@ -68,7 +69,7 @@ public class BrowserProvider extends ContentProvider {
 
     static final String DATABASE_NAME = "browser.db";
 
-    static final int DATABASE_VERSION = 17;
+    static final int DATABASE_VERSION = 16;
 
     // Maximum age of deleted records to be cleaned up (20 days in ms)
     static final long MAX_AGE_OF_DELETED_RECORDS = 86400000 * 20;
@@ -1207,18 +1208,11 @@ public class BrowserProvider extends ContentProvider {
 
         private void createFavicon(SQLiteDatabase db, String url, Bitmap icon) {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            icon.compress(Bitmap.CompressFormat.PNG, 100, stream);
 
             ContentValues iconValues = new ContentValues();
+            iconValues.put(Favicons.DATA, stream.toByteArray());
             iconValues.put(Favicons.PAGE_URL, url);
-
-            byte[] data = null;
-            if (icon.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
-                data = stream.toByteArray();
-            } else {
-                Log.w(LOGTAG, "Favicon compression failed.");
-            }
-            iconValues.put(Favicons.DATA, data);
-
             insertFavicon(db, iconValues);
         }
 
@@ -1235,7 +1229,7 @@ public class BrowserProvider extends ContentProvider {
 
                 String apkPath = mContext.getPackageResourcePath();
                 File apkFile = new File(apkPath);
-                String bitmapPath = "jar:jar:" + apkFile.toURI() + "!/" + AppConstants.OMNIJAR_NAME + "!/" + path;
+                String bitmapPath = "jar:jar:" + apkFile.toURI() + "!/omni.ja!/" + path;
                 return GeckoJarReader.getBitmap(mContext.getResources(), bitmapPath);
             } catch (java.lang.IllegalAccessException ex) {
                 Log.e(LOGTAG, "[Path] Can't create favicon " + name, ex);
@@ -1794,18 +1788,6 @@ public class BrowserProvider extends ContentProvider {
             createCombinedViewOn16(db);
         }
 
-        private void upgradeDatabaseFrom16to17(SQLiteDatabase db) {
-            // Purge any 0-byte favicons/thumbnails
-            try {
-                db.execSQL("DELETE FROM " + TABLE_FAVICONS +
-                        " WHERE length(" + Favicons.DATA + ") = 0");
-                db.execSQL("DELETE FROM " + TABLE_THUMBNAILS +
-                        " WHERE length(" + Thumbnails.DATA + ") = 0");
-            } catch (SQLException e) {
-                Log.e(LOGTAG, "Error purging invalid favicons or thumbnails", e);
-            }
-        }
-
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
             debug("Upgrading browser.db: " + db.getPath() + " from " +
@@ -1873,10 +1855,6 @@ public class BrowserProvider extends ContentProvider {
 
                     case 16:
                         upgradeDatabaseFrom15to16(db);
-                        break;
-
-                    case 17:
-                        upgradeDatabaseFrom16to17(db);
                         break;
                 }
             }
@@ -2170,6 +2148,17 @@ public class BrowserProvider extends ContentProvider {
     public boolean onCreate() {
         debug("Creating BrowserProvider");
 
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                // Kick this off early. It is synchronized so that other callers will wait
+                try {
+                    GeckoProfile.get(getContext()).getDir();
+                } catch (Exception ex) {
+                    Log.e(LOGTAG, "Error getting profile dir", ex);
+                }
+            }
+        });
         synchronized (this) {
             mContext = getContext();
             mDatabasePerProfile = new HashMap<String, DatabaseHelper>();
@@ -2532,6 +2521,80 @@ public class BrowserProvider extends ContentProvider {
         return updated;
     }
 
+    private Cursor controlQuery(Uri uri,
+                                String[] projection, String selection,
+                                String[] selectionArgs, String sortOrder) {
+
+        trace("controlQuery projection = " + projection);
+
+        final String[] allFields = {
+            Control.ENSURE_BOOKMARKS_MIGRATED,
+            Control.ENSURE_HISTORY_MIGRATED
+        };
+
+        // null projection must return all fields.
+        if (projection == null) {
+            projection = allFields;
+        }
+
+        if (selection != null) {
+            throw new UnsupportedOperationException("No selection in virtual CONTROL queries");
+        }
+
+        File profileDir = GeckoProfile.get(mContext).getDir();
+
+        if (uri != null) {
+            String profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
+            if (!TextUtils.isEmpty(profile)) {
+                profileDir = GeckoProfile.get(mContext, profile).getDir();
+            }
+        }
+
+        MatrixCursor cursor = new MatrixCursor(projection);
+        MatrixCursor.RowBuilder row = cursor.newRow();
+        synchronized (this) {
+            boolean wantBookmarks = false;
+            boolean wantHistory   = false;
+
+            for (String key : projection) {
+                if (key.equals(Control.ENSURE_BOOKMARKS_MIGRATED)) {
+                    wantBookmarks = true;
+                } else if (key.equals(Control.ENSURE_HISTORY_MIGRATED)) {
+                    wantHistory = true;
+                }
+            }
+
+            if (wantHistory || wantBookmarks) {
+                ProfileMigrator migrator = new ProfileMigrator(mContext);
+
+                boolean needBookmarks = wantBookmarks && !migrator.areBookmarksMigrated();
+                boolean needHistory = wantHistory && !migrator.isHistoryMigrated();
+
+                if (needBookmarks || needHistory) {
+                    migrator.launchPlaces(profileDir);
+
+                    needBookmarks = wantBookmarks && !migrator.areBookmarksMigrated();
+                    needHistory = wantHistory && !migrator.isHistoryMigrated();
+                    // Bookmarks are expected to finish at the first run.
+                    if (needBookmarks) {
+                        Log.w(LOGTAG, "Bookmarks migration did not finish.");
+                    }
+                }
+
+                // Now set the results.
+                for (String key: projection) {
+                    if (key.equals(Control.ENSURE_BOOKMARKS_MIGRATED)) {
+                        row.add(needBookmarks ? 0 : 1);
+                    } else if (key.equals(Control.ENSURE_HISTORY_MIGRATED)) {
+                        row.add(needHistory   ? 0 : 1);
+                    }
+                }
+            }
+        }
+
+        return cursor;
+    }
+
     @Override
     public Cursor query(Uri uri, String[] projection, String selection,
             String[] selectionArgs, String sortOrder) {
@@ -2655,6 +2718,15 @@ public class BrowserProvider extends ContentProvider {
                     qb.setTables(VIEW_COMBINED);
 
                 break;
+            }
+
+            case CONTROL: {
+                debug("Query is on control: " + uri);
+
+                Cursor controlCursor =
+                    controlQuery(uri, projection, selection, selectionArgs, sortOrder);
+
+                return controlCursor;
             }
 
             case SEARCH_SUGGEST: {
@@ -3003,11 +3075,10 @@ public class BrowserProvider extends ContentProvider {
     long insertFavicon(SQLiteDatabase db, ContentValues values) {
         String faviconUrl = values.getAsString(Favicons.URL);
         String pageUrl = null;
+        Cursor cursor = null;
         long faviconId;
 
         trace("Inserting favicon for URL: " + faviconUrl);
-
-        stripEmptyByteArray(values, Favicons.DATA);
 
         // Extract the page URL from the ContentValues
         if (values.containsKey(Favicons.PAGE_URL)) {
@@ -3050,8 +3121,6 @@ public class BrowserProvider extends ContentProvider {
         long now = System.currentTimeMillis();
 
         trace("Updating favicon for URL: " + faviconUrl);
-
-        stripEmptyByteArray(values, Favicons.DATA);
 
         // Extract the page URL from the ContentValues
         if (values.containsKey(Favicons.PAGE_URL)) {
@@ -3105,8 +3174,6 @@ public class BrowserProvider extends ContentProvider {
 
         trace("Inserting thumbnail for URL: " + url);
 
-        stripEmptyByteArray(values, Thumbnails.DATA);
-
         return db.insertOrThrow(TABLE_THUMBNAILS, null, values);
     }
 
@@ -3128,8 +3195,6 @@ public class BrowserProvider extends ContentProvider {
         int updated = 0;
         final SQLiteDatabase db = getWritableDatabase(uri);
 
-        stripEmptyByteArray(values, Thumbnails.DATA);
-
         trace("Updating thumbnail for URL: " + url);
 
         updated = db.update(TABLE_THUMBNAILS, values, selection, selectionArgs);
@@ -3141,21 +3206,6 @@ public class BrowserProvider extends ContentProvider {
         }
 
         return updated;
-    }
-
-    /**
-     * Verifies that 0-byte arrays aren't added as favicon or thumbnail data.
-     * @param values        ContentValues of query
-     * @param columnName    Name of data column to verify
-     */
-    private void stripEmptyByteArray(ContentValues values, String columnName) {
-        if (values.containsKey(columnName)) {
-            byte[] data = values.getAsByteArray(columnName);
-            if (data == null || data.length == 0) {
-                Log.w(LOGTAG, "Tried to insert an empty or non-byte-array image. Ignoring.");
-                values.putNull(columnName);
-            }
-        }
     }
 
     int deleteHistory(Uri uri, String selection, String[] selectionArgs) {

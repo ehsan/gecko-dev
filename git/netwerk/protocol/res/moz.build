@@ -10,9 +10,9 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_res'
 
-MODULE = 'necko'
-
-CPP_SOURCES += [
-    'nsResProtocolHandler.cpp',
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/netwerk/base/public',
 ]
+
+MODULE = 'necko'
 

@@ -159,6 +159,16 @@ public:
   StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
   /**
+   * Fetches the propertes for the specified device
+   *
+   * @param aSignal BluetoothSignal to be distrubuted after retrieving device properties
+   *
+   * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
+   */
+  virtual nsresult
+  GetDevicePropertiesInternal(const BluetoothSignal& aSignal) = 0;
+
+  /**
    * Set a property for the specified object
    *
    * @param aPropName Name of the property
@@ -212,13 +222,9 @@ public:
    * @return NS_OK if the task begins, NS_ERROR_FAILURE otherwise
    */
   virtual nsresult
-  GetServiceChannel(const nsAString& aDeviceAddress,
+  GetServiceChannel(const nsAString& aObjectPath,
                     const nsAString& aServiceUuid,
                     BluetoothProfileManagerBase* aManager) = 0;
-
-  virtual bool
-  UpdateSdpRecords(const nsAString& aDeviceAddress,
-                   BluetoothProfileManagerBase* aManager) = 0;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode,
@@ -231,6 +237,13 @@ public:
   virtual bool
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual nsresult
+  PrepareAdapterInternal() = 0;
 
   virtual void
   Connect(const nsAString& aDeviceAddress,
@@ -266,35 +279,6 @@ public:
   virtual void
   IsScoConnected(BluetoothReplyRunnable* aRunnable) = 0;
 
-  virtual void
-  SendMetaData(const nsAString& aTitle,
-               const nsAString& aArtist,
-               const nsAString& aAlbum,
-               int64_t aMediaNumber,
-               int64_t aTotalMediaCount,
-               int64_t aDuration,
-               BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual void
-  SendPlayStatus(int64_t aDuration,
-                 int64_t aPosition,
-                 const nsAString& aPlayStatus,
-                 BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual void
-  UpdatePlayStatus(uint32_t aDuration,
-                   uint32_t aPosition,
-                   ControlPlayStatus aPlayStatus) = 0;
-
-  virtual nsresult
-  SendSinkMessage(const nsAString& aDeviceAddresses,
-                  const nsAString& aMessage) = 0;
-
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage,
-                   BluetoothReplyRunnable* aRunnable) = 0;
-
   bool
   IsEnabled() const
   {
@@ -306,9 +290,6 @@ public:
 
   void
   RemoveObserverFromTable(const nsAString& key);
-
-  void
-  DispatchToCommandThread(nsRunnable* aRunnable);
 
 protected:
   BluetoothService()
@@ -326,7 +307,7 @@ protected:
   Cleanup();
 
   nsresult
-  StartStopBluetooth(bool aStart, bool aIsStartup);
+  StartStopBluetooth(bool aStart);
 
   /** 
    * Platform specific startup functions go here. Usually deals with member

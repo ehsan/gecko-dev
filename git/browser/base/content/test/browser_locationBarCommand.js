@@ -32,22 +32,18 @@ function runAltLeftClickTest() {
 }
 
 function runShiftLeftClickTest() {
-  let listener = new BrowserWindowListener(getBrowserURL(), function(aWindow) {
+  let listener = new WindowListener(getBrowserURL(), function(aWindow) {
     Services.wm.removeListener(listener);
-    addPageShowListener(aWindow.gBrowser.selectedBrowser, function() {
-      executeSoon(function () {
-        info("URL should be loaded in a new window");
-        is(gURLBar.value, "", "Urlbar reverted to original value");       
-        is(gFocusManager.focusedElement, null, "There should be no focused element");
-        is(gFocusManager.focusedWindow, aWindow.gBrowser.contentWindow, "Content window should be focused");
-        is(aWindow.gURLBar.value, TEST_VALUE, "New URL is loaded in new window");
+    addPageShowListener(aWindow.gBrowser, function() {
+      info("URL should be loaded in a new window");
+      is(gURLBar.value, "", "Urlbar reverted to original value");       
+      is(gFocusManager.focusedElement, null, "There should be no focused element");
+      is(gFocusManager.focusedWindow, aWindow.gBrowser.contentWindow, "Content window should be focused");
+      is(aWindow.gURLBar.value, TEST_VALUE, "New URL is loaded in new window");
 
-        aWindow.close();
-
-        // Continue testing when the original window has focus again.
-        whenWindowActivated(window, runNextTest);
-      });
-    }, "http://example.com/");
+      aWindow.close();
+      runNextTest();
+    });
   });
   Services.wm.addListener(listener);
 
@@ -65,7 +61,7 @@ function runNextTest() {
   info("Running test: " + test.desc);
   // Tab will be blank if test.startValue is null
   let tab = gBrowser.selectedTab = gBrowser.addTab(test.startValue);
-  addPageShowListener(gBrowser.selectedBrowser, function() {
+  addPageShowListener(gBrowser, function() {
     triggerCommand(test.click, test.event);
     test.check(tab);
 
@@ -167,46 +163,33 @@ function checkNewTab(aTab) {
   isnot(gBrowser.selectedTab, aTab, "New URL was loaded in a new tab");
 }
 
-function addPageShowListener(browser, cb, expectedURL) {
-  browser.addEventListener("pageshow", function pageShowListener() {
-    info("pageshow: " + browser.currentURI.spec);
-    if (expectedURL && browser.currentURI.spec != expectedURL)
-      return; // ignore pageshows for non-expected URLs
-    browser.removeEventListener("pageshow", pageShowListener, false);
-    cb();
+function addPageShowListener(aBrowser, aFunc) {
+  aBrowser.selectedBrowser.addEventListener("pageshow", function loadListener() {
+    aBrowser.selectedBrowser.removeEventListener("pageshow", loadListener, false);
+    aFunc();
   });
 }
 
-function whenWindowActivated(win, cb) {
-  if (Services.focus.activeWindow == win) {
-    executeSoon(cb);
-    return;
-  }
-
-  win.addEventListener("activate", function onActivate() {
-    win.removeEventListener("activate", onActivate);
-    executeSoon(cb);
-  });
-}
-
-function BrowserWindowListener(aURL, aCallback) {
+function WindowListener(aURL, aCallback) {
   this.callback = aCallback;
   this.url = aURL;
 }
-BrowserWindowListener.prototype = {
+WindowListener.prototype = {
   onOpenWindow: function(aXULWindow) {
-    let cb = () => this.callback(domwindow);
-    let domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+    var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                               .getInterface(Ci.nsIDOMWindow);
+    var self = this;
+    domwindow.addEventListener("load", function() {
+      domwindow.removeEventListener("load", arguments.callee, false);
 
-    let numWait = 2;
-    function maybeRunCallback() {
-      if (--numWait == 0)
-        cb();
-    }
+      if (domwindow.document.location.href != self.url)
+        return;
 
-    whenWindowActivated(domwindow, maybeRunCallback);
-    whenDelayedStartupFinished(domwindow, maybeRunCallback);
+      // Allow other window load listeners to execute before passing to callback
+      executeSoon(function() {
+        self.callback(domwindow);
+      });
+    }, false);
   },
   onCloseWindow: function(aXULWindow) {},
   onWindowTitleChange: function(aXULWindow, aNewTitle) {}

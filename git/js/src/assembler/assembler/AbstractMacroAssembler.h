@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AbstractMacroAssembler_h
-#define assembler_assembler_AbstractMacroAssembler_h
+#ifndef AbstractMacroAssembler_h
+#define AbstractMacroAssembler_h
 
 #include "assembler/wtf/Platform.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
@@ -157,12 +157,12 @@ public:
     // Describes an memory operand given by a pointer.  For regular load & store
     // operations an unwrapped void* will be used, rather than using this.
     struct AbsoluteAddress {
-        explicit AbsoluteAddress(const void* ptr)
+        explicit AbsoluteAddress(void* ptr)
             : m_ptr(ptr)
         {
         }
 
-        const void* m_ptr;
+        void* m_ptr;
     };
 
     // TrustedImmPtr:
@@ -408,12 +408,12 @@ public:
         {
         }
         
-        void link(AbstractMacroAssembler<AssemblerType>* masm) const
+        void link(AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, masm->m_assembler.label());
         }
         
-        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm) const
+        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, label.m_label);
         }
@@ -438,7 +438,7 @@ public:
 
         JumpList(const JumpList &other)
         {
-            m_jumps.appendAll(other.m_jumps);
+            m_jumps.append(other.m_jumps);
         }
 
         JumpList &operator=(const JumpList &other)
@@ -656,4 +656,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AbstractMacroAssembler_h */
+#endif // AbstractMacroAssembler_h

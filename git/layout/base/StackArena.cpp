@@ -3,8 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "StackArena.h"
-#include "nsAlgorithm.h"
-#include "nsDebug.h"
 
 namespace mozilla {
 
@@ -69,7 +67,7 @@ StackArena::~StackArena()
 } 
 
 size_t
-StackArena::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+StackArena::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   StackBlock *block = mBlocks;

@@ -5,6 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AudioNode.h"
+#include "AudioContext.h"
+#include "nsContentUtils.h"
 #include "mozilla/ErrorResult.h"
 #include "AudioNodeStream.h"
 
@@ -12,8 +14,6 @@ namespace mozilla {
 namespace dom {
 
 static const uint32_t INVALID_PORT = 0xffffffff;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(AudioNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(AudioNode, nsDOMEventTargetHelper)
   tmp->DisconnectFromGraph();
@@ -174,7 +174,6 @@ AudioNode::Connect(AudioNode& aDestination, uint32_t aOutput,
       ps->AllocateInputPort(mStream, MediaInputPort::FLAG_BLOCK_INPUT,
                             static_cast<uint16_t>(aInput),
                             static_cast<uint16_t>(aOutput));
-    aDestination.NotifyInputConnected();
   }
 
   // This connection may have connected a panner and a source.

@@ -12,36 +12,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'B2GComponents'
 
-EXTRA_COMPONENTS += [
-    'ActivitiesGlue.js',
-    'AlertsService.js',
-    'B2GAboutRedirector.js',
-    'ContentHandler.js',
-    'ContentPermissionPrompt.js',
-    'FilePicker.js',
-    'MailtoProtocolHandler.js',
-    'MozKeyboard.js',
-    'PaymentGlue.js',
-    'ProcessGlobal.js',
-    'SmsProtocolHandler.js',
-    'TelProtocolHandler.js',
-    'YoutubeProtocolHandler.js',
-]
-
-EXTRA_PP_COMPONENTS += [
-    'B2GComponents.manifest',
-    'DirectoryProvider.js',
-    'RecoveryService.js',
-]
-
-if CONFIG['MOZ_UPDATER']:
-    EXTRA_PP_COMPONENTS += [
-        'UpdatePrompt.js',
-    ]
-
-EXTRA_JS_MODULES += [
-    'ErrorPage.jsm',
-    'Keyboard.jsm',
-    'SignInToWebsite.jsm',
-    'TelURIParser.jsm',
-]

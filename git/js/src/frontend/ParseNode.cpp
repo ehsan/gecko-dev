@@ -4,12 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "frontend/ParseNode-inl.h"
-
 #include "builtin/Module.h"
+#include "frontend/ParseNode.h"
 #include "frontend/Parser.h"
 
-#include "jscntxtinlines.h"
+#include "jsscriptinlines.h"
+
+#include "frontend/ParseMaps-inl.h"
+#include "frontend/ParseNode-inl.h"
+#include "frontend/Parser-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -243,7 +246,7 @@ ParseNodeAllocator::allocNode()
         return pn;
     }
 
-    void *p = alloc.alloc(sizeof (ParseNode));
+    void *p = cx->tempLifoAlloc().alloc(sizeof (ParseNode));
     if (!p)
         js_ReportOutOfMemory(cx);
     return p;
@@ -343,10 +346,24 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
     return handler->new_<BinaryNode>(kind, op, left, right);
 }
 
+// Note: the parse context passed into this may not equal the associated
+// parser's current context.
+NameNode *
+NameNode::create(ParseNodeKind kind, JSAtom *atom, FullParseHandler *handler,
+                 ParseContext<FullParseHandler> *pc)
+{
+    ParseNode *pn = ParseNode::create(kind, PN_NAME, handler);
+    if (pn) {
+        pn->pn_atom = atom;
+        ((NameNode *)pn)->initCommon(pc);
+    }
+    return (NameNode *)pn;
+}
+
 const char *
 Definition::kindString(Kind kind)
 {
-    static const char * const table[] = {
+    static const char *table[] = {
         "", js_var_str, js_const_str, js_let_str, js_function_str, "argument", "unknown"
     };
 
@@ -382,15 +399,16 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
 
       case PN_CODE:
         if (pn->getKind() == PNK_MODULE) {
-            MOZ_ASSUME_UNREACHABLE("module nodes cannot be cloned");
+            JS_NOT_REACHED("module nodes cannot be cloned");
+            return NULL;
+        } else {
+            NULLCHECK(pn->pn_funbox =
+                      newFunctionBox(opn->pn_funbox->function(), pc, opn->pn_funbox->strict));
+            NULLCHECK(pn->pn_body = cloneParseTree(opn->pn_body));
+            pn->pn_cookie = opn->pn_cookie;
+            pn->pn_dflags = opn->pn_dflags;
+            pn->pn_blockid = opn->pn_blockid;
         }
-        NULLCHECK(pn->pn_funbox =
-                  newFunctionBox(pn, opn->pn_funbox->function(), pc,
-                                 Directives(/* strict = */ opn->pn_funbox->strict)));
-        NULLCHECK(pn->pn_body = cloneParseTree(opn->pn_body));
-        pn->pn_cookie = opn->pn_cookie;
-        pn->pn_dflags = opn->pn_dflags;
-        pn->pn_blockid = opn->pn_blockid;
         break;
 
       case PN_LIST:
@@ -501,7 +519,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
                 pn2 = handler.new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
             } else if (opn2->isArity(PN_NULLARY)) {
-                JS_ASSERT(opn2->isKind(PNK_ELISION));
+                JS_ASSERT(opn2->isKind(PNK_COMMA));
                 pn2 = cloneParseTree(opn2);
             } else {
                 pn2 = cloneLeftHandSide(opn2);
@@ -546,7 +564,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
 #ifdef DEBUG
 
-static const char * const parseNodeNames[] = {
+static const char *parseNodeNames[] = {
 #define STRINGIFY(name) #name,
     FOR_EACH_PARSE_NODE_KIND(STRINGIFY)
 #undef STRINGIFY
@@ -751,7 +769,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(!object->is<JSFunction>());
+    JS_ASSERT(!object->isFunction());
 }
 
 ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
@@ -759,7 +777,7 @@ ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->is<JSFunction>());
+    JS_ASSERT(object->isFunction());
     JS_ASSERT(asFunctionBox()->function() == function);
 }
 
@@ -782,7 +800,7 @@ ObjectBox::ObjectBox(Module *module, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->is<Module>());
+    JS_ASSERT(object->isModule());
 }
 
 void

@@ -37,7 +37,7 @@ function test() {
 
     // navigate to different url and check title
       .then(function () {
-        let deferred = promise.defer();
+        let deferred = Promise.defer();
         target.once("navigate", function () deferred.resolve());
         gBrowser.loadURI(URL_2);
         return deferred.promise;

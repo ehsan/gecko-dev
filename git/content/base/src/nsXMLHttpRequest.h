@@ -7,7 +7,6 @@
 #ifndef nsXMLHttpRequest_h__
 #define nsXMLHttpRequest_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIXMLHttpRequest.h"
 #include "nsISupportsUtils.h"
 #include "nsString.h"
@@ -37,7 +36,6 @@
 #include "nsISizeOfEventTarget.h"
 
 #include "mozilla/Assertions.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
@@ -228,7 +226,7 @@ public:
 
   // nsISizeOfEventTarget
   virtual size_t
-    SizeOfEventTargetIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    SizeOfEventTargetIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)
 
@@ -243,18 +241,19 @@ public:
   uint16_t ReadyState();
 
   // request
-  void Open(const nsACString& aMethod, const nsAString& aUrl, bool aAsync,
+  void Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
             const mozilla::dom::Optional<nsAString>& aUser,
             const mozilla::dom::Optional<nsAString>& aPassword,
             ErrorResult& aRv)
   {
-    aRv = Open(aMethod, NS_ConvertUTF16toUTF8(aUrl),
+    aRv = Open(NS_ConvertUTF16toUTF8(aMethod), NS_ConvertUTF16toUTF8(aUrl),
                aAsync, aUser, aPassword);
   }
-  void SetRequestHeader(const nsACString& aHeader, const nsACString& aValue,
+  void SetRequestHeader(const nsAString& aHeader, const nsAString& aValue,
                         ErrorResult& aRv)
   {
-    aRv = SetRequestHeader(aHeader, aValue);
+    aRv = SetRequestHeader(NS_ConvertUTF16toUTF8(aHeader),
+                           NS_ConvertUTF16toUTF8(aValue));
   }
   uint32_t Timeout()
   {
@@ -272,11 +271,11 @@ private:
     RequestBody() : mType(Uninitialized)
     {
     }
-    RequestBody(const mozilla::dom::ArrayBuffer* aArrayBuffer) : mType(ArrayBuffer)
+    RequestBody(mozilla::dom::ArrayBuffer* aArrayBuffer) : mType(ArrayBuffer)
     {
       mValue.mArrayBuffer = aArrayBuffer;
     }
-    RequestBody(const mozilla::dom::ArrayBufferView* aArrayBufferView) : mType(ArrayBufferView)
+    RequestBody(mozilla::dom::ArrayBufferView* aArrayBufferView) : mType(ArrayBufferView)
     {
       mValue.mArrayBufferView = aArrayBufferView;
     }
@@ -312,8 +311,8 @@ private:
       InputStream
     };
     union Value {
-      const mozilla::dom::ArrayBuffer* mArrayBuffer;
-      const mozilla::dom::ArrayBufferView* mArrayBufferView;
+      mozilla::dom::ArrayBuffer* mArrayBuffer;
+      mozilla::dom::ArrayBufferView* mArrayBufferView;
       nsIDOMBlob* mBlob;
       nsIDocument* mDocument;
       const nsAString* mString;
@@ -359,12 +358,11 @@ public:
   {
     aRv = Send(Nullable<RequestBody>());
   }
-  void Send(const mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
+  void Send(mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
   {
     aRv = Send(RequestBody(&aArrayBuffer));
   }
-  void Send(const mozilla::dom::ArrayBufferView& aArrayBufferView,
-            ErrorResult& aRv)
+  void Send(mozilla::dom::ArrayBufferView& aArrayBufferView, ErrorResult& aRv)
   {
     aRv = Send(RequestBody(&aArrayBufferView));
   }
@@ -401,7 +399,7 @@ public:
 
   // response
   uint32_t Status();
-  void GetStatusText(nsCString& aStatusText);
+  void GetStatusText(nsString& aStatusText);
   void GetResponseHeader(const nsACString& aHeader, nsACString& aResult,
                          ErrorResult& aRv);
   void GetResponseHeader(const nsAString& aHeader, nsString& aResult,
@@ -417,7 +415,7 @@ public:
       CopyASCIItoUTF16(result, aResult);
     }
   }
-  void GetAllResponseHeaders(nsCString& aResponseHeaders);
+  void GetAllResponseHeaders(nsString& aResponseHeaders);
   bool IsSafeHeader(const nsACString& aHeaderName, nsIHttpChannel* aHttpChannel);
   void OverrideMimeType(const nsAString& aMimeType)
   {
@@ -475,7 +473,7 @@ public:
   bool AllowUploadProgress();
   void RootJSResultObjects();
 
-  virtual void DisconnectFromOwner() MOZ_OVERRIDE;
+  virtual void DisconnectFromOwner();
 
 protected:
   nsresult DetectCharset();
@@ -659,14 +657,14 @@ protected:
 
   bool mFirstStartRequestSeen;
   bool mInLoadProgressEvent;
-
+  
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
-
-  JS::Heap<JS::Value> mResultJSON;
+  
+  JS::Value mResultJSON;
 
   js::ArrayBufferBuilder mArrayBufferBuilder;
-  JS::Heap<JSObject*> mResultArrayBuffer;
+  JSObject* mResultArrayBuffer;
 
   void ResetResponse();
 
@@ -689,7 +687,8 @@ class nsXMLHttpRequestXPCOMifier MOZ_FINAL : public nsIStreamListener,
                                              public nsIChannelEventSink,
                                              public nsIProgressEventSink,
                                              public nsIInterfaceRequestor,
-                                             public nsITimerCallback
+                                             public nsITimerCallback,
+                                             public nsCycleCollectionParticipant
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXMLHttpRequestXPCOMifier,
@@ -722,7 +721,7 @@ class nsXHRParseEndListener : public nsIDOMEventListener
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_IMETHOD HandleEvent(nsIDOMEvent *event) MOZ_OVERRIDE
+  NS_IMETHOD HandleEvent(nsIDOMEvent *event)
   {
     nsCOMPtr<nsIXMLHttpRequest> xhr = do_QueryReferent(mXHR);
     if (xhr) {

@@ -42,6 +42,17 @@ select {
   display: none !important;
 }
 
+#viewerContainer:-webkit-full-screen {
+  top: 0px;
+  border-top: 2px solid transparent;
+  background-color: #404040;
+  background-image: url(images/texture.png);
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: none;
+}
+
 #viewerContainer:-moz-full-screen {
   top: 0px;
   border-top: 2px solid transparent;
@@ -65,12 +76,20 @@ select {
 }
 
 
+:-webkit-full-screen .page {
+  margin-bottom: 100%;
+}
+
 :-moz-full-screen .page {
   margin-bottom: 100%;
 }
 
 :fullscreen .page {
   margin-bottom: 100%;
+}
+
+:-webkit-full-screen a:not(.internalLink) {
+  display: none;
 }
 
 :-moz-full-screen a:not(.internalLink) {
@@ -118,15 +137,30 @@ html[dir='rtl'] .innerCenter {
   bottom: 0;
   width: 200px;
   visibility: hidden;
+  -webkit-transition-duration: 200ms;
+  -webkit-transition-timing-function: ease;
+  -moz-transition-duration: 200ms;
+  -moz-transition-timing-function: ease;
+  -ms-transition-duration: 200ms;
+  -ms-transition-timing-function: ease;
+  -o-transition-duration: 200ms;
+  -o-transition-timing-function: ease;
   transition-duration: 200ms;
   transition-timing-function: ease;
 
 }
 html[dir='ltr'] #sidebarContainer {
+  -webkit-transition-property: left;
+  -moz-transition-property: left;
+  -ms-transition-property: left;
+  -o-transition-property: left;
   transition-property: left;
   left: -200px;
 }
 html[dir='rtl'] #sidebarContainer {
+  -webkit-transition-property: right;
+  -ms-transition-property: right;
+  -o-transition-property: right;
   transition-property: right;
   right: -200px;
 }
@@ -149,14 +183,30 @@ html[dir='rtl'] #outerContainer.sidebarOpen > #sidebarContainer {
   bottom: 0;
   left: 0;
   min-width: 320px;
+  -webkit-transition-duration: 200ms;
+  -webkit-transition-timing-function: ease;
+  -moz-transition-duration: 200ms;
+  -moz-transition-timing-function: ease;
+  -ms-transition-duration: 200ms;
+  -ms-transition-timing-function: ease;
+  -o-transition-duration: 200ms;
+  -o-transition-timing-function: ease;
   transition-duration: 200ms;
   transition-timing-function: ease;
 }
 html[dir='ltr'] #outerContainer.sidebarOpen > #mainContainer {
+  -webkit-transition-property: left;
+  -moz-transition-property: left;
+  -ms-transition-property: left;
+  -o-transition-property: left;
   transition-property: left;
   left: 200px;
 }
 html[dir='rtl'] #outerContainer.sidebarOpen > #mainContainer {
+  -webkit-transition-property: right;
+  -moz-transition-property: right;
+  -ms-transition-property: right;
+  -o-transition-property: right;
   transition-property: right;
   right: 200px;
 }
@@ -186,13 +236,13 @@ html[dir='rtl'] #sidebarContent {
   right: 0;
   bottom: 0;
   left: 0;
-  outline: none;
 }
 
 .toolbar {
-  position: relative;
+  position: absolute;
   left: 0;
   right: 0;
+  height: 32px;
   z-index: 9999;
   cursor: default;
 }
@@ -204,7 +254,14 @@ html[dir='rtl'] #sidebarContent {
 #toolbarSidebar {
   width: 200px;
   height: 32px;
-  background-color: #424242; /* fallback */
+  background-image: url(images/texture.png),
+                    -webkit-linear-gradient(hsla(0,0%,30%,.99), hsla(0,0%,25%,.95));
+  background-image: url(images/texture.png),
+                    -moz-linear-gradient(hsla(0,0%,30%,.99), hsla(0,0%,25%,.95));
+  background-image: url(images/texture.png),
+                    -ms-linear-gradient(hsla(0,0%,30%,.99), hsla(0,0%,25%,.95));
+  background-image: url(images/texture.png),
+                    -o-linear-gradient(hsla(0,0%,30%,.99), hsla(0,0%,25%,.95));
   background-image: url(images/texture.png),
                     linear-gradient(hsla(0,0%,30%,.99), hsla(0,0%,25%,.95));
   box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.25),
@@ -214,10 +271,18 @@ html[dir='rtl'] #sidebarContent {
               0 0 1px hsla(0,0%,0%,.1);
 }
 
-#toolbarContainer, .findbar {
+#toolbarViewer, .findbar {
   position: relative;
   height: 32px;
-  background-color: #474747; /* fallback */
+  background-color: #474747; /* IE9 */
+  background-image: url(images/texture.png),
+                    -webkit-linear-gradient(hsla(0,0%,32%,.99), hsla(0,0%,27%,.95));
+  background-image: url(images/texture.png),
+                    -moz-linear-gradient(hsla(0,0%,32%,.99), hsla(0,0%,27%,.95));
+  background-image: url(images/texture.png),
+                    -ms-linear-gradient(hsla(0,0%,32%,.99), hsla(0,0%,27%,.95));
+  background-image: url(images/texture.png),
+                    -o-linear-gradient(hsla(0,0%,32%,.99), hsla(0,0%,27%,.95));
   background-image: url(images/texture.png),
                     linear-gradient(hsla(0,0%,32%,.99), hsla(0,0%,27%,.95));
   box-shadow: inset 1px 0 0 hsla(0,0%,100%,.08),
@@ -225,54 +290,6 @@ html[dir='rtl'] #sidebarContent {
               inset 0 -1px 0 hsla(0,0%,100%,.05),
               0 1px 0 hsla(0,0%,0%,.15),
               0 1px 1px hsla(0,0%,0%,.1);
-}
-
-#toolbarViewer {
-  height: 32px;
-}
-
-#loadingBar {
-  position: relative;
-  width: 100%;
-  height: 6px;
-  background-color: #333;
-  border-bottom: 1px solid #333;
-}
-
-#loadingBar .progress {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 0%;
-  height: 100%;
-  background-color: #ddd;
-  overflow: hidden;
-  transition: width 200ms;
-}
-
-@keyframes progressIndeterminate {
-  0% { left: 0%; }
-  50% { left: 100%; }
-  100% { left: 100%; }
-}
-
-#loadingBar .progress.indeterminate {
-  background-color: #999;
-  transition: none;
-}
-
-#loadingBar .indeterminate .glimmer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 50px;
-
-  background-image: linear-gradient(to right, #999 0%, #fff 50%, #999 100%);
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-
-  animation: progressIndeterminate 2s linear infinite;
 }
 
 .findbar {
@@ -300,6 +317,7 @@ html[dir='rtl'] .findbar {
 }
 
 .findbar label {
+  -webkit-user-select: none;
   -moz-user-select: none;
 }
 
@@ -444,6 +462,10 @@ html[dir='rtl'] .splitToolbarButton > .toolbarButton {
 .splitToolbarButton.toggled > .toolbarButton,
 .toolbarButton.textButton {
   background-color: hsla(0,0%,0%,.12);
+  background-image: -webkit-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -ms-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -o-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   border: 1px solid hsla(0,0%,0%,.35);
@@ -451,6 +473,18 @@ html[dir='rtl'] .splitToolbarButton > .toolbarButton {
   box-shadow: 0 1px 0 hsla(0,0%,100%,.05) inset,
               0 0 1px hsla(0,0%,100%,.15) inset,
               0 1px 0 hsla(0,0%,100%,.05);
+  -webkit-transition-property: background-color, border-color, box-shadow;
+  -webkit-transition-duration: 150ms;
+  -webkit-transition-timing-function: ease;
+  -moz-transition-property: background-color, border-color, box-shadow;
+  -moz-transition-duration: 150ms;
+  -moz-transition-timing-function: ease;
+  -ms-transition-property: background-color, border-color, box-shadow;
+  -ms-transition-duration: 150ms;
+  -ms-transition-timing-function: ease;
+  -o-transition-property: background-color, border-color, box-shadow;
+  -o-transition-duration: 150ms;
+  -o-transition-timing-function: ease;
   transition-property: background-color, border-color, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: ease;
@@ -505,6 +539,18 @@ html[dir='rtl'] .splitToolbarButtonSeparator {
   padding: 12px 0;
   margin: 1px 0;
   box-shadow: 0 0 0 1px hsla(0,0%,100%,.03);
+  -webkit-transition-property: padding;
+  -webkit-transition-duration: 10ms;
+  -webkit-transition-timing-function: ease;
+  -moz-transition-property: padding;
+  -moz-transition-duration: 10ms;
+  -moz-transition-timing-function: ease;
+  -ms-transition-property: padding;
+  -ms-transition-duration: 10ms;
+  -ms-transition-timing-function: ease;
+  -o-transition-property: padding;
+  -o-transition-duration: 10ms;
+  -o-transition-timing-function: ease;
   transition-property: padding;
   transition-duration: 10ms;
   transition-timing-function: ease;
@@ -519,9 +565,23 @@ html[dir='rtl'] .splitToolbarButtonSeparator {
   color: hsl(0,0%,95%);
   font-size: 12px;
   line-height: 14px;
+  -webkit-user-select: none;
   -moz-user-select: none;
+  -ms-user-select: none;
   /* Opera does not support user-select, use <... unselectable="on"> instead */
   cursor: default;
+  -webkit-transition-property: background-color, border-color, box-shadow;
+  -webkit-transition-duration: 150ms;
+  -webkit-transition-timing-function: ease;
+  -moz-transition-property: background-color, border-color, box-shadow;
+  -moz-transition-duration: 150ms;
+  -moz-transition-timing-function: ease;
+  -ms-transition-property: background-color, border-color, box-shadow;
+  -ms-transition-duration: 150ms;
+  -ms-transition-timing-function: ease;
+  -o-transition-property: background-color, border-color, box-shadow;
+  -o-transition-duration: 150ms;
+  -o-transition-timing-function: ease;
   transition-property: background-color, border-color, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: ease;
@@ -540,6 +600,10 @@ html[dir='rtl'] .dropdownToolbarButton {
 .toolbarButton:focus,
 .dropdownToolbarButton {
   background-color: hsla(0,0%,0%,.12);
+  background-image: -webkit-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -ms-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -o-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   border: 1px solid hsla(0,0%,0%,.35);
@@ -552,11 +616,27 @@ html[dir='rtl'] .dropdownToolbarButton {
 .toolbarButton:hover:active,
 .dropdownToolbarButton:hover:active {
   background-color: hsla(0,0%,0%,.2);
+  background-image: -webkit-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -ms-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -o-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   border-color: hsla(0,0%,0%,.35) hsla(0,0%,0%,.4) hsla(0,0%,0%,.45);
   box-shadow: 0 1px 1px hsla(0,0%,0%,.1) inset,
               0 0 1px hsla(0,0%,0%,.2) inset,
               0 1px 0 hsla(0,0%,100%,.05);
+  -webkit-transition-property: background-color, border-color, box-shadow;
+  -webkit-transition-duration: 10ms;
+  -webkit-transition-timing-function: linear;
+  -moz-transition-property: background-color, border-color, box-shadow;
+  -moz-transition-duration: 10ms;
+  -moz-transition-timing-function: linear;
+  -ms-transition-property: background-color, border-color, box-shadow;
+  -ms-transition-duration: 10ms;
+  -ms-transition-timing-function: linear;
+  -o-transition-property: background-color, border-color, box-shadow;
+  -o-transition-duration: 10ms;
+  -o-transition-timing-function: linear;
   transition-property: background-color, border-color, box-shadow;
   transition-duration: 10ms;
   transition-timing-function: linear;
@@ -565,11 +645,27 @@ html[dir='rtl'] .dropdownToolbarButton {
 .toolbarButton.toggled,
 .splitToolbarButton.toggled > .toolbarButton.toggled {
   background-color: hsla(0,0%,0%,.3);
+  background-image: -webkit-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -ms-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -o-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   border-color: hsla(0,0%,0%,.4) hsla(0,0%,0%,.45) hsla(0,0%,0%,.5);
   box-shadow: 0 1px 1px hsla(0,0%,0%,.1) inset,
               0 0 1px hsla(0,0%,0%,.2) inset,
               0 1px 0 hsla(0,0%,100%,.05);
+  -webkit-transition-property: background-color, border-color, box-shadow;
+  -webkit-transition-duration: 10ms;
+  -webkit-transition-timing-function: linear;
+  -moz-transition-property: background-color, border-color, box-shadow;
+  -moz-transition-duration: 10ms;
+  -moz-transition-timing-function: linear;
+  -ms-transition-property: background-color, border-color, box-shadow;
+  -ms-transition-duration: 10ms;
+  -ms-transition-timing-function: linear;
+  -o-transition-property: background-color, border-color, box-shadow;
+  -o-transition-duration: 10ms;
+  -o-transition-timing-function: linear;
   transition-property: background-color, border-color, box-shadow;
   transition-duration: 10ms;
   transition-timing-function: linear;
@@ -599,6 +695,7 @@ html[dir='rtl'] .dropdownToolbarButton {
 }
 
 .dropdownToolbarButton > select {
+  -webkit-appearance: none;
   -moz-appearance: none; /* in the future this might matter, see bugzilla bug #649849 */
   min-width: 140px;
   font-size: 12px;
@@ -641,6 +738,7 @@ html[dir='rtl'] .toolbarButton:first-child {
 }
 
 .toolbarButtonFlexibleSpacer {
+  -webkit-box-flex: 1;
   -moz-box-flex: 1;
   min-width: 30px;
 }
@@ -722,9 +820,9 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
   content: url(images/toolbarButton-zoomIn.png);
 }
 
-.toolbarButton.presentationMode::before {
+.toolbarButton.fullscreen::before {
   display: inline-block;
-  content: url(images/toolbarButton-presentationMode.png);
+  content: url(images/toolbarButton-fullscreen.png);
 }
 
 .toolbarButton.print::before {
@@ -744,6 +842,7 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
 }
 
 .toolbarButton.bookmark {
+  -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
   margin-top: 3px;
@@ -781,7 +880,7 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
   border: 1px solid transparent;
   border-radius: 2px;
   background-color: hsla(0,0%,100%,.09);
-  background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   border: 1px solid hsla(0,0%,0%,.35);
   border-color: hsla(0,0%,0%,.32) hsla(0,0%,0%,.38) hsla(0,0%,0%,.42);
@@ -791,9 +890,9 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
   font-size: 12px;
   line-height: 14px;
   outline-style: none;
-  transition-property: background-color, border-color, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: ease;
+  -moz-transition-property: background-color, border-color, box-shadow;
+  -moz-transition-duration: 150ms;
+  -moz-transition-timing-function: ease;
 }
 
 .toolbarField[type=checkbox] {
@@ -805,6 +904,12 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
   min-width: 16px;
   text-align: right;
   width: 40px;
+}
+
+.toolbarField.pageNumber::-webkit-inner-spin-button,
+.toolbarField.pageNumber::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .toolbarField:hover {
@@ -827,6 +932,7 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
   font-size: 12px;
   line-height: 14px;
   text-align: left;
+  -webkit-user-select: none;
   -moz-user-select: none;
   cursor: default;
 }
@@ -850,7 +956,7 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
 }
 
 .thumbnailImage {
-  transition-duration: 150ms;
+  -moz-transition-duration: 150ms;
   border: 1px solid transparent;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
   opacity: 0.8;
@@ -860,7 +966,7 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
 .thumbnailSelectionRing {
   border-radius: 2px;
   padding: 7px;
-  transition-duration: 150ms;
+  -moz-transition-duration: 150ms;
 }
 
 a:focus > .thumbnail > .thumbnailSelectionRing > .thumbnailImage,
@@ -871,7 +977,7 @@ a:focus > .thumbnail > .thumbnailSelectionRing > .thumbnailImage,
 a:focus > .thumbnail > .thumbnailSelectionRing,
 .thumbnail:hover > .thumbnailSelectionRing {
   background-color: hsla(0,0%,100%,.15);
-  background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   box-shadow: 0 1px 0 hsla(0,0%,100%,.05) inset,
               0 0 1px hsla(0,0%,100%,.2) inset,
@@ -886,7 +992,7 @@ a:focus > .thumbnail > .thumbnailSelectionRing,
 
 .thumbnail.selected > .thumbnailSelectionRing {
   background-color: hsla(0,0%,100%,.3);
-  background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   box-shadow: 0 1px 0 hsla(0,0%,100%,.05) inset,
               0 0 1px hsla(0,0%,100%,.1) inset,
@@ -901,6 +1007,7 @@ a:focus > .thumbnail > .thumbnailSelectionRing,
   bottom: 0;
   padding: 4px 4px 0;
   overflow: auto;
+  -webkit-user-select: none;
   -moz-user-select: none;
 }
 
@@ -936,7 +1043,7 @@ html[dir='rtl'] .outlineItem > a {
 
 .outlineItem > a:hover {
   background-color: hsla(0,0%,100%,.02);
-  background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   box-shadow: 0 1px 0 hsla(0,0%,100%,.05) inset,
               0 0 1px hsla(0,0%,100%,.2) inset,
@@ -946,7 +1053,7 @@ html[dir='rtl'] .outlineItem > a {
 
 .outlineItem.selected {
   background-color: hsla(0,0%,100%,.08);
-  background-image: linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
   background-clip: padding-box;
   box-shadow: 0 1px 0 hsla(0,0%,100%,.05) inset,
               0 0 1px hsla(0,0%,100%,.1) inset,
@@ -975,10 +1082,6 @@ html[dir='rtl'] .outlineItem > a {
   height: 32px;
   left: 15px;
   bottom: 35px;
-}
-
-.canvasWrapper {
-  overflow: hidden;
 }
 
 canvas {
@@ -1018,6 +1121,82 @@ canvas {
   right: 0;
   bottom: 0;
   background: url('images/loading-icon.gif') center no-repeat;
+}
+
+#loadingBox {
+  position: absolute;
+  top: 50%;
+  margin-top: -25px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #ddd;
+  font-size: 14px;
+}
+
+#loadingBar {
+  display: inline-block;
+  clear: both;
+  margin: 0px;
+  margin-top: 5px;
+  line-height: 0;
+  border-radius: 2px;
+  width: 200px;
+  height: 25px;
+
+  background-color: hsla(0,0%,0%,.3);
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  background-image: -webkit-linear-gradient(hsla(0,0%,100%,.05), hsla(0,0%,100%,0));
+  border: 1px solid #000;
+  box-shadow: 0 1px 1px hsla(0,0%,0%,.1) inset,
+              0 0 1px hsla(0,0%,0%,.2) inset,
+              0 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+#loadingBar .progress {
+  display: inline-block;
+  float: left;
+
+  background: #666;
+  background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#b2b2b2), color-stop(100%,#898989));
+  background: -webkit-linear-gradient(top, #b2b2b2 0%,#898989 100%);
+  background: -moz-linear-gradient(top, #b2b2b2 0%,#898989 100%);
+  background: -ms-linear-gradient(top, #b2b2b2 0%,#898989 100%);
+  background: -o-linear-gradient(top, #b2b2b2 0%,#898989 100%);
+  background: linear-gradient(top, #b2b2b2 0%,#898989 100%);
+
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
+
+  width: 0%;
+  height: 100%;
+}
+
+#loadingBar .progress.full {
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+#loadingBar .progress.indeterminate {
+  width: 100%;
+  height: 25px;
+  background-image: -moz-linear-gradient( 30deg, #404040, #404040 15%, #898989, #404040 85%, #404040);
+  background-image: -webkit-linear-gradient( 30deg, #404040, #404040 15%, #898989, #404040 85%, #404040);
+  background-image: -ms-linear-gradient( 30deg, #404040, #404040 15%, #898989, #404040 85%, #404040);
+  background-image: -o-linear-gradient( 30deg, #404040, #404040 15%, #898989, #404040 85%, #404040);
+  background-size: 75px 25px;
+  -moz-animation: progressIndeterminate 1s linear infinite;
+  -webkit-animation: progressIndeterminate 1s linear infinite;
+}
+
+@-moz-keyframes progressIndeterminate {
+  from { background-position: 0px 0px; }
+  to { background-position: 75px 0px; }
+}
+
+@-webkit-keyframes progressIndeterminate {
+  from { background-position: 0px 0px; }
+  to { background-position: 75px 0px; }
 }
 
 .textLayer {
@@ -1101,6 +1280,7 @@ canvas {
   left: 0;
   position: absolute;
   right: 0;
+  top: 32px;
   z-index: 1000;
   padding: 3px;
   font-size: 0.8em;
@@ -1200,17 +1380,9 @@ canvas {
 }
 
 @media print {
-  /* General rules for printing. */
-  body {
-    background: transparent none;
-  }
-
   /* Rules for browsers that don't support mozPrintCallback. */
   #sidebarContainer, .toolbar, #loadingBox, #errorWrapper, .textLayer {
     display: none;
-  }
-  #viewerContainer {
-    overflow: visible;
   }
 
   #mainContainer, #viewerContainer, .page, .page canvas {
@@ -1222,7 +1394,6 @@ canvas {
   .page {
     float: left;
     display: none;
-    border: none;
     box-shadow: none;
   }
 
@@ -1259,11 +1430,8 @@ canvas {
 
 @media all and (max-width: 770px) {
   #sidebarContainer {
-    top: 32px;
+    top: 33px;
     z-index: 100;
-  }
-  .loadingInProgress #sidebarContainer {
-    top: 39px;
   }
   #sidebarContent {
     top: 32px;

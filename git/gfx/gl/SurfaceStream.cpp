@@ -31,29 +31,21 @@ SurfaceStream::ChooseGLStreamType(SurfaceStream::OMTC omtc,
 }
 
 SurfaceStream*
-SurfaceStream::CreateForType(SurfaceStreamType type, mozilla::gl::GLContext* glContext, SurfaceStream* prevStream)
+SurfaceStream::CreateForType(SurfaceStreamType type, SurfaceStream* prevStream)
 {
-    SurfaceStream* result = nullptr;
-
     switch (type) {
         case SurfaceStreamType::SingleBuffer:
-            result = new SurfaceStream_SingleBuffer(prevStream);
-            break;
+            return new SurfaceStream_SingleBuffer(prevStream);
         case SurfaceStreamType::TripleBuffer_Copy:
-            result = new SurfaceStream_TripleBuffer_Copy(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer_Copy(prevStream);
         case SurfaceStreamType::TripleBuffer_Async:
-            result = new SurfaceStream_TripleBuffer_Async(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer_Async(prevStream);
         case SurfaceStreamType::TripleBuffer:
-            result = new SurfaceStream_TripleBuffer(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer(prevStream);
         default:
-            MOZ_CRASH("Invalid Type.");
+            MOZ_NOT_REACHED("Invalid Type.");
+            return nullptr;
     }
-
-    result->mGLContext = glContext;
-    return result;
 }
 
 void

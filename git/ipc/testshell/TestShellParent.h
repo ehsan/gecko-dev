@@ -20,6 +20,10 @@ class JSObject;
 
 namespace mozilla {
 
+namespace jsipc {
+class PContextWrapperParent;
+}
+
 namespace ipc {
 
 class TestShellCommandParent;
@@ -28,13 +32,18 @@ class TestShellParent : public PTestShellParent
 {
 public:
   PTestShellCommandParent*
-  AllocPTestShellCommandParent(const nsString& aCommand);
+  AllocPTestShellCommand(const nsString& aCommand);
 
   bool
-  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor);
+  DeallocPTestShellCommand(PTestShellCommandParent* aActor);
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);
+
+  PContextWrapperParent* AllocPContextWrapper();
+  bool DeallocPContextWrapper(PContextWrapperParent* actor);
+
+  JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 };
 
 
@@ -43,9 +52,10 @@ class TestShellCommandParent : public PTestShellCommandParent
 public:
   TestShellCommandParent() : mCx(NULL) { }
 
-  bool SetCallback(JSContext* aCx, JS::Value aCallback);
+  JSBool SetCallback(JSContext* aCx,
+                     JS::Value aCallback);
 
-  bool RunCallback(const nsString& aResponse);
+  JSBool RunCallback(const nsString& aResponse);
 
   void ReleaseCallback();
 
@@ -53,7 +63,7 @@ protected:
   bool ExecuteCallback(const nsString& aResponse);
 
   void ActorDestroy(ActorDestroyReason why);
-
+  
   bool Recv__delete__(const nsString& aResponse) {
     return ExecuteCallback(aResponse);
   }

@@ -61,6 +61,7 @@
 #include "nsIWebProgressListener.h"
 #include "nsISHContainer.h"
 #include "nsIDocShellLoadInfo.h"
+#include "nsIDocShellHistory.h"
 #include "nsIURIFixup.h"
 #include "nsIWebBrowserFind.h"
 #include "nsIHttpChannel.h"
@@ -76,7 +77,6 @@
 #include "nsIClipboardCommands.h"
 #include "nsICommandManager.h"
 #include "nsCRT.h"
-#include "prtime.h"
 
 namespace mozilla {
 namespace dom {
@@ -109,7 +109,7 @@ class nsRefreshTimer : public nsITimerCallback
 public:
     nsRefreshTimer();
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSITIMERCALLBACK
 
     int32_t GetDelay() { return mDelay ;}
@@ -136,6 +136,7 @@ typedef enum {
 
 class nsDocShell : public nsDocLoader,
                    public nsIDocShell,
+                   public nsIDocShellHistory,
                    public nsIWebNavigation,
                    public nsIBaseWindow, 
                    public nsIScrollable, 
@@ -169,6 +170,7 @@ public:
     NS_DECL_NSIDOCSHELL
     NS_DECL_NSIDOCSHELLTREEITEM
     NS_DECL_NSIDOCSHELLTREENODE
+    NS_DECL_NSIDOCSHELLHISTORY
     NS_DECL_NSIWEBNAVIGATION
     NS_DECL_NSIBASEWINDOW
     NS_DECL_NSISCROLLABLE
@@ -290,8 +292,6 @@ protected:
     // Actually open a channel and perform a URI load.  Note: whatever owner is
     // passed to this function will be set on the channel.  Callers who wish to
     // not have an owner on the channel should just pass null.
-    // If aSrcdoc is not void, the load will be considered as a srcdoc load,
-    // and the contents of aSrcdoc will be loaded instead of aURI.
     virtual nsresult DoURILoad(nsIURI * aURI,
                                nsIURI * aReferrer,
                                bool aSendReferrer,
@@ -305,8 +305,7 @@ protected:
                                nsIRequest ** aRequest,
                                bool aIsNewWindowTarget,
                                bool aBypassClassifier,
-                               bool aForceAllowCookies,
-                               const nsAString &aSrcdoc);
+                               bool aForceAllowCookies);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -659,11 +658,7 @@ protected:
 
     void ClearFrameHistory(nsISHEntry* aEntry);
 
-    /**
-     * Initializes mTiming if it isn't yet.
-     * After calling this, mTiming is non-null.
-     */
-    void MaybeInitTiming();
+    nsresult MaybeInitTiming();
 
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
@@ -811,7 +806,6 @@ protected:
     bool                       mAllowJavascript;
     bool                       mAllowMetaRedirects;
     bool                       mAllowImages;
-    bool                       mAllowMedia;
     bool                       mAllowDNSPrefetch;
     bool                       mAllowWindowControl;
     bool                       mCreatingDocument; // (should be) debugging only
@@ -875,19 +869,11 @@ protected:
     uint32_t mOwnOrContainingAppId;
 
 private:
-    nsCString         mForcedCharset;
-    nsCString         mParentCharset;
+    nsCOMPtr<nsIAtom> mForcedCharset;
+    nsCOMPtr<nsIAtom> mParentCharset;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
-    nsTObserverArray<nsWeakPtr> mReflowObservers;
     int32_t           mParentCharsetSource;
     nsCString         mOriginalUriString;
-
-    // Separate function to do the actual name (i.e. not _top, _self etc.)
-    // searching for FindItemWithName.
-    nsresult DoFindItemWithName(const PRUnichar* aName,
-                                nsISupports* aRequestor,
-                                nsIDocShellTreeItem* aOriginalRequestor,
-                                nsIDocShellTreeItem** _retval);
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks
@@ -899,7 +885,7 @@ public:
     public:
         InterfaceRequestorProxy(nsIInterfaceRequestor* p);
         virtual ~InterfaceRequestorProxy();
-        NS_DECL_THREADSAFE_ISUPPORTS
+        NS_DECL_ISUPPORTS
         NS_DECL_NSIINTERFACEREQUESTOR
  
     protected:

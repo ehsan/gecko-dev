@@ -222,9 +222,8 @@ if test "$CPU_ARCH" = "arm"; then
       dnl This matches media/webrtc/trunk/webrtc/build/common.gypi.
       if test -n "$ARM_ARCH"; then
           if test "$ARM_ARCH" -lt 7; then
-              BUILD_ARM_NEON=
+              BUILD_ARM_NEON=0
           else
-              AC_DEFINE(BUILD_ARM_NEON)
               BUILD_ARM_NEON=1
           fi
       fi

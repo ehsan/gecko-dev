@@ -465,8 +465,8 @@ ARIAGridAccessible::SetARIASelected(Accessible* aAccessible,
     rv = content->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_selected,
                           NS_LITERAL_STRING("true"), aNotify);
   else
-    rv = content->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_selected,
-                          NS_LITERAL_STRING("false"), aNotify);
+    rv = content->UnsetAttr(kNameSpaceID_None,
+                            nsGkAtoms::aria_selected, aNotify);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -533,7 +533,6 @@ ARIAGridCellAccessible::
   ARIAGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
-  mGenericTypes |= eTableCell;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

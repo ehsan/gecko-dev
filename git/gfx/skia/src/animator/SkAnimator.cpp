@@ -84,13 +84,11 @@ bool SkAnimator::decodeURI(const char uri[]) {
 //  SkDebugf("animator decode %s\n", uri);
 
 //    SkStream* stream = SkStream::GetURIStream(fMaker->fPrefix.c_str(), uri);
-    SkAutoTUnref<SkStream> stream(SkStream::NewFromFile(uri));
-    if (stream.get()) {
-        this->setURIBase(uri);
-        return decodeStream(stream);
-    } else {
-        return false;
-    }
+    SkStream* stream = new SkFILEStream(uri);
+
+    SkAutoTDelete<SkStream> autoDel(stream);
+    setURIBase(uri);
+    return decodeStream(stream);
 }
 
 bool SkAnimator::doCharEvent(SkUnichar code) {
@@ -225,8 +223,8 @@ SkFieldType SkAnimator::getFieldType(const char* id, const char* fieldID) {
     return getFieldType(field);
 }
 
-static bool getArrayCommon(const SkDisplayable* ae, const SkMemberInfo* ai,
-                           int index, SkOperand* operand) {
+ static bool getArrayCommon(const SkDisplayable* ae, const SkMemberInfo* ai,
+     int index, SkOperand* operand, SkDisplayTypes type) {
     const SkDisplayable* element = (const SkDisplayable*) ae;
     const SkMemberInfo* info = (const SkMemberInfo*) ai;
     SkASSERT(info->fType == SkType_Array);
@@ -236,7 +234,7 @@ static bool getArrayCommon(const SkDisplayable* ae, const SkMemberInfo* ai,
 int32_t SkAnimator::getArrayInt(const SkDisplayable* ae,
         const SkMemberInfo* ai, int index) {
     SkOperand operand;
-    bool result = getArrayCommon(ae, ai, index, &operand);
+    bool result = getArrayCommon(ae, ai, index, &operand, SkType_Int);
     return result ? operand.fS32 : SK_NaN32;
 }
 
@@ -253,7 +251,7 @@ int32_t SkAnimator::getArrayInt(const char* id, const char* fieldID, int index) 
 SkScalar SkAnimator::getArrayScalar(const SkDisplayable* ae,
         const SkMemberInfo* ai, int index) {
     SkOperand operand;
-    bool result = getArrayCommon(ae, ai, index, &operand);
+    bool result = getArrayCommon(ae, ai, index, &operand, SkType_Float);
     return result ? operand.fScalar : SK_ScalarNaN;
 }
 
@@ -270,7 +268,7 @@ SkScalar SkAnimator::getArrayScalar(const char* id, const char* fieldID, int ind
 const char* SkAnimator::getArrayString(const SkDisplayable* ae,
         const SkMemberInfo* ai, int index) {
     SkOperand operand;
-    bool result = getArrayCommon(ae, ai, index, &operand);
+    bool result = getArrayCommon(ae, ai, index, &operand, SkType_String);
     return result ? operand.fString->c_str() : NULL;
 }
 
@@ -411,9 +409,9 @@ bool SkAnimator::onEvent(const SkEvent& evt) {
 #endif
     if (evt.isType(SK_EventType_OnEnd)) {
         SkEventState eventState;
-        SkDEBUGCODE(bool success =) evt.findPtr("anim", (void**) &eventState.fDisplayable);
+        bool success = evt.findPtr("anim", (void**) &eventState.fDisplayable);
         SkASSERT(success);
-        SkDEBUGCODE(success =) evt.findS32("time", (int32_t*) &fMaker->fEnableTime);
+        success = evt.findS32("time", (int32_t*) &fMaker->fEnableTime);
         SkASSERT(success);
         fMaker->fAdjustedStart = fMaker->getAppTime() - fMaker->fEnableTime;
         fMaker->fEvents.doEvent(*fMaker, SkDisplayEvent::kOnEnd, &eventState);
@@ -676,8 +674,8 @@ bool SkAnimator::NoLeaks() {
 #endif
 
 
-#ifdef SK_SUPPORT_UNITTEST
 void SkAnimator::Init(bool runUnitTests) {
+#ifdef SK_SUPPORT_UNITTEST
     if (runUnitTests == false)
         return;
     static const struct {
@@ -697,10 +695,11 @@ void SkAnimator::Init(bool runUnitTests) {
         gUnitTests[i].fUnitTest();
         SkDebugf("SkAnimator: End UnitTest for %s\n", gUnitTests[i].fTypeName);
     }
-}
-#else
-void SkAnimator::Init(bool) {}
 #endif
+}
 
 void SkAnimator::Term() {
 }
+
+
+

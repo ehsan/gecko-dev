@@ -42,9 +42,22 @@ SocialUI = {
 
     gBrowser.addEventListener("ActivateSocialFeature", this._activationEventHandler.bind(this), true, true);
 
+    // Called when we enter DOM full-screen mode.
+    window.addEventListener("mozfullscreenchange", function () {
+      SocialSidebar.update();
+      SocialChatBar.update();
+    });
+
+    SocialChatBar.init();
+    SocialMark.init();
+    SocialShare.init();
+    SocialMenu.init();
+    SocialToolbar.init();
+    SocialSidebar.init();
+
     if (!Social.initialized) {
       Social.init();
-    } else if (Social.enabled) {
+    } else {
       // social was previously initialized, so it's not going to notify us of
       // anything, so handle that now.
       this.observe(null, "social:providers-changed", null);
@@ -105,7 +118,7 @@ SocialUI = {
           break;
         case "social:profile-changed":
           if (this._matchesCurrentProvider(data)) {
-            SocialToolbar.updateProvider();
+            SocialToolbar.updateProfile();
             SocialMark.update();
             SocialChatBar.update();
           }
@@ -317,10 +330,7 @@ SocialUI = {
   get _chromeless() {
     // Is this a popup window that doesn't want chrome shown?
     let docElem = document.documentElement;
-    // extrachrome is not restored during session restore, so we need
-    // to check for the toolbar as well.
-    let chromeless = docElem.getAttribute("chromehidden").contains("extrachrome") ||
-                     docElem.getAttribute('chromehidden').contains("toolbar");
+    let chromeless = docElem.getAttribute("chromehidden").indexOf("extrachrome") >= 0;
     // This property is "fixed" for a window, so avoid doing the check above
     // multiple times...
     delete this._chromeless;
@@ -338,13 +348,15 @@ SocialUI = {
 }
 
 SocialChatBar = {
+  init: function() {
+  },
   get chatbar() {
     return document.getElementById("pinnedchats");
   },
   // Whether the chatbar is available for this window.  Note that in full-screen
   // mode chats are available, but not shown.
   get isAvailable() {
-    return SocialUI.enabled;
+    return SocialUI.enabled && Social.haveLoggedInUser();
   },
   // Does this chatbar have any chats (whether minimized, collapsed or normal)
   get hasChats() {
@@ -364,9 +376,10 @@ SocialChatBar = {
   update: function() {
     let command = document.getElementById("Social:FocusChat");
     if (!this.isAvailable) {
+      this.chatbar.removeAll();
       this.chatbar.hidden = command.hidden = true;
     } else {
-      this.chatbar.hidden = command.hidden = false;
+      this.chatbar.hidden = command.hidden = document.mozFullScreen;
     }
     command.setAttribute("disabled", command.hidden ? "true" : "false");
   },
@@ -394,11 +407,7 @@ function sizeSocialPanelToContent(panel, iframe) {
   let height = Math.max(computedHeight, PANEL_MIN_HEIGHT);
   let computedWidth = parseInt(cs.marginLeft) + body.offsetWidth + parseInt(cs.marginRight);
   let width = Math.max(computedWidth, PANEL_MIN_WIDTH);
-  iframe.style.width = width + "px";
-  iframe.style.height = height + "px";
-  // since we do not use panel.sizeTo, we need to adjust the arrow ourselves
-  if (panel.state == "open")
-    panel.adjustArrowPosition();
+  panel.sizeTo(width, height);
 }
 
 function DynamicResizeWatcher() {
@@ -437,14 +446,8 @@ SocialFlyout = {
     return document.getElementById("social-flyout-panel");
   },
 
-  get iframe() {
-    if (!this.panel.firstChild)
-      this._createFrame();
-    return this.panel.firstChild;
-  },
-
   dispatchPanelEvent: function(name) {
-    let doc = this.iframe.contentDocument;
+    let doc = this.panel.firstChild.contentDocument;
     let evt = doc.createEvent("CustomEvent");
     evt.initCustomEvent(name, true, true, {});
     doc.documentElement.dispatchEvent(evt);
@@ -465,9 +468,13 @@ SocialFlyout = {
   },
 
   setFlyoutErrorMessage: function SF_setFlyoutErrorMessage() {
-    this.iframe.removeAttribute("src");
-    this.iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
-    sizeSocialPanelToContent(this.panel, this.iframe);
+    let iframe = this.panel.firstChild;
+    if (!iframe)
+      return;
+
+    iframe.removeAttribute("src");
+    iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
+    sizeSocialPanelToContent(this.panel, iframe);
   },
 
   unload: function() {
@@ -483,7 +490,7 @@ SocialFlyout = {
 
   onShown: function(aEvent) {
     let panel = this.panel;
-    let iframe = this.iframe;
+    let iframe = panel.firstChild;
     this._dynamicResizer = new DynamicResizeWatcher();
     iframe.docShell.isActive = true;
     iframe.docShell.isAppTab = true;
@@ -507,35 +514,8 @@ SocialFlyout = {
   onHidden: function(aEvent) {
     this._dynamicResizer.stop();
     this._dynamicResizer = null;
-    this.iframe.docShell.isActive = false;
+    this.panel.firstChild.docShell.isActive = false;
     this.dispatchPanelEvent("socialFrameHide");
-  },
-
-  load: function(aURL, cb) {
-    if (!Social.provider)
-      return;
-
-    this.panel.hidden = false;
-    let iframe = this.iframe;
-    // same url with only ref difference does not cause a new load, so we
-    // want to go right to the callback
-    let src = iframe.contentDocument && iframe.contentDocument.documentURIObject;
-    if (!src || !src.equalsExceptRef(Services.io.newURI(aURL, null, null))) {
-      iframe.addEventListener("load", function documentLoaded() {
-        iframe.removeEventListener("load", documentLoaded, true);
-        cb();
-      }, true);
-      // Force a layout flush by calling .clientTop so
-      // that the docShell of this frame is created
-      iframe.clientTop;
-      Social.setErrorListener(iframe, SocialFlyout.setFlyoutErrorMessage.bind(SocialFlyout))
-      iframe.setAttribute("src", aURL);
-    } else {
-      // we still need to set the src to trigger the contents hashchange event
-      // for ref changes
-      iframe.setAttribute("src", aURL);
-      cb();
-    }
   },
 
   open: function(aURL, yOffset, aCallback) {
@@ -545,28 +525,51 @@ SocialFlyout = {
     if (!SocialUI.enabled)
       return;
     let panel = this.panel;
-    let iframe = this.iframe;
+    if (!panel.firstChild)
+      this._createFrame();
+    panel.hidden = false;
+    let iframe = panel.firstChild;
 
-    this.load(aURL, function() {
-      sizeSocialPanelToContent(panel, iframe);
-      let anchor = document.getElementById("social-sidebar-browser");
-      if (panel.state == "open") {
-        panel.moveToAnchor(anchor, "start_before", 0, yOffset, false);
-      } else {
-        panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
-      }
-      if (aCallback) {
-        try {
-          aCallback(iframe.contentWindow);
-        } catch(e) {
-          Cu.reportError(e);
+    let src = iframe.getAttribute("src");
+    if (src != aURL) {
+      iframe.addEventListener("load", function documentLoaded() {
+        iframe.removeEventListener("load", documentLoaded, true);
+        if (aCallback) {
+          try {
+            aCallback(iframe.contentWindow);
+          } catch(e) {
+            Cu.reportError(e);
+          }
         }
+      }, true);
+      iframe.setAttribute("src", aURL);
+    }
+    else if (aCallback) {
+      try {
+        aCallback(iframe.contentWindow);
+      } catch(e) {
+        Cu.reportError(e);
       }
-    });
+    }
+
+    sizeSocialPanelToContent(panel, iframe);
+    let anchor = document.getElementById("social-sidebar-browser");
+    if (panel.state == "open") {
+      panel.moveToAnchor(anchor, "start_before", 0, yOffset, false);
+    } else {
+      panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
+      // Force a layout flush by calling .clientTop so
+      // that the docShell of this frame is created
+      panel.firstChild.clientTop;
+      Social.setErrorListener(iframe, this.setFlyoutErrorMessage.bind(this))
+    }
   }
 }
 
 SocialShare = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function() {},
+
   get panel() {
     return document.getElementById("social-share-panel");
   },
@@ -588,13 +591,11 @@ SocialShare = {
     let iframe = document.createElement("iframe");
     iframe.setAttribute("type", "content");
     iframe.setAttribute("class", "social-share-frame");
-    iframe.setAttribute("context", "contentAreaContextMenu");
-    iframe.setAttribute("tooltip", "aHTMLTooltip");
     iframe.setAttribute("flex", "1");
     panel.appendChild(iframe);
     this.populateProviderMenu();
   },
-
+  
   getSelectedProvider: function() {
     let provider;
     let lastProviderOrigin = this.iframe && this.iframe.getAttribute("origin");
@@ -660,6 +661,43 @@ SocialShare = {
 
     if (!aURI || !(aURI.schemeIs('http') || aURI.schemeIs('https')))
       return false;
+
+    // The share button and context menus are disabled if the current tab has
+    // defined no-store. However, a share from other content is still possible
+    // (eg. via mozSocial or future use of web activities).  If the URI is not
+    // the current tab URI, we cannot validate the no-store header on the URI.
+    if (aURI != gBrowser.currentURI)
+      return true;
+
+    // we want to ensure this is a successful load and that the page is locally
+    // cacheable since that is a common mechanism for sensitive pages to avoid
+    // storing sensitive data in cache.
+    let channel = gBrowser.docShell.currentDocumentChannel;
+    let httpChannel;
+    try {
+      httpChannel = channel.QueryInterface(Ci.nsIHttpChannel);
+    } catch (e) {
+      /* Not an HTTP channel. */
+      Cu.reportError("cannot share without httpChannel");
+      return false;
+    }
+
+    // Continue only if we have a 2xx status code.
+    try {
+      if (!httpChannel.requestSucceeded)
+        return false;
+    } catch (e) {
+      // Can't get response information from the httpChannel
+      // because mResponseHead is not available.
+      return false;
+    }
+
+    // Cache-Control: no-store.
+    if (httpChannel.isNoStoreResponse()) {
+      Cu.reportError("cannot share cache-control: no-share");
+      return false;
+    }
+
     return true;
   },
 
@@ -824,6 +862,10 @@ SocialShare = {
 };
 
 SocialMark = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SSB_init() {
+  },
+
   get button() {
     return document.getElementById("social-mark-button");
   },
@@ -899,6 +941,9 @@ SocialMark = {
 };
 
 SocialMenu = {
+  init: function SocialMenu_init() {
+  },
+
   populate: function SocialMenu_populate() {
     let submenu = document.getElementById("menu_social-statusarea-popup");
     let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
@@ -932,10 +977,8 @@ SocialMenu = {
 SocialToolbar = {
   // Called once, after window load, when the Social.provider object is
   // initialized.
-  get _dynamicResizer() {
-    delete this._dynamicResizer;
+  init: function SocialToolbar_init() {
     this._dynamicResizer = new DynamicResizeWatcher();
-    return this._dynamicResizer;
   },
 
   update: function() {
@@ -988,7 +1031,7 @@ SocialToolbar = {
       if (tbi) {
         // SocialMark is the last button allways
         let next = SocialMark.button.previousSibling;
-        while (next != this.button) {
+        while (next != tbi.firstChild) {
           tbi.removeChild(next);
           next = SocialMark.button.previousSibling;
         }
@@ -1023,6 +1066,7 @@ SocialToolbar = {
     userDetailsBroadcaster.setAttribute("label", loggedInStatusValue);
   },
 
+  // XXX doesn't this need to be called for profile changes, given its use of provider.profile?
   updateButton: function SocialToolbar_updateButton() {
     this._updateButtonHiddenState();
     let panel = document.getElementById("social-notification-panel");
@@ -1272,6 +1316,14 @@ SocialToolbar = {
 }
 
 SocialSidebar = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SocialSidebar_init() {
+    let sbrowser = document.getElementById("social-sidebar-browser");
+    Social.setErrorListener(sbrowser, this.setSidebarErrorMessage.bind(this));
+    // setting isAppTab causes clicks on untargeted links to open new tabs
+    sbrowser.docShell.isAppTab = true;
+  },
+
   // Whether the sidebar can be shown for this window.
   get canShow() {
     return SocialUI.enabled && Social.provider.sidebarURL;
@@ -1332,15 +1384,7 @@ SocialSidebar = {
 
       // Make sure the right sidebar URL is loaded
       if (sbrowser.getAttribute("src") != Social.provider.sidebarURL) {
-        Social.setErrorListener(sbrowser, this.setSidebarErrorMessage.bind(this));
-        // setting isAppTab causes clicks on untargeted links to open new tabs
-        sbrowser.docShell.isAppTab = true;
         sbrowser.setAttribute("src", Social.provider.sidebarURL);
-        PopupNotifications.locationChange(sbrowser);
-      }
-
-      // if the document has not loaded, delay until it is
-      if (sbrowser.contentDocument.readyState != "complete") {
         sbrowser.addEventListener("load", SocialSidebar._loadListener, true);
       } else {
         this.setSidebarVisibilityState(true);

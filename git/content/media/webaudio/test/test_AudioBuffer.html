@@ -12,6 +12,7 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
   var context = new AudioContext();
   var buffer = context.createBuffer(2, 2048, context.sampleRate);
   SpecialPowers.gc(); // Make sure that our channels are accessible after GC
@@ -36,15 +37,13 @@ addLoadEvent(function() {
   }
   expectException(function() {
     context.createBuffer(2, 2048, 7999);
-  }, DOMException.NOT_SUPPORTED_ERR);
+  }, DOMException.SYNTAX_ERR);
   expectException(function() {
     context.createBuffer(2, 2048, 96001);
-  }, DOMException.NOT_SUPPORTED_ERR);
+  }, DOMException.SYNTAX_ERR);
   context.createBuffer(2, 2048, 8000);  // no exception
   context.createBuffer(2, 2048, 96000); // no exception
-  expectException(function() {
-    context.createBuffer(2, 0, 48000);
-  }, DOMException.NOT_SUPPORTED_ERR);
+  SpecialPowers.clearUserPref("media.webaudio.enabled");
   SimpleTest.finish();
 });
 

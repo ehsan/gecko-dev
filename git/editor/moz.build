@@ -15,6 +15,3 @@ PARALLEL_DIRS += [
 
 MODULE = 'editor'
 
-EXTRA_JS_MODULES += [
-    'AsyncSpellCheckTestHelper.jsm',
-]

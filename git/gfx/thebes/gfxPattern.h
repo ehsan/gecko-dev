@@ -12,15 +12,15 @@
 #include "gfxMatrix.h"
 #include "nsISupportsImpl.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Alignment.h"
 #include "mozilla/gfx/2D.h"
+#include "mozilla/Util.h"
 
 class gfxContext;
 class gfxASurface;
 typedef struct _cairo_pattern cairo_pattern_t;
 
 
-class gfxPattern {
+class THEBES_API gfxPattern {
     NS_INLINE_DECL_REFCOUNTING(gfxPattern)
 
 public:
@@ -41,11 +41,10 @@ public:
 
     void SetMatrix(const gfxMatrix& matrix);
     gfxMatrix GetMatrix() const;
-    gfxMatrix GetInverseMatrix() const;
 
     /* Get an Azure Pattern for the current Cairo pattern. aPattern transform
      * specifies the transform that was set on the DrawTarget when the pattern
-     * was set. When this is nullptr it is assumed the transform is identical
+     * was set. When this is NULL it is assumed the transform is identical
      * to the current transform.
      */
     mozilla::gfx::Pattern *GetPattern(mozilla::gfx::DrawTarget *aTarget,
@@ -136,7 +135,7 @@ protected:
     mozilla::RefPtr<mozilla::gfx::SourceSurface> mSourceSurface;
     mozilla::gfx::Matrix mTransform;
     mozilla::RefPtr<mozilla::gfx::GradientStops> mStops;
-    GraphicsExtend mExtend;
+    mozilla::gfx::ExtendMode mExtend;
     mozilla::gfx::Filter mFilter;
 };
 

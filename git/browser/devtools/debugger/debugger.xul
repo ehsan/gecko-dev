@@ -15,13 +15,7 @@
 <?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
 <?xul-overlay href="chrome://browser/content/devtools/source-editor-overlay.xul"?>
 
-<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        macanimationtype="document"
-        fullscreenbutton="true"
-        screenX="4" screenY="4"
-        width="960" height="480"
-        persist="screenX screenY width height sizemode">
-
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="text/javascript" src="chrome://global/content/globalOverlay.js"/>
   <script type="text/javascript" src="debugger-controller.js"/>
   <script type="text/javascript" src="debugger-view.js"/>
@@ -32,12 +26,6 @@
   <commandset id="sourceEditorCommands"/>
 
   <commandset id="debuggerCommands">
-    <command id="unBlackBoxButton"
-             oncommand="DebuggerView.Sources._onStopBlackBoxing()"/>
-    <command id="nextSourceCommand"
-             oncommand="DebuggerView.Sources.selectNextItem()"/>
-    <command id="prevSourceCommand"
-             oncommand="DebuggerView.Sources.selectPrevItem()"/>
     <command id="resumeCommand"
              oncommand="DebuggerView.Toolbar._onResumePressed()"/>
     <command id="stepOverCommand"
@@ -122,8 +110,8 @@
                 key="tokenSearchKey"
                 command="tokenSearchCommand"/>
       <menuitem id="se-dbg-cMenu-findLine"
-                label="&debuggerUI.searchGoToLine;"
-                accesskey="&debuggerUI.searchGoToLine.key;"
+                label="&debuggerUI.searchLine;"
+                accesskey="&debuggerUI.searchLine.key;"
                 key="lineSearchKey"
                 command="lineSearchCommand"/>
       <menuseparator/>
@@ -153,8 +141,7 @@
     <menupopup id="debuggerPrefsContextMenu"
                position="before_end"
                onpopupshowing="DebuggerView.Options._onPopupShowing()"
-               onpopuphiding="DebuggerView.Options._onPopupHiding()"
-               onpopuphidden="DebuggerView.Options._onPopupHidden()">
+               onpopuphiding="DebuggerView.Options._onPopupHiding()">
       <menuitem id="pause-on-exceptions"
                 type="checkbox"
                 label="&debuggerUI.pauseExceptions;"
@@ -184,42 +171,18 @@
   </popupset>
 
   <keyset id="debuggerKeys">
-    <key id="nextSourceKey"
-         keycode="VK_DOWN"
-         modifiers="accel alt"
-         command="nextSourceCommand"/>
-    <key id="prevSourceKey"
-         keycode="VK_UP"
-         modifiers="accel alt"
-         command="prevSourceCommand"/>
     <key id="resumeKey"
-         keycode="&debuggerUI.stepping.resume1;"
-         command="resumeCommand"/>
-    <key id="resumeKey2"
-         keycode="&debuggerUI.stepping.resume2;"
-         modifiers="accel"
+         keycode="&debuggerUI.stepping.resume;"
          command="resumeCommand"/>
     <key id="stepOverKey"
-         keycode="&debuggerUI.stepping.stepOver1;"
-         command="stepOverCommand"/>
-    <key id="stepOverKey2"
-         keycode="&debuggerUI.stepping.stepOver2;"
-         modifiers="accel"
+         keycode="&debuggerUI.stepping.stepOver;"
          command="stepOverCommand"/>
     <key id="stepInKey"
-         keycode="&debuggerUI.stepping.stepIn1;"
-         command="stepInCommand"/>
-    <key id="stepInKey2"
-         keycode="&debuggerUI.stepping.stepIn2;"
-         modifiers="accel"
+         keycode="&debuggerUI.stepping.stepIn;"
          command="stepInCommand"/>
     <key id="stepOutKey"
-         keycode="&debuggerUI.stepping.stepOut1;"
+         keycode="&debuggerUI.stepping.stepOut;"
          modifiers="shift"
-         command="stepOutCommand"/>
-    <key id="stepOutKey2"
-         keycode="&debuggerUI.stepping.stepOut2;"
-         modifiers="accel shift"
          command="stepOutCommand"/>
     <key id="fileSearchKey"
          key="&debuggerUI.searchFile.key;"
@@ -242,7 +205,7 @@
          modifiers="accel"
          command="tokenSearchCommand"/>
     <key id="lineSearchKey"
-         key="&debuggerUI.searchGoToLine.key;"
+         key="&debuggerUI.searchLine.key;"
          modifiers="accel"
          command="lineSearchCommand"/>
     <key id="variableSearchKey"
@@ -311,19 +274,7 @@
           <vbox id="sources" flex="1"/>
         </vbox>
         <splitter class="devtools-side-splitter"/>
-        <deck id="editor-deck" flex="1" selectedIndex="0">
-          <vbox id="editor" />
-          <vbox id="black-boxed-message" align="center">
-            <label id="black-boxed-message-label">
-              &debuggerUI.blackBoxMessage.label;
-            </label>
-            <button id="black-boxed-message-button"
-                    class="devtools-toolbarbutton"
-                    label="&debuggerUI.blackBoxMessage.unBlackBoxButton;"
-                    image="chrome://browser/skin/devtools/blackBoxMessageEye.png"
-                    command="unBlackBoxCommand"/>
-          </vbox>
-        </deck>
+        <vbox id="editor" flex="1"/>
         <splitter class="devtools-side-splitter"/>
         <vbox id="instruments-pane" hidden="true">
           <vbox id="expressions"/>
@@ -340,11 +291,8 @@
          noautofocus="true"
          position="before_start">
     <vbox>
-      <hbox>
-        <label id="filter-label"/>
-      </hbox>
-      <label id="searchbox-panel-operators"
-             value="&debuggerUI.searchPanelOperators;"/>
+      <label id="searchbox-panel-description"
+             value="&debuggerUI.searchPanelTitle;"/>
       <hbox align="center">
         <button id="global-operator-button"
                 class="searchbox-panel-operator-button"

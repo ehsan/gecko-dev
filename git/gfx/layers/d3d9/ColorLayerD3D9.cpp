@@ -23,14 +23,14 @@ RenderColorLayerD3D9(ColorLayer* aLayer, LayerManagerD3D9 *aManager)
     return;
   }
 
-  nsIntRect bounds = aLayer->GetBounds();
+  nsIntRect visibleRect = aLayer->GetEffectiveVisibleRegion().GetBounds();
 
   aManager->device()->SetVertexShaderConstantF(
     CBvLayerQuad,
-    ShaderConstantRect(bounds.x,
-                       bounds.y,
-                       bounds.width,
-                       bounds.height),
+    ShaderConstantRect(visibleRect.x,
+                       visibleRect.y,
+                       visibleRect.width,
+                       visibleRect.height),
     1);
 
   const gfx3DMatrix& transform = aLayer->GetEffectiveTransform();
@@ -46,7 +46,7 @@ RenderColorLayerD3D9(ColorLayer* aLayer, LayerManagerD3D9 *aManager)
   color[2] = (float)(layerColor.b * opacity);
   color[3] = (float)(opacity);
 
-  aManager->device()->SetPixelShaderConstantF(CBvColor, color, 1);
+  aManager->device()->SetPixelShaderConstantF(0, color, 1);
 
   aManager->SetShaderMode(DeviceManagerD3D9::SOLIDCOLORLAYER,
                           aLayer->GetMaskLayer());

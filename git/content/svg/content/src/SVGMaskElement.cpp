@@ -58,13 +58,13 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGMaskElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGMaskElement::MaskUnits()
 {
   return mEnumAttributes[MASKUNITS].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGMaskElement::MaskContentUnits()
 {
   return mEnumAttributes[MASKCONTENTUNITS].ToDOMAnimatedEnum(this);

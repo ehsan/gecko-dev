@@ -9,21 +9,7 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 function test()
 {
-  Services.obs.addObserver(function observer(aSubject) {
-    Services.obs.removeObserver(observer, "web-console-created");
-    aSubject.QueryInterface(Ci.nsISupportsString);
-
-    let hud = HUDService.getBrowserConsole();
-    ok(hud, "browser console is open");
-    is(aSubject.data, hud.hudId, "notification hudId is correct");
-
-    executeSoon(() => consoleOpened(hud));
-  }, "web-console-created", false);
-
-  let hud = HUDService.getBrowserConsole();
-  ok(!hud, "browser console is not open");
-  info("wait for the browser console to open with ctrl-shift-j");
-  EventUtils.synthesizeKey("j", { accelKey: true, shiftKey: true }, content);
+  HUDConsoleUI.toggleBrowserConsole().then(consoleOpened);
 }
 
 function consoleOpened(hud)

@@ -49,8 +49,7 @@ function addSuccess(e) {
   request.onerror = usedSpaceError;
 }
 
-var prefix = "devicestorage/" + randomFilename(12);
-request = storage.addNamed(createRandomBlob('image/png'), prefix + "/a/b.png");
+request = storage.addNamed(createRandomBlob('image/png'), "a/b.png");
 request.onsuccess = addSuccess;
 request.onerror = addError;
 

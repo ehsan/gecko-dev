@@ -14,7 +14,8 @@ function test() {
 
     RequestsMenu.lazyUpdate = false;
 
-    ok(document.querySelector("#requests-menu-waterfall-label"),
+    is(document.querySelector(".requests-menu-empty-notice")
+      .hasAttribute("hidden"), false,
       "An timeline label should be displayed when the frontend is opened.");
     ok(document.querySelectorAll(".requests-menu-timings-division").length == 0,
       "No tick labels should be displayed when the frontend is opened.");
@@ -25,7 +26,8 @@ function test() {
       "No 2d context should be created when the frontend is opened.");
 
     waitForNetworkEvents(aMonitor, 1).then(() => {
-      ok(!document.querySelector("#requests-menu-waterfall-label"),
+      is(document.querySelector(".requests-menu-empty-notice")
+        .hasAttribute("hidden"), true,
         "The timeline label should be hidden after the first request.");
       ok(document.querySelectorAll(".requests-menu-timings-division").length >= 3,
         "There should be at least 3 tick labels in the network requests header.");

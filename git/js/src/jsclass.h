@@ -4,30 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsclass_h
-#define jsclass_h
-
+#ifndef jsclass_h__
+#define jsclass_h__
 /*
  * A JSClass acts as a vtable for JS objects that allows JSAPI clients to
  * control various aspects of the behavior of an object like property lookup.
  * js::Class is an engine-private extension that allows more control over
  * object behavior and, e.g., allows custom slow layout.
  */
-
 #include "jsapi.h"
+#include "jsprvtd.h"
 
 namespace js {
 
-class Class;
-class FreeOp;
-class PropertyId;
 class PropertyName;
-class Shape;
 class SpecialId;
-
-// This is equal to JSFunction::class_.  Use it in places where you don't want
-// to #include jsfun.h.
-extern JS_FRIEND_DATA(js::Class* const) FunctionClassPtr;
+class PropertyId;
 
 static JS_ALWAYS_INLINE jsid
 SPECIALID_TO_JSID(const SpecialId &sid);
@@ -136,62 +128,62 @@ typedef JS::Handle<SpecialId> HandleSpecialId;
 
 /* js::Class operation signatures. */
 
-typedef bool
+typedef JSBool
 (* LookupGenericOp)(JSContext *cx, HandleObject obj, HandleId id,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
-typedef bool
-(* LookupPropOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name,
-                 MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
-typedef bool
+                    MutableHandleObject objp, MutableHandleShape propp);
+typedef JSBool
+(* LookupPropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                 MutableHandleObject objp, MutableHandleShape propp);
+typedef JSBool
 (* LookupElementOp)(JSContext *cx, HandleObject obj, uint32_t index,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
-typedef bool
+                    MutableHandleObject objp, MutableHandleShape propp);
+typedef JSBool
 (* LookupSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
-typedef bool
+                    MutableHandleObject objp, MutableHandleShape propp);
+typedef JSBool
 (* DefineGenericOp)(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-typedef bool
-(* DefinePropOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, HandleValue value,
-                 JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-typedef bool
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+typedef JSBool
+(* DefinePropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
+                 PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+typedef JSBool
 (* DefineElementOp)(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-typedef bool
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+typedef JSBool
 (* DefineSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-typedef bool
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+typedef JSBool
 (* GenericIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp);
-typedef bool
-(* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, JS::Handle<PropertyName*> name, MutableHandleValue vp);
-typedef bool
+typedef JSBool
+(* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name, MutableHandleValue vp);
+typedef JSBool
 (* ElementIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp);
-typedef bool
+typedef JSBool
 (* ElementIfPresentOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp, bool* present);
-typedef bool
+typedef JSBool
 (* SpecialIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSpecialId sid, MutableHandleValue vp);
-typedef bool
-(* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictSpecialIdOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue vp, bool strict);
-typedef bool
+typedef JSBool
+(* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictSpecialIdOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue vp, JSBool strict);
+typedef JSBool
 (* GenericAttributesOp)(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
-typedef bool
-(* PropertyAttributesOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, unsigned *attrsp);
-typedef bool
+typedef JSBool
+(* PropertyAttributesOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp);
+typedef JSBool
 (* ElementAttributesOp)(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
-typedef bool
+typedef JSBool
 (* SpecialAttributesOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp);
-typedef bool
-(* DeletePropertyOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, bool *succeeded);
-typedef bool
-(* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, bool *succeeded);
-typedef bool
-(* DeleteSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, bool *succeeded);
+typedef JSBool
+(* DeletePropertyOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, JSBool *succeeded);
+typedef JSBool
+(* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded);
+typedef JSBool
+(* DeleteSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded);
 
 
 typedef JSObject *
@@ -203,7 +195,7 @@ typedef void
     const char          *name;                                                \
     uint32_t            flags;                                                \
                                                                               \
-    /* Mandatory function pointer members. */                                 \
+    /* Mandatory non-null function pointer members. */                        \
     JSPropertyOp        addProperty;                                          \
     JSDeletePropertyOp  delProperty;                                          \
     JSPropertyOp        getProperty;                                          \
@@ -211,9 +203,9 @@ typedef void
     JSEnumerateOp       enumerate;                                            \
     JSResolveOp         resolve;                                              \
     JSConvertOp         convert;                                              \
-                                                                              \
-    /* Optional members (may be null). */                                     \
     FinalizeOp          finalize;                                             \
+                                                                              \
+    /* Optionally non-null members start here. */                             \
     JSCheckAccessOp     checkAccess;                                          \
     JSNative            call;                                                 \
     JSHasInstanceOp     hasInstance;                                          \
@@ -222,7 +214,7 @@ typedef void
 
 /*
  * The helper struct to measure the size of JS_CLASS_MEMBERS to know how much
- * we have to pad js::Class to match the size of JSClass.
+ * we have to padd js::Class to match the size of JSClass;
  */
 struct ClassSizeMeasurement
 {
@@ -320,9 +312,8 @@ struct Class
         return flags & JSCLASS_EMULATES_UNDEFINED;
     }
 
-    bool isCallable() const {
-        return this == js::FunctionClassPtr || call;
-    }
+    /* Defined in jsfuninlines.h */
+    inline bool isCallable() const;
 
     static size_t offsetOfFlags() { return offsetof(Class, flags); }
 };
@@ -396,7 +387,7 @@ IsPoisonedSpecialId(js::SpecialId iden)
     return false;
 }
 
-template <> struct GCMethods<SpecialId>
+template <> struct RootMethods<SpecialId>
 {
     static SpecialId initial() { return SpecialId(); }
     static ThingRootKind kind() { return THING_ROOT_ID; }
@@ -405,4 +396,4 @@ template <> struct GCMethods<SpecialId>
 
 }  /* namespace js */
 
-#endif  /* jsclass_h */
+#endif  /* jsclass_h__ */

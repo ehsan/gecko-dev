@@ -26,56 +26,68 @@ function test() {
       .then(testProfilerList)
       .then(testProfilerStop)
       .then(testProfilerClose)
-      .then(testProfilerCloseWhenClosed)
   }).then(finishUp);
 }
 
 function setupGlobals() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   gPanel = gDevTools.getToolbox(gTarget).getPanel("jsprofiler");
   deferred.resolve();
   return deferred.promise;
 }
 
 function testProfilerStart() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   gPanel.once("started", function () {
-    is(gPanel.profiles.size, 1, "There is a new profile");
-    is(gPanel.getProfileByName("Profile 1"), gPanel.recordingProfile, "Recording profile is OK");
-    ok(!gPanel.activeProfile, "There's no active profile yet");
-    cmd("profiler start", gcli.lookup("profilerAlreadyStarted2"));
+    is(gPanel.profiles.size, 2, "There are two profiles");
+    ok(!gPanel.getProfileByName("Profile 1").isStarted, "Profile 1 wasn't started");
+    ok(gPanel.getProfileByName("Profile 2").isStarted, "Profile 2 was started");
+    cmd('profiler start "Profile 2"', "This profile has already been started");
     deferred.resolve();
   });
 
-  cmd("profiler start", gcli.lookup("profilerStarted2"));
+  cmd("profiler start", gcli.lookup("profilerStarting2"));
   return deferred.promise;
 }
 
 function testProfilerList() {
-  cmd("profiler list", /^.*Profile\s1\s\*.*$/);
+  let deferred = Promise.defer();
+
+  cmd("profiler list", /^.*Profile\s1.*Profile\s2\s\*.*$/);
+  deferred.resolve();
+
+  return deferred.promise;
 }
 
 function testProfilerStop() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   gPanel.once("stopped", function () {
-    is(gPanel.activeProfile, gPanel.getProfileByName("Profile 1"), "Active profile is OK");
-    ok(!gPanel.recordingProfile, "There's no recording profile");
-    cmd("profiler stop", gcli.lookup("profilerNotStarted3"));
+    ok(!gPanel.getProfileByName("Profile 2").isStarted, "Profile 2 was stopped");
+    ok(gPanel.getProfileByName("Profile 2").isFinished, "Profile 2 was stopped");
+    cmd('profiler stop "Profile 2"', "This profile has already been completed. " +
+      "Use 'profile show' command to see its results");
+    cmd('profiler stop "Profile 1"', "This profile has not been started yet. " +
+      "Use 'profile start' to start profiling");
+    cmd('profiler stop "invalid"', "Profile not found")
     deferred.resolve();
   });
 
-  cmd("profiler stop");
+  cmd('profiler stop "Profile 2"', gcli.lookup("profilerStopping2"));
   return deferred.promise;
 }
 
 function testProfilerShow() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
+
+  is(gPanel.getProfileByName("Profile 2").uid, gPanel.activeProfile.uid,
+    "Profile 2 is active");
 
   gPanel.once("profileSwitched", function () {
-    is(gPanel.getProfileByName("Profile 1"), gPanel.activeProfile, "Profile 1 is active");
-    cmd('profile show "invalid"', gcli.lookup("profilerNotFound"));
+    is(gPanel.getProfileByName("Profile 1").uid, gPanel.activeProfile.uid,
+      "Profile 1 is active");
+    cmd('profile show "invalid"', "Profile not found");
     deferred.resolve();
   });
 
@@ -84,34 +96,7 @@ function testProfilerShow() {
 }
 
 function testProfilerClose() {
-  let deferred = promise.defer();
-
-  helpers.audit(gOptions, [{
-    setup: "profiler close",
-    completed: false,
-    exec: { output: "" }
-  }]);
-
-  let toolbox = gDevTools.getToolbox(gOptions.target);
-  if (!toolbox) {
-    ok(true, "Profiler was closed.");
-    deferred.resolve();
-  } else {
-    toolbox.on("destroyed", function () {
-      ok(true, "Profiler was closed.");
-      deferred.resolve();
-    });
-  }
-
-  return deferred.promise;
-}
-
-function testProfilerCloseWhenClosed() {
-  // We need to call this test to make sure there are no
-  // errors when executing 'profiler close' on a closed
-  // toolbox. See bug 863636 for more info.
-
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   helpers.audit(gOptions, [{
     setup: "profiler close",

@@ -6,43 +6,49 @@
 
 /* JS Garbage Collector. */
 
-#ifndef jsgc_h
-#define jsgc_h
+#ifndef jsgc_h___
+#define jsgc_h___
+
+#include <setjmp.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
-#include "jsapi.h"
+#include "jsalloc.h"
+#include "jstypes.h"
+#include "jsprvtd.h"
+#include "jspubtd.h"
 #include "jslock.h"
-#include "jsobj.h"
+#include "jsutil.h"
+#include "jsversion.h"
 
-#include "js/GCAPI.h"
+#include "ds/BitArray.h"
+#include "gc/Heap.h"
+#include "gc/Statistics.h"
+#include "js/HashTable.h"
 #include "js/Vector.h"
+#include "js/TemplateLib.h"
 
-class JSAtom;
+struct JSAtom;
 struct JSCompartment;
-class JSFunction;
-class JSFlatString;
-class JSLinearString;
+struct JSFunction;
+struct JSFlatString;
+struct JSLinearString;
 
 namespace js {
 
 class ArgumentsObject;
 class ArrayBufferObject;
-class ArrayBufferViewObject;
 class BaseShape;
 class DebugScopeObject;
 class GCHelperThread;
 class GlobalObject;
-class LazyScript;
 class Nursery;
 class PropertyName;
 class ScopeObject;
 class Shape;
 class UnownedBaseShape;
 struct SliceBudget;
-
-unsigned GetCPUCount();
 
 enum HeapState {
     Idle,             // doing nothing with the GC heap
@@ -113,7 +119,6 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16_BACKGROUND */
         JSTRACE_SCRIPT,     /* FINALIZE_SCRIPT */
-        JSTRACE_LAZY_SCRIPT,/* FINALIZE_LAZY_SCRIPT */
         JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
         JSTRACE_BASE_SHAPE, /* FINALIZE_BASE_SHAPE */
         JSTRACE_TYPE_OBJECT,/* FINALIZE_TYPE_OBJECT */
@@ -131,12 +136,10 @@ template <> struct MapTypeToTraceKind<JSObject>         { const static JSGCTrace
 template <> struct MapTypeToTraceKind<JSFunction>       { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ArgumentsObject>  { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ArrayBufferObject>{ const static JSGCTraceKind kind = JSTRACE_OBJECT; };
-template <> struct MapTypeToTraceKind<ArrayBufferViewObject>{ const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<DebugScopeObject> { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<GlobalObject>     { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ScopeObject>      { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<JSScript>         { const static JSGCTraceKind kind = JSTRACE_SCRIPT; };
-template <> struct MapTypeToTraceKind<LazyScript>       { const static JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
 template <> struct MapTypeToTraceKind<Shape>            { const static JSGCTraceKind kind = JSTRACE_SHAPE; };
 template <> struct MapTypeToTraceKind<BaseShape>        { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
 template <> struct MapTypeToTraceKind<UnownedBaseShape> { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
@@ -148,7 +151,7 @@ template <> struct MapTypeToTraceKind<JSLinearString>   { const static JSGCTrace
 template <> struct MapTypeToTraceKind<PropertyName>     { const static JSGCTraceKind kind = JSTRACE_STRING; };
 template <> struct MapTypeToTraceKind<ion::IonCode>     { const static JSGCTraceKind kind = JSTRACE_IONCODE; };
 
-#if defined(JSGC_GENERATIONAL) || defined(DEBUG)
+#ifdef JSGC_GENERATIONAL
 static inline bool
 IsNurseryAllocable(AllocKind kind)
 {
@@ -167,7 +170,6 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
-        false,     /* FINALIZE_LAZY_SCRIPT */
         false,     /* FINALIZE_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
         false,     /* FINALIZE_TYPE_OBJECT */
@@ -199,7 +201,6 @@ IsBackgroundFinalized(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
-        false,     /* FINALIZE_LAZY_SCRIPT */
         true,      /* FINALIZE_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
         true,      /* FINALIZE_TYPE_OBJECT */
@@ -212,132 +213,8 @@ IsBackgroundFinalized(AllocKind kind)
     return map[kind];
 }
 
-static inline bool
-CanBeFinalizedInBackground(gc::AllocKind kind, Class *clasp)
-{
-    JS_ASSERT(kind <= gc::FINALIZE_OBJECT_LAST);
-    /* If the class has no finalizer or a finalizer that is safe to call on
-     * a different thread, we change the finalize kind. For example,
-     * FINALIZE_OBJECT0 calls the finalizer on the main thread,
-     * FINALIZE_OBJECT0_BACKGROUND calls the finalizer on the gcHelperThread.
-     * IsBackgroundFinalized is called to prevent recursively incrementing
-     * the finalize kind; kind may already be a background finalize kind.
-     */
-    return (!gc::IsBackgroundFinalized(kind) &&
-            (!clasp->finalize || (clasp->flags & JSCLASS_BACKGROUND_FINALIZE)));
-}
-
 inline JSGCTraceKind
 GetGCThingTraceKind(const void *thing);
-
-/* Capacity for slotsToThingKind */
-const size_t SLOTS_TO_THING_KIND_LIMIT = 17;
-
-extern const AllocKind slotsToThingKind[];
-
-/* Get the best kind to use when making an object with the given slot count. */
-static inline AllocKind
-GetGCObjectKind(size_t numSlots)
-{
-    if (numSlots >= SLOTS_TO_THING_KIND_LIMIT)
-        return FINALIZE_OBJECT16;
-    return slotsToThingKind[numSlots];
-}
-
-/* As for GetGCObjectKind, but for dense array allocation. */
-static inline AllocKind
-GetGCArrayKind(size_t numSlots)
-{
-    /*
-     * Dense arrays can use their fixed slots to hold their elements array
-     * (less two Values worth of ObjectElements header), but if more than the
-     * maximum number of fixed slots is needed then the fixed slots will be
-     * unused.
-     */
-    JS_STATIC_ASSERT(ObjectElements::VALUES_PER_HEADER == 2);
-    if (numSlots > JSObject::NELEMENTS_LIMIT || numSlots + 2 >= SLOTS_TO_THING_KIND_LIMIT)
-        return FINALIZE_OBJECT2;
-    return slotsToThingKind[numSlots + 2];
-}
-
-static inline AllocKind
-GetGCObjectFixedSlotsKind(size_t numFixedSlots)
-{
-    JS_ASSERT(numFixedSlots < SLOTS_TO_THING_KIND_LIMIT);
-    return slotsToThingKind[numFixedSlots];
-}
-
-static inline AllocKind
-GetBackgroundAllocKind(AllocKind kind)
-{
-    JS_ASSERT(!IsBackgroundFinalized(kind));
-    JS_ASSERT(kind <= FINALIZE_OBJECT_LAST);
-    return (AllocKind) (kind + 1);
-}
-
-/*
- * Try to get the next larger size for an object, keeping BACKGROUND
- * consistent.
- */
-static inline bool
-TryIncrementAllocKind(AllocKind *kindp)
-{
-    size_t next = size_t(*kindp) + 2;
-    if (next >= size_t(FINALIZE_OBJECT_LIMIT))
-        return false;
-    *kindp = AllocKind(next);
-    return true;
-}
-
-/* Get the number of fixed slots and initial capacity associated with a kind. */
-static inline size_t
-GetGCKindSlots(AllocKind thingKind)
-{
-    /* Using a switch in hopes that thingKind will usually be a compile-time constant. */
-    switch (thingKind) {
-      case FINALIZE_OBJECT0:
-      case FINALIZE_OBJECT0_BACKGROUND:
-        return 0;
-      case FINALIZE_OBJECT2:
-      case FINALIZE_OBJECT2_BACKGROUND:
-        return 2;
-      case FINALIZE_OBJECT4:
-      case FINALIZE_OBJECT4_BACKGROUND:
-        return 4;
-      case FINALIZE_OBJECT8:
-      case FINALIZE_OBJECT8_BACKGROUND:
-        return 8;
-      case FINALIZE_OBJECT12:
-      case FINALIZE_OBJECT12_BACKGROUND:
-        return 12;
-      case FINALIZE_OBJECT16:
-      case FINALIZE_OBJECT16_BACKGROUND:
-        return 16;
-      default:
-        MOZ_ASSUME_UNREACHABLE("Bad object finalize kind");
-    }
-}
-
-static inline size_t
-GetGCKindSlots(AllocKind thingKind, Class *clasp)
-{
-    size_t nslots = GetGCKindSlots(thingKind);
-
-    /* An object's private data uses the space taken by its last fixed slot. */
-    if (clasp->flags & JSCLASS_HAS_PRIVATE) {
-        JS_ASSERT(nslots > 0);
-        nslots--;
-    }
-
-    /*
-     * Functions have a larger finalize kind than FINALIZE_OBJECT to reserve
-     * space for the extra fields in JSFunction, but have no fixed slots.
-     */
-    if (clasp == FunctionClassPtr)
-        nslots = 0;
-
-    return nslots;
-}
 
 /*
  * ArenaList::head points to the start of the list. Normally cursor points
@@ -366,8 +243,9 @@ struct ArenaList {
     void insert(ArenaHeader *arena);
 };
 
-class ArenaLists
+struct ArenaLists
 {
+  private:
     /*
      * For each arena kind its free list is represented as the first span with
      * free things. Initially all the spans are initialized as empty. After we
@@ -409,7 +287,7 @@ class ArenaLists
     /* For each arena kind, a list of arenas remaining to be swept. */
     ArenaHeader *arenaListsToSweep[FINALIZE_LIMIT];
 
-    /* Shape arenas to be swept in the foreground. */
+    /* Shape areneas to be swept in the foreground. */
     ArenaHeader *gcShapeArenasToSweep;
 
   public:
@@ -574,7 +452,7 @@ class ArenaLists
     }
 
     template <AllowGC allowGC>
-    static void *refillFreeList(ThreadSafeContext *cx, AllocKind thingKind);
+    static void *refillFreeList(JSContext *cx, AllocKind thingKind);
 
     /*
      * Moves all arenas from |fromArenaLists| into |this|.  In
@@ -607,6 +485,14 @@ class ArenaLists
 
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
+
+    /*
+     * Invoked from IonMonkey-compiled parallel worker threads to
+     * perform an allocation.  In this case, |this| will be
+     * thread-local, but the compartment |comp| is shared between all
+     * threads.
+     */
+    void *parallelAllocate(JS::Zone *zone, AllocKind thingKind, size_t thingSize);
 
   private:
     inline void finalizeNow(FreeOp *fop, AllocKind thingKind);
@@ -650,35 +536,30 @@ typedef js::HashMap<void *,
                     js::DefaultHasher<void *>,
                     js::SystemAllocPolicy> RootedValueMap;
 
-extern bool
+extern JSBool
 AddValueRoot(JSContext *cx, js::Value *vp, const char *name);
 
-extern bool
+extern JSBool
 AddValueRootRT(JSRuntime *rt, js::Value *vp, const char *name);
 
-extern bool
+extern JSBool
 AddStringRoot(JSContext *cx, JSString **rp, const char *name);
 
-extern bool
+extern JSBool
 AddObjectRoot(JSContext *cx, JSObject **rp, const char *name);
 
-extern bool
-AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
-
-extern bool
+extern JSBool
 AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
 
 } /* namespace js */
 
-extern bool
+extern JSBool
 js_InitGC(JSRuntime *rt, uint32_t maxbytes);
 
 extern void
 js_FinishGC(JSRuntime *rt);
 
 namespace js {
-
-class StackFrame;
 
 extern void
 MarkCompartmentActive(js::StackFrame *fp);
@@ -796,7 +677,7 @@ class GCHelperThread {
 
     bool              backgroundAllocation;
 
-    friend class js::gc::ArenaLists;
+    friend struct js::gc::ArenaLists;
 
     void
     replenishAndFreeLater(void *ptr);
@@ -1032,7 +913,7 @@ struct MarkStack {
         return true;
     }
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         size_t n = 0;
         if (stack != ballast)
             n += mallocSizeOf(stack);
@@ -1202,7 +1083,7 @@ struct GCMarker : public JSTracer {
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     MarkStack<uintptr_t> stack;
 
@@ -1316,8 +1197,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
 namespace js {
 
 JSCompartment *
-NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals,
-               const JS::CompartmentOptions &options);
+NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals);
 
 namespace gc {
 
@@ -1338,13 +1218,6 @@ SetFullCompartmentChecks(JSContext *cx, bool enabled);
 void
 FinishBackgroundFinalize(JSRuntime *rt);
 
-/*
- * Merge all contents of source into target. This can only be used if source is
- * the only compartment in its zone.
- */
-void
-MergeCompartments(JSCompartment *source, JSCompartment *target);
-
 const int ZealPokeValue = 1;
 const int ZealAllocValue = 2;
 const int ZealFrameGCValue = 3;
@@ -1359,7 +1232,8 @@ const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
 const int ZealVerifierPostValue = 11;
 const int ZealFrameVerifierPostValue = 12;
-const int ZealLimit = 12;
+const int ZealPurgeAnalysisValue = 13;
+const int ZealLimit = 13;
 
 enum VerifierType {
     PreBarrierVerifier,
@@ -1436,10 +1310,6 @@ struct AutoDisableProxyCheck
 void
 PurgeJITCaches(JS::Zone *zone);
 
-// This is the same as IsInsideNursery, but not inlined.
-bool
-UninlinedIsInsideNursery(JSRuntime *rt, const void *thing);
-
 } /* namespace js */
 
-#endif /* jsgc_h */
+#endif /* jsgc_h___ */

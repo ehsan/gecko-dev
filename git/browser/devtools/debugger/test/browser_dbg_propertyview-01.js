@@ -36,7 +36,7 @@ function testlabelshortening() {
     let vs = gDebugger.DebuggerView.Sources;
     let ss = gDebugger.DebuggerController.SourceScripts;
     vs.empty();
-    vs.widget.removeEventListener("select", vs._onScriptsChange, false);
+    vs._container.removeEventListener("select", vs._onScriptsChange, false);
 
     is(sv.trimUrlQuery("a/b/c.d?test=1&random=4#reference"), "a/b/c.d",
       "Trimming the url query isn't done properly.");

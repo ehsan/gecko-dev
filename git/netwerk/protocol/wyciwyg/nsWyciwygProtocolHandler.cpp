@@ -32,12 +32,12 @@ nsWyciwygProtocolHandler::nsWyciwygProtocolHandler()
     gWyciwygLog = PR_NewLogModule("nsWyciwygChannel");
 #endif
 
-  LOG(("Creating nsWyciwygProtocolHandler [this=%p].\n", this));
+  LOG(("Creating nsWyciwygProtocolHandler [this=%x].\n", this));
 }
 
 nsWyciwygProtocolHandler::~nsWyciwygProtocolHandler() 
 {
-  LOG(("Deleting nsWyciwygProtocolHandler [this=%p]\n", this));
+  LOG(("Deleting nsWyciwygProtocolHandler [this=%x]\n", this));
 }
 
 nsresult

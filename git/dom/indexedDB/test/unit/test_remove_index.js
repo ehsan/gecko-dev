@@ -7,13 +7,15 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const indexName = "My Test Index";
 
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
@@ -51,5 +53,5 @@ function testSteps()
   is(objectStore.index(indexName), index2, "Correct instance");
 
   finishTest();
-  yield undefined;
+  yield;
 }

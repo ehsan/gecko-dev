@@ -1,5 +1,3 @@
-<!-- Any copyright is dedicated to the Public Domain.
-     http://creativecommons.org/publicdomain/zero/1.0/ -->
 <!doctype html>
 
 <html>
@@ -14,8 +12,7 @@
     <script type="text/javascript">
       function get(aAddress, aIndex, aCallback) {
         var xhr = new XMLHttpRequest();
-        // Use a random parameter to defeat caching.
-        xhr.open("GET" + aIndex, aAddress + "?index=" + aIndex + "&" + Math.random(), true);
+        xhr.open("GET" + aIndex, aAddress + "?index=" + aIndex, true);
 
         xhr.onreadystatechange = function() {
           if (this.readyState == this.DONE) {

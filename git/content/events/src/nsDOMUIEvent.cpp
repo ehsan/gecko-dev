@@ -16,9 +16,10 @@
 #include "nsEventStateManager.h"
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
+#include "DictionaryHelpers.h"
 #include "mozilla/Util.h"
 #include "mozilla/Assertions.h"
-#include "prtime.h"
+#include "nsDOMClassInfoID.h"
 
 using namespace mozilla;
 
@@ -84,6 +85,7 @@ nsDOMUIEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 {
   nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
   nsRefPtr<nsDOMUIEvent> e = new nsDOMUIEvent(t, nullptr, nullptr);
+  e->SetIsDOMBinding();
   bool trusted = e->Init(t);
   aRv = e->InitUIEvent(aType, aParam.mBubbles, aParam.mCancelable, aParam.mView,
                        aParam.mDetail);
@@ -91,19 +93,26 @@ nsDOMUIEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
   return e.forget();
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(nsDOMUIEvent, nsDOMEvent,
-                                     mView)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMUIEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMUIEvent, nsDOMEvent)
 
+DOMCI_DATA(UIEvent, nsDOMUIEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMUIEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMUIEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(UIEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 static nsIntPoint
-DevPixelsToCSSPixels(const LayoutDeviceIntPoint& aPoint,
-                     nsPresContext* aContext)
+DevPixelsToCSSPixels(const nsIntPoint& aPoint, nsPresContext* aContext)
 {
   return nsIntPoint(aContext->DevPixelsToIntCSSPixels(aPoint.x),
                     aContext->DevPixelsToIntCSSPixels(aPoint.y));
@@ -130,6 +139,16 @@ nsDOMUIEvent::GetMovementPoint()
   nsIntPoint current = DevPixelsToCSSPixels(mEvent->refPoint, mPresContext);
   nsIntPoint last = DevPixelsToCSSPixels(mEvent->lastRefPoint, mPresContext);
   return current - last;
+}
+
+nsIntPoint
+nsDOMUIEvent::GetClientPoint()
+{
+  if (mIsPointerLocked) {
+    return mLastClientPoint;
+  }
+
+  return CalculateClientPoint(mPresContext, mEvent, &mClientPoint);
 }
 
 NS_IMETHODIMP
@@ -167,7 +186,40 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
   return NS_OK;
 }
 
+nsresult
+nsDOMUIEvent::InitFromCtor(const nsAString& aType,
+                           JSContext* aCx, JS::Value* aVal)
+{
+  mozilla::idl::UIEventInit d;
+  nsresult rv = d.Init(aCx, aVal);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return InitUIEvent(aType, d.bubbles, d.cancelable, d.view, d.detail);
+}
+
 // ---- nsDOMNSUIEvent implementation -------------------
+nsIntPoint
+nsDOMUIEvent::GetPagePoint()
+{
+  if (mPrivateDataDuplicated) {
+    return mPagePoint;
+  }
+
+  nsIntPoint pagePoint = GetClientPoint();
+
+  // If there is some scrolling, add scroll info to client point.
+  if (mPresContext && mPresContext->GetPresShell()) {
+    nsIPresShell* shell = mPresContext->GetPresShell();
+    nsIScrollableFrame* scrollframe = shell->GetRootScrollFrameAsScrollable();
+    if (scrollframe) {
+      nsPoint pt = scrollframe->GetScrollPosition();
+      pagePoint += nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                              nsPresContext::AppUnitsToIntCSSPixels(pt.y));
+    }
+  }
+
+  return pagePoint;
+}
+
 NS_IMETHODIMP
 nsDOMUIEvent::GetPageX(int32_t* aPageX)
 {
@@ -354,7 +406,7 @@ nsDOMUIEvent::IsChar() const
     default:
       return false;
   }
-  MOZ_CRASH("Switch handles all cases.");
+  MOZ_NOT_REACHED("Switch handles all cases.");
 }
 
 NS_IMETHODIMP
@@ -376,7 +428,7 @@ nsDOMUIEvent::DuplicatePrivateData()
                                                        mEvent->refPoint);
   nsresult rv = nsDOMEvent::DuplicatePrivateData();
   if (NS_SUCCEEDED(rv)) {
-    mEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(screenPoint);
+    mEvent->refPoint = screenPoint;
   }
   return rv;
 }
@@ -509,5 +561,6 @@ nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
                           nsGUIEvent *aEvent) 
 {
   nsDOMUIEvent* it = new nsDOMUIEvent(aOwner, aPresContext, aEvent);
+  it->SetIsDOMBinding();
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -26,13 +26,7 @@ class HTMLCheckboxAccessible : public LeafAccessible
 public:
   enum { eAction_Click = 0 };
 
-  HTMLCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    LeafAccessible(aContent, aDoc)
-  {
-    // Ignore "CheckboxStateChange" DOM event in lieu of document observer
-    // state change notification.
-    mStateFlags |= eIgnoreDOMUIEvent;
-  }
+  HTMLCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
@@ -57,13 +51,7 @@ class HTMLRadioButtonAccessible : public RadioButtonAccessible
 {
 
 public:
-  HTMLRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    RadioButtonAccessible(aContent, aDoc)
-  {
-    // Ignore "RadioStateChange" DOM event in lieu of document observer
-    // state change notification.
-    mStateFlags |= eIgnoreDOMUIEvent;
-  }
+  HTMLRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
   virtual uint64_t NativeState();
@@ -106,8 +94,7 @@ protected:
 
 
 /**
- * Accessible for HTML input@type="text", input@type="password", textarea and
- * other HTML text controls.
+ * Accessible for HTML input@type="text" element.
  */
 class HTMLTextFieldAccessible : public HyperTextAccessibleWrap
 {
@@ -142,8 +129,6 @@ public:
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
-
-  virtual void CacheChildren() MOZ_OVERRIDE;
 };
 
 

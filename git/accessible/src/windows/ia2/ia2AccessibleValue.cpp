@@ -20,9 +20,6 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleValue::QueryInterface(REFIID iid, void** ppv)
 {
-  if (!ppv)
-    return E_INVALIDARG;
-
   *ppv = nullptr;
 
   if (IID_IAccessibleValue == iid) {
@@ -45,9 +42,6 @@ STDMETHODIMP
 ia2AccessibleValue::get_currentValue(VARIANT* aCurrentValue)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aCurrentValue)
-    return E_INVALIDARG;
 
   VariantInit(aCurrentValue);
 
@@ -90,9 +84,6 @@ ia2AccessibleValue::get_maximumValue(VARIANT* aMaximumValue)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aMaximumValue)
-    return E_INVALIDARG;
-
   VariantInit(aMaximumValue);
 
   AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
@@ -115,9 +106,6 @@ STDMETHODIMP
 ia2AccessibleValue::get_minimumValue(VARIANT* aMinimumValue)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aMinimumValue)
-    return E_INVALIDARG;
 
   VariantInit(aMinimumValue);
 

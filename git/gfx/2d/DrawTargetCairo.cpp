@@ -678,47 +678,6 @@ DrawTargetCairo::Mask(const Pattern &aSource,
 }
 
 void
-DrawTargetCairo::MaskSurface(const Pattern &aSource,
-                             SourceSurface *aMask,
-                             Point aOffset,
-                             const DrawOptions &aOptions)
-{
-  AutoPrepareForDrawing prep(this, mContext);
-
-  if (!PatternIsCompatible(aSource)) {
-    return;
-  }
-
-  cairo_pattern_t* pat = GfxPatternToCairoPattern(aSource, aOptions.mAlpha);
-  cairo_set_source(mContext, pat);
-
-  if (NeedIntermediateSurface(aSource, aOptions)) {
-    cairo_push_group_with_content(mContext, CAIRO_CONTENT_COLOR_ALPHA);
-
-    // Don't want operators to be applied twice
-    cairo_set_operator(mContext, CAIRO_OPERATOR_OVER);
-
-    // Now draw the content using the desired operator
-    cairo_paint_with_alpha(mContext, aOptions.mAlpha);
-
-    cairo_pop_group_to_source(mContext);
-  }
-
-  cairo_surface_t* surf = GetCairoSurfaceForSourceSurface(aMask);
-  cairo_pattern_t* mask = cairo_pattern_create_for_surface(surf);
-  cairo_matrix_t matrix;
-
-  cairo_matrix_init_translate (&matrix, -aOffset.x, -aOffset.y);
-  cairo_pattern_set_matrix (mask, &matrix);
-
-  cairo_mask(mContext, mask);
-
-  cairo_surface_destroy(surf);
-  cairo_pattern_destroy(mask);
-  cairo_pattern_destroy(pat);
-}
-
-void
 DrawTargetCairo::PushClip(const Path *aPath)
 {
   if (aPath->GetBackendType() != BACKEND_CAIRO) {

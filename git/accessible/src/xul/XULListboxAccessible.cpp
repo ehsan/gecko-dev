@@ -103,7 +103,7 @@ XULListboxAccessible::
   XULListboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   XULSelectControlAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
-  nsIContent* parentContent = mContent->GetFlattenedTreeParent();
+  nsIContent* parentContent = mContent->GetParent();
   if (parentContent) {
     nsCOMPtr<nsIAutoCompletePopup> autoCompletePopupElm =
       do_QueryInterface(parentContent);
@@ -731,7 +731,6 @@ XULListCellAccessible::
   XULListCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
-  mGenericTypes |= eTableCell;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

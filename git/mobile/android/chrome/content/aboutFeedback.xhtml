@@ -33,9 +33,7 @@
     <div class="link-box-bottom" onclick="switchSection('sad');">
       <a>&intro.sadLink;</a>
     </div>
-    <div class="bottom-links">
-      <a onclick="maybeLater();">&intro.maybeLater;</a>
-    </div>
+    <div id="sumo-message" class="fine-print">&support.pre;<a id="sumo-link">&support.link;</a>&support.post;</div>
   </section>
 
   <section id="happy">
@@ -49,7 +47,7 @@
       <a>&happy.ratingLink;</a>
     </div>
     <div class="bottom-links">
-      <a onclick="maybeLater();">&happy.maybeLater2;</a>
+      <a onclick="maybeLater();">&happy.maybeLater;</a>
       <a onclick="window.close();">&happy.noThanks;</a>
     </div>
   </section>
@@ -63,7 +61,6 @@
       <div class="fine-print">&feedback.privacy;</div>
       <input class="send-feedback" type="submit" value="&feedback.send;"/>
     </form>
-    <div id="sumo-message" class="fine-print">&support.pre2;<a id="sumo-link">&support.link;</a>&support.post2;</div>
   </section>
 
   <section id="thanks-sad">
@@ -86,7 +83,8 @@
     }
 
     function sendMessageToJava(aMessage) {
-      Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
+      Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).
+                                          handleGeckoMessage(JSON.stringify(aMessage));
     }
 
     function init() {

@@ -3,11 +3,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import datetime
-import os
 import socket
 import sys
 import time
-import traceback
 
 from client import MarionetteClient
 from application_cache import ApplicationCache
@@ -149,15 +147,15 @@ class Actions(object):
 
     def flick(self, element, x1, y1, x2, y2, duration=200):
         element = element.id
-        elapsed = 0
+        time = 0
         time_increment = 10
         if time_increment >= duration:
             time_increment = duration
         move_x = time_increment*1.0/duration * (x2 - x1)
         move_y = time_increment*1.0/duration * (y2 - y1)
         self.action_chain.append(['press', element, x1, y1])
-        while elapsed < duration:
-            elapsed += time_increment
+        while (time < duration):
+            time += time_increment
             self.action_chain.append(['moveByOffset', move_x, move_y])
             self.action_chain.append(['wait', time_increment/1000])
         self.action_chain.append(['release'])
@@ -198,13 +196,14 @@ class Marionette(object):
     TIMEOUT_SCRIPT = 'script'
     TIMEOUT_PAGE = 'page load'
 
-    def __init__(self, host='localhost', port=2828, app=None, app_args=None, bin=None,
+    def __init__(self, host='localhost', port=2828, app=None, bin=None,
                  profile=None, emulator=None, sdcard=None, emulatorBinary=None,
                  emulatorImg=None, emulator_res=None, gecko_path=None,
                  connectToRunningEmulator=False, homedir=None, baseurl=None,
-                 noWindow=False, logcat_dir=None, busybox=None, symbols_path=None, timeout=None):
+                 noWindow=False, logcat_dir=None, busybox=None, symbols_path=None):
         self.host = host
         self.port = self.local_port = port
+        self.app = app
         self.bin = bin
         self.instance = None
         self.profile = profile
@@ -218,7 +217,6 @@ class Marionette(object):
         self.logcat_dir = logcat_dir
         self._test_name = None
         self.symbols_path = symbols_path
-        self.timeout = timeout
 
         if bin:
             port = int(self.port)
@@ -235,7 +233,7 @@ class Marionette(object):
             else:
                 instance_class = geckoinstance.GeckoInstance
             self.instance = instance_class(host=self.host, port=self.port,
-                                           bin=self.bin, profile=self.profile, app_args=app_args)
+                                           bin=self.bin, profile=self.profile)
             self.instance.start()
             assert(self.wait_for_port())
 
@@ -480,6 +478,10 @@ class Marionette(object):
         response = self._send_message('setSearchTimeout', 'ok', value=timeout)
         return response
 
+    def send_mouse_event(self, send):
+        response = self._send_message('sendMouseEvent', 'ok', value=send)
+        return response
+
     @property
     def current_window_handle(self):
         self.window = self._send_message('getWindow', 'value')
@@ -515,12 +517,6 @@ class Marionette(object):
         self.window = window_id
         return response
 
-    def get_active_frame(self):
-        response = self._send_message('getActiveFrame', 'value')
-        if response:
-            return HTMLElement(self, response)
-        return None
-
     def switch_to_frame(self, frame=None, focus=True):
         if isinstance(frame, HTMLElement):
             response = self._send_message('switchToFrame', 'ok', element=frame.id, focus=focus)
@@ -530,10 +526,6 @@ class Marionette(object):
 
     def get_url(self):
         response = self._send_message('getUrl', 'value')
-        return response
-
-    def get_window_type(self):
-        response = self._send_message('getWindowType', 'value')
         return response
 
     def navigate(self, url):
@@ -591,7 +583,7 @@ class Marionette(object):
 
         return unwrapped
 
-    def execute_js_script(self, script, script_args=None, async=True, new_sandbox=True, special_powers=False, script_timeout=None, filename=None):
+    def execute_js_script(self, script, script_args=None, async=True, new_sandbox=True, special_powers=False, script_timeout=None):
         if script_args is None:
             script_args = []
         args = self.wrapArguments(script_args)
@@ -601,44 +593,34 @@ class Marionette(object):
                                       args=args,
                                       async=async,
                                       newSandbox=new_sandbox,
-                                      specialPowers=special_powers,
-                                      scriptTimeout=script_timeout,
-                                      filename=filename,
-                                      line=None)
+                                      specialPowers=special_powers, 
+                                      scriptTimeout=script_timeout)
         return self.unwrapValue(response)
 
     def execute_script(self, script, script_args=None, new_sandbox=True, special_powers=False, script_timeout=None):
         if script_args is None:
             script_args = []
         args = self.wrapArguments(script_args)
-        stack = traceback.extract_stack()
-        frame = stack[-2:-1][0] # grab the second-to-last frame
         response = self._send_message('executeScript',
-                                      'value',
+                                     'value',
                                       value=script,
                                       args=args,
                                       newSandbox=new_sandbox,
                                       specialPowers=special_powers,
-                                      scriptTimeout=script_timeout,
-                                      line=int(frame[1]),
-                                      filename=os.path.basename(frame[0]))
+                                      scriptTimeout=script_timeout)
         return self.unwrapValue(response)
 
     def execute_async_script(self, script, script_args=None, new_sandbox=True, special_powers=False, script_timeout=None):
         if script_args is None:
             script_args = []
         args = self.wrapArguments(script_args)
-        stack = traceback.extract_stack()
-        frame = stack[-2:-1][0] # grab the second-to-last frame
         response = self._send_message('executeAsyncScript',
                                       'value',
                                       value=script,
                                       args=args,
                                       newSandbox=new_sandbox,
                                       specialPowers=special_powers,
-                                      scriptTimeout=script_timeout,
-                                      line=int(frame[1]),
-                                      filename=os.path.basename(frame[0]))
+                                      scriptTimeout=script_timeout)
         return self.unwrapValue(response)
 
     def find_element(self, method, target, id=None):

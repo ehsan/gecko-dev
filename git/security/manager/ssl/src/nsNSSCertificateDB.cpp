@@ -58,7 +58,7 @@ extern PRLogModuleInfo* gPIPNSSLog;
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 
-NS_IMPL_ISUPPORTS2(nsNSSCertificateDB, nsIX509CertDB, nsIX509CertDB2)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSCertificateDB, nsIX509CertDB, nsIX509CertDB2)
 
 nsNSSCertificateDB::nsNSSCertificateDB()
 : mBadCertsLock("nsNSSCertificateDB::mBadCertsLock")
@@ -486,6 +486,7 @@ ImportCertsIntoPermanentStorage(const ScopedCERTCertList &certChain, const SECCe
                                const PRBool caOnly)
 {
   CERTCertDBHandle *certdb = CERT_GetDefaultCertDB();
+  const PRTime now = PR_Now();
 
   int chainLen = 0;
   for (CERTCertListNode *chainNode = CERT_LIST_HEAD(certChain);
@@ -744,6 +745,7 @@ nsNSSCertificateDB::ImportValidCACerts(int numCACerts, SECItem *CACerts, nsIInte
 nsresult
 nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfaceRequestor *ctx)
 {
+  SECItem **rawArray;
   RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
   if (!certVerifier)
     return NS_ERROR_UNEXPECTED;

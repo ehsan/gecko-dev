@@ -54,7 +54,7 @@ public:
                         const nsAString& aType,
                         bool aCanBubble,
                         bool aCancelable,
-                        JS::Handle<JS::Value> aData,
+                        JS::Value aData,
                         const nsAString& aOrigin,
                         const nsAString& aLastEventId,
                         nsIDOMWindow* aSource,
@@ -65,7 +65,7 @@ public:
   }
 
 private:
-  JS::Heap<JS::Value> mData;
+  JS::Value mData;
   nsString mOrigin;
   nsString mLastEventId;
   nsCOMPtr<nsIDOMWindow> mSource;

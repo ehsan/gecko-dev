@@ -10,9 +10,3 @@ EXPORTS.mozilla.dom += [
     'SVGDocument.h',
 ]
 
-CPP_SOURCES += [
-    'SVGDocument.cpp',
-]
-
-LIBRARY_NAME = 'gkconsvgdoc_s'
-

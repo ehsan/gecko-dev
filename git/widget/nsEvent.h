@@ -6,7 +6,7 @@
 #ifndef nsEvent_h__
 #define nsEvent_h__
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /*
  * This is in a separate header file because it needs to be included

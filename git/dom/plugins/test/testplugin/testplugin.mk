@@ -12,6 +12,7 @@ STL_FLAGS =
 USE_STATIC_LIBS = 1
 
 # Need to custom install plugins
+NO_DIST_INSTALL	= 1
 NO_INSTALL = 1
 
 VPATH += $(topsrcdir)/build

@@ -26,13 +26,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "yarr/YarrInterpreter.h"
+#include "YarrInterpreter.h"
 
-#include "jscntxt.h"
+#include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
+#include "BumpPointerAllocator.h"
 
-#include "yarr/Yarr.h"
-#include "yarr/YarrCanonicalizeUCS2.h"
-#include "yarr/BumpPointerAllocator.h"
+#ifndef NDEBUG
+#include <stdio.h>
+#endif
 
 using namespace WTF;
 
@@ -156,7 +158,6 @@ public:
     ParenthesesDisjunctionContext* allocParenthesesDisjunctionContext(ByteDisjunction* disjunction, unsigned* output, ByteTerm& term)
     {
         size_t size = sizeof(ParenthesesDisjunctionContext) - sizeof(unsigned) + (term.atom.parenthesesDisjunction->m_numSubpatterns << 1) * sizeof(unsigned) + sizeof(DisjunctionContext) - sizeof(uintptr_t) + disjunction->m_frameSize * sizeof(uintptr_t);
-        size = JS_ROUNDUP(size, JS_ALIGNMENT_OF(ParenthesesDisjunctionContext));
         allocatorPool = allocatorPool->ensureCapacity(size);
         if (!allocatorPool)
             CRASH();
@@ -1665,10 +1666,10 @@ public:
 #ifndef NDEBUG
     void dumpDisjunction(ByteDisjunction* disjunction)
     {
-        dataLogF("ByteDisjunction(%p):\n\t", (void *)disjunction);
+        dataLog("ByteDisjunction(%p):\n\t", (void *)disjunction);
         for (unsigned i = 0; i < disjunction->terms.size(); ++i)
-            dataLogF("{ %d } ", disjunction->terms[i].type);
-        dataLogF("\n");
+            dataLog("{ %d } ", disjunction->terms[i].type);
+        dataLog("\n");
     }
 #endif
 

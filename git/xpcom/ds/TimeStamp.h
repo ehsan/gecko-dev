@@ -111,9 +111,6 @@ public:
   TimeDuration operator*(const int64_t aMultiplier) const {
     return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
   }
-  TimeDuration operator/(const int64_t aDivisor) const {
-    return TimeDuration::FromTicks(mValue / aDivisor);
-  }
   double operator/(const TimeDuration& aOther) {
     return static_cast<double>(mValue) / aOther.mValue;
   }
@@ -210,7 +207,7 @@ public:
   /**
    * Initialize to the "null" moment
    */
-  MOZ_CONSTEXPR TimeStamp() : mValue(0) {}
+  TimeStamp() : mValue(0) {}
   // Default copy-constructor and assignment are OK
 
   /**
@@ -341,16 +338,6 @@ private:
   TimeStamp(TimeStampValue aValue) : mValue(aValue) {}
 
   static TimeStamp Now(bool aHighResolution);
-
-  /**
-   * Computes the uptime of the current process in microseconds. The result
-   * is platform-dependent and needs to be checked against existing timestamps
-   * for consistency.
-   *
-   * @returns The number of microseconds since the calling process was started
-   *          or 0 if an error was encountered while computing the uptime
-   */
-  static uint64_t ComputeProcessUptime();
 
   /**
    * When built with PRIntervalTime, a value of 0 means this instance

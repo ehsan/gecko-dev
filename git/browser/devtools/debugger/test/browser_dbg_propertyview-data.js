@@ -75,11 +75,11 @@ function testVariablesView()
   testIntegrity(arr, obj);
 
   let fooScope = gVariablesView.addScope("foo");
-  let anonymousVar = fooScope.addItem();
+  let anonymousVar = fooScope.addVar();
 
   let anonymousScope = gVariablesView.addScope();
-  let barVar = anonymousScope.addItem("bar");
-  let bazProperty = barVar.addItem("baz");
+  let barVar = anonymousScope.addVar("bar");
+  let bazProperty = barVar.addProperty("baz");
 
   testAnonymousHeaders(fooScope, anonymousVar, anonymousScope, barVar, bazProperty);
   testPropertyInheritance(fooScope, anonymousVar, anonymousScope, barVar, bazProperty);

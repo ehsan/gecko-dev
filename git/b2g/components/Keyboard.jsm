@@ -21,9 +21,7 @@ let Keyboard = {
   _messageManager: null,
   _messageNames: [
     'SetValue', 'RemoveFocus', 'SetSelectedOption', 'SetSelectedOptions',
-    'SetSelectionRange', 'ReplaceSurroundingText', 'ShowInputMethodPicker',
-    'SwitchToNextInputMethod', 'HideInputMethod',
-    'GetText', 'SendKey', 'GetContext'
+    'SetSelectionRange'
   ],
 
   get messageManager() {
@@ -40,7 +38,6 @@ let Keyboard = {
   init: function keyboardInit() {
     Services.obs.addObserver(this, 'in-process-browser-or-app-frame-shown', false);
     Services.obs.addObserver(this, 'remote-browser-frame-shown', false);
-    Services.obs.addObserver(this, 'oop-frameloader-crashed', false);
 
     for (let name of this._messageNames)
       ppmm.addMessageListener('Keyboard:' + name, this);
@@ -49,34 +46,18 @@ let Keyboard = {
   observe: function keyboardObserve(subject, topic, data) {
     let frameLoader = subject.QueryInterface(Ci.nsIFrameLoader);
     let mm = frameLoader.messageManager;
+    mm.addMessageListener('Forms:Input', this);
+    mm.addMessageListener('Forms:SelectionChange', this);
 
-    if (topic == 'oop-frameloader-crashed') {
-      if (this.messageManager == mm) {
-        // The application has been closed unexpectingly. Let's tell the
-        // keyboard app that the focus has been lost.
-        ppmm.broadcastAsyncMessage('Keyboard:FocusChange', { 'type': 'blur' });
-      }
-    } else {
-      mm.addMessageListener('Forms:Input', this);
-      mm.addMessageListener('Forms:SelectionChange', this);
-      mm.addMessageListener('Forms:GetText:Result:OK', this);
-      mm.addMessageListener('Forms:GetText:Result:Error', this);
-      mm.addMessageListener('Forms:SetSelectionRange:Result:OK', this);
-      mm.addMessageListener('Forms:ReplaceSurroundingText:Result:OK', this);
-      mm.addMessageListener('Forms:SendKey:Result:OK', this);
-      mm.addMessageListener('Forms:SequenceError', this);
-      mm.addMessageListener('Forms:GetContext:Result:OK', this);
-
-      // When not running apps OOP, we need to load forms.js here since this
-      // won't happen from dom/ipc/preload.js
-      try {
-         if (Services.prefs.getBoolPref("dom.ipc.tabs.disabled") === true) {
-           mm.loadFrameScript(kFormsFrameScript, true);
-        }
-      } catch (e) {
-         dump('Error loading ' + kFormsFrameScript + ' as frame script: ' + e + '\n');
-      }
-    }
+    // When not running apps OOP, we need to load forms.js here since this
+    // won't happen from dom/ipc/preload.js
+    try {
+       if (Services.prefs.getBoolPref("dom.ipc.tabs.disabled") === true) {
+         mm.loadFrameScript(kFormsFrameScript, true);
+       }
+     } catch (e) {
+       dump('Error loading ' + kFormsFrameScript + ' as frame script: ' + e + '\n');
+     }
   },
 
   receiveMessage: function keyboardReceiveMessage(msg) {
@@ -106,20 +87,11 @@ let Keyboard = {
 
     switch (msg.name) {
       case 'Forms:Input':
-        this.handleFocusChange(msg);
+        this.handleFormsInput(msg);
         break;
       case 'Forms:SelectionChange':
-      case 'Forms:GetText:Result:OK':
-      case 'Forms:GetText:Result:Error':
-      case 'Forms:SetSelectionRange:Result:OK':
-      case 'Forms:ReplaceSurroundingText:Result:OK':
-      case 'Forms:SendKey:Result:OK':
-      case 'Forms:SequenceError':
-      case 'Forms:GetContext:Result:OK':
-        let name = msg.name.replace(/^Forms/, 'Keyboard');
-        this.forwardEvent(name, msg);
+        this.handleFormsSelectionChange(msg);
         break;
-
       case 'Keyboard:SetValue':
         this.setValue(msg);
         break;
@@ -135,43 +107,21 @@ let Keyboard = {
       case 'Keyboard:SetSelectionRange':
         this.setSelectionRange(msg);
         break;
-      case 'Keyboard:ReplaceSurroundingText':
-        this.replaceSurroundingText(msg);
-        break;
-      case 'Keyboard:SwitchToNextInputMethod':
-        this.switchToNextInputMethod();
-        break;
-      case 'Keyboard:ShowInputMethodPicker':
-        this.showInputMethodPicker();
-        break;
-      case 'Keyboard:GetText':
-        this.getText(msg);
-        break;
-      case 'Keyboard:SendKey':
-        this.sendKey(msg);
-        break;
-      case 'Keyboard:GetContext':
-        this.getContext(msg);
-        break;
     }
   },
 
-  forwardEvent: function keyboardForwardEvent(newEventName, msg) {
+  handleFormsInput: function keyboardHandleFormsInput(msg) {
     this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
                              .frameLoader.messageManager;
 
-    ppmm.broadcastAsyncMessage(newEventName, msg.data);
+    ppmm.broadcastAsyncMessage('Keyboard:FocusChange', msg.data);
   },
 
-  handleFocusChange: function keyboardHandleFocusChange(msg) {
-    this.forwardEvent('Keyboard:FocusChange', msg);
+  handleFormsSelectionChange: function keyboardHandleFormsSelectionChange(msg) {
+    this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
+                             .frameLoader.messageManager;
 
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-
-    browser.shell.sendChromeEvent({
-      type: 'inputmethod-contextchange',
-      inputType: msg.data.type
-    });
+    ppmm.broadcastAsyncMessage('Keyboard:SelectionChange', msg.data);
   },
 
   setSelectedOption: function keyboardSetSelectedOption(msg) {
@@ -192,37 +142,6 @@ let Keyboard = {
 
   removeFocus: function keyboardRemoveFocus() {
     this.messageManager.sendAsyncMessage('Forms:Select:Blur', {});
-  },
-
-  replaceSurroundingText: function keyboardReplaceSurroundingText(msg) {
-    this.messageManager.sendAsyncMessage('Forms:ReplaceSurroundingText',
-                                         msg.data);
-  },
-
-  showInputMethodPicker: function keyboardShowInputMethodPicker() {
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-    browser.shell.sendChromeEvent({
-      type: "inputmethod-showall"
-    });
-  },
-
-  switchToNextInputMethod: function keyboardSwitchToNextInputMethod() {
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-    browser.shell.sendChromeEvent({
-      type: "inputmethod-next"
-    });
-  },
-
-  getText: function keyboardGetText(msg) {
-    this.messageManager.sendAsyncMessage('Forms:GetText', msg.data);
-  },
-
-  sendKey: function keyboardSendKey(msg) {
-    this.messageManager.sendAsyncMessage('Forms:Input:SendKey', msg.data);
-  },
-
-  getContext: function keyboardGetContext(msg) {
-    this.messageManager.sendAsyncMessage('Forms:GetContext', msg.data);
   }
 };
 

@@ -5,25 +5,17 @@
 #ifndef nsHostObjectProtocolHandler_h
 #define nsHostObjectProtocolHandler_h
 
-#include "mozilla/Attributes.h"
 #include "nsIProtocolHandler.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 
 #define BLOBURI_SCHEME "blob"
 #define MEDIASTREAMURI_SCHEME "mediastream"
-#define MEDIASOURCEURI_SCHEME "mediasource"
 
 class nsIDOMBlob;
 class nsIDOMMediaStream;
 class nsIPrincipal;
 class nsIInputStream;
-
-namespace mozilla {
-namespace dom {
-class MediaSource;
-}
-}
 
 class nsHostObjectProtocolHandler : public nsIProtocolHandler
 {
@@ -33,11 +25,11 @@ public:
 
   // nsIProtocolHandler methods, except for GetScheme which is only defined
   // in subclasses.
-  NS_IMETHOD GetDefaultPort(int32_t *aDefaultPort) MOZ_OVERRIDE;
-  NS_IMETHOD GetProtocolFlags(uint32_t *aProtocolFlags) MOZ_OVERRIDE;
-  NS_IMETHOD NewURI(const nsACString & aSpec, const char * aOriginCharset, nsIURI *aBaseURI, nsIURI * *_retval) MOZ_OVERRIDE;
-  NS_IMETHOD NewChannel(nsIURI *aURI, nsIChannel * *_retval) MOZ_OVERRIDE;
-  NS_IMETHOD AllowPort(int32_t port, const char * scheme, bool *_retval) MOZ_OVERRIDE;
+  NS_IMETHOD GetDefaultPort(int32_t *aDefaultPort);
+  NS_IMETHOD GetProtocolFlags(uint32_t *aProtocolFlags);
+  NS_IMETHOD NewURI(const nsACString & aSpec, const char * aOriginCharset, nsIURI *aBaseURI, nsIURI * *_retval);
+  NS_IMETHOD NewChannel(nsIURI *aURI, nsIChannel * *_retval);
+  NS_IMETHOD AllowPort(int32_t port, const char * scheme, bool *_retval);
 
   // Methods for managing uri->object mapping
   // AddDataEntry creates the URI with the given scheme and returns it in aUri
@@ -47,25 +39,18 @@ public:
                                nsACString& aUri);
   static void RemoveDataEntry(const nsACString& aUri);
   static nsIPrincipal* GetDataEntryPrincipal(const nsACString& aUri);
-  static void Traverse(const nsACString& aUri, nsCycleCollectionTraversalCallback& aCallback);
 };
 
 class nsBlobProtocolHandler : public nsHostObjectProtocolHandler
 {
 public:
-  NS_IMETHOD GetScheme(nsACString &result) MOZ_OVERRIDE;
+  NS_IMETHOD GetScheme(nsACString &result);
 };
 
 class nsMediaStreamProtocolHandler : public nsHostObjectProtocolHandler
 {
 public:
-  NS_IMETHOD GetScheme(nsACString &result) MOZ_OVERRIDE;
-};
-
-class nsMediaSourceProtocolHandler : public nsHostObjectProtocolHandler
-{
-public:
-  NS_IMETHOD GetScheme(nsACString &result) MOZ_OVERRIDE;
+  NS_IMETHOD GetScheme(nsACString &result);
 };
 
 inline bool IsBlobURI(nsIURI* aUri)
@@ -80,20 +65,11 @@ inline bool IsMediaStreamURI(nsIURI* aUri)
   return NS_SUCCEEDED(aUri->SchemeIs(MEDIASTREAMURI_SCHEME, &isStream)) && isStream;
 }
 
-inline bool IsMediaSourceURI(nsIURI* aUri)
-{
-  bool isMediaSource;
-  return NS_SUCCEEDED(aUri->SchemeIs(MEDIASOURCEURI_SCHEME, &isMediaSource)) && isMediaSource;
-}
-
 extern nsresult
 NS_GetStreamForBlobURI(nsIURI* aURI, nsIInputStream** aStream);
 
 extern nsresult
 NS_GetStreamForMediaStreamURI(nsIURI* aURI, nsIDOMMediaStream** aStream);
-
-extern nsresult
-NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource);
 
 #define NS_BLOBPROTOCOLHANDLER_CID \
 { 0xb43964aa, 0xa078, 0x44b2, \
@@ -102,9 +78,5 @@ NS_GetSourceForMediaSourceURI(nsIURI* aURI, mozilla::dom::MediaSource** aSource)
 #define NS_MEDIASTREAMPROTOCOLHANDLER_CID \
 { 0x27d1fa24, 0x2b73, 0x4db3, \
 	{ 0xab, 0x48, 0xb9, 0x83, 0x83, 0x40, 0xe0, 0x81 } }
-
-#define NS_MEDIASOURCEPROTOCOLHANDLER_CID \
-{ 0x12ef31fc, 0xa8fb, 0x4661, \
-	{ 0x9a, 0x63, 0xfb, 0x61, 0x04,0x5d, 0xb8, 0x61 } }
 
 #endif /* nsHostObjectProtocolHandler_h */

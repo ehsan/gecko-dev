@@ -71,16 +71,6 @@ public:
         SkASSERT(fRefCnt > 0);
     }
 
-    /**
-     *  Alias for ref(), for compatibility with scoped_refptr.
-     */
-    void AddRef() { this->ref(); }
-
-    /**
-     *  Alias for unref(), for compatibility with scoped_refptr.
-     */
-    void Release() { this->unref(); }
-
 protected:
     /**
      *  Allow subclasses to call this if they've overridden internal_dispose
@@ -164,10 +154,9 @@ public:
 
     T* get() const { return fObj; }
 
-    T* reset(T* obj) {
+    void reset(T* obj) {
         SkSafeUnref(fObj);
         fObj = obj;
-        return obj;
     }
 
     void swap(SkAutoTUnref* other) {
@@ -263,3 +252,4 @@ private:
 };
 
 #endif
+

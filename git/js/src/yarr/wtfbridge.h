@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef yarr_wtfbridge_h
-#define yarr_wtfbridge_h
+#ifndef jswtfbridge_h__
+#define jswtfbridge_h__
 
 /*
  * WTF compatibility layer. This file provides various type and data
@@ -15,10 +15,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include "jsstr.h"
+#include "jsprvtd.h"
 #include "vm/String.h"
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
-#include "yarr/CheckedArithmetic.h"
+#include "CheckedArithmetic.h"
+#include "js/TemplateLib.h"
 
 namespace JSC { namespace Yarr {
 
@@ -170,7 +172,7 @@ class Vector {
 
     template <size_t M>
     void append(const Vector<T,M> &v) {
-        if (!impl.appendAll(v.impl))
+        if (!impl.append(v.impl))
             MOZ_CRASH();
     }
 
@@ -246,7 +248,7 @@ deleteAllValues(Vector<T, N> &v) {
 }
 
 static inline void
-dataLogF(const char *fmt, ...)
+dataLog(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -332,4 +334,4 @@ const size_t notFound = size_t(-1);
 
 #define JS_EXPORT_PRIVATE
 
-#endif /* yarr_wtfbridge_h */
+#endif

@@ -17,8 +17,6 @@ const CU = Components.utils;
 CU.import("resource://tps/logger.jsm");
 CU.import("resource://gre/modules/Services.jsm");
 CU.import("resource://gre/modules/PlacesUtils.jsm");
-CU.import("resource://gre/modules/BookmarkJSONUtils.jsm");
-CU.import("resource://gre/modules/Task.jsm");
 CU.import("resource://services-common/async.js");
 
 var DumpBookmarks = function TPS_Bookmarks__DumpBookmarks() {
@@ -35,14 +33,9 @@ var DumpBookmarks = function TPS_Bookmarks__DumpBookmarks() {
   query.setFolders([PlacesUtils.placesRootId], 1);
   let root = PlacesUtils.history.executeQuery(query, options).root;
   root.containerOpen = true;
-  let cb = Async.makeSpinningCallback();
-  Task.spawn(function() {
-    yield BookmarkJSONUtils.serializeNodeAsJSONToOutputStream(root, writer, true, false);
-    let value = JSON.parse(writer.value);
-    Logger.logInfo("dumping bookmarks\n\n" + JSON.stringify(value, null, ' ') + "\n\n");
-    cb();
-  });
-  cb.wait();
+  PlacesUtils.serializeNodeAsJSONToOutputStream(root, writer, true, false);
+  let value = JSON.parse(writer.value);
+  Logger.logInfo("dumping bookmarks\n\n" + JSON.stringify(value, null, ' ') + "\n\n");
 };
 
 /**

@@ -11,7 +11,6 @@
 
 #include "CanvasLayerComposite.h"
 #include "ImageHost.h"
-#include "gfxUtils.h"
 #include "gfx2DGlue.h"
 
 using namespace mozilla;
@@ -33,9 +32,8 @@ CanvasLayerComposite::~CanvasLayerComposite()
   CleanupResources();
 }
 
-void
-CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost) {
-  mImageHost = aHost;
+void CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost) {
+  mImageHost = static_cast<ImageHost*>(aHost);
 }
 
 Layer*
@@ -47,7 +45,7 @@ CanvasLayerComposite::GetLayer()
 LayerRenderState
 CanvasLayerComposite::GetRenderState()
 {
-  if (mDestroyed || !mImageHost || !mImageHost->IsAttached()) {
+  if (mDestroyed || !mImageHost) {
     return LayerRenderState();
   }
   return mImageHost->GetRenderState();
@@ -57,18 +55,11 @@ void
 CanvasLayerComposite::RenderLayer(const nsIntPoint& aOffset,
                                   const nsIntRect& aClipRect)
 {
-  if (!mImageHost || !mImageHost->IsAttached()) {
+  if (!mImageHost) {
     return;
   }
 
   mCompositor->MakeCurrent();
-
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    nsRefPtr<gfxImageSurface> surf = mImageHost->GetAsSurface();
-    WriteSnapshotToDumpFile(this, surf);
-  }
-#endif
 
   gfxPattern::GraphicsFilter filter = mFilter;
 #ifdef ANDROID
@@ -94,18 +85,11 @@ CanvasLayerComposite::RenderLayer(const nsIntPoint& aOffset,
                         gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(filter),
                         clipRect);
-
-  LayerManagerComposite::RemoveMaskEffect(mMaskLayer);
 }
 
 CompositableHost*
-CanvasLayerComposite::GetCompositableHost()
-{
-  if (mImageHost->IsAttached()) {
-    return mImageHost.get();
-  }
-
-  return nullptr;
+CanvasLayerComposite::GetCompositableHost() {
+  return mImageHost.get();
 }
 
 void
@@ -123,7 +107,7 @@ CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   CanvasLayer::PrintInfo(aTo, aPrefix);
   aTo += "\n";
-  if (mImageHost && mImageHost->IsAttached()) {
+  if (mImageHost) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     mImageHost->PrintInfo(aTo, pfx.get());

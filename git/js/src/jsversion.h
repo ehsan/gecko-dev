@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsversion_h
-#define jsversion_h
+#ifndef jsversion_h___
+#define jsversion_h___
 
 /*
  * Deprecated JS_VERSION handler.
@@ -61,7 +61,7 @@
 #  define NEW_OBJECT_REPRESENTATION_ONLY() ((void)0)
 #else
 #  define NEW_OBJECT_REPRESENTATION_ONLY() \
-     MOZ_ASSUME_UNREACHABLE("don't call this!  to be used in the new object representation")
+     MOZ_NOT_REACHED("don't call this!  to be used in the new object representation")
 #endif
 
-#endif /* jsversion_h */
+#endif /* jsversion_h___ */

@@ -8,25 +8,3 @@ TEST_DIRS += ['tests']
 
 MODULE = 'editor'
 
-CPP_SOURCES += [
-    'TextEditorTest.cpp',
-    'TypeInState.cpp',
-    'nsEditProperty.cpp',
-    'nsHTMLAbsPosition.cpp',
-    'nsHTMLAnonymousUtils.cpp',
-    'nsHTMLCSSUtils.cpp',
-    'nsHTMLDataTransfer.cpp',
-    'nsHTMLEditRules.cpp',
-    'nsHTMLEditUtils.cpp',
-    'nsHTMLEditor.cpp',
-    'nsHTMLEditorEventListener.cpp',
-    'nsHTMLEditorStyle.cpp',
-    'nsHTMLInlineTableEditor.cpp',
-    'nsHTMLObjectResizer.cpp',
-    'nsHTMLURIRefObject.cpp',
-    'nsTableEditor.cpp',
-    'nsWSRunObject.cpp',
-]
-
-LIBRARY_NAME = 'htmleditor_s'
-

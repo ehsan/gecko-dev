@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include "prio.h"
 #include "prmem.h"
+#include "nsIComponentManager.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsNPAPIPluginInstance.h"
@@ -22,6 +23,7 @@
 #include "nsIObserverService.h"
 #include "nsIHttpProtocolHandler.h"
 #include "nsIHttpChannel.h"
+#include "nsIHttpChannelInternal.h"
 #include "nsIUploadChannel.h"
 #include "nsIByteRangeRequest.h"
 #include "nsIStreamListener.h"
@@ -36,11 +38,17 @@
 #if defined(XP_MACOSX)
 #include "nsILocalFileMac.h"
 #endif
+#include "nsIInputStream.h"
+#include "nsIIOService.h"
+#include "nsIURL.h"
+#include "nsIChannel.h"
 #include "nsISeekableStream.h"
 #include "nsNetUtil.h"
 #include "nsIProgressEventSink.h"
 #include "nsIDocument.h"
+#include "nsICachingChannel.h"
 #include "nsHashtable.h"
+#include "nsIProxyInfo.h"
 #include "nsPluginLogging.h"
 #include "nsIScriptChannel.h"
 #include "nsIBlocklistService.h"
@@ -63,20 +71,44 @@
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
 
+#include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
+#include "nsIPrincipal.h"
+
 #include "nsNetCID.h"
+#include "nsIDOMPlugin.h"
+#include "nsIDOMMimeType.h"
+#include "nsMimeTypes.h"
 #include "prprf.h"
 #include "nsThreadUtils.h"
 #include "nsIInputStreamTee.h"
+#include "nsIInterfaceInfoManager.h"
+#include "xptinfo.h"
 
+#include "nsIMIMEService.h"
+#include "nsCExternalHandlerService.h"
+#include "nsIFileChannel.h"
+
+#include "nsICharsetConverterManager.h"
+#include "nsIPlatformCharset.h"
+
+#include "nsIDirectoryService.h"
 #include "nsDirectoryServiceDefs.h"
+#include "nsXULAppAPI.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsPluginDirServiceProvider.h"
+#include "nsError.h"
 
 #include "nsUnicharUtils.h"
 #include "nsPluginManifestLineReader.h"
 
 #include "nsIWeakReferenceUtils.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMHTMLObjectElement.h"
+#include "nsIDOMHTMLEmbedElement.h"
 #include "nsIPresShell.h"
+#include "nsIWebNavigation.h"
+#include "nsIDocShell.h"
 #include "nsPluginNativeWindow.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIContentPolicy.h"
@@ -260,7 +292,6 @@ nsPluginHost::nsPluginHost()
     mozilla::services::GetObserverService();
   if (obsService) {
     obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
-    obsService->AddObserver(this, "blocklist-updated", false);
 #ifdef MOZ_WIDGET_ANDROID
     obsService->AddObserver(this, "application-foreground", false);
     obsService->AddObserver(this, "application-background", false);
@@ -1012,55 +1043,68 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   return rv;
 }
 
-bool
-nsPluginHost::PluginExistsForType(const char* aMimeType)
+nsresult
+nsPluginHost::IsPluginEnabledForType(const char* aMimeType)
 {
-  nsPluginTag *plugin = FindPluginForType(aMimeType, false);
-  return nullptr != plugin;
-}
+  nsPluginTag *plugin = FindPluginForType(aMimeType, true);
+  if (plugin)
+    return NS_OK;
 
-NS_IMETHODIMP
-nsPluginHost::GetPluginTagForType(const nsACString& aMimeType,
-                                  nsIPluginTag** aResult)
-{
-  nsPluginTag* plugin = FindPluginForType(aMimeType.Data(), true);
-  if (!plugin) {
-    plugin = FindPluginForType(aMimeType.Data(), false);
+  // Pass false as the second arg so we can return NS_ERROR_PLUGIN_DISABLED
+  // for disabled plug-ins.
+  plugin = FindPluginForType(aMimeType, false);
+  if (!plugin)
+    return NS_ERROR_FAILURE;
+
+  if (!plugin->IsActive()) {
+    if (plugin->IsBlocklisted())
+      return NS_ERROR_PLUGIN_BLOCKLISTED;
+    else
+      return NS_ERROR_PLUGIN_DISABLED;
   }
-  if (!plugin) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  NS_ADDREF(*aResult = plugin);
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPluginHost::GetStateForType(const nsACString &aMimeType, uint32_t* aResult)
+nsPluginHost::IsPluginClickToPlayForType(const nsACString &aMimeType, bool *aResult)
 {
   nsPluginTag *plugin = FindPluginForType(aMimeType.Data(), true);
-  if (!plugin) {
-    plugin = FindPluginForType(aMimeType.Data(), false);
-  }
   if (!plugin) {
     return NS_ERROR_UNEXPECTED;
   }
 
-  return plugin->GetEnabledState(aResult);
+  uint32_t blocklistState = nsIBlocklistService::STATE_NOT_BLOCKED;
+  nsresult rv = GetBlocklistStateForType(aMimeType.Data(), &blocklistState);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if ((mPluginsClickToPlay && plugin->IsClicktoplay()) ||
+      blocklistState == nsIBlocklistService::STATE_VULNERABLE_NO_UPDATE ||
+      blocklistState == nsIBlocklistService::STATE_VULNERABLE_UPDATE_AVAILABLE) {
+    *aResult = true;
+  }
+  else {
+    *aResult = false;
+  }
+
+  return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsPluginHost::GetBlocklistStateForType(const char *aMimeType, uint32_t *aState)
 {
   nsPluginTag *plugin = FindPluginForType(aMimeType, true);
-  if (!plugin) {
-    plugin = FindPluginForType(aMimeType, false);
-  }
-  if (!plugin) {
-    return NS_ERROR_FAILURE;
+  if (plugin) {
+    nsCOMPtr<nsIBlocklistService> blocklist = do_GetService("@mozilla.org/extensions/blocklist;1");
+    if (blocklist) {
+      // The EmptyString()s are so we use the currently running application
+      // and toolkit versions
+      return blocklist->GetPluginBlocklistState(plugin, EmptyString(),
+                                                EmptyString(), aState);
+    }
   }
 
-  *aState = plugin->GetBlocklistState();
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -1071,9 +1115,6 @@ nsPluginHost::GetPermissionStringForType(const nsACString &aMimeType, nsACString
   nsresult rv = GetBlocklistStateForType(aMimeType.Data(), &blocklistState);
   NS_ENSURE_SUCCESS(rv, rv);
   nsPluginTag *tag = FindPluginForType(aMimeType.Data(), true);
-  if (!tag) {
-    tag = FindPluginForType(aMimeType.Data(), false);
-  }
   if (!tag) {
     return NS_ERROR_FAILURE;
   }
@@ -1127,20 +1168,110 @@ nsPluginHost::IsPluginEnabledForExtension(const char* aExtension,
   return NS_ERROR_FAILURE;
 }
 
-void
-nsPluginHost::GetPlugins(nsTArray<nsRefPtr<nsPluginTag> >& aPluginArray)
-{
-  aPluginArray.Clear();
+class DOMPluginImpl : public nsIDOMPlugin {
+public:
+  NS_DECL_ISUPPORTS
 
+  DOMPluginImpl(nsPluginTag* aPluginTag) : mPluginTag(aPluginTag)
+  {
+  }
+
+  virtual ~DOMPluginImpl() {
+  }
+
+  NS_METHOD GetDescription(nsAString& aDescription)
+  {
+    CopyUTF8toUTF16(mPluginTag.mDescription, aDescription);
+    return NS_OK;
+  }
+
+  NS_METHOD GetFilename(nsAString& aFilename)
+  {
+    if (Preferences::GetBool("plugin.expose_full_path", false)) {
+      CopyUTF8toUTF16(mPluginTag.mFullPath, aFilename);
+    } else {
+      CopyUTF8toUTF16(mPluginTag.mFileName, aFilename);
+    }
+
+    return NS_OK;
+  }
+
+  NS_METHOD GetVersion(nsAString& aVersion)
+  {
+    CopyUTF8toUTF16(mPluginTag.mVersion, aVersion);
+    return NS_OK;
+  }
+
+  NS_METHOD GetName(nsAString& aName)
+  {
+    CopyUTF8toUTF16(mPluginTag.mName, aName);
+    return NS_OK;
+  }
+
+  NS_METHOD GetLength(uint32_t* aLength)
+  {
+    *aLength = mPluginTag.mMimeTypes.Length();
+    return NS_OK;
+  }
+
+  NS_METHOD Item(uint32_t aIndex, nsIDOMMimeType** aReturn)
+  {
+    nsIDOMMimeType* mimeType = new DOMMimeTypeImpl(&mPluginTag, aIndex);
+    NS_IF_ADDREF(mimeType);
+    *aReturn = mimeType;
+    return NS_OK;
+  }
+
+  NS_METHOD NamedItem(const nsAString& aName, nsIDOMMimeType** aReturn)
+  {
+    for (int i = mPluginTag.mMimeTypes.Length() - 1; i >= 0; --i) {
+      if (aName.Equals(NS_ConvertUTF8toUTF16(mPluginTag.mMimeTypes[i])))
+        return Item(i, aReturn);
+    }
+    return NS_OK;
+  }
+
+private:
+  nsPluginTag mPluginTag;
+};
+
+NS_IMPL_ISUPPORTS1(DOMPluginImpl, nsIDOMPlugin)
+
+nsresult
+nsPluginHost::GetPluginCount(uint32_t* aPluginCount)
+{
   LoadPlugins();
+
+  uint32_t count = 0;
 
   nsPluginTag* plugin = mPlugins;
   while (plugin != nullptr) {
-    if (plugin->IsEnabled()) {
-      aPluginArray.AppendElement(plugin);
+    if (plugin->IsActive()) {
+      ++count;
     }
     plugin = plugin->mNext;
   }
+
+  *aPluginCount = count;
+
+  return NS_OK;
+}
+
+nsresult
+nsPluginHost::GetPlugins(uint32_t aPluginCount, nsIDOMPlugin** aPluginArray)
+{
+  LoadPlugins();
+
+  nsPluginTag* plugin = mPlugins;
+  for (uint32_t i = 0; i < aPluginCount && plugin; plugin = plugin->mNext) {
+    if (plugin->IsActive()) {
+      nsIDOMPlugin* domPlugin = new DOMPluginImpl(plugin);
+      NS_IF_ADDREF(domPlugin);
+      aPluginArray[i++] = domPlugin;
+    }
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1828,17 +1959,31 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
 
       pluginTag->mLibrary = library;
       pluginTag->mLastModifiedTime = fileModTime;
-      uint32_t state = pluginTag->GetBlocklistState();
 
-      // If the blocklist says it is risky and we have never seen this
-      // plugin before, then disable it.
-      // If the blocklist says this is an outdated plugin, warn about
-      // outdated plugins.
-      if (state == nsIBlocklistService::STATE_SOFTBLOCKED && !seenBefore) {
-        pluginTag->SetEnabledState(nsIPluginTag::STATE_DISABLED);
-      }
-      if (state == nsIBlocklistService::STATE_OUTDATED && !seenBefore) {
-        warnOutdated = true;
+      nsCOMPtr<nsIBlocklistService> blocklist = do_GetService("@mozilla.org/extensions/blocklist;1");
+      if (blocklist) {
+        uint32_t state;
+        rv = blocklist->GetPluginBlocklistState(pluginTag, EmptyString(),
+                                                EmptyString(), &state);
+
+        if (NS_SUCCEEDED(rv)) {
+          // If the blocklist says so, block the plugin.
+          // If the blocklist says it is risky and we have never seen this
+          // plugin before, then disable it.
+          // If the blocklist says this is an outdated plugin, warn about
+          // outdated plugins.
+          // If the blocklist says the plugin is one of the click-to-play
+          // states, set the click-to-play flag.
+          if (state == nsIBlocklistService::STATE_BLOCKED) {
+             pluginTag->SetBlocklisted(true);
+          }
+          if (state == nsIBlocklistService::STATE_SOFTBLOCKED && !seenBefore) {
+             pluginTag->SetEnabledState(nsIPluginTag::STATE_DISABLED);
+          }
+          if (state == nsIBlocklistService::STATE_OUTDATED && !seenBefore) {
+             warnOutdated = true;
+          }
+        }
       }
 
       // Plugin unloading is tag-based. If we created a new tag and loaded
@@ -2652,6 +2797,9 @@ nsPluginHost::ReadPluginInfo()
     if (heapalloced)
       delete [] heapalloced;
 
+    if (!tag)
+      continue;
+
     // Import flags from registry into prefs for old registry versions
     if (hasValidFlags && !pluginStateImported) {
       tag->ImportFlagsToPrefs(tagflag);
@@ -3032,12 +3180,12 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
                                     const char *aTopic,
                                     const PRUnichar *someData)
 {
-  if (!strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, aTopic)) {
+  if (!nsCRT::strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, aTopic)) {
     OnShutdown();
     UnloadPlugins();
     sInst->Release();
   }
-  if (!strcmp(NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, aTopic)) {
+  if (!nsCRT::strcmp(NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, aTopic)) {
     mPluginsDisabled = Preferences::GetBool("plugin.disable", false);
     mPluginsClickToPlay = Preferences::GetBool("plugins.click_to_play", false);
     // Unload or load plugins as needed
@@ -3047,26 +3195,19 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
       LoadPlugins();
     }
   }
-  if (!strcmp("blocklist-updated", aTopic)) {
-    nsPluginTag* plugin = mPlugins;
-    while (plugin) {
-      plugin->InvalidateBlocklistState();
-      plugin = plugin->mNext;
-    }
-  }
 #ifdef MOZ_WIDGET_ANDROID
-  if (!strcmp("application-background", aTopic)) {
+  if (!nsCRT::strcmp("application-background", aTopic)) {
     for(uint32_t i = 0; i < mInstances.Length(); i++) {
       mInstances[i]->NotifyForeground(false);
     }
   }
-  if (!strcmp("application-foreground", aTopic)) {
+  if (!nsCRT::strcmp("application-foreground", aTopic)) {
     for(uint32_t i = 0; i < mInstances.Length(); i++) {
       if (mInstances[i]->IsOnScreen())
         mInstances[i]->NotifyForeground(true);
     }
   }
-  if (!strcmp("memory-pressure", aTopic)) {
+  if (!nsCRT::strcmp("memory-pressure", aTopic)) {
     for(uint32_t i = 0; i < mInstances.Length(); i++) {
       mInstances[i]->MemoryPressure();
     }

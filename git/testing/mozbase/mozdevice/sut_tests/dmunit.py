@@ -2,18 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import types
-import unittest
-
-import mozlog
-
 from mozdevice import devicemanager
 from mozdevice import devicemanagerSUT
+import types
+import unittest
 
 ip = ''
 port = 0
 heartbeat_port = 0
-log_level = mozlog.ERROR
+
 
 class DeviceManagerTestCase(unittest.TestCase):
     """DeviceManager tests should subclass this.
@@ -29,8 +26,7 @@ class DeviceManagerTestCase(unittest.TestCase):
         return
 
     def setUp(self):
-        self.dm = devicemanagerSUT.DeviceManagerSUT(host=ip, port=port,
-                                                    logLevel=log_level)
+        self.dm = devicemanagerSUT.DeviceManagerSUT(host=ip, port=port)
         self.dmerror = devicemanager.DMError
         self.nettools = devicemanager.NetworkTools
         self._setUp()

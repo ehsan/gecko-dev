@@ -20,6 +20,9 @@
 #include "prprf.h"
 #include "prenv.h"
 
+#if defined(OS_LINUX)
+#  define XP_LINUX 1
+#endif
 #include "nsExceptionHandler.h"
 
 #include "nsDirectoryServiceDefs.h"
@@ -468,7 +471,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     return false;
   }
 
-  base::ProcessHandle process = 0;
+  base::ProcessHandle process;
 
   // send the child the PID so that it can open a ProcessHandle back to us.
   // probably don't want to do this in the long run
@@ -652,11 +655,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
                   newEnvVars, privs,
 #endif
                   false, &process, arch);
-
-  // We're in the parent and the child was launched. Close the child FD in the
-  // parent as soon as possible, which will allow the parent to detect when the
-  // child closes its FD (either due to normal exit or due to crash).
-  GetChannel()->CloseClientFileDescriptor();
 
 #ifdef MOZ_WIDGET_COCOA
   // Wait for the child process to send us its 'task_t' data.

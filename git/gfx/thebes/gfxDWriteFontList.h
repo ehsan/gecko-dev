@@ -6,7 +6,6 @@
 #ifndef GFX_DWRITEFONTLIST_H
 #define GFX_DWRITEFONTLIST_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxDWriteCommon.h"
 
 #include "gfxFont.h"
@@ -49,9 +48,9 @@ public:
 
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 protected:
@@ -144,7 +143,8 @@ public:
 
     virtual bool IsSymbolFont();
 
-    virtual hb_blob_t* GetFontTable(uint32_t aTableTag) MOZ_OVERRIDE;
+    virtual nsresult GetFontTable(uint32_t aTableTag,
+                                  FallibleTArray<uint8_t>& aBuffer);
 
     nsresult ReadCMAP();
 
@@ -153,17 +153,14 @@ public:
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
     bool GetForceGDIClassic() { return mForceGDIClassic; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 protected:
     friend class gfxDWriteFont;
     friend class gfxDWriteFontList;
-
-    virtual nsresult CopyFontTable(uint32_t aTableTag,
-                                   FallibleTArray<uint8_t>& aBuffer) MOZ_OVERRIDE;
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle,
                                         bool aNeedsBold);
@@ -180,11 +177,6 @@ protected:
      */
     nsRefPtr<IDWriteFont> mFont;
     nsRefPtr<IDWriteFontFile> mFontFile;
-
-    // font face corresponding to the mFont/mFontFile *without* any DWrite
-    // style simulations applied
-    nsRefPtr<IDWriteFontFace> mFontFace;
-
     DWRITE_FONT_FACE_TYPE mFaceType;
 
     int8_t mIsCJK;
@@ -313,7 +305,7 @@ public:
         } else if (__uuidof(IUnknown) == riid) {
             *ppvObject = this;
         } else {
-            *ppvObject = nullptr;
+            *ppvObject = NULL;
             return E_FAIL;
         }
 
@@ -366,9 +358,9 @@ public:
 
     gfxFloat GetForceGDIClassicMaxFontSize() { return mForceGDIClassicMaxFontSize; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 private:

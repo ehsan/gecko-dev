@@ -1,3 +1,4 @@
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,7 +10,18 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = accessibility_xpcom_s
 LIBXUL_LIBRARY = 1
+
+CPPSRCS = \
+  xpcAccEvents.cpp \
+  nsAccessibleRelation.cpp \
+  xpcAccessibleTable.cpp \
+  xpcAccessibleTableCell.cpp \
+  $(NULL)
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+FORCE_STATIC_LIB = 1
 
 EXTRA_MDDEPEND_FILES = xpcAccEvents.pp
 
@@ -20,7 +32,7 @@ LOCAL_INCLUDES = \
   -I$(srcdir)/../generic \
   $(NULL)
 
-ifdef MOZ_ENABLE_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 LOCAL_INCLUDES += \
   -I$(srcdir)/../atk \
   $(NULL)
@@ -46,6 +58,18 @@ ifneq ($(A11Y_LOG),0)
   DEFINES += -DA11Y_LOG
 endif
 
+xpcAccEvents.h: $(srcdir)/AccEvents.conf \
+                   $(srcdir)/AccEventGen.py \
+                   $(LIBXUL_DIST)/sdk/bin/header.py \
+                   $(LIBXUL_DIST)/sdk/bin/xpidl.py \
+                   $(DEPTH)/js/src/js-confdefs.h
+	$(PYTHON) $(topsrcdir)/config/pythonpath.py \
+	  -I$(LIBXUL_DIST)/sdk/bin \
+	  $(srcdir)/AccEventGen.py \
+	  -I $(DEPTH)/dist/idl \
+	  --header-output xpcAccEvents.h \
+	  $(srcdir)/AccEvents.conf
+
 xpcAccEvents.cpp: $(srcdir)/AccEvents.conf \
                      $(srcdir)/AccEventGen.py \
                      $(LIBXUL_DIST)/sdk/bin/header.py \
@@ -59,8 +83,6 @@ xpcAccEvents.cpp: $(srcdir)/AccEvents.conf \
 	  --stub-output xpcAccEvents.cpp \
 	  --makedepend-output $(MDDEPDIR)/xpcAccEvents.pp \
 	  $(srcdir)/AccEvents.conf
-
-xpcAccEvents.h: xpcAccEvents.cpp
 
 GARBAGE += \
   xpcAccEvents.cpp \

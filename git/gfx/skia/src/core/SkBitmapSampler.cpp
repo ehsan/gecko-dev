@@ -290,6 +290,7 @@ class A8_NoFilter_Sampler : public SkBitmapSampler {
 public:
     A8_NoFilter_Sampler(const SkBitmap& bm, SkShader::TileMode tmx, SkShader::TileMode tmy)
         : SkBitmapSampler(bm, false, tmx, tmy)
+        , fProcTable(NULL)
     {
     }
 
@@ -308,6 +309,7 @@ public:
     }
 
 private:
+    const SkFilterProc* fProcTable;
     SkPMColor           fColor;
 };
 
@@ -412,3 +414,4 @@ SkBitmapSampler* SkBitmapSampler::Create(const SkBitmap& bm, bool doFilter,
     }
     return SkNEW_ARGS(SkNullBitmapSampler, (bm, doFilter, tmx, tmy));
 }
+

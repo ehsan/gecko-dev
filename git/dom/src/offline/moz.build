@@ -6,12 +6,3 @@
 
 MODULE = 'dom'
 
-EXPORTS += [
-    'nsDOMOfflineResourceList.h',
-]
-CPP_SOURCES += [
-    'nsDOMOfflineResourceList.cpp',
-]
-
-LIBRARY_NAME = 'jsdomoffline_s'
-

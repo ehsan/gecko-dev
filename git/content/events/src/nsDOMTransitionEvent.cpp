@@ -5,7 +5,9 @@
 
 #include "nsDOMTransitionEvent.h"
 #include "nsGUIEvent.h"
-#include "prtime.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 
 nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
                                            nsPresContext *aPresContext,
@@ -23,6 +25,7 @@ nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
+  SetIsDOMBinding();
 }
 
 nsDOMTransitionEvent::~nsDOMTransitionEvent()
@@ -33,8 +36,11 @@ nsDOMTransitionEvent::~nsDOMTransitionEvent()
   }
 }
 
+DOMCI_DATA(TransitionEvent, nsDOMTransitionEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMTransitionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTransitionEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TransitionEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTransitionEvent, nsDOMEvent)

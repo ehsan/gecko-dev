@@ -65,21 +65,12 @@ ContentPrefStore.prototype = {
     }
   },
 
-  removeGroup: function CPS_removeGroup(group) {
-    if (group) {
-      delete this._groups[group];
-    }
-    else {
-      this._globalNames = {};
-    }
-  },
-
-  removeAllGroups: function CPS_removeAllGroups() {
+  removeGrouped: function CPS_removeGrouped() {
     this._groups = {};
   },
 
   removeAll: function CPS_removeAll() {
-    this.removeAllGroups();
+    this.removeGrouped();
     this._globalNames = {};
   },
 

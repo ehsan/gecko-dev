@@ -40,8 +40,6 @@ public:
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
   virtual nsresult ResetDecode();
 
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
-
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
                                 int64_t aTimeThreshold);
@@ -55,11 +53,6 @@ public:
   {
     return mHasVideo;
   }
-
-  virtual bool IsWaitingMediaResources();
-
-  virtual bool IsDormantNeeded();
-  virtual void ReleaseMediaResources();
 
   virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);

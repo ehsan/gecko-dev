@@ -12,13 +12,30 @@ include $(DEPTH)/config/autoconf.mk
 USE_RCS_MK := 1
 include $(topsrcdir)/config/makefiles/rcs.mk
 
+MODULE_NAME = telemetry
+
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
+IS_COMPONENT = 1
 FAIL_ON_WARNINGS = 1
 
 LIBRARY_NAME = telemetry
-MSVC_ENABLE_PGO := 1
 
+EXTRA_PP_COMPONENTS = \
+  TelemetryPing.js \
+  $(NULL)
+
+EXTRA_COMPONENTS = \
+  TelemetryPing.manifest \
+  $(NULL)
+
+EXTRA_JS_MODULES = \
+  TelemetryStopwatch.jsm \
+  $(NULL)
+
+CPPSRCS = \
+  Telemetry.cpp \
+  $(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/build
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/threads
@@ -37,6 +54,7 @@ ifdef MOZ_HISTOGRAMS_VERSION
 DEFINES += -DHISTOGRAMS_FILE_VERSION="$(MOZ_HISTOGRAMS_VERSION)"
 endif
 
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 

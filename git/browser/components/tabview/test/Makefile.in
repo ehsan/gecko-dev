@@ -9,8 +9,9 @@ VPATH		= @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES := \
+_BROWSER_FILES = \
                  browser_tabview_alltabs.js \
                  browser_tabview_apptabs.js \
                  browser_tabview_bug580412.js \
@@ -147,7 +148,6 @@ MOCHITEST_BROWSER_FILES := \
                  browser_tabview_snapping.js \
                  browser_tabview_startup_transitions.js \
                  browser_tabview_undo_group.js \
-                 browser_tabview_bug610242.js \
                  dummy_page.html \
                  head.js \
                  search1.html \
@@ -168,4 +168,5 @@ MOCHITEST_BROWSER_FILES := \
 # browser_tabview_bug673729.js disabled for intermittent failures (bug 749980)
 # browser_tabview_bug696602.js disabled for intermittent failures (bug 736425)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_BROWSER_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

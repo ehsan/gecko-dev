@@ -65,31 +65,31 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEDisplacementMapElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEDisplacementMapElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEDisplacementMapElement::In2()
 {
   return mStringAttributes[IN2].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDisplacementMapElement::Scale()
 {
   return mNumberAttributes[SCALE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEDisplacementMapElement::XChannelSelector()
 {
   return mEnumAttributes[CHANNEL_X].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEDisplacementMapElement::YChannelSelector()
 {
   return mEnumAttributes[CHANNEL_Y].ToDOMAnimatedEnum(this);

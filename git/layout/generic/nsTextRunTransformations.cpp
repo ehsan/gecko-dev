@@ -5,8 +5,6 @@
 
 #include "nsTextRunTransformations.h"
 
-#include "mozilla/MemoryReporting.h"
-
 #include "nsTextFrameUtils.h"
 #include "gfxSkipChars.h"
 #include "nsGkAtoms.h"
@@ -359,7 +357,7 @@ nsTransformedTextRun::SetPotentialLineBreaks(uint32_t aStart, uint32_t aLength,
 }
 
 size_t
-nsTransformedTextRun::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   size_t total = gfxTextRun::SizeOfExcludingThis(aMallocSizeOf);
   total += mStyles.SizeOfExcludingThis(aMallocSizeOf);
@@ -371,7 +369,7 @@ nsTransformedTextRun::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 }
 
 size_t
-nsTransformedTextRun::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+nsTransformedTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

@@ -10,23 +10,17 @@
 #include <cmath>
 #include <limits>
 #include "mozilla/TypeTraits.h"
-#include "mozilla/FloatingPoint.h"
+#include "mozilla/Assertions.h"
+#include "AudioParamTimeline.h"
 #include "MediaSegment.h"
 
 namespace mozilla {
 
 class AudioNodeStream;
-class MediaStream;
 
 namespace dom {
 
-class AudioParamTimeline;
-
 struct WebAudioUtils {
-  // This is an arbitrary large number used to protect against OOMs.
-  // We can adjust it later if needed.
-  static const uint32_t MaxChannelCount = 32;
-
   static bool FuzzyEqual(float v1, float v2)
   {
     using namespace std;
@@ -53,7 +47,7 @@ struct WebAudioUtils {
    */
   static TrackTicks
   ConvertDestinationStreamTimeToSourceStreamTime(double aTime,
-                                                 AudioNodeStream* aSource,
+                                                 MediaStream* aSource,
                                                  MediaStream* aDestination);
 
   /**
@@ -104,11 +98,6 @@ struct WebAudioUtils {
   static double DiscreteTimeConstantForSampleRate(double timeConstant, double sampleRate)
   {
     return 1.0 - std::exp(-1.0 / (sampleRate * timeConstant));
-  }
-
-  static bool IsTimeValid(double aTime)
-  {
-    return aTime >= 0 &&  aTime <= (MEDIA_TIME_MAX >> MEDIA_TIME_FRAC_BITS);
   }
 
   /**
@@ -186,10 +175,10 @@ struct WebAudioUtils {
   {
     using namespace std;
 
-    static_assert(mozilla::IsIntegral<IntType>::value == true,
-                  "IntType must be an integral type");
-    static_assert(mozilla::IsFloatingPoint<FloatType>::value == true,
-                  "FloatType must be a floating point type");
+    MOZ_STATIC_ASSERT((mozilla::IsIntegral<IntType>::value == true),
+                      "IntType must be an integral type");
+    MOZ_STATIC_ASSERT((mozilla::IsFloatingPoint<FloatType>::value == true),
+                      "FloatType must be a floating point type");
 
     if (f != f) {
       // It is the responsibility of the caller to deal with NaN values.
@@ -212,8 +201,6 @@ struct WebAudioUtils {
     // Otherwise, this conversion must be well defined.
     return IntType(f);
   }
-
-  static void Shutdown();
 };
 
 }

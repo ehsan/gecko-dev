@@ -10,5 +10,5 @@ function g(code) {
         evalcx("(function(){return" + code + "})()")
     } catch (e) {}
 }
-g("")
+g("mjitChunkLimit(8)")
 g(" function(x,[]){NaN.x::c}()")

@@ -84,12 +84,11 @@ class nsChildView;
 class nsCocoaWindow;
 union nsPluginPort;
 
-namespace {
-class GLPresenter;
-class RectTextureImage;
+namespace mozilla {
+namespace gl {
+class TextureImage;
 }
 
-namespace mozilla {
 namespace layers {
 class GLManager;
 }
@@ -105,18 +104,6 @@ class GLManager;
 @end
 
 @interface NSView (Undocumented)
-
-// Draws the title string of a window.
-// Present on NSThemeFrame since at least 10.6.
-// _drawTitleBar is somewhat complex, and has changed over the years
-// since OS X 10.6.  But in that time it's never done anything that
-// would break when called outside of -[NSView drawRect:] (which we
-// sometimes do), or whose output can't be redirected to a
-// CGContextRef object (which we also sometimes do).  This is likely
-// to remain true for the indefinite future.  However we should
-// check _drawTitleBar in each new major version of OS X.  For more
-// information see bug 877767.
-- (void)_drawTitleBar:(NSRect)aRect;
 
 // Returns an NSRect that is the bounding box for all an NSView's dirty
 // rectangles (ones that need to be redrawn).  The full list of dirty
@@ -211,11 +198,15 @@ typedef NSInteger NSEventGestureAxis;
 - (NSEventPhase)momentumPhase;
 @end
 
+@protocol EventRedirection
+  - (NSView*)targetView;
+@end
+
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
 #endif
-                              mozView, NSTextInput, NSTextInputClient>
+                              mozView, NSTextInput>
 {
 @private
   // the nsChildView that created the view. It retains this NSView, so
@@ -287,15 +278,11 @@ typedef NSInteger NSEventGestureAxis;
 #ifdef __LP64__
   // Support for fluid swipe tracking.
   BOOL* mCancelSwipeAnimation;
-  uint32_t mCurrentSwipeDir;
+  PRUint32 mCurrentSwipeDir;
 #endif
 
   // Whether this uses off-main-thread compositing.
   BOOL mUsingOMTCompositor;
-
-  // The mask image that's used when painting into the titlebar using basic
-  // CGContext painting (i.e. non-accelerated).
-  CGImageRef mTopLeftCornerMask;
 }
 
 // class initialization
@@ -316,6 +303,12 @@ typedef NSInteger NSEventGestureAxis;
 
 - (void)updateWindowDraggableStateOnMouseMove:(NSEvent*)theEvent;
 
+- (void)maybeDrawInTitlebar;
+
+- (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
+
+- (void)drawTitlebar:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
+
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
                              type:(nsMouseEvent::exitType)aType;
@@ -332,8 +325,6 @@ typedef NSInteger NSEventGestureAxis;
 
 - (void)setGLContext:(NSOpenGLContext *)aGLContext;
 - (void)preRender:(NSOpenGLContext *)aGLContext;
-
-- (BOOL)isCoveringTitlebar;
 
 // Simple gestures support
 //
@@ -449,8 +440,6 @@ public:
 
   virtual double          GetDefaultScaleInternal();
 
-  virtual int32_t         RoundsWidgetCoordinatesTo() MOZ_OVERRIDE;
-
   NS_IMETHOD              Invalidate(const nsIntRect &aRect);
 
   virtual void*           GetNativeData(uint32_t aDataType);
@@ -463,7 +452,7 @@ public:
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
   virtual bool            ComputeShouldAccelerate(bool aDefault);
-  virtual bool            ShouldUseOffMainThreadCompositing() MOZ_OVERRIDE;
+  virtual bool            ShouldUseOffMainThreadCompositing();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, uint32_t aHotspotX, uint32_t aHotspotY);
@@ -482,7 +471,6 @@ public:
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction);
   NS_IMETHOD_(InputContext) GetInputContext();
-  virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE;
   NS_IMETHOD        GetToggledKeyState(uint32_t aKeyCode,
                                        bool* aLEDState);
 
@@ -520,7 +508,7 @@ public:
   virtual bool      DispatchWindowEvent(nsGUIEvent& event);
 
   void WillPaintWindow();
-  bool PaintWindow(nsIntRegion aRegion);
+  bool PaintWindow(nsIntRegion aRegion, bool aIsAlternate);
 
 #ifdef ACCESSIBILITY
   already_AddRefed<mozilla::a11y::Accessible> GetDocumentAccessible();
@@ -534,6 +522,9 @@ public:
   virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) MOZ_OVERRIDE;
 
   virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
+
+  NS_IMETHOD BeginSecureKeyboardInput();
+  NS_IMETHOD EndSecureKeyboardInput();
 
   void              HidePlugin();
   void              UpdatePluginPort();
@@ -552,17 +543,16 @@ public:
 
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 
+  CGContextRef      GetCGContextForTitlebarDrawing(NSSize aSize);
+
+  virtual void      WillPaint() MOZ_OVERRIDE;
+
   mozilla::widget::TextInputHandler* GetTextInputHandler()
   {
     return mTextInputHandler;
   }
 
-  void              NotifyDirtyRegion(const nsIntRegion& aDirtyRegion);
-
   // unit conversion convenience functions
-  int32_t           CocoaPointsToDevPixels(CGFloat aPts) {
-    return nsCocoaUtils::CocoaPointsToDevPixels(aPts, BackingScaleFactor());
-  }
   nsIntPoint        CocoaPointsToDevPixels(const NSPoint& aPt) {
     return nsCocoaUtils::CocoaPointsToDevPixels(aPt, BackingScaleFactor());
   }
@@ -576,9 +566,7 @@ public:
     return nsCocoaUtils::DevPixelsToCocoaPoints(aRect, BackingScaleFactor());
   }
 
-  mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing() MOZ_OVERRIDE;
-  void EndRemoteDrawing() MOZ_OVERRIDE;
-  void CleanupRemoteDrawing() MOZ_OVERRIDE;
+  void CompositeTitlebar(const gfxSize& aSize, CGContextRef aContext);
 
 protected:
 
@@ -598,19 +586,8 @@ protected:
     return widget.forget();
   }
 
-  void DoRemoteComposition(const nsIntRect& aRenderRect);
-
-  // Overlay drawing functions for OpenGL drawing
-  void DrawWindowOverlay(mozilla::layers::GLManager* aManager, nsIntRect aRect);
-  void MaybeDrawResizeIndicator(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
-  void MaybeDrawRoundedCorners(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
-  void MaybeDrawTitlebar(mozilla::layers::GLManager* aManager, const nsIntRect& aRect);
-
-  // Redraw the contents of mTitlebarImageBuffer on the main thread, as
-  // determined by mDirtyTitlebarRegion.
-  void UpdateTitlebarImageBuffer();
-
-  nsIntRect RectContainingTitlebarControls();
+  void MaybeDrawResizeIndicator(mozilla::layers::GLManager* aManager, nsIntRect aRect);
+  void MaybeDrawRoundedBottomCorners(mozilla::layers::GLManager* aManager, nsIntRect aRect);
 
   nsIWidget* GetWidgetForListenerEvents();
 
@@ -640,24 +617,15 @@ protected:
   nsIntRect mResizeIndicatorRect;
   bool mHasRoundedBottomCorners;
   int mDevPixelCornerRadius;
-  bool mIsCoveringTitlebar;
-  nsIntRect mTitlebarRect;
-
-  // The area of mTitlebarImageBuffer that needs to be redrawn during the next
-  // transaction. Accessed from any thread, protected by mEffectsLock.
-  nsIntRegion mUpdatedTitlebarRegion;
-
-  mozilla::RefPtr<mozilla::gfx::DrawTarget> mTitlebarImageBuffer;
 
   // Compositor thread only
-  nsAutoPtr<RectTextureImage> mResizerImage;
-  nsAutoPtr<RectTextureImage> mCornerMaskImage;
-  nsAutoPtr<RectTextureImage> mTitlebarImage;
-  nsAutoPtr<RectTextureImage> mBasicCompositorImage;
+  bool                  mFailedResizerImage;
+  bool                  mFailedCornerMaskImage;
+  nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
+  nsRefPtr<mozilla::gl::TextureImage> mCornerMaskImage;
 
-  // The area of mTitlebarImageBuffer that has changed and needs to be
-  // uploaded to to mTitlebarImage. Main thread only.
-  nsIntRegion           mDirtyTitlebarRegion;
+  nsRefPtr<gfxQuartzSurface> mTitlebarSurf;
+  gfxSize mTitlebarSize;
 
   // Cached value of [mView backingScaleFactor], to avoid sending two obj-c
   // messages (respondsToSelector, backingScaleFactor) every time we need to
@@ -672,10 +640,6 @@ protected:
 
   NP_CGContext          mPluginCGContext;
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
-
-  // Used in OMTC BasicLayers mode. Presents the BasicCompositor result
-  // surface to the screen using an OpenGL context.
-  nsAutoPtr<GLPresenter> mGLPresenter;
 
   static uint32_t sLastInputEventCount;
 };

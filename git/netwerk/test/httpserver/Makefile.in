@@ -14,6 +14,10 @@ include $(DEPTH)/config/autoconf.mk
 
 NO_INTERFACES_MANIFEST = 1
 
+EXTRA_COMPONENTS = \
+                   httpd.js \
+                   $(NULL)
+
 ifdef XPI_NAME
 NO_JS_MANIFEST = 1
 USE_EXTENSION_MANIFEST = 1
@@ -22,6 +26,8 @@ EXTRA_COMPONENTS += \
                    httpd.manifest \
                    $(NULL)
 endif
+
+DISABLED_XPCSHELL_TESTS = test
 
 TESTING_JS_MODULES = httpd.js
 

@@ -27,20 +27,11 @@ function isLandscapeMode()
   return (MetroUtils.snappedState == Ci.nsIWinMetroUtils.fullScreenLandscape);
 }
 
-function setDevPixelEqualToPx()
-{
-  todo(false, "test depends on devPixelsPerPx set to 1.0 - see bugs 886624 and 859742");
-  SpecialPowers.setCharPref("layout.css.devPixelsPerPx", "1.0");
-  registerCleanupFunction(function () {
-    SpecialPowers.clearUserPref("layout.css.devPixelsPerPx");
-  });
-}
-
 function checkContextUIMenuItemCount(aCount)
 {
   let visibleCount = 0;
-  for (let idx = 0; idx < ContextMenuUI.commands.childNodes.length; idx++) {
-    if (!ContextMenuUI.commands.childNodes[idx].hidden)
+  for (let idx = 0; idx < ContextMenuUI._commands.childNodes.length; idx++) {
+    if (!ContextMenuUI._commands.childNodes[idx].hidden)
       visibleCount++;
   }
   is(visibleCount, aCount, "command list count");
@@ -49,8 +40,8 @@ function checkContextUIMenuItemCount(aCount)
 function checkContextUIMenuItemVisibility(aVisibleList)
 {
   let errors = 0;
-  for (let idx = 0; idx < ContextMenuUI.commands.childNodes.length; idx++) {
-    let item = ContextMenuUI.commands.childNodes[idx];
+  for (let idx = 0; idx < ContextMenuUI._commands.childNodes.length; idx++) {
+    let item = ContextMenuUI._commands.childNodes[idx];
     if (aVisibleList.indexOf(item.id) != -1 && item.hidden) {
       // item should be visible
       errors++;
@@ -127,24 +118,15 @@ function showNotification()
 function getSelection(aElement) {
   if (!aElement)
     return null;
-
-  // chrome text edit
-  if (aElement instanceof Ci.nsIDOMXULTextBoxElement) {
-    return aElement.QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
-                   .editor.selection;
-  }
-
-  // editable content element
+  // editable element
   if (aElement instanceof Ci.nsIDOMNSEditableElement) {
     return aElement.QueryInterface(Ci.nsIDOMNSEditableElement)
-                   .editor.selection;
+                 .editor.selection;
   }
-
   // document or window
   if (aElement instanceof HTMLDocument || aElement instanceof Window) {
     return aElement.getSelection();
   }
-
   // browser
   return aElement.contentWindow.getSelection();
 };
@@ -171,31 +153,24 @@ function clearSelection(aTarget) {
   Asynchronous Metro ui helpers
 =============================================================================*/
 
-// Hides the tab and context app bar if they are visible
 function hideContextUI()
 {
   purgeEventQueue();
-
-  return Task.spawn(function() {
-    if (ContextUI.tabbarVisible) {
-      let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
-      if (ContextUI.dismiss()) {
-        yield promise;
-      }
+  if (ContextUI.isVisible) {
+    let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
+    if (ContextUI.dismiss())
+    {
+      info("ContextUI dismissed, waiting...");
+      return promise;
     }
-
-    if (ContextUI.contextAppbarVisible) {
-      let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-      ContextUI.dismissContextAppbar();
-      yield promise;
-    }
-  });
+    return true;
+  }
 }
 
 function showNavBar()
 {
-  let promise = waitForEvent(Elements.navbar, "transitionend");
-  if (!ContextUI.navbarVisible) {
+  let promise = waitForEvent(Elements.tray, "transitionend");
+  if (!ContextUI.isVisible) {
     ContextUI.displayNavbar();
     return promise;
   }
@@ -205,7 +180,7 @@ function fireAppBarDisplayEvent()
 {
   let promise = waitForEvent(Elements.tray, "transitionend");
   let event = document.createEvent("Events");
-  event.initEvent("MozEdgeUICompleted", true, false);
+  event.initEvent("MozEdgeUIGesture", true, false);
   gWindow.dispatchEvent(event);
   purgeEventQueue();
   return promise;
@@ -278,10 +253,9 @@ function cleanUpOpenedTabs() {
 function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
   let eventDeferred = Promise.defer();
   let timeoutMs = aTimeoutMs || kDefaultWait;
-  let stack = new Error().stack;
   let timerID = setTimeout(function wfe_canceller() {
     aSubject.removeEventListener(aEventName, onEvent);
-    eventDeferred.reject( new Error(aEventName+" event timeout at " + stack) );
+    eventDeferred.reject( new Error(aEventName+" event timeout") );
   }, timeoutMs);
 
   function onEvent(aEvent) {
@@ -533,39 +507,6 @@ function synthesizeNativeMouseMUp(aElement, aOffsetX, aOffsetY) {
 }
 
 /*
- * logicalCoordsForElement - given coordinates relative to top-left of
- * given element, returns logical coordinates for window. If a non-numeric
- * X or Y value is given, a value for the center of the element in that
- * dimension is used.
- *
- * @param aElement element coordinates are relative to.
- * @param aX, aY relative coordinates.
- */
-function logicalCoordsForElement (aElement, aX, aY) {
-  let coords = { x: null, y: null };
-  let rect = aElement.getBoundingClientRect();
-
-  coords.x = isNaN(aX) ? rect.left + (rect.width / 2) : rect.left + aX;
-  coords.y = isNaN(aY) ? rect.top + (rect.height / 2) : rect.top + aY;
-
-  return coords;
-}
-
-function sendContextMenuMouseClickToElement(aWindow, aElement, aX, aY) {
-  let utils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                     .getInterface(Ci.nsIDOMWindowUtils);
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-
-  utils.sendMouseEventToWindow("mousedown", coords.x, coords.y, 2, 1, 0);
-  utils.sendMouseEventToWindow("mouseup", coords.x, coords.y, 2, 1, 0);
-  utils.sendMouseEventToWindow("contextmenu", coords.x, coords.y, 2, 1, 0);
-}
-
-function sendMouseClick(aWindow, aX, aY) {
-  EventUtils.synthesizeMouseAtPoint(aX, aY, {}, aWindow);
-}
-
-/*
  * sendContextMenuClick - simulates a press-hold touch input event. Event
  * is delivered to the main window of the application through the top-level
  * widget.
@@ -580,26 +521,6 @@ function sendContextMenuClick(aX, aY) {
                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
   utils.sendMouseEvent("contextmenu", aX, aY, 2, 1, 0, true,
                         1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
-}
-
-/*
- * sendContextMenuClickToSelection - simulates a press-hold touch input event
- * selected text in a window.
- */
-function sendContextMenuClickToSelection(aWindow) {
-  let selection = aWindow.getSelection();
-  if (!selection || !selection.rangeCount) {
-    ok(false, "no selection to tap!");
-    return;
-  }
-  let range = selection.getRangeAt(0);
-  let rect = range.getBoundingClientRect();
-  let x = rect.left + (rect.width / 2);
-  let y = rect.top + (rect.height / 2);
-  let utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
-  utils.sendMouseEventToWindow("contextmenu", x, y, 2, 1, 0, true,
-                                1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
 }
 
 /*
@@ -620,8 +541,8 @@ function sendContextMenuClickToWindow(aWindow, aX, aY) {
 function sendContextMenuClickToElement(aWindow, aElement, aX, aY) {
   let utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  utils.sendMouseEventToWindow("contextmenu", coords.x, coords.y, 2, 1, 0, true,
+  let rect = aElement.getBoundingClientRect();
+  utils.sendMouseEventToWindow("contextmenu", rect.left + aX, rect.top + aY, 2, 1, 0, true,
                                 1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
 }
 
@@ -642,14 +563,6 @@ function sendDoubleTap(aWindow, aX, aY) {
 
 function sendTap(aWindow, aX, aY) {
   EventUtils.synthesizeMouseAtPoint(aX, aY, {
-      clickCount: 1,
-      inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
-    }, aWindow);
-}
-
-function sendElementTap(aWindow, aElement, aX, aY) {
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  EventUtils.synthesizeMouseAtPoint(coords.x, coords.y, {
       clickCount: 1,
       inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
     }, aWindow);
@@ -712,22 +625,6 @@ TouchDragAndHold.prototype = {
     return this._defer.promise;
   },
 
-  move: function move(aEndX, aEndY) {
-    if (this._win == null)
-      return;
-    if (this._debug) {
-      info("[0] continuation to " + aEndX + " x " + aEndY);
-    }
-    this._defer = Promise.defer();
-    this._step = { steps: 0,
-                   x: (aEndX - this._endPoint.xPos) / this._numSteps,
-                   y: (aEndY - this._endPoint.yPos) / this._numSteps };
-    this._endPoint = { xPos: aEndX, yPos: aEndY };
-    let self = this;
-    setTimeout(function () { self.callback(); }, this._timeoutStep);
-    return this._defer.promise;
-  },
-
   end: function start() {
     if (this._debug) {
       info("[" + this._step.steps + "] touchend " + this._endPoint.xPos + " x " + this._endPoint.yPos);
@@ -742,8 +639,8 @@ TouchDragAndHold.prototype = {
   System utilities
 =============================================================================*/
 
-/*
- * emptyClipboard - clear the windows clipboard.
+ /*
+ * emptyClipboard - clear the windows clipbaord.
  */
 function emptyClipboard() {
   Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard)
@@ -800,9 +697,8 @@ function runTests() {
       let badTabs = [];
       Browser.tabs.forEach(function(item, index, array) {
         let location = item.browser.currentURI.spec;
-        if (index == 0 && location == "about:blank" || location == "about:start") {
+        if (index == 0 && location == "about:blank")
           return;
-        }
         ok(false, "Left over tab after test: '" + location + "'");
         badTabs.push(item);
       });
@@ -818,24 +714,6 @@ function runTests() {
   });
 }
 
-// wrap a method with a spy that records how and how many times it gets called
-// the spy is returned; use spy.restore() to put the original back
-function spyOnMethod(aObj, aMethod) {
-  let origFunc = aObj[aMethod];
-  let spy = function() {
-    spy.calledWith = Array.slice(arguments);
-    spy.callCount++;
-    return (spy.returnValue = origFunc.apply(aObj, arguments));
-  };
-  spy.callCount = 0;
-  spy.restore = function() {
-    return (aObj[aMethod] = origFunc);
-  };
-  return (aObj[aMethod] = spy);
-}
-
-// replace a method with a stub that records how and how many times it gets called
-// the stub is returned; use stub.restore() to put the original back
 function stubMethod(aObj, aMethod) {
   let origFunc = aObj[aMethod];
   let func = function() {

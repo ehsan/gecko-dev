@@ -5,7 +5,6 @@
 include protocol PGrallocBuffer;
 
 include "gfxipc/ShadowLayerUtils.h";
-include "mozilla/gfx/Types.h";
 
 using gfx3DMatrix;
 using gfxIntSize;
@@ -25,8 +24,6 @@ using mozilla::WindowsHandle;
 using mozilla::gl::SharedTextureHandle;
 using mozilla::gl::GLContext::SharedTextureShareType;
 using mozilla::gfx::SurfaceStreamHandle;
-using mozilla::gfx::SurfaceFormat;
-using mozilla::gfx::IntSize;
 
 namespace mozilla {
 namespace layers {
@@ -34,11 +31,6 @@ namespace layers {
 union MaybeMagicGrallocBufferHandle {
   MagicGrallocBufferHandle;
   null_t;
-};
-
-struct SurfaceDescriptorD3D9 {
-  // IDirect3DTexture9*
-  uintptr_t texture;
 };
 
 struct SurfaceDescriptorD3D10 {
@@ -53,33 +45,6 @@ struct SharedTextureDescriptor {
   bool inverted;
 };
 
-struct BasicShmTileDescriptor {
-  Shmem reusableSurface;
-};
-
-struct BasicTileDescriptor {
-  uintptr_t reusableSurface;
-};
-
-struct PlaceholderTileDescriptor {
-};
-
-union TileDescriptor {
-  BasicTileDescriptor;
-  BasicShmTileDescriptor;
-  PlaceholderTileDescriptor;
-};
-
-struct SurfaceDescriptorTiles {
-  nsIntRegion validRegion;
-  nsIntRegion paintedRegion;
-  TileDescriptor[] tiles;
-  int         retainedWidth;
-  int         retainedHeight;
-  float       resolution;
-};
-
-// XXX - soon to be removed
 struct SurfaceDescriptorGralloc {
   PGrallocBuffer buffer;
   /**
@@ -97,17 +62,6 @@ struct SurfaceDescriptorGralloc {
    * prevent its consumer from mistakenly freeing the buffer.
    */
   bool external;
-
-  /**
-   * This gralloc buffer will be treated as if the RB bytes are swapped.
-   * This is useful for rendering using Cairo/Thebes, because there is no
-   * BGRX Android pixel format, and so we have to do byte swapping.
-   *
-   * For example, if the GraphicBuffer has an Android pixel format of
-   * PIXEL_FORMAT_RGBA_8888 and isRBSwapped is true, when it is sampled
-   * (for example, with GL), a BGRA shader should be used.
-   */
-  bool isRBSwapped;
 };
 
 struct SurfaceStreamDescriptor {
@@ -115,9 +69,9 @@ struct SurfaceStreamDescriptor {
   bool yflip;
 };
 
-// XXX - can be removed as soon as DeprecatedImageClientSingle is removed
 struct YCbCrImage {
   Shmem data;
+  size_t offset;
   uint64_t owner;
 };
 
@@ -129,42 +83,15 @@ struct RGBImage {
   uint64_t owner;
 };
 
-struct MemoryImage {
-  uintptr_t data;
-  gfxIntSize size;
-  uint32_t stride;
-  uint32_t format;
-};
-
-/**
- * Used for shmem-backed YCbCr and (flavors of) RGBA textures
- */
-struct SurfaceDescriptorShmem {
-  Shmem data;
-  SurfaceFormat format;
-};
-
-/**
- * Used for "raw memory"-backed YCbCr and (flavors of) RGBA textures
- */
- struct SurfaceDescriptorMemory {
-  uintptr_t data;
-  SurfaceFormat format;
-};
-
 union SurfaceDescriptor {
-  SurfaceDescriptorShmem;
-  SurfaceDescriptorMemory;
-  SurfaceDescriptorD3D9;
+  Shmem;
   SurfaceDescriptorD3D10;
+  SurfaceDescriptorGralloc;
   SurfaceDescriptorX11;
+  YCbCrImage;
+  RGBImage;
   SharedTextureDescriptor;
   SurfaceStreamDescriptor;
-  YCbCrImage;                 // XXX - deprecated
-  SurfaceDescriptorGralloc;   // XXX - deprecated
-  Shmem;                      // XXX - deprecated
-  RGBImage;                   // XXX - deprecated
-  MemoryImage;                // XXX - deprecated
   null_t;
 };
 

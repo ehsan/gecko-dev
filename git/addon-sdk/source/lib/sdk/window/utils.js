@@ -18,13 +18,11 @@ const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 const WM = Cc['@mozilla.org/appshell/window-mediator;1'].
            getService(Ci.nsIWindowMediator);
-const io = Cc['@mozilla.org/network/io-service;1'].
-           getService(Ci.nsIIOService);
 
 const BROWSER = 'navigator:browser',
       URI_BROWSER = 'chrome://browser/content/browser.xul',
       NAME = '_blank',
-      FEATURES = 'chrome,all,dialog=no,non-private';
+      FEATURES = 'chrome,all,dialog=no';
 
 function isWindowPrivate(win) {
   if (!win)
@@ -186,21 +184,18 @@ function serializeFeatures(options) {
  *    Map of key, values like: `{ width: 10, height: 15, chrome: true, private: true }`.
  */
 function open(uri, options) {
-  uri = uri || URI_BROWSER;
-  options = options || {}
-
-  if (['chrome', 'resource', 'data'].indexOf(io.newURI(uri, null, null).scheme) < 0)
-    throw new Error('only chrome, resource and data uris are allowed');
-
+  options = options || {};
   let newWindow = windowWatcher.
     openWindow(options.parent || null,
-               uri,
+               uri || URI_BROWSER,
                options.name || null,
                serializeFeatures(options.features || {}),
                options.args || null);
 
   return newWindow;
 }
+
+
 exports.open = open;
 
 function onFocus(window) {
@@ -248,21 +243,9 @@ function openDialog(options) {
   options = options || {};
 
   let features = options.features || FEATURES;
-  let featureAry = features.toLowerCase().split(',');
-
-  if (!!options.private) {
-    // add private flag if private window is desired
-    if (!array.has(featureAry, 'private')) {
-      featureAry.push('private');
-    }
-
-    // remove the non-private flag ig a private window is desired
-    let nonPrivateIndex = featureAry.indexOf('non-private');
-    if (nonPrivateIndex >= 0) {
-      featureAry.splice(nonPrivateIndex, 1);
-    }
-
-    features = featureAry.join(',');
+  if (!!options.private &&
+      !array.has(features.toLowerCase().split(','), 'private')) {
+    features = features.split(',').concat('private').join(',');
   }
 
   let browser = getMostRecentBrowserWindow();
@@ -394,16 +377,3 @@ function getOwnerBrowserWindow(node) {
   });
 }
 exports.getOwnerBrowserWindow = getOwnerBrowserWindow;
-
-function getParentWindow(window) {
-  try {
-    return window.QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebNavigation)
-      .QueryInterface(Ci.nsIDocShellTreeItem).parent
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindow);
-  }
-  catch (e) {}
-  return null;
-}
-exports.getParentWindow = getParentWindow;

@@ -223,22 +223,8 @@ typedef enum {
                                AUDIO_CHANNEL_IN_VOICE_DNLINK),
 } audio_channels_t;
 
-#if ANDROID_VERSION >= 17
-typedef enum {
-    AUDIO_MODE_INVALID          = -2,
-    AUDIO_MODE_CURRENT          = -1,
-    AUDIO_MODE_NORMAL           = 0,
-    AUDIO_MODE_RINGTONE         = 1,
-    AUDIO_MODE_IN_CALL          = 2,
-    AUDIO_MODE_IN_COMMUNICATION = 3,
-
-    AUDIO_MODE_CNT,
-    AUDIO_MODE_MAX              = AUDIO_MODE_CNT - 1,
-} audio_mode_t;
-#endif
 #endif
 
-#if ANDROID_VERSION < 17
 typedef enum {
     /* output devices */      
     AUDIO_DEVICE_OUT_EARPIECE                  = 0x1,
@@ -315,109 +301,6 @@ typedef enum {
                                AUDIO_DEVICE_IN_DEFAULT),
     AUDIO_DEVICE_IN_ALL_SCO = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
 } audio_devices_t;
-#else
-enum {
-    AUDIO_DEVICE_NONE                          = 0x0,
-    /* reserved bits */
-    AUDIO_DEVICE_BIT_IN                        = 0x80000000,
-    AUDIO_DEVICE_BIT_DEFAULT                   = 0x40000000,
-    /* output devices */
-    AUDIO_DEVICE_OUT_EARPIECE                  = 0x1,
-    AUDIO_DEVICE_OUT_SPEAKER                   = 0x2,
-    AUDIO_DEVICE_OUT_WIRED_HEADSET             = 0x4,
-    AUDIO_DEVICE_OUT_WIRED_HEADPHONE           = 0x8,
-    AUDIO_DEVICE_OUT_BLUETOOTH_SCO             = 0x10,
-    AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET     = 0x20,
-    AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT      = 0x40,
-    AUDIO_DEVICE_OUT_BLUETOOTH_A2DP            = 0x80,
-    AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES = 0x100,
-    AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER    = 0x200,
-    AUDIO_DEVICE_OUT_AUX_DIGITAL               = 0x400,
-    AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET         = 0x800,
-    AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET         = 0x1000,
-    AUDIO_DEVICE_OUT_USB_ACCESSORY             = 0x2000,
-    AUDIO_DEVICE_OUT_USB_DEVICE                = 0x4000,
-    AUDIO_DEVICE_OUT_REMOTE_SUBMIX             = 0x8000,
-    AUDIO_DEVICE_OUT_ANC_HEADSET               = 0x10000,
-    AUDIO_DEVICE_OUT_ANC_HEADPHONE             = 0x20000,
-    AUDIO_DEVICE_OUT_PROXY                     = 0x40000,
-    AUDIO_DEVICE_OUT_FM                        = 0x80000,
-    AUDIO_DEVICE_OUT_FM_TX                     = 0x100000,
-    AUDIO_DEVICE_OUT_DEFAULT                   = AUDIO_DEVICE_BIT_DEFAULT,
-    AUDIO_DEVICE_OUT_ALL      = (AUDIO_DEVICE_OUT_EARPIECE |
-                                 AUDIO_DEVICE_OUT_SPEAKER |
-                                 AUDIO_DEVICE_OUT_WIRED_HEADSET |
-                                 AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_SCO |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_A2DP |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER |
-                                 AUDIO_DEVICE_OUT_AUX_DIGITAL |
-                                 AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET |
-                                 AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET |
-                                 AUDIO_DEVICE_OUT_USB_ACCESSORY |
-                                 AUDIO_DEVICE_OUT_USB_DEVICE |
-                                 AUDIO_DEVICE_OUT_REMOTE_SUBMIX |
-                                 AUDIO_DEVICE_OUT_ANC_HEADSET |
-                                 AUDIO_DEVICE_OUT_ANC_HEADPHONE |
-                                 AUDIO_DEVICE_OUT_PROXY |
-                                 AUDIO_DEVICE_OUT_FM |
-                                 AUDIO_DEVICE_OUT_FM_TX |
-                                 AUDIO_DEVICE_OUT_DEFAULT),
-    AUDIO_DEVICE_OUT_ALL_A2DP = (AUDIO_DEVICE_OUT_BLUETOOTH_A2DP |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER),
-    AUDIO_DEVICE_OUT_ALL_SCO  = (AUDIO_DEVICE_OUT_BLUETOOTH_SCO |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET |
-                                 AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT),
-    AUDIO_DEVICE_OUT_ALL_USB  = (AUDIO_DEVICE_OUT_USB_ACCESSORY |
-                                 AUDIO_DEVICE_OUT_USB_DEVICE),
-
-    /* input devices */
-    AUDIO_DEVICE_IN_COMMUNICATION         = AUDIO_DEVICE_BIT_IN | 0x1,
-    AUDIO_DEVICE_IN_AMBIENT               = AUDIO_DEVICE_BIT_IN | 0x2,
-    AUDIO_DEVICE_IN_BUILTIN_MIC           = AUDIO_DEVICE_BIT_IN | 0x4,
-    AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET = AUDIO_DEVICE_BIT_IN | 0x8,
-    AUDIO_DEVICE_IN_WIRED_HEADSET         = AUDIO_DEVICE_BIT_IN | 0x10,
-    AUDIO_DEVICE_IN_AUX_DIGITAL           = AUDIO_DEVICE_BIT_IN | 0x20,
-    AUDIO_DEVICE_IN_VOICE_CALL            = AUDIO_DEVICE_BIT_IN | 0x40,
-    AUDIO_DEVICE_IN_BACK_MIC              = AUDIO_DEVICE_BIT_IN | 0x80,
-    AUDIO_DEVICE_IN_REMOTE_SUBMIX         = AUDIO_DEVICE_BIT_IN | 0x100,
-    AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET     = AUDIO_DEVICE_BIT_IN | 0x200,
-    AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET     = AUDIO_DEVICE_BIT_IN | 0x400,
-    AUDIO_DEVICE_IN_USB_ACCESSORY         = AUDIO_DEVICE_BIT_IN | 0x800,
-    AUDIO_DEVICE_IN_USB_DEVICE            = AUDIO_DEVICE_BIT_IN | 0x1000,
-    AUDIO_DEVICE_IN_ANC_HEADSET           = AUDIO_DEVICE_BIT_IN | 0x2000,
-    AUDIO_DEVICE_IN_PROXY                 = AUDIO_DEVICE_BIT_IN | 0x4000,
-    AUDIO_DEVICE_IN_FM_RX                 = AUDIO_DEVICE_BIT_IN | 0x8000,
-    AUDIO_DEVICE_IN_FM_RX_A2DP            = AUDIO_DEVICE_BIT_IN | 0x10000,
-    AUDIO_DEVICE_IN_DEFAULT               = AUDIO_DEVICE_BIT_IN | AUDIO_DEVICE_BIT_DEFAULT,
-
-    AUDIO_DEVICE_IN_ALL     = (AUDIO_DEVICE_IN_COMMUNICATION |
-                               AUDIO_DEVICE_IN_AMBIENT |
-                               AUDIO_DEVICE_IN_BUILTIN_MIC |
-                               AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET |
-                               AUDIO_DEVICE_IN_WIRED_HEADSET |
-                               AUDIO_DEVICE_IN_AUX_DIGITAL |
-                               AUDIO_DEVICE_IN_VOICE_CALL |
-                               AUDIO_DEVICE_IN_BACK_MIC |
-                               AUDIO_DEVICE_IN_REMOTE_SUBMIX |
-                               AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET |
-                               AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET |
-                               AUDIO_DEVICE_IN_USB_ACCESSORY |
-                               AUDIO_DEVICE_IN_USB_DEVICE |
-                               AUDIO_DEVICE_IN_ANC_HEADSET |
-                               AUDIO_DEVICE_IN_FM_RX |
-                               AUDIO_DEVICE_IN_FM_RX_A2DP |
-                               AUDIO_DEVICE_IN_PROXY |
-                               AUDIO_DEVICE_IN_DEFAULT),
-    AUDIO_DEVICE_IN_ALL_SCO = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-};
-
-typedef uint32_t audio_devices_t;
-#endif
 
 /* device connection states used for audio_policy->set_device_connection_state()
  *  */
@@ -767,9 +650,6 @@ public:
     static status_t setDeviceConnectionState(audio_devices device, device_connection_state state, const char *device_address);
     static device_connection_state getDeviceConnectionState(audio_devices device, const char *device_address);
     static status_t setPhoneState(int state);
-#if ANDROID_VERSION >= 17
-    static status_t setPhoneState(audio_mode_t state);
-#endif
     static status_t setRingerMode(uint32_t mode, uint32_t mask);
 #ifdef VANILLA_ANDROID
     static status_t setForceUse(force_use usage, forced_config config);
@@ -826,14 +706,6 @@ public:
                                       int indexMax);
     static status_t setStreamVolumeIndex(stream_type stream, int index);
     static status_t setStreamVolumeIndex(audio_stream_type_t stream, int index);
-#if ANDROID_VERSION >= 17
-    static status_t setStreamVolumeIndex(audio_stream_type_t stream,
-                                         int index,
-                                         audio_devices_t device);
-    static status_t getStreamVolumeIndex(audio_stream_type_t stream,
-                                         int *index,
-                                         audio_devices_t device);
-#endif
     static status_t getStreamVolumeIndex(stream_type stream, int *index);
     static status_t getStreamVolumeIndex(audio_stream_type_t stream, int *index);
 

@@ -20,8 +20,8 @@ namespace dom {
 class TimeRanges;
 }
 
-// Decoder backend for reading H.264/AAC in MP4/M4A, and MP3 files using
-// Windows Media Foundation.
+// Decoder backend for reading H.264/AAC in MP4/M4A and MP3 audio files,
+// using Windows Media Foundation.
 class WMFReader : public MediaDecoderReader
 {
 public:
@@ -74,11 +74,6 @@ private:
   // Attempt to initialize DXVA. Returns true on success.
   bool InitializeDXVA();  
 
-  // Notifies the MediaDecoder of the number of bytes we have consumed
-  // since last time we called this. We call this once per call to
-  // DecodeVideoFrame() and/or DecodeAudioData().
-  void NotifyBytesConsumed();
-
   RefPtr<IMFSourceReader> mSourceReader;
   RefPtr<WMFByteStream> mByteStream;
   RefPtr<WMFSourceReaderCallback> mSourceReaderCallback;
@@ -96,27 +91,15 @@ private:
   uint32_t mVideoHeight;
   uint32_t mVideoStride;
 
-  // The offset, in audio frames, at which playback started since the
-  // last discontinuity.
-  int64_t mAudioFrameOffset;
-  // The number of audio frames that we've played since the last
-  // discontinuity.
-  int64_t mAudioFrameSum;
-  // True if we need to re-initialize mAudioFrameOffset and mAudioFrameSum
-  // from the next audio packet we decode. This happens after a seek, since
-  // WMF doesn't mark a stream as having a discontinuity after a seek(0).
-  bool mMustRecaptureAudioPosition;
-
   bool mHasAudio;
   bool mHasVideo;
+  bool mCanSeek;
   bool mUseHwAccel;
 
   // We can't call WMFDecoder::IsMP3Supported() on non-main threads, since it
   // checks a pref, so we cache its value in mIsMP3Enabled and use that on
   // the decode thread.
   const bool mIsMP3Enabled;
-
-  bool mCOMInitialized;
 };
 
 } // namespace mozilla

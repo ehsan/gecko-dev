@@ -21,10 +21,6 @@ function test() {
 }
 
 function pageLoad() {
-  // Due to layout being async, "PluginBindAttached" may trigger later.
-  // This forces a layout flush, thus triggering it, and schedules the
-  // test so it is definitely executed afterwards.
-  gTestBrowser.contentDocument.getElementById('plugin').clientTop;
   executeSoon(part1);
 }
 
@@ -34,12 +30,11 @@ function part1() {
 
   let plugin = gTestBrowser.contentDocument.getElementById('plugin');
   ok(plugin, 'got plugin element');
-  ok(!plugin.activated, 'plugin should not be activated');
-  ok(PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser).dismissed, "Doorhanger should not be open");
+  let objLC = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
+  ok(!objLC.activated, 'plugin should not be activated');
 
   EventUtils.synthesizeMouseAtCenter(plugin, {}, gTestBrowser.contentWindow);
-  let condition = function() !PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser).dismissed;
-  waitForCondition(condition, part2,
+  waitForCondition(function() objLC.activated, part2,
                    'waited too long for plugin to activate');
 }
 

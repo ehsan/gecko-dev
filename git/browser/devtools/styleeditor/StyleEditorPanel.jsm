@@ -1,4 +1,4 @@
-/* -*- Mode: Javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,7 +10,7 @@ this.EXPORTED_SYMBOLS = ["StyleEditorPanel"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/StyleEditorDebuggee.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUI.jsm");
@@ -41,17 +41,17 @@ StyleEditorPanel.prototype = {
    * open is effectively an asynchronous constructor
    */
   open: function() {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
-    let targetPromise;
+    let promise;
     // We always interact with the target as if it were remote
     if (!this.target.isRemote) {
-      targetPromise = this.target.makeRemote();
+      promise = this.target.makeRemote();
     } else {
-      targetPromise = promise.resolve(this.target);
+      promise = Promise.resolve(this.target);
     }
 
-    targetPromise.then(() => {
+    promise.then(() => {
       this.target.on("close", this.destroy);
 
       this._debuggee = new StyleEditorDebuggee(this.target);
@@ -91,16 +91,16 @@ StyleEditorPanel.prototype = {
    * @param {string} href
    *        Url of stylesheet to find and select in editor
    * @param {number} line
-   *        Line number to jump to after selecting. One-indexed
+   *        Line number to jump to after selecting
    * @param {number} col
-   *        Column number to jump to after selecting. One-indexed
+   *        Column number to jump to after selecting
    */
   selectStyleSheet: function(href, line, col) {
     if (!this._debuggee || !this.UI) {
       return;
     }
     let stylesheet = this._debuggee.styleSheetFromHref(href);
-    this.UI.selectStyleSheet(href, line - 1, col - 1);
+    this.UI.selectStyleSheet(href, line, col);
   },
 
   /**
@@ -119,7 +119,7 @@ StyleEditorPanel.prototype = {
       this.UI.destroy();
     }
 
-    return promise.resolve(null);
+    return Promise.resolve(null);
   },
 }
 

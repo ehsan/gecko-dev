@@ -7,7 +7,7 @@
 #include <string>
 #include <stdio.h>
 #include <errno.h>
-#include <ostream>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #if defined(ANDROID)
@@ -54,7 +54,6 @@
 UnwMode sUnwindMode      = UnwINVALID;
 int     sUnwindInterval  = 0;
 int     sUnwindStackScan = 0;
-int     sProfileEntries  = 0;
 
 using std::string;
 using namespace mozilla;

@@ -53,20 +53,6 @@ self.onmessage = function onmessage(msg) {
 
 
 let Agent = {
-  // Checks if the specified file exists and has an age less than as
-  // specifed (in seconds).
-  isFileRecent: function Agent_isFileRecent(path, maxAge) {
-    try {
-      let stat = OS.File.stat(path);
-      let maxDate = new Date();
-      maxDate.setSeconds(maxDate.getSeconds() - maxAge);
-      return stat.lastModificationDate > maxDate;
-    } catch (ex if ex instanceof OS.File.Error) {
-      // file doesn't exist (or can't be stat'd) - must be stale.
-      return false;
-    }
-  },
-
   remove: function Agent_removeFile(path) {
     try {
       OS.File.remove(path);
@@ -176,28 +162,6 @@ let Agent = {
     } finally {
       iterator.close();
     }
-  },
-
-  touchIfExists: function Agent_touchIfExists(path) {
-    // No OS.File way to update the modification date of the file (bug 905509)
-    // so we open it for reading and writing, read 1 byte from the start of
-    // the file then write that byte back out.
-    // (Sadly it's impossible to use nsIFile here as we have no access to
-    // |Components|)
-    if (!File.exists(path)) {
-      return false;
-    }
-    let file = OS.File.open(path, { read: true, write: true });
-    try {
-      file.setPosition(0); // docs aren't clear on initial position, so seek to 0.
-      let byte = file.read(1);
-      file.setPosition(0);
-      file.write(byte);
-    } finally {
-      file.close();
-    }
-    return true;
-  },
-
+   }
 };
 

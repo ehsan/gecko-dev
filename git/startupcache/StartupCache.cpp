@@ -7,7 +7,6 @@
 #include "prtypes.h"
 #include "pldhash.h"
 #include "nsXPCOMStrings.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/scache/StartupCache.h"
 
 #include "nsAutoPtr.h"
@@ -126,7 +125,7 @@ bool StartupCache::gIgnoreDiskCache;
 enum StartupCache::TelemetrifyAge StartupCache::gPostFlushAgeAction = StartupCache::IGNORE_AGE;
 
 StartupCache::StartupCache() 
-  : mArchive(nullptr), mStartupWriteInitiated(false), mWriteThread(nullptr),
+  : mArchive(NULL), mStartupWriteInitiated(false), mWriteThread(NULL),
     mMappingMemoryReporter(nullptr), mDataMemoryReporter(nullptr) { }
 
 StartupCache::~StartupCache() 
@@ -254,7 +253,7 @@ StartupCache::LoadArchive(enum TelemetrifyAge flag)
     return NS_ERROR_FAILURE;
 
   bool exists;
-  mArchive = nullptr;
+  mArchive = NULL;
   nsresult rv = mFile->Exists(&exists);
   if (NS_FAILED(rv) || !exists)
     return NS_ERROR_FILE_NOT_FOUND;
@@ -383,7 +382,7 @@ StartupCache::SizeOfMapping()
 }
 
 size_t
-StartupCache::HeapSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+StartupCache::HeapSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     // This function could measure more members, but they haven't been found by
     // DMD to be significant.  They can be added later if necessary.
@@ -393,7 +392,7 @@ StartupCache::HeapSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 
 /* static */ size_t
 StartupCache::SizeOfEntryExcludingThis(const nsACString& key, const nsAutoPtr<CacheEntry>& data,
-                                       mozilla::MallocSizeOf mallocSizeOf, void *)
+                                       nsMallocSizeOfFun mallocSizeOf, void *)
 {
     return data->SizeOfExcludingThis(mallocSizeOf);
 }
@@ -481,7 +480,7 @@ StartupCache::WriteToDisk()
   mTable.Enumerate(CacheCloseHelper, &holder);
 
   // Close the archive so Windows doesn't choke.
-  mArchive = nullptr;
+  mArchive = NULL;
   zipW->Close();
 
   // We succesfully wrote the archive to disk; mark the disk file as trusted
@@ -498,7 +497,7 @@ StartupCache::InvalidateCache()
 {
   WaitOnWriteThread();
   mTable.Clear();
-  mArchive = nullptr;
+  mArchive = NULL;
   nsresult rv = mFile->Remove(false);
   if (NS_FAILED(rv) && rv != NS_ERROR_FILE_TARGET_DOES_NOT_EXIST &&
       rv != NS_ERROR_FILE_NOT_FOUND) {
@@ -531,7 +530,7 @@ StartupCache::WaitOnWriteThread()
     return;
 
   PR_JoinThread(mWriteThread);
-  mWriteThread = nullptr;
+  mWriteThread = NULL;
 }
 
 void 
@@ -551,7 +550,7 @@ StartupCache::WriteTimeout(nsITimer *aTimer, void *aClosure)
 {
   gStartupCache->mWriteThread = PR_CreateThread(PR_USER_THREAD,
                                                 StartupCache::ThreadedWrite,
-                                                nullptr,
+                                                NULL,
                                                 PR_PRIORITY_NORMAL,
                                                 PR_LOCAL_THREAD,
                                                 PR_JOINABLE_THREAD,
@@ -560,7 +559,7 @@ StartupCache::WriteTimeout(nsITimer *aTimer, void *aClosure)
 
 // We don't want to refcount StartupCache, so we'll just
 // hold a ref to this and pass it to observerService instead.
-NS_IMPL_ISUPPORTS1(StartupCacheListener, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS1(StartupCacheListener, nsIObserver)
 
 nsresult
 StartupCacheListener::Observe(nsISupports *subject, const char* topic, const PRUnichar* data)
@@ -715,7 +714,7 @@ StartupCacheDebugOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
 
 StartupCacheWrapper* StartupCacheWrapper::gStartupCacheWrapper = nullptr;
 
-NS_IMPL_ISUPPORTS1(StartupCacheWrapper, nsIStartupCache)
+NS_IMPL_THREADSAFE_ISUPPORTS1(StartupCacheWrapper, nsIStartupCache)
 
 StartupCacheWrapper* StartupCacheWrapper::GetSingleton() 
 {

@@ -26,7 +26,6 @@
 #include "mozilla/layers/ColorLayerComposite.h"
 #include "mozilla/layers/ContainerLayerComposite.h"
 #include "mozilla/layers/CanvasLayerComposite.h"
-#include "mozilla/layers/PLayerTransaction.h"
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 
@@ -185,7 +184,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
   EditReplyVector replyv;
 
-  layer_manager()->BeginTransactionWithTarget(nullptr);
+  layer_manager()->BeginTransactionWithTarget(NULL);
 
   for (EditArray::index_type i = 0; i < cset.Length(); ++i) {
     const Edit& edit = cset[i];
@@ -251,7 +250,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetVisibleRegion(common.visibleRegion());
       layer->SetContentFlags(common.contentFlags());
       layer->SetOpacity(common.opacity());
-      layer->SetClipRect(common.useClipRect() ? &common.clipRect() : nullptr);
+      layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetBaseTransform(common.transform().value());
       layer->SetPostScale(common.postXScale(), common.postYScale());
       layer->SetIsFixedPosition(common.isFixedPosition());
@@ -260,7 +259,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {
-        layer->SetMaskLayer(nullptr);
+        layer->SetMaskLayer(NULL);
       }
       layer->SetAnimations(common.animations());
 
@@ -299,8 +298,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
         static_cast<ColorLayer*>(layer)->SetColor(
           specific.get_ColorLayerAttributes().color().value());
-        static_cast<ColorLayer*>(layer)->SetBounds(
-          specific.get_ColorLayerAttributes().bounds());
         break;
 
       case Specific::TCanvasLayerAttributes:
@@ -333,16 +330,19 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       }
       break;
     }
-    case Edit::TOpSetDiagnosticTypes: {
-      mLayerManager->GetCompositor()->SetDiagnosticTypes(
-        edit.get_OpSetDiagnosticTypes().diagnostics());
+    case Edit::TOpSetColoredBorders: {
+      if (edit.get_OpSetColoredBorders().enabled()) {
+        mLayerManager->GetCompositor()->EnableColoredBorders();
+      } else {
+        mLayerManager->GetCompositor()->DisableColoredBorders();
+      }
       break;
     }
     // Tree ops
     case Edit::TOpSetRoot: {
       MOZ_LAYERS_LOG(("[ParentSide] SetRoot"));
 
-      mRoot = AsLayerComposite(edit.get_OpSetRoot())->AsLayer();
+      mRoot = AsLayerComposite(edit.get_OpSetRoot())->AsContainer();
       break;
     }
     case Edit::TOpInsertAfter: {
@@ -358,7 +358,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
       const OpAppendChild& oac = edit.get_OpAppendChild();
       ShadowContainer(oac)->AsContainer()->InsertAfter(
-        ShadowChild(oac)->AsLayer(), nullptr);
+        ShadowChild(oac)->AsLayer(), NULL);
       break;
     }
     case Edit::TOpRemoveChild: {
@@ -382,7 +382,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
       const OpRaiseToTopChild& rtc = edit.get_OpRaiseToTopChild();
       ShadowContainer(rtc)->AsContainer()->RepositionChild(
-        ShadowChild(rtc)->AsLayer(), nullptr);
+        ShadowChild(rtc)->AsLayer(), NULL);
       break;
     }
     case Edit::TCompositableOperation: {
@@ -393,8 +393,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     case Edit::TOpAttachCompositable: {
       const OpAttachCompositable& op = edit.get_OpAttachCompositable();
       Attach(cast(op.layerParent()), cast(op.compositableParent()));
-      cast(op.compositableParent())->SetCompositorID(
-        mLayerManager->GetCompositor()->GetCompositorID());
       break;
     }
     case Edit::TOpAttachAsyncCompositable: {
@@ -410,7 +408,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     }
   }
 
-  layer_manager()->EndTransaction(nullptr, nullptr, LayerManager::END_NO_IMMEDIATE_REDRAW);
+  layer_manager()->EndTransaction(NULL, NULL, LayerManager::END_NO_IMMEDIATE_REDRAW);
 
   if (reply) {
     reply->SetCapacity(replyv.size());
@@ -436,69 +434,19 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   return true;
 }
 
-bool
-LayerTransactionParent::RecvGetOpacity(PLayerParent* aParent,
-                                       float* aOpacity)
-{
-  if (mDestroyed || !layer_manager() || layer_manager()->IsDestroyed()) {
-    return false;
-  }
-
-  *aOpacity = cast(aParent)->AsLayer()->GetLocalOpacity();
-  return true;
-}
-
-bool
-LayerTransactionParent::RecvGetTransform(PLayerParent* aParent,
-                                         gfx3DMatrix* aTransform)
-{
-  if (mDestroyed || !layer_manager() || layer_manager()->IsDestroyed()) {
-    return false;
-  }
-
-  // The following code recovers the untranslated transform
-  // from the shadow transform by undoing the translations in
-  // AsyncCompositionManager::SampleValue.
-  Layer* layer = cast(aParent)->AsLayer();
-  *aTransform = layer->AsLayerComposite()->GetShadowTransform();
-  if (ContainerLayer* c = layer->AsContainerLayer()) {
-    aTransform->ScalePost(1.0f/c->GetInheritedXScale(),
-                          1.0f/c->GetInheritedYScale(),
-                          1.0f);
-  }
-  float scale = 1;
-  gfxPoint3D scaledOrigin;
-  gfxPoint3D mozOrigin;
-  for (uint32_t i=0; i < layer->GetAnimations().Length(); i++) {
-    if (layer->GetAnimations()[i].data().type() == AnimationData::TTransformData) {
-      const TransformData& data = layer->GetAnimations()[i].data().get_TransformData();
-      scale = data.appUnitsPerDevPixel();
-      scaledOrigin =
-        gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(data.origin().x, scale)),
-                   NS_round(NSAppUnitsToFloatPixels(data.origin().y, scale)),
-                   0.0f);
-      mozOrigin = data.mozOrigin();
-      break;
-    }
-  }
-
-  aTransform->Translate(-scaledOrigin);
-  *aTransform = nsLayoutUtils::ChangeMatrixBasis(-scaledOrigin - mozOrigin, *aTransform);
-  return true;
-}
-
 void
 LayerTransactionParent::Attach(ShadowLayerParent* aLayerParent, CompositableParent* aCompositable)
 {
   LayerComposite* layer = aLayerParent->AsLayer()->AsLayerComposite();
   MOZ_ASSERT(layer);
+  LayerComposite* layerComposite = aLayerParent->AsLayer()->AsLayerComposite();
 
   Compositor* compositor
     = static_cast<LayerManagerComposite*>(aLayerParent->AsLayer()->Manager())->GetCompositor();
 
   CompositableHost* compositable = aCompositable->GetCompositableHost();
   MOZ_ASSERT(compositable);
-  layer->SetCompositableHost(compositable);
+  layerComposite->SetCompositableHost(compositable);
   compositable->Attach(aLayerParent->AsLayer(), compositor);
 }
 
@@ -515,13 +463,12 @@ LayerTransactionParent::RecvClearCachedResources()
 }
 
 PGrallocBufferParent*
-LayerTransactionParent::AllocPGrallocBufferParent(const gfxIntSize& aSize,
-                                            const uint32_t& aFormat,
-                                            const uint32_t& aUsage,
+LayerTransactionParent::AllocPGrallocBuffer(const gfxIntSize& aSize,
+                                            const gfxContentType& aContent,
                                             MaybeMagicGrallocBufferHandle* aOutHandle)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
-  return GrallocBufferActor::Create(aSize, aFormat, aUsage, aOutHandle);
+  return GrallocBufferActor::Create(aSize, aContent, aOutHandle);
 #else
   NS_RUNTIMEABORT("No gralloc buffers for you");
   return nullptr;
@@ -529,7 +476,7 @@ LayerTransactionParent::AllocPGrallocBufferParent(const gfxIntSize& aSize,
 }
 
 bool
-LayerTransactionParent::DeallocPGrallocBufferParent(PGrallocBufferParent* actor)
+LayerTransactionParent::DeallocPGrallocBuffer(PGrallocBufferParent* actor)
 {
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
   delete actor;
@@ -541,26 +488,26 @@ LayerTransactionParent::DeallocPGrallocBufferParent(PGrallocBufferParent* actor)
 }
 
 PLayerParent*
-LayerTransactionParent::AllocPLayerParent()
+LayerTransactionParent::AllocPLayer()
 {
   return new ShadowLayerParent();
 }
 
 bool
-LayerTransactionParent::DeallocPLayerParent(PLayerParent* actor)
+LayerTransactionParent::DeallocPLayer(PLayerParent* actor)
 {
   delete actor;
   return true;
 }
 
 PCompositableParent*
-LayerTransactionParent::AllocPCompositableParent(const TextureInfo& aInfo)
+LayerTransactionParent::AllocPCompositable(const TextureInfo& aInfo)
 {
   return new CompositableParent(this, aInfo);
 }
 
 bool
-LayerTransactionParent::DeallocPCompositableParent(PCompositableParent* actor)
+LayerTransactionParent::DeallocPCompositable(PCompositableParent* actor)
 {
   delete actor;
   return true;

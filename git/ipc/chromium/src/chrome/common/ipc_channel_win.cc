@@ -15,7 +15,6 @@
 #include "chrome/common/chrome_counters.h"
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
-#include "mozilla/ipc/ProtocolUtils.h"
 
 namespace IPC {
 //------------------------------------------------------------------------------
@@ -69,20 +68,6 @@ void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
   listener_ = listener;
   waiting_connect_ = (mode == MODE_SERVER);
   processing_incoming_ = false;
-  closed_ = false;
-  output_queue_length_ = 0;
-}
-
-void Channel::ChannelImpl::OutputQueuePush(Message* msg)
-{
-  output_queue_.push(msg);
-  output_queue_length_++;
-}
-
-void Channel::ChannelImpl::OutputQueuePop()
-{
-  output_queue_.pop();
-  output_queue_length_--;
 }
 
 HANDLE Channel::ChannelImpl::GetServerPipeHandle() const {
@@ -113,14 +98,12 @@ void Channel::ChannelImpl::Close() {
 
   while (!output_queue_.empty()) {
     Message* m = output_queue_.front();
-    OutputQueuePop();
+    output_queue_.pop();
     delete m;
   }
 
   if (thread_check_.get())
     thread_check_.reset();
-
-  closed_ = true;
 }
 
 bool Channel::ChannelImpl::Send(Message* message) {
@@ -138,16 +121,7 @@ bool Channel::ChannelImpl::Send(Message* message) {
   Logging::current()->OnSendMessage(message, L"");
 #endif
 
-  if (closed_) {
-    if (mozilla::ipc::LoggingEnabled()) {
-      fprintf(stderr, "Can't send message %s, because this channel is closed.\n",
-              message->name());
-    }
-    delete message;
-    return false;
-  }
-
-  OutputQueuePush(message);
+  output_queue_.push(message);
   // ensure waiting to write
   if (!waiting_connect_) {
     if (!output_state_.is_pending) {
@@ -213,7 +187,7 @@ bool Channel::ChannelImpl::EnqueueHelloMessage() {
     return false;
   }
 
-  OutputQueuePush(m.release());
+  output_queue_.push(m.release());
   return true;
 }
 
@@ -382,7 +356,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages(
     // Message was sent.
     DCHECK(!output_queue_.empty());
     Message* m = output_queue_.front();
-    OutputQueuePop();
+    output_queue_.pop();
     delete m;
   }
 
@@ -455,16 +429,6 @@ void Channel::ChannelImpl::OnIOCompleted(MessageLoopForIO::IOContext* context,
   }
 }
 
-bool Channel::ChannelImpl::Unsound_IsClosed() const
-{
-  return closed_;
-}
-
-uint32_t Channel::ChannelImpl::Unsound_NumQueuedMessages() const
-{
-  return output_queue_length_;
-}
-
 //------------------------------------------------------------------------------
 // Channel's methods simply call through to ChannelImpl.
 Channel::Channel(const std::wstring& channel_id, Mode mode,
@@ -499,14 +463,6 @@ Channel::Listener* Channel::set_listener(Listener* listener) {
 
 bool Channel::Send(Message* message) {
   return channel_impl_->Send(message);
-}
-
-bool Channel::Unsound_IsClosed() const {
-  return channel_impl_->Unsound_IsClosed();
-}
-
-uint32_t Channel::Unsound_NumQueuedMessages() const {
-  return channel_impl_->Unsound_NumQueuedMessages();
 }
 
 }  // namespace IPC

@@ -44,11 +44,7 @@ enum BufferCapabilities {
    * The allocated buffer must be efficiently mappable as a
    * gfxImageSurface.
    */
-  MAP_AS_IMAGE_SURFACE = 1 << 0,
-  /**
-   * The allocated buffer will be used for GL rendering only
-   */
-  USING_GL_RENDERING_ONLY = 1 << 1
+  MAP_AS_IMAGE_SURFACE = 1 << 0
 };
 
 class SurfaceDescriptor;
@@ -111,18 +107,15 @@ ISurfaceAllocator() {}
 
 protected:
   // this method is needed for a temporary fix, will be removed after
-  // DeprecatedTextureClient/Host rework.
+  // TextureClient/Host rework.
   virtual bool IsOnCompositorSide() const = 0;
   static bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
   virtual bool PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
                                               gfxASurface::gfxContentType aContent,
                                               uint32_t aCaps,
                                               SurfaceDescriptor* aBuffer);
-
-  // method that does the actual allocation work
   virtual PGrallocBufferChild* AllocGrallocBuffer(const gfxIntSize& aSize,
-                                                  uint32_t aFormat,
-                                                  uint32_t aUsage,
+                                                  gfxASurface::gfxContentType aContent,
                                                   MaybeMagicGrallocBufferHandle* aHandle)
   {
     return nullptr;

@@ -10,10 +10,6 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
  * - Compare it to the real dom with isEqualNode.
  */
 
-function fail(err) {
-  ok(false, err)
-}
-
 function test() {
   waitForExplicitFinish();
 
@@ -49,13 +45,10 @@ function test() {
   // Verify that the markup in the tool is the same as the markup in the document.
   function checkMarkup()
   {
-    return markup.expandAll().then(checkMarkup2);
-  }
+    markup.expandAll();
 
-  function checkMarkup2()
-  {
     let contentNode = doc.querySelector("body");
-    let panelNode = getContainerForRawNode(markup, contentNode).elt;
+    let panelNode = markup._containers.get(contentNode).elt;
     let parseNode = parseDoc.querySelector("body");
 
     // Grab the text from the markup panel...
@@ -161,9 +154,8 @@ function test() {
 
   function startTests() {
     markup = inspector.markup;
-    checkMarkup().then(() => {
-      nextStep(0);
-    }).then(null, fail);
+    checkMarkup();
+    nextStep(0);
   }
 
   function nextStep(cursor) {
@@ -174,9 +166,8 @@ function test() {
     mutations[cursor]();
     inspector.once("markupmutation", function() {
       executeSoon(function() {
-        checkMarkup().then(() => {
-          nextStep(cursor + 1);
-        }).then(null, fail);
+        checkMarkup();
+        nextStep(cursor + 1);
       });
     });
   }

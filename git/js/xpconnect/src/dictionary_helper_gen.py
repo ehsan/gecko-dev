@@ -211,6 +211,7 @@ def print_cpp_file(fd, conf):
              "bool\n"
              "InternStaticDictionaryJSVals(JSContext* aCx)\n"
              "{\n"
+             "  JSAutoRequest ar(aCx);\n"
              "  return\n")
     for a in attrnames:
         fd.write("    InternStaticJSVal(aCx, %s, \"%s\") &&\n"
@@ -279,12 +280,14 @@ def write_header(iface, fd):
 
 def write_getter(a, iface, fd):
     realtype = a.realtype.nativeType('in')
-    fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, &v));\n"
-             % get_jsid(a.name))
     if realtype.count("JS::Value"):
-        fd.write("    aDict.%s = v;\n" % a.name)
-    elif realtype.count("bool"):
-        fd.write("    bool b;\n")
+        fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, &aDict.%s));\n"
+                 % (get_jsid(a.name), a.name))
+    else:
+        fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, v.address()));\n"
+                 % get_jsid(a.name))
+    if realtype.count("bool"):
+        fd.write("    JSBool b;\n")
         fd.write("    MOZ_ALWAYS_TRUE(JS_ValueToBoolean(aCx, v, &b));\n")
         fd.write("    aDict.%s = b;\n" % a.name)
     elif realtype.count("uint16_t"):
@@ -293,12 +296,12 @@ def write_getter(a, iface, fd):
         fd.write("    aDict.%s = u;\n" % a.name)
     elif realtype.count("int16_t"):
         fd.write("    int32_t i;\n")
-        fd.write("    NS_ENSURE_STATE(JS::ToInt32(aCx, v, &i));\n")
+        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAInt32(aCx, v, &i));\n")
         fd.write("    aDict.%s = i;\n" % a.name)
     elif realtype.count("uint32_t"):
         fd.write("    NS_ENSURE_STATE(JS_ValueToECMAUint32(aCx, v, &aDict.%s));\n" % a.name)
     elif realtype.count("int32_t"):
-        fd.write("    NS_ENSURE_STATE(JS::ToInt32(aCx, v, &aDict.%s));\n" % a.name)
+        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAInt32(aCx, v, &aDict.%s));\n" % a.name)
     elif realtype.count("uint64_t"):
         fd.write("    NS_ENSURE_STATE(JS::ToUint64(aCx, v, &aDict.%s));\n" % a.name)
     elif realtype.count("int64_t"):
@@ -370,12 +373,16 @@ def write_cpp(iface, fd):
                  iface.base)
         fd.write("  NS_ENSURE_SUCCESS(rv, rv);\n")
 
-    fd.write("  bool found = false;\n")
+    fd.write("  JSBool found = JS_FALSE;\n")
+    needjsval = False
     needccx = False
     for a in attributes:
+        if not a.realtype.nativeType('in').count("JS::Value"):
+            needjsval = True
         if a.realtype.nativeType('in').count("nsIVariant"):
             needccx = True
-    fd.write("  JS::RootedValue v(aCx, JSVAL_VOID);\n")
+    if needjsval:
+        fd.write("  JS::RootedValue v(aCx, JSVAL_VOID);\n")
     if needccx:
         fd.write("  XPCCallContext ccx(NATIVE_CALLER, aCx);\n")
         fd.write("  NS_ENSURE_STATE(ccx.IsValid());\n")
@@ -400,6 +407,7 @@ def write_cpp(iface, fd):
              "  JS::RootedObject obj(aCx, &aVal->toObject());\n"
              "  nsCxPusher pusher;\n"
              "  pusher.Push(aCx);\n"
+             "  JSAutoRequest ar(aCx);\n"
              "  JSAutoCompartment ac(aCx, obj);\n")
 
     fd.write("  return %s_InitInternal(*this, aCx, obj);\n}\n\n" %
@@ -434,6 +442,16 @@ if __name__ == '__main__':
     p = xpidl.IDLParser(outputdir=options.cachedir)
 
     conf = readConfigFile(filename)
+
+    if (len(filenames) > 1):
+        eventconfig = {}
+        execfile(filenames[1], eventconfig)
+        simple_events = eventconfig.get('simple_events', [])
+        for e in simple_events:
+            eventdict = ("%sInit" % e)
+            eventidl = ("nsIDOM%s.idl" % e)
+            conf.dictionaries.append([eventdict, eventidl]);
+
 
     if options.header_output is not None:
         outfd = open(options.header_output, 'w')

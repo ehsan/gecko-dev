@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sts=4 et sw=4 tw=99:
  *
- * Copyright (C) 2009, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2009 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Peter Varga (pvarga@inf.u-szeged.hu), University of Szeged
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,11 +26,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrPattern_h
-#define yarr_YarrPattern_h
+#ifndef YarrPattern_h
+#define YarrPattern_h
 
-#include "yarr/wtfbridge.h"
-#include "yarr/ASCIICType.h"
+#include "wtfbridge.h"
+#include "ASCIICType.h"
 
 namespace JSC { namespace Yarr {
 
@@ -87,28 +87,40 @@ struct CharacterRange {
     }
 };
 
+struct CharacterClassTable : RefCounted<CharacterClassTable> {
+    const char* m_table;
+    bool m_inverted;
+    static PassRefPtr<CharacterClassTable> create(const char* table, bool inverted)
+    {
+        return adoptRef(js_new<CharacterClassTable>(table, inverted));
+    }
+
+    CharacterClassTable(const char* table, bool inverted)
+        : m_table(table)
+        , m_inverted(inverted)
+    {
+    }
+};
+
 struct CharacterClass {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     // All CharacterClass instances have to have the full set of matches and ranges,
-    // they may have an optional m_table for faster lookups (which must match the
+    // they may have an optional table for faster lookups (which must match the
     // specified matches and ranges)
-    CharacterClass()
-        : m_table(0)
+    CharacterClass(PassRefPtr<CharacterClassTable> table)
+        : m_table(table)
     {
     }
-    CharacterClass(const char* table, bool inverted)
-        : m_table(table)
-        , m_tableInverted(inverted)
+    ~CharacterClass()
     {
+        js_delete(m_table.get());
     }
     Vector<UChar> m_matches;
     Vector<CharacterRange> m_ranges;
     Vector<UChar> m_matchesUnicode;
     Vector<CharacterRange> m_rangesUnicode;
-
-    const char* m_table;
-    bool m_tableInverted;
+    RefPtr<CharacterClassTable> m_table;
 };
 
 enum QuantifierType {
@@ -315,7 +327,7 @@ public:
         , m_hasFixedSize(false)
     {
     }
-
+    
     ~PatternDisjunction()
     {
         deleteAllValues(m_alternatives);
@@ -459,4 +471,4 @@ private:
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrPattern_h */
+#endif // YarrPattern_h

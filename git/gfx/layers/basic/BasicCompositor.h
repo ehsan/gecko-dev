@@ -6,8 +6,7 @@
 #ifndef MOZILLA_GFX_BASICCOMPOSITOR_H
 #define MOZILLA_GFX_BASICCOMPOSITOR_H
 
-#include "mozilla/layers/Compositor.h"
-#include "mozilla/layers/TextureHost.h"
+#include "Compositor.h"
 
 namespace mozilla {
 namespace layers {
@@ -33,19 +32,13 @@ public:
 
   virtual ~BasicCompositor();
 
-
   virtual bool Initialize() MOZ_OVERRIDE { return true; };
 
-  virtual void Destroy() MOZ_OVERRIDE;
-
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE { return nullptr; }
+  virtual void Destroy() MOZ_OVERRIDE { };
 
   virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {
-    return TextureFactoryIdentifier(LAYERS_BASIC,
-                                    XRE_GetProcessType(),
-                                    GetMaxTextureSize());
+    return TextureFactoryIdentifier(LAYERS_BASIC, GetMaxTextureSize());
   }
 
   virtual TemporaryRef<CompositingRenderTarget>
@@ -90,7 +83,7 @@ public:
     mCopyTarget = aTarget;
   }
   
-  virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) MOZ_OVERRIDE {
+  virtual void SetScreenRenderOffset(const gfx::Point& aOffset) MOZ_OVERRIDE {
   }
 
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) { }

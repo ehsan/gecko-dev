@@ -21,7 +21,7 @@ public:
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() {
     // The REC defines the following elements to be space-like:
     // * an mtext, mspace, maligngroup, or malignmark element;
     if (mContent->Tag() == nsGkAtoms::mtext_) {
@@ -31,9 +31,9 @@ public:
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
@@ -59,7 +59,7 @@ public:
         bool                 aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
 
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+  virtual void MarkIntrinsicWidthsDirty();
 
   virtual nsresult
   ChildListChanged(int32_t aModType) MOZ_OVERRIDE

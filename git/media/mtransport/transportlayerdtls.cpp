@@ -9,7 +9,6 @@
 #include <queue>
 #include <algorithm>
 
-#include "logging.h"
 #include "ssl.h"
 #include "sslerr.h"
 #include "sslproto.h"
@@ -23,6 +22,7 @@
 #include "nsServiceManagerUtils.h"
 
 #include "dtlsidentity.h"
+#include "logging.h"
 #include "transportflow.h"
 #include "transportlayerdtls.h"
 
@@ -37,9 +37,9 @@ static PRDescIdentity transport_layer_identity = PR_INVALID_IO_LAYER;
 // (e.g., after cert check).
 
 #define UNIMPLEMENTED                                           \
-  MOZ_MTLOG(ML_ERROR,                                           \
+  MOZ_MTLOG(PR_LOG_ERROR,                                            \
        "Call to unimplemented function "<< __FUNCTION__);       \
-  MOZ_ASSERT(false);                                            \
+  MOZ_ASSERT(false);                                             \
   PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0)
 
 
@@ -361,13 +361,13 @@ nsresult TransportLayerDtls::InitInternal() {
   target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
 
   if (NS_FAILED(rv)) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't get socket transport service");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
     return rv;
   }
 
   timer_ = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
   if (NS_FAILED(rv)) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't get timer");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get timer");
     return rv;
   }
 
@@ -424,19 +424,18 @@ bool TransportLayerDtls::Setup() {
   SECStatus rv;
 
   if (!downward_) {
-    MOZ_MTLOG(ML_ERROR, "DTLS layer with nothing below. This is useless");
+    MOZ_MTLOG(PR_LOG_ERROR, "DTLS layer with nothing below. This is useless");
     return false;
   }
   nspr_io_adapter_ = new TransportLayerNSPRAdapter(downward_);
 
   if (!identity_) {
-    MOZ_MTLOG(ML_ERROR, "Can't start DTLS without an identity");
+    MOZ_MTLOG(PR_LOG_ERROR, "Can't start DTLS without an identity");
     return false;
   }
 
   if (verification_mode_ == VERIFY_UNSET) {
-    MOZ_MTLOG(ML_ERROR,
-              "Can't start DTLS without specifying a verification mode");
+    MOZ_MTLOG(PR_LOG_ERROR, "Can't start DTLS without specifying a verification mode");
     return false;
   }
 
@@ -466,34 +465,34 @@ bool TransportLayerDtls::Setup() {
   pr_fd.forget(); // ownership transfered to ssl_fd;
 
   if (role_ == CLIENT) {
-    MOZ_MTLOG(ML_DEBUG, "Setting up DTLS as client");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Setting up DTLS as client");
     rv = SSL_GetClientAuthDataHook(ssl_fd, GetClientAuthDataHook,
                                    this);
     if (rv != SECSuccess) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't set identity");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set identity");
       return false;
     }
   } else {
-    MOZ_MTLOG(ML_DEBUG, "Setting up DTLS as server");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Setting up DTLS as server");
     // Server side
     rv = SSL_ConfigSecureServer(ssl_fd, identity_->cert(),
                                 identity_->privkey(),
                                 kt_rsa);
     if (rv != SECSuccess) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't set identity");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set identity");
       return false;
     }
 
     // Insist on a certificate from the client
     rv = SSL_OptionSet(ssl_fd, SSL_REQUEST_CERTIFICATE, PR_TRUE);
     if (rv != SECSuccess) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't request certificate");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't request certificate");
       return false;
     }
 
     rv = SSL_OptionSet(ssl_fd, SSL_REQUIRE_CERTIFICATE, PR_TRUE);
     if (rv != SECSuccess) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't require certificate");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't require certificate");
       return false;
     }
   }
@@ -507,43 +506,43 @@ bool TransportLayerDtls::Setup() {
 
   rv = SSL_VersionRangeSet(ssl_fd, &version_range);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Can't disable SSLv3");
+    MOZ_MTLOG(PR_LOG_ERROR, "Can't disable SSLv3");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_SESSION_TICKETS, PR_FALSE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable session tickets");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable session tickets");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_NO_CACHE, PR_TRUE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable session caching");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable session caching");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_DEFLATE, PR_FALSE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable deflate");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable deflate");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_RENEGOTIATION, SSL_RENEGOTIATE_NEVER);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable renegotiation");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable renegotiation");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_FALSE_START, PR_FALSE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable false start");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable false start");
     return false;
   }
 
   rv = SSL_OptionSet(ssl_fd, SSL_NO_LOCKS, PR_TRUE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't disable locks");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't disable locks");
     return false;
   }
 
@@ -554,7 +553,7 @@ bool TransportLayerDtls::Setup() {
                             srtp_ciphers_.size());
 
     if (rv != SECSuccess) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't set SRTP cipher suite");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set SRTP cipher suite");
       return false;
     }
   }
@@ -563,14 +562,14 @@ bool TransportLayerDtls::Setup() {
   rv = SSL_AuthCertificateHook(ssl_fd, AuthCertificateHook,
                                reinterpret_cast<void *>(this));
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't set certificate validation hook");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set certificate validation hook");
     return false;
   }
 
   // Now start the handshake
   rv = SSL_ResetHandshake(ssl_fd, role_ == SERVER ? PR_TRUE : PR_FALSE);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't reset handshake");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't reset handshake");
     return false;
   }
   ssl_fd_ = ssl_fd.forget();
@@ -589,7 +588,7 @@ bool TransportLayerDtls::Setup() {
 
 void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
   if (state <= state_) {
-    MOZ_MTLOG(ML_ERROR, "Lower layer state is going backwards from ours");
+    MOZ_MTLOG(PR_LOG_ERROR, "Lower layer state is going backwards from ours");
     SetState(TS_ERROR);
     return;
   }
@@ -600,28 +599,26 @@ void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
       break;
 
     case TS_INIT:
-      MOZ_MTLOG(ML_ERROR,
-                LAYER_INFO << "State change of lower layer to INIT forbidden");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "State change of lower layer to INIT forbidden");
       SetState(TS_ERROR);
       break;
 
     case TS_CONNECTING:
-      MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Lower lower is connecting.");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is connecting.");
       break;
 
     case TS_OPEN:
-      MOZ_MTLOG(ML_ERROR,
-                LAYER_INFO << "Lower lower is now open; starting TLS");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now open; starting TLS");
       Handshake();
       break;
 
     case TS_CLOSED:
-      MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Lower lower is now closed");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now closed");
       SetState(TS_CLOSED);
       break;
 
     case TS_ERROR:
-      MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Lower lower experienced an error");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower experienced an error");
       SetState(TS_ERROR);
       break;
   }
@@ -636,10 +633,9 @@ void TransportLayerDtls::Handshake() {
   SECStatus rv = SSL_ForceHandshake(ssl_fd_);
 
   if (rv == SECSuccess) {
-    MOZ_MTLOG(ML_NOTICE,
-              LAYER_INFO << "****** SSL handshake completed ******");
+    MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "****** SSL handshake completed ******");
     if (!cert_ok_) {
-      MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Certificate check never occurred");
+      MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Certificate check never occurred");
       SetState(TS_ERROR);
       return;
     }
@@ -649,21 +645,21 @@ void TransportLayerDtls::Handshake() {
     switch(err) {
       case SSL_ERROR_RX_MALFORMED_HANDSHAKE:
         if (mode_ != DGRAM) {
-          MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Malformed TLS message");
+          MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed TLS message");
           SetState(TS_ERROR);
         } else {
-          MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
+          MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
         }
         // Fall through
       case PR_WOULD_BLOCK_ERROR:
-        MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "Would have blocked");
+        MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
         if (mode_ == DGRAM) {
           PRIntervalTime timeout;
           rv = DTLS_GetHandshakeTimeout(ssl_fd_, &timeout);
           if (rv == SECSuccess) {
             uint32_t timeout_ms = PR_IntervalToMilliseconds(timeout);
 
-            MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Setting DTLS timeout to " <<
+            MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Setting DTLS timeout to " <<
                  timeout_ms);
             timer_->SetTarget(target_);
             timer_->InitWithFuncCallback(TimerCallback,
@@ -673,7 +669,7 @@ void TransportLayerDtls::Handshake() {
         }
         break;
       default:
-        MOZ_MTLOG(ML_ERROR, LAYER_INFO << "SSL handshake error "<< err);
+        MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "SSL handshake error "<< err);
         SetState(TS_ERROR);
         break;
     }
@@ -684,11 +680,10 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
                                         const unsigned char *data,
                                         size_t len) {
   CheckThread();
-  MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
 
   if (state_ != TS_CONNECTING && state_ != TS_OPEN) {
-    MOZ_MTLOG(ML_DEBUG,
-              LAYER_INFO << "Discarding packet in inappropriate state");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Discarding packet in inappropriate state");
     return;
   }
 
@@ -706,7 +701,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
     int32_t rv = PR_Recv(ssl_fd_, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
     if (rv > 0) {
       // We have data
-      MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Read " << rv << " bytes from NSS");
+      MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes from NSS");
       SignalPacketReceived(this, buf, rv);
     } else if (rv == 0) {
       SetState(TS_CLOSED);
@@ -715,9 +710,9 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
 
       if (err == PR_WOULD_BLOCK_ERROR) {
         // This gets ignored
-        MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "Would have blocked");
+        MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
       } else {
-        MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "NSS Error " << err);
+        MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
         SetState(TS_ERROR);
       }
     }
@@ -728,8 +723,8 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
   CheckThread();
   if (state_ != TS_OPEN) {
-    MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
-              << state_);
+    MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
+         << state_);
     return TE_ERROR;
   }
 
@@ -737,7 +732,7 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
 
   if (rv > 0) {
     // We have data
-    MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Wrote " << rv << " bytes to SSL Layer");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << rv << " bytes to SSL Layer");
     return rv;
   }
 
@@ -750,11 +745,11 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
 
   if (err == PR_WOULD_BLOCK_ERROR) {
     // This gets ignored
-    MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "Would have blocked");
+    MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
     return TE_WOULDBLOCK;
   }
 
-  MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "NSS Error " << err);
+  MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
   SetState(TS_ERROR);
   return TE_ERROR;
 }
@@ -763,25 +758,25 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
                                                     CERTDistNames *caNames,
                                                     CERTCertificate **pRetCert,
                                                     SECKEYPrivateKey **pRetKey) {
-  MOZ_MTLOG(ML_DEBUG, "Server requested client auth");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Server requested client auth");
 
   TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
   stream->CheckThread();
 
   if (!stream->identity_) {
-    MOZ_MTLOG(ML_ERROR, "No identity available");
+    MOZ_MTLOG(PR_LOG_ERROR, "No identity available");
     PR_SetError(SSL_ERROR_NO_CERTIFICATE, 0);
     return SECFailure;
   }
 
   *pRetCert = CERT_DupCertificate(stream->identity_->cert());
-  if (!*pRetCert) {
+  if (!pRetCert) {
     PR_SetError(PR_OUT_OF_MEMORY_ERROR, 0);
     return SECFailure;
   }
 
   *pRetKey = SECKEY_CopyPrivateKey(stream->identity_->privkey());
-  if (!*pRetKey) {
+  if (!pRetKey) {
     CERT_DestroyCertificate(*pRetCert);
     *pRetCert = nullptr;
     PR_SetError(PR_OUT_OF_MEMORY_ERROR, 0);
@@ -802,7 +797,7 @@ nsresult TransportLayerDtls::GetSrtpCipher(uint16_t *cipher) {
   CheckThread();
   SECStatus rv = SSL_GetSRTPCipher(ssl_fd_, cipher);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_DEBUG, "No SRTP cipher negotiated");
+    MOZ_MTLOG(PR_LOG_DEBUG, "No SRTP cipher negotiated");
     return NS_ERROR_FAILURE;
   }
 
@@ -825,7 +820,7 @@ nsresult TransportLayerDtls::ExportKeyingMaterial(const std::string& label,
                                           out,
                                           outlen);
   if (rv != SECSuccess) {
-    MOZ_MTLOG(ML_ERROR, "Couldn't export SSL keying material");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't export SSL keying material");
     return NS_ERROR_FAILURE;
   }
 
@@ -848,8 +843,7 @@ TransportLayerDtls::CheckDigest(const RefPtr<VerificationDigest>&
   unsigned char computed_digest[kMaxDigestLength];
   size_t computed_digest_len;
 
-  MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Checking digest, algorithm="
-            << digest->algorithm_);
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Checking digest, algorithm=" << digest->algorithm_);
   nsresult res =
       DtlsIdentity::ComputeFingerprint(peer_cert,
                                        digest->algorithm_,
@@ -857,23 +851,23 @@ TransportLayerDtls::CheckDigest(const RefPtr<VerificationDigest>&
                                        sizeof(computed_digest),
                                        &computed_digest_len);
   if (NS_FAILED(res)) {
-    MOZ_MTLOG(ML_ERROR, "Could not compute peer fingerprint for digest " <<
-              digest->algorithm_);
+    MOZ_MTLOG(PR_LOG_ERROR, "Could not compute peer fingerprint for digest " <<
+         digest->algorithm_);
     // Go to end
     PR_SetError(SSL_ERROR_BAD_CERTIFICATE, 0);
     return SECFailure;
   }
 
   if (computed_digest_len != digest->len_) {
-    MOZ_MTLOG(ML_ERROR, "Digest is wrong length " << digest->len_ <<
-              " should be " << computed_digest_len << " for algorithm " <<
-              digest->algorithm_);
+    MOZ_MTLOG(PR_LOG_ERROR, "Digest is wrong length " << digest->len_ <<
+         " should be " << computed_digest_len << " for algorithm " <<
+         digest->algorithm_);
     PR_SetError(SSL_ERROR_BAD_CERTIFICATE, 0);
     return SECFailure;
   }
 
   if (memcmp(digest->value_, computed_digest, computed_digest_len) != 0) {
-    MOZ_MTLOG(ML_ERROR, "Digest does not match");
+    MOZ_MTLOG(PR_LOG_ERROR, "Digest does not match");
     PR_SetError(SSL_ERROR_BAD_CERTIFICATE, 0);
     return SECFailure;
   }
@@ -939,14 +933,14 @@ SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
     default:
       MOZ_CRASH();  // Can't happen
   }
-
+    
   return SECFailure;
 }
 
 void TransportLayerDtls::TimerCallback(nsITimer *timer, void *arg) {
   TransportLayerDtls *dtls = reinterpret_cast<TransportLayerDtls *>(arg);
 
-  MOZ_MTLOG(ML_DEBUG, "DTLS timer expired");
+  MOZ_MTLOG(PR_LOG_DEBUG, "DTLS timer expired");
 
   dtls->Handshake();
 }

@@ -25,7 +25,7 @@
 #define DOM_FM_ANTENNA_INTERNAL_PREF "dom.fm.antenna.internal"
 
 #define RADIO_SEEK_COMPLETE_EVENT_NAME   NS_LITERAL_STRING("seekcomplete")
-#define RADIO_DISABLED_EVENT_NAME        NS_LITERAL_STRING("disabled")
+#define RADIO_DIABLED_EVENT_NAME         NS_LITERAL_STRING("disabled")
 #define RADIO_ENABLED_EVENT_NAME         NS_LITERAL_STRING("enabled")
 #define ANTENNA_STATE_CHANGED_EVENT_NAME NS_LITERAL_STRING("antennastatechange")
 
@@ -234,13 +234,14 @@ void FMRadio::Notify(const FMRadioOperationInformation& info)
       DispatchTrustedEvent(RADIO_ENABLED_EVENT_NAME);
       break;
     case FM_RADIO_OPERATION_DISABLE:
-      DispatchTrustedEvent(RADIO_DISABLED_EVENT_NAME);
+      DispatchTrustedEvent(RADIO_DIABLED_EVENT_NAME);
       break;
     case FM_RADIO_OPERATION_SEEK:
       DispatchTrustedEvent(RADIO_SEEK_COMPLETE_EVENT_NAME);
       break;
     default:
-      MOZ_CRASH();
+      MOZ_NOT_REACHED();
+      return;
   }
 }
 
@@ -258,7 +259,16 @@ NS_IMETHODIMP FMRadio::CanPlayChanged(bool canPlay)
   }
 
   /* mute fm first, it should be better to stop&resume fm */
-  audioManager->SetFmRadioAudioEnabled(canPlay);
+  if (canPlay) {
+    audioManager->SetFmRadioAudioEnabled(true);
+    int32_t volIdx = 0;
+    // Restore fm volume, that value is sync as music type
+    audioManager->GetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_MUSIC, &volIdx);
+    audioManager->SetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_FM, volIdx);
+  } else {
+    audioManager->SetStreamVolumeIndex(nsIAudioManager::STREAM_TYPE_FM, 0);
+    audioManager->SetFmRadioAudioEnabled(false);
+  }
   return NS_OK;
 }
 

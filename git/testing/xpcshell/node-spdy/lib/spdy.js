@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 var spdy = exports;
 
 // Exports utils
@@ -12,9 +16,8 @@ try {
   spdy.protocol.generic = require('./spdy/protocol/generic.js');
 }
 
-// Supported SPDY versions
+// Only SPDY v2 is supported now
 spdy.protocol[2] = require('./spdy/protocol/v2');
-spdy.protocol[3] = require('./spdy/protocol/v3');
 
 spdy.parser = require('./spdy/parser');
 

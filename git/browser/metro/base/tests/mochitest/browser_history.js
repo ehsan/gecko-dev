@@ -5,32 +5,25 @@
 
 "use strict";
 
-let gStartView = null;
+let gStartView = HistoryStartView._view;
+let gPanelView = HistoryPanelView._view;
 
 function test() {
   runTests();
 }
 
-function scrollToEnd() {
-  getBrowser().contentWindow.scrollBy(50000, 0);
-}
-
 function setup() {
   PanelUI.hide();
-
-  if (!BrowserUI.isStartTabVisible) {
-    let tab = yield addTab("about:start");
-    gStartView = tab.browser.contentWindow.HistoryStartView._view;
-
-    yield waitForCondition(() => BrowserUI.isStartTabVisible);
-
-    yield hideContextUI();
-  }
-
   HistoryTestHelper.setup();
 
-  // Scroll to make sure all tiles are visible.
-  scrollToEnd();
+  if (StartUI.isStartPageVisible)
+    return;
+
+  yield addTab("about:start");
+
+  yield waitForCondition(() => StartUI.isStartPageVisible);
+
+  yield hideContextUI();
 }
 
 function tearDown() {
@@ -69,6 +62,7 @@ var HistoryTestHelper = {
 
       // Simulate observer notification
       gStartView.onDeleteURI(aURI);
+      gPanelView.onDeleteURI(aURI);
     },
   },
 
@@ -103,15 +97,20 @@ var HistoryTestHelper = {
 
     this._originalNavHistoryService = gStartView._navHistoryService;
     gStartView._navHistoryService = this.MockNavHistoryService;
+    gPanelView._navHistoryService = this.MockNavHistoryService;
 
     this._originalHistoryService = gStartView._historyService;
     gStartView._historyService= this.MockHistoryService;
+    gPanelView._historyService= this.MockHistoryService;
 
     this._originalPinHelper = gStartView._pinHelper;
     gStartView._pinHelper = this.MockPinHelper;
+    gPanelView._pinHelper = this.MockPinHelper;
 
     gStartView._set.clearAll();
     gStartView.populateGrid();
+    gPanelView._set.clearAll();
+    gPanelView.populateGrid();
   },
 
   restore: function () {
@@ -119,8 +118,14 @@ var HistoryTestHelper = {
     gStartView._historyService= this._originalHistoryService;
     gStartView._pinHelper = this._originalPinHelper;
 
+    gPanelView._navHistoryService = this._originalNavHistoryService;
+    gPanelView._historyService= this._originalHistoryService;
+    gPanelView._pinHelper = this._originalPinHelper;
+
     gStartView._set.clearAll();
     gStartView.populateGrid();
+    gPanelView._set.clearAll();
+    gPanelView.populateGrid();
   }
 };
 
@@ -139,13 +144,13 @@ gTests.push({
 
     let item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     unpinButton.click();
     yield promise;
 
@@ -161,8 +166,7 @@ gTests.push({
     let item2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -170,7 +174,7 @@ gTests.push({
 
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
@@ -197,7 +201,7 @@ gTests.push({
     let item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
     let initialLocation = gStartView._set.getIndexOfItem(item);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -214,7 +218,7 @@ gTests.push({
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     EventUtils.synthesizeMouse(restoreButton, 10, 10, {}, window);
     yield promise;
 
@@ -227,7 +231,7 @@ gTests.push({
 
     let item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -245,8 +249,8 @@ gTests.push({
     ok(HistoryTestHelper._nodes[uriFromIndex(2)], "Item not deleted yet");
     ok(!restoreButton.hidden, "Restore button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    Elements.appbar.dismiss();
     yield promise;
 
     item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
@@ -265,8 +269,7 @@ gTests.push({
     let initialLocation2 = gStartView._set.getIndexOfItem(item2);
     let initialLocation3 = gStartView._set.getIndexOfItem(item3);
 
-    scrollToEnd();
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -290,7 +293,7 @@ gTests.push({
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     EventUtils.synthesizeMouse(restoreButton, 10, 10, {}, window);
     yield promise;
 
@@ -310,8 +313,7 @@ gTests.push({
     let item2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -335,8 +337,8 @@ gTests.push({
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    Elements.appbar.dismiss();
     yield promise;
 
     item1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
@@ -347,5 +349,217 @@ gTests.push({
     ok(!HistoryTestHelper._nodes[uriFromIndex(0)] && !HistoryTestHelper._nodes[uriFromIndex(5)] && !HistoryTestHelper._nodes[uriFromIndex(12)],
       "Items are gone");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
+  }
+});
+
+gTests.push({
+  desc: "Test history PanelUI unpin",
+  setUp: setup,
+  tearDown: tearDown,
+  run: function testHistoryPanelUnpin() {
+    PanelUI.show('history-container');
+
+    let pinButton = document.getElementById("pin-selected-button");
+    let unpinButton = document.getElementById("unpin-selected-button");
+
+    // --------- unpin item 2
+
+    let item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item, 10, 10);
+    yield promise;
+
+    yield waitForCondition(() => !unpinButton.hidden);
+
+    ok(!unpinButton.hidden, "Unpin button is visible.");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
+    yield promise;
+
+    item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+    let startItem = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    ok(item, "Item is in grid");
+    ok(!startItem, "Item not in start grid");
+    ok(!gPanelView._pinHelper.isPinned(uriFromIndex(2)), "Item unpinned");
+
+    // --------- unpin multiple items
+
+    let item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item1, 10, 10);
+    sendContextMenuClickToElement(window, item2, 10, 10);
+    sendContextMenuClickToElement(window, item3, 10, 10);
+    yield promise;
+
+    ok(!unpinButton.hidden, "Unpin button is visible.");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
+    yield promise;
+
+    item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+    let startItem1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let startItem2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let startItem3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    ok(item1 && item2 && item3, "Items are in grid");
+    ok(!startItem1 && !startItem2 && !startItem3, "Items are not in start grid");
+    ok(!gPanelView._pinHelper.isPinned(uriFromIndex(0)) && !gPanelView._pinHelper.isPinned(uriFromIndex(5)) && !gPanelView._pinHelper.isPinned(uriFromIndex(12)) , "Items unpinned");
+
+    // --------- pin item 2
+
+    let item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item, 10, 10);
+    yield promise;
+
+    // Make sure app bar is updated
+    yield waitForCondition(() => !pinButton.hidden);
+
+    ok(!pinButton.hidden, "Pin button is visible.");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    EventUtils.synthesizeMouse(pinButton, 10, 10, {}, window);
+    yield promise;
+
+    item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+    let startItem = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    ok(item, "Item is in grid");
+    ok(startItem, "Item is back in start grid");
+    ok(gPanelView._pinHelper.isPinned(uriFromIndex(2)), "Item pinned");
+
+    // --------- pin multiple items
+
+    let item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item1, 10, 10);
+    sendContextMenuClickToElement(window, item2, 10, 10);
+    sendContextMenuClickToElement(window, item3, 10, 10);
+    yield promise;
+
+    // Make sure app bar is updated
+    yield waitForCondition(() => !pinButton.hidden);
+
+    ok(!pinButton.hidden, "pin button is visible.");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    EventUtils.synthesizeMouse(pinButton, 10, 10, {}, window);
+    yield promise;
+
+    item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+    let startItem1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let startItem2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let startItem3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    ok(item1 && item2 && item3, "Items are in grid");
+    ok(startItem1 && startItem2 && startItem3, "Items are back in start grid");
+    ok(gPanelView._pinHelper.isPinned(uriFromIndex(0)) && gPanelView._pinHelper.isPinned(uriFromIndex(5)) && gPanelView._pinHelper.isPinned(uriFromIndex(12)) , "Items pinned");
+  }
+});
+
+gTests.push({
+  desc: "Test history PanelUI delete",
+  setUp: setup,
+  tearDown: tearDown,
+  run: function testHistoryPanelDelete() {
+    PanelUI.show('history-container');
+
+    let restoreButton = document.getElementById("restore-selected-button");
+    let deleteButton = document.getElementById("delete-selected-button");
+
+    // --------- delete item 2
+
+    let item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item, 10, 10);
+    yield promise;
+
+    ok(!deleteButton.hidden, "Delete button is visible.");
+
+    let promise = waitForCondition(() => !restoreButton.hidden);
+    EventUtils.synthesizeMouse(deleteButton, 10, 10, {}, window);
+    yield promise;
+
+    item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+    let startItem = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    ok(!item, "Item is not in grid");
+    ok(startItem, "Item is not deleted from start grid yet");
+    ok(HistoryTestHelper._nodes[uriFromIndex(2)], "Item exists");
+    ok(!restoreButton.hidden, "Restore button is visible.");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    Elements.appbar.dismiss();
+    yield promise;
+
+    item = gPanelView._set.getItemsByUrl(uriFromIndex(2))[0];
+    startItem = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
+
+    ok(!item, "Item gone from grid");
+    ok(!startItem, "Item gone from start grid");
+    ok(!HistoryTestHelper._nodes[uriFromIndex(2)], "Item RIP");
+
+    // --------- delete multiple items
+
+    let item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    sendContextMenuClickToElement(window, item1, 10, 10);
+    sendContextMenuClickToElement(window, item2, 10, 10);
+    sendContextMenuClickToElement(window, item3, 10, 10);
+    yield promise;
+
+    ok(!deleteButton.hidden, "Delete button is visible.");
+
+    let promise = waitForCondition(() => !restoreButton.hidden);
+    EventUtils.synthesizeMouse(deleteButton, 10, 10, {}, window);
+    yield promise;
+
+    item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+    let startItem1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let startItem2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let startItem3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    ok(!restoreButton.hidden, "Restore button is visible.");
+    ok(!item1 && !item2 && !item3, "Items are not in grid");
+    ok(startItem1 && startItem2 && startItem3, "Items are still in start grid");
+    ok(HistoryTestHelper._nodes[uriFromIndex(0)] && HistoryTestHelper._nodes[uriFromIndex(5)] && HistoryTestHelper._nodes[uriFromIndex(12)],
+      "Items not deleted yet");
+
+    let promise = waitForEvent(Elements.appbar, "transitionend", null, Elements.appbar);
+    Elements.appbar.dismiss();
+    yield promise;
+
+    item1 = gPanelView._set.getItemsByUrl(uriFromIndex(0))[0];
+    item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
+    item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
+    let startItem1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
+    let startItem2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
+    let startItem3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
+
+    ok(!item1 && !item2 && !item3, "Items are gone from grid");
+    ok(!startItem1 && !startItem2 && !startItem3, "Items are gone from start grid");
+    ok(!HistoryTestHelper._nodes[uriFromIndex(0)] && !HistoryTestHelper._nodes[uriFromIndex(5)] && !HistoryTestHelper._nodes[uriFromIndex(12)],
+      "Items are gone for good");
   }
 });

@@ -303,11 +303,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsForEventDelivery() && !PassPointerEventsToChildren())
     return;
 
-  // If we are pointer-events:none then we don't need to HitTest background
-  if (!aBuilder->IsForEventDelivery() ||
-      StyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
-  }
+  DisplayBorderBackgroundOutline(aBuilder, aLists);
 
   if (!mInnerView)
     return;

@@ -41,12 +41,6 @@ public:
   GetUsageForOrigin(const nsACString& aOrigin,
                     UsageRunnable* aUsageRunnable) MOZ_OVERRIDE;
 
-  virtual void
-  OnOriginClearCompleted(const nsACString& aPattern) MOZ_OVERRIDE;
-
-  virtual void
-  ReleaseIOThreadObjects() MOZ_OVERRIDE;
-
   virtual bool
   IsFileServiceUtilized() MOZ_OVERRIDE
   {
@@ -67,7 +61,13 @@ public:
   HasTransactionsForStorage(nsIOfflineStorage* aStorage) MOZ_OVERRIDE;
 
   virtual void
+  OnOriginClearCompleted(const nsACString& aPattern) MOZ_OVERRIDE;
+
+  virtual void
   ShutdownTransactionService() MOZ_OVERRIDE;
+
+  virtual void
+  OnShutdownCompleted() MOZ_OVERRIDE;
 
 private:
   nsresult

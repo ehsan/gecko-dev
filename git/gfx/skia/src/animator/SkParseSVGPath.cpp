@@ -232,3 +232,4 @@ void SkDrawPath::parseSVG() {
         previousOp = op;
     } while (data[0] > 0);
 }
+

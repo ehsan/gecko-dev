@@ -9,6 +9,7 @@
 #define nsPresContext_h___
 
 #include "mozilla/Attributes.h"
+#include "nsISupports.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsCOMPtr.h"
@@ -21,6 +22,7 @@
 #include "nsCRT.h"
 #include "FramePropertyTable.h"
 #include "nsGkAtoms.h"
+#include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
 #include <algorithm>
@@ -28,14 +30,19 @@
 #include "gfxRect.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#include "mozilla/MemoryReporting.h"
+#include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "prclist.h"
-#include "nsThreadUtils.h"
+#include "Layers.h"
+#include "nsRefreshDriver.h"
 
 #ifdef IBMBIDI
 class nsBidiPresUtils;
 #endif // IBMBIDI
+
+struct nsRect;
+
+class imgIRequest;
 
 class nsAString;
 class nsIPrintSettings;
@@ -43,11 +50,14 @@ class nsIDocument;
 class nsILanguageAtomService;
 class nsITheme;
 class nsIContent;
+class nsFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
+class nsStyleContext;
 class nsIAtom;
 class nsEventStateManager;
+class nsIURI;
 class nsICSSPseudoComparator;
 struct nsStyleBackground;
 struct nsStyleBorder;
@@ -58,16 +68,12 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
+class imgIContainer;
 class nsIDOMMediaQueryList;
-class nsRefreshDriver;
-class nsIWidget;
 
-namespace mozilla {
-class RestyleManager;
-namespace layers {
-class ContainerLayer;
-}
-}
+#ifdef MOZ_REFLOW_PERF
+class nsRenderingContext;
+#endif
 
 // supported values for cached bool types
 enum nsPresContext_CachedBoolPrefType {
@@ -113,6 +119,17 @@ public:
 
   nsTArray<Request> mRequests;
 };
+
+/**
+ * Layer UserData for ContainerLayers that want to be notified
+ * of local invalidations of them and their descendant layers.
+ * Pass a callback to ComputeDifferences to have these called.
+ */
+class ContainerLayerPresContext : public mozilla::layers::LayerUserData {
+public:
+  nsPresContext* mPresContext;
+};
+extern uint8_t gNotifySubDocInvalidationData;
 
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
@@ -219,21 +236,16 @@ public:
       return mDocument;
   }
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   nsStyleSet* StyleSet() { return GetPresShell()->StyleSet(); }
 
   nsFrameManager* FrameManager()
-    { return PresShell()->FrameManager(); }
-
-  nsCSSFrameConstructor* FrameConstructor()
-    { return PresShell()->FrameConstructor(); }
+    { return GetPresShell()->FrameManager(); }
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
   nsAnimationManager* AnimationManager() { return mAnimationManager; }
 
   nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
-
-  mozilla::RestyleManager* RestyleManager() { return mRestyleManager; }
 #endif
 
   /**
@@ -281,7 +293,7 @@ public:
   uint16_t     ImageAnimationMode() const { return mImageAnimationMode; }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(uint16_t aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(uint16_t aMode);
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void SetImageAnimationMode(uint16_t aMode)
   { SetImageAnimationModeInternal(aMode); }
 #else
@@ -292,22 +304,7 @@ public:
   /** 
    * Get medium of presentation
    */
-  nsIAtom* Medium() {
-    if (!mIsEmulatingMedia)
-      return mMedium;
-    return mMediaEmulated;
-  }
-
-  /*
-   * Render the document as if being viewed on a device with the specified
-   * media type.
-   */
-  void EmulateMedium(const nsAString& aMediaType);
-
-  /*
-   * Restore the viewer's natural medium
-   */
-  void StopEmulatingMedium();
+  nsIAtom* Medium() { return mMedium; }
 
   void* AllocateFromShell(size_t aSize)
   {
@@ -409,7 +406,7 @@ public:
 
   virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
   NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   already_AddRefed<nsISupports> GetContainer() const
   { return GetContainerInternal(); }
 #else
@@ -558,11 +555,11 @@ public:
   static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
-  { return NSToCoordRoundWithClamp(float(aPixels) *
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+  { return NSIntPixelsToAppUnits(aPixels,
+                                 nsDeviceContext::AppUnitsPerCSSPixel()); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
-  { return NSToCoordRoundWithClamp(aPixels *
+  { return NSFloatPixelsToAppUnits(aPixels,
              float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   static int32_t AppUnitsToIntCSSPixels(nscoord aAppUnits)
@@ -668,10 +665,18 @@ public:
   /**
    * Getter and setter for OMTA time counters
    */
-  bool ThrottledStyleIsUpToDate() const;
-  void TickLastUpdateThrottledStyle();
-  bool StyleUpdateForAllAnimationsIsUpToDate();
-  void TickLastStyleUpdateForAllAnimations();
+  bool ThrottledStyleIsUpToDate() const {
+    return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
+  }
+  void TickLastUpdateThrottledStyle() {
+    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
+  }
+  bool StyleUpdateForAllAnimationsIsUpToDate() const {
+    return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
+  }
+  void TickLastStyleUpdateForAllAnimations() {
+    mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
+  }
 
 #ifdef IBMBIDI
   /**
@@ -681,7 +686,7 @@ public:
    *
    *  @lina 07/12/2000
    */
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   bool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
   bool BidiEnabled() const { return BidiEnabledExternal(); }
@@ -813,7 +818,7 @@ public:
 
   virtual void InvalidateIsChromeCacheExternal();
   void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = false; }
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   void InvalidateIsChromeCache()
   { InvalidateIsChromeCacheInternal(); }
 #else
@@ -829,21 +834,11 @@ public:
     return GetCachedBoolPref(kPresContext_UseDocumentColors) || IsChrome();
   }
 
-  // Explicitly enable and disable paint flashing.
-  void SetPaintFlashing(bool aPaintFlashing) {
-    mPaintFlashing = aPaintFlashing;
-    mPaintFlashingInitialized = true;
-  }
-
-  // This method should be used instead of directly accessing mPaintFlashing,
-  // as that value may be out of date when mPaintFlashingInitialized is false.
-  bool GetPaintFlashing() const;
-
   bool             SupressingResizeReflow() const { return mSupressResizeReflow; }
   
   virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
   NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetInternal();
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetInternal(); }
 #else
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetExternal(); }
@@ -875,8 +870,6 @@ public:
   // Passed to LayerProperties::ComputeDifference
   static void NotifySubDocInvalidation(mozilla::layers::ContainerLayer* aContainer,
                                        const nsIntRegion& aRegion);
-  void SetNotifySubDocInvalidationData(mozilla::layers::ContainerLayer* aContainer);
-  static void ClearNotifySubDocInvalidationData(mozilla::layers::ContainerLayer* aContainer);
   bool IsDOMPaintEventPending();
   void ClearMozAfterPaintEvents() {
     mInvalidateRequestsSinceLastPaint.mRequests.Clear();
@@ -969,8 +962,8 @@ public:
     PropertyTable()->DeleteAllFor(aFrame);
   }
 
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 
@@ -1064,7 +1057,7 @@ protected:
                             NS_FONT_STRETCH_NORMAL, 0, 0)
     {}
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
       size_t n = 0;
       LangGroupFontPrefs *curr = mNext;
       while (curr) {
@@ -1155,10 +1148,8 @@ protected:
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
   nsRefPtr<nsAnimationManager> mAnimationManager;
-  nsRefPtr<mozilla::RestyleManager> mRestyleManager;
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
-  nsCOMPtr<nsIAtom> mMediaEmulated;
 
   nsILinkHandler*       mLinkHandler;   // [WEAK]
 
@@ -1268,7 +1259,6 @@ protected:
   unsigned              mPendingUIResolutionChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
-  unsigned              mIsEmulatingMedia : 1;
   // True if the requests in mInvalidateRequestsSinceLastPaint cover the
   // entire viewport
   unsigned              mAllInvalidated : 1;
@@ -1308,11 +1298,6 @@ protected:
   mutable unsigned      mIsChromeIsCached : 1;
   mutable unsigned      mIsChrome : 1;
 
-  // Should we paint flash in this context? Do not use this variable directly.
-  // Use GetPaintFlashing() method instead.
-  mutable unsigned mPaintFlashing : 1;
-  mutable unsigned mPaintFlashingInitialized : 1;
-
 #ifdef DEBUG
   bool                  mInitialized;
 #endif
@@ -1335,8 +1320,6 @@ protected:
   };
 
   nscolor MakeColorPref(const nsString& aColor);
-
-  void LastRelease();
 
 #ifdef DEBUG
 private:
@@ -1436,7 +1419,7 @@ public:
    */
   void FlushWillPaintObservers();
 
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 protected:
   /**
@@ -1452,7 +1435,7 @@ protected:
   public:
     RunWillPaintObservers(nsRootPresContext* aPresContext) : mPresContext(aPresContext) {}
     void Revoke() { mPresContext = nullptr; }
-    NS_IMETHOD Run() MOZ_OVERRIDE
+    NS_IMETHOD Run()
     {
       if (mPresContext) {
         mPresContext->FlushWillPaintObservers();

@@ -28,7 +28,7 @@ class CompositableClient;
 class CompositableTransaction;
 class ShadowableLayer;
 class Image;
-class TextureClient;
+
 
 /**
  * Returns true if the current thread is the ImageBrdigeChild's thread.
@@ -148,8 +148,6 @@ public:
    */
   void ConnectAsync(ImageBridgeParent* aParent);
 
-  static void IdentifyCompositorTextureHost(const TextureFactoryIdentifier& aIdentifier);
-
   void BeginTransaction();
   void EndTransaction();
 
@@ -167,8 +165,8 @@ public:
    */
   MessageLoop * GetMessageLoop() const;
 
-  PCompositableChild* AllocPCompositableChild(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
-  bool DeallocPCompositableChild(PCompositableChild* aActor) MOZ_OVERRIDE;
+  PCompositableChild* AllocPCompositable(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
+  bool DeallocPCompositable(PCompositableChild* aActor) MOZ_OVERRIDE;
 
   /**
    * This must be called by the static function DeleteImageBridgeSync defined
@@ -177,11 +175,11 @@ public:
   ~ImageBridgeChild();
 
   virtual PGrallocBufferChild*
-  AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, const uint32_t&,
-                           MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
+  AllocPGrallocBuffer(const gfxIntSize&, const uint32_t&, const uint32_t&,
+                      MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPGrallocBufferChild(PGrallocBufferChild* actor) MOZ_OVERRIDE;
+  DeallocPGrallocBuffer(PGrallocBufferChild* actor) MOZ_OVERRIDE;
 
   /**
    * Allocate a gralloc SurfaceDescriptor remotely.
@@ -201,7 +199,7 @@ public:
    */
   bool
   AllocSurfaceDescriptorGrallocNow(const gfxIntSize& aSize,
-                                   const uint32_t& aFormat,
+                                   const uint32_t& aContent,
                                    const uint32_t& aUsage,
                                    SurfaceDescriptor* aBuffer);
 
@@ -232,34 +230,8 @@ public:
 
   virtual void Connect(CompositableClient* aCompositable) MOZ_OVERRIDE;
 
-  /**
-   * See CompositableForwarder::AddTexture
-   */
-  virtual void AddTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::RemoveTexture
-   */
-  virtual void RemoveTexture(CompositableClient* aCompositable,
-                             uint64_t aTextureID,
-                             TextureFlags aFlags) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UpdatedTexture
-   */
-  virtual void UpdatedTexture(CompositableClient* aCompositable,
-                              TextureClient* aTexture,
-                              nsIntRegion* aRegion) MOZ_OVERRIDE;
-
-  /**
-   * See CompositableForwarder::UseTexture
-   */
-  virtual void UseTexture(CompositableClient* aCompositable,
-                          TextureClient* aClient) MOZ_OVERRIDE;
-
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) MOZ_OVERRIDE
   {
     NS_RUNTIMEABORT("should not be called");
   }
@@ -275,15 +247,6 @@ public:
   virtual void UpdateTextureNoSwap(CompositableClient* aCompositable,
                                    TextureIdentifier aTextureId,
                                    SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
-  virtual void UpdateTextureIncremental(CompositableClient* aCompositable,
-                                        TextureIdentifier aTextureId,
-                                        SurfaceDescriptor& aDescriptor,
-                                        const nsIntRegion& aUpdatedRegion,
-                                        const nsIntRect& aBufferRect,
-                                        const nsIntPoint& aBufferRotation) MOZ_OVERRIDE
-  {
-    NS_RUNTIMEABORT("should not be called");
-  }
 
   /**
    * Communicate the picture rect of a YUV image in aLayer to the compositor
@@ -298,12 +261,6 @@ public:
                                    const SurfaceDescriptor& aDescriptor,
                                    const TextureInfo& aTextureInfo,
                                    const SurfaceDescriptor* aDescriptorOnWhite = nullptr) MOZ_OVERRIDE {
-    NS_RUNTIMEABORT("should not be called");
-  }
-  virtual void CreatedIncrementalBuffer(CompositableClient* aCompositable,
-                                        const TextureInfo& aTextureInfo,
-                                        const nsIntRect& aBufferRect) MOZ_OVERRIDE
-  {
     NS_RUNTIMEABORT("should not be called");
   }
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
@@ -365,9 +322,8 @@ protected:
 
   CompositableTransaction* mTxn;
 
-  // ISurfaceAllocator
   virtual PGrallocBufferChild* AllocGrallocBuffer(const gfxIntSize& aSize,
-                                                  uint32_t aFormat, uint32_t aUsage,
+                                                  gfxASurface::gfxContentType aContent,
                                                   MaybeMagicGrallocBufferHandle* aHandle) MOZ_OVERRIDE;
 };
 

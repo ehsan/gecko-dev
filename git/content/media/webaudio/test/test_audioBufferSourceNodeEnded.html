@@ -12,6 +12,8 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
   var context = new AudioContext();
   var buffer = context.createBuffer(1, 2048, context.sampleRate);
   for (var i = 0; i < 2048; ++i) {
@@ -22,6 +24,7 @@ addLoadEvent(function() {
 
   source.onended = function(e) {
     is(e.target, source, "Correct target for the ended event");
+    SpecialPowers.clearUserPref("media.webaudio.enabled");
     SimpleTest.finish();
   };
 

@@ -59,7 +59,6 @@ void SkRefDict::set(const char name[], SkRefCnt* data) {
                 } else {
                     fImpl = rec->fNext;
                 }
-                delete rec;
             }
             return;
         }
@@ -87,3 +86,4 @@ void SkRefDict::removeAll() {
     }
     fImpl = NULL;
 }
+

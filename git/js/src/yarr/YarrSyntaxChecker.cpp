@@ -25,9 +25,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "yarr/YarrSyntaxChecker.h"
+#include "YarrSyntaxChecker.h"
 
-#include "yarr/YarrParser.h"
+#include "YarrParser.h"
 
 namespace JSC { namespace Yarr {
 

@@ -331,7 +331,6 @@ typedef struct vcm_audioAttrs_t_ {
 typedef struct vcm_attrs_t_ {
   cc_boolean         mute;
   cc_boolean         is_video;
-  cc_boolean         rtcp_mux;
   vcm_audioAttrs_t audio; /**< audio line attribs */
   vcm_videoAttrs_t video; /**< Video Atrribs */
 } vcm_mediaAttrs_t;
@@ -500,23 +499,6 @@ short vcmCreateRemoteStream(
              cc_mcapid_t mcap_id,
              const char *peerconnection,
              int *pc_stream_id);
-
-/*
- * Add remote stream hint
- *
- * We are sending track information up to PeerConnection before
- * the tracks exist so it knows when the stream is fully constructed.
- *
- * @param[in] peerconnection
- * @param[in] pc_stream_id
- * @param[in] is_video
- *
- * Returns: zero(0) for success; otherwise, ERROR for failure
- */
-short vcmAddRemoteStreamHint(
-            const char *peerconnection,
-            int pc_stream_id,
-            cc_boolean is_video);
 
 /*!
  *  Release the allocated port

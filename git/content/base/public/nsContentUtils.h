@@ -20,6 +20,7 @@
 
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/AutoRestore.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "nsAString.h"
@@ -27,6 +28,7 @@
 #include "nsContentListDeclarations.h"
 #include "nsMathUtils.h"
 #include "nsReadableUtils.h"
+#include "nsWrapperCache.h"
 
 class imgICache;
 class imgIContainer;
@@ -43,7 +45,6 @@ class nsIChannel;
 class nsIConsoleService;
 class nsIContent;
 class nsIContentPolicy;
-class nsIContentSecurityPolicy;
 class nsIDocShell;
 class nsIDocument;
 class nsIDocumentLoaderFactory;
@@ -60,7 +61,6 @@ class nsIDOMWindow;
 class nsIDragSession;
 class nsIEditor;
 class nsIFragmentContentSink;
-class nsIFrame;
 class nsIImageLoadingContent;
 class nsIInterfaceRequestor;
 class nsIIOService;
@@ -94,7 +94,7 @@ class nsScriptObjectTracer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
-class nsWrapperCache;
+class nsIFrame;
 
 struct JSContext;
 struct JSPropertyDescriptor;
@@ -124,16 +124,6 @@ class EventTarget;
 namespace layers {
 class LayerManager;
 } // namespace layers
-
-// Called back from DeferredFinalize.  Should add 'thing' to the array of smart
-// pointers in 'pointers', creating the array if 'pointers' is null, and return
-// the array.
-typedef void* (*DeferredFinalizeAppendFunction)(void* pointers, void* thing);
-
-// Called to finalize a number of objects. Slice is the number of objects
-// to finalize, or if it's UINT32_MAX, all objects should be finalized.
-// Return value indicates whether it finalized all objects in the buffer.
-typedef bool (*DeferredFinalizeFunction)(uint32_t slice, void* data);
 
 } // namespace mozilla
 
@@ -193,7 +183,7 @@ public:
   static bool     IsImageSrcSetDisabled();
 
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
-                                  JS::HandleId aId, JS::MutableHandle<JSPropertyDescriptor> aDesc);
+                                  JS::HandleId aId, JSPropertyDescriptor* aDesc);
 
   /**
    * Returns the parent node of aChild crossing document boundaries.
@@ -471,12 +461,6 @@ public:
     return sSecurityManager;
   }
 
-  /**
-   * Get the ContentSecurityPolicy for a JS context.
-   **/
-  static bool GetContentSecurityPolicy(JSContext* aCx,
-                                       nsIContentSecurityPolicy** aCSP);
-
   // Returns the subject principal. Guaranteed to return non-null. May only
   // be called when nsContentUtils is initialized.
   static nsIPrincipal* GetSubjectPrincipal();
@@ -525,6 +509,17 @@ public:
 
   static nsresult GuessCharset(const char *aData, uint32_t aDataLen,
                                nsACString &aCharset);
+
+  /**
+   * Determine whether aContent is in some way associated with aForm.  If the
+   * form is a container the only elements that are considered to be associated
+   * with a form are the elements that are contained within the form. If the
+   * form is a leaf element then all elements will be accepted into this list,
+   * since this can happen due to content fixup when a form spans table rows or
+   * table cells.
+   */
+  static bool BelongsInForm(nsIContent *aForm,
+                              nsIContent *aContent);
 
   static nsresult CheckQName(const nsAString& aQualifiedName,
                              bool aNamespaceAware = true,
@@ -756,7 +751,7 @@ public:
    */
   static nsresult ReportToConsoleNonLocalized(const nsAString& aErrorText,
                                               uint32_t aErrorFlags,
-                                              const nsACString& aCategory,
+                                              const char *aCategory,
                                               nsIDocument* aDocument,
                                               nsIURI* aURI = nullptr,
                                               const nsAFlatString& aSourceLine
@@ -800,7 +795,7 @@ public:
     PropertiesFile_COUNT
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
-                                  const nsACString& aCategory,
+                                  const char *aCategory,
                                   nsIDocument* aDocument,
                                   PropertiesFile aFile,
                                   const char *aMessageName,
@@ -811,26 +806,6 @@ public:
                                     = EmptyString(),
                                   uint32_t aLineNumber = 0,
                                   uint32_t aColumnNumber = 0);
-  // This overload allows passing a literal string for aCategory.
-  template<uint32_t N>
-  static nsresult ReportToConsole(uint32_t aErrorFlags,
-                                  const char (&aCategory)[N],
-                                  nsIDocument* aDocument,
-                                  PropertiesFile aFile,
-                                  const char *aMessageName,
-                                  const PRUnichar **aParams = nullptr,
-                                  uint32_t aParamsLength = 0,
-                                  nsIURI* aURI = nullptr,
-                                  const nsAFlatString& aSourceLine
-                                    = EmptyString(),
-                                  uint32_t aLineNumber = 0,
-                                  uint32_t aColumnNumber = 0)
-  {
-      nsDependentCString category(aCategory, N - 1);
-      return ReportToConsole(aErrorFlags, category, aDocument, aFile,
-                             aMessageName, aParams, aParamsLength, aURI,
-                             aSourceLine, aLineNumber, aColumnNumber);
-  }
 
   /**
    * Get the localized string named |aKey| in properties file |aFile|.
@@ -1297,12 +1272,42 @@ public:
 
 #ifdef DEBUG
   static bool AreJSObjectsHeld(void* aScriptObjectHolder); 
+
+  static void CheckCCWrapperTraversal(void* aScriptObjectHolder,
+                                      nsWrapperCache* aCache,
+                                      nsScriptObjectTracer* aTracer);
 #endif
 
-  static void DeferredFinalize(nsISupports* aSupports);
-  static void DeferredFinalize(mozilla::DeferredFinalizeAppendFunction aAppendFunc,
-                               mozilla::DeferredFinalizeFunction aFunc,
-                               void* aThing);
+  static void PreserveWrapper(nsISupports* aScriptObjectHolder,
+                              nsWrapperCache* aCache)
+  {
+    if (!aCache->PreservingWrapper()) {
+      nsISupports *ccISupports;
+      aScriptObjectHolder->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                                          reinterpret_cast<void**>(&ccISupports));
+      MOZ_ASSERT(ccISupports);
+      nsXPCOMCycleCollectionParticipant* participant;
+      CallQueryInterface(ccISupports, &participant);
+      PreserveWrapper(ccISupports, aCache, participant);
+    }
+  }
+  static void PreserveWrapper(void* aScriptObjectHolder,
+                              nsWrapperCache* aCache,
+                              nsScriptObjectTracer* aTracer)
+  {
+    if (!aCache->PreservingWrapper()) {
+      HoldJSObjects(aScriptObjectHolder, aTracer);
+      aCache->SetPreservingWrapper(true);
+#ifdef DEBUG
+      // Make sure the cycle collector will be able to traverse to the wrapper.
+      CheckCCWrapperTraversal(aScriptObjectHolder, aCache, aTracer);
+#endif
+    }
+  }
+  static void ReleaseWrapper(void* aScriptObjectHolder,
+                             nsWrapperCache* aCache);
+  static void TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
+                           void *aClosure);
 
   /*
    * Notify when the first XUL menu is opened and when the all XUL menus are
@@ -1347,11 +1352,6 @@ public:
    * Returns true if aPrincipal is the system principal.
    */
   static bool IsSystemPrincipal(nsIPrincipal* aPrincipal);
-
-  /**
-   * Returns true if aPrincipal is an nsExpandedPrincipal.
-   */
-  static bool IsExpandedPrincipal(nsIPrincipal* aPrincipal);
 
   /**
    * Gets the system principal from the security manager.
@@ -1504,12 +1504,6 @@ public:
   static bool OfflineAppAllowed(nsIPrincipal *aPrincipal);
 
   /**
-   * If offline-apps.allow_by_default is true, we set offline-app permission
-   * for the principal and return true.  Otherwise false.
-   */
-  static bool MaybeAllowOfflineAppByDefault(nsIPrincipal *aPrincipal);
-
-  /**
    * Increases the count of blockers preventing scripts from running.
    * NOTE: You might want to use nsAutoScriptBlocker rather than calling
    * this directly
@@ -1567,6 +1561,11 @@ public:
   static nsViewportInfo GetViewportInfo(nsIDocument* aDocument,
                                         uint32_t aDisplayWidth,
                                         uint32_t aDisplayHeight);
+
+  /**
+   * The device-pixel-to-CSS-px ratio used to adjust meta viewport values.
+   */
+  static double GetDevicePixelsPerMetaViewportPixel(nsIWidget* aWidget);
 
   // Call EnterMicroTask when you're entering JS execution.
   // Usually the best way to do this is to use nsAutoMicroTask.
@@ -1775,14 +1774,14 @@ public:
    * getting generic data like a device context or widget from it is OK, but it
    * might not be this document's actual presentation.
    */
-  static nsIPresShell* FindPresShellForDocument(const nsIDocument* aDoc);
+  static nsIPresShell* FindPresShellForDocument(nsIDocument* aDoc);
 
   /**
    * Returns the widget for this document if there is one. Looks at all ancestor
    * documents to try to find a widget, so for example this can still find a
    * widget for documents in display:none frames that have no presentation.
    */
-  static nsIWidget* WidgetForDocument(const nsIDocument* aDoc);
+  static nsIWidget* WidgetForDocument(nsIDocument* aDoc);
 
   /**
    * Returns a layer manager to use for the given document. Basically we
@@ -1795,7 +1794,7 @@ public:
    * layer manager should be used for retained layers
    */
   static already_AddRefed<mozilla::layers::LayerManager>
-  LayerManagerForDocument(const nsIDocument *aDoc, bool *aAllowRetaining = nullptr);
+  LayerManagerForDocument(nsIDocument *aDoc, bool *aAllowRetaining = nullptr);
 
   /**
    * Returns a layer manager to use for the given document. Basically we
@@ -2145,11 +2144,6 @@ public:
                                   const nsAString& aFeature,
                                   const nsAString& aVersion);
 
-  /**
-   * Return true if the browser.dom.window.dump.enabled pref is set.
-   */
-  static bool DOMWindowDumpEnabled();
-
 private:
   static bool InitializeEventTable();
 
@@ -2259,10 +2253,6 @@ private:
   static nsString* sOSText;
   static nsString* sAltText;
   static nsString* sModifierSeparator;
-
-#if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
-  static bool sDOMWindowDumpEnabled;
-#endif
 };
 
 typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
@@ -2275,6 +2265,40 @@ typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
 #define NS_DROP_JS_OBJECTS(obj, clazz)                                         \
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
+
+class MOZ_STACK_CLASS nsCxPusher
+{
+public:
+  nsCxPusher();
+  ~nsCxPusher(); // Calls Pop();
+
+  // Returns false if something erroneous happened.
+  bool Push(mozilla::dom::EventTarget *aCurrentTarget);
+  // If nothing has been pushed to stack, this works like Push.
+  // Otherwise if context will change, Pop and Push will be called.
+  bool RePush(mozilla::dom::EventTarget *aCurrentTarget);
+  // If a null JSContext is passed to Push(), that will cause no
+  // push to happen and false to be returned.
+  void Push(JSContext *cx);
+  // Explicitly push a null JSContext on the the stack
+  void PushNull();
+
+  // Pop() will be a no-op if Push() or PushNull() fail
+  void Pop();
+
+  nsIScriptContext* GetCurrentScriptContext() { return mScx; }
+private:
+  // Combined code for PushNull() and Push(JSContext*)
+  void DoPush(JSContext* cx);
+
+  nsCOMPtr<nsIScriptContext> mScx;
+  bool mScriptIsRunning;
+  bool mPushedSomething;
+#ifdef DEBUG
+  JSContext* mPushedContext;
+  unsigned mCompartmentDepthOnEntry;
+#endif
+};
 
 class MOZ_STACK_CLASS nsAutoScriptBlocker {
 public:
@@ -2316,6 +2340,70 @@ public:
     nsContentUtils::LeaveMicroTask();
   }
 };
+
+namespace mozilla {
+
+/**
+ * Use AutoJSContext when you need a JS context on the stack but don't have one
+ * passed as a parameter. AutoJSContext will take care of finding the most
+ * appropriate JS context and release it when leaving the stack.
+ */
+class MOZ_STACK_CLASS AutoJSContext {
+public:
+  AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
+  operator JSContext*();
+
+protected:
+  AutoJSContext(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+
+private:
+  // We need this Init() method because we can't use delegating constructor for
+  // the moment. It is a C++11 feature and we do not require C++11 to be
+  // supported to be able to compile Gecko.
+  void Init(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+
+  JSContext* mCx;
+  nsCxPusher mPusher;
+  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+/**
+ * AutoSafeJSContext is similar to AutoJSContext but will only return the safe
+ * JS context. That means it will never call ::GetCurrentJSContext().
+ */
+class MOZ_STACK_CLASS AutoSafeJSContext : public AutoJSContext {
+public:
+  AutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
+};
+
+/**
+ * Use AutoPushJSContext when you want to use a specific JSContext that may or
+ * may not be already on the stack. This differs from nsCxPusher in that it only
+ * pushes in the case that the given cx is not the active cx on the JSContext
+ * stack, which avoids an expensive JS_SaveFrameChain in the common case.
+ *
+ * Most consumers of this should probably just use AutoJSContext. But the goal
+ * here is to preserve the existing behavior while ensure proper cx-stack
+ * semantics in edge cases where the context being used doesn't match the active
+ * context.
+ *
+ * NB: This will not push a null cx even if aCx is null. Make sure you know what
+ * you're doing.
+ */
+class MOZ_STACK_CLASS AutoPushJSContext {
+  nsCxPusher mPusher;
+  JSContext* mCx;
+
+public:
+    AutoPushJSContext(JSContext* aCx) : mCx(aCx) {
+      if (mCx && mCx != nsContentUtils::GetCurrentJSContext()) {
+        mPusher.Push(mCx);
+      }
+    }
+    operator JSContext*() { return mCx; }
+};
+
+} // namespace mozilla
 
 #define NS_INTERFACE_MAP_ENTRY_TEAROFF(_interface, _allocator)                \
   if (aIID.Equals(NS_GET_IID(_interface))) {                                  \

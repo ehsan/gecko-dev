@@ -4,16 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsiter_h
-#define jsiter_h
+#ifndef jsiter_h___
+#define jsiter_h___
 
 /*
  * JavaScript iterators.
  */
-
-#include "mozilla/MemoryReporting.h"
-
 #include "jscntxt.h"
+#include "jsprvtd.h"
+#include "jspubtd.h"
+#include "jsversion.h"
 
 #include "gc/Barrier.h"
 #include "vm/Stack.h"
@@ -119,12 +119,10 @@ class PropertyIteratorObject : public JSObject
   public:
     static Class class_;
 
-    NativeIterator *getNativeIterator() const {
-        return static_cast<js::NativeIterator *>(getPrivate());
-    }
+    inline NativeIterator *getNativeIterator() const;
     inline void setNativeIterator(js::NativeIterator *ni);
 
-    size_t sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
 
   private:
     static void trace(JSTracer *trc, JSObject *obj);
@@ -145,8 +143,6 @@ class PropertyIteratorObject : public JSObject
 class ElementIteratorObject : public JSObject
 {
   public:
-    static Class class_;
-
     static JSObject *create(JSContext *cx, Handle<Value> target);
     static const JSFunctionSpec methods[];
 
@@ -156,7 +152,7 @@ class ElementIteratorObject : public JSObject
         NumSlots
     };
 
-    static bool next(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool next(JSContext *cx, unsigned argc, Value *vp);
     static bool next_impl(JSContext *cx, JS::CallArgs args);
 };
 
@@ -203,7 +199,7 @@ UnwindIteratorForException(JSContext *cx, js::HandleObject obj);
 void
 UnwindIteratorForUncatchableException(JSContext *cx, JSObject *obj);
 
-bool
+JSBool
 IteratorConstructor(JSContext *cx, unsigned argc, Value *vp);
 
 }
@@ -228,7 +224,7 @@ js_IteratorMore(JSContext *cx, js::HandleObject iterobj, js::MutableHandleValue 
 extern bool
 js_IteratorNext(JSContext *cx, js::HandleObject iterobj, js::MutableHandleValue rval);
 
-extern bool
+extern JSBool
 js_ThrowStopIteration(JSContext *cx);
 
 namespace js {
@@ -300,10 +296,10 @@ class ForOfIterator
         return ok && !currentValue.get().isMagic(JS_NO_ITER_VALUE);
     }
 
-    MutableHandleValue value() {
+    Value &value() {
         JS_ASSERT(ok);
         JS_ASSERT(!closed);
-        return &currentValue;
+        return currentValue.get();
     }
 
     bool close() {
@@ -325,6 +321,8 @@ class ForOfIterator
 };
 
 } /* namespace js */
+
+#if JS_HAS_GENERATORS
 
 /*
  * Generator state codes.
@@ -349,7 +347,7 @@ struct JSGenerator
 };
 
 extern JSObject *
-js_NewGenerator(JSContext *cx, const js::FrameRegs &regs);
+js_NewGenerator(JSContext *cx);
 
 namespace js {
 
@@ -357,8 +355,9 @@ bool
 GeneratorHasMarkableFrame(JSGenerator *gen);
 
 } /* namespace js */
+#endif
 
 extern JSObject *
 js_InitIteratorClasses(JSContext *cx, js::HandleObject obj);
 
-#endif /* jsiter_h */
+#endif /* jsiter_h___ */

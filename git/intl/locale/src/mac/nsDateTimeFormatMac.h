@@ -15,7 +15,7 @@
 class nsDateTimeFormatMac : public nsIDateTimeFormat {
 
 public: 
-  NS_DECL_THREADSAFE_ISUPPORTS 
+  NS_DECL_ISUPPORTS 
 
   // performs a locale sensitive date formatting operation on the time_t parameter
   NS_IMETHOD FormatTime(nsILocale* locale, 

@@ -233,7 +233,7 @@ public:
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface** aWhiteSurface) = 0;
   virtual TemporaryRef<gfx::DrawTarget>
-  CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, RefPtr<gfx::DrawTarget>* aWhiteDT)
+  CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags)
   { NS_RUNTIMEABORT("CreateDTBuffer not implemented on this platform!"); return nullptr; }
   virtual bool SupportsAzureContent() const 
   { return false; }
@@ -245,8 +245,6 @@ public:
    */
   gfxASurface* GetBuffer() { return mBuffer; }
   gfxASurface* GetBufferOnWhite() { return mBufferOnWhite; }
-  gfx::DrawTarget* GetDTBuffer() { return mDTBuffer; }
-  gfx::DrawTarget* GetDTBufferOnWhite() { return mDTBufferOnWhite; }
 
   /**
    * Complete the drawing operation. The region to draw must have been
@@ -257,14 +255,11 @@ public:
               gfxASurface* aMask, const gfxMatrix* aMaskTransform);
 
 protected:
-  // If this buffer is currently using Azure.
-  bool IsAzureBuffer();
 
   already_AddRefed<gfxASurface>
   SetBuffer(gfxASurface* aBuffer,
             const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
   {
-    MOZ_ASSERT(!SupportsAzureContent());
     nsRefPtr<gfxASurface> tmp = mBuffer.forget();
     mBuffer = aBuffer;
     mBufferRect = aBufferRect;
@@ -275,30 +270,8 @@ protected:
   already_AddRefed<gfxASurface>
   SetBufferOnWhite(gfxASurface* aBuffer)
   {
-    MOZ_ASSERT(!SupportsAzureContent());
     nsRefPtr<gfxASurface> tmp = mBufferOnWhite.forget();
     mBufferOnWhite = aBuffer;
-    return tmp.forget();
-  }
-
-  TemporaryRef<gfx::DrawTarget>
-  SetDTBuffer(gfx::DrawTarget* aBuffer,
-            const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
-  {
-    MOZ_ASSERT(SupportsAzureContent());
-    RefPtr<gfx::DrawTarget> tmp = mDTBuffer.forget();
-    mDTBuffer = aBuffer;
-    mBufferRect = aBufferRect;
-    mBufferRotation = aBufferRotation;
-    return tmp.forget();
-  }
-
-  TemporaryRef<gfx::DrawTarget>
-  SetDTBufferOnWhite(gfx::DrawTarget* aBuffer)
-  {
-    MOZ_ASSERT(SupportsAzureContent());
-    RefPtr<gfx::DrawTarget> tmp = mDTBufferOnWhite.forget();
-    mDTBufferOnWhite = aBuffer;
     return tmp.forget();
   }
 
@@ -313,7 +286,7 @@ protected:
    * unset the provider when inactive, by calling
    * SetBufferProvider(nullptr).
    */
-  void SetBufferProvider(DeprecatedTextureClient* aClient)
+  void SetBufferProvider(TextureClient* aClient)
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
@@ -326,7 +299,7 @@ protected:
     } 
   }
   
-  void SetBufferProviderOnWhite(DeprecatedTextureClient* aClient)
+  void SetBufferProviderOnWhite(TextureClient* aClient)
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
@@ -377,8 +350,8 @@ protected:
    * when we're using surfaces that require explicit map/unmap. Only one
    * may be used at a time.
    */
-  DeprecatedTextureClient* mBufferProvider;
-  DeprecatedTextureClient* mBufferProviderOnWhite;
+  TextureClient* mBufferProvider;
+  TextureClient* mBufferProviderOnWhite;
 
   BufferSizePolicy      mBufferSizePolicy;
 };

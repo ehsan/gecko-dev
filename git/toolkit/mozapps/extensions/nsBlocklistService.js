@@ -31,7 +31,6 @@ const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
 const PREF_BLOCKLIST_PINGCOUNTTOTAL   = "extensions.blocklist.pingCountTotal";
 const PREF_BLOCKLIST_PINGCOUNTVERSION = "extensions.blocklist.pingCountVersion";
-const PREF_BLOCKLIST_SUPPRESSUI       = "extensions.blocklist.suppressUI";
 const PREF_PLUGINS_NOTIFYUSER         = "plugins.update.notifyUser";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 const PREF_APP_DISTRIBUTION           = "distribution.id";
@@ -958,7 +957,7 @@ Blocklist.prototype = {
         if (state == oldState)
           continue;
 
-        if (oldState == Ci.nsIBlocklistService.STATE_BLOCKED) {
+        if (plugin.blocklisted) {
           if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
             plugin.enabledState = Ci.nsIPluginTag.STATE_DISABLED;
         }
@@ -979,6 +978,7 @@ Blocklist.prototype = {
             });
           }
         }
+        plugin.blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
       }
 
       if (addonList.length == 0) {
@@ -1027,12 +1027,7 @@ Blocklist.prototype = {
         Services.obs.removeObserver(applyBlocklistChanges, "addon-blocklist-closed");
       }
 
-      Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false);
-
-      if (getPref("getBoolPref", PREF_BLOCKLIST_SUPPRESSUI, false)) {
-        applyBlocklistChanges();
-        return;
-      }
+      Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false)
 
       function blocklistUnloadHandler(event) {
         if (event.target.location == URI_BLOCKLIST_DIALOG) {

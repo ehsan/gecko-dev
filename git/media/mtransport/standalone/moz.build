@@ -6,9 +6,17 @@
 
 MODULE = 'mtransport_s'
 
-CPP_SOURCES += [
-    '$(MTRANSPORT_LCPPSRCS)',
+EXPORTS.mtransport += [
+    '../dtlsidentity.h',
+    '../nricectx.h',
+    '../nricemediastream.h',
+    '../nriceresolverfake.h',
+    '../transportflow.h',
+    '../transportlayer.h',
+    '../transportlayerdtls.h',
+    '../transportlayerice.h',
+    '../transportlayerlog.h',
+    '../transportlayerloopback.h',
+    '../transportlayerprsock.h',
 ]
-
-LIBRARY_NAME = 'mtransport_s'
 

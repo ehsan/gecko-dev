@@ -110,6 +110,9 @@ static nsresult
 NewXMLFragmentContentSinkHelper(nsIFragmentContentSink** aResult)
 {
   nsXMLFragmentContentSink* it = new nsXMLFragmentContentSink();
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   
   NS_ADDREF(*aResult = it);
   
@@ -138,8 +141,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsXMLContentSink)
 
 NS_IMPL_ADDREF_INHERITED(nsXMLFragmentContentSink, nsXMLContentSink)
 NS_IMPL_RELEASE_INHERITED(nsXMLFragmentContentSink, nsXMLContentSink)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLFragmentContentSink)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLFragmentContentSink,
                                                   nsXMLContentSink)

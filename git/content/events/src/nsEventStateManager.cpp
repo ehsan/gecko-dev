@@ -96,7 +96,6 @@
 #include "GeckoProfiler.h"
 
 #include "nsIDOMClientRect.h"
-#include "Units.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -109,7 +108,7 @@ using namespace mozilla::dom;
 
 #define NS_USER_INTERACTION_INTERVAL 5000 // ms
 
-static const LayoutDeviceIntPoint kInvalidRefPoint = LayoutDeviceIntPoint(-1,-1);
+static const nsIntPoint kInvalidRefPoint = nsIntPoint(-1,-1);
 
 static bool sLeftClickOnly = true;
 static bool sKeyCausesActivation = true;
@@ -120,10 +119,10 @@ bool nsEventStateManager::sNormalLMouseEventInProcess = false;
 nsEventStateManager* nsEventStateManager::sActiveESM = nullptr;
 nsIDocument* nsEventStateManager::sMouseOverDocument = nullptr;
 nsWeakFrame nsEventStateManager::sLastDragOverFrame = nullptr;
-LayoutDeviceIntPoint nsEventStateManager::sLastRefPoint = kInvalidRefPoint;
-nsIntPoint nsEventStateManager::sLastScreenPoint = nsIntPoint(0, 0);
-LayoutDeviceIntPoint nsEventStateManager::sSynthCenteringPoint = kInvalidRefPoint;
-CSSIntPoint nsEventStateManager::sLastClientPoint = CSSIntPoint(0, 0);
+nsIntPoint nsEventStateManager::sLastRefPoint = kInvalidRefPoint;
+nsIntPoint nsEventStateManager::sLastScreenPoint = nsIntPoint(0,0);
+nsIntPoint nsEventStateManager::sSynthCenteringPoint = kInvalidRefPoint;
+nsIntPoint nsEventStateManager::sLastClientPoint = nsIntPoint(0,0);
 bool nsEventStateManager::sIsPointerLocked = false;
 // Reference to the pointer locked element.
 nsWeakPtr nsEventStateManager::sPointerLockedElement;
@@ -567,8 +566,7 @@ nsMouseWheelTransaction::GetScreenPoint(nsGUIEvent* aEvent)
 {
   NS_ASSERTION(aEvent, "aEvent is null");
   NS_ASSERTION(aEvent->widget, "aEvent-widget is null");
-  return LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint) +
-         aEvent->widget->WidgetToScreenOffset();
+  return aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
 }
 
 uint32_t
@@ -1497,7 +1495,8 @@ nsEventStateManager::DispatchCrossProcessEvent(nsEvent* aEvent,
     return remote->SendRealTouchEvent(*touchEvent);
   }
   default: {
-    MOZ_CRASH("Attempt to send non-whitelisted event?");
+    MOZ_NOT_REACHED("Attempt to send non-whitelisted event?");
+    return false;
   }
   }
 }
@@ -1526,22 +1525,40 @@ nsEventStateManager::IsRemoteTarget(nsIContent* target) {
   return false;
 }
 
-/*static*/ LayoutDeviceIntPoint
-nsEventStateManager::GetChildProcessOffset(nsFrameLoader* aFrameLoader,
-                                           const nsEvent& aEvent)
+/*static*/ void
+nsEventStateManager::MapEventCoordinatesForChildProcess(nsFrameLoader* aFrameLoader,
+                                                        nsEvent* aEvent)
 {
   // The "toplevel widget" in child processes is always at position
   // 0,0.  Map the event coordinates to match that.
   nsIFrame* targetFrame = aFrameLoader->GetPrimaryFrameOfOwningContent();
   if (!targetFrame) {
-    return LayoutDeviceIntPoint();
+    return;
   }
   nsPresContext* presContext = targetFrame->PresContext();
 
-  // Find out how far we're offset from the nearest widget.
-  nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(&aEvent,
-                                                            targetFrame);
-  return LayoutDeviceIntPoint::FromAppUnitsToNearest(pt, presContext->AppUnitsPerDevPixel());
+  if (aEvent->eventStructType != NS_TOUCH_EVENT) {
+    nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent,
+                                                              targetFrame);
+    aEvent->refPoint = pt.ToNearestPixels(presContext->AppUnitsPerDevPixel());
+  } else {
+    aEvent->refPoint = nsIntPoint();
+    // Find out how far we're offset from the nearest widget.
+    nsPoint offset =
+      nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, targetFrame);
+    nsIntPoint intOffset =
+      offset.ToNearestPixels(presContext->AppUnitsPerDevPixel());
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
+    // Then offset all the touch points by that distance, to put them
+    // in the space where top-left is 0,0.
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
+    for (uint32_t i = 0; i < touches.Length(); ++i) {
+      nsIDOMTouch* touch = touches[i];
+      if (touch) {
+        touch->mRefPoint += intOffset;
+      }
+    }
+  }
 }
 
 bool
@@ -1556,7 +1573,6 @@ CrossProcessSafeEvent(const nsEvent& aEvent)
     case NS_MOUSE_BUTTON_DOWN:
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_MOVE:
-    case NS_CONTEXTMENU:
       return true;
     default:
       return false;
@@ -1611,9 +1627,9 @@ nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
     // This loop is similar to the one used in
     // PresShell::DispatchTouchEvent().
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
-      Touch* touch = touches[i];
+      nsIDOMTouch* touch = touches[i];
       // NB: the |mChanged| check is an optimization, subprocesses can
       // compute this for themselves.  If the touch hasn't changed, we
       // may be able to avoid forwarding the event entirely (which is
@@ -1621,7 +1637,7 @@ nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
       if (!touch || !touch->mChanged) {
         continue;
       }
-      nsCOMPtr<EventTarget> targetPtr = touch->mTarget;
+      nsCOMPtr<EventTarget> targetPtr = touch->GetTarget();
       if (!targetPtr) {
         continue;
       }
@@ -1656,6 +1672,8 @@ nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
     if (eventMode == nsIFrameLoader::EVENT_MODE_DONT_FORWARD_TO_CHILD) {
       continue;
     }
+
+    MapEventCoordinatesForChildProcess(frameLoader, aEvent);
 
     dispatched |= DispatchCrossProcessEvent(aEvent, frameLoader, aStatus);
   }
@@ -1891,7 +1909,7 @@ nsEventStateManager::BeginTrackingDragGesture(nsPresContext* aPresContext,
   // Note that |inDownEvent| could be either a mouse down event or a
   // synthesized mouse move event.
   mGestureDownPoint = inDownEvent->refPoint +
-    LayoutDeviceIntPoint::FromUntyped(inDownEvent->widget->WidgetToScreenOffset());
+    inDownEvent->widget->WidgetToScreenOffset();
 
   inDownFrame->GetContentForEvent(inDownEvent,
                                   getter_AddRefs(mGestureDownContent));
@@ -1929,8 +1947,8 @@ nsEventStateManager::FillInEventFromGestureDown(nsMouseEvent* aEvent)
   // Set the coordinates in the new event to the coordinates of
   // the old event, adjusted for the fact that the widget might be
   // different
-  aEvent->refPoint = mGestureDownPoint -
-    LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
+  nsIntPoint tmpPoint = aEvent->widget->WidgetToScreenOffset();
+  aEvent->refPoint = mGestureDownPoint - tmpPoint;
   aEvent->modifiers = mGestureModifiers;
   aEvent->buttons = mGestureDownButtons;
 }
@@ -1986,8 +2004,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     }
 
     // fire drag gesture if mouse has moved enough
-    LayoutDeviceIntPoint pt = aEvent->refPoint +
-      LayoutDeviceIntPoint::FromUntyped(aEvent->widget->WidgetToScreenOffset());
+    nsIntPoint pt = aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
     if (DeprecatedAbs(pt.x - mGestureDownPoint.x) > pixelThresholdX ||
         DeprecatedAbs(pt.y - mGestureDownPoint.y) > pixelThresholdY) {
       if (mClickHoldContextMenu) {
@@ -1997,7 +2014,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       }
 
       nsRefPtr<nsDOMDataTransfer> dataTransfer =
-        new nsDOMDataTransfer(NS_DRAGDROP_START, false, -1);
+        new nsDOMDataTransfer(NS_DRAGDROP_START, false);
       if (!dataTransfer)
         return;
 
@@ -2492,7 +2509,8 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
       break;
 
     default:
-      MOZ_CRASH("Invalid deltaMode value comes");
+      MOZ_NOT_REACHED("Invalid deltaMode value comes");
+      return;
   }
 
   // Send the legacy events in following order:
@@ -2818,7 +2836,8 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
       origin = nsGkAtoms::pixels;
       break;
     default:
-      MOZ_CRASH("Invalid deltaMode value comes");
+      MOZ_NOT_REACHED("Invalid deltaMode value comes");
+      return;
   }
 
   // We shouldn't scroll more one page at once except when over one page scroll
@@ -2862,7 +2881,8 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
       mode = nsIScrollableFrame::SMOOTH;
       break;
     default:
-      MOZ_CRASH("Invalid scrollType value comes");
+      MOZ_NOT_REACHED("Invalid scrollType value comes");
+      return;
   }
 
   nsIntPoint overflow;
@@ -3043,9 +3063,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   NS_ENSURE_ARG(aPresContext);
   NS_ENSURE_ARG_POINTER(aStatus);
 
-  bool dispatchedToContentProcess = HandleCrossProcessEvent(aEvent,
-                                                            aTargetFrame,
-                                                            aStatus);
+  HandleCrossProcessEvent(aEvent, aTargetFrame, aStatus);
 
   mCurrentTarget = aTargetFrame;
   mCurrentTargetContent = nullptr;
@@ -3457,9 +3475,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         nsMouseEvent* mouseEvent = static_cast<nsMouseEvent*>(aEvent);
         event.refPoint = mouseEvent->refPoint;
         if (mouseEvent->widget) {
-          event.refPoint += LayoutDeviceIntPoint::FromUntyped(mouseEvent->widget->WidgetToScreenOffset());
+          event.refPoint += mouseEvent->widget->WidgetToScreenOffset();
         }
-        event.refPoint -= LayoutDeviceIntPoint::FromUntyped(widget->WidgetToScreenOffset());
+        event.refPoint -= widget->WidgetToScreenOffset();
         event.modifiers = mouseEvent->modifiers;
         event.buttons = mouseEvent->buttons;
         event.inputSource = mouseEvent->inputSource;
@@ -3492,13 +3510,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         switch(keyEvent->keyCode) {
           case NS_VK_TAB:
           case NS_VK_F6:
-            // Handling the tab event after it was sent to content is bad,
-            // because to the FocusManager the remote-browser looks like one
-            // element, so we would just move the focus to the next element
-            // in chrome, instead of handling it in content.
-            if (dispatchedToContentProcess)
-              break;
-
             EnsureDocument(mPresContext);
             nsIFocusManager* fm = nsFocusManager::GetFocusManager();
             if (fm && mDocument) {
@@ -3759,10 +3770,10 @@ nsEventStateManager::SetCursor(int32_t aCursor, imgIContainer* aContainer,
   case NS_STYLE_CURSOR_SPINNING:
     c = eCursor_spinning;
     break;
-  case NS_STYLE_CURSOR_ZOOM_IN:
+  case NS_STYLE_CURSOR_MOZ_ZOOM_IN:
     c = eCursor_zoom_in;
     break;
-  case NS_STYLE_CURSOR_ZOOM_OUT:
+  case NS_STYLE_CURSOR_MOZ_ZOOM_OUT:
     c = eCursor_zoom_out;
     break;
   case NS_STYLE_CURSOR_NOT_ALLOWED:
@@ -4116,12 +4127,12 @@ nsEventStateManager::NotifyMouseOver(nsGUIEvent* aEvent, nsIContent* aContent)
 // mode (see bug 799523 comment 35, and bug 729011). Using integer CSS pix
 // makes us throw away the fractional error that results, rather than having
 // it manifest as a potential one-device-pix discrepancy.
-static LayoutDeviceIntPoint
+static nsIntPoint
 GetWindowInnerRectCenter(nsPIDOMWindow* aWindow,
                          nsIWidget* aWidget,
                          nsPresContext* aContext)
 {
-  NS_ENSURE_TRUE(aWindow && aWidget && aContext, LayoutDeviceIntPoint(0, 0));
+  NS_ENSURE_TRUE(aWindow && aWidget && aContext, nsIntPoint(0,0));
 
   float cssInnerX = 0.0;
   aWindow->GetMozInnerScreenX(&cssInnerX);
@@ -4143,7 +4154,7 @@ GetWindowInnerRectCenter(nsPIDOMWindow* aWindow,
   int32_t cssScreenX = aContext->DevPixelsToIntCSSPixels(screen.x);
   int32_t cssScreenY = aContext->DevPixelsToIntCSSPixels(screen.y);
 
-  return LayoutDeviceIntPoint(
+  return nsIntPoint(
     aContext->CSSPixelsToDevPixels(innerX - cssScreenX + innerWidth / 2),
     aContext->CSSPixelsToDevPixels(innerY - cssScreenY + innerHeight / 2));
 }
@@ -4171,9 +4182,9 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
         // (locked) pointer can continue moving and won't stop at the screen
         // boundary. We cancel the synthetic event so that we don't end up
         // dispatching the centering move event to content.
-        LayoutDeviceIntPoint center =
-          GetWindowInnerRectCenter(mDocument->GetWindow(), aEvent->widget,
-                                   mPresContext);
+        nsIntPoint center = GetWindowInnerRectCenter(mDocument->GetWindow(),
+                                                     aEvent->widget,
+                                                     mPresContext);
         aEvent->lastRefPoint = center;
         if (aEvent->refPoint != center) {
           // Mouse move doesn't finish at the center of the window. Dispatch a
@@ -4183,7 +4194,7 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
           // in the other branch here.
           sSynthCenteringPoint = center;
           aEvent->widget->SynthesizeNativeMouseMove(
-            LayoutDeviceIntPoint::ToUntyped(center) + aEvent->widget->WidgetToScreenOffset());
+            center + aEvent->widget->WidgetToScreenOffset());
         } else if (aEvent->refPoint == sSynthCenteringPoint) {
           // This is the "synthetic native" event we dispatched to re-center the
           // pointer. Cancel it so we don't expose the centering move to content.
@@ -4273,7 +4284,7 @@ nsEventStateManager::SetPointerLock(nsIWidget* aWidget,
                                              aWidget,
                                              mPresContext);
     aWidget->SynthesizeNativeMouseMove(
-      LayoutDeviceIntPoint::ToUntyped(sLastRefPoint) + aWidget->WidgetToScreenOffset());
+      sLastRefPoint + aWidget->WidgetToScreenOffset());
 
     // Retarget all events to this element via capture.
     nsIPresShell::SetCapturingContent(aElement, CAPTURE_POINTERLOCK);
@@ -4289,7 +4300,7 @@ nsEventStateManager::SetPointerLock(nsIWidget* aWidget,
     // no movement.
     sLastRefPoint = mPreLockPoint;
     aWidget->SynthesizeNativeMouseMove(
-      LayoutDeviceIntPoint::ToUntyped(mPreLockPoint) + aWidget->WidgetToScreenOffset());
+      mPreLockPoint + aWidget->WidgetToScreenOffset());
 
     // Don't retarget events to this element any more.
     nsIPresShell::SetCapturingContent(nullptr, CAPTURE_POINTERLOCK);
@@ -4547,10 +4558,7 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
       if (!mouseContent && !mCurrentTarget) {
         return NS_OK;
       }
-
-      // HandleEvent clears out mCurrentTarget which we might need again
-      nsWeakFrame currentTarget = mCurrentTarget;
-      ret = presShell->HandleEventWithTarget(&event, currentTarget,
+      ret = presShell->HandleEventWithTarget(&event, mCurrentTarget,
                                              mouseContent, aStatus);
       if (NS_SUCCEEDED(ret) && aEvent->clickCount == 2) {
         //fire double click
@@ -4564,7 +4572,7 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
         event2.button = aEvent->button;
         event2.inputSource = aEvent->inputSource;
 
-        ret = presShell->HandleEventWithTarget(&event2, currentTarget,
+        ret = presShell->HandleEventWithTarget(&event2, mCurrentTarget,
                                                mouseContent, aStatus);
       }
     }

@@ -23,7 +23,7 @@ function runTests() {
   // because we always collect data for tabs of active windows no matter if
   // the window is dirty or not.
   let win = OpenBrowserWindow();
-  yield whenDelayedStartupFinished(win, next);
+  yield waitForLoad(win);
 
   // Create a tab with two history entries.
   let tab = gBrowser.selectedTab = gBrowser.addTab("about:blank");

@@ -594,7 +594,7 @@ nsHtml5ElementName::initializeStatics()
   ELT_EXP = new nsHtml5ElementName(nsHtml5Atoms::exp, nsHtml5Atoms::exp, NS_HTML5TREE_BUILDER_OTHER);
   ELT_GCD = new nsHtml5ElementName(nsHtml5Atoms::gcd, nsHtml5Atoms::gcd, NS_HTML5TREE_BUILDER_OTHER);
   ELT_GEQ = new nsHtml5ElementName(nsHtml5Atoms::geq, nsHtml5Atoms::geq, NS_HTML5TREE_BUILDER_OTHER);
-  ELT_IMG = new nsHtml5ElementName(nsHtml5Atoms::img, nsHtml5Atoms::img, NS_HTML5TREE_BUILDER_IMG | NS_HTML5ELEMENT_NAME_SPECIAL);
+  ELT_IMG = new nsHtml5ElementName(nsHtml5Atoms::img, nsHtml5Atoms::img, NS_HTML5TREE_BUILDER_EMBED_OR_IMG | NS_HTML5ELEMENT_NAME_SPECIAL);
   ELT_INS = new nsHtml5ElementName(nsHtml5Atoms::ins, nsHtml5Atoms::ins, NS_HTML5TREE_BUILDER_OTHER);
   ELT_INT = new nsHtml5ElementName(nsHtml5Atoms::int_, nsHtml5Atoms::int_, NS_HTML5TREE_BUILDER_OTHER);
   ELT_KBD = new nsHtml5ElementName(nsHtml5Atoms::kbd, nsHtml5Atoms::kbd, NS_HTML5TREE_BUILDER_OTHER);
@@ -685,7 +685,7 @@ nsHtml5ElementName::initializeStatics()
   ELT_ASIDE = new nsHtml5ElementName(nsHtml5Atoms::aside, nsHtml5Atoms::aside, NS_HTML5TREE_BUILDER_ADDRESS_OR_ARTICLE_OR_ASIDE_OR_DETAILS_OR_DIR_OR_FIGCAPTION_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_HGROUP_OR_MAIN_OR_NAV_OR_SECTION_OR_SUMMARY | NS_HTML5ELEMENT_NAME_SPECIAL);
   ELT_AUDIO = new nsHtml5ElementName(nsHtml5Atoms::audio, nsHtml5Atoms::audio, NS_HTML5TREE_BUILDER_OTHER);
   ELT_APPLY = new nsHtml5ElementName(nsHtml5Atoms::apply, nsHtml5Atoms::apply, NS_HTML5TREE_BUILDER_OTHER);
-  ELT_EMBED = new nsHtml5ElementName(nsHtml5Atoms::embed, nsHtml5Atoms::embed, NS_HTML5TREE_BUILDER_EMBED | NS_HTML5ELEMENT_NAME_SPECIAL);
+  ELT_EMBED = new nsHtml5ElementName(nsHtml5Atoms::embed, nsHtml5Atoms::embed, NS_HTML5TREE_BUILDER_EMBED_OR_IMG | NS_HTML5ELEMENT_NAME_SPECIAL);
   ELT_FRAME = new nsHtml5ElementName(nsHtml5Atoms::frame, nsHtml5Atoms::frame, NS_HTML5TREE_BUILDER_FRAME | NS_HTML5ELEMENT_NAME_SPECIAL);
   ELT_FALSE = new nsHtml5ElementName(nsHtml5Atoms::false_, nsHtml5Atoms::false_, NS_HTML5TREE_BUILDER_OTHER);
   ELT_FLOOR = new nsHtml5ElementName(nsHtml5Atoms::floor, nsHtml5Atoms::floor, NS_HTML5TREE_BUILDER_OTHER);
@@ -852,7 +852,7 @@ nsHtml5ElementName::initializeStatics()
   ELT_QUOTIENT = new nsHtml5ElementName(nsHtml5Atoms::quotient, nsHtml5Atoms::quotient, NS_HTML5TREE_BUILDER_OTHER);
   ELT_SELECTOR = new nsHtml5ElementName(nsHtml5Atoms::selector, nsHtml5Atoms::selector, NS_HTML5TREE_BUILDER_OTHER);
   ELT_TEXTAREA = new nsHtml5ElementName(nsHtml5Atoms::textarea, nsHtml5Atoms::textarea, NS_HTML5TREE_BUILDER_TEXTAREA | NS_HTML5ELEMENT_NAME_SPECIAL);
-  ELT_TEMPLATE = new nsHtml5ElementName(nsHtml5Atoms::template_, nsHtml5Atoms::template_, NS_HTML5TREE_BUILDER_TEMPLATE | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_SCOPING);
+  ELT_TEMPLATE = new nsHtml5ElementName(nsHtml5Atoms::template_, nsHtml5Atoms::template_, NS_HTML5TREE_BUILDER_TEMPLATE | NS_HTML5ELEMENT_NAME_SPECIAL);
   ELT_TEXTPATH = new nsHtml5ElementName(nsHtml5Atoms::textpath, nsHtml5Atoms::textPath, NS_HTML5TREE_BUILDER_OTHER);
   ELT_VARIANCE = new nsHtml5ElementName(nsHtml5Atoms::variance, nsHtml5Atoms::variance, NS_HTML5TREE_BUILDER_OTHER);
   ELT_ANIMATION = new nsHtml5ElementName(nsHtml5Atoms::animation, nsHtml5Atoms::animation, NS_HTML5TREE_BUILDER_OTHER);

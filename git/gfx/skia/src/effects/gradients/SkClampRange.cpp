@@ -163,3 +163,4 @@ void SkClampRange::init(SkFixed fx0, SkFixed dx0, int count, int v0, int v1) {
         fCount0 += extraCount;
     }
 }
+

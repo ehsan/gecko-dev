@@ -6,7 +6,6 @@
 
 #include "WorkerPrivate.h"
 
-#include "amIAddonManager.h"
 #include "nsIClassInfo.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIConsoleService.h"
@@ -24,22 +23,16 @@
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
+#include "nsIXPCScriptNotify.h"
 #include "nsPrintfCString.h"
-#include "nsHostObjectProtocolHandler.h"
 
-#include <algorithm>
 #include "jsfriendapi.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
+#include "jsprf.h"
 #include "js/MemoryMetrics.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ImageData.h"
-#include "mozilla/dom/ImageDataBinding.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsError.h"
 #include "nsDOMJSUtils.h"
 #include "nsGUIEvent.h"
@@ -50,6 +43,9 @@
 #include "nsSandboxFlags.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/Likely.h"
+#include <algorithm>
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -58,12 +54,17 @@
 #include "Events.h"
 #include "Exceptions.h"
 #include "File.h"
+#include "ImageData.h"
 #include "Principal.h"
 #include "RuntimeService.h"
 #include "ScriptLoader.h"
 #include "Worker.h"
 #include "WorkerFeature.h"
 #include "WorkerScope.h"
+
+#if 0 // Define to run GC more often.
+#define EXTRA_GC
+#endif
 
 // GC will run once every thirty seconds during normal execution.
 #define NORMAL_GC_TIMER_DELAY_MS 30000
@@ -75,7 +76,6 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
-using mozilla::AutoPushJSContext;
 using mozilla::AutoSafeJSContext;
 
 USING_WORKERS_NAMESPACE
@@ -204,21 +204,16 @@ struct WorkerStructuredCloneCallbacks
       MOZ_ASSERT(dataArray.isObject());
 
       // Construct the ImageData.
-      nsRefPtr<ImageData> imageData = new ImageData(width, height,
-                                                    dataArray.toObject());
-      // Wrap it in a JS::Value.
-      JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
-      if (!global) {
-        return nullptr;
-      }
-      return imageData->WrapObject(aCx, global);
+      JS::Rooted<JSObject*> dataObj(aCx, &dataArray.toObject());
+      JSObject* obj = imagedata::Create(aCx, width, height, dataObj);
+      return obj;
     }
 
     Error(aCx, 0);
     return nullptr;
   }
 
-  static bool
+  static JSBool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -255,20 +250,16 @@ struct WorkerStructuredCloneCallbacks
     }
 
     // See if this is an ImageData object.
-    {
-      ImageData* imageData = nullptr;
-      if (NS_SUCCEEDED(UnwrapObject<ImageData>(aCx, aObj, imageData))) {
-        // Prepare the ImageData internals.
-        uint32_t width = imageData->Width();
-        uint32_t height = imageData->Height();
-        JS::Rooted<JSObject*> dataArray(aCx, imageData->GetDataObject());
+    if (imagedata::IsImageData(aObj)) {
+      // Pull the properties off the object.
+      uint32_t width = imagedata::GetWidth(aObj);
+      uint32_t height = imagedata::GetHeight(aObj);
+      JSObject* data = imagedata::GetData(aObj);
 
-        // Write the internals to the stream.
-        JSAutoCompartment ac(aCx, dataArray);
-        return JS_WriteUint32Pair(aWriter, SCTAG_DOM_IMAGEDATA, 0) &&
-               JS_WriteUint32Pair(aWriter, width, height) &&
-               JS_WriteTypedArray(aWriter, JS::ObjectValue(*dataArray));
-      }
+      // Write the structured clone.
+      return JS_WriteUint32Pair(aWriter, SCTAG_DOM_IMAGEDATA, 0) &&
+             JS_WriteUint32Pair(aWriter, width, height) &&
+             JS_WriteTypedArray(aWriter, OBJECT_TO_JSVAL(data));
     }
 
     Error(aCx, 0);
@@ -318,7 +309,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
         // nsIDOMFiles should be threadsafe, thus we will use the same instance
         // on the main thread.
         JS::Rooted<JS::Value> wrappedFile(aCx);
-        JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+        JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
         nsresult rv = nsContentUtils::WrapNative(aCx, global, file,
                                                  &NS_GET_IID(nsIDOMFile),
                                                  wrappedFile.address());
@@ -352,7 +343,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
         // nsIDOMBlobs should be threadsafe, thus we will use the same instance
         // on the main thread.
         JS::Rooted<JS::Value> wrappedBlob(aCx);
-        JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+        JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
         nsresult rv = nsContentUtils::WrapNative(aCx, global, blob,
                                                  &NS_GET_IID(nsIDOMBlob),
                                                  wrappedBlob.address());
@@ -369,7 +360,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
     return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
   }
 
-  static bool
+  static JSBool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -457,7 +448,7 @@ struct ChromeWorkerStructuredCloneCallbacks
                                                 aClosure);
   }
 
-  static bool
+  static JSBool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -503,7 +494,7 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
     return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
   }
 
-  static bool
+  static JSBool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -539,23 +530,18 @@ class MainThreadReleaseRunnable : public nsRunnable
 {
   nsCOMPtr<nsIThread> mThread;
   nsTArray<nsCOMPtr<nsISupports> > mDoomed;
-  nsTArray<nsCString> mHostObjectURIs;
 
 public:
   MainThreadReleaseRunnable(nsCOMPtr<nsIThread>& aThread,
-                            nsTArray<nsCOMPtr<nsISupports> >& aDoomed,
-                            nsTArray<nsCString>& aHostObjectURIs)
+                            nsTArray<nsCOMPtr<nsISupports> >& aDoomed)
   {
     mThread.swap(aThread);
     mDoomed.SwapElements(aDoomed);
-    mHostObjectURIs.SwapElements(aHostObjectURIs);
   }
 
-  MainThreadReleaseRunnable(nsTArray<nsCOMPtr<nsISupports> >& aDoomed,
-                            nsTArray<nsCString>& aHostObjectURIs)
+  MainThreadReleaseRunnable(nsTArray<nsCOMPtr<nsISupports> >& aDoomed)
   {
     mDoomed.SwapElements(aDoomed);
-    mHostObjectURIs.SwapElements(aHostObjectURIs);
   }
 
   NS_IMETHOD
@@ -568,10 +554,6 @@ public:
       NS_ASSERTION(runtime, "This should never be null!");
 
       runtime->NoteIdleThread(mThread);
-    }
-
-    for (uint32_t i = 0, len = mHostObjectURIs.Length(); i < len; ++i) {
-      nsHostObjectProtocolHandler::RemoveDataEntry(mHostObjectURIs[i]);
     }
 
     return NS_OK;
@@ -611,11 +593,8 @@ public:
     nsTArray<nsCOMPtr<nsISupports> > doomed;
     mFinishedWorker->ForgetMainThreadObjects(doomed);
 
-    nsTArray<nsCString> hostObjectURIs;
-    mFinishedWorker->StealHostObjectURIs(hostObjectURIs);
-
     nsRefPtr<MainThreadReleaseRunnable> runnable =
-      new MainThreadReleaseRunnable(mThread, doomed, hostObjectURIs);
+      new MainThreadReleaseRunnable(mThread, doomed);
     if (NS_FAILED(NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL))) {
       NS_WARNING("Failed to dispatch, going to leak!");
     }
@@ -663,11 +642,8 @@ public:
     nsTArray<nsCOMPtr<nsISupports> > doomed;
     mFinishedWorker->ForgetMainThreadObjects(doomed);
 
-    nsTArray<nsCString> hostObjectURIs;
-    mFinishedWorker->StealHostObjectURIs(hostObjectURIs);
-
     nsRefPtr<MainThreadReleaseRunnable> runnable =
-      new MainThreadReleaseRunnable(doomed, hostObjectURIs);
+      new MainThreadReleaseRunnable(doomed);
     if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
       NS_WARNING("Failed to dispatch, going to leak!");
     }
@@ -743,7 +719,7 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JS::Rooted<JSObject*> target(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JSObject*> target(aCx, JS_GetGlobalForScopeChain(aCx));
     NS_ASSERTION(target, "This must never be null!");
 
     aWorkerPrivate->CloseHandlerStarted();
@@ -779,7 +755,8 @@ public:
 
 class MessageEventRunnable : public WorkerRunnable
 {
-  JSAutoStructuredCloneBuffer mBuffer;
+  uint64_t* mData;
+  size_t mDataByteCount;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
 
 public:
@@ -791,13 +768,20 @@ public:
                                                        UnchangedBusyCount,
                    SkipWhenClearing)
   {
-    mBuffer.swap(aData);
+    aData.steal(&mData, &mDataByteCount);
+
     mClonedObjects.SwapElements(aClonedObjects);
   }
 
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
+    JSAutoStructuredCloneBuffer buffer;
+    buffer.adopt(mData, mDataByteCount);
+
+    mData = nullptr;
+    mDataByteCount = 0;
+
     bool mainRuntime;
     JS::Rooted<JSObject*> target(aCx);
     if (mTarget == ParentThread) {
@@ -814,6 +798,7 @@ public:
 
       if (aWorkerPrivate->IsSuspended()) {
         aWorkerPrivate->QueueRunnable(this);
+        buffer.steal(&mData, &mDataByteCount);
         return true;
       }
 
@@ -823,13 +808,13 @@ public:
       NS_ASSERTION(aWorkerPrivate == GetWorkerPrivateFromContext(aCx),
                    "Badness!");
       mainRuntime = false;
-      target = JS::CurrentGlobalOrNull(aCx);
+      target = JS_GetGlobalForScopeChain(aCx);
     }
 
     NS_ASSERTION(target, "This should never be null!");
 
     JS::Rooted<JSObject*> event(aCx,
-      CreateMessageEvent(aCx, mBuffer, mClonedObjects, mainRuntime));
+      CreateMessageEvent(aCx, buffer, mClonedObjects, mainRuntime));
     if (!event) {
       return false;
     }
@@ -840,6 +825,8 @@ public:
 
   void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
   {
+    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
+    NotifyScriptExecutedIfNeeded();
     WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
   }
 };
@@ -986,6 +973,8 @@ public:
 
   void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
   {
+    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
+    NotifyScriptExecutedIfNeeded();
     WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
   }
 
@@ -1040,7 +1029,7 @@ public:
       // Now fire an event at the global object, but don't do that if the error
       // code is too much recursion and this is the same script threw the error.
       if (aFireAtScope && (aTarget || aErrorNumber != JSMSG_OVER_RECURSED)) {
-        aTarget = JS::CurrentGlobalOrNull(aCx);
+        aTarget = JS_GetGlobalForScopeChain(aCx);
         NS_ASSERTION(aTarget, "This should never be null!");
 
         bool preventDefaultCalled;
@@ -1131,7 +1120,7 @@ public:
       }
     }
 
-    if (!logged || nsContentUtils::DOMWindowDumpEnabled()) {
+    if (!logged) {
       NS_ConvertUTF16toUTF8 msg(aMessage);
 #ifdef ANDROID
       __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", msg.get());
@@ -1189,7 +1178,7 @@ public:
   : mWorkerRunnable(aWorkerRunnable)
   { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   NS_IMETHOD
   Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
@@ -1218,7 +1207,7 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(WorkerRunnableEventTarget, nsIEventTarget)
+NS_IMPL_THREADSAFE_ISUPPORTS1(WorkerRunnableEventTarget, nsIEventTarget)
 
 class KillCloseEventRunnable : public WorkerRunnable
 {
@@ -1317,22 +1306,19 @@ public:
 
 class UpdateJSContextOptionsRunnable : public WorkerControlRunnable
 {
-  uint32_t mContentOptions;
-  uint32_t mChromeOptions;
+  uint32_t mOptions;
 
 public:
   UpdateJSContextOptionsRunnable(WorkerPrivate* aWorkerPrivate,
-                                 uint32_t aContentOptions,
-                                 uint32_t aChromeOptions)
+                                 uint32_t aOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mContentOptions(aContentOptions), mChromeOptions(aChromeOptions)
+    mOptions(aOptions)
   { }
 
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    aWorkerPrivate->UpdateJSContextOptionsInternal(aCx, mContentOptions,
-                                                   mChromeOptions);
+    aWorkerPrivate->UpdateJSContextOptionsInternal(aCx, mOptions);
     return true;
   }
 };
@@ -1362,42 +1348,22 @@ public:
 class UpdateGCZealRunnable : public WorkerControlRunnable
 {
   uint8_t mGCZeal;
-  uint32_t mFrequency;
 
 public:
   UpdateGCZealRunnable(WorkerPrivate* aWorkerPrivate,
-                       uint8_t aGCZeal,
-                       uint32_t aFrequency)
+                       uint8_t aGCZeal)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mGCZeal(aGCZeal), mFrequency(aFrequency)
+    mGCZeal(aGCZeal)
   { }
 
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    aWorkerPrivate->UpdateGCZealInternal(aCx, mGCZeal, mFrequency);
+    aWorkerPrivate->UpdateGCZealInternal(aCx, mGCZeal);
     return true;
   }
 };
 #endif
-
-class UpdateJITHardeningRunnable : public WorkerControlRunnable
-{
-  bool mJITHardening;
-
-public:
-  UpdateJITHardeningRunnable(WorkerPrivate* aWorkerPrivate, bool aJITHardening)
-  : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mJITHardening(aJITHardening)
-  { }
-
-  bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
-  {
-    aWorkerPrivate->UpdateJITHardeningInternal(aCx, mJITHardening);
-    return true;
-  }
-};
 
 class GarbageCollectRunnable : public WorkerControlRunnable
 {
@@ -1436,33 +1402,6 @@ public:
   }
 };
 
-class SynchronizeAndResumeRunnable : public nsRunnable
-{
-protected:
-  WorkerPrivate* mWorkerPrivate;
-  nsCOMPtr<nsIScriptContext> mCx;
-
-public:
-  SynchronizeAndResumeRunnable(WorkerPrivate* aWorkerPrivate,
-                               nsIScriptContext* aCx)
-  : mWorkerPrivate(aWorkerPrivate), mCx(aCx)
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  }
-
-  NS_IMETHOD Run()
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-    AutoPushJSContext cx(mCx ? mCx->GetNativeContext() :
-                         nsContentUtils::GetSafeJSContext());
-    JSAutoRequest ar(cx);
-    mWorkerPrivate->Resume(cx);
-
-    return NS_OK;
-  }
-};
-
 class WorkerJSRuntimeStats : public JS::RuntimeStats
 {
   const nsACString& mRtPath;
@@ -1494,7 +1433,7 @@ public:
     // aZoneStats->extra is a xpc::ZoneStatsExtras pointer.
     xpc::ZoneStatsExtras* extras = new xpc::ZoneStatsExtras;
     extras->pathPrefix = mRtPath;
-    extras->pathPrefix += nsPrintfCString("zone(0x%p)/", (void *)aZone);
+    extras->pathPrefix += nsPrintfCString("zone(%p)/", (void *)aZone);
     aZoneStats->extra = extras;
   }
 
@@ -1512,7 +1451,7 @@ public:
     // This is the |jsPathPrefix|.  Each worker has exactly two compartments:
     // one for atoms, and one for everything else.
     extras->jsPathPrefix.Assign(mRtPath);
-    extras->jsPathPrefix += nsPrintfCString("zone(0x%p)/",
+    extras->jsPathPrefix += nsPrintfCString("zone(%p)/",
                                             (void *)js::GetCompartmentZone(aCompartment));
     extras->jsPathPrefix += js::IsAtomsCompartment(aCompartment)
                             ? NS_LITERAL_CSTRING("compartment(web-worker-atoms)/")
@@ -1544,7 +1483,7 @@ WorkerRunnable::WorkerRunnable(WorkerPrivate* aWorkerPrivate, Target aTarget,
 }
 #endif
 
-NS_IMPL_ISUPPORTS1(WorkerRunnable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(WorkerRunnable, nsIRunnable)
 
 bool
 WorkerRunnable::PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
@@ -1585,7 +1524,7 @@ WorkerRunnable::Dispatch(JSContext* aCx)
 
   JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JSObject* global = JS_GetGlobalForScopeChain(aCx);
 
   Maybe<JSAutoCompartment> ac;
   if (global) {
@@ -1682,7 +1621,7 @@ WorkerRunnable::Run()
   JS::Rooted<JSObject*> targetCompartmentObject(cx);
 
   if (mTarget == WorkerThread) {
-    targetCompartmentObject = JS::CurrentGlobalOrNull(cx);
+    targetCompartmentObject = JS_GetGlobalForScopeChain(cx);
   } else {
     targetCompartmentObject = mWorkerPrivate->GetJSObject();
   }
@@ -1697,13 +1636,6 @@ WorkerRunnable::Run()
   }
 
   bool result = WorkerRun(cx, mWorkerPrivate);
-  // In the case of CompileScriptRunnnable, WorkerRun above can cause us to
-  // lazily create a global, in which case we need to be in its compartment
-  // when calling PostRun() below. Maybe<> this time...
-  if (mTarget == WorkerThread && ac.empty() &&
-      js::DefaultObjectForContextOrNull(cx)) {
-    ac.construct(cx, js::DefaultObjectForContextOrNull(cx));
-  }
   PostRun(cx, mWorkerPrivate, result);
   return result ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -1732,6 +1664,18 @@ WorkerRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   }
 }
 
+void
+WorkerRunnable::NotifyScriptExecutedIfNeeded() const
+{
+  // if we're on the main thread notify about the end of our script execution.
+  if (mTarget == ParentThread && !mWorkerPrivate->GetParent()) {
+    AssertIsOnMainThread();
+    if (mWorkerPrivate->GetScriptNotify()) {
+      mWorkerPrivate->GetScriptNotify()->ScriptExecuted();
+    }
+  }
+}
+
 struct WorkerPrivate::TimeoutInfo
 {
   TimeoutInfo()
@@ -1756,8 +1700,8 @@ struct WorkerPrivate::TimeoutInfo
     return mTargetTime < aOther.mTargetTime;
   }
 
-  JS::Heap<JS::Value> mTimeoutVal;
-  nsTArray<JS::Heap<JS::Value> > mExtraArgVals;
+  JS::Value mTimeoutVal;
+  nsTArray<jsval> mExtraArgVals;
   mozilla::TimeStamp mTargetTime;
   mozilla::TimeDuration mInterval;
   nsCString mFilename;
@@ -1774,14 +1718,12 @@ class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
   SharedMutex mMutex;
   WorkerPrivate* mWorkerPrivate;
   nsCString mRtPath;
-  bool mAlreadyMappedToAddon;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   MemoryReporter(WorkerPrivate* aWorkerPrivate)
-  : mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate),
-    mAlreadyMappedToAddon(false)
+  : mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate)
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
 
@@ -1813,14 +1755,10 @@ public:
   {
     AssertIsOnMainThread();
 
-    // Assumes that WorkerJSRuntimeStats will hold a reference to mRtPath,
-    // and not a copy, as TryToMapAddon() may later modify the string again.
     WorkerJSRuntimeStats rtStats(mRtPath);
 
     {
       MutexAutoLock lock(mMutex);
-
-      TryToMapAddon();
 
       if (!mWorkerPrivate ||
           !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats)) {
@@ -1846,45 +1784,10 @@ private:
     NS_ASSERTION(mWorkerPrivate, "Disabled more than once!");
     mWorkerPrivate = nullptr;
   }
-
-  // Only call this from the main thread and under mMutex lock.
-  void
-  TryToMapAddon()
-  {
-    AssertIsOnMainThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    if (mAlreadyMappedToAddon || !mWorkerPrivate) {
-      return;
-    }
-
-    nsCOMPtr<nsIURI> scriptURI;
-    if (NS_FAILED(NS_NewURI(getter_AddRefs(scriptURI),
-                            mWorkerPrivate->ScriptURL()))) {
-      return;
-    }
-
-    mAlreadyMappedToAddon = true;
-
-    nsAutoCString addonId;
-    bool ok;
-    nsCOMPtr<amIAddonManager> addonManager =
-      do_GetService("@mozilla.org/addons/integration;1");
-
-    if (!addonManager ||
-        NS_FAILED(addonManager->MapURIToAddonID(scriptURI, addonId, &ok)) ||
-        !ok) {
-      return;
-    }
-
-    static const size_t explicitLength = strlen("explicit/");
-    addonId.Insert(NS_LITERAL_CSTRING("add-ons/"), 0);
-    addonId += "/";
-    mRtPath.Insert(addonId, explicitLength);
-  }
 };
 
-NS_IMPL_ISUPPORTS1(WorkerPrivate::MemoryReporter, nsIMemoryMultiReporter)
+NS_IMPL_THREADSAFE_ISUPPORTS1(WorkerPrivate::MemoryReporter,
+                              nsIMemoryMultiReporter)
 
 template <class Derived>
 WorkerPrivateParent<Derived>::WorkerPrivateParent(
@@ -1908,7 +1811,9 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mMemoryReportCondVar(mMutex, "WorkerPrivateParent Memory Report CondVar"),
   mJSObject(aObject), mParent(aParent), mParentJSContext(aParentJSContext),
   mScriptURL(aScriptURL), mDomain(aDomain), mBusyCount(0),
-  mParentStatus(Pending), mJSObjectRooted(false), mParentSuspended(false),
+  mParentStatus(Pending), mJSContextOptions(0),
+  mJSRuntimeHeapSize(0), mJSWorkerAllocationThreshold(3),
+  mGCZeal(0), mJSObjectRooted(false), mParentSuspended(false),
   mIsChromeWorker(aIsChromeWorker), mPrincipalIsSystem(false),
   mMainThreadObjectsForgotten(false), mEvalAllowed(aEvalAllowed),
   mReportCSPViolations(aReportCSPViolations)
@@ -1921,6 +1826,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
 
   mWindow.swap(aWindow);
   mScriptContext.swap(aScriptContext);
+  mScriptNotify = do_QueryInterface(mScriptContext);
   mBaseURI.swap(aBaseURI);
   mPrincipal.swap(aPrincipal);
   mChannel.swap(aChannel);
@@ -1929,17 +1835,32 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   if (aParent) {
     aParent->AssertIsOnWorkerThread();
 
-    aParent->CopyJSSettings(mJSSettings);
-
-    NS_ASSERTION(JS_GetOptions(aCx) == (aParent->IsChromeWorker() ?
-                                        mJSSettings.chrome.options :
-                                        mJSSettings.content.options),
+    NS_ASSERTION(JS_GetOptions(aCx) == aParent->GetJSContextOptions(),
                  "Options mismatch!");
+    mJSContextOptions = aParent->GetJSContextOptions();
+
+    NS_ASSERTION(JS_GetGCParameter(JS_GetRuntime(aCx), JSGC_MAX_BYTES) ==
+                 aParent->GetJSRuntimeHeapSize(),
+                 "Runtime heap size mismatch!");
+    mJSRuntimeHeapSize = aParent->GetJSRuntimeHeapSize();
+
+    mJSWorkerAllocationThreshold = aParent->GetJSWorkerAllocationThreshold();
+
+#ifdef JS_GC_ZEAL
+    mGCZeal = aParent->GetGCZeal();
+#endif
   }
   else {
     AssertIsOnMainThread();
 
-    RuntimeService::GetDefaultJSSettings(mJSSettings);
+    mJSContextOptions = RuntimeService::GetDefaultJSContextOptions();
+    mJSRuntimeHeapSize =
+      RuntimeService::GetDefaultJSWorkerMemoryParameter(JSGC_MAX_BYTES);
+    mJSWorkerAllocationThreshold =
+      RuntimeService::GetDefaultJSWorkerMemoryParameter(JSGC_ALLOCATION_THRESHOLD);
+#ifdef JS_GC_ZEAL
+    mGCZeal = RuntimeService::GetDefaultGCZeal();
+#endif
   }
 }
 
@@ -2037,7 +1958,7 @@ WorkerPrivateParent<Derived>::Suspend(JSContext* aCx)
 }
 
 template <class Derived>
-void
+bool
 WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 {
   AssertIsOnParentThread();
@@ -2049,11 +1970,11 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
     MutexAutoLock lock(mMutex);
 
     if (mParentStatus >= Terminating) {
-      return;
+      return true;
     }
   }
 
-  // Execute queued runnables before waking up the worker, otherwise the worker
+  // Dispatch queued runnables before waking up the worker, otherwise the worker
   // could post new messages before we run those that have been queued.
   if (!mQueuedRunnables.IsEmpty()) {
     AssertIsOnMainThread();
@@ -2063,31 +1984,19 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 
     for (uint32_t index = 0; index < runnables.Length(); index++) {
       nsRefPtr<WorkerRunnable>& runnable = runnables[index];
-      runnable->Run();
+      if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
+        NS_WARNING("Failed to dispatch queued runnable!");
+      }
     }
   }
 
   nsRefPtr<ResumeRunnable> runnable =
     new ResumeRunnable(ParentAsWorkerPrivate());
-  runnable->Dispatch(aCx);
-}
+  if (!runnable->Dispatch(aCx)) {
+    return false;
+  }
 
-template <class Derived>
-bool
-WorkerPrivateParent<Derived>::SynchronizeAndResume(nsIScriptContext* aCx)
-{
-  AssertIsOnParentThread();
-  NS_ASSERTION(mParentSuspended, "Not yet suspended!");
-
-  // NB: There may be pending unqueued messages.  If we resume here we will
-  // execute those messages out of order.  Instead we post an event to the
-  // end of the event queue, allowing all of the outstanding messages to be
-  // queued up in order on the worker.  Then and only then we execute all of
-  // the messages.
-
-  nsRefPtr<SynchronizeAndResumeRunnable> runnable =
-    new SynchronizeAndResumeRunnable(ParentAsWorkerPrivate(), aCx);
-  return NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable));
+  return true;
 }
 
 template <class Derived>
@@ -2229,6 +2138,7 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
 
   SwapToISupportsArray(mWindow, aDoomed);
   SwapToISupportsArray(mScriptContext, aDoomed);
+  SwapToISupportsArray(mScriptNotify, aDoomed);
   SwapToISupportsArray(mBaseURI, aDoomed);
   SwapToISupportsArray(mScriptURI, aDoomed);
   SwapToISupportsArray(mPrincipal, aDoomed);
@@ -2299,20 +2209,14 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
-                                                     uint32_t aContentOptions,
-                                                     uint32_t aChromeOptions)
+                                                     uint32_t aOptions)
 {
   AssertIsOnParentThread();
 
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.content.options = aContentOptions;
-    mJSSettings.chrome.options = aChromeOptions;
-  }
+  mJSContextOptions = aOptions;
 
   nsRefPtr<UpdateJSContextOptionsRunnable> runnable =
-    new UpdateJSContextOptionsRunnable(ParentAsWorkerPrivate(), aContentOptions,
-                                       aChromeOptions);
+    new UpdateJSContextOptionsRunnable(ParentAsWorkerPrivate(), aOptions);
   if (!runnable->Dispatch(aCx)) {
     NS_WARNING("Failed to update worker context options!");
     JS_ClearPendingException(aCx);
@@ -2326,67 +2230,44 @@ WorkerPrivateParent<Derived>::UpdateJSWorkerMemoryParameter(JSContext* aCx,
                                                             uint32_t aValue)
 {
   AssertIsOnParentThread();
-
-  bool found = false;
-
-  {
-    MutexAutoLock lock(mMutex);
-    found = mJSSettings.ApplyGCSetting(aKey, aValue);
+  switch(aKey) {
+    case JSGC_ALLOCATION_THRESHOLD:
+      mJSWorkerAllocationThreshold = aValue;
+      break;
+    case JSGC_MAX_BYTES:
+      mJSRuntimeHeapSize = aValue;
+      break;
+    default:
+      break;
   }
 
-  if (found) {
-    nsRefPtr<UpdateJSWorkerMemoryParameterRunnable> runnable =
-      new UpdateJSWorkerMemoryParameterRunnable(ParentAsWorkerPrivate(), aKey,
-                                                aValue);
-    if (!runnable->Dispatch(aCx)) {
-      NS_WARNING("Failed to update memory parameter!");
-      JS_ClearPendingException(aCx);
-    }
+  nsRefPtr<UpdateJSWorkerMemoryParameterRunnable> runnable =
+    new UpdateJSWorkerMemoryParameterRunnable(ParentAsWorkerPrivate(),
+                                              aKey,
+                                              aValue);
+  if (!runnable->Dispatch(aCx)) {
+    NS_WARNING("Failed to update memory parameter!");
+    JS_ClearPendingException(aCx);
   }
 }
 
 #ifdef JS_GC_ZEAL
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal,
-                                           uint32_t aFrequency)
+WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal)
 {
   AssertIsOnParentThread();
 
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.gcZeal = aGCZeal;
-    mJSSettings.gcZealFrequency = aFrequency;
-  }
+  mGCZeal = aGCZeal;
 
   nsRefPtr<UpdateGCZealRunnable> runnable =
-    new UpdateGCZealRunnable(ParentAsWorkerPrivate(), aGCZeal, aFrequency);
+    new UpdateGCZealRunnable(ParentAsWorkerPrivate(), aGCZeal);
   if (!runnable->Dispatch(aCx)) {
     NS_WARNING("Failed to update worker gczeal!");
     JS_ClearPendingException(aCx);
   }
 }
 #endif
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::UpdateJITHardening(JSContext* aCx,
-                                                 bool aJITHardening)
-{
-  AssertIsOnParentThread();
-
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.jitHardening = aJITHardening;
-  }
-
-  nsRefPtr<UpdateJITHardeningRunnable> runnable =
-    new UpdateJITHardeningRunnable(ParentAsWorkerPrivate(), aJITHardening);
-  if (!runnable->Dispatch(aCx)) {
-    NS_WARNING("Failed to update worker jit hardening!");
-    JS_ClearPendingException(aCx);
-  }
-}
 
 template <class Derived>
 void
@@ -2601,7 +2482,7 @@ WorkerPrivate::Create(JSContext* aCx, JS::Handle<JSObject*> aObj, WorkerPrivate*
 
     // See if we're being called from a window or from somewhere else.
     nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
-      nsJSUtils::GetStaticScriptGlobal(JS::CurrentGlobalOrNull(aCx));
+      nsJSUtils::GetStaticScriptGlobal(JS_GetGlobalForScopeChain(aCx));
     if (scriptGlobal) {
       // Window!
       nsCOMPtr<nsPIDOMWindow> globalWindow = do_QueryInterface(scriptGlobal);
@@ -2709,7 +2590,7 @@ WorkerPrivate::Create(JSContext* aCx, JS::Handle<JSObject*> aObj, WorkerPrivate*
       return nullptr;
     }
 
-    if (!nsContentUtils::GetContentSecurityPolicy(aCx, getter_AddRefs(csp))) {
+    if (!GetContentSecurityPolicy(aCx, getter_AddRefs(csp))) {
       return nullptr;
     }
 
@@ -2832,7 +2713,6 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
   EnableMemoryReporter();
 
-  Maybe<JSAutoCompartment> maybeAC;
   for (;;) {
     Status currentStatus;
     bool scheduleIdleGC;
@@ -2850,17 +2730,6 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
       {
         MutexAutoUnlock unlock(mMutex);
-
-        // Workers lazily create a global object in CompileScriptRunnable. In
-        // the old world, creating the global would implicitly set it as the
-        // default compartment object on mJSContext, meaning that subsequent
-        // runnables would be able to operate in that compartment without
-        // explicitly entering it. That no longer works, so we mimic the
-        // "operate in the compartment of the worker global once it exists"
-        // behavior here. This could probably be improved with some refactoring.
-        if (maybeAC.empty() && js::DefaultObjectForContextOrNull(aCx)) {
-          maybeAC.construct(aCx, js::DefaultObjectForContextOrNull(aCx));
-        }
 
         if (!normalGCTimerRunning &&
             event != idleGCEvent &&
@@ -2882,6 +2751,11 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
           }
         }
 
+#ifdef EXTRA_GC
+        // Find GC bugs...
+        JS_GC(aCx);
+#endif
+
         // Keep track of whether or not this is the idle GC event.
         eventIsNotIdleGCEvent = event != idleGCEvent;
 
@@ -2892,8 +2766,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
       currentStatus = mStatus;
       scheduleIdleGC = mControlQueue.IsEmpty() &&
                        mQueue.IsEmpty() &&
-                       eventIsNotIdleGCEvent &&
-                       JS::CurrentGlobalOrNull(aCx);
+                       eventIsNotIdleGCEvent;
     }
 
     // Take care of the GC timer. If we're starting the close sequence then we
@@ -2909,12 +2782,6 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
     }
 
     if (scheduleIdleGC) {
-      NS_ASSERTION(JS::CurrentGlobalOrNull(aCx), "Should have global here!");
-
-      // Now *might* be a good time to GC. Let the JS engine make the decision.
-      JSAutoCompartment ac(aCx, JS::CurrentGlobalOrNull(aCx));
-      JS_MaybeGC(aCx);
-
       if (NS_SUCCEEDED(gcTimer->SetTarget(idleGCEventTarget)) &&
           NS_SUCCEEDED(gcTimer->InitWithFuncCallback(
                                                     DummyCallback, nullptr,
@@ -2925,6 +2792,11 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
         JS_ReportError(aCx, "Failed to start idle GC timer!");
       }
     }
+
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(aCx);
+#endif
 
     if (currentStatus != Running && !HasActiveFeatures()) {
       // If the close handler has finished and all features are done then we can
@@ -3388,11 +3260,11 @@ WorkerPrivate::TraceInternal(JSTracer* aTrc)
 
   for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
     TimeoutInfo* info = mTimeouts[index];
-    JS_CallHeapValueTracer(aTrc, &info->mTimeoutVal,
-                           "WorkerPrivate timeout value");
+    JS_CallValueTracer(aTrc, &info->mTimeoutVal,
+                       "WorkerPrivate timeout value");
     for (uint32_t index2 = 0; index2 < info->mExtraArgVals.Length(); index2++) {
-      JS_CallHeapValueTracer(aTrc, &info->mExtraArgVals[index2],
-                             "WorkerPrivate timeout extra argument value");
+      JS_CallValueTracer(aTrc, &info->mExtraArgVals[index2],
+                         "WorkerPrivate timeout extra argument value");
     }
   }
 }
@@ -3589,8 +3461,18 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
       }
     }
 
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(mJSContext);
+#endif
+
     static_cast<nsIRunnable*>(event)->Run();
     NS_RELEASE(event);
+
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(mJSContext);
+#endif
 
     if (syncQueue->mComplete) {
       NS_ASSERTION(mSyncQueues.Length() - 1 == aSyncLoopKey,
@@ -3717,7 +3599,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
 
   // If the worker script never ran, or failed to compile, we don't need to do
   // anything else, except pretend that we ran the close handler.
-  if (!JS::CurrentGlobalOrNull(aCx)) {
+  if (!JS_GetGlobalForScopeChain(aCx)) {
     mCloseHandlerStarted = true;
     mCloseHandlerFinished = true;
     return true;
@@ -3763,10 +3645,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
                  previousStatus == Terminating,
                  "Bad previous status!");
 
-    uint32_t killSeconds = IsChromeWorker() ?
-      RuntimeService::GetChromeCloseHandlerTimeoutSeconds() :
-      RuntimeService::GetContentCloseHandlerTimeoutSeconds();
-
+    uint32_t killSeconds = RuntimeService::GetCloseHandlerTimeoutSeconds();
     if (killSeconds) {
       mKillTime = TimeStamp::Now() + TimeDuration::FromSeconds(killSeconds);
 
@@ -3942,7 +3821,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
     newInfo->mInterval = TimeDuration::FromMilliseconds(intervalMS);
 
     if (aArgc > 2 && newInfo->mTimeoutVal.isObject()) {
-      nsTArray<JS::Heap<JS::Value> > extraArgVals(aArgc - 2);
+      nsTArray<jsval> extraArgVals(aArgc - 2);
       for (unsigned index = 2; index < aArgc; index++) {
         extraArgVals.AppendElement(argv[index]);
       }
@@ -4045,7 +3924,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   bool retval = true;
 
   AutoPtrComparator<TimeoutInfo> comparator = GetAutoPtrComparator(mTimeouts);
-  JS::RootedObject global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::RootedObject global(aCx, JS_GetGlobalForScopeChain(aCx));
   JSPrincipals* principal = GetWorkerPrincipal();
 
   // We want to make sure to run *something*, even if the timer fired a little
@@ -4094,14 +3973,9 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     }
     else {
       JS::Rooted<JS::Value> rval(aCx);
-      /*
-       * unsafeGet() is needed below because the argument is a not a const
-       * pointer, even though values are not modified.
-       */
       if (!JS_CallFunctionValue(aCx, global, info->mTimeoutVal,
                                 info->mExtraArgVals.Length(),
-                                info->mExtraArgVals.Elements()->unsafeGet(),
-                                rval.address()) &&
+                                info->mExtraArgVals.Elements(), rval.address()) &&
           !JS_ReportPendingException(aCx)) {
         retval = false;
         break;
@@ -4186,17 +4060,14 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 }
 
 void
-WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx,
-                                              uint32_t aContentOptions,
-                                              uint32_t aChromeOptions)
+WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions)
 {
   AssertIsOnWorkerThread();
 
-  JS_SetOptions(aCx, IsChromeWorker() ? aChromeOptions : aContentOptions);
+  JS_SetOptions(aCx, aOptions);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateJSContextOptions(aCx, aContentOptions,
-                                                 aChromeOptions);
+    mChildWorkers[index]->UpdateJSContextOptions(aCx, aOptions);
   }
 }
 
@@ -4206,14 +4077,7 @@ WorkerPrivate::UpdateJSWorkerMemoryParameterInternal(JSContext* aCx,
                                                      uint32_t aValue)
 {
   AssertIsOnWorkerThread();
-
-  // XXX aValue might be 0 here (telling us to unset a previous value for child
-  // workers). Calling JS_SetGCParameter with a value of 0 isn't actually
-  // supported though. We really need some way to revert to a default value
-  // here.
-  if (aValue) {
-    JS_SetGCParameter(JS_GetRuntime(aCx), aKey, aValue);
-  }
+  JS_SetGCParameter(JS_GetRuntime(aCx), aKey, aValue);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSWorkerMemoryParameter(aCx, aKey, aValue);
@@ -4222,30 +4086,18 @@ WorkerPrivate::UpdateJSWorkerMemoryParameterInternal(JSContext* aCx,
 
 #ifdef JS_GC_ZEAL
 void
-WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal,
-                                    uint32_t aFrequency)
+WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal)
 {
   AssertIsOnWorkerThread();
 
-  JS_SetGCZeal(aCx, aGCZeal, aFrequency);
+  uint32_t frequency = aGCZeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
+  JS_SetGCZeal(aCx, aGCZeal, frequency);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateGCZeal(aCx, aGCZeal, aFrequency);
+    mChildWorkers[index]->UpdateGCZeal(aCx, aGCZeal);
   }
 }
 #endif
-
-void
-WorkerPrivate::UpdateJITHardeningInternal(JSContext* aCx, bool aJITHardening)
-{
-  AssertIsOnWorkerThread();
-
-  JS_SetJitHardening(JS_GetRuntime(aCx), aJITHardening);
-
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateJITHardening(aCx, aJITHardening);
-  }
-}
 
 void
 WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
@@ -4253,19 +4105,13 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
 {
   AssertIsOnWorkerThread();
 
-  if (aShrinking || aCollectChildren) {
-    JSRuntime* rt = JS_GetRuntime(aCx);
-    JS::PrepareForFullGC(rt);
-
-    if (aShrinking) {
-      JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
-    }
-    else {
-      JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
-    }
+  JSRuntime *rt = JS_GetRuntime(aCx);
+  JS::PrepareForFullGC(rt);
+  if (aShrinking) {
+    JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
   }
   else {
-    JS_MaybeGC(aCx);
+    JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
   }
 
   if (aCollectChildren) {
@@ -4322,29 +4168,6 @@ WorkerPrivate::AssertIsOnWorkerThread() const
 }
 #endif
 
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::RegisterHostObjectURI(const nsACString& aURI)
-{
-  AssertIsOnMainThread();
-  mHostObjectURIs.AppendElement(aURI);
-}
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::UnregisterHostObjectURI(const nsACString& aURI)
-{
-  AssertIsOnMainThread();
-  mHostObjectURIs.RemoveElement(aURI);
-}
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::StealHostObjectURIs(nsTArray<nsCString>& aArray)
-{
-  aArray.SwapElements(mHostObjectURIs);
-}
-
 WorkerCrossThreadDispatcher*
 WorkerPrivate::GetCrossThreadDispatcher()
 {
@@ -4353,6 +4176,34 @@ WorkerPrivate::GetCrossThreadDispatcher()
     mCrossThreadDispatcher = new WorkerCrossThreadDispatcher(this);
   }
   return mCrossThreadDispatcher;
+}
+
+bool
+WorkerPrivate::GetContentSecurityPolicy(JSContext* aCx,
+                                        nsIContentSecurityPolicy** aCSP)
+{
+  AssertIsOnMainThread();
+
+  // Get the security manager
+  nsCOMPtr<nsIScriptSecurityManager> ssm = nsContentUtils::GetSecurityManager();
+
+  if (!ssm) {
+    NS_ERROR("Failed to get security manager service");
+    return false;
+  }
+
+  nsCOMPtr<nsIPrincipal> subjectPrincipal = ssm->GetCxSubjectPrincipal(aCx);
+  NS_ASSERTION(subjectPrincipal, "Failed to get subjectPrincipal");
+
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  nsresult rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
+  if (NS_FAILED(rv)) {
+    NS_ERROR("CSP: Failed to get CSP from principal.");
+    return false;
+  }
+
+  csp.forget(aCSP);
+  return true;
 }
 
 void

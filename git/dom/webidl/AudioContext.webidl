@@ -24,6 +24,9 @@ interface AudioContext : EventTarget {
     [Creator, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
+    [Creator, Throws]
+    AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);
+
     void decodeAudioData(ArrayBuffer audioData,
                          DecodeSuccessCallback successCallback,
                          optional DecodeErrorCallback errorCallback);
@@ -33,19 +36,12 @@ interface AudioContext : EventTarget {
     AudioBufferSourceNode createBufferSource();
 
     [Creator, Throws]
-    MediaStreamAudioDestinationNode createMediaStreamDestination();
-
-    [Creator, Throws]
     ScriptProcessorNode createScriptProcessor(optional unsigned long bufferSize = 0,
                                               optional unsigned long numberOfInputChannels = 2,
                                               optional unsigned long numberOfOutputChannels = 2);
 
     [Creator]
     AnalyserNode createAnalyser();
-    [Creator, Throws]
-    MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);
-    [Creator, Throws]
-    MediaStreamAudioSourceNode createMediaStreamSource(MediaStream mediaStream);
     [Creator]
     GainNode createGain();
     [Creator, Throws]
@@ -53,11 +49,7 @@ interface AudioContext : EventTarget {
     [Creator]
     BiquadFilterNode createBiquadFilter();
     [Creator]
-    WaveShaperNode createWaveShaper();
-    [Creator]
     PannerNode createPanner();
-    [Creator]
-    ConvolverNode createConvolver();
 
     [Creator, Throws]
     ChannelSplitterNode createChannelSplitter(optional unsigned long numberOfOutputs = 6);
@@ -67,11 +59,6 @@ interface AudioContext : EventTarget {
     [Creator]
     DynamicsCompressorNode createDynamicsCompressor();
 
-    [Creator]
-    OscillatorNode createOscillator();
-    [Creator, Throws]
-    PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
-
 };
 
 /*
@@ -80,19 +67,16 @@ interface AudioContext : EventTarget {
  */
 [PrefControlled]
 partial interface AudioContext {
-    [Creator, Throws]
-    AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);
-
     // Same as createGain()
-    [Creator,Pref="media.webaudio.legacy.AudioContext"]
+    [Creator]
     GainNode createGainNode();
-
+    
     // Same as createDelay()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
+    [Creator, Throws]
     DelayNode createDelayNode(optional double maxDelayTime = 1);
 
     // Same as createScriptProcessor()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
+    [Creator, Throws]
     ScriptProcessorNode createJavaScriptNode(optional unsigned long bufferSize = 0,
                                              optional unsigned long numberOfInputChannels = 2,
                                              optional unsigned long numberOfOutputChannels = 2);

@@ -23,17 +23,24 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "assembler/jit/ExecutableAllocator.h"
+#include "ExecutableAllocator.h"
 
 #if ENABLE_ASSEMBLER && WTF_OS_WINDOWS
 
 #include "jswin.h"
+#include "prmjtime.h"
 
+extern void random_setSeed(uint64_t *, uint64_t);
 extern uint64_t random_next(uint64_t *, int);
 
 namespace JSC {
 
 uint64_t ExecutableAllocator::rngSeed;
+
+void ExecutableAllocator::initSeed()
+{
+    random_setSeed(&rngSeed, (PRMJ_Now() / 1000) ^ int64_t(this));
+}
 
 size_t ExecutableAllocator::determinePageSize()
 {
@@ -114,19 +121,6 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
 {
     VirtualFree(alloc.pages, 0, MEM_RELEASE);
-}
-
-void
-ExecutablePool::toggleAllCodeAsAccessible(bool accessible)
-{
-    char* begin = m_allocation.pages;
-    size_t size = m_freePtr - begin;
-
-    if (size) {
-        DWORD oldProtect;
-        if (!VirtualProtect(begin, size, accessible ? PAGE_EXECUTE_READWRITE : PAGE_NOACCESS, &oldProtect))
-            MOZ_CRASH();
-    }
 }
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE

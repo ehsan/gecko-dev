@@ -7,9 +7,8 @@
 #ifndef mozilla_dom_file_lockedfile_h__
 #define mozilla_dom_file_lockedfile_h__
 
-#include "mozilla/Attributes.h"
 #include "FileCommon.h"
-#include "mozilla/dom/FileModeBinding.h"
+
 #include "nsIDOMLockedFile.h"
 #include "nsIRunnable.h"
 
@@ -39,6 +38,12 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(LockedFile, nsDOMEventTargetHelper)
 
+  enum Mode
+  {
+    READ_ONLY = 0,
+    READ_WRITE
+  };
+
   enum RequestMode
   {
     NORMAL = 0, // Sequential
@@ -55,12 +60,12 @@ public:
 
   static already_AddRefed<LockedFile>
   Create(FileHandle* aFileHandle,
-         FileMode aMode,
+         Mode aMode,
          RequestMode aRequestMode = NORMAL);
 
   // nsIDOMEventTarget
   virtual nsresult
-  PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   nsresult
   CreateParallelStream(nsISupports** aStream);
@@ -109,7 +114,7 @@ private:
 
   nsRefPtr<FileHandle> mFileHandle;
   ReadyState mReadyState;
-  FileMode mMode;
+  Mode mMode;
   RequestMode mRequestMode;
   uint64_t mLocation;
   uint32_t mPendingRequests;
@@ -126,7 +131,7 @@ class FinishHelper MOZ_FINAL : public nsIRunnable
   friend class LockedFile;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
 private:

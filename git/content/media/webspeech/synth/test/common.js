@@ -36,7 +36,7 @@ SpeechTaskCallback.prototype = {
   }
 };
 
-var TestSpeechServiceWithAudio = SpecialPowers.wrapCallbackObject({
+var TestSpeechServiceWithAudio = {
   CHANNELS: 1,
   SAMPLE_RATE: 16000,
 
@@ -47,7 +47,7 @@ var TestSpeechServiceWithAudio = SpecialPowers.wrapCallbackObject({
 
     window.setTimeout(
       function () {
-        task.setup(SpecialPowers.wrapCallbackObject(new SpeechTaskCallback()), this.CHANNELS, this.SAMPLE_RATE);
+        task.setup(new SpeechTaskCallback(), this.CHANNELS, this.SAMPLE_RATE);
         // 0.025 seconds per character.
         task.sendAudio(new Int16Array((this.SAMPLE_RATE/40)*aText.length), []);
         task.sendAudio(new Int16Array(0), []);
@@ -61,9 +61,9 @@ var TestSpeechServiceWithAudio = SpecialPowers.wrapCallbackObject({
   getInterfaces: function(c) {},
 
   getHelperForLanguage: function() {}
-});
+};
 
-var TestSpeechServiceNoAudio = SpecialPowers.wrapCallbackObject({
+var TestSpeechServiceNoAudio = {
   serviceType: SpecialPowers.Ci.nsISpeechService.SERVICETYPE_INDIRECT_AUDIO,
 
   speak: function speak(aText, aUri, aRate, aPitch, aTask) {
@@ -84,7 +84,7 @@ var TestSpeechServiceNoAudio = SpecialPowers.wrapCallbackObject({
     }
 
     var task = SpecialPowers.wrap(aTask);
-    task.setup(SpecialPowers.wrapCallbackObject(new SpeechTaskCallback()));
+    task.setup(new SpeechTaskCallback());
     setTimeout(function () {
                  task.dispatchStart();
                  setTimeout(function () {
@@ -103,7 +103,7 @@ var TestSpeechServiceNoAudio = SpecialPowers.wrapCallbackObject({
   getHelperForLanguage: function() {},
 
   expectedSpeaks: []
-});
+};
 
 function synthAddVoice(aServiceName, aName, aLang, aIsLocal) {
   if (SpecialPowers.isMainProcess()) {
@@ -170,7 +170,6 @@ function synthCleanup() {
       .getService(SpecialPowers.Ci.nsISyncMessageSender);
     mm.sendSyncMessage('test:SpeechSynthesis:ipcSynthCleanup');
   }
-  SpecialPowers.clearUserPref("media.webspeech.synth.enabled");
 }
 
 function synthTestQueue(aTestArgs, aEndFunc) {

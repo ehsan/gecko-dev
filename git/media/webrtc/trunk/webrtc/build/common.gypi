@@ -17,13 +17,11 @@
           # This will be set to zero in the supplement.gypi triggered by a
           # gclient hook in the standalone build.
           'build_with_chromium%': 1,
-          'build_with_libjingle%': 0,
         },
         'build_with_chromium%': '<(build_with_chromium)',
-        'build_with_libjingle%': '<(build_with_libjingle)',
 
         'conditions': [
-          ['build_with_chromium==1 or build_with_libjingle==1', {
+          ['build_with_chromium==1', {
             'webrtc_root%': '<(DEPTH)/third_party/webrtc',
           }, {
             'webrtc_root%': '<(DEPTH)/webrtc',
@@ -31,7 +29,6 @@
         ],
       },
       'build_with_chromium%': '<(build_with_chromium)',
-      'build_with_libjingle%': '<(build_with_libjingle)',
       'webrtc_root%': '<(webrtc_root)',
 
       'webrtc_vp8_dir%': '<(webrtc_root)/modules/video_coding/codecs/vp8',
@@ -43,7 +40,6 @@
       'include_pcm16b%': 1,
     },
     'build_with_chromium%': '<(build_with_chromium)',
-    'build_with_libjingle%': '<(build_with_libjingle)',
     'webrtc_root%': '<(webrtc_root)',
     'webrtc_vp8_dir%': '<(webrtc_vp8_dir)',
 
@@ -84,12 +80,6 @@
 
     'libyuv_dir%': '<(DEPTH)/third_party/libyuv',
 
-    # Define MIPS architecture variant, MIPS DSP variant and MIPS FPU
-    # This may be subject to change in accordance to Chromium's MIPS flags
-    'mips_arch_variant%': 'mips32r1',
-    'mips_dsp_rev%': 0,
-    'mips_fpu%' : 1,
-
     'conditions': [
       ['build_with_chromium==1', {
         # Exclude pulse audio on Chromium since its prerequisites don't require
@@ -105,6 +95,8 @@
         # Exclude internal video render module in Chromium build.
         'include_internal_video_render%': 0,
 
+        'include_video_engine_file_api%': 0,
+
         'include_tests%': 0,
 
         # Disable the use of protocol buffers in production code.
@@ -118,6 +110,7 @@
         'include_internal_audio_device%': 1,
         'include_internal_video_capture%': 1,
         'include_internal_video_render%': 1,
+        'include_video_engine_file_api%': 1,
         'enable_protobuf%': 1,
         'enable_tracing%': 1,
         'include_tests%': 1,
@@ -131,30 +124,12 @@
         # and Java Implementation
         'enable_android_opensl%': 0,
       }],
-      ['OS=="linux"', {
-        'include_alsa_audio%': 1,
-      }, {
-        'include_alsa_audio%': 0,
-      }],
-      ['OS=="solaris" or os_bsd==1', {
-        'include_pulse_audio%': 1,
-      }, {
-        'include_pulse_audio%': 0,
-      }],
-      ['OS=="linux" or OS=="solaris" or os_bsd==1', {
-        'include_v4l2_video_capture%': 1,
-      }, {
-        'include_v4l2_video_capture%': 0,
-      }],
       ['OS=="ios"', {
         'enable_video%': 0,
         'enable_protobuf%': 0,
         'build_libjpeg%': 0,
         'build_libyuv%': 0,
         'build_libvpx%': 0,
-        'include_tests%': 0,
-      }],
-      ['build_with_libjingle==1', {
         'include_tests%': 0,
       }],
       ['target_arch=="arm"', {
@@ -166,12 +141,7 @@
     'include_dirs': [
       # TODO(andrew): Remove '..' when we've added webrtc/ to include paths.
       '..',
-      # Allow includes to be prefixed with webrtc/ in case it is not an
-      # immediate subdirectory of <(DEPTH).
       '../..',
-      # To include the top-level directory when building in Chrome, so we can
-      # use full paths (e.g. headers inside testing/ or third_party/).
-      '<(DEPTH)',
     ],
     'defines': [
       # TODO(leozwang): Run this as a gclient hook rather than at build-time:
@@ -187,6 +157,12 @@
       }],
       ['enable_tracing==1', {
         'defines': ['WEBRTC_LOGGING',],
+      }],
+      ['build_with_mozilla==1', {
+        'defines': [
+          # Changes settings for Mozilla build.
+          'WEBRTC_MOZILLA_BUILD',
+         ],
       }],
       ['build_with_chromium==1', {
         'defines': [
@@ -239,72 +215,6 @@
           }],
         ],
       }],
-      ['os_bsd==1', {
-        'defines': [
-          'WEBRTC_BSD',
-          'WEBRTC_THREAD_RR',
-        ],
-      }],
-      ['OS=="dragonfly" or OS=="netbsd"', {
-        'defines': [
-          # doesn't support pthread_condattr_setclock
-          'WEBRTC_CLOCK_TYPE_REALTIME',
-        ],
-      }],
-      # Mozilla: if we support Mozilla on MIPS, we'll need to mod the cflags entries here
-      ['target_arch=="mipsel"', {
-        'defines': [
-          'MIPS32_LE',
-        ],
-        'conditions': [
-          ['mips_fpu==1', {
-            'defines': [
-              'MIPS_FPU_LE',
-            ],
-            'cflags': [
-              '-mhard-float',
-            ],
-          }, {
-            'cflags': [
-              '-msoft-float',
-            ],
-          }],
-          ['mips_arch_variant=="mips32r2"', {
-            'defines': [
-              'MIPS32_R2_LE',
-            ],
-            'cflags': [
-              '-mips32r2',
-            ],
-            'cflags_cc': [
-              '-mips32r2',
-            ],
-          }],
-          ['mips_dsp_rev==1', {
-            'defines': [
-              'MIPS_DSP_R1_LE',
-            ],
-            'cflags': [
-              '-mdsp',
-            ],
-            'cflags_cc': [
-              '-mdsp',
-            ],
-          }],
-          ['mips_dsp_rev==2', {
-            'defines': [
-              'MIPS_DSP_R1_LE',
-              'MIPS_DSP_R2_LE',
-            ],
-            'cflags': [
-              '-mdspr2',
-            ],
-            'cflags_cc': [
-              '-mdspr2',
-            ],
-          }],
-        ],
-      }],
       ['OS=="ios"', {
         'defines': [
           'WEBRTC_MAC',
@@ -342,12 +252,12 @@
 	  'WEBRTC_EXPORT',
         ],
         # TODO(andrew): enable all warnings when possible.
-        # TODO(phoglund): get rid of 4373 supression when
+        # 4389: Signed/unsigned mismatch.
+        # 4373: MSVC legacy warning for ignoring const / volatile in
+        # signatures. TODO(phoglund): get rid of 4373 supression when
         # http://code.google.com/p/webrtc/issues/detail?id=261 is solved.
-        'msvs_disabled_warnings': [
-          4373,  # legacy warning for ignoring const / volatile in signatures.
-          4389,  # Signed/unsigned mismatch.
-        ],
+        'msvs_disabled_warnings': [4389, 4373],
+
         # Re-enable some warnings that Chromium disables.
         'msvs_disabled_warnings!': [4189,],
       }],
@@ -362,20 +272,18 @@
           'WEBRTC_CLOCK_TYPE_REALTIME',
           'WEBRTC_THREAD_RR',
          ],
+         # The Android NDK doesn't provide optimized versions of these
+         # functions. Ensure they are disabled for all compilers.
+         'cflags': [
+           '-fno-builtin-cos',
+           '-fno-builtin-sin',
+           '-fno-builtin-cosf',
+           '-fno-builtin-sinf',
+         ],
          'conditions': [
            ['enable_android_opensl==1', {
              'defines': [
                'WEBRTC_ANDROID_OPENSLES',
-             ],
-           }],
-           ['clang!=1', {
-             # The Android NDK doesn't provide optimized versions of these
-             # functions. Ensure they are disabled for all compilers.
-             'cflags': [
-               '-fno-builtin-cos',
-               '-fno-builtin-sin',
-               '-fno-builtin-cosf',
-               '-fno-builtin-sinf',
              ],
            }],
          ],

@@ -9,7 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MSVC_ENABLE_PGO := 1
+LIBRARY_NAME = opus
 FORCE_STATIC_LIB= 1
 
 DEFINES += \

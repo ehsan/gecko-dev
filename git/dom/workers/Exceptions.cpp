@@ -8,6 +8,7 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
+#include "jsprf.h"
 #include "mozilla/Util.h"
 #include "nsDOMException.h"
 #include "nsTraceRefcnt.h"
@@ -68,7 +69,7 @@ private:
     MOZ_COUNT_DTOR(mozilla::dom::workers::exceptions::DOMException);
   }
 
-  static bool
+  static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
@@ -83,7 +84,7 @@ private:
     delete GetJSPrivateSafeish<DOMException>(aObj);
   }
 
-  static bool
+  static JSBool
   ToString(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
@@ -124,9 +125,8 @@ private:
     return true;
   }
 
-  static bool
-  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-              JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -145,9 +145,8 @@ private:
     return true;
   }
 
-  static bool
-  GetConstant(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> idval,
-              JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetConstant(JSContext* aCx, JSHandleObject aObj, JSHandleId idval, JSMutableHandleValue aVp)
   {
     JS_ASSERT(JSID_IS_INT(idval));
     aVp.set(INT_TO_JSVAL(JSID_TO_INT(idval)));

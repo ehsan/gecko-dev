@@ -73,7 +73,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro AddDisabledDDEHandlerValues
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
-!insertmacro CleanUpdateDirectories
+!insertmacro CleanUpdatesDir
 !insertmacro CopyFilesFromDir
 !insertmacro CreateRegKey
 !insertmacro GetLongPath
@@ -207,11 +207,8 @@ Section "-InstallStartCleanup"
     ClearErrors
   ${EndIf}
 
-  ; setup the application model id registration value
-  ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
-
   ; Remove the updates directory for Vista and above
-  ${CleanUpdateDirectories} "Mozilla\Firefox" "Mozilla\updates"
+  ${CleanUpdatesDir} "Mozilla\Firefox"
 
   ${RemoveDeprecatedFiles}
 
@@ -309,6 +306,9 @@ Section "-Application" APP_IDX
     ${EndIf}
   ${EndIf}
 
+  ; setup the application model id registration value
+  ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
+
 !ifdef MOZ_METRO
   ${ResetWin8MetroSplash}
 !endif
@@ -341,7 +341,7 @@ Section "-Application" APP_IDX
   ${AddDisabledDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" \
                                  "${AppRegName} Document" ""
   ${AddDisabledDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" \
-                                 "delete"
+                                 "true"
 
   ; For pre win8, the following keys should only be set if we can write to HKLM.
   ; For post win8, the keys below get set in both HKLM and HKCU.

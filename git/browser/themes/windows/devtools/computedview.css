@@ -100,9 +100,19 @@ body {
 }
 
 /* From skin */
+.helplink {
+  /* FIXME: remove this image 
+  background-image: url("chrome://browser/skin/devtools/goto-mdn.png");
+  */
+}
+
 .expander {
   visibility: hidden;
   margin-left: -12px!important;
+}
+
+.expander[open] {
+  margin-left: -17px!important;
 }
 
 .expandable {

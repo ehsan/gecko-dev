@@ -30,7 +30,7 @@
     <div id="reset-box" style="visibility: hidden">
       <h3>&resetProfile.title;</h3>
       <p>&resetProfile.description;</p>
-      <button onclick="ResetProfile.openConfirmationDialog(window)">
+      <button onclick="resetProfileAndRestart()">
         &resetProfile.button.label2;
       </button>
     </div>
@@ -81,20 +81,6 @@
             </td>
           </tr>
 
-#ifndef ANDROID
-          <tr class="no-copy">
-            <th class="column">
-              &aboutSupport.appBasicsUpdateHistory;
-            </th>
-
-            <td>
-              <button onclick="showUpdateHistory()">
-                &aboutSupport.appBasicsShowUpdateHistory;
-              </button>
-            </td>
-          </tr>
-#endif
-
           <tr>
             <th class="column">
               &aboutSupport.appBasicsUserAgent;
@@ -142,7 +128,7 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsBuildConfig;
             </th>
@@ -152,7 +138,6 @@
             </td>
           </tr>
 
-#ifdef MOZ_CRASHREPORTER
           <tr class="no-copy">
             <th class="column">
               &aboutSupport.appBasicsCrashIDs;
@@ -162,7 +147,6 @@
               <a href="about:crashes">about:crashes</a>
             </td>
           </tr>
-#endif
 
           <tr class="no-copy">
             <th class="column">
@@ -211,7 +195,7 @@
       </h2>
 
       <table class="prefs-table">
-        <thead class="no-copy">
+        <thead>
           <th class="name">
             &aboutSupport.modifiedPrefsName;
           </th>

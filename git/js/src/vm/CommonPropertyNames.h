@@ -6,8 +6,8 @@
 
 /* A higher-order macro for enumerating all cached property names. */
 
-#ifndef vm_CommonPropertyNames_h
-#define vm_CommonPropertyNames_h
+#ifndef CommonPropertyNames_h__
+#define CommonPropertyNames_h__
 
 #include "jsprototypes.h"
 #include "jsversion.h"
@@ -20,7 +20,6 @@
     macro(builder, builder, "builder") \
     macro(byteLength, byteLength, "byteLength") \
     macro(byteOffset, byteOffset, "byteOffset") \
-    macro(bytes, bytes, "bytes") \
     macro(BYTES_PER_ELEMENT, BYTES_PER_ELEMENT, "BYTES_PER_ELEMENT") \
     macro(call, call, "call") \
     macro(callee, callee, "callee") \
@@ -47,7 +46,6 @@
     macro(delete, delete_, "delete") \
     macro(deleteProperty, deleteProperty, "deleteProperty") \
     macro(each, each, "each") \
-    macro(elementType, elementType, "elementType") \
     macro(empty, empty, "") \
     macro(encodeURI, encodeURI, "encodeURI") \
     macro(encodeURIComponent, encodeURIComponent, "encodeURIComponent") \
@@ -161,4 +159,4 @@
     macro(boolean, boolean, "boolean") \
     macro(null, null, "null")
 
-#endif /* vm_CommonPropertyNames_h */
+#endif /* CommonPropertyNames_h__ */

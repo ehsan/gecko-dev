@@ -4,13 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMMessageEvent.h"
-#include "nsContentUtils.h" // for NS_HOLD_JS_OBJECTS, NS_DROP_JS_OBJECTS
+#include "nsContentUtils.h"
 #include "jsapi.h"
+#include "nsDOMClassInfoID.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMessageEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   tmp->mData = JSVAL_VOID;
@@ -25,8 +24,11 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mData)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
+DOMCI_DATA(MessageEvent, nsDOMMessageEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMMessageEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMessageEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MessageEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMMessageEvent, nsDOMEvent)
@@ -38,6 +40,7 @@ nsDOMMessageEvent::nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
   : nsDOMEvent(aOwner, aPresContext, aEvent),
     mData(JSVAL_VOID)
 {
+  SetIsDOMBinding();
 }
 
 nsDOMMessageEvent::~nsDOMMessageEvent()

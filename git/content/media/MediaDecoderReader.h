@@ -407,13 +407,6 @@ public:
   // on failure.
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) = 0;
 
-  // True if this reader is waiting media resource allocation
-  virtual bool IsWaitingMediaResources() { return false; }
-  // True when this reader need to become dormant state
-  virtual bool IsDormantNeeded() { return false; }
-  // Release media resources they should be released in dormant state
-  virtual void ReleaseMediaResources() {};
-
   // Resets all state related to decoding, emptying all buffers etc.
   virtual nsresult ResetDecode();
 
@@ -456,12 +449,12 @@ public:
                         int64_t aStartTime,
                         int64_t aEndTime,
                         int64_t aCurrentTime) = 0;
-
+  
   // Called when the decode thread is started, before calling any other
   // decode, read metadata, or seek functions. Do any thread local setup
   // in this function.
   virtual void OnDecodeThreadStart() {}
-
+  
   // Called when the decode thread is about to finish, after all calls to
   // any other decode, read metadata, or seek functions. Any backend specific
   // thread local tear down must be done in this function. Note that another
@@ -519,8 +512,8 @@ public:
     return functor.mResult;
   }
 
-  // Only used by WebMReader and MediaOmxReader for now, so stub here rather
-  // than in every reader than inherits from MediaDecoderReader.
+  // Only used by WebMReader for now, so stub here rather than in every
+  // reader than inherits from MediaDecoderReader.
   virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset) {}
 
   virtual MediaQueue<AudioData>& AudioQueue() { return mAudioQueue; }

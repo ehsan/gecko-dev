@@ -19,20 +19,3 @@ EXPORTS.mozilla += [
     'TelemetryHistogramEnums.h',
 ]
 
-CPP_SOURCES += [
-    'Telemetry.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'TelemetryPing.manifest',
-]
-
-EXTRA_PP_COMPONENTS += [
-    'TelemetryPing.js',
-]
-
-EXTRA_JS_MODULES += [
-    'TelemetryFile.jsm',
-    'TelemetryStopwatch.jsm',
-    'ThirdPartyCookieProbe.jsm',
-]

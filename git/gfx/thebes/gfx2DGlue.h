@@ -32,11 +32,6 @@ inline Rect ToRect(const gfxRect &aRect)
               Float(aRect.width), Float(aRect.height));
 }
 
-inline IntRect ToIntRect(const nsIntRect &aRect)
-{
-  return IntRect(aRect.x, aRect.y, aRect.width, aRect.height);
-}
-
 inline Color ToColor(const gfxRGBA &aRGBA)
 {
   return Color(Float(aRGBA.r), Float(aRGBA.g),
@@ -59,18 +54,11 @@ inline Size ToSize(const gfxSize &aSize)
   return Size(Float(aSize.width), Float(aSize.height));
 }
 
-inline IntSize ToIntSize(const gfxIntSize &aSize)
-{
-  return IntSize(aSize.width, aSize.height);
-}
-
 inline Filter ToFilter(gfxPattern::GraphicsFilter aFilter)
 {
   switch (aFilter) {
   case gfxPattern::FILTER_NEAREST:
     return FILTER_POINT;
-  case gfxPattern::FILTER_GOOD:
-    return FILTER_GOOD;
   default:
     return FILTER_LINEAR;
   }
@@ -130,11 +118,6 @@ inline gfxRect ThebesRect(const Rect &aRect)
   return gfxRect(aRect.x, aRect.y, aRect.width, aRect.height);
 }
 
-inline nsIntRect ThebesIntRect(const IntRect &aRect)
-{
-  return nsIntRect(aRect.x, aRect.y, aRect.width, aRect.height);
-}
-
 inline gfxRGBA ThebesRGBA(const Color &aColor)
 {
   return gfxRGBA(aColor.r, aColor.g, aColor.b, aColor.a);
@@ -150,7 +133,7 @@ inline gfxContext::GraphicsLineCap ThebesLineCap(CapStyle aStyle)
   case CAP_SQUARE:
     return gfxContext::LINE_CAP_SQUARE;
   }
-  MOZ_CRASH("Incomplete switch");
+  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
@@ -163,7 +146,7 @@ inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
   case gfxContext::LINE_CAP_SQUARE:
     return CAP_SQUARE;
   }
-  MOZ_CRASH("Incomplete switch");
+  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline gfxContext::GraphicsLineJoin ThebesLineJoin(JoinStyle aStyle)
@@ -190,7 +173,7 @@ inline JoinStyle ToJoinStyle(gfxContext::GraphicsLineJoin aStyle)
   case gfxContext::LINE_JOIN_ROUND:
     return JOIN_ROUND;
   }
-  MOZ_CRASH("Incomplete switch");
+  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline gfxMatrix ThebesMatrix(const Matrix &aMatrix)
@@ -237,12 +220,10 @@ inline gfxASurface::gfxContentType ContentForFormat(const SurfaceFormat &aFormat
   switch (aFormat) {
   case FORMAT_R5G6B5:
   case FORMAT_B8G8R8X8:
-  case FORMAT_R8G8B8X8:
     return gfxASurface::CONTENT_COLOR;
   case FORMAT_A8:
     return gfxASurface::CONTENT_ALPHA;
   case FORMAT_B8G8R8A8:
-  case FORMAT_R8G8B8A8:
   default:
     return gfxASurface::CONTENT_COLOR_ALPHA;
   }

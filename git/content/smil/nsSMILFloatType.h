@@ -6,41 +6,37 @@
 #ifndef NS_SMILFLOATTYPE_H_
 #define NS_SMILFLOATTYPE_H_
 
-#include "mozilla/Attributes.h"
 #include "nsISMILType.h"
 
 class nsSMILFloatType : public nsISMILType
 {
 public:
   // Singleton for nsSMILValue objects to hold onto.
-  static nsSMILFloatType*
-  Singleton()
-  {
-    static nsSMILFloatType sSingleton;
-    return &sSingleton;
-  }
+  static nsSMILFloatType sSingleton;
 
 protected:
   // nsISMILType Methods
   // -------------------
-  virtual void     Init(nsSMILValue& aValue) const MOZ_OVERRIDE;
+  virtual void     Init(nsSMILValue& aValue) const;
   virtual void     Destroy(nsSMILValue&) const;
-  virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const MOZ_OVERRIDE;
+  virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const;
   virtual bool     IsEqual(const nsSMILValue& aLeft,
-                           const nsSMILValue& aRight) const MOZ_OVERRIDE;
+                           const nsSMILValue& aRight) const;
   virtual nsresult Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
-                       uint32_t aCount) const MOZ_OVERRIDE;
+                       uint32_t aCount) const;
   virtual nsresult ComputeDistance(const nsSMILValue& aFrom,
                                    const nsSMILValue& aTo,
-                                   double& aDistance) const MOZ_OVERRIDE;
+                                   double& aDistance) const;
   virtual nsresult Interpolate(const nsSMILValue& aStartVal,
                                const nsSMILValue& aEndVal,
                                double aUnitDistance,
-                               nsSMILValue& aResult) const MOZ_OVERRIDE;
+                               nsSMILValue& aResult) const;
 
 private:
-  // Private constructor: prevent instances beyond my singleton.
-  MOZ_CONSTEXPR nsSMILFloatType() {}
+  // Private constructor & destructor: prevent instances beyond my singleton,
+  // and prevent others from deleting my singleton.
+  nsSMILFloatType()  {}
+  ~nsSMILFloatType() {}
 };
 
 #endif // NS_SMILFLOATTYPE_H_

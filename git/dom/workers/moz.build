@@ -19,8 +19,6 @@ EXPORTS.mozilla.dom.workers.bindings += [
     'EventListenerManager.h',
     'EventTarget.h',
     'FileReaderSync.h',
-    'Location.h',
-    'Navigator.h',
     'TextDecoder.h',
     'TextEncoder.h',
     'URL.h',
@@ -29,31 +27,4 @@ EXPORTS.mozilla.dom.workers.bindings += [
     'XMLHttpRequestEventTarget.h',
     'XMLHttpRequestUpload.h',
 ]
-
-CPP_SOURCES += [
-    'ChromeWorkerScope.cpp',
-    'DOMBindingBase.cpp',
-    'EventListenerManager.cpp',
-    'EventTarget.cpp',
-    'Events.cpp',
-    'Exceptions.cpp',
-    'File.cpp',
-    'FileReaderSync.cpp',
-    'Location.cpp',
-    'Navigator.cpp',
-    'Principal.cpp',
-    'RuntimeService.cpp',
-    'ScriptLoader.cpp',
-    'TextDecoder.cpp',
-    'TextEncoder.cpp',
-    'URL.cpp',
-    'Worker.cpp',
-    'WorkerPrivate.cpp',
-    'WorkerScope.cpp',
-    'XMLHttpRequest.cpp',
-    'XMLHttpRequestEventTarget.cpp',
-    'XMLHttpRequestUpload.cpp',
-]
-
-LIBRARY_NAME = 'domworkers_s'
 

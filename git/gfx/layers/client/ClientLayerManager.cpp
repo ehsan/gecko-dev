@@ -109,6 +109,7 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
   // to the previous transaction.
   ScreenOrientation orientation;
+  nsIntRect clientBounds;
   if (TabChild* window = mWidget->GetOwningTabChild()) {
     orientation = window->GetOrientation();
   } else {
@@ -116,9 +117,7 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
     hal::GetCurrentScreenConfiguration(&currentConfig);
     orientation = currentConfig.orientation();
   }
-  nsIntRect clientBounds;
   mWidget->GetClientBounds(clientBounds);
-  clientBounds.x = clientBounds.y = 0;
   ShadowLayerForwarder::BeginTransaction(mTargetBounds, mTargetRotation, clientBounds, orientation);
 
   // If we're drawing on behalf of a context with async pan/zoom
@@ -224,22 +223,9 @@ ClientLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags)
     // EndTransaction will complete it.
     return false;
   }
-  if (mWidget) {
-    mWidget->PrepareWindowEffects();
-  }
   ForwardTransaction();
   MakeSnapshotIfRequired();
   return true;
-}
-
-CompositorChild *
-ClientLayerManager::GetRemoteRenderer()
-{
-  if (!mWidget) {
-    return nullptr;
-  }
-
-  return mWidget->GetRemoteRenderer();
 }
 
 void 
@@ -249,7 +235,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
     return;
   }
   if (mWidget) {
-    if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
+    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
       nsIntRect bounds;
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
@@ -271,16 +257,6 @@ ClientLayerManager::MakeSnapshotIfRequired()
     }
   }
   mShadowTarget = nullptr;
-}
-
-void
-ClientLayerManager::FlushRendering()
-{
-  if (mWidget) {
-    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
-      remoteRenderer->SendFlushRendering();
-    }
-  }
 }
 
 void
@@ -321,13 +297,6 @@ ClientLayerManager::ForwardTransaction()
 
         compositableChild->GetCompositableClient()
           ->SetDescriptorFromReply(ots.textureId(), ots.image());
-        break;
-      }
-      case EditReply::TReplyTextureRemoved: {
-        // XXX - to manage reuse of gralloc buffers, we'll need to add some
-        // glue code here to find the TextureClient and invoke a callback to
-        // let the camera know that the gralloc buffer is not used anymore on
-        // the compositor side and that it can reuse it.
         break;
       }
 
@@ -400,7 +369,7 @@ ClientLayerManager::ClearLayer(Layer* aLayer)
 void
 ClientLayerManager::GetBackendName(nsAString& aName)
 {
-  switch (GetCompositorBackendType()) {
+  switch (Compositor::GetBackend()) {
     case LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
     case LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;
@@ -417,7 +386,6 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                               float& aScaleY,
                                               bool aDrawingCritical)
 {
-  aScaleX = aScaleY = 1.0;
 #ifdef MOZ_WIDGET_ANDROID
   Layer* primaryScrollable = GetPrimaryScrollableLayer();
   if (primaryScrollable) {
@@ -426,15 +394,18 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
     // This is derived from the code in
     // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
     const gfx3DMatrix& rootTransform = GetRoot()->GetTransform();
-    CSSToLayerScale paintScale = metrics.mDevPixelsPerCSSPixel
-        / LayerToLayoutDeviceScale(rootTransform.GetXScale(), rootTransform.GetYScale());
-    const CSSRect& metricsDisplayPort =
+    float devPixelRatioX = 1 / rootTransform.GetXScale();
+    float devPixelRatioY = 1 / rootTransform.GetYScale();
+    const gfx::Rect& metricsDisplayPort =
       (aDrawingCritical && !metrics.mCriticalDisplayPort.IsEmpty()) ?
         metrics.mCriticalDisplayPort : metrics.mDisplayPort;
-    LayerRect displayPort = (metricsDisplayPort + metrics.mScrollOffset) * paintScale;
+    gfx::Rect displayPort((metricsDisplayPort.x + metrics.mScrollOffset.x) * devPixelRatioX,
+                          (metricsDisplayPort.y + metrics.mScrollOffset.y) * devPixelRatioY,
+                          metricsDisplayPort.width * devPixelRatioX,
+                          metricsDisplayPort.height * devPixelRatioY);
 
     return AndroidBridge::Bridge()->ProgressiveUpdateCallback(
-      aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
+      aHasPendingNewThebesContent, displayPort, devPixelRatioX, aDrawingCritical,
       aViewport, aScaleX, aScaleY);
   }
 #endif

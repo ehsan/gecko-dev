@@ -1,7 +1,4 @@
 toolkit/library
-  dom
-    ipc
-    security/sandbox
   ipc
   netwerk/build
     netwerk
@@ -22,7 +19,8 @@ toolkit/library
   security/manager
   security/dbm
   security/nss
-  accessible
+  accessible/build
+    accessible
   dom
   content
   layout
@@ -58,7 +56,6 @@ browser/app
   browser/themes
   toolkit
   toolkit/components
-  toolkit/components/jsdownloads
   toolkit/content
   toolkit/crashreporter
   toolkit/devtools

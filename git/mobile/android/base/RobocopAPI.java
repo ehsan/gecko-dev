@@ -36,7 +36,7 @@ public class RobocopAPI {
     }
 
     public void setDrawListener(GeckoLayerClient.DrawListener listener) {
-        GeckoAppShell.getLayerView().getLayerClient().setDrawListener(listener);
+        mGeckoApp.getLayerView().getLayerClient().setDrawListener(listener);
     }
 
     public Cursor querySql(String dbPath, String query) {

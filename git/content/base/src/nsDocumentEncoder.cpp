@@ -462,8 +462,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
 
-  if ((mFlags & SkipInvisibleContent) &&
-      !(mFlags & OutputNonTextContentAsPlaceholder)) {
+  if (mFlags & SkipInvisibleContent) {
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
       nsIFrame* frame = static_cast<nsIContent*>(aNode)->GetPrimaryFrame();
       if (frame) {
@@ -1184,11 +1183,17 @@ nsDocumentEncoder::EncodeToStream(nsIOutputStream* aStream)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  mStream = aStream;
-
+  bool chromeCaller = nsContentUtils::IsCallerChrome();
+  if (chromeCaller) {
+    mStream = aStream;
+  }
   nsAutoString buf;
 
   rv = EncodeToString(buf);
+
+  if (!chromeCaller) {
+    mStream = aStream;
+  }
 
   // Force a flush of the last chunk of data.
   FlushText(buf, true);

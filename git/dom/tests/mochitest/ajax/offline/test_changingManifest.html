@@ -18,7 +18,8 @@ var gCacheContents = null;
 
 function finish()
 {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function manifestUpdatedAgain()

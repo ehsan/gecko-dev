@@ -49,7 +49,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/dom/Element.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -401,11 +400,7 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, b
   if (mIsOpenChanged) {
     nsIScrollableFrame *scrollframe = do_QueryFrame(GetChildBox());
     if (scrollframe) {
-      nsWeakFrame weakFrame(this);
       scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
-      if (!weakFrame.IsAlive()) {
-        return;
-      }
     }
   }
 
@@ -1306,10 +1301,8 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, bool aIsMove)
     // We might want to "slide" an arrow if the panel is of the correct type -
     // but we can only slide on one axis - the other axis must be "flipped or
     // resized" as normal.
-    bool slideHorizontal = mSlide && mPosition >= POPUPPOSITION_BEFORESTART
-                                  && mPosition <= POPUPPOSITION_AFTEREND;
-    bool slideVertical = mSlide && mPosition >= POPUPPOSITION_STARTBEFORE
-                                && mPosition <= POPUPPOSITION_ENDAFTER;
+    bool slideHorizontal = mSlide && mPosition <= POPUPPOSITION_AFTEREND;
+    bool slideVertical = mSlide && mPosition >= POPUPPOSITION_STARTBEFORE;
 
     // Next, check if there is enough space to show the popup at full size when
     // positioned at screenPoint. If not, flip the popups to the opposite side
@@ -1627,8 +1620,9 @@ nsMenuPopupFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent, bool& doAction
   doAction = false;
 
   // Enumerate over our list of frames.
-  nsIFrame* immediateParent = PresContext()->PresShell()->
-    FrameConstructor()->GetInsertionPoint(GetContent(), nullptr);
+  nsIFrame* immediateParent = nullptr;
+  PresContext()->PresShell()->
+    FrameConstructor()->GetInsertionPoint(this, nullptr, &immediateParent);
   if (!immediateParent)
     immediateParent = this;
 

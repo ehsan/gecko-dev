@@ -23,8 +23,17 @@ HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return HTMLFrameSetElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLFrameSetElement, nsGenericHTMLElement,
-                             nsIDOMHTMLFrameSetElement)
+NS_IMPL_ADDREF_INHERITED(HTMLFrameSetElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLFrameSetElement, Element)
+
+// QueryInterface implementation for HTMLFrameSetElement
+NS_INTERFACE_TABLE_HEAD(HTMLFrameSetElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLFrameSetElement,
+                                   nsIDOMHTMLFrameSetElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLFrameSetElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLFrameSetElement)
 
@@ -121,6 +130,10 @@ HTMLFrameSetElement::GetRowSpec(int32_t *aNumValues,
 
     if (!mRowSpecs) {  // we may not have had an attr or had an empty attr
       mRowSpecs = new nsFramesetSpec[1];
+      if (!mRowSpecs) {
+        mNumRows = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       mNumRows = 1;
       mRowSpecs[0].mUnit  = eFramesetUnit_Relative;
       mRowSpecs[0].mValue = 1;
@@ -151,6 +164,10 @@ HTMLFrameSetElement::GetColSpec(int32_t *aNumValues,
 
     if (!mColSpecs) {  // we may not have had an attr or had an empty attr
       mColSpecs = new nsFramesetSpec[1];
+      if (!mColSpecs) {
+        mNumCols = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       mNumCols = 1;
       mColSpecs[0].mUnit  = eFramesetUnit_Relative;
       mColSpecs[0].mValue = 1;
@@ -231,8 +248,7 @@ HTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
     commaX = spec.FindChar(sComma, commaX + 1);
   }
 
-  static const fallible_t fallible = fallible_t();
-  nsFramesetSpec* specs = new (fallible) nsFramesetSpec[count];
+  nsFramesetSpec* specs = new nsFramesetSpec[count];
   if (!specs) {
     *aSpecs = nullptr;
     aNumSpecs = 0;
@@ -349,7 +365,7 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
   HTMLFrameSetElement::GetOn##name_(JSContext *cx, JS::Value *vp)              \
   {                                                                            \
     getter_type_ h = forwardto_::GetOn##name_();                               \
-    vp->setObjectOrNull(h ? h->Callable().get() : nullptr);                    \
+    vp->setObjectOrNull(h ? h->Callable() : nullptr);                          \
     return NS_OK;                                                              \
   }                                                                            \
   NS_IMETHODIMP                                                                \

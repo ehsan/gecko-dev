@@ -142,9 +142,13 @@ public:
 
   bool operator==(const nsMainThreadPtrHolder<T>& aOther) const { return mRawPtr == aOther.mRawPtr; }
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsMainThreadPtrHolder<T>)
+  NS_IMETHOD_(nsrefcnt) Release();
+  NS_IMETHOD_(nsrefcnt) AddRef();
 
 private:
+  // This class is threadsafe and reference-counted.
+  nsAutoRefCnt mRefCnt;
+
   // Our wrapped pointer.
   T* mRawPtr;
 
@@ -156,6 +160,11 @@ private:
   T& operator=(nsMainThreadPtrHolder& other);
   nsMainThreadPtrHolder(const nsMainThreadPtrHolder& other);
 };
+
+template<class T>
+NS_IMPL_THREADSAFE_ADDREF(nsMainThreadPtrHolder<T>)
+template<class T>
+NS_IMPL_THREADSAFE_RELEASE(nsMainThreadPtrHolder<T>)
 
 template<class T>
 class nsMainThreadPtrHandle
@@ -170,6 +179,8 @@ class nsMainThreadPtrHandle
     mPtr = aOther.mPtr;
     return *this;
   }
+
+  operator nsMainThreadPtrHolder<T>*() { return mPtr.get(); }
 
   // These all call through to nsMainThreadPtrHolder, and thus implicitly
   // assert that we're on the main thread. Off-main-thread consumers must treat

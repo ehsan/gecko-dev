@@ -6,6 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "LayersLogging.h"
+#include "nsPrintfCString.h"
 
 using namespace mozilla::gfx;
 
@@ -95,12 +96,32 @@ AppendToString(nsACString& s, const nsIntPoint& p,
 }
 
 nsACString&
+AppendToString(nsACString& s, const Point& p,
+               const char* pfx, const char* sfx)
+{
+  s += pfx;
+  s += nsPrintfCString("(x=%f, y=%f)", p.x, p.y);
+  return s += sfx;
+}
+
+nsACString&
 AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx, const char* sfx)
 {
   s += pfx;
   s += nsPrintfCString(
     "(x=%d, y=%d, w=%d, h=%d)",
+    r.x, r.y, r.width, r.height);
+  return s += sfx;
+}
+
+nsACString&
+AppendToString(nsACString& s, const Rect& r,
+               const char* pfx, const char* sfx)
+{
+  s += pfx;
+  s.AppendPrintf(
+    "(x=%f, y=%f, w=%f, h=%f)",
     r.x, r.y, r.width, r.height);
   return s += sfx;
 }
@@ -184,7 +205,6 @@ AppendToString(nsACString& s, const Filter filter,
   s += pfx;
 
   switch (filter) {
-    case FILTER_GOOD: s += "FILTER_GOOD"; break;
     case FILTER_LINEAR: s += "FILTER_LINEAR"; break;
     case FILTER_POINT: s += "FILTER_POINT"; break;
   }
@@ -211,12 +231,12 @@ AppendToString(nsACString& s, TextureFlags flags,
   } \
 }
     bool previous = false;
-    AppendFlag(TEXTURE_USE_NEAREST_FILTER);
-    AppendFlag(TEXTURE_NEEDS_Y_FLIP);
-    AppendFlag(TEXTURE_DISALLOW_BIGIMAGE);
-    AppendFlag(TEXTURE_ALLOW_REPEAT);
-    AppendFlag(TEXTURE_NEW_TILE);
-    AppendFlag(TEXTURE_DEALLOCATE_HOST);
+    AppendFlag(UseNearestFilter);
+    AppendFlag(NeedsYFlip);
+    AppendFlag(ForceSingleTile);
+    AppendFlag(AllowRepeat);
+    AppendFlag(NewTile);
+    AppendFlag(HostRelease);
 
 #undef AppendFlag
   }

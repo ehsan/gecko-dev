@@ -60,7 +60,7 @@ class RemoteInputStream : public nsIInputStream,
   ActorFlavorEnum mOrigin;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   RemoteInputStream(nsIDOMBlob* aSourceBlob, ActorFlavorEnum aOrigin)
   : mMonitor("RemoteInputStream.mMonitor"), mSourceBlob(aSourceBlob),
@@ -90,7 +90,8 @@ public:
   {
     // See InputStreamUtils.cpp to see how deserialization of a
     // RemoteInputStream is special-cased.
-    MOZ_CRASH("RemoteInputStream should never be deserialized");
+    MOZ_NOT_REACHED("RemoteInputStream should never be deserialized");
+    return false;
   }
 
   void
@@ -312,8 +313,8 @@ private:
   }
 };
 
-NS_IMPL_ADDREF(RemoteInputStream)
-NS_IMPL_RELEASE(RemoteInputStream)
+NS_IMPL_THREADSAFE_ADDREF(RemoteInputStream)
+NS_IMPL_THREADSAFE_RELEASE(RemoteInputStream)
 
 NS_INTERFACE_MAP_BEGIN(RemoteInputStream)
   NS_INTERFACE_MAP_ENTRY(nsIInputStream)
@@ -364,8 +365,8 @@ inline
 already_AddRefed<nsIDOMBlob>
 GetBlobFromParams(const SlicedBlobConstructorParams& aParams)
 {
-  static_assert(ActorFlavor == mozilla::dom::ipc::Parent,
-                "No other flavor is supported here!");
+  MOZ_STATIC_ASSERT(ActorFlavor == mozilla::dom::ipc::Parent,
+                    "No other flavor is supported here!");
 
   BlobParent* actor =
     const_cast<BlobParent*>(
@@ -625,7 +626,7 @@ BlobTraits<Parent>::BaseType::NoteRunnableCompleted(
     }
   }
 
-  MOZ_CRASH("Runnable not in our array!");
+  MOZ_NOT_REACHED("Runnable not in our array!");
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -840,7 +841,7 @@ private:
       typename ActorType::ConstructorParamsType params;
       ActorType::BaseType::SetBlobConstructorParams(params, normalParams);
 
-      ActorType* newActor = ActorType::Create(mActor->Manager(), params);
+      ActorType* newActor = ActorType::Create(params);
       MOZ_ASSERT(newActor);
 
       SlicedBlobConstructorParams slicedParams;
@@ -1011,13 +1012,11 @@ RemoteBlob<Child>::GetInternalStream(nsIInputStream** aStream)
 }
 
 template <ActorFlavorEnum ActorFlavor>
-Blob<ActorFlavor>::Blob(ContentManager* aManager, nsIDOMBlob* aBlob)
-: mBlob(aBlob), mRemoteBlob(nullptr), mOwnsBlob(true)
-, mBlobIsFile(false), mManager(aManager)
+Blob<ActorFlavor>::Blob(nsIDOMBlob* aBlob)
+: mBlob(aBlob), mRemoteBlob(nullptr), mOwnsBlob(true), mBlobIsFile(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aBlob);
-  MOZ_ASSERT(aManager);
   aBlob->AddRef();
 
   nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
@@ -1025,13 +1024,10 @@ Blob<ActorFlavor>::Blob(ContentManager* aManager, nsIDOMBlob* aBlob)
 }
 
 template <ActorFlavorEnum ActorFlavor>
-Blob<ActorFlavor>::Blob(ContentManager* aManager,
-                        const ConstructorParamsType& aParams)
-: mBlob(nullptr), mRemoteBlob(nullptr), mOwnsBlob(false)
-, mBlobIsFile(false), mManager(aManager)
+Blob<ActorFlavor>::Blob(const ConstructorParamsType& aParams)
+: mBlob(nullptr), mRemoteBlob(nullptr), mOwnsBlob(false), mBlobIsFile(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aManager);
 
   ChildBlobConstructorParams::Type paramType =
     BaseType::GetBlobConstructorParams(aParams).type();
@@ -1053,8 +1049,7 @@ Blob<ActorFlavor>::Blob(ContentManager* aManager,
 
 template <ActorFlavorEnum ActorFlavor>
 Blob<ActorFlavor>*
-Blob<ActorFlavor>::Create(ContentManager* aManager,
-                          const ConstructorParamsType& aParams)
+Blob<ActorFlavor>::Create(const ConstructorParamsType& aParams)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -1065,7 +1060,7 @@ Blob<ActorFlavor>::Create(ContentManager* aManager,
     case ChildBlobConstructorParams::TNormalBlobConstructorParams:
     case ChildBlobConstructorParams::TFileBlobConstructorParams:
     case ChildBlobConstructorParams::TMysteryBlobConstructorParams:
-      return new Blob<ActorFlavor>(aManager, aParams);
+      return new Blob<ActorFlavor>(aParams);
 
     case ChildBlobConstructorParams::TSlicedBlobConstructorParams: {
       const SlicedBlobConstructorParams& params =
@@ -1080,11 +1075,11 @@ Blob<ActorFlavor>::Create(ContentManager* aManager,
                       getter_AddRefs(slice));
       NS_ENSURE_SUCCESS(rv, nullptr);
 
-      return new Blob<ActorFlavor>(aManager, slice);
+      return new Blob<ActorFlavor>(slice);
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   return nullptr;
@@ -1190,13 +1185,13 @@ Blob<ActorFlavor>::CreateRemoteBlob(const ConstructorParamsType& aParams)
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   MOZ_ASSERT(remoteBlob);
 
   if (NS_FAILED(remoteBlob->SetMutable(false))) {
-    MOZ_CRASH("Failed to make remote blob immutable!");
+    MOZ_NOT_REACHED("Failed to make remote blob immutable!");
   }
 
   return remoteBlob.forget();
@@ -1283,7 +1278,7 @@ Blob<ActorFlavor>::RecvResolveMystery(const ResolveMysteryParams& aParams)
     }
 
     default:
-      MOZ_CRASH("Unknown params!");
+      MOZ_NOT_REACHED("Unknown params!");
   }
 
   return true;
@@ -1373,30 +1368,17 @@ Blob<Child>::RecvPBlobStreamConstructor(StreamType* aActor)
   return aActor->Send__delete__(aActor, params);
 }
 
-BlobTraits<Parent>::StreamType*
-BlobTraits<Parent>::BaseType::AllocPBlobStreamParent()
+template <ActorFlavorEnum ActorFlavor>
+typename Blob<ActorFlavor>::StreamType*
+Blob<ActorFlavor>::AllocPBlobStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Parent>();
+  return new InputStreamActor<ActorFlavor>();
 }
 
-BlobTraits<Child>::StreamType*
-BlobTraits<Child>::BaseType::AllocPBlobStreamChild()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Child>();
-}
-
+template <ActorFlavorEnum ActorFlavor>
 bool
-BlobTraits<Parent>::BaseType::DeallocPBlobStreamParent(BlobTraits<Parent>::StreamType* aActor)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  delete aActor;
-  return true;
-}
-
-bool
-BlobTraits<Child>::BaseType::DeallocPBlobStreamChild(BlobTraits<Child>::StreamType* aActor)
+Blob<ActorFlavor>::DeallocPBlobStream(StreamType* aActor)
 {
   MOZ_ASSERT(NS_IsMainThread());
   delete aActor;

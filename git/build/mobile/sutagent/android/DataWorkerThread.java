@@ -170,10 +170,6 @@ public class DataWorkerThread extends Thread
                     if ((inputLine += readLine(in)) != null)
                         {
                         outputLine = dc.processCommand(inputLine, out, in, cmdOut);
-                        if (outputLine == null)
-                            {
-                            outputLine = "";
-                            }
                         out.print(outputLine + "\n");
                         out.flush();
                         if (outputLine.equals("exit"))

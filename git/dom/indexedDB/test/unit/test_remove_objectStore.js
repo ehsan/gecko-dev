@@ -7,13 +7,15 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const objectStoreName = "Objects";
 
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
@@ -32,7 +34,7 @@ function testSteps()
       }
     }
   }
-  yield undefined;
+  yield;
 
   is(db.objectStoreNames.length, 1, "Correct objectStoreNames list");
   is(db.objectStoreNames.item(0), objectStoreName, "Correct name");
@@ -42,7 +44,7 @@ function testSteps()
   let request = indexedDB.open(name, 2);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   let trans = event.target.transaction;
@@ -73,20 +75,20 @@ function testSteps()
     is(event.target.result, undefined, "ObjectStore shouldn't have any items");
     testGenerator.send(event);
   }
-  event = yield undefined;
+  event = yield;
 
   db.deleteObjectStore(objectStore.name);
   is(db.objectStoreNames.length, 0, "Correct objectStores list");
 
   continueToNextStep();
-  yield undefined;
+  yield;
 
   db.close();
 
   let request = indexedDB.open(name, 3);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -98,8 +100,8 @@ function testSteps()
 
   db.deleteObjectStore(objectStoreName);
 
-  event = yield undefined;
+  event = yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
@@ -19,7 +19,6 @@
 #include "mozilla/dom/SVGMatrix.h"
 #include "DOMSVGPoint.h"
 #include "nsIFrame.h"
-#include "nsFrameSelection.h"
 #include "nsISVGSVGFrame.h" //XXX
 #include "mozilla/dom/SVGRect.h"
 #include "nsError.h"
@@ -38,7 +37,6 @@
 #include "nsSMILTypes.h"
 #include "SVGAngle.h"
 #include <algorithm>
-#include "prtime.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT_CHECK_PARSER(SVG)
 
@@ -53,8 +51,15 @@ SVGSVGElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return SVGSVGElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(DOMSVGTranslatePoint, nsISVGPoint,
-                                     mElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DOMSVGTranslatePoint,
+                                                nsISVGPoint)
+NS_IMPL_CYCLE_COLLECTION_UNLINK(mElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DOMSVGTranslatePoint,
+                                                  nsISVGPoint)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(DOMSVGTranslatePoint, nsISVGPoint)
 NS_IMPL_RELEASE_INHERITED(DOMSVGTranslatePoint, nsISVGPoint)
@@ -127,8 +132,6 @@ nsSVGElement::EnumInfo SVGSVGElement::sEnumInfo[1] =
 
 //----------------------------------------------------------------------
 // nsISupports methods
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(SVGSVGElement)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SVGSVGElement,
                                                 SVGSVGElementBase)
@@ -368,16 +371,6 @@ SVGSVGElement::SetCurrentTime(float seconds)
   // else we're not the outermost <svg> or not bound to a tree, so silently fail
 }
 
-void
-SVGSVGElement::DeselectAll()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsRefPtr<nsFrameSelection> frameSelection = frame->GetFrameSelection();
-    frameSelection->ClearNormalSelection();
-  }
-}
-
 already_AddRefed<nsIDOMSVGNumber>
 SVGSVGElement::CreateSVGNumber()
 {
@@ -452,7 +445,9 @@ SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
 already_AddRefed<SVGAnimatedRect>
 SVGSVGElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsRefPtr<SVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
@@ -696,7 +691,7 @@ SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 {
   // Avoid wasteful calls:
   NS_ABORT_IF_FALSE(!(GetPrimaryFrame()->GetStateBits() &
-                      NS_FRAME_IS_NONDISPLAY),
+                      NS_STATE_SVG_NONDISPLAY_CHILD),
                     "Non-display SVG frames don't maintain overflow rects");
 
   nsChangeHint changeHint;
@@ -744,6 +739,7 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
         // We'll be the outermost <svg> element.  We'll need a time container.
         if (!mTimedDocumentRoot) {
           mTimedDocumentRoot = new nsSMILTimeContainer();
+          NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
         }
       } else {
         // We're a child of some other <svg> element, so we don't need our own
@@ -980,7 +976,7 @@ SVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
       return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * fromUserSpace;
     }
     NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
-    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y));
+    return GetViewBoxTransform() * fromUserSpace;
   }
 
   if (IsRoot()) {

@@ -29,9 +29,11 @@ public:
     NS_IMETHOD GetNext(nsAString& aResult);
 
     static EmptyEnumeratorImpl* GetInstance() {
-      static const EmptyEnumeratorImpl kInstance;
-      return const_cast<EmptyEnumeratorImpl*>(&kInstance);
+        return const_cast<EmptyEnumeratorImpl*>(&kInstance);
     }
+
+private:
+    static const EmptyEnumeratorImpl kInstance;
 };
 
 // nsISupports interface
@@ -75,6 +77,8 @@ NS_IMETHODIMP EmptyEnumeratorImpl::GetNext(nsAString& aResult)
 {
     return NS_ERROR_UNEXPECTED;
 }
+
+const EmptyEnumeratorImpl EmptyEnumeratorImpl::kInstance;
 
 nsresult
 NS_NewEmptyEnumerator(nsISimpleEnumerator** aResult)

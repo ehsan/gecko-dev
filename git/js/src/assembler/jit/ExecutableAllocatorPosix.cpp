@@ -23,15 +23,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "assembler/jit/ExecutableAllocator.h"
+#include "ExecutableAllocator.h"
 
 #if ENABLE_ASSEMBLER && WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
 #include <sys/mman.h>
 #include <unistd.h>
-
-#include "assembler/wtf/Assertions.h"
-#include "assembler/wtf/VMTags.h"
+#include <wtf/VMTags.h>
 
 namespace JSC {
 
@@ -90,18 +88,6 @@ __asm void ExecutableAllocator::cacheFlush(void* code, size_t size)
     bx lr
 }
 #endif
-
-void
-ExecutablePool::toggleAllCodeAsAccessible(bool accessible)
-{
-    char* begin = m_allocation.pages;
-    size_t size = m_freePtr - begin;
-
-    if (size) {
-        if (mprotect(begin, size, accessible ? PROT_READ | PROT_WRITE | PROT_EXEC : PROT_NONE))
-            MOZ_CRASH();
-    }
-}
 
 }
 

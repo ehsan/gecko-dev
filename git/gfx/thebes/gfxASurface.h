@@ -10,7 +10,6 @@
  #define MOZ_DUMP_IMAGES
 #endif
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxTypes.h"
 #include "gfxRect.h"
 #include "nsAutoPtr.h"
@@ -30,7 +29,7 @@ struct nsIntRect;
  * A surface is something you can draw on. Instantiate a subclass of this
  * abstract class, and use gfxContext to draw on this surface.
  */
-class gfxASurface {
+class THEBES_API gfxASurface {
 public:
 #ifdef MOZILLA_INTERNAL_API
     nsrefcnt AddRef(void);
@@ -211,8 +210,8 @@ public:
 
     virtual int32_t KnownMemoryUsed() { return mBytesRecorded; }
 
-    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
     // gfxASurface has many sub-classes.  This method indicates if a sub-class
     // is capable of measuring its own size accurately.  If not, the caller
     // must fall back to a computed size.  (Note that gfxASurface can actually
@@ -243,6 +242,7 @@ public:
 
     virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
 
+#ifdef MOZ_DUMP_IMAGES
     /**
      * Debug functions to encode the current image as a PNG and export it.
      */
@@ -268,6 +268,7 @@ public:
     void CopyAsDataURL();
     
     void WriteAsPNG_internal(FILE* aFile, bool aBinary);
+#endif
 
     void SetOpaqueRect(const gfxRect& aRect) {
         if (aRect.IsEmpty()) {
@@ -353,7 +354,7 @@ protected:
 /**
  * An Unknown surface; used to wrap unknown cairo_surface_t returns from cairo
  */
-class gfxUnknownSurface : public gfxASurface {
+class THEBES_API gfxUnknownSurface : public gfxASurface {
 public:
     gfxUnknownSurface(cairo_surface_t *surf) {
         Init(surf, true);

@@ -14,17 +14,14 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/SignInToWebsite.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AboutHome",
-                                  "resource:///modules/AboutHome.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ContentClick",
-                                  "resource:///modules/ContentClick.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "UserAgentOverrides",
+                                  "resource://gre/modules/UserAgentOverrides.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
@@ -68,11 +65,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
-                                  "resource:///modules/sessionstore/SessionStore.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -176,10 +168,10 @@ BrowserGlue.prototype = {
         this._onAppDefaults();
         break;
       case "final-ui-startup":
-        this._finalUIStartup();
+        this._onProfileStartup();
         break;
       case "browser-delayed-startup-finished":
-        this._onFirstWindowLoaded(subject);
+        this._onFirstWindowLoaded();
         Services.obs.removeObserver(this, "browser-delayed-startup-finished");
         break;
       case "sessionstore-windows-restored":
@@ -325,41 +317,6 @@ BrowserGlue.prototype = {
         });
         break;
 #endif
-      case "browser-search-engine-modified":
-        if (data != "engine-default" && data != "engine-current") {
-          break;
-        }
-        // Enforce that the search service's defaultEngine is always equal to
-        // its currentEngine. The search service will notify us any time either
-        // of them are changed (either by directly setting the relevant prefs,
-        // i.e. if add-ons try to change this directly, or if the
-        // nsIBrowserSearchService setters are called).
-        // No need to initialize the search service, since it's guaranteed to be
-        // initialized already when this notification fires.
-        let ss = Services.search;
-        if (ss.currentEngine.name == ss.defaultEngine.name)
-          return;
-        if (data == "engine-current")
-          ss.defaultEngine = ss.currentEngine;
-        else
-          ss.currentEngine = ss.defaultEngine;
-        break;
-      case "browser-search-service":
-        if (data != "init-complete")
-          return;
-        Services.obs.removeObserver(this, "browser-search-service");
-        this._syncSearchEngines();
-        break;
-    }
-  },
-
-  _syncSearchEngines: function () {
-    // Only do this if the search service is already initialized. This function
-    // gets called in finalUIStartup and from a browser-search-service observer,
-    // to catch both cases (search service initialization occurring before and
-    // after final-ui-startup)
-    if (Services.search.isInitialized) {
-      Services.search.defaultEngine = Services.search.currentEngine;
     }
   },
 
@@ -394,8 +351,6 @@ BrowserGlue.prototype = {
 #ifdef MOZ_SERVICES_HEALTHREPORT
     os.addObserver(this, "keyword-search", false);
 #endif
-    os.addObserver(this, "browser-search-engine-modified", false);
-    os.addObserver(this, "browser-search-service", false);
   },
 
   // cleanup (called on application shutdown)
@@ -429,22 +384,16 @@ BrowserGlue.prototype = {
 #ifdef MOZ_SERVICES_HEALTHREPORT
     os.removeObserver(this, "keyword-search");
 #endif
-    os.removeObserver(this, "browser-search-engine-modified");
-    try {
-      os.removeObserver(this, "browser-search-service");
-      // may have already been removed by the observer
-    } catch (ex) {}
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
     // apply distribution customizations (prefs)
-    // other customizations are applied in _finalUIStartup()
+    // other customizations are applied in _onProfileStartup()
     this._distributionCustomizer.applyPrefDefaults();
   },
 
-  // runs on startup, before the first command line handler is invoked
-  // (i.e. before the first window is opened)
-  _finalUIStartup: function BG__finalUIStartup() {
+  // profile startup handler (contains profile initialization routines)
+  _onProfileStartup: function BG__onProfileStartup() {
     this._sanitizer.onStartup();
     // check if we're in safe mode
     if (Services.appinfo.inSafeMode) {
@@ -459,7 +408,7 @@ BrowserGlue.prototype = {
     // handle any UI migration
     this._migrateUI();
 
-    this._syncSearchEngines();
+    this._setUpUserAgentOverrides();
 
     webappsUI.init();
     PageThumbs.init();
@@ -468,35 +417,23 @@ BrowserGlue.prototype = {
     SignInToWebsiteUX.init();
     PdfJs.init();
     webrtcUI.init();
-    AboutHome.init();
-
-    if (Services.prefs.getBoolPref("browser.tabs.remote"))
-      ContentClick.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
-  _checkForOldBuildUpdates: function () {
-    // check for update if our build is old
-    if (Services.prefs.getBoolPref("app.update.enabled") &&
-        Services.prefs.getBoolPref("app.update.checkInstallTime")) {
+  _setUpUserAgentOverrides: function BG__setUpUserAgentOverrides() {
+    UserAgentOverrides.init();
 
-      let buildID = Services.appinfo.appBuildID;
-      let today = new Date().getTime();
-      let buildDate = new Date(buildID.slice(0,4),     // year
-                               buildID.slice(4,6) - 1, // months are zero-based.
-                               buildID.slice(6,8),     // day
-                               buildID.slice(8,10),    // hour
-                               buildID.slice(10,12),   // min
-                               buildID.slice(12,14))   // ms
-      .getTime();
-
-      const millisecondsIn24Hours = 86400000;
-      let acceptableAge = Services.prefs.getIntPref("app.update.checkInstallTime.days") * millisecondsIn24Hours;
-
-      if (buildDate + acceptableAge < today) {
-        Cc["@mozilla.org/updates/update-service;1"].getService(Ci.nsIApplicationUpdateService).checkForBackgroundUpdates();
-      }
+    if (Services.prefs.getBoolPref("general.useragent.complexOverride.moodle")) {
+      UserAgentOverrides.addComplexOverride(function (aHttpChannel, aOriginalUA) {
+        let cookies;
+        try {
+          cookies = aHttpChannel.getRequestHeader("Cookie");
+        } catch (e) { /* no cookie sent */ }
+        if (cookies && cookies.indexOf("MoodleSession") > -1)
+          return aOriginalUA.replace(/Gecko\/[^ ]*/, "Gecko/20100101");
+        return null;
+      });
     }
   },
 
@@ -513,9 +450,7 @@ BrowserGlue.prototype = {
       samples = Services.prefs.getIntPref("browser.slowStartup.samples");
     } catch (e) { }
 
-    let totalTime = (averageTime * samples) + currentTime;
-    samples++;
-    averageTime = totalTime / samples;
+    averageTime = (averageTime * samples + currentTime) / ++samples;
 
     if (samples >= Services.prefs.getIntPref("browser.slowStartup.maxSamples")) {
       if (averageTime > Services.prefs.getIntPref("browser.slowStartup.timeThreshold"))
@@ -561,66 +496,20 @@ BrowserGlue.prototype = {
                           nb.PRIORITY_INFO_LOW, buttons);
   },
 
-  /**
-   * Show a notification bar offering a reset if the profile has been unused for some time.
-   */
-  _resetUnusedProfileNotification: function () {
-    let win = this.getMostRecentBrowserWindow();
-    if (!win)
-      return;
-
-    Cu.import("resource://gre/modules/ResetProfile.jsm");
-    if (!ResetProfile.resetSupported())
-      return;
-
-    let productName = Services.strings
-                              .createBundle("chrome://branding/locale/brand.properties")
-                              .GetStringFromName("brandShortName");
-    let resetBundle = Services.strings
-                              .createBundle("chrome://global/locale/resetProfile.properties");
-
-    let message = resetBundle.formatStringFromName("resetUnusedProfile.message", [productName], 1);
-    let buttons = [
-      {
-        label:     resetBundle.formatStringFromName("resetProfile.resetButton.label", [productName], 1),
-        accessKey: resetBundle.GetStringFromName("resetProfile.resetButton.accesskey"),
-        callback: function () {
-          ResetProfile.openConfirmationDialog(win);
-        }
-      },
-    ];
-
-    let nb = win.document.getElementById("global-notificationbox");
-    nb.appendNotification(message, "reset-unused-profile",
-                          "chrome://global/skin/icons/question-16.png",
-                          nb.PRIORITY_INFO_LOW, buttons);
-  },
-
   // the first browser window has finished initializing
-  _onFirstWindowLoaded: function BG__onFirstWindowLoaded(aWindow) {
+  _onFirstWindowLoaded: function BG__onFirstWindowLoaded() {
 #ifdef XP_WIN
     // For windows seven, initialize the jump list module.
     const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
     if (WINTASKBAR_CONTRACTID in Cc &&
         Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
       let temp = {};
-      Cu.import("resource:///modules/WindowsJumpLists.jsm", temp);
+      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
       temp.WinTaskbarJumpList.startup();
     }
 #endif
 
-    SessionStore.init(aWindow);
     this._trackSlowStartup();
-
-    // Offer to reset a user's profile if it hasn't been used for 60 days.
-    const OFFER_PROFILE_RESET_INTERVAL_MS = 60 * 24 * 60 * 60 * 1000;
-    let lastUse = Services.appinfo.replacedLockTime;
-    if (lastUse &&
-        Date.now() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
-      this._resetUnusedProfileNotification();
-    }
-
-    this._checkForOldBuildUpdates();
   },
 
   /**
@@ -630,6 +519,7 @@ BrowserGlue.prototype = {
    */
   _onProfileShutdown: function BG__onProfileShutdown() {
     BrowserNewTabPreloader.uninit();
+    UserAgentOverrides.uninit();
     webappsUI.uninit();
     SignInToWebsiteUX.uninit();
     webrtcUI.uninit();
@@ -689,17 +579,9 @@ BrowserGlue.prototype = {
           (ss.sessionType == Ci.nsISessionStartup.RECOVER_SESSION);
       }
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
-
-      let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
-      try {
-        // Report default browser status on startup to telemetry
-        // so we can track whether we are the default.
-        Services.telemetry.getHistogramById("BROWSER_IS_USER_DEFAULT")
-                          .add(isDefault);
-      }
-      catch (ex) { /* Don't break the default prompt if telemetry is broken. */ }
-
-      if (shouldCheck && !isDefault && !willRecoverSession) {
+      if (shouldCheck &&
+          !shell.isDefaultBrowser(true, false) &&
+          !willRecoverSession) {
         Services.tm.mainThread.dispatch(function() {
           var win = this.getMostRecentBrowserWindow();
           var brandBundle = win.document.getElementById("bundle_brand");
@@ -806,8 +688,7 @@ BrowserGlue.prototype = {
         // tabs checks browser.tabs.warnOnClose and returns if it's ok to close
         // the window. It doesn't actually close the window.
         mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
-        let allTabs = mostRecentBrowserWindow.gBrowser.closingTabsEnum.ALL;
-        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(allTabs)
+        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(true);
       }
       return;
     }
@@ -1289,7 +1170,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 14;
+    const UI_VERSION = 13;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1477,13 +1358,6 @@ BrowserGlue.prototype = {
           Services.prefs.setBoolPref("plugins.notifyMissingFlash", false);
       }
       catch (ex) {}
-    }
-
-    if (currentUIVersion < 14) {
-      // DOM Storage doesn't specially handle about: pages anymore.
-      let path = OS.Path.join(OS.Constants.Path.profileDir,
-                              "chromeappsstore.sqlite");
-      OS.File.remove(path);
     }
 
     if (this._dirty)
@@ -1770,13 +1644,6 @@ ContentPermissionPrompt.prototype = {
     var requestingWindow = aRequest.window.top;
     var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
-    if (!browser) {
-      // find the requesting browser or iframe
-      browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIWebNavigation)
-                                  .QueryInterface(Ci.nsIDocShell)
-                                  .chromeEventHandler;
-    }
     var requestPrincipal = aRequest.principal;
 
     // Transform the prompt actions into PopupNotification actions.

@@ -8,6 +8,8 @@
 #include <os2safe.h>
 #endif
 
+#define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
+
 #if defined(MOZ_WIDGET_QT)
 #include <QApplication>
 #include <QStringList>
@@ -119,6 +121,7 @@ using mozilla::scache::StartupCache;
 #include "nsEmbedCID.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
+#include "nsStaticComponents.h"
 #include "nsXPCOM.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
@@ -193,7 +196,7 @@ using mozilla::scache::StartupCache;
 #endif
 
 #include "base/command_line.h"
-#ifdef MOZ_ENABLE_TESTS
+#ifdef MOZ_ENABLE_GTEST
 #include "GTestRunner.h"
 #endif
 
@@ -238,10 +241,6 @@ static char **gQtOnlyArgv;
 #include "nsGTKToolkit.h"
 #endif
 #include "BinaryPath.h"
-
-namespace mozilla {
-int (*RunGTest)() = 0;
-}
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -632,9 +631,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cc = ContentChild::GetSingleton();
-    aResult = cc->GetAppInfo().name;
-    return NS_OK;
+    return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->name);
 
@@ -698,9 +695,7 @@ NS_IMETHODIMP
 nsXULAppInfo::GetUAName(nsACString& aResult)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cc = ContentChild::GetSingleton();
-    aResult = cc->GetAppInfo().UAName;
-    return NS_OK;
+    return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->UAName);
 
@@ -757,9 +752,9 @@ nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
 // is synchronized with the const unsigned longs defined in
 // xpcom/system/nsIXULRuntime.idl.
 #define SYNC_ENUMS(a,b) \
-  static_assert(nsIXULRuntime::PROCESS_TYPE_ ## a == \
-                static_cast<int>(GeckoProcessType_ ## b), \
-                "GeckoProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
+  MOZ_STATIC_ASSERT(nsIXULRuntime::PROCESS_TYPE_ ## a == \
+                    static_cast<int>(GeckoProcessType_ ## b), \
+                    "GeckoProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
 
 SYNC_ENUMS(DEFAULT, Default)
 SYNC_ENUMS(PLUGIN, Plugin)
@@ -767,8 +762,8 @@ SYNC_ENUMS(CONTENT, Content)
 SYNC_ENUMS(IPDLUNITTEST, IPDLUnitTest)
 
 // .. and ensure that that is all of them:
-static_assert(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
-              "Did not find the final GeckoProcessType");
+MOZ_STATIC_ASSERT(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
+                  "Did not find the final GeckoProcessType");
 
 NS_IMETHODIMP
 nsXULAppInfo::GetProcessType(uint32_t* aResult)
@@ -1400,9 +1395,8 @@ static int MSCRTReportHook( int aReportType, char *aMessage, int *oReturnValue)
 static inline void
 DumpVersion()
 {
-  if (gAppData->vendor)
-    printf("%s ", gAppData->vendor);
-  printf("%s %s", gAppData->name, gAppData->version);
+  printf("%s %s %s", 
+         gAppData->vendor ? gAppData->vendor : "", gAppData->name, gAppData->version);
   if (gAppData->copyright)
       printf(", %s", gAppData->copyright);
   printf("\n");
@@ -1769,7 +1763,10 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
          nsIPromptService::BUTTON_POS_1) +
         nsIPromptService::BUTTON_POS_1_DEFAULT;
 
+      // The actual value is irrelevant but we shouldn't be handing out
+      // malformed JSBools to XPConnect.
       bool checkState = false;
+
       rv = ps->ConfirmEx(nullptr, killTitle, killMessage, flags,
                          killTitle, nullptr, nullptr, nullptr, 
                          &checkState, &button);
@@ -2613,52 +2610,73 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     g_free(theme_name);
   }
 
+  // gdk_display_close was broken prior to gtk+-2.10.0.
+  // (http://bugzilla.gnome.org/show_bug.cgi?id=85715)
+  // gdk_display_manager_set_default_display (gdk_display_manager_get(), NULL)
+  // was also broken.
+  if (gtk_check_version(2,10,0) != NULL) {
+#ifdef MOZ_X11
+    // Version check failed - broken gdk_display_close.
+    //
+    // Let the gdk structures leak but at least close the Display,
+    // assuming that gdk will not use it again.
+    Display* dpy = GDK_DISPLAY_XDISPLAY(display);
+    if (!theme_is_qt)
+      XCloseDisplay(dpy);
+#else
+    gdk_display_close(display);
+#endif /* MOZ_X11 */
+  }
+  else {
 #if CLEANUP_MEMORY
-  // Get a (new) Pango context that holds a reference to the fontmap that
-  // GTK has been using.  gdk_pango_context_get() must be called while GTK
-  // has a default display.
-  PangoContext *pangoContext = gdk_pango_context_get();
+    // Get a (new) Pango context that holds a reference to the fontmap that
+    // GTK has been using.  gdk_pango_context_get() must be called while GTK
+    // has a default display.
+    PangoContext *pangoContext = gdk_pango_context_get();
 #endif
 
-  bool buggyCairoShutdown = cairo_version() < CAIRO_VERSION_ENCODE(1, 4, 0);
+    bool buggyCairoShutdown = cairo_version() < CAIRO_VERSION_ENCODE(1, 4, 0);
 
-  if (!buggyCairoShutdown) {
-    // We should shut down GDK before we shut down libraries it depends on
-    // like Pango and cairo. But if cairo shutdown is buggy, we should
-    // shut down cairo first otherwise it may crash because of dangling
-    // references to Display objects (see bug 469831).
-    if (!theme_is_qt)
-      gdk_display_close(display);
-  }
+    if (!buggyCairoShutdown) {
+      // We should shut down GDK before we shut down libraries it depends on
+      // like Pango and cairo. But if cairo shutdown is buggy, we should
+      // shut down cairo first otherwise it may crash because of dangling
+      // references to Display objects (see bug 469831).
+      if (!theme_is_qt)
+        gdk_display_close(display);
+    }
 
 #if CLEANUP_MEMORY
-  // This doesn't take a reference.
-  PangoFontMap *fontmap = pango_context_get_font_map(pangoContext);
-  // Do some shutdown of the fontmap, which releases the fonts, clearing a
-  // bunch of circular references from the fontmap through the fonts back to
-  // itself.  The shutdown that this does is much less than what's done by
-  // the fontmap's finalize, though.
-  if (PANGO_IS_FC_FONT_MAP(fontmap))
-      pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(fontmap));
-  g_object_unref(pangoContext);
-  // PangoCairo still holds a reference to the fontmap.
-  // Now that we have finished with GTK and Pango, we could unref fontmap,
-  // which would allow us to call FcFini, but removing what is really
-  // Pango's ref feels a bit evil.  Pango-1.22 will have support for
-  // pango_cairo_font_map_set_default(NULL), which would release the
-  // reference on the old fontmap.
+    // This doesn't take a reference.
+    PangoFontMap *fontmap = pango_context_get_font_map(pangoContext);
+    // Do some shutdown of the fontmap, which releases the fonts, clearing a
+    // bunch of circular references from the fontmap through the fonts back to
+    // itself.  The shutdown that this does is much less than what's done by
+    // the fontmap's finalize, though.
+    if (PANGO_IS_FC_FONT_MAP(fontmap))
+        pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(fontmap));
+    g_object_unref(pangoContext);
+    // PangoCairo still holds a reference to the fontmap.
+    // Now that we have finished with GTK and Pango, we could unref fontmap,
+    // which would allow us to call FcFini, but removing what is really
+    // Pango's ref feels a bit evil.  Pango-1.22 will have support for
+    // pango_cairo_font_map_set_default(NULL), which would release the
+    // reference on the old fontmap.
 
-  // cairo_debug_reset_static_data() is prototyped through cairo.h included
-  // by gtk.h.
+#if GTK_CHECK_VERSION(2,8,0)
+    // cairo_debug_reset_static_data() is prototyped through cairo.h included
+    // by gtk.h.
 #ifdef cairo_debug_reset_static_data
 #error "Looks like we're including Mozilla's cairo instead of system cairo"
 #endif
-  cairo_debug_reset_static_data();
+    cairo_debug_reset_static_data();
+#endif // 2.8.0
 #endif // CLEANUP_MEMORY
 
-  if (buggyCairoShutdown) {
-    if (!theme_is_qt)
-      gdk_display_close(display);
+    if (buggyCairoShutdown) {
+      if (!theme_is_qt)
+        gdk_display_close(display);
+    }
   }
 }
 #endif // MOZ_WIDGET_GTK2
@@ -3180,15 +3198,14 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     return 0;
   }
 
-  if (PR_GetEnv("MOZ_RUN_GTEST")) {
-    int result;
-    // RunGTest will only be set if we're in xul-unit
-    if (mozilla::RunGTest) {
-      result = mozilla::RunGTest();
-    } else {
-      result = 1;
-      printf("TEST-UNEXPECTED-FAIL | gtest | Not compiled with enable-tests\n");
-    }
+  ar = CheckArg("unittest", true);
+  if (ar == ARG_FOUND) {
+#if MOZ_ENABLE_GTEST
+    int result = mozilla::RunGTest();
+#else
+    int result = 1;
+    printf("TEST-UNEXPECTED-FAIL | Not compiled with GTest enabled\n");
+#endif
     *aExitFlag = true;
     return result;
   }
@@ -3370,19 +3387,11 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   // (called inside gdk_display_open). This is a requirement for off main tread compositing.
   // This is done only on X11 platforms if the environment variable MOZ_USE_OMTC is set so 
   // as to avoid overhead when omtc is not used. 
-  //
-  // On nightly builds, we call this by default to enable OMTC for Electrolysis testing. On
-  // aurora, beta, and release builds, there is a small tpaint regression from enabling this
-  // call, so it sits behind an environment variable.
-  //
   // An environment variable is used instead of a pref on X11 platforms because we start having 
   // access to prefs long after the first call to XOpenDisplay which is hard to change due to 
   // interdependencies in the initialization.
-# ifndef NIGHTLY_BUILD
   if (PR_GetEnv("MOZ_USE_OMTC") ||
-      PR_GetEnv("MOZ_OMTC_ENABLED"))
-# endif
-  {
+      PR_GetEnv("MOZ_OMTC_ENABLED")) {
     XInitThreads();
   }
 #endif
@@ -3876,8 +3885,7 @@ XREMain::XRE_mainRun()
 int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GeckoProfilerInitRAII profilerGuard;
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -4072,8 +4080,7 @@ public:
 int
 XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GeckoProfilerInitRAII profilerGuard;
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;

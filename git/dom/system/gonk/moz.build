@@ -16,7 +16,7 @@
 
 XPIDL_SOURCES += [
     'nsIAudioManager.idl',
-    'nsINetworkInterfaceListService.idl',
+    'nsINavigatorAudioChannelManager.idl',
     'nsINetworkManager.idl',
     'nsIRadioInterfaceLayer.idl',
     'nsISystemWorkerManager.idl',
@@ -29,54 +29,17 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_system_gonk'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/network/interfaces',
+]
+
 MODULE = 'dom'
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     EXPORTS += [
         'GonkGPSGeolocationProvider.h',
         'nsVolume.h',
-        'nsVolumeService.h',
-    ]
-    CPP_SOURCES += [
-        'AudioManager.cpp',
-        'AutoMounter.cpp',
-        'AutoMounterSetting.cpp',
-        'GonkGPSGeolocationProvider.cpp',
-        'AudioChannelManager.cpp',
-        'nsVolume.cpp',
-        'nsVolumeMountLock.cpp',
-        'nsVolumeService.cpp',
-        'nsVolumeStat.cpp',
-        'OpenFileFinder.cpp',
-        'TimeZoneSettingObserver.cpp',
-        'Volume.cpp',
-        'VolumeCommand.cpp',
-        'VolumeManager.cpp',
-        'VolumeServiceIOThread.cpp',
-        'VolumeServiceTest.cpp',
     ]
 
 if CONFIG['ENABLE_TESTS']:
     XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell.ini']
-
-CPP_SOURCES += [
-    'SystemWorkerManager.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'NetworkInterfaceListService.js',
-    'NetworkInterfaceListService.manifest',
-    'NetworkManager.js',
-    'NetworkManager.manifest',
-    'RILContentHelper.js',
-    'RadioInterfaceLayer.js',
-    'RadioInterfaceLayer.manifest',
-]
-
-EXTRA_JS_MODULES += [
-    'net_worker.js',
-    'ril_consts.js',
-    'ril_worker.js',
-    'systemlibs.js',
-]
-

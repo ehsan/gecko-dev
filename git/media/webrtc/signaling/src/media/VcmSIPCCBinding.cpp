@@ -966,61 +966,6 @@ short vcmCreateRemoteStream(cc_mcapid_t mcap_id,
   return ret;
 }
 
-/*
- * Add remote stream hint
- *
- * We are sending track information up to PeerConnection before
- * the tracks exist so it knows when the stream is fully constructed.
- *
- * @param[in] peerconnection
- * @param[in] pc_stream_id
- * @param[in] is_video
- *
- * Returns: zero(0) for success; otherwise, ERROR for failure
- */
-static short vcmAddRemoteStreamHint_m(
-  const char *peerconnection,
-  int pc_stream_id,
-  cc_boolean is_video) {
-  nsresult res;
-
-  sipcc::PeerConnectionWrapper pc(peerconnection);
-  ENSURE_PC(pc, VCM_ERROR);
-
-  res = pc.impl()->media()->AddRemoteStreamHint(pc_stream_id,
-    is_video ? TRUE : FALSE);
-  if (NS_FAILED(res)) {
-    return VCM_ERROR;
-  }
-
-  CSFLogDebug( logTag, "%s: added remote stream hint %u with index %d",
-    __FUNCTION__, is_video, pc_stream_id);
-
-  return 0;
-}
-
-/*
- * Add remote stream hint
- *
- * This is a thunk to vcmAddRemoteStreamHint_m
- *
- * Returns: zero(0) for success; otherwise, ERROR for failure
- */
-short vcmAddRemoteStreamHint(
-  const char *peerconnection,
-  int pc_stream_id,
-  cc_boolean is_video) {
-  short ret = 0;
-
-  mozilla::SyncRunnable::DispatchToThread(VcmSIPCCBinding::getMainThread(),
-      WrapRunnableNMRet(&vcmAddRemoteStreamHint_m,
-                        peerconnection,
-                        pc_stream_id,
-                        is_video,
-                        &ret));
-
-  return ret;
-}
 
 /*
  * Get DTLS key data
@@ -1405,14 +1350,12 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     return VCM_ERROR;
   }
 
-  mozilla::RefPtr<TransportFlow> rtcp_flow = nullptr;
-  if(!attrs->rtcp_mux) {
-    rtcp_flow = vcmCreateTransportFlow(pc.impl(), level, true,
-                                       fingerprint_alg, fingerprint);
-    if (!rtcp_flow) {
-      CSFLogError( logTag, "Could not create RTCP flow");
-      return VCM_ERROR;
-    }
+  mozilla::RefPtr<TransportFlow> rtcp_flow =
+    vcmCreateTransportFlow(pc.impl(), level, true,
+                           fingerprint_alg, fingerprint);
+  if (!rtcp_flow) {
+    CSFLogError( logTag, "Could not create RTCP flow");
+    return VCM_ERROR;
   }
 
   if (CC_IS_AUDIO(mcap_id)) {
@@ -1482,7 +1425,9 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     {
       config_raw = new mozilla::VideoCodecConfig(
         payloads[i].remote_rtp_pt,
-        ccsdpCodecName(payloads[i].codec_type));
+        ccsdpCodecName(payloads[i].codec_type),
+        payloads[i].video.width,
+        payloads[i].video.height);
       configs.push_back(config_raw);
     }
 
@@ -2048,14 +1993,12 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
       CSFLogError( logTag, "Could not create RTP flow");
       return VCM_ERROR;
   }
-  mozilla::RefPtr<TransportFlow> rtcp_flow = nullptr;
-  if(!attrs->rtcp_mux) {
-    rtcp_flow = vcmCreateTransportFlow(pc.impl(), level, true,
-                                       fingerprint_alg, fingerprint);
-    if (!rtcp_flow) {
+  mozilla::RefPtr<TransportFlow> rtcp_flow =
+      vcmCreateTransportFlow(pc.impl(), level, true,
+                             fingerprint_alg, fingerprint);
+  if (!rtcp_flow) {
       CSFLogError( logTag, "Could not create RTCP flow");
       return VCM_ERROR;
-    }
   }
 
   if (CC_IS_AUDIO(mcap_id)) {
@@ -2108,7 +2051,9 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     mozilla::VideoCodecConfig *config_raw;
     config_raw = new mozilla::VideoCodecConfig(
       payload->remote_rtp_pt,
-      ccsdpCodecName(payload->codec_type));
+      ccsdpCodecName(payload->codec_type),
+      payload->video.width,
+      payload->video.height);
 
     // Take possession of this pointer
     mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
@@ -2723,7 +2668,7 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
 
 
     ScopedDeletePtr<TransportLayerIce> ice(
-        new TransportLayerIce(pc->GetHandle(), pc->media()->ice_ctx(),
+        new TransportLayerIce("flow", pc->media()->ice_ctx(),
                               pc->media()->ice_media_stream(level-1),
                               rtcp ? 2 : 1));
 

@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ForgetAboutSite",
-                                  "resource://gre/modules/ForgetAboutSite.jsm");
+Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
@@ -937,7 +936,7 @@ PlacesController.prototype = {
             gen.next();
           } catch (ex if ex instanceof StopIteration) {}
         }, Ci.nsIThread.DISPATCH_NORMAL); 
-        yield undefined;
+        yield;
       }
     }
     let gen = pagesChunkGenerator(URIs);

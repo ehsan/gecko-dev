@@ -84,7 +84,7 @@ private:
     return GetPrivate(aObj);
   }
 
-  static bool
+  static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     nsRefPtr<nsDOMMultipartFile> file = new nsDOMMultipartFile();
@@ -112,9 +112,8 @@ private:
     NS_IF_RELEASE(blob);
   }
 
-  static bool
-  GetSize(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetSize(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMBlob* blob = GetInstancePrivate(aCx, aObj, "size");
     if (!blob) {
@@ -132,9 +131,8 @@ private:
     return true;
   }
 
-  static bool
-  GetType(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetType(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMBlob* blob = GetInstancePrivate(aCx, aObj, "type");
     if (!blob) {
@@ -157,7 +155,7 @@ private:
     return true;
   }
 
-  static bool
+  static JSBool
   Slice(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
@@ -286,7 +284,7 @@ private:
     return NULL;
   }
 
-  static bool
+  static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
@@ -303,9 +301,8 @@ private:
     NS_IF_RELEASE(file);
   }
 
-  static bool
-  GetMozFullPath(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                 JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetMozFullPath(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "mozFullPath");
     if (!file) {
@@ -330,9 +327,8 @@ private:
     return true;
   }
 
-  static bool
-  GetName(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-          JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetName(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "name");
     if (!file) {
@@ -353,9 +349,8 @@ private:
     return true;
   }
 
-  static bool
-  GetLastModifiedDate(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
-                      JS::MutableHandle<JS::Value> aVp)
+  static JSBool
+  GetLastModifiedDate(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
   {
     nsIDOMFile* file = GetInstancePrivate(aCx, aObj, "lastModifiedDate");
     if (!file) {

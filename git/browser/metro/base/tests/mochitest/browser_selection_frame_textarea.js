@@ -28,8 +28,6 @@ function setUpAndTearDown() {
   yield waitForCondition(function () {
       return !SelectionHelperUI.isSelectionUIVisible;
     }, kCommonWaitMs, kCommonPollMs);
-  InputSourceHelper.isPrecise = false;
-  InputSourceHelper.fireUpdate();
 }
 
 gTests.push({
@@ -41,7 +39,7 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_frame_textarea.html");
 
     yield waitForCondition(function () {
-      return !BrowserUI.isStartTabVisible;
+      return !StartUI.isStartPageVisible;
       }, 10000, 100);
 
     yield hideContextUI();
@@ -52,6 +50,8 @@ gTests.push({
     ok(gWindow != null, "gWindow");
     ok(gFrame != null, "gFrame");
     ok(gTextArea != null, "gTextArea");
+
+    InputSourceHelper.isPrecise = false;
   },
 });
 
@@ -64,7 +64,7 @@ gTests.push({
     gTextArea.selectionStart = gTextArea.selectionEnd = 0;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 220, 80);
+    sendContextMenuClick(275, 663);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",
@@ -74,7 +74,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     yield waitForCondition(function () {
@@ -83,13 +83,13 @@ gTests.push({
 
     is(getTrimmedSelection(gTextArea).toString(), "wondered", "selection test");
 
-    checkMonoclePositionRange("start", 260, 280, 675, 690);
-    checkMonoclePositionRange("end", 320, 340, 675, 690);
+    checkMonoclePositionRange("start", 260, 275, 675, 685);
+    checkMonoclePositionRange("end", 320, 335, 675, 685);
   },
 });
 
 gTests.push({
-  desc: "drag selection 1",
+  desc: "drag selection",
   setUp: setUpAndTearDown,
   tearDown: setUpAndTearDown,
   run: function test() {
@@ -97,7 +97,7 @@ gTests.push({
     gTextArea.selectionStart = gTextArea.selectionEnd = 0;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 220, 80);
+    sendContextMenuClick(275, 663);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",
@@ -107,7 +107,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     yield waitForCondition(function () {
@@ -154,7 +154,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     let string = "";
@@ -166,7 +166,7 @@ gTests.push({
 });
 
 gTests.push({
-  desc: "drag selection 2",
+  desc: "drag selection",
   setUp: setUpAndTearDown,
   tearDown: setUpAndTearDown,
   run: function test() {
@@ -178,7 +178,7 @@ gTests.push({
     yield scrollPromise;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 220, 80);
+    sendContextMenuClick(275, 463);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",
@@ -188,7 +188,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     yield waitForCondition(function () {
@@ -235,7 +235,7 @@ gTests.push({
     ok(menuItem, "menu item exists");
     ok(!menuItem.hidden, "menu item visible");
     let popupPromise = waitForEvent(document, "popuphidden");
-    sendElementTap(gWindow, menuItem);
+    EventUtils.synthesizeMouse(menuItem, 10, 10, {}, gWindow);
     yield popupPromise;
 
     let string = "";
@@ -251,7 +251,7 @@ function test() {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
-  // XXX need this until bugs 886624 and 859742 are fully resolved
-  setDevPixelEqualToPx();
+
+  requestLongerTimeout(3);
   runTests();
 }

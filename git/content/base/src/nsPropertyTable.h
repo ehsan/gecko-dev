@@ -23,7 +23,6 @@
 #ifndef nsPropertyTable_h_
 #define nsPropertyTable_h_
 
-#include "mozilla/MemoryReporting.h"
 #include "nscore.h"
 
 class nsIAtom;
@@ -177,7 +176,7 @@ class nsPropertyTable
 
   class PropertyList;
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
  private:
   NS_HIDDEN_(void) DestroyPropertyList();

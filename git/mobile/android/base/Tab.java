@@ -53,6 +53,7 @@ public class Tab {
     private boolean mBookmark;
     private boolean mReadingListItem;
     private long mFaviconLoadId;
+    private String mDocumentURI;
     private String mContentType;
     private boolean mHasTouchListeners;
     private ZoomConstraints mZoomConstraints;
@@ -64,8 +65,7 @@ public class Tab {
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
     private boolean mEnteringReaderMode;
-    private Context mAppContext;
-    private ErrorType mErrorType = ErrorType.NONE;
+    private Context mContext;
     private static final int MAX_HISTORY_LIST_SIZE = 50;
 
     public static final int STATE_DELAYED = 0;
@@ -73,15 +73,8 @@ public class Tab {
     public static final int STATE_SUCCESS = 2;
     public static final int STATE_ERROR = 3;
 
-    public enum ErrorType {
-        CERT_ERROR,  // Pages with certificate problems
-        BLOCKED,     // Pages blocked for phishing or malware warnings
-        NET_ERROR,       // All other types of error
-        NONE         // Non error pages
-    }
-
     public Tab(Context context, int id, String url, boolean external, int parentId, String title) {
-        mAppContext = context.getApplicationContext();
+        mContext = context;
         mId = id;
         mLastUsed = 0;
         mUrl = url;
@@ -103,6 +96,7 @@ public class Tab {
         mBookmark = false;
         mReadingListItem = false;
         mFaviconLoadId = 0;
+        mDocumentURI = "";
         mContentType = "";
         mZoomConstraints = new ZoomConstraints(false);
         mPluginViews = new ArrayList<View>();
@@ -116,7 +110,7 @@ public class Tab {
     }
 
     private ContentResolver getContentResolver() {
-        return mAppContext.getContentResolver();
+        return Tabs.getInstance().getContentResolver();
     }
 
     public void onDestroy() {
@@ -188,9 +182,7 @@ public class Tab {
         }
 
         if (mThumbnailBitmap == null) {
-            Bitmap.Config config = (GeckoAppShell.getScreenDepth() == 24) ?
-                Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-            mThumbnailBitmap = Bitmap.createBitmap(width, height, config);
+            mThumbnailBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
         }
 
         return mThumbnailBitmap;
@@ -266,23 +258,12 @@ public class Tab {
         mUserSearch = userSearch;
     }
 
-    public void setErrorType(String type) {
-        if ("blocked".equals(type))
-            setErrorType(ErrorType.BLOCKED);
-        else if ("certerror".equals(type))
-            setErrorType(ErrorType.CERT_ERROR);
-        else if ("neterror".equals(type))
-            setErrorType(ErrorType.NET_ERROR);
-        else
-            setErrorType(ErrorType.NONE);
+    public void setDocumentURI(String documentURI) {
+        mDocumentURI = documentURI;
     }
 
-    public void setErrorType(ErrorType type) {
-        mErrorType = type;
-    }
-
-    public ErrorType getErrorType() {
-        return mErrorType;
+    public String getDocumentURI() {
+        return mDocumentURI;
     }
 
     public void setContentType(String contentType) {
@@ -445,13 +426,12 @@ public class Tab {
         GeckoAppShell.sendEventToGecko(e);
     }
 
-    public void toggleReaderMode() {
-        if (ReaderModeUtils.isAboutReader(mUrl)) {
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getUrlFromAboutReader(mUrl));
-        } else if (mReaderEnabled) {
-            mEnteringReaderMode = true;
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId, mReadingListItem));
-        }
+    public void readerMode() {
+        if (!mReaderEnabled)
+            return;
+
+        mEnteringReaderMode = true;
+        Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(getURL(), mId, mReadingListItem));
     }
 
     public boolean isEnteringReaderMode() {
@@ -591,6 +571,7 @@ public class Tab {
         updateURL(uri);
         updateUserSearch(message.getString("userSearch"));
 
+        setDocumentURI(message.getString("documentURI"));
         mBaseDomain = message.optString("baseDomain");
         if (message.getBoolean("sameDocument")) {
             // We can get a location change event for the same document with an anchor tag
@@ -608,7 +589,6 @@ public class Tab {
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
         setBackgroundColor(getBackgroundColorForUrl(uri));
-        setErrorType(ErrorType.NONE);
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
@@ -619,7 +599,7 @@ public class Tab {
 
     private int getBackgroundColorForUrl(String url) {
         if ("about:home".equals(url)) {
-            return mAppContext.getResources().getColor(R.color.background_normal);
+            return mContext.getResources().getColor(R.color.background_normal);
         }
         return Color.WHITE;
     }

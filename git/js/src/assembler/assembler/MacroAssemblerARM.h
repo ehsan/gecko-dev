@@ -29,15 +29,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerARM_h
-#define assembler_assembler_MacroAssemblerARM_h
+#ifndef MacroAssemblerARM_h
+#define MacroAssemblerARM_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "assembler/assembler/ARMAssembler.h"
-#include "assembler/assembler/AbstractMacroAssembler.h"
+#include "ARMAssembler.h"
+#include "AbstractMacroAssembler.h"
 
 namespace JSC {
 
@@ -1029,7 +1029,7 @@ public:
         m_assembler.dtr_u(false, ARMRegisters::S1, ARMRegisters::S0, 0);
     }
 
-    void load32(const void* address, RegisterID dest)
+    void load32(void* address, RegisterID dest)
     {
         m_assembler.ldr_un_imm(ARMRegisters::S0, reinterpret_cast<ARMWord>(address));
         m_assembler.dtr_u(true, dest, ARMRegisters::S0, 0);
@@ -1111,17 +1111,17 @@ public:
     }
 
     // Floating point operators
-    static bool supportsFloatingPoint()
+    bool supportsFloatingPoint() const
     {
         return s_isVFPPresent;
     }
 
-    static bool supportsFloatingPointTruncate()
+    bool supportsFloatingPointTruncate() const
     {
         return true;
     }
 
-    static bool supportsFloatingPointSqrt()
+    bool supportsFloatingPointSqrt() const
     {
         return s_isVFPPresent;
     }
@@ -1542,4 +1542,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_TRADITIONAL)
 
-#endif /* assembler_assembler_MacroAssemblerARM_h */
+#endif // MacroAssemblerARM_h

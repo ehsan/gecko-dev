@@ -248,3 +248,5 @@ SkBlitRow::ColorRectProc PlatformColorRectProcFactory() {
         return NULL;
     }
 }
+
+

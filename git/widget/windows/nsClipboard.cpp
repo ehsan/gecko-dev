@@ -32,7 +32,6 @@
 #include "nsCRT.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "nsIObserverService.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gWin32ClipboardLog = nullptr;
@@ -57,13 +56,6 @@ nsClipboard::nsClipboard() : nsBaseClipboard()
 
   mIgnoreEmptyNotification = false;
   mWindow         = nullptr;
-
-  // Register for a shutdown notification so that we can flush data
- // to the OS clipboard.
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService)
-    observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
 }
 
 //-------------------------------------------------------------------------
@@ -72,19 +64,6 @@ nsClipboard::nsClipboard() : nsBaseClipboard()
 nsClipboard::~nsClipboard()
 {
 
-}
-
-NS_IMPL_ISUPPORTS_INHERITED1(nsClipboard, nsBaseClipboard, nsIObserver)
-
-NS_IMETHODIMP
-nsClipboard::Observe(nsISupports *aSubject, const char *aTopic,
-                     const PRUnichar *aData)
-{
-  // This will be called on shutdown.
-  ::OleFlushClipboard();
-  ::CloseClipboard();
-
-  return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -948,13 +927,9 @@ nsClipboard::GetNativeClipboardData ( nsITransferable * aTransferable, int32_t a
 NS_IMETHODIMP
 nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
 {
-  // Some programs such as ZoneAlarm monitor clipboard usage and then open the
-  // clipboard to scan it.  If we i) empty and then ii) set data, then the
-  // 'set data' can sometimes fail with access denied becacuse another program
-  // has the clipboard open.  So to avoid this race condition for OpenClipboard
-  // we do not empty the clipboard when we're setting it.
-  if (aWhichClipboard == kGlobalClipboard && !mEmptyingForSetData) {
-    OleSetClipboard(NULL);
+  if (::OpenClipboard(nullptr)) { 
+    ::EmptyClipboard();
+    ::CloseClipboard();
   }
   return nsBaseClipboard::EmptyClipboard(aWhichClipboard);
 }

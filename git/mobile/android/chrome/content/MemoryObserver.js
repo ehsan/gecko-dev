@@ -50,7 +50,6 @@ var MemoryObserver = {
     browser.__SS_data = data;
     browser.__SS_extdata = extra;
     browser.__SS_restore = true;
-    browser.setAttribute("pending", "true");
   },
 
   gc: function() {

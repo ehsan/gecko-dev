@@ -24,6 +24,8 @@ endif
 DEFINES += -DXPCOM_GLUE
 STL_FLAGS=
 
+CPPSRCS = nsXULRunnerApp.cpp
+
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/toolkit/xre \
   -I$(topsrcdir)/toolkit/profile \
@@ -36,6 +38,7 @@ TK_LIBS := -framework Cocoa $(TK_LIBS)
 endif
 
 LIBS += \
+  $(EXTRA_DSO_LIBS) \
   $(XPCOM_STANDALONE_GLUE_LDOPTS) \
   $(NULL)
 
@@ -101,7 +104,7 @@ LDFLAGS += /HEAP:0x40000
 endif
 endif
 
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
@@ -119,7 +122,7 @@ ifeq ($(OS_ARCH),WINNT)
 	cp $(srcdir)/xulrunner.ico   $(DIST)/branding/app.ico
 	cp $(srcdir)/document.ico  $(DIST)/branding/document.ico
 endif
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	cp $(srcdir)/default16.png   $(DIST)/branding/default16.png
 	cp $(srcdir)/default32.png   $(DIST)/branding/default32.png
 	cp $(srcdir)/default48.png   $(DIST)/branding/default48.png

@@ -5,15 +5,11 @@ MARIONETTE_TIMEOUT = 60000;
 
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
 SpecialPowers.setBoolPref("dom.sms.strict7BitEncoding", false);
-SpecialPowers.setBoolPref("dom.sms.requestStatusReport", true);
 SpecialPowers.addPermission("sms", true, document);
 
 const SENDER = "15555215554"; // the emulator's number
 
-let manager = window.navigator.mozMobileMessage;
-ok(manager instanceof MozMobileMessageManager,
-   "manager is instance of " + manager.constructor);
-
+let sms = window.navigator.mozSms;
 const SHORT_BODY = "Hello SMS world!";
 const LONG_BODY = "Let me not to the marriage of true minds\n"
                 + "Admit impediments. Love is not love\n"
@@ -62,8 +58,8 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
       }
     }
 
-    manager.removeEventListener("sending", onSmsSending);
-    manager.removeEventListener("sent", onSmsSent);
+    sms.removeEventListener("sending", onSmsSending);
+    sms.removeEventListener("sent", onSmsSent);
 
     log("Done!");
     window.setTimeout(callback, 0);
@@ -107,7 +103,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
   }
 
   function onSmsSending(event) {
-    log("onsending event received.");
+    log("SmsManager.onsending event received.");
 
     // Bug 838542: following check throws an exception and fails this case.
     // ok(event instanceof MozSmsEvent,
@@ -138,7 +134,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
   }
 
   function onSmsSent(event) {
-    log("onsent event received.");
+    log("SmsManager.onsent event received.");
 
     // Bug 838542: following check throws an exception and fails this case.
     // ok(event instanceof MozSmsEvent,
@@ -148,10 +144,10 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
     checkSentMessage(event.message, "onSentCalled");
   }
 
-  manager.addEventListener("sending", onSmsSending);
-  manager.addEventListener("sent", onSmsSent);
+  sms.addEventListener("sending", onSmsSending);
+  sms.addEventListener("sent", onSmsSent);
 
-  let result = manager.send(receivers, body);
+  let result = sms.send(receivers, body);
   is(Array.isArray(result), Array.isArray(receivers),
      "send() returns an array of requests if receivers is an array");
   if (Array.isArray(receivers)) {
@@ -181,7 +177,7 @@ function testSendMultipartMessage() {
 
 function testSendMessageToMultipleRecipients() {
   log("Testing sending message to multiple receivers:");
-  // TODO: bug 788928 - add test cases for ondelivered event.
+  // TODO: bug 788928 - add test cases for nsIDOMSmsManager.ondelivered event
   doSendMessageAndCheckSuccess(["1", "2"], SHORT_BODY, cleanUp);
 }
 
@@ -189,7 +185,6 @@ function cleanUp() {
   SpecialPowers.removePermission("sms", document);
   SpecialPowers.clearUserPref("dom.sms.enabled");
   SpecialPowers.clearUserPref("dom.sms.strict7BitEncoding");
-  SpecialPowers.clearUserPref("dom.sms.requestStatusReport");
   finish();
 }
 

@@ -15,7 +15,6 @@
 #include "nsAttrValueInlines.h"
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsContentUtils.h"
@@ -308,7 +307,8 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
     }
     case eCSSStyleRule:
     {
-      MOZ_CRASH("These should be refcounted!");
+      MOZ_NOT_REACHED("These should be refcounted!");
+      break;
     }
     case eURL:
     {
@@ -1949,7 +1949,7 @@ nsAttrValue::StringToInteger(const nsAString& aValue, bool* aStrict,
 }
 
 size_t
-nsAttrValue::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsAttrValue::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 

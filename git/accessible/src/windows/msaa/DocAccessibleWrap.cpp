@@ -64,9 +64,6 @@ STDMETHODIMP_(ULONG) DocAccessibleWrap::Release()
 STDMETHODIMP
 DocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 {
-  if (!ppv)
-    return E_INVALIDARG;
-
   *ppv = nullptr;
 
   if (IID_ISimpleDOMDocument != iid)
@@ -82,9 +79,6 @@ STDMETHODIMP
 DocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aURL)
-    return E_INVALIDARG;
 
   *aURL = nullptr;
 
@@ -107,9 +101,6 @@ DocAccessibleWrap::get_title( /* [out] */ BSTR __RPC_FAR *aTitle)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aTitle)
-    return E_INVALIDARG;
-
   *aTitle = nullptr;
 
   nsAutoString title;
@@ -127,9 +118,6 @@ STDMETHODIMP
 DocAccessibleWrap::get_mimeType(/* [out] */ BSTR __RPC_FAR *aMimeType)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aMimeType)
-    return E_INVALIDARG;
 
   *aMimeType = nullptr;
 
@@ -152,9 +140,6 @@ DocAccessibleWrap::get_docType(/* [out] */ BSTR __RPC_FAR *aDocType)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aDocType)
-    return E_INVALIDARG;
-
   *aDocType = nullptr;
 
   nsAutoString docType;
@@ -176,9 +161,6 @@ DocAccessibleWrap::get_nameSpaceURIForID(/* [in] */  short aNameSpaceID,
   /* [out] */ BSTR __RPC_FAR *aNameSpaceURI)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aNameSpaceURI)
-    return E_INVALIDARG;
 
   *aNameSpaceURI = nullptr;
 
@@ -206,9 +188,6 @@ DocAccessibleWrap::put_alternateViewMediaTypes( /* [in] */ BSTR __RPC_FAR *aComm
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aCommaSeparatedMediaTypes)
-    return E_INVALIDARG;
-
   *aCommaSeparatedMediaTypes = nullptr;
   return E_NOTIMPL;
 
@@ -220,9 +199,6 @@ DocAccessibleWrap::get_accValue(
       /* [optional][in] */ VARIANT varChild,
       /* [retval][out] */ BSTR __RPC_FAR *pszValue)
 {
-  if (!pszValue)
-    return E_INVALIDARG;
-
   // For backwards-compat, we still support old MSAA hack to provide URL in accValue
   *pszValue = nullptr;
   // Check for real value first

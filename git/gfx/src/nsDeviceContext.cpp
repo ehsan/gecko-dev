@@ -4,24 +4,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDeviceContext.h"
-
-#include <algorithm>
-
-#include "gfxImageSurface.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include "nsCRT.h"
 #include "nsFontMetrics.h"
-#include "nsIDeviceContextSpec.h"
+#include "nsRenderingContext.h"
+#include "nsIWidget.h"
+
+#include "mozilla/Attributes.h"
+#include "mozilla/Services.h"
+#include "mozilla/Preferences.h"
+#include "nsIServiceManager.h"
 #include "nsILanguageAtomService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
-#include "nsIServiceManager.h"
-#include "nsIWidget.h"
-#include "nsRenderingContext.h"
+
+#include "gfxImageSurface.h"
+#include <algorithm>
 
 #if !XP_MACOSX
 #include "gfxPDFSurface.h"
@@ -279,7 +276,7 @@ nsDeviceContext::FontMetricsDeleted(const nsFontMetrics* aFontMetrics)
 bool
 nsDeviceContext::IsPrinterSurface()
 {
-    return mPrintingSurface != nullptr;
+    return(mPrintingSurface != NULL);
 }
 
 void
@@ -475,15 +472,15 @@ nsDeviceContext::InitForPrinting(nsIDeviceContextSpec *aDevice)
 }
 
 nsresult
-nsDeviceContext::BeginDocument(const nsAString& aTitle,
-                               PRUnichar*       aPrintToFileName,
-                               int32_t          aStartPage,
-                               int32_t          aEndPage)
+nsDeviceContext::BeginDocument(PRUnichar*  aTitle,
+                               PRUnichar*  aPrintToFileName,
+                               int32_t     aStartPage,
+                               int32_t     aEndPage)
 {
     static const PRUnichar kEmpty[] = { '\0' };
     nsresult rv;
 
-    rv = mPrintingSurface->BeginPrinting(aTitle,
+    rv = mPrintingSurface->BeginPrinting(nsDependentString(aTitle ? aTitle : kEmpty),
                                          nsDependentString(aPrintToFileName ? aPrintToFileName : kEmpty));
 
     if (NS_SUCCEEDED(rv) && mDeviceContextSpec)

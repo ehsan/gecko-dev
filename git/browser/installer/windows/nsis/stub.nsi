@@ -13,7 +13,8 @@
 !verbose 3
 
 SetDatablockOptimize on
-SetCompress off
+SetCompress force
+SetCompressor /FINAL /SOLID lzma
 CRCCheck on
 
 RequestExecutionLevel user
@@ -238,10 +239,10 @@ Var ControlRightPX
 !insertmacro UnloadUAC
 
 VIAddVersionKey "FileDescription" "${BrandShortName} Stub Installer"
-VIAddVersionKey "OriginalFilename" "setup-stub.exe"
+VIAddVersionKey "OriginalFilename" "stub.exe"
 
 Name "$BrandFullName"
-OutFile "setup-stub.exe"
+OutFile "stub.exe"
 icon "setup.ico"
 XPStyle on
 BrandingText " "

@@ -23,7 +23,7 @@ namespace gfx {
 const uint16_t kMajorRevision = 2;
 // A change in minor revision means additions of new events. New streams will
 // not play in older players.
-const uint16_t kMinorRevision = 1;
+const uint16_t kMinorRevision = 0;
 
 struct ReferencePtr
 {
@@ -160,8 +160,7 @@ public:
     GRADIENTSTOPSDESTRUCTION,
     SNAPSHOT,
     SCALEDFONTCREATION,
-    SCALEDFONTDESTRUCTION,
-    MASKSURFACE
+    SCALEDFONTDESTRUCTION
   };
 
   virtual void PlayEvent(Translator *aTranslator) const {}
@@ -815,7 +814,7 @@ public:
   }
 
   RecordedScaledFontCreation(ReferencePtr aRefPtr, ScaledFont *aScaledFont)
-    : RecordedEvent(SCALEDFONTCREATION), mRefPtr(aRefPtr), mData(nullptr)
+    : RecordedEvent(SCALEDFONTCREATION), mRefPtr(aRefPtr), mData(NULL)
   {
     aScaledFont->GetFontFileData(&FontDataProc, this);
   }
@@ -864,33 +863,6 @@ private:
   ReferencePtr mRefPtr;
 
   RecordedScaledFontDestruction(std::istream &aStream);
-};
-
-class RecordedMaskSurface : public RecordedDrawingEvent {
-public:
-  RecordedMaskSurface(DrawTarget *aDT, const Pattern &aPattern, ReferencePtr aRefMask,
-                      const Point &aOffset, const DrawOptions &aOptions)
-    : RecordedDrawingEvent(MASKSURFACE, aDT), mRefMask(aRefMask), mOffset(aOffset)
-    , mOptions(aOptions)
-  {
-    StorePattern(mPattern, aPattern);
-  }
-
-  virtual void PlayEvent(Translator *aTranslator) const;
-
-  virtual void RecordToStream(std::ostream &aStream) const;
-  virtual void OutputSimpleEventInfo(std::stringstream &aStringStream) const;
-  
-  virtual std::string GetName() const { return "MaskSurface"; }
-private:
-  friend class RecordedEvent;
-
-  RecordedMaskSurface(std::istream &aStream);
-
-  PatternStorage mPattern;
-  ReferencePtr mRefMask;
-  Point mOffset;
-  DrawOptions mOptions;
 };
 
 }

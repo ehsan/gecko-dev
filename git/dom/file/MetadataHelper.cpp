@@ -13,7 +13,7 @@ USING_FILE_NAMESPACE
 nsresult
 MetadataHelper::DoAsyncRun(nsISupports* aStream)
 {
-  bool readWrite = mLockedFile->mMode == FileMode::Readwrite;
+  bool readWrite = mLockedFile->mMode == LockedFile::READ_WRITE;
 
   nsRefPtr<AsyncMetadataGetter> getter =
     new AsyncMetadataGetter(aStream, mParams, readWrite);

@@ -456,15 +456,13 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
   }
 
   uint32_t chromeSeqno;
-  mIMEPreference.mWantUpdates = nsIMEUpdatePreference::NOTIFY_NOTHING;
+  mIMEPreference.mWantUpdates = false;
   mIMEPreference.mWantHints = false;
   if (!mTabChild->SendNotifyIMEFocus(aFocus, &mIMEPreference, &chromeSeqno))
     return NS_ERROR_FAILURE;
 
   if (aFocus) {
-    if ((mIMEPreference.mWantUpdates &
-           nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) &&
-        mIMEPreference.mWantHints) {
+    if (mIMEPreference.mWantUpdates && mIMEPreference.mWantHints) {
       NotifyIMEOfSelectionChange(); // Update selection
     }
   } else {
@@ -502,7 +500,7 @@ PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
       mTabChild->SendNotifyIMETextHint(queryEvent.mReply.mString);
     }
   }
-  if (mIMEPreference.mWantUpdates & nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE) {
+  if (mIMEPreference.mWantUpdates) {
     mTabChild->SendNotifyIMETextChange(aStart, aEnd, aNewEnd);
   }
   return NS_OK;
@@ -518,8 +516,7 @@ PuppetWidget::NotifyIMEOfSelectionChange()
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
-  if (mIMEPreference.mWantUpdates &
-        nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) {
+  if (mIMEPreference.mWantUpdates) {
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
     InitEvent(queryEvent, nullptr);
@@ -573,7 +570,7 @@ PuppetWidget::Paint()
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region);
+      mAttachedWidgetListener->PaintWindow(this, region, 0);
     } else if (mozilla::layers::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
       // Do nothing, the compositor will handle drawing
       if (mTabChild) {
@@ -585,7 +582,7 @@ PuppetWidget::Paint()
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region);
+      mAttachedWidgetListener->PaintWindow(this, region, 0);
       if (mTabChild) {
         mTabChild->NotifyPainted();
       }

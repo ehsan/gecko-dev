@@ -13,8 +13,13 @@ ifneq ($(dir $(PROGRAM)),./)
   GENERATED_DIRS = $(dir $(PROGRAM))
 endif
 
+CPPSRCS = \
+  MozillaRuntimeMain.cpp \
+  $(NULL)
+
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 WRAP_LDFLAGS =
+CPPSRCS = MozillaRuntimeMainAndroid.cpp
 else
 LIBS += \
   $(XPCOM_LIBS) \
@@ -45,6 +50,7 @@ endif
 NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 FINAL_TARGET = $(DIST)/bin/lib
@@ -57,7 +63,6 @@ WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
 endif
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 LDFLAGS += $(MOZ_ALLOW_HEAP_EXECUTE_FLAGS)
 

@@ -4,14 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "shell/jsheaptools.h"
-
-#include "mozilla/Move.h"
-
 #include <string.h>
 
-#include "jsalloc.h"
 #include "jsapi.h"
+
+#include "jsalloc.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsfun.h"
@@ -22,9 +19,6 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-
-using mozilla::Move;
-using mozilla::MoveRef;
 
 #ifdef DEBUG
 
@@ -59,8 +53,7 @@ using mozilla::MoveRef;
  * they are destroyed. So you don't need to worry about nodes going away while
  * you're using them.
  */
-class HeapReverser : public JSTracer, public JS::CustomAutoRooter
-{
+class HeapReverser : public JSTracer {
   public:
     struct Edge;
 
@@ -84,11 +77,6 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
             return *this;
         }
 
-        void trace(JSTracer *trc) {
-            for (Edge *e = incoming.begin(); e != incoming.end(); e++)
-                e->trace(trc);
-        }
-
         /* What kind of Cell this is. */
         JSGCTraceKind kind;
 
@@ -103,8 +91,8 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
         bool marked;
 
       private:
-        Node(const Node &) MOZ_DELETE;
-        Node &operator=(const Node &) MOZ_DELETE;
+        Node(const Node &);
+        Node &operator=(const Node &);
     };
 
     /* Metadata for a heap edge we have traversed. */
@@ -125,11 +113,6 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
             this->~Edge();
             new(this) Edge(rhs);
             return *this;
-        }
-
-        void trace(JSTracer *trc) {
-            if (origin)
-                gc::MarkGCThingRoot(trc, &origin, "HeapReverser::Edge");
         }
 
         /* The name of this heap edge. Owned by this Edge. */
@@ -153,17 +136,8 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
     Map map;
 
     /* Construct a HeapReverser for |context|'s heap. */
-    HeapReverser(JSContext *cx)
-      : JS::CustomAutoRooter(cx),
-        runtime(JS_GetRuntime(cx)),
-        parent(NULL)
-    {
-        JS_TracerInit(this, runtime, traverseEdgeWithThis);
-        JS::DisableGenerationalGC(runtime);
-    }
-
-    ~HeapReverser() {
-        JS::EnableGenerationalGC(runtime);
+    HeapReverser(JSContext *cx) : rooter(cx, 0, NULL), parent(NULL) {
+        JS_TracerInit(this, JS_GetRuntime(cx), traverseEdgeWithThis);
     }
 
     bool init() { return map.init(); }
@@ -172,8 +146,27 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
     bool reverseHeap();
 
   private:
-    /* A runtime pointer for use by the destructor. */
-    JSRuntime *runtime;
+    /*
+     * Once we've produced a reversed map of the heap, we need to keep the
+     * engine from freeing the objects we've found in it, until we're done using
+     * the map. Even if we're only using the map to construct a result object,
+     * and not rearranging the heap ourselves, any allocation could cause a
+     * garbage collection, which could free objects held internally by the
+     * engine (for example, JaegerMonkey object templates, used by jit scripts).
+     *
+     * So, each time reverseHeap reaches any object, we add it to 'roots', which
+     * is cited by 'rooter', so the object will stay alive long enough for us to
+     * include it in the results, if needed.
+     *
+     * Note that AutoArrayRooters must be constructed and destroyed in a
+     * stack-like order, so the same rule applies to this HeapReverser. The
+     * easiest way to satisfy this requirement is to only allocate HeapReversers
+     * as local variables in functions, or in types that themselves follow that
+     * rule. This is kind of dumb, but JSAPI doesn't provide any less restricted
+     * way to register arrays of roots.
+     */
+    Vector<jsval, 0, SystemAllocPolicy> roots;
+    AutoArrayRooter rooter;
 
     /*
      * Return the name of the most recent edge this JSTracer has traversed. The
@@ -241,23 +234,18 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
         JSObject *object = static_cast<JSObject *>(cell);
         return OBJECT_TO_JSVAL(object);
     }
-
-    /* Keep all tracked objects live across GC. */
-    virtual void trace(JSTracer *trc) MOZ_OVERRIDE {
-        if (!map.initialized())
-            return;
-        for (Map::Enum e(map); !e.empty(); e.popFront()) {
-            gc::MarkGCThingRoot(trc, const_cast<void **>(&e.front().key), "HeapReverser::map::key");
-            e.front().value.trace(trc);
-        }
-        for (Child *c = work.begin(); c != work.end(); ++c)
-            gc::MarkGCThingRoot(trc, &c->cell, "HeapReverser::Child");
-    }
 };
 
 bool
 HeapReverser::traverseEdge(void *cell, JSGCTraceKind kind)
 {
+    jsval v = nodeToValue(cell, kind);
+    if (v.isObject()) {
+        if (!roots.append(v))
+            return false;
+        rooter.changeArray(roots.begin(), roots.length());
+    }
+
     /* Capture this edge before the JSTracer members get overwritten. */
     char *edgeDescription = getEdgeDescription();
     if (!edgeDescription)
@@ -395,10 +383,10 @@ class ReferenceFinder {
             JSObject *object = static_cast<JSObject *>(cell);
 
             /* Certain classes of object are for internal use only. */
-            if (object->is<BlockObject>() ||
-                object->is<CallObject>() ||
-                object->is<WithObject>() ||
-                object->is<DeclEnvObject>()) {
+            if (object->isBlock() ||
+                object->isCall() ||
+                object->isWith() ||
+                object->isDeclEnv()) {
                 return JSVAL_VOID;
             }
 
@@ -496,7 +484,7 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
 {
     RootedValue referrer(context, referrerArg);
 
-    if (!context->compartment()->wrap(context, &referrer))
+    if (!context->compartment->wrap(context, &referrer))
         return false;
 
     ScopedJSFreePtr<char> pathName(path->computeName(context));
@@ -504,7 +492,8 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
         return false;
 
     /* Find the property of the results object named |pathName|. */
-    RootedValue v(context);
+    RootedValue valRoot(context);
+    Value &v = valRoot.get();
 
     if (!JS_GetProperty(context, result, pathName, &v))
         return false;
@@ -514,7 +503,7 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
         if (!array)
             return false;
         v.setObject(*array);
-        return !!JS_SetProperty(context, result, pathName, v);
+        return !!JS_SetProperty(context, result, pathName, &v);
     }
 
     /* The property's value had better be an array. */
@@ -524,7 +513,7 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
     /* Append our referrer to this array. */
     uint32_t length;
     return JS_GetArrayLength(context, array, &length) &&
-           JS_SetElement(context, array, length, &referrer);
+           JS_SetElement(context, array, length, referrer.address());
 }
 
 JSObject *
@@ -540,7 +529,7 @@ ReferenceFinder::findReferences(HandleObject target)
 }
 
 /* See help(findReferences). */
-bool
+JSBool
 FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc < 1) {

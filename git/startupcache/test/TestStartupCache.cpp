@@ -91,7 +91,7 @@ TestStartupWriteRead() {
   
   const char* buf = "Market opportunities for BeardBook";
   const char* id = "id";
-  char* outbufPtr = nullptr;
+  char* outbufPtr = NULL;
   nsAutoArrayPtr<char> outbuf;  
   uint32_t len;
   
@@ -120,7 +120,7 @@ TestWriteInvalidateRead() {
   nsresult rv;
   const char* buf = "BeardBook competitive analysis";
   const char* id = "id";
-  char* outbuf = nullptr;
+  char* outbuf = NULL;
   uint32_t len;
   nsCOMPtr<nsIStartupCache> sc
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
@@ -196,7 +196,7 @@ TestWriteObject() {
     return rv;
   }
 
-  char* bufPtr = nullptr;
+  char* bufPtr = NULL;
   nsAutoArrayPtr<char> buf;
   uint32_t len;
   NewBufferFromStorageStream(storageStream, &bufPtr, &len);
@@ -210,7 +210,7 @@ TestWriteObject() {
     return rv;
   }
     
-  char* buf2Ptr = nullptr;
+  char* buf2Ptr = NULL;
   nsAutoArrayPtr<char> buf2;
   uint32_t len2;
   nsCOMPtr<nsIObjectInputStream> objectInput;
@@ -315,7 +315,7 @@ TestIgnoreDiskCache(nsIFile* profileDir) {
   
   const char* buf = "Get a Beardbook app for your smartphone";
   const char* id = "id";
-  char* outbuf = nullptr;
+  char* outbuf = NULL;
   uint32_t len;
   
   rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
@@ -361,7 +361,7 @@ TestEarlyShutdown() {
   const char* buf = "Find your soul beardmate on BeardBook";
   const char* id = "id";
   uint32_t len;
-  char* outbuf = nullptr;
+  char* outbuf = NULL;
   
   sc->ResetStartupWriteTimer();
   rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
@@ -413,14 +413,14 @@ GetHistogramCounts(const char *testmsg, const nsACString &histogram_id,
   passed(testmsg);
 
   Rooted<Value> snapshot_val(cx);
-  JSFunction *snapshot_fn = nullptr;
+  JSFunction *snapshot_fn = NULL;
   Rooted<Value> ss(cx);
   return (JS_GetProperty(cx, JSVAL_TO_OBJECT(h), "snapshot",
-                         &snapshot_val)
+                         snapshot_val.address())
           && (snapshot_fn = JS_ValueToFunction(cx, snapshot_val))
           && JS::Call(cx, JSVAL_TO_OBJECT(h),
-                      snapshot_fn, 0, nullptr, &ss)
-          && JS_GetProperty(cx, JSVAL_TO_OBJECT(ss), "counts", counts));
+                      snapshot_fn, 0, NULL, ss.address())
+          && JS_GetProperty(cx, JSVAL_TO_OBJECT(ss), "counts", counts.address()));
 }
 
 nsresult
@@ -440,12 +440,12 @@ CompareCountArrays(JSContext *cx, JSObject *aBefore, JSObject *aAfter)
 
   JS::RootedValue before_num(cx), after_num(cx);
   for (uint32_t i = 0; i < before_size; ++i) {
-    if (!(JS_GetElement(cx, before, i, &before_num)
-          && JS_GetElement(cx, after, i, &after_num))) {
+    if (!(JS_GetElement(cx, before, i, before_num.address())
+          && JS_GetElement(cx, after, i, after_num.address()))) {
       return NS_ERROR_UNEXPECTED;
     }
 
-    bool same = true;
+    JSBool same = JS_TRUE;
     if (!JS_LooselyEqual(cx, before_num, after_num, &same)) {
       return NS_ERROR_UNEXPECTED;
     } else {
@@ -522,7 +522,7 @@ int main(int argc, char** argv)
   };
   JSObject *glob = nullptr;
   if (use_js)
-    glob = JS_NewGlobalObject(cx, &global_class, nullptr, JS::FireOnNewGlobalHook);
+    glob = JS_NewGlobalObject(cx, &global_class, NULL);
   if (!glob)
     use_js = false;
   mozilla::Maybe<JSAutoCompartment> ac;

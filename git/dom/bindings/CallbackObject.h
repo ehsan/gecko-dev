@@ -25,8 +25,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Util.h"
-#include "nsContentUtils.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h" // nsCxPusher
 #include "nsWrapperCache.h"
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
@@ -71,12 +70,12 @@ public:
    * This should only be called if you are certain that the return value won't
    * be passed into a JS API function and that it won't be stored without being
    * rooted (or otherwise signaling the stored value to the CC).
+   *
+   * This can return a handle because we trace our mCallback.
    */
   JS::Handle<JSObject*> CallbackPreserveColor() const
   {
-    // Calling fromMarkedLocation() is safe because we trace our mCallback, and
-    // because the value of mCallback cannot change after if has been set.
-    return JS::Handle<JSObject*>::fromMarkedLocation(mCallback.address());
+    return JS::Handle<JSObject*>::fromMarkedLocation(&mCallback);
   }
 
   enum ExceptionHandling {
@@ -93,10 +92,11 @@ protected:
 private:
   inline void Init(JSObject* aCallback)
   {
-    MOZ_ASSERT(aCallback && !mCallback);
     // Set mCallback before we hold, on the off chance that a GC could somehow
     // happen in there... (which would be pretty odd, granted).
     mCallback = aCallback;
+    // Make sure we'll be able to drop as needed
+    nsLayoutStatics::AddRef();
     NS_HOLD_JS_OBJECTS(this, CallbackObject);
   }
 
@@ -106,10 +106,11 @@ protected:
     if (mCallback) {
       mCallback = nullptr;
       NS_DROP_JS_OBJECTS(this, CallbackObject);
+      nsLayoutStatics::Release();
     }
   }
 
-  JS::Heap<JSObject*> mCallback;
+  JSObject* mCallback;
 
   class MOZ_STACK_CLASS CallSetup
   {
@@ -135,6 +136,7 @@ protected:
 
     // Members which can go away whenever
     JSContext* mCx;
+    nsCOMPtr<nsIScriptContext> mCtx;
 
     // And now members whose construction/destruction order we need to control.
 
@@ -142,11 +144,15 @@ protected:
     // is gone
     nsAutoMicroTask mMt;
 
-    nsCxPusher mCxPusher;
+    // Can't construct an XPCAutoRequest until we have a JSContext, so
+    // this needs to be a Maybe.
+    Maybe<XPCAutoRequest> mAr;
 
-    // Constructed the rooter within the scope of mCxPusher above, so that it's
-    // always within a request during its lifetime.
-    Maybe<JS::Rooted<JSObject*> > mRootedCallable;
+    // Can't construct a TerminationFuncHolder without an nsJSContext.  But we
+    // generally want its destructor to come after the destructor of mCxPusher.
+    Maybe<nsJSContext::TerminationFuncHolder> mTerminationFuncHolder;
+
+    nsCxPusher mCxPusher;
 
     // Can't construct a JSAutoCompartment without a JSContext either.  Also,
     // Put mAc after mCxPusher so that we exit the compartment before we pop the
@@ -337,8 +343,8 @@ public:
 
     AutoSafeJSContext cx;
 
-    JS::Rooted<JSObject*> obj(cx, wrappedJS->GetJSObject());
-    if (!obj) {
+    JS::Rooted<JSObject*> obj(cx);
+    if (NS_FAILED(wrappedJS->GetJSObject(obj.address())) || !obj) {
       return nullptr;
     }
 

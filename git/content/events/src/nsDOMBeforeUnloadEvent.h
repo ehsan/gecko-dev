@@ -18,6 +18,7 @@ public:
                          nsPresContext* aPresContext, nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
+    SetIsDOMBinding();
   }
 
   virtual JSObject* WrapObject(JSContext* aCx,

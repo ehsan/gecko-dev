@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMKeyboardEvent.h"
-#include "prtime.h"
+#include "nsDOMClassInfoID.h"
 
 nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
                                        nsPresContext* aPresContext,
@@ -21,6 +21,7 @@ nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
+  SetIsDOMBinding();
 }
 
 nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
@@ -34,8 +35,11 @@ nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 
+DOMCI_DATA(KeyboardEvent, nsDOMKeyboardEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMKeyboardEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(KeyboardEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP

@@ -40,7 +40,6 @@
 #include "nsIDOMNode.h"
 
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsLayoutUtils.h"
 #include "nsIContentPolicy.h"
 #include "nsEventDispatcher.h"
@@ -304,6 +303,8 @@ nsImageLoadingContent::OnImageIsAnimated(imgIRequest *aRequest)
 NS_IMETHODIMP
 nsImageLoadingContent::GetLoadingEnabled(bool *aLoadingEnabled)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   *aLoadingEnabled = mLoadingEnabled;
   return NS_OK;
 }
@@ -311,6 +312,8 @@ nsImageLoadingContent::GetLoadingEnabled(bool *aLoadingEnabled)
 NS_IMETHODIMP
 nsImageLoadingContent::SetLoadingEnabled(bool aLoadingEnabled)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   if (nsContentUtils::GetImgLoaderForChannel(nullptr)) {
     mLoadingEnabled = aLoadingEnabled;
   }
@@ -320,6 +323,8 @@ nsImageLoadingContent::SetLoadingEnabled(bool aLoadingEnabled)
 NS_IMETHODIMP
 nsImageLoadingContent::GetImageBlockingStatus(int16_t* aStatus)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_PRECONDITION(aStatus, "Null out param");
   *aStatus = ImageBlockingStatus();
   return NS_OK;
@@ -328,6 +333,8 @@ nsImageLoadingContent::GetImageBlockingStatus(int16_t* aStatus)
 NS_IMETHODIMP
 nsImageLoadingContent::AddObserver(imgINotificationObserver* aObserver)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_ENSURE_ARG_POINTER(aObserver);
 
   if (!mObserverList.mObserver) {
@@ -354,6 +361,8 @@ nsImageLoadingContent::AddObserver(imgINotificationObserver* aObserver)
 NS_IMETHODIMP
 nsImageLoadingContent::RemoveObserver(imgINotificationObserver* aObserver)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_ENSURE_ARG_POINTER(aObserver);
 
   if (mObserverList.mObserver == aObserver) {
@@ -499,6 +508,8 @@ NS_IMETHODIMP
 nsImageLoadingContent::GetRequestType(imgIRequest* aRequest,
                                       int32_t* aRequestType)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_PRECONDITION(aRequestType, "Null out param");
 
   ErrorResult result;
@@ -580,6 +591,7 @@ NS_IMETHODIMP
 nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
                                             nsIStreamListener** aListener)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_ARG_POINTER(aListener);
 
   ErrorResult result;
@@ -605,6 +617,8 @@ nsImageLoadingContent::ForceReload(ErrorResult& aError)
 
 NS_IMETHODIMP nsImageLoadingContent::ForceReload()
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   ErrorResult result;
   ForceReload(result);
   return result.ErrorCode();
@@ -851,6 +865,8 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 nsresult
 nsImageLoadingContent::ForceImageState(bool aForce, nsEventStates::InternalType aState)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   mIsImageStateForced = aForce;
   mForcedImageState = nsEventStates(aState);
   return NS_OK;

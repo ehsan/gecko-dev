@@ -13,7 +13,9 @@ function test() {
 
   // Load a private window, then close it 
   // and verify it doesn't get remembered for restoring
-  whenNewWindowLoaded({private: true}, function (win) {
+  var win = OpenBrowserWindow({private: true});
+
+  whenWindowLoaded(win, function onload() {
     info("The private window got loaded");
     win.addEventListener("SSWindowClosing", function onclosing() {
       win.removeEventListener("SSWindowClosing", onclosing, false);

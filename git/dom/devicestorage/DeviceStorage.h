@@ -22,14 +22,6 @@
 #define DEVICESTORAGE_APPS       "apps"
 #define DEVICESTORAGE_SDCARD     "sdcard"
 
-namespace mozilla {
-namespace dom {
-class DeviceStorageEnumerationParameters;
-class DOMCursor;
-class DOMRequest;
-} // namespace dom
-} // namespace mozilla
-
 class DeviceStorageFile MOZ_FINAL
   : public nsISupports {
 public:
@@ -39,9 +31,6 @@ public:
   nsString mRootDir;
   nsString mPath;
   bool mEditable;
-  nsString mMimeType;
-  uint64_t mLength;
-  uint64_t mLastModifiedDate;
 
   // Used when the path will be set later via SetPath.
   DeviceStorageFile(const nsAString& aStorageType,
@@ -50,10 +39,9 @@ public:
   DeviceStorageFile(const nsAString& aStorageType,
                     const nsAString& aStorageName,
                     const nsAString& aPath);
-  // Used for enumerations. When you call Enumerate, you can pass in a
-  // directory to enumerate and the results that are returned are relative to
-  // that directory, files related to an enumeration need to know the "root of
-  // the enumeration" directory.
+  // Used for enumerations. When you call Enumerate, you can pass in a directory to enumerate
+  // and the results that are returned are relative to that directory, files related to an
+  // enumeration need to know the "root of the enumeration" directory.
   DeviceStorageFile(const nsAString& aStorageType,
                     const nsAString& aStorageName,
                     const nsAString& aRootDir,
@@ -62,15 +50,15 @@ public:
   void SetPath(const nsAString& aPath);
   void SetEditable(bool aEditable);
 
-  static already_AddRefed<DeviceStorageFile>
-  CreateUnique(nsAString& aFileName,
-               uint32_t aFileType,
-               uint32_t aFileAttributes);
+  static already_AddRefed<DeviceStorageFile> CreateUnique(nsAString& aFileName,
+                                                          uint32_t aFileType,
+                                                          uint32_t aFileAttributes);
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   bool IsAvailable();
-  void GetFullPath(nsAString& aFullPath);
+  bool IsComposite();
+  void GetCompositePath(nsAString& aCompositePath);
 
   // we want to make sure that the names of file can't reach
   // outside of the type of storage the user asked for.
@@ -95,14 +83,11 @@ public:
   static void GetRootDirectoryForType(const nsAString& aStorageType,
                                       const nsAString& aStorageName,
                                       nsIFile** aFile);
-
-  nsresult CalculateSizeAndModifiedDate();
-  nsresult CalculateMimeType();
-
 private:
   void Init();
   void NormalizeFilePath();
   void AppendRelativePath(const nsAString& aPath);
+  void GetStatusInternal(nsAString& aStorageName, nsAString& aStatus);
   void AccumDirectoryUsage(nsIFile* aFile,
                            uint64_t* aPicturesSoFar,
                            uint64_t* aVideosSoFar,
@@ -140,11 +125,6 @@ class nsDOMDeviceStorage MOZ_FINAL
   , public nsIDOMDeviceStorage
   , public nsIObserver
 {
-  typedef mozilla::ErrorResult ErrorResult;
-  typedef mozilla::dom::DeviceStorageEnumerationParameters
-    EnumerationParameters;
-  typedef mozilla::dom::DOMCursor DOMCursor;
-  typedef mozilla::dom::DOMRequest DOMRequest;
 public:
   typedef nsTArray<nsString> VolumeNameArray;
 
@@ -153,134 +133,77 @@ public:
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTTARGET
-
-  virtual void
-  AddEventListener(const nsAString& aType,
-                   nsIDOMEventListener* aListener,
-                   bool aUseCapture,
-                   const mozilla::dom::Nullable<bool>& aWantsUntrusted,
-                   ErrorResult& aRv) MOZ_OVERRIDE;
-
+  virtual void AddEventListener(const nsAString& aType,
+                                nsIDOMEventListener* aListener,
+                                bool aUseCapture,
+                                const mozilla::dom::Nullable<bool>& aWantsUntrusted,
+                                mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
   virtual void RemoveEventListener(const nsAString& aType,
                                    nsIDOMEventListener* aListener,
                                    bool aUseCapture,
-                                   ErrorResult& aRv) MOZ_OVERRIDE;
+                                   mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
 
   nsDOMDeviceStorage();
 
   nsresult Init(nsPIDOMWindow* aWindow, const nsAString& aType,
+                nsTArray<nsRefPtr<nsDOMDeviceStorage> >& aStores);
+  nsresult Init(nsPIDOMWindow* aWindow, const nsAString& aType,
                 const nsAString& aVolName);
 
   bool IsAvailable();
-  bool IsFullPath(const nsAString& aPath)
-  {
-    return aPath.Length() > 0 && aPath.CharAt(0) == '/';
-  }
 
-  void SetRootDirectoryForType(const nsAString& aType,
-                               const nsAString& aVolName);
+  void SetRootDirectoryForType(const nsAString& aType, const nsAString& aVolName);
 
-  // WebIDL
-  nsPIDOMWindow*
-  GetParentObject() const
-  {
-    return GetOwner();
-  }
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  static void CreateDeviceStorageFor(nsPIDOMWindow* aWin,
+                                     const nsAString& aType,
+                                     nsDOMDeviceStorage** aStore);
 
-  IMPL_EVENT_HANDLER(change)
-
-  already_AddRefed<DOMRequest>
-  Add(nsIDOMBlob* aBlob, ErrorResult& aRv);
-  already_AddRefed<DOMRequest>
-  AddNamed(nsIDOMBlob* aBlob, const nsAString& aPath, ErrorResult& aRv);
-
-  already_AddRefed<DOMRequest>
-  Get(const nsAString& aPath, ErrorResult& aRv)
-  {
-    return GetInternal(aPath, false, aRv);
-  }
-  already_AddRefed<DOMRequest>
-  GetEditable(const nsAString& aPath, ErrorResult& aRv)
-  {
-    return GetInternal(aPath, true, aRv);
-  }
-  already_AddRefed<DOMRequest>
-  Delete(const nsAString& aPath, ErrorResult& aRv);
-
-  already_AddRefed<DOMCursor>
-  Enumerate(const EnumerationParameters& aOptions, ErrorResult& aRv)
-  {
-    return Enumerate(NullString(), aOptions, aRv);
-  }
-  already_AddRefed<DOMCursor>
-  Enumerate(const nsAString& aPath, const EnumerationParameters& aOptions,
-            ErrorResult& aRv);
-  already_AddRefed<DOMCursor>
-  EnumerateEditable(const EnumerationParameters& aOptions, ErrorResult& aRv)
-  {
-    return EnumerateEditable(NullString(), aOptions, aRv);
-  }
-  already_AddRefed<DOMCursor>
-  EnumerateEditable(const nsAString& aPath,
-                    const EnumerationParameters& aOptions, ErrorResult& aRv);
-
-  already_AddRefed<DOMRequest> FreeSpace(ErrorResult& aRv);
-  already_AddRefed<DOMRequest> UsedSpace(ErrorResult& aRv);
-  already_AddRefed<DOMRequest> Available(ErrorResult& aRv);
-
-  bool Default();
-
-  // Uses XPCOM GetStorageName
-
-  static void
-  CreateDeviceStorageFor(nsPIDOMWindow* aWin,
-                         const nsAString& aType,
-                         nsDOMDeviceStorage** aStore);
-
-  static void
-  CreateDeviceStoragesFor(nsPIDOMWindow* aWin,
-                          const nsAString& aType,
-                          nsTArray<nsRefPtr<nsDOMDeviceStorage> >& aStores);
-
+  static void CreateDeviceStoragesFor(nsPIDOMWindow* aWin,
+                                      const nsAString& aType,
+                                      nsTArray<nsRefPtr<nsDOMDeviceStorage> >& aStores);
   void Shutdown();
 
   static void GetOrderedVolumeNames(nsTArray<nsString>& aVolumeNames);
 
-  static void GetDefaultStorageName(const nsAString& aStorageType,
-                                    nsAString &aStorageName);
+  static void GetWritableStorageName(const nsAString& aStorageType,
+                                     nsAString &aStorageName);
 
-  static bool ParseFullPath(const nsAString& aFullPath,
-                            nsAString& aOutStorageName,
-                            nsAString& aOutStoragePath);
+  static bool ParseCompositePath(const nsAString& aCompositePath,
+                                 nsAString& aOutStorageName,
+                                 nsAString& aOutStoragePath);
 private:
   ~nsDOMDeviceStorage();
 
-  already_AddRefed<DOMRequest>
-  GetInternal(const nsAString& aPath, bool aEditable, ErrorResult& aRv);
+  nsresult GetInternal(const JS::Value & aName,
+                       JSContext* aCx,
+                       nsIDOMDOMRequest** aRetval,
+                       bool aEditable);
 
-  void
-  GetInternal(nsPIDOMWindow* aWin, const nsAString& aPath, DOMRequest* aRequest,
-              bool aEditable);
+  nsresult GetInternal(nsPIDOMWindow* aWin,
+                       const nsAString& aPath,
+                       mozilla::dom::DOMRequest* aRequest,
+                       bool aEditable);
 
-  void
-  DeleteInternal(nsPIDOMWindow* aWin, const nsAString& aPath,
-                 DOMRequest* aRequest);
+  nsresult DeleteInternal(nsPIDOMWindow* aWin,
+                          const nsAString& aPath,
+                          mozilla::dom::DOMRequest* aRequest);
 
-  already_AddRefed<DOMCursor>
-  EnumerateInternal(const nsAString& aName,
-                    const EnumerationParameters& aOptions, bool aEditable,
-                    ErrorResult& aRv);
+  nsresult EnumerateInternal(const JS::Value& aName,
+                             const JS::Value& aOptions,
+                             JSContext* aCx,
+                             uint8_t aArgc,
+                             bool aEditable,
+                             nsIDOMDOMCursor** aRetval);
 
   nsString mStorageType;
   nsCOMPtr<nsIFile> mRootDirectory;
   nsString mStorageName;
 
-  already_AddRefed<nsDOMDeviceStorage> GetStorage(const nsAString& aFullPath,
+  bool IsComposite() { return mStores.Length() > 0; }
+  nsTArray<nsRefPtr<nsDOMDeviceStorage> > mStores;
+  already_AddRefed<nsDOMDeviceStorage> GetStorage(const nsAString& aCompositePath,
                                                   nsAString& aOutStoragePath);
-  already_AddRefed<nsDOMDeviceStorage>
-    GetStorageByName(const nsAString &aStorageName);
+  already_AddRefed<nsDOMDeviceStorage> GetStorageByName(const nsAString &aStorageName);
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
 
@@ -300,7 +223,8 @@ private:
   static mozilla::StaticRefPtr<VolumeNameCache> sVolumeNameCache;
 
 #ifdef MOZ_WIDGET_GONK
-  void DispatchMountChangeEvent(nsAString& aVolumeStatus);
+  void DispatchMountChangeEvent(nsAString& aVolumeName,
+                                nsAString& aVolumeStatus);
 #endif
 
   // nsIDOMDeviceStorage.type

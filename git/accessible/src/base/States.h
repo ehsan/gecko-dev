@@ -7,7 +7,7 @@
 #ifndef _states_h_
 #define _states_h_
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 namespace mozilla {
 namespace a11y {
@@ -272,11 +272,6 @@ namespace states {
    * @see EXPANDED and COLLAPSED states.
    */
   const uint64_t EXPANDABLE = ((uint64_t) 0x1) << 46;
-
-  /**
-   * The object is pinned, usually indicating it is fixed in place and has permanence.
-   */
-  const uint64_t PINNED = ((uint64_t) 0x1) << 47;
 } // namespace states
 } // namespace a11y
 } // namespace mozilla

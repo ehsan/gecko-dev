@@ -6,9 +6,6 @@
 #
 #
 {
-  'variables' : {
-    'build_with_gonk%': 0,
-  },
   'targets' : [
       {
           'target_name' : 'nicer',
@@ -124,7 +121,7 @@
               'USE_TURN',
               'NR_SOCKET_IS_VOID_PTR',
               'restrict=',
-	      'R_PLATFORM_INT_TYPES=\'<stdint.h>\'',
+	      'R_PLATFORM_INT_TYPES=\'"mozilla/StandardInteger.h"\'',
 	      'R_DEFINED_INT2=int16_t',
 	      'R_DEFINED_UINT2=uint16_t',
 	      'R_DEFINED_INT4=int32_t',
@@ -134,19 +131,8 @@
           ],
           
           'conditions' : [
-              ## Mac and BSDs
+              ## Mac
               [ 'OS == "mac"', {
-                'defines' : [
-                    'DARWIN',
-                    'HAVE_XLOCALE',
-                ],
-              }],
-              [ 'os_bsd == 1', {
-                'defines' : [
-                    'BSD',
-                ],
-              }],
-              [ 'OS == "mac" or os_bsd == 1', {
                 'cflags_mozilla': [
                     '-Wall',
                     '-Wno-parentheses',
@@ -154,6 +140,7 @@
                     '-Wmissing-prototypes',
                  ],
                  'defines' : [
+                     'DARWIN',
                      'HAVE_LIBM=1',
                      'HAVE_STRDUP=1',
                      'HAVE_STRLCPY=1',
@@ -226,12 +213,6 @@
                   'NO_REG_RPC',
                 ],
              }],
-             # Gonk has its own nr_stun_get_addrs implementation.
-             ['build_with_gonk==1', {
-               'defines': [
-                  "USE_PLATFORM_NR_STUN_GET_ADDRS",
-               ]
-             }]
           ],
       }]
 }

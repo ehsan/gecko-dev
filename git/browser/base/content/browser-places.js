@@ -464,7 +464,7 @@ var PlacesCommandHook = {
                  "", "chrome,toolbar=yes,dialog=no,resizable", aLeftPaneRoot);
     }
     else {
-      organizer.PlacesOrganizer.selectLeftPaneContainerByHierarchy(aLeftPaneRoot);
+      organizer.PlacesOrganizer.selectLeftPaneQuery(aLeftPaneRoot);
       organizer.focus();
     }
   }
@@ -571,7 +571,7 @@ HistoryMenu.prototype = {
     m.setAttribute("label", strings.getString("menuRestoreAllTabs.label"));
     m.addEventListener("command", function() {
       for (var i = 0; i < undoItems.length; i++)
-        undoCloseTab(0);
+        undoCloseTab();
     }, false);
   },
 
@@ -621,8 +621,8 @@ HistoryMenu.prototype = {
       let m = document.createElement("menuitem");
       m.setAttribute("label", menuLabel);
       let selectedTab = undoItem.tabs[undoItem.selected - 1];
-      if (selectedTab.image) {
-        let iconURL = selectedTab.image;
+      if (selectedTab.attributes.image) {
+        let iconURL = selectedTab.attributes.image;
         // don't initiate a connection just to fetch a favicon (see bug 467828)
         if (/^https?:/.test(iconURL))
           iconURL = "moz-anno:favicon:" + iconURL;

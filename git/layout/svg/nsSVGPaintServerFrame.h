@@ -6,7 +6,6 @@
 #ifndef __NS_SVGPAINTSERVERFRAME_H__
 #define __NS_SVGPAINTSERVERFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsIFrame.h"
@@ -29,7 +28,7 @@ protected:
   nsSVGPaintServerFrame(nsStyleContext* aContext)
     : nsSVGPaintServerFrameBase(aContext)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -64,7 +63,7 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsSVGPaintServerFrameBase::IsFrameOfType(aFlags & ~nsIFrame::eSVGPaintServer);
   }

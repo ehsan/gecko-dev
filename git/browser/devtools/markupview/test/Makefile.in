@@ -9,8 +9,9 @@ VPATH		= @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES := \
+_BROWSER_FILES = \
 		browser_inspector_markup_navigation.html \
 		browser_inspector_markup_navigation.js \
 		browser_inspector_markup_mutation.html \
@@ -19,8 +20,8 @@ MOCHITEST_BROWSER_FILES := \
     browser_inspector_markup_edit.js \
     browser_inspector_markup_subset.html \
     browser_inspector_markup_subset.js \
-    browser_bug896181_css_mixed_completion_new_attribute.js \
 		head.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_BROWSER_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

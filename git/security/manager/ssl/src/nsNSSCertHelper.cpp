@@ -10,14 +10,12 @@
 #include "nsCOMPtr.h"
 #include "nsNSSCertificate.h"
 #include "secder.h"
-#include "nsComponentManagerUtils.h"
 #include "nsNSSCertValidity.h"
 #include "nsNSSASN1Object.h"
 #include "nsNSSComponent.h"
 #include "nsNSSCertTrust.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
-#include "nsServiceManagerUtils.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -2110,7 +2108,7 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 }
 
 nsresult
-nsNSSCertificate::CreateASN1Struct(nsIASN1Object** aRetVal)
+nsNSSCertificate::CreateASN1Struct()
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -2118,14 +2116,14 @@ nsNSSCertificate::CreateASN1Struct(nsIASN1Object** aRetVal)
 
   nsCOMPtr<nsIASN1Sequence> sequence = new nsNSSASN1Sequence();
 
+  mASN1Structure = sequence; 
+
   nsCOMPtr<nsIMutableArray> asn1Objects;
   sequence->GetASN1Objects(getter_AddRefs(asn1Objects));
   nsXPIDLCString title;
   GetWindowTitle(getter_Copies(title));
   
-  sequence->SetDisplayName(NS_ConvertUTF8toUTF16(title));
-  *aRetVal = sequence.forget().get();
-
+  mASN1Structure->SetDisplayName(NS_ConvertUTF8toUTF16(title));
   // This sequence will be contain the tbsCertificate, signatureAlgorithm,
   // and signatureValue.
   nsresult rv;

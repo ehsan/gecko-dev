@@ -13,6 +13,12 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_file'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/base',
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
+
 MODULE = 'dom'
 
 EXPORTS += [
@@ -33,25 +39,5 @@ EXPORTS.mozilla.dom.file += [
     'FileHelper.h',
     'FileService.h',
     'LockedFile.h',
-]
-
-CPP_SOURCES += [
-    'ArchiveEvent.cpp',
-    'ArchiveReader.cpp',
-    'ArchiveRequest.cpp',
-    'ArchiveZipEvent.cpp',
-    'ArchiveZipFile.cpp',
-    'AsyncHelper.cpp',
-    'DOMFileHandle.cpp',
-    'DOMFileRequest.cpp',
-    'File.cpp',
-    'FileHandle.cpp',
-    'FileHelper.cpp',
-    'FileRequest.cpp',
-    'FileService.cpp',
-    'FileStreamWrappers.cpp',
-    'LockedFile.cpp',
-    'MemoryStreams.cpp',
-    'MetadataHelper.cpp',
 ]
 

@@ -1,9 +1,11 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
 
 #ifndef SkCornerPathEffect_DEFINED
 #define SkCornerPathEffect_DEFINED
@@ -23,8 +25,9 @@ public:
     SkCornerPathEffect(SkScalar radius);
     virtual ~SkCornerPathEffect();
 
-    virtual bool filterPath(SkPath* dst, const SkPath& src,
-                            SkStrokeRec*, const SkRect*) const SK_OVERRIDE;
+    // overrides for SkPathEffect
+    //  This method is not exported to java.
+    virtual bool filterPath(SkPath* dst, const SkPath& src, SkStrokeRec*) SK_OVERRIDE;
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkCornerPathEffect)
 
@@ -39,3 +42,4 @@ private:
 };
 
 #endif
+

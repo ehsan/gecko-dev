@@ -7,7 +7,7 @@
 #include "FileRequest.h"
 
 #include "DOMFileRequest.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsError.h"
 #include "nsIDOMProgressEvent.h"
@@ -82,6 +82,7 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
   JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
   NS_ASSERTION(global, "Failed to get global object!");
 
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
   rv = aFileHelper->GetSuccessResult(cx, result.address());

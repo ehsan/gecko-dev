@@ -22,12 +22,6 @@ if CONFIG['NECKO_COOKIES']:
         'CookieServiceParent.h',
         'CookieServiceChild.h',
     ]
-    CPP_SOURCES += [
-        'nsCookie.cpp',
-        'nsCookieService.cpp',
-        'CookieServiceParent.cpp',
-        'CookieServiceChild.cpp',
-    ]
 
 if CONFIG['NECKO_COOKIES']:
     XPCSHELL_TESTS_MANIFESTS += ['test/unit/xpcshell.ini']
@@ -35,7 +29,3 @@ if CONFIG['NECKO_COOKIES']:
 # FIXME/bug 575918: out-of-process xpcshell is broken on OS X
 if CONFIG['NECKO_COOKIES'] and CONFIG['OS_ARCH'] != 'Darwin':
     XPCSHELL_TESTS_MANIFESTS += ['test/unit_ipc/xpcshell.ini']
-
-IPDL_SOURCES = [
-    'PCookieService.ipdl',
-]

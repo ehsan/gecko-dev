@@ -31,22 +31,19 @@ public:
         }
     }
 
-    bool canReuse(int32_t clipGenID, const SkIRect& bounds) {
+    bool canReuse(const SkClipStack& clip, int width, int height) {
 
-        SkASSERT(clipGenID != SkClipStack::kWideOpenGenID);
-        SkASSERT(clipGenID != SkClipStack::kEmptyGenID);
-
-        if (SkClipStack::kInvalidGenID == clipGenID) {
+        if (fStack.empty()) {
+            GrAssert(false);
             return false;
         }
 
         GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
 
-        // We could reuse the mask if bounds is a subset of last bounds. We'd have to communicate
-        // an offset to the caller.
         if (back->fLastMask.texture() &&
-            back->fLastBound == bounds &&
-            back->fLastClipGenID == clipGenID) {
+            back->fLastMask.texture()->width() >= width &&
+            back->fLastMask.texture()->height() >= height &&
+            clip == back->fLastClip) {
             return true;
         }
 
@@ -83,13 +80,17 @@ public:
         }
     }
 
-    int32_t getLastClipGenID() const {
+    void getLastClip(SkClipStack* clip) const {
 
         if (fStack.empty()) {
-            return SkClipStack::kInvalidGenID;
+            GrAssert(false);
+            clip->reset();
+            return;
         }
 
-        return ((GrClipStackFrame*) fStack.back())->fLastClipGenID;
+        GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
+
+        *clip = back->fLastClip;
     }
 
     GrTexture* getLastMask() {
@@ -116,7 +117,7 @@ public:
         return back->fLastMask.texture();
     }
 
-    void acquireMask(int32_t clipGenID,
+    void acquireMask(const SkClipStack& clip,
                      const GrTextureDesc& desc,
                      const GrIRect& bound) {
 
@@ -127,7 +128,7 @@ public:
 
         GrClipStackFrame* back = (GrClipStackFrame*) fStack.back();
 
-        back->acquireMask(fContext, clipGenID, desc, bound);
+        back->acquireMask(fContext, clip, desc, bound);
     }
 
     int getLastMaskWidth() const {
@@ -193,19 +194,20 @@ public:
         }
     }
 
+protected:
 private:
     struct GrClipStackFrame {
 
         GrClipStackFrame() {
-            this->reset();
+            reset();
         }
 
         void acquireMask(GrContext* context,
-                         int32_t clipGenID,
+                         const SkClipStack& clip,
                          const GrTextureDesc& desc,
                          const GrIRect& bound) {
 
-            fLastClipGenID = clipGenID;
+            fLastClip = clip;
 
             fLastMask.set(context, desc);
 
@@ -213,7 +215,7 @@ private:
         }
 
         void reset () {
-            fLastClipGenID = SkClipStack::kInvalidGenID;
+            fLastClip.reset();
 
             GrTextureDesc desc;
 
@@ -221,12 +223,13 @@ private:
             fLastBound.setEmpty();
         }
 
-        int32_t                 fLastClipGenID;
-        // The mask's width & height values are used by GrClipMaskManager to correctly scale the
-        // texture coords for the geometry drawn with this mask.
+        SkClipStack             fLastClip;
+        // The mask's width & height values are used in setupDrawStateAAClip to
+        // correctly scale the uvs for geometry drawn with this mask
         GrAutoScratchTexture    fLastMask;
-        // fLastBound stores the bounding box of the clip mask in clip-stack space. This rect is
-        // used by GrClipMaskManager to position a rect and compute texture coords for the mask.
+        // fLastBound stores the bounding box of the clip mask in canvas
+        // space. The left and top fields are used to offset the uvs for
+        // geometry drawn with this mask (in setupDrawStateAAClip)
         GrIRect                 fLastBound;
     };
 

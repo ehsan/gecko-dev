@@ -9,7 +9,6 @@
 
 #include "nsDOMAttributeMap.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/MozNamedAttrMapBinding.h"
@@ -60,8 +59,6 @@ nsDOMAttributeMap::DropReference()
   mAttributeCache.Enumerate(RemoveMapRef, nullptr);
   mContent = nullptr;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttributeMap)
   tmp->DropReference();
@@ -283,7 +280,7 @@ nsDOMAttributeMap::SetNamedItemInternal(Attr& aAttr,
   }
 
   nsresult rv;
-  if (mContent->OwnerDoc() != aAttr.OwnerDoc()) {
+  if (!mContent->HasSameOwnerDoc(&aAttr)) {
     nsCOMPtr<nsINode> adoptedNode =
       mContent->OwnerDoc()->AdoptNode(aAttr, aError);
     if (aError.Failed()) {
@@ -536,14 +533,14 @@ nsDOMAttributeMap::Enumerate(AttrCache::EnumReadFunction aFunc,
 size_t
 AttrCacheSizeEnumerator(const nsAttrKey& aKey,
                         const nsRefPtr<Attr>& aValue,
-                        MallocSizeOf aMallocSizeOf,
+                        nsMallocSizeOfFun aMallocSizeOf,
                         void* aUserArg)
 {
   return aMallocSizeOf(aValue.get());
 }
 
 size_t
-nsDOMAttributeMap::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsDOMAttributeMap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mAttributeCache.SizeOfExcludingThis(AttrCacheSizeEnumerator,

@@ -128,7 +128,7 @@ AudioStream::AudioStream()
   mOutRate(0),
   mChannels(0),
   mWritten(0),
-  mAudioClock(MOZ_THIS_IN_INITIALIZER_LIST())
+  mAudioClock(this)
 {}
 
 void AudioStream::InitLibrary()
@@ -416,26 +416,13 @@ AudioStream* AudioStream::AllocateStream()
   return nullptr;
 }
 
-int AudioStream::MaxNumberOfChannels()
-{
-  uint32_t maxNumberOfChannels, rv;
-
-  rv = cubeb_get_max_channel_count(GetCubebContext(), &maxNumberOfChannels);
-
-  if (rv != CUBEB_OK) {
-    return 0;
-  }
-
-  return static_cast<int>(maxNumberOfChannels);
-}
-
-static void SetUint16LE(uint8_t* aDest, uint16_t aValue)
+static void SetUint16LE(PRUint8* aDest, PRUint16 aValue)
 {
   aDest[0] = aValue & 0xFF;
   aDest[1] = aValue >> 8;
 }
 
-static void SetUint32LE(uint8_t* aDest, uint32_t aValue)
+static void SetUint32LE(PRUint8* aDest, PRUint32 aValue)
 {
   SetUint16LE(aDest, aValue & 0xFFFF);
   SetUint16LE(aDest + 2, aValue >> 16);
@@ -453,7 +440,7 @@ OpenDumpFile(AudioStream* aStream)
     return nullptr;
   ++gDumpedAudioCount;
 
-  uint8_t header[] = {
+  PRUint8 header[] = {
     // RIFF header
     0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
     // fmt chunk. We always write 16-bit samples.
@@ -474,25 +461,25 @@ OpenDumpFile(AudioStream* aStream)
 }
 
 static void
-WriteDumpFile(FILE* aDumpFile, AudioStream* aStream, uint32_t aFrames,
+WriteDumpFile(FILE* aDumpFile, AudioStream* aStream, PRUint32 aFrames,
               void* aBuffer)
 {
   if (!aDumpFile)
     return;
 
-  uint32_t samples = aStream->GetChannels()*aFrames;
+  PRUint32 samples = aStream->GetChannels()*aFrames;
   if (AUDIO_OUTPUT_FORMAT == AUDIO_FORMAT_S16) {
     fwrite(aBuffer, 2, samples, aDumpFile);
     return;
   }
 
   NS_ASSERTION(AUDIO_OUTPUT_FORMAT == AUDIO_FORMAT_FLOAT32, "bad format");
-  nsAutoTArray<uint8_t, 1024*2> buf;
+  nsAutoTArray<PRUint8, 1024*2> buf;
   buf.SetLength(samples*2);
   float* input = static_cast<float*>(aBuffer);
-  uint8_t* output = buf.Elements();
-  for (uint32_t i = 0; i < samples; ++i) {
-    SetUint16LE(output + i*2, int16_t(input[i]*32767.0f));
+  PRUint8* output = buf.Elements();
+  for (PRUint32 i = 0; i < samples; ++i) {
+    SetUint16LE(output + i*2, PRInt16(input[i]*32767.0f));
   }
   fwrite(output, 2, samples, aDumpFile);
   fflush(aDumpFile);

@@ -21,8 +21,16 @@ HTMLLIElement::~HTMLLIElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLLIElement, nsGenericHTMLElement,
-                             nsIDOMHTMLLIElement)
+NS_IMPL_ADDREF_INHERITED(HTMLLIElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLLIElement, Element)
+
+
+// QueryInterface implementation for nsHTMLLIElement
+NS_INTERFACE_TABLE_HEAD(HTMLLIElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLLIElement, nsIDOMHTMLLIElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLLIElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLLIElement)
 

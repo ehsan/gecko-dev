@@ -9,14 +9,19 @@
  * ECMAScript Internationalization API Specification.
  */
 
-#include "builtin/Intl.h"
-
 #include <string.h>
 
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsinterp.h"
 #include "jsobj.h"
+
+#include "builtin/Intl.h"
+#include "vm/DateTime.h"
+#include "vm/GlobalObject.h"
+#include "vm/Stack.h"
+#include "vm/StringBuffer.h"
 
 #if ENABLE_INTL_API
 #include "unicode/locid.h"
@@ -30,11 +35,6 @@
 #include "unicode/ustring.h"
 #endif
 #include "unicode/utypes.h"
-#include "vm/DateTime.h"
-#include "vm/GlobalObject.h"
-#include "vm/Interpreter.h"
-#include "vm/Stack.h"
-#include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
 
@@ -75,7 +75,8 @@ using icu::NumberingSystem;
 static int32_t
 u_strlen(const UChar *s)
 {
-    MOZ_ASSUME_UNREACHABLE("u_strlen: Intl API disabled");
+    MOZ_NOT_REACHED("u_strlen: Intl API disabled");
+    return 0;
 }
 
 struct UEnumeration;
@@ -83,19 +84,23 @@ struct UEnumeration;
 static int32_t
 uenum_count(UEnumeration *en, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("uenum_count: Intl API disabled");
+    MOZ_NOT_REACHED("uenum_count: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return 0;
 }
 
 static const char *
 uenum_next(UEnumeration *en, int32_t *resultLength, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("uenum_next: Intl API disabled");
+    MOZ_NOT_REACHED("uenum_next: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static void
 uenum_close(UEnumeration *en)
 {
-    MOZ_ASSUME_UNREACHABLE("uenum_close: Intl API disabled");
+    MOZ_NOT_REACHED("uenum_close: Intl API disabled");
 }
 
 struct UCollator;
@@ -130,45 +135,53 @@ enum UCollationResult {
 static int32_t
 ucol_countAvailable(void)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_countAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_countAvailable: Intl API disabled");
+    return 0;
 }
 
 static const char *
 ucol_getAvailable(int32_t localeIndex)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_getAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_getAvailable: Intl API disabled");
+    return NULL;
 }
 
 static UCollator *
 ucol_open(const char *loc, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_open: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_open: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static void
 ucol_setAttribute(UCollator *coll, UColAttribute attr, UColAttributeValue value, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_setAttribute: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_setAttribute: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
 }
 
 static UCollationResult
 ucol_strcoll(const UCollator *coll, const UChar *source, int32_t sourceLength,
              const UChar *target, int32_t targetLength)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_strcoll: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_strcoll: Intl API disabled");
+    return (UCollationResult) 0;
 }
 
 static void
 ucol_close(UCollator *coll)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_close: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_close: Intl API disabled");
 }
 
 static UEnumeration *
 ucol_getKeywordValuesForLocale(const char *key, const char *locale, UBool commonlyUsed,
                                UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucol_getKeywordValuesForLocale: Intl API disabled");
+    MOZ_NOT_REACHED("ucol_getKeywordValuesForLocale: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 struct UParseError;
@@ -205,46 +218,53 @@ enum UNumberFormatTextAttribute {
 static int32_t
 unum_countAvailable(void)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_countAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("unum_countAvailable: Intl API disabled");
+    return 0;
 }
 
 static const char *
 unum_getAvailable(int32_t localeIndex)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_getAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("unum_getAvailable: Intl API disabled");
+    return NULL;
 }
 
 static UNumberFormat *
 unum_open(UNumberFormatStyle style, const UChar *pattern, int32_t patternLength,
           const char *locale, UParseError *parseErr, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_open: Intl API disabled");
+    MOZ_NOT_REACHED("unum_open: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static void
 unum_setAttribute(UNumberFormat *fmt, UNumberFormatAttribute  attr, int32_t newValue)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_setAttribute: Intl API disabled");
+    MOZ_NOT_REACHED("unum_setAttribute: Intl API disabled");
 }
 
 static int32_t
 unum_formatDouble(const UNumberFormat *fmt, double number, UChar *result,
                   int32_t resultLength, UFieldPosition *pos, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_formatDouble: Intl API disabled");
+    MOZ_NOT_REACHED("unum_formatDouble: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return 0;
 }
 
 static void
 unum_close(UNumberFormat *fmt)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_close: Intl API disabled");
+    MOZ_NOT_REACHED("unum_close: Intl API disabled");
 }
 
 static void
 unum_setTextAttribute(UNumberFormat *fmt, UNumberFormatTextAttribute tag, const UChar *newValue,
                       int32_t newValueLength, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("unum_setTextAttribute: Intl API disabled");
+    MOZ_NOT_REACHED("unum_setTextAttribute: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
 }
 
 class Locale {
@@ -256,7 +276,7 @@ class Locale {
 Locale::Locale(const char *language, const char *country, const char *variant,
                const char *keywordsAndValues)
 {
-    MOZ_ASSUME_UNREACHABLE("Locale::Locale: Intl API disabled");
+    MOZ_NOT_REACHED("Locale::Locale: Intl API disabled");
 }
 
 class NumberingSystem {
@@ -268,13 +288,16 @@ class NumberingSystem {
 NumberingSystem *
 NumberingSystem::createInstance(const Locale &inLocale, UErrorCode &status)
 {
-    MOZ_ASSUME_UNREACHABLE("NumberingSystem::createInstance: Intl API disabled");
+    MOZ_NOT_REACHED("NumberingSystem::createInstance: Intl API disabled");
+    status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 const char *
 NumberingSystem::getName()
 {
-    MOZ_ASSUME_UNREACHABLE("NumberingSystem::getName: Intl API disabled");
+    MOZ_NOT_REACHED("NumberingSystem::getName: Intl API disabled");
+    return NULL;
 }
 
 typedef void *UCalendar;
@@ -289,26 +312,32 @@ static UCalendar *
 ucal_open(const UChar *zoneID, int32_t len, const char *locale,
           UCalendarType type, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucal_open: Intl API disabled");
+    MOZ_NOT_REACHED("ucal_open: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static const char *
 ucal_getType(const UCalendar *cal, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucal_getType: Intl API disabled");
+    MOZ_NOT_REACHED("ucal_getType: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static UEnumeration *
 ucal_getKeywordValuesForLocale(const char *key, const char *locale,
                                UBool commonlyUsed, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("ucal_getKeywordValuesForLocale: Intl API disabled");
+    MOZ_NOT_REACHED("ucal_getKeywordValuesForLocale: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static void
 ucal_close(UCalendar *cal)
 {
-    MOZ_ASSUME_UNREACHABLE("ucal_close: Intl API disabled");
+    MOZ_NOT_REACHED("ucal_close: Intl API disabled");
 }
 
 typedef void *UDateTimePatternGenerator;
@@ -316,7 +345,9 @@ typedef void *UDateTimePatternGenerator;
 static UDateTimePatternGenerator *
 udatpg_open(const char *locale, UErrorCode *pErrorCode)
 {
-    MOZ_ASSUME_UNREACHABLE("udatpg_open: Intl API disabled");
+    MOZ_NOT_REACHED("udatpg_open: Intl API disabled");
+    *pErrorCode = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static int32_t
@@ -324,13 +355,15 @@ udatpg_getBestPattern(UDateTimePatternGenerator *dtpg, const UChar *skeleton,
                       int32_t length, UChar *bestPattern, int32_t capacity,
                       UErrorCode *pErrorCode)
 {
-    MOZ_ASSUME_UNREACHABLE("udatpg_getBestPattern: Intl API disabled");
+    MOZ_NOT_REACHED("udatpg_getBestPattern: Intl API disabled");
+    *pErrorCode = U_UNSUPPORTED_ERROR;
+    return 0;
 }
 
 static void
 udatpg_close(UDateTimePatternGenerator *dtpg)
 {
-    MOZ_ASSUME_UNREACHABLE("udatpg_close: Intl API disabled");
+    MOZ_NOT_REACHED("udatpg_close: Intl API disabled");
 }
 
 typedef void *UCalendar;
@@ -344,13 +377,15 @@ enum UDateFormatStyle {
 static int32_t
 udat_countAvailable(void)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_countAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("udat_countAvailable: Intl API disabled");
+    return 0;
 }
 
 static const char *
 udat_getAvailable(int32_t localeIndex)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_getAvailable: Intl API disabled");
+    MOZ_NOT_REACHED("udat_getAvailable: Intl API disabled");
+    return NULL;
 }
 
 static UDateFormat *
@@ -358,32 +393,38 @@ udat_open(UDateFormatStyle timeStyle, UDateFormatStyle dateStyle, const char *lo
           const UChar *tzID, int32_t tzIDLength, const UChar *pattern,
           int32_t patternLength, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_open: Intl API disabled");
+    MOZ_NOT_REACHED("udat_open: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return NULL;
 }
 
 static const UCalendar *
 udat_getCalendar(const UDateFormat *fmt)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_getCalendar: Intl API disabled");
+    MOZ_NOT_REACHED("udat_getCalendar: Intl API disabled");
+    return NULL;
 }
 
 static void
 ucal_setGregorianChange(UCalendar *cal, UDate date, UErrorCode *pErrorCode)
 {
-    MOZ_ASSUME_UNREACHABLE("ucal_setGregorianChange: Intl API disabled");
+    MOZ_NOT_REACHED("ucal_setGregorianChange: Intl API disabled");
+    *pErrorCode = U_UNSUPPORTED_ERROR;
 }
 
 static int32_t
 udat_format(const UDateFormat *format, UDate dateToFormat, UChar *result,
             int32_t resultLength, UFieldPosition *position, UErrorCode *status)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_format: Intl API disabled");
+    MOZ_NOT_REACHED("udat_format: Intl API disabled");
+    *status = U_UNSUPPORTED_ERROR;
+    return 0;
 }
 
 static void
 udat_close(UDateFormat *format)
 {
-    MOZ_ASSUME_UNREACHABLE("udat_close: Intl API disabled");
+    MOZ_NOT_REACHED("udat_close: Intl API disabled");
 }
 
 #endif
@@ -399,17 +440,17 @@ IntlInitialize(JSContext *cx, HandleObject obj, Handle<PropertyName*> initialize
     if (!cx->global()->getIntrinsicValue(cx, initializer, &initializerValue))
         return false;
     JS_ASSERT(initializerValue.isObject());
-    JS_ASSERT(initializerValue.toObject().is<JSFunction>());
+    JS_ASSERT(initializerValue.toObject().isFunction());
 
-    InvokeArgs args(cx);
-    if (!args.init(3))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, 3, &args))
         return false;
 
     args.setCallee(initializerValue);
     args.setThis(NullValue());
-    args[0].setObject(*obj);
-    args[1].set(locales);
-    args[2].set(options);
+    args[0] = ObjectValue(*obj);
+    args[1] = locales;
+    args[2] = options;
 
     return Invoke(cx, args);
 }
@@ -426,7 +467,7 @@ static bool
 intl_availableLocales(JSContext *cx, CountAvailable countAvailable,
                       GetAvailable getAvailable, MutableHandleValue result)
 {
-    RootedObject locales(cx, NewObjectWithGivenProto(cx, &JSObject::class_, NULL, NULL));
+    RootedObject locales(cx, NewObjectWithGivenProto(cx, &ObjectClass, NULL, NULL));
     if (!locales)
         return false;
 
@@ -465,15 +506,15 @@ GetInternals(JSContext *cx, HandleObject obj, MutableHandleObject internals)
     if (!cx->global()->getIntrinsicValue(cx, cx->names().getInternals, &getInternalsValue))
         return false;
     JS_ASSERT(getInternalsValue.isObject());
-    JS_ASSERT(getInternalsValue.toObject().is<JSFunction>());
+    JS_ASSERT(getInternalsValue.toObject().isFunction());
 
-    InvokeArgs args(cx);
-    if (!args.init(1))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, 1, &args))
         return false;
 
     args.setCallee(getInternalsValue);
     args.setThis(NullValue());
-    args[0].setObject(*obj);
+    args[0] = ObjectValue(*obj);
 
     if (!Invoke(cx, args))
         return false;
@@ -559,7 +600,7 @@ static Class CollatorClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 collator_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().Collator);
@@ -602,10 +643,7 @@ Collator(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 10.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 10.1.2.1 step 3.a
@@ -637,20 +675,18 @@ Collator(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 Collator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return Collator(cx, args, args.isConstructing());
+    return Collator(cx, args, IsConstructing(args));
 }
 
-bool
+JSBool
 js::intl_Collator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 2);
-    // intl_Collator is an intrinsic for self-hosted JavaScript, so it cannot
-    // be used with "new", but it still has to be treated as a constructor.
     return Collator(cx, args, true);
 }
 
@@ -669,7 +705,7 @@ InitCollatorClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> global
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateCollatorPrototype(cx));
+    RootedObject proto(cx, global->asGlobal().getOrCreateCollatorPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -727,7 +763,7 @@ GlobalObject::initCollatorProto(JSContext *cx, Handle<GlobalObject*> global)
     return true;
 }
 
-bool
+JSBool
 js::intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -740,7 +776,7 @@ js::intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_availableCollations(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -973,7 +1009,7 @@ intl_CompareStrings(JSContext *cx, UCollator *coll, HandleString str1, HandleStr
     return true;
 }
 
-bool
+JSBool
 js::intl_CompareStrings(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1042,7 +1078,7 @@ static Class NumberFormatClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 numberFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().NumberFormat);
@@ -1085,10 +1121,7 @@ NumberFormat(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 11.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 11.1.2.1 step 3.a
@@ -1120,21 +1153,18 @@ NumberFormat(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 NumberFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return NumberFormat(cx, args, args.isConstructing());
+    return NumberFormat(cx, args, IsConstructing(args));
 }
 
-bool
+JSBool
 js::intl_NumberFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 2);
-    // intl_NumberFormat is an intrinsic for self-hosted JavaScript, so it
-    // cannot be used with "new", but it still has to be treated as a
-    // constructor.
     return NumberFormat(cx, args, true);
 }
 
@@ -1154,7 +1184,7 @@ InitNumberFormatClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> gl
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateNumberFormatPrototype(cx));
+    RootedObject proto(cx, global->asGlobal().getOrCreateNumberFormatPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -1212,7 +1242,7 @@ GlobalObject::initNumberFormatProto(JSContext *cx, Handle<GlobalObject*> global)
     return true;
 }
 
-bool
+JSBool
 js::intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1225,7 +1255,7 @@ js::intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1246,7 +1276,7 @@ js::intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
     const char *name = numbers->getName();
-    RootedString jsname(cx, JS_NewStringCopyZ(cx, name));
+    JSString *jsname = JS_NewStringCopyZ(cx, name);
     delete numbers;
     if (!jsname)
         return false;
@@ -1433,7 +1463,7 @@ intl_FormatNumber(JSContext *cx, UNumberFormat *nf, double x, MutableHandleValue
     return true;
 }
 
-bool
+JSBool
 js::intl_FormatNumber(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1498,7 +1528,7 @@ static Class DateTimeFormatClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 dateTimeFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().DateTimeFormat);
@@ -1541,10 +1571,7 @@ DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
                 return false;
 
             // 12.1.2.1 step 5
-            bool extensible;
-            if (!JSObject::isExtensible(cx, obj, &extensible))
-                return false;
-            if (!extensible)
+            if (!obj->isExtensible())
                 return Throw(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE);
         } else {
             // 12.1.2.1 step 3.a
@@ -1576,21 +1603,18 @@ DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return DateTimeFormat(cx, args, args.isConstructing());
+    return DateTimeFormat(cx, args, IsConstructing(args));
 }
 
-bool
+JSBool
 js::intl_DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 2);
-    // intl_DateTimeFormat is an intrinsic for self-hosted JavaScript, so it
-    // cannot be used with "new", but it still has to be treated as a
-    // constructor.
     return DateTimeFormat(cx, args, true);
 }
 
@@ -1609,7 +1633,7 @@ InitDateTimeFormatClass(JSContext *cx, HandleObject Intl, Handle<GlobalObject*> 
     if (!ctor)
         return NULL;
 
-    RootedObject proto(cx, global->as<GlobalObject>().getOrCreateDateTimeFormatPrototype(cx));
+    RootedObject proto(cx, global->asGlobal().getOrCreateDateTimeFormatPrototype(cx));
     if (!proto)
         return NULL;
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
@@ -1667,7 +1691,7 @@ GlobalObject::initDateTimeFormatProto(JSContext *cx, Handle<GlobalObject*> globa
     return true;
 }
 
-bool
+JSBool
 js::intl_DateTimeFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1694,7 +1718,7 @@ bcp47CalendarName(const char *icuName)
     return icuName;
 }
 
-bool
+JSBool
 js::intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1759,7 +1783,7 @@ js::intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1920,7 +1944,7 @@ intl_FormatDateTime(JSContext *cx, UDateFormat *df, double x, MutableHandleValue
     return true;
 }
 
-bool
+JSBool
 js::intl_FormatDateTime(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1979,7 +2003,7 @@ Class js::IntlClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 intl_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().Intl);
@@ -2001,8 +2025,8 @@ static const JSFunctionSpec intl_static_methods[] = {
 JSObject *
 js_InitIntlClass(JSContext *cx, HandleObject obj)
 {
-    JS_ASSERT(obj->is<GlobalObject>());
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    JS_ASSERT(obj->isGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     // The constructors above need to be able to determine whether they've been
     // called with this being "the standard built-in Intl object". The global
@@ -2025,7 +2049,7 @@ js_InitIntlClass(JSContext *cx, HandleObject obj)
     // Skip initialization of the Intl constructors during initialization of the
     // self-hosting global as we may get here before self-hosted code is compiled,
     // and no core code refers to the Intl classes.
-    if (!cx->runtime()->isSelfHostingGlobal(cx->global())) {
+    if (!cx->runtime->isSelfHostingGlobal(cx->global())) {
         if (!InitCollatorClass(cx, Intl, global))
             return NULL;
         if (!InitNumberFormatClass(cx, Intl, global))

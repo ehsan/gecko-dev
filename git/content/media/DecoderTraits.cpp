@@ -7,7 +7,6 @@
 #include "DecoderTraits.h"
 #include "MediaDecoder.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "mozilla/Preferences.h"
 
 #ifdef MOZ_MEDIA_PLUGINS
 #include "MediaPluginHost.h"
@@ -30,6 +29,7 @@
 #include "RawReader.h"
 #endif
 #ifdef MOZ_GSTREAMER
+#include "mozilla/Preferences.h"
 #include "GStreamerDecoder.h"
 #include "GStreamerReader.h"
 #endif
@@ -51,10 +51,6 @@
 #ifdef MOZ_WMF
 #include "WMFDecoder.h"
 #include "WMFReader.h"
-#endif
-#ifdef MOZ_DIRECTSHOW
-#include "DirectShowDecoder.h"
-#include "DirectShowReader.h"
 #endif
 
 namespace mozilla
@@ -232,11 +228,6 @@ static char const *const gH264Codecs[9] = {
   "mp4a.40.2",    // AAC-LC
   nullptr
 };
-
-static char const *const gMpegAudioCodecs[2] = {
-  "mp3",          // MP3
-  nullptr
-};
 #endif
 
 #ifdef MOZ_MEDIA_PLUGINS
@@ -277,14 +268,6 @@ static bool
 IsWMFSupportedType(const nsACString& aType)
 {
   return WMFDecoder::GetSupportedCodecs(aType, nullptr);
-}
-#endif
-
-#ifdef MOZ_DIRECTSHOW
-static bool
-IsDirectShowSupportedType(const nsACString& aType)
-{
-  return DirectShowDecoder::GetSupportedCodecs(aType, nullptr);
 }
 #endif
 
@@ -353,21 +336,12 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
 #endif
 #ifdef MOZ_OMX_DECODER
   if (IsOmxSupportedType(nsDependentCString(aMIMEType))) {
+    codecList = gH264Codecs;
     result = CANPLAY_MAYBE;
-    if (nsDependentCString(aMIMEType).EqualsASCII("audio/mpeg")) {
-      codecList = gMpegAudioCodecs;
-    } else {
-      codecList = gH264Codecs;
-    }
   }
 #endif
 #ifdef MOZ_WMF
   if (WMFDecoder::GetSupportedCodecs(nsDependentCString(aMIMEType), &codecList)) {
-    result = CANPLAY_MAYBE;
-  }
-#endif
-#ifdef MOZ_DIRECTSHOW
-  if (DirectShowDecoder::GetSupportedCodecs(nsDependentCString(aMIMEType), &codecList)) {
     result = CANPLAY_MAYBE;
   }
 #endif
@@ -430,7 +404,7 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
   if (IsOmxSupportedType(aType)) {
     // AMR audio is enabled for MMS, but we are discouraging Web and App
     // developers from using AMR, thus we only allow AMR to be played on WebApps.
-    if (aType.EqualsASCII("audio/amr")) {
+    if (aType.EqualsASCII("audio/amr") || aType.EqualsASCII("video/3gpp")) {
       HTMLMediaElement* element = aOwner->GetMediaElement();
       if (!element) {
         return nullptr;
@@ -459,13 +433,6 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
 #ifdef MOZ_DASH
   if (IsDASHMPDType(aType)) {
     decoder = new DASHDecoder();
-  }
-#endif
-#ifdef MOZ_DIRECTSHOW
-  // Note: DirectShow decoder must come before WMFDecoder, else the pref
-  // "media.directshow.preferred" won't be honored.
-  if (IsDirectShowSupportedType(aType)) {
-    decoder = new DirectShowDecoder();
   }
 #endif
 #ifdef MOZ_WMF
@@ -521,13 +488,6 @@ MediaDecoderReader* DecoderTraits::CreateReader(const nsACString& aType, Abstrac
     decoderReader = new WebMReader(aDecoder);
   } else
 #endif
-#ifdef MOZ_DIRECTSHOW
-  // Note: DirectShowReader is preferred for MP3, but if it's disabled we
-  // fallback to the WMFReader.
-  if (IsDirectShowSupportedType(aType)) {
-    decoderReader = new DirectShowReader(aDecoder);
-  } else
-#endif
 #ifdef MOZ_WMF
   if (IsWMFSupportedType(aType)) {
     decoderReader = new WMFReader(aDecoder);
@@ -549,9 +509,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     IsOggType(aType) ||
 #endif
 #ifdef MOZ_OMX_DECODER
-    // We support amr inside WebApps on firefoxOS but not in general web content.
-    // Ensure we dont create a VideoDocument when accessing amr URLs directly.
-    (IsOmxSupportedType(aType) && !aType.EqualsASCII("audio/amr")) ||
+    IsOmxSupportedType(aType) ||
 #endif
 #ifdef MOZ_WEBM
     IsWebMType(aType) ||
@@ -566,11 +524,7 @@ bool DecoderTraits::IsSupportedInVideoDocument(const nsACString& aType)
     (MediaDecoder::IsMediaPluginsEnabled() && IsMediaPluginsType(aType)) ||
 #endif
 #ifdef MOZ_WMF
-    (IsWMFSupportedType(aType) &&
-     Preferences::GetBool("media.windows-media-foundation.play-stand-alone", true)) ||
-#endif
-#ifdef MOZ_DIRECTSHOW
-    IsDirectShowSupportedType(aType) ||
+    IsWMFSupportedType(aType) ||
 #endif
     false;
 }

@@ -50,7 +50,7 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "mozilla/dom/Element.h"
+#include "mozilla/dom/Element.h" // DOMCI_NODE_DATA
 #include "mozilla/dom/XMLDocumentBinding.h"
 
 using namespace mozilla;
@@ -173,22 +173,24 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   return NS_OK;
 }
 
+
 nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData)
 {
-  nsRefPtr<XMLDocument> doc = new XMLDocument();
+  XMLDocument* doc = new XMLDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_OUT_OF_MEMORY);
 
+  NS_ADDREF(doc);
   nsresult rv = doc->Init();
 
   if (NS_FAILED(rv)) {
-    *aInstancePtrResult = nullptr;
-    return rv;
+    NS_RELEASE(doc);
   }
 
+  *aInstancePtrResult = doc;
   doc->SetLoadedAsData(aLoadedAsData);
-  doc.forget(aInstancePtrResult);
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -221,6 +223,8 @@ XMLDocument::XMLDocument(const char* aContentType)
 {
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
+
+  SetIsDOMBinding();
 }
 
 XMLDocument::~XMLDocument()
@@ -230,7 +234,17 @@ XMLDocument::~XMLDocument()
 }
 
 // QueryInterface implementation for XMLDocument
-NS_IMPL_ISUPPORTS_INHERITED1(XMLDocument, nsDocument, nsIDOMXMLDocument)
+NS_INTERFACE_TABLE_HEAD(XMLDocument)
+  NS_DOCUMENT_INTERFACE_TABLE_BEGIN(XMLDocument)
+    NS_INTERFACE_TABLE_ENTRY(XMLDocument, nsIDOMXMLDocument)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_INTERFACE_MAP_END_INHERITING(nsDocument)
+
+
+NS_IMPL_ADDREF_INHERITED(XMLDocument, nsDocument)
+NS_IMPL_RELEASE_INHERITED(XMLDocument, nsDocument)
+
 
 nsresult
 XMLDocument::Init()
@@ -602,6 +616,7 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
                "Can't import this document into another document!");
 
   nsRefPtr<XMLDocument> clone = new XMLDocument();
+  NS_ENSURE_TRUE(clone, NS_ERROR_OUT_OF_MEMORY);
   nsresult rv = CloneDocHelper(clone);
   NS_ENSURE_SUCCESS(rv, rv);
 

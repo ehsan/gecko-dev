@@ -5,14 +5,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
+#include "nsIScriptContext.h"
 #include "nsIDocument.h"
+#include "nsIArray.h"
 #include "nsIScriptTimeoutHandler.h"
 #include "nsIXPConnect.h"
+#include "nsIJSRuntimeService.h"
 #include "nsJSUtils.h"
+#include "nsDOMJSUtils.h"
 #include "nsContentUtils.h"
+#include "nsJSEnvironment.h"
+#include "nsServiceManagerUtils.h"
 #include "nsError.h"
 #include "nsGlobalWindow.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsAlgorithm.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
@@ -60,19 +67,16 @@ private:
   // caller of setTimeout()
   nsCString mFileName;
   uint32_t mLineNo;
-  nsTArray<JS::Heap<JS::Value> > mArgs;
+  nsTArray<JS::Value> mArgs;
 
   // The JS expression to evaluate or function to call, if !mExpr
-  // Note this is always a flat string.
-  JS::Heap<JSString*> mExpr;
+  JSFlatString *mExpr;
   nsRefPtr<Function> mFunction;
 };
 
 
 // nsJSScriptTimeoutHandler
 // QueryInterface implementation for nsJSScriptTimeoutHandler
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSScriptTimeoutHandler)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -184,6 +188,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   JS::Rooted<JSFlatString*> expr(cx);
   JS::Rooted<JSObject*> funobj(cx);
 
+  JSAutoRequest ar(cx);
+
   if (argc < 1) {
     ::JS_ReportError(cx, "Function %s requires at least 2 parameter",
                      *aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
@@ -191,15 +197,11 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   }
 
   int32_t interval = 0;
-  if (argc > 1) {
-    JS::Rooted<JS::Value> arg(cx, argv[1]);
-
-    if (!JS::ToInt32(cx, arg, &interval)) {
-      ::JS_ReportError(cx,
-                       "Second argument to %s must be a millisecond interval",
-                       aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
-      return NS_ERROR_DOM_TYPE_ERR;
-    }
+  if (argc > 1 && !::JS_ValueToECMAInt32(cx, argv[1], &interval)) {
+    ::JS_ReportError(cx,
+                     "Second argument to %s must be a millisecond interval",
+                     aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
+    return NS_ERROR_DOM_TYPE_ERR;
   }
 
   if (argc == 1) {
@@ -281,7 +283,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
 
     NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 
-    mExpr = JS_FORGET_STRING_FLATNESS(expr);
+    mExpr = expr;
 
     // Get the calling location.
     const char *filename;
@@ -299,8 +301,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     // array.
     // std::max(argc - 2, 0) wouldn't work right because argc is unsigned.
     uint32_t argCount = std::max(argc, 2u) - 2;
-
-    FallibleTArray<JS::Heap<JS::Value> > args;
+    FallibleTArray<JS::Value> args;
     if (!args.SetCapacity(argCount)) {
       // No need to drop here, since we already have a non-null mFunction
       return NS_ERROR_OUT_OF_MEMORY;
@@ -320,7 +321,7 @@ const PRUnichar *
 nsJSScriptTimeoutHandler::GetHandlerText()
 {
   NS_ASSERTION(mExpr, "No expression, so no handler text!");
-  return ::JS_GetFlatStringChars(JS_ASSERT_STRING_IS_FLAT(mExpr));
+  return ::JS_GetFlatStringChars(mExpr);
 }
 
 nsresult NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,

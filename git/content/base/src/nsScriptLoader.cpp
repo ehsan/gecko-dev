@@ -19,6 +19,7 @@
 #include "nsNetUtil.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
@@ -29,7 +30,6 @@
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDocShell.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
 #include "nsIXPConnect.h"
@@ -74,7 +74,7 @@ public:
   {
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   void FireScriptAvailable(nsresult aResult)
   {
@@ -104,7 +104,7 @@ public:
 // The nsScriptLoadRequest is passed as the context to necko, and thus
 // it needs to be threadsafe. Necko won't do anything with this
 // context, but it will AddRef and Release it on other threads.
-NS_IMPL_ISUPPORTS0(nsScriptLoadRequest)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 
 //////////////////////////////////////////////////////////////
 //
@@ -272,7 +272,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
 
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetWindow()));
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
   if (!window) {
     return NS_ERROR_NULL_POINTER;
   }
@@ -429,8 +429,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // For now though, if JS is disabled we assume every language is
   // disabled.
   // XXX is this different from the mDocument->IsScriptEnabled() call?
-  nsCOMPtr<nsIScriptGlobalObject> globalObject =
-    do_QueryInterface(mDocument->GetWindow());
+  nsIScriptGlobalObject *globalObject = mDocument->GetScriptGlobalObject();
   if (!globalObject) {
     return false;
   }
@@ -727,22 +726,11 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
 
   FireScriptAvailable(NS_OK, aRequest);
 
-  // The window may have gone away by this point, in which case there's no point
-  // in trying to run the script.
-  nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
-  bool runScript = !!pwin;
-  if (runScript) {
-    nsContentUtils::DispatchTrustedEvent(scriptElem->OwnerDoc(),
-                                         scriptElem,
-                                         NS_LITERAL_STRING("beforescriptexecute"),
-                                         true, true, &runScript);
-  }
-
-  // Inner window could have gone away after firing beforescriptexecute
-  pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
-    runScript = false;
-  }
+  bool runScript = true;
+  nsContentUtils::DispatchTrustedEvent(scriptElem->OwnerDoc(),
+                                       scriptElem,
+                                       NS_LITERAL_STRING("beforescriptexecute"),
+                                       true, true, &runScript);
 
   nsresult rv = NS_OK;
   if (runScript) {
@@ -817,8 +805,9 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   }
 
   nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
-  NS_ASSERTION(pwin, "shouldn't be called with a null inner window");
-
+  if (!pwin) {
+    return NS_ERROR_FAILURE;
+  }
   nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
   NS_ASSERTION(globalObject, "windows must be global objects");
 
@@ -867,6 +856,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   // Put the old script back in case it wants to do anything else.
   mCurrentScript = oldCurrent;
 
+  JSAutoRequest ar(cx);
   context->SetProcessingScriptTag(oldProcessingScriptTag);
   return rv;
 }

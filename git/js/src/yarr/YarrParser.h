@@ -25,10 +25,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrParser_h
-#define yarr_YarrParser_h
+#ifndef YarrParser_h
+#define YarrParser_h
 
-#include "yarr/Yarr.h"
+#include "Yarr.h"
 
 namespace JSC { namespace Yarr {
 
@@ -846,4 +846,4 @@ ErrorCode parse(Delegate& delegate, const String& pattern, unsigned backReferenc
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrParser_h */
+#endif // YarrParser_h

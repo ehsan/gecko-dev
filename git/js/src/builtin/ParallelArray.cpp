@@ -4,14 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "builtin/ParallelArray.h"
-
 #include "jsapi.h"
 #include "jsobj.h"
+#include "jsarray.h"
 
+#include "builtin/ParallelArray.h"
+
+#include "vm/ForkJoin.h"
 #include "vm/GlobalObject.h"
 #include "vm/String.h"
+#include "vm/ThreadPool.h"
 
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -86,7 +90,7 @@ ParallelArrayObject::initProps(JSContext *cx, HandleObject obj)
     return true;
 }
 
-/*static*/ bool
+/*static*/ JSBool
 ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
 {
     RootedFunction ctor(cx, getConstructor(cx, argc));
@@ -104,8 +108,8 @@ ParallelArrayObject::getConstructor(JSContext *cx, unsigned argc)
     RootedValue ctorValue(cx);
     if (!cx->global()->getIntrinsicValue(cx, ctorName, &ctorValue))
         return NULL;
-    JS_ASSERT(ctorValue.isObject() && ctorValue.toObject().is<JSFunction>());
-    return &ctorValue.toObject().as<JSFunction>();
+    JS_ASSERT(ctorValue.isObject() && ctorValue.toObject().isFunction());
+    return ctorValue.toObject().toFunction();
 }
 
 /*static*/ JSObject *
@@ -123,7 +127,7 @@ ParallelArrayObject::newInstance(JSContext *cx, NewObjectKind newKind /* = Gener
     return result;
 }
 
-/*static*/ bool
+/*static*/ JSBool
 ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args0)
 {
     RootedObject result(cx, newInstance(cx, TenuredObject));
@@ -132,7 +136,7 @@ ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, 
 
     if (cx->typeInferenceEnabled()) {
         jsbytecode *pc;
-        RootedScript script(cx, cx->currentScript(&pc));
+        RootedScript script(cx, cx->stack.currentScript(&pc));
         if (script) {
             if (ctor->nonLazyScript()->shouldCloneAtCallsite) {
                 ctor.set(CloneFunctionAtCallsite(cx, ctor, script, pc));
@@ -162,15 +166,15 @@ ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, 
         }
     }
 
-    InvokeArgs args(cx);
-    if (!args.init(args0.length()))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, args0.length(), &args))
         return false;
 
     args.setCallee(ObjectValue(*ctor));
     args.setThis(ObjectValue(*result));
 
     for (uint32_t i = 0; i < args0.length(); i++)
-        args[i].set(args0[i]);
+        args[i] = args0[i];
 
     if (!Invoke(cx, args))
         return false;
@@ -198,7 +202,7 @@ ParallelArrayObject::initClass(JSContext *cx, HandleObject obj)
         }
     }
 
-    Rooted<GlobalObject *> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject *> global(cx, &obj->asGlobal());
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &protoClass));
     if (!proto)

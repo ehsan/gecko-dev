@@ -15,7 +15,6 @@
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsIRollupListener.h"
-#include "nsIObserver.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -38,21 +37,6 @@ class CompositorParent;
 namespace base {
 class Thread;
 }
-
-class nsBaseWidget;
-
-class WidgetShutdownObserver MOZ_FINAL : public nsIObserver
-{
-public:
-  WidgetShutdownObserver(nsBaseWidget* aWidget)
-    : mWidget(aWidget)
-  { }
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  nsBaseWidget *mWidget;
-};
 
 /**
  * Common widget implementation used as base class for native
@@ -137,9 +121,6 @@ public:
   virtual void            PreRender(LayerManager* aManager) {}
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
-  virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing();
-  virtual void            EndRemoteDrawing() { };
-  virtual void            CleanupRemoteDrawing() { };
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
@@ -167,6 +148,8 @@ public:
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
+  NS_IMETHOD              BeginSecureKeyboardInput();
+  NS_IMETHOD              EndSecureKeyboardInput();
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, bool aActive);
   virtual void            SetDrawsInTitlebar(bool aState) {}
   virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect);
@@ -181,7 +164,7 @@ public:
   virtual bool            ComputeShouldAccelerate(bool aDefault);
   NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              NotifyIMEOfTextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE { return nsIMEUpdatePreference(); }
+  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(false, false); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
                                                          double aOriginalDeltaY,
@@ -210,7 +193,7 @@ public:
 
 #ifdef ACCESSIBILITY
   // Get the accessible for the window.
-  mozilla::a11y::Accessible* GetRootAccessible();
+  mozilla::a11y::Accessible* GetAccessible();
 #endif
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }
@@ -273,8 +256,6 @@ public:
 
   static nsIRollupListener* GetActiveRollupListener();
 
-  void Shutdown();
-
 protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
@@ -319,11 +300,6 @@ protected:
   // if the new rectangles are different from the old rectangles.
   bool StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
 
-  // We don't want to accelerate small popup windows like menu, but we still
-  // want to accelerate xul panels that may contain arbitrarily complex content.
-  bool IsSmallPopup();
-
-
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()
   {
@@ -361,12 +337,7 @@ protected:
 
   virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
 
-  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
-
-  /**
-   * Notify the widget that this window is being used with OMTC.
-   */
-  virtual void WindowUsesOMTC() {}
+  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend();
 
 protected:
   /**
@@ -387,7 +358,6 @@ protected:
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
-  nsCOMPtr<WidgetShutdownObserver> mShutdownObserver;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

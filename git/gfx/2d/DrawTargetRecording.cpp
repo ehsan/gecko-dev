@@ -77,7 +77,7 @@ GetGradientStops(GradientStops *aStops)
 struct AdjustedPattern
 {
   AdjustedPattern(const Pattern &aPattern)
-    : mPattern(nullptr)
+    : mPattern(NULL)
   {
     mOrigPattern = const_cast<Pattern*>(&aPattern);
   }
@@ -186,7 +186,7 @@ Path*
 DrawTargetRecording::GetPathForPathRecording(const Path *aPath) const
 {
   if (aPath->GetBackendType() != BACKEND_RECORDING) {
-    return nullptr;
+    return NULL;
   }
 
   return static_cast<const PathRecording*>(aPath)->mPath;
@@ -246,16 +246,6 @@ DrawTargetRecording::Mask(const Pattern &aSource,
 {
   mRecorder->RecordEvent(RecordedMask(this, aSource, aMask, aOptions));
   mFinalDT->Mask(*AdjustedPattern(aSource), *AdjustedPattern(aMask), aOptions);
-}
-
-void
-DrawTargetRecording::MaskSurface(const Pattern &aSource,
-                                 SourceSurface *aMask,
-                                 Point aOffset,
-                                 const DrawOptions &aOptions)
-{
-  mRecorder->RecordEvent(RecordedMaskSurface(this, aSource, aMask, aOffset, aOptions));
-  mFinalDT->MaskSurface(*AdjustedPattern(aSource), GetSourceSurface(aMask), aOffset, aOptions);
 }
 
 void

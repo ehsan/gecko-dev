@@ -8,8 +8,8 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let modules = {
   start: {
-    uri: "chrome://browser/content/Start.xul",
-    privileged: true
+    uri: "about:blank",
+    privileged: false
   },
   // about:blank has some bad loading behavior we can avoid, if we use an alias
   empty: {
@@ -36,8 +36,13 @@ let modules = {
     uri: "chrome://browser/content/aboutCertError.xhtml",
     privileged: true
   },
+  // an alias for about:start
   home: {
-    uri: "about:start",
+    uri: "about:blank",
+    privileged: true
+  },
+  crash: {
+    uri: "chrome://browser/content/aboutCrash.xhtml",
     privileged: true
   }
 }

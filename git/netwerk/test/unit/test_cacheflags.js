@@ -5,16 +5,14 @@ const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 
-var httpserver = new HttpServer();
-httpserver.start(-1);
+var httpserver = null;
 
 // Need to randomize, because apparently no one clears our cache
 var suffix = Math.random();
-var httpBase = "http://localhost:" + httpserver.identity.primaryPort;
+var httpBase = "http://localhost:4444";
 var httpsBase = "http://localhost:4445";
 var shortexpPath = "/shortexp" + suffix;
-var longexpPath = "/longexp/" + suffix;
-var longexp2Path = "/longexp/2/" + suffix;
+var longexpPath = "/longexp" + suffix;
 var nocachePath = "/nocache" + suffix;
 var nostorePath = "/nostore" + suffix;
 
@@ -184,15 +182,6 @@ var gTests = [
            true,   // read from cache
            false), // hit server
 
-  new Test(httpBase + longexp2Path, 0,
-           true,   // expect success
-           false,  // read from cache
-           true),  // hit server
-  new Test(httpBase + longexp2Path, 0,
-           true,   // expect success
-           true,   // read from cache
-           false), // hit server
-
   new Test(httpBase + nocachePath, 0,
            true,   // expect success
            false,  // read from cache
@@ -306,18 +295,13 @@ function longexp_handler(metadata, response) {
   handler(metadata, response);
 }
 
-// test spaces around max-age value token
-function longexp2_handler(metadata, response) {
-  response.setHeader("Cache-Control", "max-age = 10000", false);
-  handler(metadata, response);
-}
-
 function run_test() {
+  httpserver = new HttpServer();
   httpserver.registerPathHandler(shortexpPath, shortexp_handler);
   httpserver.registerPathHandler(longexpPath, longexp_handler);
-  httpserver.registerPathHandler(longexp2Path, longexp2_handler);
   httpserver.registerPathHandler(nocachePath, nocache_handler);
   httpserver.registerPathHandler(nostorePath, nostore_handler);
+  httpserver.start(4444);
 
   run_next_test();
   do_test_pending();

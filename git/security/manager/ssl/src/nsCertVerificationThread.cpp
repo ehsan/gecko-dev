@@ -4,19 +4,18 @@
 
 #include "nsCertVerificationThread.h"
 #include "nsThreadUtils.h"
-#include "nsProxyRelease.h"
 
 using namespace mozilla;
 
 nsCertVerificationThread *nsCertVerificationThread::verification_thread_singleton;
 
-NS_IMPL_ISUPPORTS1(nsCertVerificationResult, nsICertVerificationResult)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCertVerificationResult, nsICertVerificationResult)
 
 namespace {
 class DispatchCertVerificationResult : public nsRunnable
 {
 public:
-  DispatchCertVerificationResult(const nsMainThreadPtrHandle<nsICertVerificationListener>& aListener,
+  DispatchCertVerificationResult(nsICertVerificationListener* aListener,
                                  nsIX509Cert3* aCert,
                                  nsICertVerificationResult* aResult)
     : mListener(aListener)
@@ -30,7 +29,7 @@ public:
   }
 
 private:
-  nsMainThreadPtrHandle<nsICertVerificationListener> mListener;
+  nsCOMPtr<nsICertVerificationListener> mListener;
   nsCOMPtr<nsIX509Cert3> mCert;
   nsCOMPtr<nsICertVerificationResult> mResult;
 };

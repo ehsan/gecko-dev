@@ -109,7 +109,7 @@ private:
 //// StorageBaseStatementInternal
 
 StorageBaseStatementInternal::StorageBaseStatementInternal()
-: mAsyncStatement(nullptr)
+: mAsyncStatement(NULL)
 {
 }
 

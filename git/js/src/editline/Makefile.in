@@ -11,6 +11,7 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = editline
 FORCE_STATIC_LIB = 1
 
 CSRCS = editline.c sysunix.c

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Barrier_h
-#define gc_Barrier_h
+#ifndef jsgc_barrier_h___
+#define jsgc_barrier_h___
 
 #include "jsapi.h"
 
@@ -116,8 +116,6 @@
 
 namespace js {
 
-class PropertyName;
-
 template<class T, typename Unioned = uintptr_t>
 class EncapsulatedPtr
 {
@@ -133,11 +131,6 @@ class EncapsulatedPtr
     explicit EncapsulatedPtr(const EncapsulatedPtr<T> &v) : value(v.value) {}
 
     ~EncapsulatedPtr() { pre(); }
-
-    void init(T *v) {
-        JS_ASSERT(!IsPoisonedPtr<T>(v));
-        this->value = v;
-    }
 
     /* Use to set the pointer to NULL. */
     void clear() {
@@ -268,7 +261,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
 
     ~RelocatablePtr() {
         if (this->value)
-            relocate(this->value->runtimeFromMainThread());
+            relocate(this->value->runtime());
     }
 
     RelocatablePtr<T> &operator=(T *v) {
@@ -278,7 +271,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromMainThread();
+            JSRuntime *rt = this->value->runtime();
             this->value = v;
             relocate(rt);
         }
@@ -292,7 +285,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v.value;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromMainThread();
+            JSRuntime *rt = this->value->runtime();
             this->value = v;
             relocate(rt);
         }
@@ -391,14 +384,8 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
     }
     inline ~EncapsulatedValue();
 
-    void init(const Value &v) {
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v;
-    }
-    void init(JSRuntime *rt, const Value &v) {
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v;
-    }
+    inline void init(const Value &v);
+    inline void init(JSRuntime *rt, const Value &v);
 
     inline EncapsulatedValue &operator=(const Value &v);
     inline EncapsulatedValue &operator=(const EncapsulatedValue &v);
@@ -421,13 +408,9 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
     inline void pre();
     inline void pre(Zone *zone);
 
-    static inline JSRuntime *runtimeFromMainThread(const Value &v) {
+    static inline JSRuntime *runtime(const Value &v) {
         JS_ASSERT(v.isMarkable());
-        return static_cast<js::gc::Cell *>(v.toGCThing())->runtimeFromMainThread();
-    }
-    static inline JSRuntime *runtimeFromAnyThread(const Value &v) {
-        JS_ASSERT(v.isMarkable());
-        return static_cast<js::gc::Cell *>(v.toGCThing())->runtimeFromAnyThread();
+        return static_cast<js::gc::Cell *>(v.toGCThing())->runtime();
     }
 
   private:
@@ -508,13 +491,12 @@ class HeapSlot : public EncapsulatedValue
     inline void set(JSObject *owner, Kind kind, uint32_t slot, const Value &v);
     inline void set(Zone *zone, JSObject *owner, Kind kind, uint32_t slot, const Value &v);
 
-    static inline void writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot, Value target);
-    static inline void writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot,
-                                        Value target);
+    static inline void writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot);
+    static inline void writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot);
 
   private:
-    inline void post(JSObject *owner, Kind kind, uint32_t slot, Value target);
-    inline void post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot, Value target);
+    inline void post(JSObject *owner, Kind kind, uint32_t slot);
+    inline void post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot);
 };
 
 /*
@@ -666,6 +648,15 @@ class ReadBarrieredValue
     inline JSObject &toObject() const;
 };
 
+namespace tl {
+
+template <class T> struct IsRelocatableHeapType<HeapPtr<T> >
+                                                    { static const bool result = false; };
+template <> struct IsRelocatableHeapType<HeapSlot>  { static const bool result = false; };
+template <> struct IsRelocatableHeapType<HeapValue> { static const bool result = false; };
+template <> struct IsRelocatableHeapType<HeapId>    { static const bool result = false; };
+
+} /* namespace tl */
 } /* namespace js */
 
-#endif /* gc_Barrier_h */
+#endif /* jsgc_barrier_h___ */

@@ -28,11 +28,10 @@
 #include "mozilla/ipc/Netd.h"
 #include "AutoMounter.h"
 #include "TimeZoneSettingObserver.h"
-#include "AudioManager.h"
 #endif
 #include "mozilla/ipc/Ril.h"
 #include "nsIObserverService.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsRadioInterfaceLayer.h"
@@ -60,8 +59,11 @@ SystemWorkerManager *gInstance = nullptr;
 
 class ConnectWorkerToRIL : public WorkerTask
 {
+  const unsigned long mClientId;
+
 public:
-  ConnectWorkerToRIL()
+  ConnectWorkerToRIL(unsigned long aClientId)
+    : mClientId(aClientId)
   { }
 
   virtual bool RunTask(JSContext *aCx);
@@ -88,7 +90,7 @@ private:
   unsigned long mClientId;
 };
 
-bool
+JSBool
 PostToRIL(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
@@ -152,7 +154,12 @@ ConnectWorkerToRIL::RunTask(JSContext *aCx)
   // communication.
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
   NS_ASSERTION(!JS_IsRunning(aCx), "Are we being called somehow?");
-  JSObject *workerGlobal = JS::CurrentGlobalOrNull(aCx);
+  JSObject *workerGlobal = JS_GetGlobalObject(aCx);
+
+  if (!JS_DefineProperty(aCx, workerGlobal, "CLIENT_ID",
+                         INT_TO_JSVAL(mClientId), nullptr, nullptr, 0)) {
+    return false;
+  }
 
   return !!JS_DefineFunction(aCx, workerGlobal, "postRILMessage", PostToRIL, 1,
                              0);
@@ -160,7 +167,7 @@ ConnectWorkerToRIL::RunTask(JSContext *aCx)
 
 #ifdef MOZ_WIDGET_GONK
 
-bool
+JSBool
 DoNetdCommand(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
@@ -253,7 +260,7 @@ ConnectWorkerToNetd::RunTask(JSContext *aCx)
   // communication.
   NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
   NS_ASSERTION(!JS_IsRunning(aCx), "Are we being called somehow?");
-  JSObject *workerGlobal = JS::CurrentGlobalOrNull(aCx);
+  JSObject *workerGlobal = JS_GetGlobalObject(aCx);
   return !!JS_DefineFunction(aCx, workerGlobal, "postNetdCommand",
                              DoNetdCommand, 1, 0);
 }
@@ -292,7 +299,7 @@ private:
 bool
 NetdReceiver::DispatchNetdEvent::RunTask(JSContext *aCx)
 {
-  JSObject *obj = JS::CurrentGlobalOrNull(aCx);
+  JSObject *obj = JS_GetGlobalObject(aCx);
 
   JSObject *array = JS_NewUint8Array(aCx, mMessage->mSize);
   if (!array) {
@@ -347,8 +354,6 @@ SystemWorkerManager::Init()
   InitializeTimeZoneSettingObserver();
   rv = InitNetd(cx);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIAudioManager> audioManager =
-    do_GetService(NS_AUDIOMANAGER_CONTRACTID);
 #endif
 
   nsCOMPtr<nsIObserverService> obs =
@@ -481,6 +486,7 @@ SystemWorkerManager::RegisterRilWorker(unsigned int aClientId,
     return NS_ERROR_FAILURE;
   }
 
+  JSAutoRequest ar(aCx);
   JSAutoCompartment ac(aCx, JSVAL_TO_OBJECT(aWorker));
 
   WorkerCrossThreadDispatcher *wctd =
@@ -490,7 +496,7 @@ SystemWorkerManager::RegisterRilWorker(unsigned int aClientId,
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<ConnectWorkerToRIL> connection = new ConnectWorkerToRIL();
+  nsRefPtr<ConnectWorkerToRIL> connection = new ConnectWorkerToRIL(aClientId);
   if (!wctd->PostTask(connection)) {
     NS_WARNING("Failed to connect worker to ril");
     return NS_ERROR_UNEXPECTED;
@@ -513,6 +519,7 @@ SystemWorkerManager::InitNetd(JSContext *cx)
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(workerval), NS_ERROR_UNEXPECTED);
 
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(workerval));
 
   WorkerCrossThreadDispatcher *wctd =

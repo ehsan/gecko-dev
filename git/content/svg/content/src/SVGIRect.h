@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGIRect_h
 #define mozilla_dom_SVGIRect_h
 
+#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/dom/SVGRectBinding.h"
 #include "mozilla/Attributes.h"
@@ -22,7 +23,8 @@ class SVGIRect : public nsISupports,
                  public nsWrapperCache
 {
 public:
-  SVGIRect()
+  SVGIRect(nsIContent* aParent)
+    : mParent(aParent)
   {
     SetIsDOMBinding();
   }
@@ -31,12 +33,15 @@ public:
   {
   }
 
-  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   {
     return SVGRectBinding::Wrap(aCx, aScope, this);
   }
 
-  virtual nsIContent* GetParentObject() const = 0;
+  nsIContent* GetParentObject() const
+  {
+    return mParent;
+  }
 
   virtual float X() const = 0;
 
@@ -53,6 +58,9 @@ public:
   virtual float Height() const = 0;
 
   virtual void SetHeight(float aHeight, ErrorResult& aRv) = 0;
+
+private:
+  nsCOMPtr<nsIContent> mParent;
 };
 
 } // namespace dom

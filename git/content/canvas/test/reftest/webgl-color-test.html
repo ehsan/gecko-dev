@@ -45,10 +45,19 @@ function renderGL(gl) {
   gl.finish();
 }
 
-function renderFailure(canvas) {
-  // This will also trigger RAF for us.
+function renderBackup(canvas) {
   var context = canvas.getContext("2d");
-  context.fillText('WebGL failed.', 64, 64);
+  context.fillStyle = "rgba(255, 0, 0, 1.0)";
+  context.fillRect(0, 0, 128, 128);
+
+  context.fillStyle = "rgba(0, 255, 0, 1.0)";
+  context.fillRect(128, 0, 128, 128);
+
+  context.fillStyle = "rgba(0, 0, 255, 1.0)";
+  context.fillRect(0, 128, 128, 128);
+
+  context.fillStyle = "rgba(255, 255, 255, 1.0)";
+  context.fillRect(128, 128, 128, 128);
 }
 
 function runTest() {
@@ -58,7 +67,7 @@ function runTest() {
   if (gl)
     renderGL(gl);
   else
-    renderFailure(canvas);
+    renderBackup(canvas);
 
   rAF(testComplete);
 }

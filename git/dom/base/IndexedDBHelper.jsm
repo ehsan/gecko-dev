@@ -32,7 +32,6 @@ IndexedDBHelper.prototype = {
   close: function close() {
     if (this._db) {
       this._db.close();
-      this._db = null;
     }
   },
 
@@ -69,7 +68,7 @@ IndexedDBHelper.prototype = {
     };
     req.onerror = function (aEvent) {
       if (DEBUG) debug("Failed to open database:" + self.dbName);
-      aFailureCb(aEvent.target.error.name);
+      aFailureCb(aEvent.target.errorMessage);
     };
     req.onblocked = function (aEvent) {
       if (DEBUG) debug("Opening database request is blocked.");

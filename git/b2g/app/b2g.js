@@ -50,9 +50,6 @@ pref("network.http.max-connections", 20);
 pref("network.http.max-persistent-connections-per-server", 6);
 pref("network.http.max-persistent-connections-per-proxy", 20);
 
-// spdy
-pref("network.http.spdy.push-allowance", 32768);
-
 // See bug 545869 for details on why these are set the way they are
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  16384);
@@ -177,8 +174,6 @@ pref("content.sink.perf_parse_time", 50000000);
 
 // Maximum scripts runtime before showing an alert
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
-// Disable the watchdog thread for B2G. See bug 870043 comment 31.
-pref("dom.use_watchdog", false);
 
 // plugins
 pref("plugin.disable", true);
@@ -242,21 +237,27 @@ pref("ui.dragThresholdY", 25);
 #ifndef MOZ_WIDGET_GONK
 pref("dom.ipc.tabs.disabled", true);
 pref("layers.offmainthreadcomposition.enabled", false);
-pref("layers.offmainthreadcomposition.async-animations", false);
+pref("layers.offmainthreadcomposition.animate-opacity", false);
+pref("layers.offmainthreadcomposition.animate-transform", false);
+pref("layers.offmainthreadcomposition.throttle-animations", false);
 pref("layers.async-video.enabled", false);
 #else
 pref("dom.ipc.tabs.disabled", false);
 pref("layers.offmainthreadcomposition.enabled", true);
 pref("layers.acceleration.disabled", false);
-pref("layers.offmainthreadcomposition.async-animations", true);
+pref("layers.offmainthreadcomposition.animate-opacity", true);
+pref("layers.offmainthreadcomposition.animate-transform", true);
+pref("layers.offmainthreadcomposition.throttle-animations", true);
 pref("layers.async-video.enabled", true);
 pref("layers.async-pan-zoom.enabled", true);
 #endif
 
 // Web Notifications
 pref("notification.feature.enabled", true);
+pref("dom.webnotifications.enabled", false);
 
 // IndexedDB
+pref("indexedDB.feature.enabled", true);
 pref("dom.indexedDB.warningQuota", 5);
 
 // prevent video elements from preloading too much data
@@ -377,41 +378,28 @@ pref("dom.ipc.processCount", 100000);
 
 pref("dom.ipc.browser_frames.oop_by_default", false);
 
-// SMS/MMS
+// Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
 pref("dom.sms.strict7BitEncoding", false); // Disabled by default.
 pref("dom.sms.requestStatusReport", true); // Enabled by default.
-pref("dom.mms.requestStatusReport", true); // Enabled by default.
 
-// WebContacts
+// Temporary permission hack for WebContacts
 pref("dom.mozContacts.enabled", true);
-pref("dom.navigator-property.disable.mozContacts", false);
-pref("dom.global-constructor.disable.mozContact", false);
-
-// Shortnumber matching needed for e.g. Brazil:
-// 01187654321 can be found with 87654321
-pref("dom.phonenumber.substringmatching.BR", 8);
-pref("dom.phonenumber.substringmatching.CO", 10);
-pref("dom.phonenumber.substringmatching.VE", 7);
 
 // WebAlarms
 pref("dom.mozAlarms.enabled", true);
 
 // SimplePush
 pref("services.push.enabled", true);
-// Is the network connection allowed to be up?
-// This preference should be used in UX to enable/disable push.
-pref("services.push.connection.enabled", true);
 // serverURL to be assigned by services team
-pref("services.push.serverURL", "wss://push.services.mozilla.com/");
+pref("services.push.serverURL", "");
 pref("services.push.userAgentID", "");
-// Exponential back-off start is 5 seconds like in HTTP/1.1.
-// Maximum back-off is pingInterval.
+// exponential back-off start is 5 seconds like in HTTP/1.1
 pref("services.push.retryBaseInterval", 5000);
-// Interval at which to ping PushServer to check connection status. In
-// milliseconds. If no reply is received within requestTimeout, the connection
-// is considered closed.
-pref("services.push.pingInterval", 1800000); // 30 minutes
+// WebSocket level ping transmit interval in seconds.
+pref("services.push.websocketPingInterval", 55);
+// exponential back-off end is 20 minutes
+pref("services.push.maxRetryInterval", 1200000);
 // How long before a DOMRequest errors as timeout
 pref("services.push.requestTimeout", 10000);
 // enable udp wakeup support
@@ -422,12 +410,11 @@ pref("services.push.udp.port", 2442);
 // NetworkStats
 #ifdef MOZ_B2G_RIL
 pref("dom.mozNetworkStats.enabled", true);
-pref("ril.cellbroadcast.disabled", false);
+pref("ril.lastKnownMcc", "724");
 #endif
 
 // WebSettings
 pref("dom.mozSettings.enabled", true);
-pref("dom.navigator-property.disable.mozSettings", false);
 pref("dom.mozPermissionSettings.enabled", true);
 
 // controls if we want camera support
@@ -533,9 +520,6 @@ pref("ui.click_hold_context_menus.delay", 750);
 // Enable device storage
 pref("device.storage.enabled", true);
 
-// Enable pre-installed applications
-pref("dom.webapps.useCurrentProfile", true);
-
 // Enable system message
 pref("dom.sysmsg.enabled", true);
 pref("media.plugins.enabled", false);
@@ -559,17 +543,16 @@ pref("javascript.options.mem.log", false);
 // Increase mark slice time from 10ms to 30ms
 pref("javascript.options.mem.gc_incremental_slice_ms", 30);
 
-// Increase time to get more high frequency GC on benchmarks from 1000ms to 1500ms
-pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 1500);
-
-pref("javascript.options.mem.gc_high_frequency_heap_growth_max", 300);
+pref("javascript.options.mem.gc_high_frequency_heap_growth_max", 150);
 pref("javascript.options.mem.gc_high_frequency_heap_growth_min", 120);
 pref("javascript.options.mem.gc_high_frequency_high_limit_mb", 40);
-pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 0);
+pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 10);
 pref("javascript.options.mem.gc_low_frequency_heap_growth", 120);
 pref("javascript.options.mem.high_water_mark", 6);
-pref("javascript.options.mem.gc_allocation_threshold_mb", 1);
-pref("javascript.options.mem.gc_decommit_threshold_mb", 1);
+pref("javascript.options.mem.gc_allocation_threshold_mb", 3);
+
+// Allocation Threshold for workers
+pref("dom.workers.mem.gc_allocation_threshold_mb", 3);
 
 // Show/Hide scrollbars when active/inactive
 pref("ui.showHideScrollbars", 1);
@@ -606,7 +589,7 @@ pref("hal.processPriorityManager.gonk.FOREGROUND.Nice", 1);
 
 pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.OomScoreAdjust", 200);
 pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.KillUnderMB", 7);
-pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.Nice", 7);
+pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.Nice", 10);
 
 pref("hal.processPriorityManager.gonk.BACKGROUND_HOMESCREEN.OomScoreAdjust", 267);
 pref("hal.processPriorityManager.gonk.BACKGROUND_HOMESCREEN.KillUnderMB", 8);
@@ -626,7 +609,7 @@ pref("hal.processPriorityManager.gonk.LowCPUNice", 18);
 // this too high, then we'll send out a memory pressure event every Z seconds
 // (see below), even while we have processes that we would happily kill in
 // order to free up memory.
-pref("hal.processPriorityManager.gonk.notifyLowMemUnderMB", 14);
+pref("hal.processPriorityManager.gonk.notifyLowMemUnderMB", 10);
 
 // We wait this long before polling the memory-pressure fd after seeing one
 // memory pressure event.  (When we're not under memory pressure, we sit
@@ -651,20 +634,15 @@ pref("dom.disable_window_open_dialog_feature", true);
 
 // Screen reader support
 pref("accessibility.accessfu.activate", 2);
-pref("accessibility.accessfu.quicknav_modes", "Link,Heading,FormElement,Landmark,ListItem");
-// Setting for an utterance order (0 - description first, 1 - description last).
-pref("accessibility.accessfu.utterance", 1);
-// Whether to skip images with empty alt text
-pref("accessibility.accessfu.skip_empty_images", true);
 
 // Enable hit-target fluffing
-pref("ui.touch.radius.enabled", true);
+pref("ui.touch.radius.enabled", false);
 pref("ui.touch.radius.leftmm", 3);
 pref("ui.touch.radius.topmm", 5);
 pref("ui.touch.radius.rightmm", 3);
 pref("ui.touch.radius.bottommm", 2);
 
-pref("ui.mouse.radius.enabled", true);
+pref("ui.mouse.radius.enabled", false);
 pref("ui.mouse.radius.leftmm", 3);
 pref("ui.mouse.radius.topmm", 5);
 pref("ui.mouse.radius.rightmm", 3);
@@ -742,11 +720,3 @@ pref("ping.manifestURL", "https://marketplace.firefox.com/packaged.webapp");
 
 // Enable the disk space watcher
 pref("disk_space_watcher.enabled", true);
-
-// Enable promise
-pref("dom.promise.enabled", false);
-
-// Allow ADB to run for this many hours before disabling
-// (only applies when marionette is disabled)
-// 0 disables the timer.
-pref("b2g.adb.timeout-hours", 12);

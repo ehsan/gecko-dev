@@ -16,7 +16,6 @@
 #include "mozilla/Observer.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
-#include "nsThreadUtils.h"
 
 template <class T>
 class nsRevocableEventPtr;
@@ -84,10 +83,10 @@ protected:
                                    const Request& aRequest) MOZ_OVERRIDE;
 
   virtual PBluetoothRequestParent*
-  AllocPBluetoothRequestParent(const Request& aRequest) MOZ_OVERRIDE;
+  AllocPBluetoothRequest(const Request& aRequest) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPBluetoothRequestParent(PBluetoothRequestParent* aActor) MOZ_OVERRIDE;
+  DeallocPBluetoothRequest(PBluetoothRequestParent* aActor) MOZ_OVERRIDE;
 
   virtual void
   Notify(const BluetoothSignal& aSignal) MOZ_OVERRIDE;
@@ -164,6 +163,12 @@ protected:
   DoRequest(const DenyPairingConfirmationRequest& aRequest);
 
   bool
+  DoRequest(const ConfirmAuthorizationRequest& aRequest);
+
+  bool
+  DoRequest(const DenyAuthorizationRequest& aRequest);
+
+  bool
   DoRequest(const ConnectRequest& aRequest);
 
   bool
@@ -189,12 +194,6 @@ protected:
 
   bool
   DoRequest(const IsScoConnectedRequest& aRequest);
-
-  bool
-  DoRequest(const SendMetaDataRequest& aRequest);
-
-  bool
-  DoRequest(const SendPlayStatusRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

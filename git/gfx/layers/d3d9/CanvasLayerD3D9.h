@@ -14,13 +14,13 @@ namespace mozilla {
 namespace layers {
 
 
-class CanvasLayerD3D9 :
+class THEBES_API CanvasLayerD3D9 :
   public CanvasLayer,
   public LayerD3D9
 {
 public:
   CanvasLayerD3D9(LayerManagerD3D9 *aManager)
-    : CanvasLayer(aManager, nullptr)
+    : CanvasLayer(aManager, NULL)
     , LayerD3D9(aManager)
     , mDataIsPremultiplied(false)
     , mNeedsYFlip(false)

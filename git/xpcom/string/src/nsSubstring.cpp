@@ -8,8 +8,6 @@
 #define ENABLE_STRING_STATS
 #endif
 
-#include "mozilla/MemoryReporting.h"
-
 #ifdef ENABLE_STRING_STATS
 #include <stdio.h>
 #endif
@@ -279,7 +277,7 @@ nsStringBuffer::ToString(uint32_t len, nsACString &str,
   }
 
 size_t
-nsStringBuffer::SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocSizeOf) const
+nsStringBuffer::SizeOfIncludingThisMustBeUnshared(nsMallocSizeOfFun aMallocSizeOf) const
   {
     NS_ASSERTION(!IsReadonly(),
                  "shared StringBuffer in SizeOfIncludingThisMustBeUnshared");
@@ -287,7 +285,7 @@ nsStringBuffer::SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocS
   }
 
 size_t
-nsStringBuffer::SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeOf) const
+nsStringBuffer::SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun aMallocSizeOf) const
   {
     if (!IsReadonly())
       {
@@ -297,7 +295,7 @@ nsStringBuffer::SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeO
   }
 
 size_t
-nsStringBuffer::SizeOfIncludingThisEvenIfShared(mozilla::MallocSizeOf aMallocSizeOf) const
+nsStringBuffer::SizeOfIncludingThisEvenIfShared(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return aMallocSizeOf(this);
   }
@@ -321,5 +319,5 @@ nsStringBuffer::SizeOfIncludingThisEvenIfShared(mozilla::MallocSizeOf aMallocSiz
 #include "prlog.h"
 #include "nsXPCOMStrings.h"
 
-static_assert(sizeof(nsStringContainer_base) == sizeof(nsSubstring),
-              "internal and external strings must have the same size");
+MOZ_STATIC_ASSERT(sizeof(nsStringContainer_base) == sizeof(nsSubstring),
+                  "internal and external strings must have the same size");

@@ -25,8 +25,6 @@ function setUpAndTearDown() {
   yield waitForCondition(function () {
       return !SelectionHelperUI.isSelectionUIVisible;
     }, kCommonWaitMs, kCommonPollMs);
-  InputSourceHelper.isPrecise = false;
-  InputSourceHelper.fireUpdate();
 }
 
 gTests.push({
@@ -38,12 +36,13 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_basic.html");
 
     yield waitForCondition(function () {
-        return !BrowserUI.isStartTabVisible;
+        return !StartUI.isStartPageVisible;
       }, 10000, 100);
 
     yield hideContextUI();
 
     gWindow = Browser.selectedTab.browser.contentWindow;
+    InputSourceHelper.isPrecise = false;
   },
 });
 
@@ -284,14 +283,11 @@ gTests.push({
                   400,
                   400,
                   400,
-                  350);
+                  200);
 
     yield waitForCondition(function () {
         return !SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
-
-    // cancel fling from scroll above
-    TouchModule.cancelPending();
 
     // active state - should be disabled after a page scroll
     is(SelectionHelperUI.isActive, false, "selection inactive");
@@ -310,9 +306,11 @@ gTests.push({
   },
 });
 
+/*
+disable until bug 860248 is addressed.
 gTests.push({
-  desc: "tap on selection clears selection in content",
-  setUp: setUpAndTearDown,
+  desc: "double-tap copy text in content",
+  setUp: setUpHelper,
   run: function test() {
 
     sendContextMenuClick(30, 20);
@@ -321,65 +319,108 @@ gTests.push({
         return SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
 
-    sendTap(gWindow, 30, 20);
+    sendDoubleTap(gWindow, 30, 20);
 
     yield waitForCondition(function () {
         return !SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
+    
+    // check copy text results
+    let text = SpecialPowers.getClipboardData("text/unicode").trim();
+    is(text, "There", "copy text test");
+
+    // check for active selection
+    is(getTrimmedSelection(gWindow).toString(), "", "selection test");
   },
-  tearDown: setUpAndTearDown,
+  tearDown: tearDownHelper,
 });
 
 gTests.push({
-  desc: "tap off selection clears selection in content",
-  setUp: setUpAndTearDown,
+  desc: "double-tap copy text in scrolled content",
+  setUp: setUpHelper,
   run: function test() {
+    let scrollPromise = waitForEvent(gWindow, "scroll");
+    gWindow.scrollBy(0, 200);
+    yield scrollPromise;
+    ok(scrollPromise && !(scrollPromise instanceof Error), "scrollPromise error");
 
-    sendContextMenuClick(30, 20);
+    sendContextMenuClick(30, 100);
 
     yield waitForCondition(function () {
         return SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
 
-    sendTap(gWindow, 30, 100);
+    sendDoubleTap(gWindow, 42, 100);
 
     yield waitForCondition(function () {
         return !SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
+
+    // check copy text results
+    let text = SpecialPowers.getClipboardData("text/unicode");
+    is(text, "suddenly", "copy text test");
+
+    // check for active selection
+    is(getTrimmedSelection(gWindow).toString(), "", "selection test");
   },
-  tearDown: setUpAndTearDown,
+  tearDown: function tearDown() {
+    emptyClipboard();
+    clearSelection(gWindow);
+    let scrollPromise = waitForEvent(gWindow, "scroll");
+    gWindow.scrollBy(0, -200);
+    yield scrollPromise;
+    yield waitForCondition(function () {
+        return !SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+  },
 });
 
 gTests.push({
-  desc: "bug 903737 - right click targeting",
-  setUp: setUpAndTearDown,
+  desc: "single clicks on selection in non-editable content",
+  setUp: setUpHelper,
   run: function test() {
-    yield hideContextUI();
-    let range = gWindow.document.createRange();
-    range.selectNode(gWindow.document.getElementById("seldiv"));
-    gWindow.getSelection().addRange(range);
-    let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gWindow.document.getElementById("seldiv"));
-    yield promise;
-    promise = waitForEvent(document, "popuphidden");
-    ContextMenuUI.hide();
-    yield promise;
-    let emptydiv = gWindow.document.getElementById("emptydiv");
-    let coords = logicalCoordsForElement(emptydiv);
-    InputSourceHelper.isPrecise = true;
-    sendContextMenuClick(coords.x, coords.y);
+    sendContextMenuClick(100, 20);
+
     yield waitForCondition(function () {
-      return ContextUI.tabbarVisible;
-    });
-    yield hideContextUI();
+        return SelectionHelperUI.isSelectionUIVisible;
+      }, kCommonWaitMs, kCommonPollMs);
+
+    // active state
+    is(SelectionHelperUI.isActive, true, "selection active");
+
+    let ypos = SelectionHelperUI.endMark.yPos + kMarkerOffsetY;
+    let touchdrag = new TouchDragAndHold();
+    yield touchdrag.start(gWindow, SelectionHelperUI.endMark.xPos, ypos, 190, ypos);
+    touchdrag.end();
+
+    yield waitForCondition(function () {
+        return !SelectionHelperUI.hasActiveDrag;
+      }, kCommonWaitMs, kCommonPollMs);
+    yield SelectionHelperUI.pingSelectionHandler();
+
+    // active state
+    is(SelectionHelperUI.isActive, true, "selection active");
+
+    // click on selected text - nothing should change
+    sendTap(gWindow, 240, 20);
+
+    is(SelectionHelperUI.isActive, true, "selection active");
+
+    // click outside the text - nothing should change
+    sendTap(gWindow, 197, 119);
+
+    is(SelectionHelperUI.isActive, true, "selection active");
   },
-  tearDown: setUpAndTearDown,
+  tearDown: tearDownHelper,
 });
+*/
 
 function test() {
   if (!isLandscapeMode()) {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
+
+  requestLongerTimeout(3);
   runTests();
 }

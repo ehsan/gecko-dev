@@ -4,10 +4,10 @@
 
 #include "nsISupports.idl"
 
-interface nsIDOMMozIccInfo;
 interface nsIDOMMozMobileConnectionInfo;
-interface nsIDOMMozSmsSegmentInfo;
+interface nsIDOMMozMobileICCInfo;
 interface nsIMobileMessageCallback;
+interface nsIDOMMozSmsSegmentInfo;
 
 [scriptable, uuid(1e602d20-d066-4399-8997-daf36b3158ef)]
 interface nsIRILDataCallInfo : nsISupports
@@ -59,7 +59,7 @@ interface nsIVoicemailInfo : nsISupports
   readonly attribute DOMString displayName;
 };
 
-[scriptable, uuid(95e1be50-c912-11e2-8b8b-0800200c9a66)]
+[scriptable, uuid(2f1c8055-322e-490a-b1e1-4ccd5d546b3c)]
 interface nsIRilContext : nsISupports
 {
   readonly attribute DOMString radioState;
@@ -72,17 +72,24 @@ interface nsIRilContext : nsISupports
 
   readonly attribute DOMString networkSelectionMode;
 
-  readonly attribute nsIDOMMozIccInfo iccInfo;
+  readonly attribute nsIDOMMozMobileICCInfo iccInfo;
 
   readonly attribute nsIDOMMozMobileConnectionInfo voice;
 
   readonly attribute nsIDOMMozMobileConnectionInfo data;
 };
 
-[scriptable, uuid(5efcd358-080e-46d6-a7f7-4f36c204eec3)]
-interface nsIRadioInterface : nsISupports
+[scriptable, uuid(c1c9d1e6-fec6-4c99-880d-7a310d736e64)]
+interface nsIRadioInterfaceLayer : nsISupports
 {
+  /**
+   * Activates or deactivates radio power.
+   */
+  void setRadioEnabled(in bool value);
+
   readonly attribute nsIRilContext rilContext;
+
+  readonly attribute nsIVoicemailInfo voicemailInfo;
 
   /**
    * PDP APIs
@@ -90,6 +97,15 @@ interface nsIRadioInterface : nsISupports
   void setupDataCallByType(in DOMString apntype);
   void deactivateDataCallByType(in DOMString apntype);
   long getDataCallStateByType(in DOMString apntype);
+  void setupDataCall(in long radioTech,
+                     in DOMString apn,
+                     in DOMString user,
+                     in DOMString passwd,
+                     in long chappap,
+                     in DOMString pdptype);
+  void deactivateDataCall(in DOMString cid,
+                          in DOMString reason);
+  void getDataCallList();
 
   void registerDataCallCallback(in nsIRILDataCallback callback);
   void unregisterDataCallCallback(in nsIRILDataCallback callback);
@@ -103,14 +119,5 @@ interface nsIRadioInterface : nsISupports
 
   void sendSMS(in DOMString number,
                in DOMString message,
-               in boolean silent,
                in nsIMobileMessageCallback request);
-};
-
-[scriptable, uuid(44b03951-1444-4c03-bd37-0bcb3a01b56f)]
-interface nsIRadioInterfaceLayer : nsISupports
-{
-  readonly attribute unsigned long numRadioInterfaces;
-
-  nsIRadioInterface getRadioInterface(in long clientId);
 };

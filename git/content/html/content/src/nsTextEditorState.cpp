@@ -38,7 +38,6 @@
 #include "mozilla/Selection.h"
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
 
@@ -794,14 +793,7 @@ DoCommandCallback(const char *aCommand, void *aData)
 
   nsCOMPtr<nsIController> controller;
   controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-  if (!controller) {
-    return;
-  }
-
-  bool commandEnabled;
-  nsresult rv = controller->IsCommandEnabled(aCommand, &commandEnabled);
-  NS_ENSURE_SUCCESS_VOID(rv);
-  if (commandEnabled) {
+  if (controller) {
     controller->DoCommand(aCommand);
   }
 }
@@ -1091,7 +1083,9 @@ nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
 
   // Create a SelectionController
   mSelCon = new nsTextInputSelectionImpl(frameSel, shell, rootNode);
+  NS_ENSURE_TRUE(mSelCon, NS_ERROR_OUT_OF_MEMORY);
   mTextListener = new nsTextInputListener(mTextCtrlElement);
+  NS_ENSURE_TRUE(mTextListener, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(mTextListener);
 
   mTextListener->SetFrame(mBoundFrame);

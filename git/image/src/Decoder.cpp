@@ -199,28 +199,20 @@ Decoder::AllocateFrame()
   MarkFrameDirty();
 
   nsresult rv;
-  imgFrame* frame = nullptr;
   if (mNewFrameData.mPaletteDepth) {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
                             mNewFrameData.mPaletteDepth,
                             &mImageData, &mImageDataLength,
-                            &mColormap, &mColormapSize, &frame);
+                            &mColormap, &mColormapSize, &mCurrentFrame);
   } else {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
-                            &mImageData, &mImageDataLength, &frame);
+                            &mImageData, &mImageDataLength, &mCurrentFrame);
   }
 
-  if (NS_SUCCEEDED(rv)) {
-    mCurrentFrame = frame;
-  } else {
-    mCurrentFrame = nullptr;
-  }
-
-  // Notify if appropriate
   if (NS_SUCCEEDED(rv) && mNewFrameData.mFrameNum == mFrameCount) {
     PostFrameStart();
   } else if (NS_FAILED(rv)) {
@@ -324,10 +316,10 @@ Decoder::PostFrameStart()
 }
 
 void
-Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::kFrameHasAlpha */,
-                       FrameBlender::FrameDisposalMethod aDisposalMethod /* = FrameBlender::kDisposeKeep */,
+Decoder::PostFrameStop(RasterImage::FrameAlpha aFrameAlpha /* = RasterImage::kFrameHasAlpha */,
+                       RasterImage::FrameDisposalMethod aDisposalMethod /* = RasterImage::kDisposeKeep */,
                        int32_t aTimeout /* = 0 */,
-                       FrameBlender::FrameBlendMethod aBlendMethod /* = FrameBlender::kBlendOver */)
+                       RasterImage::FrameBlendMethod aBlendMethod /* = RasterImage::kBlendOver */)
 {
   // We should be mid-frame
   NS_ABORT_IF_FALSE(mInFrame, "Stopping frame when we didn't start one!");
@@ -336,14 +328,13 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
   // Update our state
   mInFrame = false;
 
-  if (aFrameAlpha == FrameBlender::kFrameOpaque) {
+  if (aFrameAlpha == RasterImage::kFrameOpaque) {
     mCurrentFrame->SetHasNoAlpha();
   }
 
   mCurrentFrame->SetFrameDisposalMethod(aDisposalMethod);
   mCurrentFrame->SetTimeout(aTimeout);
   mCurrentFrame->SetBlendMethod(aBlendMethod);
-  mCurrentFrame->ImageUpdated(mCurrentFrame->GetRect());
 
   // Flush any invalidations before we finish the frame
   FlushInvalidations();
@@ -426,7 +417,7 @@ Decoder::MarkFrameDirty()
   MOZ_ASSERT(NS_IsMainThread());
 
   if (mCurrentFrame) {
-    mCurrentFrame->ApplyDirtToSurfaces();
+    mCurrentFrame->MarkImageDataDirty();
   }
 }
 

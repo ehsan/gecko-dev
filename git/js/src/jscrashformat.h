@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscrashformat_h
-#define jscrashformat_h
+#ifndef jscrashformat_h___
+#define jscrashformat_h___
+
+#include <string.h>
 
 namespace js {
 namespace crash {
@@ -72,4 +74,4 @@ enum {
 } /* namespace crash */
 } /* namespace js */
 
-#endif /* jscrashformat_h */
+#endif

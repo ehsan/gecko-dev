@@ -99,16 +99,9 @@ function loadCallgraph(file)
             delete gcFunctions[name];
     }
 
-    for (var gcName of [ 'jsgc.cpp:void Collect(JSRuntime*, uint8, int64, uint32, uint32)',
-                         'void js::MinorGC(JSRuntime*, uint32)' ])
-    {
-        if (!callerGraph[gcName]) {
-            debugger;
-            print(callerGraph)
-        }
-        assert(gcName in callerGraph);
-        addGCFunction(gcName, "GC");
-    }
+    var gcName = 'void js::GC(JSRuntime*, uint32, uint32)';
+    assert(gcName in callerGraph);
+    addGCFunction(gcName, "GC");
 
     var worklist = [];
     for (var name in gcFunctions)

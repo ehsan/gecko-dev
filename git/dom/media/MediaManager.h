@@ -92,17 +92,16 @@ public:
     return mStream->AsSourceStream();
   }
 
-  // mVideo/AudioSource are set by Activate(), so we assume they're capturing
-  // if set and represent a real capture device.
+  // mVideo/AudioSource are set by Activate(), so we assume they're capturing if set
   bool CapturingVideo()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mVideoSource && !mVideoSource->IsFake() && !mStopped;
+    return mVideoSource && !mStopped;
   }
   bool CapturingAudio()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mAudioSource && !mAudioSource->IsFake() && !mStopped;
+    return mAudioSource && !mStopped;
   }
 
   void SetStopped()
@@ -213,7 +212,7 @@ class GetUserMediaNotificationEvent: public nsRunnable
     }
 
     NS_IMETHOD
-    Run() MOZ_OVERRIDE
+    Run()
     {
       NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
       // Make sure mStream is cleared and our reference to the DOMMediaStream
@@ -292,7 +291,7 @@ public:
   }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE
+  Run()
   {
     SourceMediaStream *source = mListener->GetSourceStream();
     // No locking between these is required as all the callbacks for the
@@ -385,7 +384,7 @@ typedef nsClassHashtable<nsUint64HashKey, StreamListeners> WindowTable;
 class MediaDevice : public nsIMediaDevice
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIMEDIADEVICE
 
   MediaDevice(MediaEngineVideoSource* aSource) {
@@ -425,7 +424,7 @@ public:
     return Get()->mMediaThread;
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIMEDIAMANAGERSERVICE
 

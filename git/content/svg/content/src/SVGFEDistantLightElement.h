@@ -36,8 +36,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedNumber> Azimuth();
-  already_AddRefed<SVGAnimatedNumber> Elevation();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Azimuth();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Elevation();
 
 protected:
   virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;

@@ -10,7 +10,6 @@
 #define nsCSSStyleSheet_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 
 #include "nscore.h"
@@ -67,7 +66,7 @@ private:
   // Create a new namespace map
   nsresult CreateNamespaceMap();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsAutoTArray<nsCSSStyleSheet*, 8> mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
@@ -119,7 +118,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CSS_STYLE_SHEET_IMPL_CID)
 
   // nsIStyleSheet interface
-  virtual nsIURI* GetSheetURI() const MOZ_OVERRIDE;
+  virtual nsIURI* GetSheetURI() const;
   virtual nsIURI* GetBaseURI() const MOZ_OVERRIDE;
   virtual void GetTitle(nsString& aTitle) const MOZ_OVERRIDE;
   virtual void GetType(nsString& aType) const MOZ_OVERRIDE;
@@ -147,7 +146,7 @@ public:
   void ReplaceStyleRule(mozilla::css::Rule* aOld, mozilla::css::Rule* aNew);
 
   int32_t StyleRuleCount() const;
-  mozilla::css::Rule* GetStyleRuleAt(int32_t aIndex) const;
+  nsresult GetStyleRuleAt(int32_t aIndex, mozilla::css::Rule*& aRule) const;
 
   nsresult DeleteRuleFromGroup(mozilla::css::GroupRule* aGroup, uint32_t aIndex);
   nsresult InsertRuleIntoGroup(const nsAString& aRule, mozilla::css::GroupRule* aGroup, uint32_t aIndex, uint32_t* _retval);
@@ -212,7 +211,7 @@ public:
 
   // nsICSSLoaderObserver interface
   NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
-                              nsresult aStatus) MOZ_OVERRIDE;
+                              nsresult aStatus);
 
   enum EnsureUniqueInnerResult {
     // No work was needed to ensure a unique inner.
@@ -244,7 +243,7 @@ public:
   // list after we clone a unique inner for ourselves.
   static bool RebuildChildList(mozilla::css::Rule* aRule, void* aBuilder);
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // Get this style sheet's CORS mode
   mozilla::CORSMode GetCORSMode() const { return mInner->mCORSMode; }

@@ -20,7 +20,7 @@ class QRect;
  * override NativeDraw, and then call Draw(). The drawing will be subjected
  * to all Thebes transformations, clipping etc.
  */
-class gfxQtNativeRenderer {
+class THEBES_API gfxQtNativeRenderer {
 public:
     /**
      * Perform the native drawing.

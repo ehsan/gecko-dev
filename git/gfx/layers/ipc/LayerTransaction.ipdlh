@@ -17,9 +17,7 @@ include "mozilla/TimeStamp.h";
 include "mozilla/dom/ScreenOrientation.h";
 include "nsCSSProperty.h";
 include "gfxipc/ShadowLayerUtils.h";
-include "mozilla/GfxMessageUtils.h";
 include "ImageLayers.h";
-include "mozilla/layers/CompositorTypes.h";
 
 using gfxPoint3D;
 using nscoord;
@@ -31,10 +29,8 @@ using mozilla::ScreenRotation;
 using nsCSSProperty;
 using mozilla::dom::ScreenOrientation;
 using mozilla::layers::TextureInfo;
-using mozilla::LayerMargin;
-using mozilla::LayerPoint;
+using mozilla::gfx::Margin;
 using mozilla::layers::ImageLayer::ScaleMode;
-using mozilla::layers::DiagnosticTypes;
 
 namespace mozilla {
 namespace layers {
@@ -104,7 +100,6 @@ struct Scale {
   float y;
   float z;
 };
-struct Skew { float x; float y; };
 struct SkewX { float x; };
 struct SkewY { float y; };
 struct TransformMatrix { gfx3DMatrix value; };
@@ -122,7 +117,6 @@ union TransformFunction {
   Rotation;
   Rotation3D;
   Scale;
-  Skew;
   SkewX;
   SkewY;
   Translation;
@@ -171,7 +165,7 @@ struct Animation {
   // startTime, the direction, the duration, and the current time.
   // The segments must uniquely cover the portion from 0.0 to 1.0
   AnimationSegment[] segments;
-  // How many times to repeat the animation.  -1 means "forever".
+  // How many times to repeat the animation.  < 0 means "forever".
   float numIterations;
   // This uses the NS_STYLE_ANIMATION_DIRECTION_* constants.
   int32_t direction;
@@ -190,8 +184,8 @@ struct CommonLayerAttributes {
   bool useClipRect;
   nsIntRect clipRect;
   bool isFixedPosition;
-  LayerPoint fixedPositionAnchor;
-  LayerMargin fixedPositionMargin;
+  gfxPoint fixedPositionAnchor;
+  Margin fixedPositionMargin;
   nullable PLayer maskLayer;
   // Animated colors will only honored for ColorLayers.
   Animation[] animations;
@@ -207,7 +201,7 @@ struct ContainerLayerAttributes {
   float inheritedXScale;
   float inheritedYScale;
 };
-struct ColorLayerAttributes     { LayerColor color; nsIntRect bounds; };
+struct ColorLayerAttributes     { LayerColor color; };
 struct CanvasLayerAttributes    { GraphicsFilterType filter; nsIntRect bounds; };
 struct RefLayerAttributes       { int64_t id; };
 struct ImageLayerAttributes     { GraphicsFilterType filter; gfxIntSize scaleToSize; ScaleMode scaleMode; };
@@ -240,12 +234,14 @@ struct OpRemoveChild      { PLayer container; PLayer childLayer; };
 struct OpRepositionChild  { PLayer container; PLayer childLayer; PLayer after; };
 struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
-struct OpSetDiagnosticTypes { DiagnosticTypes diagnostics; };
+struct OpSetColoredBorders { bool enabled; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
   PCompositable compositable;
-  SurfaceDescriptorTiles tileLayerDescriptor;
+  // Bug 747811
+  // FIXME: We need to support sharing tile across process.
+  uintptr_t tiledLayerBuffer;
 };
 
 struct OpCreatedTexture {
@@ -253,12 +249,6 @@ struct OpCreatedTexture {
   uint32_t textureId;
   SurfaceDescriptor descriptor;
   TextureInfo textureInfo;
-};
-
-struct OpCreatedIncrementalTexture {
-  PCompositable compositable;
-  TextureInfo textureInfo;
-  nsIntRect bufferRect;
 };
 
 struct OpDestroyThebesBuffer {
@@ -277,78 +267,21 @@ struct OpPaintTextureRegion {
   nsIntRegion updatedRegion;
 };
 
-struct OpPaintTextureIncremental {
-  PCompositable compositable;
-  uint32_t textureId;
-  SurfaceDescriptor image;
-  nsIntRegion updatedRegion;
-  nsIntRect bufferRect;
-  nsIntPoint bufferRotation;
-};
-
 struct OpUpdatePictureRect {
   PCompositable compositable;
   nsIntRect picture;
-};
-
-/**
- * Provides the compositor side with enough information to create a
- * TextureHost.
- */
-struct OpAddTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  SurfaceDescriptor data;
-  uint32_t textureFlags;
-};
-
-/**
- * Tells the compositor-side to remove the corresponding TextureHost and
- * deallocate its data.
- */
-struct OpRemoveTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  uint32_t flags;
-};
-
-/**
- * Tells the compositor-side which texture to use (for example, as front buffer
- * if there is several textures for double buffering)
- */
-struct OpUseTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-};
-
-union MaybeRegion {
-  nsIntRegion;
-  null_t;
-};
-
-struct OpUpdateTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  MaybeRegion region;
 };
 
 union CompositableOperation {
   OpUpdatePictureRect;
 
   OpCreatedTexture;
-  OpCreatedIncrementalTexture;
   OpDestroyThebesBuffer;
 
   OpPaintTexture;
   OpPaintTextureRegion;
-  OpPaintTextureIncremental;
 
   OpPaintTiledLayerBuffer;
-
-  OpAddTexture;
-  OpRemoveTexture;
-  OpUpdateTexture;
-  OpUseTexture;
 };
 
 // A unit of a changeset; a set of these comprise a changeset
@@ -361,7 +294,7 @@ union Edit {
   OpCreateRefLayer;
 
   OpSetLayerAttributes;
-  OpSetDiagnosticTypes;
+  OpSetColoredBorders;
 
   OpSetRoot;
   OpInsertAfter;
@@ -390,18 +323,11 @@ struct OpTextureSwap {
   SurfaceDescriptor image;
 };
 
-struct ReplyTextureRemoved {
-  PCompositable compositable;
-  uint32_t textureId;
-};
-
 // Unit of a "changeset reply".  This is a weird abstraction, probably
 // only to be used for buffer swapping.
 union EditReply {
   OpContentBufferSwap;
   OpTextureSwap;
-
-  ReplyTextureRemoved;
 };
 
 } // namespace

@@ -16,7 +16,6 @@
 #include "FileService.h"
 #include "LockedFile.h"
 #include "MetadataHelper.h"
-#include "mozilla/dom/FileHandleBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -113,7 +112,15 @@ FileHandle::Open(FileMode aMode, ErrorResult& aError)
     return nullptr;
   }
 
-  nsRefPtr<LockedFile> lockedFile = LockedFile::Create(this, aMode);
+  MOZ_STATIC_ASSERT(static_cast<uint32_t>(FileMode::Readonly) ==
+                    static_cast<uint32_t>(LockedFile::READ_ONLY),
+                    "Enum values should match.");
+  MOZ_STATIC_ASSERT(static_cast<uint32_t>(FileMode::Readwrite) ==
+                    static_cast<uint32_t>(LockedFile::READ_WRITE),
+                    "Enum values should match.");
+
+  nsRefPtr<LockedFile> lockedFile =
+    LockedFile::Create(this, LockedFile::Mode(static_cast<int>(aMode)));
   if (!lockedFile) {
     aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
     return nullptr;
@@ -142,7 +149,7 @@ FileHandle::GetFile(ErrorResult& aError)
   }
 
   nsRefPtr<LockedFile> lockedFile =
-    LockedFile::Create(this, FileMode::Readonly, LockedFile::PARALLEL);
+    LockedFile::Create(this, LockedFile::READ_ONLY, LockedFile::PARALLEL);
   if (!lockedFile) {
     aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
     return nullptr;
@@ -184,7 +191,7 @@ GetFileHelper::GetSuccessResult(JSContext* aCx, JS::Value* aVal)
   nsCOMPtr<nsIDOMFile> domFile =
     mFileHandle->CreateFileObject(mLockedFile, mParams->Size());
 
-  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
   nsresult rv =
     nsContentUtils::WrapNative(aCx, global, domFile,
                                &NS_GET_IID(nsIDOMFile), aVal);

@@ -17,7 +17,7 @@ function startDBWork() {
 }
 
 function madeMod() {
-  var trans = db.transaction(["mystore"], "readwrite");
+  var trans = db.transaction(["mystore"], IDBTransaction.READ_WRITE);
   var store = trans.
               objectStore("mystore");
   trans.oncomplete = function() {

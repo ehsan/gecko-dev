@@ -19,7 +19,8 @@ from mozbuild.backend.configenvironment import ConfigEnvironment
 from mozbuild.backend.recursivemake import RecursiveMakeBackend
 from mozbuild.frontend.emitter import TreeMetadataEmitter
 from mozbuild.frontend.reader import BuildReader
-from mozbuild.mozinfo import write_mozinfo
+
+from Preprocessor import Preprocessor
 
 
 log_manager = LoggingManager()
@@ -81,15 +82,10 @@ def config_status(topobjdir = '.', topsrcdir = '.',
 
     # Without -n, the current directory is meant to be the top object directory
     if not options.not_topobjdir:
-        topobjdir = os.path.abspath('.')
+        topobjdir = '.'
 
     env = ConfigEnvironment(topsrcdir, topobjdir, defines=defines,
             non_global_defines=non_global_defines, substs=substs)
-
-    # mozinfo.json only needs written if configure changes and configure always
-    # passes this environment variable.
-    if 'WRITE_MOZINFO' in os.environ:
-        write_mozinfo(os.path.join(topobjdir, 'mozinfo.json'), env, os.environ)
 
     reader = BuildReader(env)
     emitter = TreeMetadataEmitter(env)

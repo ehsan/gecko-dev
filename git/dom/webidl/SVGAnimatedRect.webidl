@@ -11,6 +11,8 @@
  */
 
 interface SVGAnimatedRect {
+  [GetterThrows]
   readonly attribute SVGRect? baseVal;
+  [GetterThrows]
   readonly attribute SVGRect? animVal;
 };

@@ -8,16 +8,15 @@
 
 
 #include "GrBufferAllocPool.h"
-#include "GrDrawTargetCaps.h"
-#include "GrGpu.h"
-#include "GrIndexBuffer.h"
 #include "GrTypes.h"
 #include "GrVertexBuffer.h"
+#include "GrIndexBuffer.h"
+#include "GrGpu.h"
 
 #if GR_DEBUG
     #define VALIDATE validate
 #else
-    static void VALIDATE(bool = false) {}
+    static void VALIDATE(bool x = false) {}
 #endif
 
 // page size
@@ -297,21 +296,9 @@ bool GrBufferAllocPool::createBlock(size_t requestSize) {
 
     GrAssert(NULL == fBufferPtr);
 
-    // If the buffer is CPU-backed we lock it because it is free to do so and saves a copy.
-    // Otherwise when buffer locking is supported:
-    //      a) If the frequently reset hint is set we only lock when the requested size meets a
-    //      threshold (since we don't expect it is likely that we will see more vertex data)
-    //      b) If the hint is not set we lock if the buffer size is greater than the threshold.
-    bool attemptLock = block.fBuffer->isCPUBacked();
-    if (!attemptLock && fGpu->caps()->bufferLockSupport()) {
-        if (fFrequentResetHint) {
-            attemptLock = requestSize > GR_GEOM_BUFFER_LOCK_THRESHOLD;
-        } else {
-            attemptLock = size > GR_GEOM_BUFFER_LOCK_THRESHOLD;
-        }
-    }
-
-    if (attemptLock) {
+    if (fGpu->getCaps().bufferLockSupport() &&
+        size > GR_GEOM_BUFFER_LOCK_THRESHOLD &&
+        (!fFrequentResetHint || requestSize > GR_GEOM_BUFFER_LOCK_THRESHOLD)) {
         fBufferPtr = block.fBuffer->lock();
     }
 
@@ -351,7 +338,7 @@ void GrBufferAllocPool::flushCpuData(GrGeometryBuffer* buffer,
     GrAssert(flushSize <= buffer->sizeInBytes());
     VALIDATE(true);
 
-    if (fGpu->caps()->bufferLockSupport() &&
+    if (fGpu->getCaps().bufferLockSupport() &&
         flushSize > GR_GEOM_BUFFER_LOCK_THRESHOLD) {
         void* data = buffer->lock();
         if (NULL != data) {
@@ -386,7 +373,7 @@ GrVertexBufferAllocPool::GrVertexBufferAllocPool(GrGpu* gpu,
                     preallocBufferCnt) {
 }
 
-void* GrVertexBufferAllocPool::makeSpace(size_t vertexSize,
+void* GrVertexBufferAllocPool::makeSpace(GrVertexLayout layout,
                                          int vertexCount,
                                          const GrVertexBuffer** buffer,
                                          int* startVertex) {
@@ -395,41 +382,43 @@ void* GrVertexBufferAllocPool::makeSpace(size_t vertexSize,
     GrAssert(NULL != buffer);
     GrAssert(NULL != startVertex);
 
+    size_t vSize = GrDrawTarget::VertexSize(layout);
     size_t offset = 0; // assign to suppress warning
     const GrGeometryBuffer* geomBuffer = NULL; // assign to suppress warning
-    void* ptr = INHERITED::makeSpace(vertexSize * vertexCount,
-                                     vertexSize,
+    void* ptr = INHERITED::makeSpace(vSize * vertexCount,
+                                     vSize,
                                      &geomBuffer,
                                      &offset);
 
     *buffer = (const GrVertexBuffer*) geomBuffer;
-    GrAssert(0 == offset % vertexSize);
-    *startVertex = offset / vertexSize;
+    GrAssert(0 == offset % vSize);
+    *startVertex = offset / vSize;
     return ptr;
 }
 
-bool GrVertexBufferAllocPool::appendVertices(size_t vertexSize,
+bool GrVertexBufferAllocPool::appendVertices(GrVertexLayout layout,
                                              int vertexCount,
                                              const void* vertices,
                                              const GrVertexBuffer** buffer,
                                              int* startVertex) {
-    void* space = makeSpace(vertexSize, vertexCount, buffer, startVertex);
+    void* space = makeSpace(layout, vertexCount, buffer, startVertex);
     if (NULL != space) {
         memcpy(space,
                vertices,
-               vertexSize * vertexCount);
+               GrDrawTarget::VertexSize(layout) * vertexCount);
         return true;
     } else {
         return false;
     }
 }
 
-int GrVertexBufferAllocPool::preallocatedBufferVertices(size_t vertexSize) const {
-    return INHERITED::preallocatedBufferSize() / vertexSize;
+int GrVertexBufferAllocPool::preallocatedBufferVertices(GrVertexLayout layout) const {
+    return INHERITED::preallocatedBufferSize() /
+            GrDrawTarget::VertexSize(layout);
 }
 
-int GrVertexBufferAllocPool::currentBufferVertices(size_t vertexSize) const {
-    return currentBufferItems(vertexSize);
+int GrVertexBufferAllocPool::currentBufferVertices(GrVertexLayout layout) const {
+    return currentBufferItems(GrDrawTarget::VertexSize(layout));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

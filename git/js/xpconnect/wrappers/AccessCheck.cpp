@@ -14,6 +14,7 @@
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
+#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 
 #include "XPCWrapper.h"
@@ -178,8 +179,8 @@ IsFrameId(JSContext *cx, JSObject *objArg, jsid idArg)
 
     obj = JS_ObjectToInnerObject(cx, obj);
     MOZ_ASSERT(!js::IsWrapper(obj));
-    XPCWrappedNative *wn = IS_WN_REFLECTOR(obj) ? XPCWrappedNative::Get(obj)
-                                                : nullptr;
+    XPCWrappedNative *wn = IS_WN_WRAPPER(obj) ? XPCWrappedNative::Get(obj)
+                                              : nullptr;
     if (!wn) {
         return false;
     }
@@ -221,23 +222,15 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapperArg, j
         return true;
 
     if (act == Wrapper::CALL)
-        return false;
+        return true;
 
     RootedId id(cx, idArg);
     RootedObject wrapper(cx, wrapperArg);
     RootedObject obj(cx, Wrapper::wrappedObject(wrapper));
 
-    // Enumerate-like operations pass JSID_VOID to |enter|, since there isn't
-    // another sane value to pass. For XOWs, we generally want to deny such
-    // operations but fail silently (see CrossOriginAccessiblePropertiesOnly::
-    // deny). We could just fall through here and rely on the fact that none
-    // of the whitelisted properties below will match JSID_VOID, but EIBTI.
-    if (id == JSID_VOID)
-        return false;
-
     const char *name;
     js::Class *clasp = js::GetObjectClass(obj);
-    MOZ_ASSERT(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
+    NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
     if (clasp->ext.innerObject)
         name = "Window";
     else
@@ -271,10 +264,10 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
     if (dom::GetSameCompartmentWrapperForDOMBinding(wrapper))
         return wrapper != obj;
 
-    if (!IS_WN_REFLECTOR(obj))
+    if (!IS_WN_WRAPPER(obj))
         return false;
 
-    XPCWrappedNative *wn = XPCWrappedNative::Get(obj);
+    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
     return wn->NeedsSOW();
 }
 
@@ -305,7 +298,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
     // Unfortunately, |cx| can be in either compartment when we call ::check. :-(
     JSAutoCompartment ac(cx, wrappedObject);
 
-    bool found = false;
+    JSBool found = false;
     if (!JS_HasPropertyById(cx, wrappedObject, exposedPropsId, &found))
         return false;
 
@@ -326,7 +319,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
         return true;
 
     RootedValue exposedProps(cx);
-    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, &exposedProps))
+    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, exposedProps.address()))
         return false;
 
     if (exposedProps.isNullOrUndefined())
@@ -347,7 +340,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
     Access access = NO_ACCESS;
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, &desc)) {
+    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, desc.address())) {
         return false; // Error
     }
     if (!desc.object() || !desc.isEnumerable())

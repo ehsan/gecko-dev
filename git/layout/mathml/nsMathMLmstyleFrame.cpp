@@ -42,6 +42,9 @@ nsMathMLmstyleFrame::InheritAutomaticData(nsIFrame* aParent)
   // see if the displaystyle attribute is there
   nsMathMLFrame::FindAttrDisplaystyle(mContent, mPresentationData);
 
+  // see if the directionality attribute is there
+  nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
+
   return NS_OK;
 }
 

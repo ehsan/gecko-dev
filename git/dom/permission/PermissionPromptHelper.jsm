@@ -86,7 +86,7 @@ this.PermissionPromptHelper = {
         QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionRequest]),
         allow: aCallbacks.allow,
         cancel: aCallbacks.cancel,
-        window: Services.wm.getOuterWindowWithId(msg.windowID)
+        window: Services.wm.getMostRecentWindow("navigator:browser")
       };
 
       permissionPromptService.getPermission(request);

@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef prmjtime_h
-#define prmjtime_h
+#ifndef prmjtime_h___
+#define prmjtime_h___
 
-#include <stddef.h>
-#include <stdint.h>
+#include <time.h>
 
 /*
  * Broken down form of 64 bit time value.
@@ -46,4 +45,5 @@ PRMJ_NowShutdown(void);
 extern size_t
 PRMJ_FormatTime(char *buf, int buflen, const char *fmt, PRMJTime *tm);
 
-#endif /* prmjtime_h */
+#endif /* prmjtime_h___ */
+

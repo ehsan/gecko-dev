@@ -9,10 +9,6 @@ function test() {
   initNetMonitor(SORTING_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    // It seems that this test may be slow on debug builds. This could be because
-    // of the heavy dom manipulation associated with sorting.
-    requestLongerTimeout(2);
-
     let { $, L10N, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
@@ -43,10 +39,10 @@ function test() {
           return testContents([4, 3, 2, 1, 0]);
         })
         .then(() => {
-          info("Testing status sort, ascending. Checking sort loops correctly.");
+          info("Clearing status sort.");
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-status-button"));
-          testHeaders("status", "ascending");
-          return testContents([0, 1, 2, 3, 4]);
+          testHeaders();
+          return testContents([0, 2, 4, 3, 1]);
         })
         .then(() => {
           info("Testing method sort, ascending.");
@@ -61,10 +57,10 @@ function test() {
           return testContents([4, 3, 2, 1, 0]);
         })
         .then(() => {
-          info("Testing method sort, ascending. Checking sort loops correctly.");
+          info("Clearing method sort.");
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-method-button"));
-          testHeaders("method", "ascending");
-          return testContents([0, 1, 2, 3, 4]);
+          testHeaders();
+          return testContents([0, 2, 4, 3, 1]);
         })
         .then(() => {
           info("Testing file sort, ascending.");
@@ -79,10 +75,10 @@ function test() {
           return testContents([4, 3, 2, 1, 0]);
         })
         .then(() => {
-          info("Testing file sort, ascending. Checking sort loops correctly.");
+          info("Clearing file sort.");
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-file-button"));
-          testHeaders("file", "ascending");
-          return testContents([0, 1, 2, 3, 4]);
+          testHeaders();
+          return testContents([0, 2, 4, 3, 1]);
         })
         .then(() => {
           info("Testing type sort, ascending.");
@@ -97,10 +93,10 @@ function test() {
           return testContents([4, 3, 2, 1, 0]);
         })
         .then(() => {
-          info("Testing type sort, ascending. Checking sort loops correctly.");
+          info("Clearing type sort.");
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-type-button"));
-          testHeaders("type", "ascending");
-          return testContents([0, 1, 2, 3, 4]);
+          testHeaders();
+          return testContents([0, 2, 4, 3, 1]);
         })
         .then(() => {
           info("Testing size sort, ascending.");
@@ -115,27 +111,9 @@ function test() {
           return testContents([4, 3, 2, 1, 0]);
         })
         .then(() => {
-          info("Testing size sort, ascending. Checking sort loops correctly.");
+          info("Clearing size sort.");
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-size-button"));
-          testHeaders("size", "ascending");
-          return testContents([0, 1, 2, 3, 4]);
-        })
-        .then(() => {
-          info("Testing waterfall sort, ascending.");
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-waterfall-button"));
-          testHeaders("waterfall", "ascending");
-          return testContents([0, 2, 4, 3, 1]);
-        })
-        .then(() => {
-          info("Testing waterfall sort, descending.");
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-waterfall-button"));
-          testHeaders("waterfall", "descending");
-          return testContents([4, 2, 0, 1, 3]);
-        })
-        .then(() => {
-          info("Testing waterfall sort, ascending. Checking sort loops correctly.");
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-waterfall-button"));
-          testHeaders("waterfall", "ascending");
+          testHeaders();
           return testContents([0, 2, 4, 3, 1]);
         })
         .then(() => {
@@ -167,6 +145,8 @@ function test() {
     }
 
     function testContents([a, b, c, d, e]) {
+      let deferred = Promise.defer();
+
       isnot(RequestsMenu.selectedItem, null,
         "There should still be a selected item after sorting.");
       is(RequestsMenu.selectedIndex, a,
@@ -174,74 +154,70 @@ function test() {
       is(NetMonitorView.detailsPaneHidden, false,
         "The details pane should still be visible after sorting.");
 
-      is(RequestsMenu.orderedItems.length, 5,
+      is(RequestsMenu.allItems.length, 5,
         "There should be a total of 5 items in the requests menu.");
       is(RequestsMenu.visibleItems.length, 5,
         "There should be a total of 5 visbile items in the requests menu.");
 
-      is(RequestsMenu.getItemAtIndex(0), RequestsMenu.orderedItems[0],
+      is(RequestsMenu.getItemAtIndex(0), RequestsMenu.allItems[0],
         "The requests menu items aren't ordered correctly. First item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(1), RequestsMenu.orderedItems[1],
+      is(RequestsMenu.getItemAtIndex(1), RequestsMenu.allItems[1],
         "The requests menu items aren't ordered correctly. Second item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(2), RequestsMenu.orderedItems[2],
+      is(RequestsMenu.getItemAtIndex(2), RequestsMenu.allItems[2],
         "The requests menu items aren't ordered correctly. Third item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(3), RequestsMenu.orderedItems[3],
+      is(RequestsMenu.getItemAtIndex(3), RequestsMenu.allItems[3],
         "The requests menu items aren't ordered correctly. Fourth item is misplaced.");
-      is(RequestsMenu.getItemAtIndex(4), RequestsMenu.orderedItems[4],
+      is(RequestsMenu.getItemAtIndex(4), RequestsMenu.allItems[4],
         "The requests menu items aren't ordered correctly. Fifth item is misplaced.");
 
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(a),
         "GET1", SORTING_SJS + "?index=1", {
-          fuzzyUrl: true,
           status: 101,
           statusText: "Meh",
           type: "1",
           fullMimeType: "text/1",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(b),
         "GET2", SORTING_SJS + "?index=2", {
-          fuzzyUrl: true,
           status: 200,
           statusText: "Meh",
           type: "2",
           fullMimeType: "text/2",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.01),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.01),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(c),
         "GET3", SORTING_SJS + "?index=3", {
-          fuzzyUrl: true,
           status: 300,
           statusText: "Meh",
           type: "3",
           fullMimeType: "text/3",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.02),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(d),
         "GET4", SORTING_SJS + "?index=4", {
-          fuzzyUrl: true,
           status: 400,
           statusText: "Meh",
           type: "4",
           fullMimeType: "text/4",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.03),
           time: true
         });
       verifyRequestItemTarget(RequestsMenu.getItemAtIndex(e),
         "GET5", SORTING_SJS + "?index=5", {
-          fuzzyUrl: true,
           status: 500,
           statusText: "Meh",
           type: "5",
           fullMimeType: "text/5",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.04),
           time: true
         });
 
-      return promise.resolve(null);
+      executeSoon(deferred.resolve);
+      return deferred.promise;
     }
 
     aDebuggee.performRequests();

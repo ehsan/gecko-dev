@@ -43,12 +43,6 @@
 #define D3D_FL9_3_REQ_TEXTURE2D_U_OR_V_DIMENSION 4096
 #endif
 
-namespace mozilla {
-namespace layers {
-class DeviceManagerD3D9;
-}
-}
-class IDirect3DDevice9;
 class ID3D11Device;
 class IDXGIAdapter1;
 
@@ -58,7 +52,7 @@ class nsIMemoryMultiReporter;
 // used by both GDI and Uniscribe font shapers
 struct DCFromContext {
     DCFromContext(gfxContext *aContext) {
-        dc = nullptr;
+        dc = NULL;
         nsRefPtr<gfxASurface> aSurface = aContext->CurrentSurface();
         NS_ASSERTION(aSurface, "DCFromContext: null surface");
         if (aSurface &&
@@ -73,7 +67,7 @@ struct DCFromContext {
             cairo_win32_scaled_font_select_font(scaled, dc);
         }
         if (!dc) {
-            dc = GetDC(nullptr);
+            dc = GetDC(NULL);
             SetGraphicsMode(dc, GM_ADVANCED);
             needsRelease = true;
         }
@@ -81,7 +75,7 @@ struct DCFromContext {
 
     ~DCFromContext() {
         if (needsRelease) {
-            ReleaseDC(nullptr, dc);
+            ReleaseDC(NULL, dc);
         } else {
             RestoreDC(dc, -1);
         }
@@ -108,7 +102,7 @@ struct ClearTypeParameterInfo {
     int32_t     enhancedContrast;
 };
 
-class gfxWindowsPlatform : public gfxPlatform {
+class THEBES_API gfxWindowsPlatform : public gfxPlatform {
 public:
     enum TextRenderingMode {
         TEXT_RENDERING_NO_CLEARTYPE,
@@ -271,8 +265,6 @@ public:
 #else
     inline bool DWriteEnabled() { return false; }
 #endif
-    mozilla::layers::DeviceManagerD3D9* GetD3D9DeviceManager();
-    IDirect3DDevice9* GetD3D9Device();
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *GetD2DDevice() { return mD2DDevice; }
     ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nullptr; }
@@ -305,9 +297,7 @@ private:
     cairo_device_t *mD2DDevice;
 #endif
     mozilla::RefPtr<IDXGIAdapter1> mAdapter;
-    nsRefPtr<mozilla::layers::DeviceManagerD3D9> mDeviceManager;
     mozilla::RefPtr<ID3D11Device> mD3D11Device;
-    bool mD3D9DeviceInitialized;
     bool mD3D11DeviceInitialized;
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();

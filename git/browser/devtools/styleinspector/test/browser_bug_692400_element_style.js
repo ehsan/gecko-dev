@@ -13,23 +13,29 @@ function createDocument()
 
   doc.title = "Style Inspector Selector Text Test";
 
-  openComputedView(startTests);
+  openInspector(openComputedView);
 }
 
 
-function startTests(aInspector, aComputedView)
+function openComputedView(aInspector)
 {
-  computedView = aComputedView;
-
   let div = doc.querySelector("div");
   ok(div, "captain, we have the test div");
 
   aInspector.selection.setNode(div);
-  aInspector.once("inspector-updated", SI_checkText);
+
+  aInspector.sidebar.once("computedview-ready", function() {
+    aInspector.sidebar.select("computedview");
+    computedView = getComputedView(aInspector);
+
+    Services.obs.addObserver(SI_checkText, "StyleInspector-populated", false);
+  });
 }
 
 function SI_checkText()
 {
+  Services.obs.removeObserver(SI_checkText, "StyleInspector-populated");
+
   let propertyView = null;
   computedView.propertyViews.some(function(aView) {
     if (aView.name == "color") {
@@ -44,16 +50,15 @@ function SI_checkText()
   is(propertyView.hasMatchedSelectors, true, "hasMatchedSelectors is true");
 
   propertyView.matchedExpanded = true;
-  propertyView.refreshMatchedSelectors().then(() => {
+  propertyView.refreshMatchedSelectors();
 
-    let span = propertyView.matchedSelectorsContainer.querySelector("span.rule-text");
-    ok(span, "found the first table row");
+  let span = propertyView.matchedSelectorsContainer.querySelector("span.rule-text");
+  ok(span, "found the first table row");
 
-    let selector = propertyView.matchedSelectorViews[0];
-    ok(selector, "found the first matched selector view");
+  let selector = propertyView.matchedSelectorViews[0];
+  ok(selector, "found the first matched selector view");
 
-    finishUp();
-  });
+  finishUp();
 }
 
 function finishUp()

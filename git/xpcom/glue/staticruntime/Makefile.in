@@ -13,10 +13,18 @@ include $(srcdir)/../objs.mk
 
 EXTRA_DEPS += $(srcdir)/../objs.mk
 
+LIBRARY_NAME	= xpcomglue_staticruntime_s
 DIST_INSTALL	= 1
 
 LOCAL_INCLUDES	= \
 	-I$(srcdir)/../../build \
+	$(NULL)
+
+CPPSRCS		= \
+	$(XPCOM_GLUE_SRC_LCPPSRCS) \
+	$(XPCOM_GLUENS_SRC_LCPPSRCS) \
+	nsStringAPI.cpp \
+	GenericModule.cpp \
 	$(NULL)
 
 SDK_LIBRARY     	= \
@@ -42,7 +50,7 @@ OS_COMPILE_CFLAGS += -Zl
 DEFINES += -D_USE_ANSI_CPP
 endif
 
-export:: $(XPCOM_GLUE_SRC_CPPSRCS) $(XPCOM_GLUENS_SRC_CPPSRCS) $(topsrcdir)/xpcom/glue/nsStringAPI.cpp $(topsrcdir)/xpcom/glue/GenericModule.cpp $(topsrcdir)/xpcom/glue/DeadlockDetector.h
+export:: $(XPCOM_GLUE_SRC_CPPSRCS) $(XPCOM_GLUENS_SRC_CPPSRCS) $(topsrcdir)/xpcom/glue/nsStringAPI.cpp $(topsrcdir)/xpcom/glue/GenericModule.cpp $(topsrcdir)/xpcom/glue/DeadlockDetector.h $(topsrcdir)/xpcom/glue/SSE.h $(topsrcdir)/xpcom/glue/arm.h
 	$(INSTALL) $^ .
 
 ifdef TARGET_XPCOM_ABI

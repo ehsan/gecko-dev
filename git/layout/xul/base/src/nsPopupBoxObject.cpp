@@ -14,7 +14,6 @@
 #include "nsGkAtoms.h"
 #include "nsMenuPopupFrame.h"
 #include "nsClientRect.h"
-#include "nsView.h"
 
 class nsPopupBoxObject : public nsBoxObject,
                          public nsIPopupBoxObject
@@ -359,7 +358,7 @@ nsPopupBoxObject::GetAlignmentPosition(nsAString& positionStr)
 NS_IMETHODIMP
 nsPopupBoxObject::GetAlignmentOffset(int32_t *aAlignmentOffset)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(true));
   if (!menuPopupFrame)
     return NS_OK;
 

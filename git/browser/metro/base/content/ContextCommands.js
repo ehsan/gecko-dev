@@ -37,9 +37,8 @@ var ContextCommands = {
   cut: function cc_cut() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target) {
+    if (!target)
       return;
-    }
 
     if (target.localName === "browser") {
       // content
@@ -50,7 +49,7 @@ var ContextCommands = {
       }
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_cut");
+      target.editor.cut();
     }
 
     target.focus();
@@ -59,9 +58,8 @@ var ContextCommands = {
   copy: function cc_copy() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target) {
+    if (!target)
       return;
-    }
 
     if (target.localName == "browser") {
       // content
@@ -70,11 +68,9 @@ var ContextCommands = {
 
         SelectionHelperUI.closeEditSession(true);
       }
-    } else if (ContextMenuUI.popupState.string) {
-      this.clipboard.copyString(ContextMenuUI.popupState.string, this.docRef);
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_copy");
+      target.editor.copy();
     }
 
     target.focus();
@@ -82,23 +78,18 @@ var ContextCommands = {
 
   paste: function cc_paste() {
     let target = ContextMenuUI.popupState.target;
-
-    if (!target) {
-      return;
-    }
-
     if (target.localName == "browser") {
       // content
       let x = ContextMenuUI.popupState.x;
       let y = ContextMenuUI.popupState.y;
       let json = {x: x, y: y, command: "paste" };
       target.messageManager.sendAsyncMessage("Browser:ContextCommand", json);
+      SelectionHelperUI.closeEditSession();
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_paste");
+      target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
       target.focus();
     }
-    SelectionHelperUI.closeEditSession();
   },
 
   pasteAndGo: function cc_pasteAndGo() {
@@ -111,8 +102,7 @@ var ContextCommands = {
   select: function cc_select() {
     SelectionHelperUI.openEditSession(ContextMenuUI.popupState.target,
                                       ContextMenuUI.popupState.xPos,
-                                      ContextMenuUI.popupState.yPos,
-                                      true);
+                                      ContextMenuUI.popupState.yPos);
   },
 
   selectAll: function cc_selectAll() {
@@ -171,7 +161,7 @@ var ContextCommands = {
 
   openLinkInNewTab: function cc_openLinkInNewTab() {
     Browser.addTab(ContextMenuUI.popupState.linkURL, false, Browser.selectedTab);
-    ContextUI.peekTabs(kOpenInNewTabAnimationDelayMsec);
+    ContextUI.peekTabs();
   },
 
   copyLink: function cc_copyLink() {
@@ -239,17 +229,6 @@ var ContextCommands = {
   },
 
   // App bar
-
-  errorConsole: function cc_errorConsole() {
-    PanelUI.show("console-container");
-  },
-
-  jsShell: function cc_jsShell() {
-    // XXX for debugging, this only works when running on the desktop.
-    if (!MetroUtils.immersive)
-      window.openDialog("chrome://browser/content/shell.xul", "_blank",
-                        "all=no,scrollbars=yes,resizable=yes,dialog=no");
-  },
 
   findInPage: function cc_findInPage() {
     FindHelperUI.show();

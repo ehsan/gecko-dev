@@ -8,7 +8,6 @@
 #define AnalyserNode_h_
 
 #include "AudioNode.h"
-#include "FFTBlock.h"
 
 namespace mozilla {
 namespace dom {
@@ -25,12 +24,12 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  void GetFloatFrequencyData(const Float32Array& aArray);
-  void GetByteFrequencyData(const Uint8Array& aArray);
-  void GetByteTimeDomainData(const Uint8Array& aArray);
+  void GetFloatFrequencyData(Float32Array& aArray);
+  void GetByteFrequencyData(Uint8Array& aArray);
+  void GetByteTimeDomainData(Uint8Array& aArray);
   uint32_t FftSize() const
   {
-    return mAnalysisBlock.FFTSize();
+    return mFFTSize;
   }
   void SetFftSize(uint32_t aValue, ErrorResult& aRv);
   uint32_t FrequencyBinCount() const
@@ -61,7 +60,7 @@ private:
   void ApplyBlackmanWindow(float* aBuffer, uint32_t aSize);
 
 private:
-  FFTBlock mAnalysisBlock;
+  uint32_t mFFTSize;
   double mMinDecibels;
   double mMaxDecibels;
   double mSmoothingTimeConstant;

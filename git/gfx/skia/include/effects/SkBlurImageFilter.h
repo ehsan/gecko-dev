@@ -5,13 +5,14 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkBlurImageFilter_DEFINED
 #define SkBlurImageFilter_DEFINED
 
-#include "SkImageFilter.h"
+#include "SkSingleInputImageFilter.h"
 #include "SkSize.h"
 
-class SK_API SkBlurImageFilter : public SkImageFilter {
+class SK_API SkBlurImageFilter : public SkSingleInputImageFilter {
 public:
     SkBlurImageFilter(SkScalar sigmaX, SkScalar sigmaY, SkImageFilter* input = NULL);
 
@@ -25,11 +26,12 @@ protected:
                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 
     bool canFilterImageGPU() const SK_OVERRIDE { return true; }
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual GrTexture* onFilterImageGPU(GrTexture* src, const SkRect& rect) SK_OVERRIDE;
 
 private:
     SkSize   fSigma;
-    typedef SkImageFilter INHERITED;
+    typedef SkSingleInputImageFilter INHERITED;
 };
 
 #endif
+

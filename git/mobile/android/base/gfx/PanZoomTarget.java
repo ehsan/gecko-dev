@@ -8,18 +8,15 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.ZoomConstraints;
 
 import android.graphics.PointF;
-import android.graphics.RectF;
 
 public interface PanZoomTarget {
     public ImmutableViewportMetrics getViewportMetrics();
     public ZoomConstraints getZoomConstraints();
     public boolean isFullScreen();
-    public RectF getMaxMargins();
 
     public void setAnimationTarget(ImmutableViewportMetrics viewport);
     public void setViewportMetrics(ImmutableViewportMetrics viewport);
     public void scrollBy(float dx, float dy);
-    public void onSubdocumentScrollBy(float dx, float dy);
     public void panZoomStopped();
     /** This triggers an (asynchronous) viewport update/redraw. */
     public void forceRedraw(DisplayPortMetrics displayPort);

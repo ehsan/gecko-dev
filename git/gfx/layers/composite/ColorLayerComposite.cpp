@@ -20,12 +20,12 @@ ColorLayerComposite::RenderLayer(const nsIntPoint& aOffset,
                                                            color.g,
                                                            color.b,
                                                            color.a));
-  nsIntRect boundRect = GetBounds();
+  nsIntRect visibleRect = GetEffectiveVisibleRegion().GetBounds();
 
   LayerManagerComposite::AddMaskEffect(GetMaskLayer(), effects);
 
-  gfx::Rect rect(boundRect.x, boundRect.y,
-                 boundRect.width, boundRect.height);
+  gfx::Rect rect(visibleRect.x, visibleRect.y,
+                 visibleRect.width, visibleRect.height);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y,
                      aClipRect.width, aClipRect.height);
 
@@ -36,11 +36,10 @@ ColorLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 
   mCompositor->DrawQuad(rect, clipRect, effects, opacity,
                         transform, gfx::Point(aOffset.x, aOffset.y));
-  mCompositor->DrawDiagnostics(DIAGNOSTIC_COLOR,
+  mCompositor->DrawDiagnostics(gfx::Color(0.0, 1.0, 1.0, 1.0),
                                rect, clipRect,
                                transform, gfx::Point(aOffset.x, aOffset.y));
 
-  LayerManagerComposite::RemoveMaskEffect(GetMaskLayer());
 }
 
 } /* layers */

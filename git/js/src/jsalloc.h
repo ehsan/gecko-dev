@@ -4,18 +4,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* JS allocation policies. */
-
-#ifndef jsalloc_h
-#define jsalloc_h
+#ifndef jsalloc_h_
+#define jsalloc_h_
 
 #include "js/Utility.h"
+#include "jstypes.h"
 
 struct JSContext;
 
 namespace js {
 
-class ContextFriendFields;
+/*
+ * Allocation policies.  These model the concept:
+ *  - public copy constructor, assignment, destructor
+ *  - void *malloc_(size_t)
+ *      Responsible for OOM reporting on NULL return value.
+ *  - void *calloc_(size_t)
+ *      Responsible for OOM reporting on NULL return value.
+ *  - void *realloc_(size_t)
+ *      Responsible for OOM reporting on NULL return value.
+ *      The *used* bytes of the previous buffer is passed in
+ *      (rather than the old allocation size), in addition to
+ *      the *new* allocation size requested.
+ *  - void free_(void *)
+ *  - reportAllocOverflow()
+ *      Called on overflow before the container returns NULL.
+ */
 
 /* Policy for using system memory functions and doing no error reporting. */
 class SystemAllocPolicy
@@ -39,7 +53,7 @@ class SystemAllocPolicy
  */
 class TempAllocPolicy
 {
-    ContextFriendFields *const cx_;
+    JSContext *const cx_;
 
     /*
      * Non-inline helper to call JSRuntime::onOutOfMemory with minimal
@@ -48,8 +62,11 @@ class TempAllocPolicy
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes);
 
   public:
-    TempAllocPolicy(JSContext *cx) : cx_((ContextFriendFields *) cx) {} // :(
-    TempAllocPolicy(ContextFriendFields *cx) : cx_(cx) {}
+    TempAllocPolicy(JSContext *cx) : cx_(cx) {}
+
+    JSContext *context() const {
+        return cx_;
+    }
 
     void *malloc_(size_t bytes) {
         void *p = js_malloc(bytes);
@@ -81,4 +98,4 @@ class TempAllocPolicy
 
 } /* namespace js */
 
-#endif /* jsalloc_h */
+#endif /* jsalloc_h_ */

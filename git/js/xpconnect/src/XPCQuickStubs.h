@@ -8,15 +8,13 @@
 #define xpcquickstubs_h___
 
 #include "xpcpublic.h"
-#include "XPCForwards.h"
+#include "xpcprivate.h"
 #include "qsObjectHelper.h"
 #include "mozilla/dom/BindingUtils.h"
 
 /* XPCQuickStubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
-class XPCLazyCallContext;
-class XPCWrappedNativeJSClass;
 
 #define XPC_QS_NULL_INDEX  ((uint16_t) -1)
 
@@ -46,7 +44,7 @@ struct xpc_qsHashEntry {
     uint16_t chain;
 };
 
-bool
+JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned extraFlags,
                        uint32_t ifacec, const nsIID **interfaces,
                        uint32_t tableSize, const xpc_qsHashEntry *table,
@@ -55,7 +53,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned extraFlags,
                        const char *stringTable);
 
 /** Raise an exception on @a cx and return false. */
-bool
+JSBool
 xpc_qsThrow(JSContext *cx, nsresult rv);
 
 /**
@@ -71,14 +69,14 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  * receives the wrapper JSObject.  (The other reason is to help the caller keep
  * that JSObject GC-reachable.)
  */
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, jsid memberId);
 // And variants using strings and string tables
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, const char* memberName);
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, uint16_t memberIndex);
 
@@ -87,10 +85,10 @@ xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
  *
  * See NOTE at xpc_qsThrowGetterSetterFailed.
  */
-bool
+JSBool
 xpc_qsThrowMethodFailed(JSContext *cx, nsresult rv, jsval *vp);
 
-bool
+JSBool
 xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv);
 
 bool
@@ -130,23 +128,22 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
                           uint16_t name_index);
 
 
-bool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                             bool strict, JS::MutableHandleValue vp);
+JSBool
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
 
-bool
+JSBool
 xpc_qsGetterOnlyNativeStub(JSContext *cx, unsigned argc, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
-inline bool
+inline JSBool
 xpc_qsInt64ToJsval(JSContext *cx, int64_t i, jsval *rv)
 {
     *rv = JS_NumberValue(static_cast<double>(i));
     return true;
 }
 
-inline bool
+inline JSBool
 xpc_qsUint64ToJsval(JSContext *cx, uint64_t u, jsval *rv)
 {
     *rv = JS_NumberValue(static_cast<double>(u));
@@ -169,7 +166,7 @@ public:
             Ptr()->~implementation_type();
     }
 
-    bool IsValid() const { return mValid; }
+    JSBool IsValid() const { return mValid; }
 
     implementation_type *Ptr()
     {
@@ -222,7 +219,7 @@ protected:
      * stored in mBuf, if mValid is true.
      */
     void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
-    bool mValid;
+    JSBool mValid;
 
     /*
      * If null is returned, then we either failed or fully initialized
@@ -347,15 +344,15 @@ struct xpc_qsSelfRef
  *     Out. On success it receives the converted string unless v is null or
  *     undefinedin which case bytes->ptr() remains null.
  */
-bool
+JSBool
 xpc_qsJsvalToCharStr(JSContext *cx, jsval v, JSAutoByteString *bytes);
 
-bool
+JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, const PRUnichar **pstr);
 
 
 /** Convert an nsString to JSString, returning true on success. This will sometimes modify |str| to be empty. */
-bool
+JSBool
 xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
 
 nsresult
@@ -373,7 +370,8 @@ castNative(JSContext *cx,
            const nsIID &iid,
            void **ppThis,
            nsISupports **ppThisRef,
-           jsval *vp);
+           jsval *vp,
+           XPCLazyCallContext *lccx);
 
 /**
  * Search @a obj and its prototype chain for an XPCOM object that implements
@@ -392,12 +390,13 @@ castNative(JSContext *cx,
  * Requires a request on @a cx.
  */
 template <class T>
-inline bool
+inline JSBool
 xpc_qsUnwrapThis(JSContext *cx,
                  JS::HandleObject obj,
                  T **ppThis,
                  nsISupports **pThisRef,
                  jsval *pThisVal,
+                 XPCLazyCallContext *lccx,
                  bool failureFatal = true)
 {
     XPCWrappedNative *wrapper;
@@ -406,7 +405,8 @@ xpc_qsUnwrapThis(JSContext *cx,
     nsresult rv = getWrapper(cx, obj, &wrapper, current.address(), &tearoff);
     if (NS_SUCCEEDED(rv))
         rv = castNative(cx, wrapper, current, tearoff, NS_GET_TEMPLATE_IID(T),
-                        reinterpret_cast<void **>(ppThis), pThisRef, pThisVal);
+                        reinterpret_cast<void **>(ppThis), pThisRef, pThisVal,
+                        lccx);
 
     if (failureFatal)
         return NS_SUCCEEDED(rv) || xpc_qsThrow(cx, rv);
@@ -416,7 +416,17 @@ xpc_qsUnwrapThis(JSContext *cx,
     return true;
 }
 
-nsISupports*
+MOZ_ALWAYS_INLINE bool
+HasBitInInterfacesBitmap(JSObject *obj, uint32_t interfaceBit)
+{
+    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)), "Not a wrapper?");
+
+    XPCWrappedNativeJSClass *clasp =
+      (XPCWrappedNativeJSClass*)js::GetObjectClass(obj);
+    return (clasp->interfacesBitmap & (1 << interfaceBit)) != 0;
+}
+
+MOZ_ALWAYS_INLINE nsISupports*
 castNativeFromWrapper(JSContext *cx,
                       JSObject *obj,
                       uint32_t interfaceBit,
@@ -424,9 +434,65 @@ castNativeFromWrapper(JSContext *cx,
                       int32_t protoDepth,
                       nsISupports **pRef,
                       jsval *pVal,
-                      nsresult *rv);
+                      XPCLazyCallContext *lccx,
+                      nsresult *rv)
+{
+    XPCWrappedNative *wrapper;
+    XPCWrappedNativeTearOff *tearoff;
+    JSObject *cur;
 
-bool
+    if (IS_WRAPPER_CLASS(js::GetObjectClass(obj))) {
+        cur = obj;
+        wrapper = IS_WN_WRAPPER_OBJECT(cur) ?
+                  (XPCWrappedNative*)xpc_GetJSPrivate(obj) :
+                  nullptr;
+        tearoff = nullptr;
+    } else {
+        *rv = getWrapper(cx, obj, &wrapper, &cur, &tearoff);
+        if (NS_FAILED(*rv))
+            return nullptr;
+    }
+
+    nsISupports *native;
+    if (wrapper) {
+        native = wrapper->GetIdentityObject();
+        cur = wrapper->GetFlatJSObject();
+        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
+            native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(wrapper, tearoff);
+        }
+    } else if (cur && IS_SLIM_WRAPPER(cur)) {
+        native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
+        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
+            native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(cur);
+        }
+    } else if (cur && protoDepth >= 0) {
+        const mozilla::dom::DOMClass* domClass =
+            mozilla::dom::GetDOMClass(cur);
+        native = mozilla::dom::UnwrapDOMObject<nsISupports>(cur);
+        if (native &&
+            (uint32_t)domClass->mInterfaceChain[protoDepth] != protoID) {
+            native = nullptr;
+        }
+    } else {
+        native = nullptr;
+    }
+
+    if (native) {
+        *pRef = nullptr;
+        *pVal = OBJECT_TO_JSVAL(cur);
+        *rv = NS_OK;
+    } else {
+        *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+    }
+
+    return native;
+}
+
+JSBool
 xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
                             const nsIID &iid,
                             void **ppThis,
@@ -438,7 +504,7 @@ xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
  * present in the given XPCCallContext.
  */
 template <class T>
-inline bool
+inline JSBool
 xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
                         T **ppThis,
                         nsISupports **pThisRef,
@@ -501,7 +567,8 @@ castNativeArgFromWrapper(JSContext *cx,
     if (!src)
         return nullptr;
 
-    return castNativeFromWrapper(cx, src, bit, protoID, protoDepth, pArgRef, vp, rv);
+    return castNativeFromWrapper(cx, src, bit, protoID, protoDepth, pArgRef, vp,
+                                 nullptr, rv);
 }
 
 inline nsWrapperCache*
@@ -526,8 +593,8 @@ xpc_qsGetWrapperCache(void *p)
  * aIdentity is a performance optimization. Set it to true,
  * only if p is the identity pointer.
  */
-bool
-xpc_qsXPCOMObjectToJsval(JSContext *aCx,
+JSBool
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
                          qsObjectHelper &aHelper,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
@@ -536,8 +603,8 @@ xpc_qsXPCOMObjectToJsval(JSContext *aCx,
 /**
  * Convert a variant to jsval. Return true on success.
  */
-bool
-xpc_qsVariantToJsval(JSContext *cx,
+JSBool
+xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
                      jsval *rval);
 
@@ -570,27 +637,25 @@ xpc_qsSameResult(int32_t result1, int32_t result2)
 
 // Apply |op| to |obj|, |id|, and |vp|. If |op| is a setter, treat the assignment as lenient.
 template<typename Op>
-inline bool ApplyPropertyOp(JSContext *cx, Op op, JS::HandleObject obj, JS::HandleId id,
-                              JS::MutableHandleValue vp);
+inline JSBool ApplyPropertyOp(JSContext *cx, Op op, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 template<>
-inline bool
-ApplyPropertyOp<JSPropertyOp>(JSContext *cx, JSPropertyOp op, JS::HandleObject obj, JS::HandleId id,
-                              JS::MutableHandleValue vp)
+inline JSBool
+ApplyPropertyOp<JSPropertyOp>(JSContext *cx, JSPropertyOp op, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
 {
     return op(cx, obj, id, vp);
 }
 
 template<>
-inline bool
-ApplyPropertyOp<JSStrictPropertyOp>(JSContext *cx, JSStrictPropertyOp op, JS::HandleObject obj,
-                                    JS::HandleId id, JS::MutableHandleValue vp)
+inline JSBool
+ApplyPropertyOp<JSStrictPropertyOp>(JSContext *cx, JSStrictPropertyOp op, JSHandleObject obj,
+                                    JSHandleId id, JSMutableHandleValue vp)
 {
     return op(cx, obj, id, true, vp);
 }
 
 template<typename Op>
-bool
+JSBool
 PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 {
     // Layout:

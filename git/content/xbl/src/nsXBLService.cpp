@@ -72,10 +72,11 @@ IsAncestorBinding(nsIDocument* aDocument,
   NS_ASSERTION(aChild, "expected a child content");
 
   uint32_t bindingRecursion = 0;
+  nsBindingManager* bindingManager = aDocument->BindingManager();
   for (nsIContent *bindingParent = aChild->GetBindingParent();
        bindingParent;
        bindingParent = bindingParent->GetBindingParent()) {
-    nsXBLBinding* binding = bindingParent->GetXBLBinding();
+    nsXBLBinding* binding = bindingManager->GetBinding(bindingParent);
     if (!binding) {
       continue;
     }
@@ -450,18 +451,23 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
     return NS_OK;
   }
 
-  nsXBLBinding *binding = aContent->GetXBLBinding();
+  nsBindingManager *bindingManager = document->BindingManager();
+  
+  nsXBLBinding *binding = bindingManager->GetBinding(aContent);
   if (binding) {
-    if (binding->MarkedForDeath()) {
-      FlushStyleBindings(aContent);
-      binding = nullptr;
-    }
-    else {
-      // See if the URIs match.
-      if (binding->PrototypeBinding()->CompareBindingURI(aURL))
-        return NS_OK;
-      FlushStyleBindings(aContent);
-      binding = nullptr;
+    nsXBLBinding *styleBinding = binding->GetFirstStyleBinding();
+    if (styleBinding) {
+      if (binding->MarkedForDeath()) {
+        FlushStyleBindings(aContent);
+        binding = nullptr;
+      }
+      else {
+        // See if the URIs match.
+        if (styleBinding->PrototypeBinding()->CompareBindingURI(aURL))
+          return NS_OK;
+        FlushStyleBindings(aContent);
+        binding = nullptr;
+      }
     }
   }
 
@@ -493,7 +499,7 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
   }
   else {
     // Install the binding on the content node.
-    aContent->SetXBLBinding(newBinding);
+    bindingManager->SetBinding(aContent, newBinding);
   }
 
   {
@@ -526,12 +532,20 @@ nsXBLService::FlushStyleBindings(nsIContent* aContent)
 {
   nsCOMPtr<nsIDocument> document = aContent->OwnerDoc();
 
-  nsXBLBinding *binding = aContent->GetXBLBinding();
+  nsBindingManager *bindingManager = document->BindingManager();
+  
+  nsXBLBinding *binding = bindingManager->GetBinding(aContent);
+  
   if (binding) {
-    // Clear out the script references.
-    binding->ChangeDocument(document, nullptr);
+    nsXBLBinding *styleBinding = binding->GetFirstStyleBinding();
 
-    aContent->SetXBLBinding(nullptr); // Flush old style bindings
+    if (styleBinding) {
+      // Clear out the script references.
+      styleBinding->ChangeDocument(document, nullptr);
+    }
+
+    if (styleBinding == binding) 
+      bindingManager->SetBinding(aContent, nullptr); // Flush old style bindings
   }
    
   return NS_OK;
@@ -901,10 +915,6 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
     if (aBoundDocument) {
       bindingManager = aBoundDocument->BindingManager();
       info = bindingManager->GetXBLDocumentInfo(documentURI);
-      if (aBoundDocument->IsStaticDocument() &&
-          IsChromeOrResourceURI(aBindingURI)) {
-        aForceSyncLoad = true;
-      }
     }
 
     nsINodeInfo *ni = nullptr;

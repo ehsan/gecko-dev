@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMDataContainerEvent.h"
-#include "nsContentUtils.h"
-#include "nsIXPConnect.h"
+#include "nsDOMClassInfoID.h"
 
 nsDOMDataContainerEvent::nsDOMDataContainerEvent(
                                              mozilla::dom::EventTarget* aOwner,
@@ -15,8 +14,6 @@ nsDOMDataContainerEvent::nsDOMDataContainerEvent(
 {
   mData.Init();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataContainerEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMDataContainerEvent,
                                                 nsDOMEvent)
@@ -32,8 +29,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsDOMDataContainerEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMDataContainerEvent, nsDOMEvent)
 
+DOMCI_DATA(DataContainerEvent, nsDOMDataContainerEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDataContainerEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataContainerEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DataContainerEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMETHODIMP
@@ -59,25 +59,6 @@ nsDOMDataContainerEvent::SetData(const nsAString& aKey, nsIVariant *aData)
   return NS_OK;
 }
 
-void
-nsDOMDataContainerEvent::SetData(JSContext* aCx, const nsAString& aKey,
-                                 JS::Handle<JS::Value> aVal,
-                                 mozilla::ErrorResult& aRv)
-{
-  if (!nsContentUtils::XPConnect()) {
-    aRv = NS_ERROR_FAILURE;
-    return;
-  }
-  nsCOMPtr<nsIVariant> val;
-  nsresult rv =
-    nsContentUtils::XPConnect()->JSToVariant(aCx, aVal, getter_AddRefs(val));
-  if (NS_FAILED(rv)) {
-    aRv = rv;
-    return;
-  }
-  aRv = SetData(aKey, val);
-}
-
 nsresult
 NS_NewDOMDataContainerEvent(nsIDOMEvent** aInstancePtrResult,
                             mozilla::dom::EventTarget* aOwner,
@@ -86,6 +67,7 @@ NS_NewDOMDataContainerEvent(nsIDOMEvent** aInstancePtrResult,
 {
   nsDOMDataContainerEvent* it =
     new nsDOMDataContainerEvent(aOwner, aPresContext, aEvent);
+  NS_ENSURE_TRUE(it, NS_ERROR_OUT_OF_MEMORY);
 
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -11,9 +11,23 @@ FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME   = neckosystem_s
 LIBXUL_LIBRARY = 1
 
+FORCE_STATIC_LIB = 1
+MOCSRCS = \
+		moc_nsQtNetworkManager.cpp \
+		$(NULL)
+
+CPPSRCS += \
+	$(MOCSRCS) \
+	nsQtNetworkLinkService.cpp \
+	nsQtNetworkManager.cpp \
+	$(NULL)
+
 include $(topsrcdir)/config/rules.mk
+
+DEFINES += -DIMPL_NS_NET
 
 OS_INCLUDES += $(MOZ_QT_CFLAGS)
 LOCAL_INCLUDES += -I$(srcdir)/../../base/src

@@ -36,7 +36,6 @@
 #include "nsCategoryManager.h"
 #include "nsCategoryManagerUtils.h"
 #include "xptiprivate.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIConsoleService.h"
 #include "nsIMemoryReporter.h"
@@ -49,6 +48,7 @@
 #include "nsIClassInfo.h"
 #include "nsLocalFile.h"
 #include "nsReadableUtils.h"
+#include "nsStaticComponents.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "prcmon.h"
@@ -68,7 +68,7 @@
 #include "nsStringEnumerator.h"
 #include "mozilla/FileUtils.h"
 
-#include <new>     // for placement new
+#include NEW_H     // for placement new
 
 #include "mozilla/Omnijar.h"
 
@@ -77,10 +77,6 @@
 using namespace mozilla;
 
 PRLogModuleInfo* nsComponentManagerLog = nullptr;
-
-// defined in nsStaticXULComponents.cpp to contain all the components in
-// libxul.
-extern mozilla::Module const *const *const kPStaticModules[];
 
 #if 0 || defined (DEBUG_timeless)
  #define SHOW_DENIED_ON_SHUTDOWN
@@ -251,14 +247,14 @@ GetLocationFromDirectoryService(const char* prop)
                                getter_AddRefs(directoryService));
 
     if (!directoryService)
-        return nullptr;
+        return NULL;
 
     nsCOMPtr<nsIFile> file;
     nsresult rv = directoryService->Get(prop,
                                         NS_GET_IID(nsIFile),
                                         getter_AddRefs(file));
     if (NS_FAILED(rv))
-        return nullptr;
+        return NULL;
 
     return file.forget();
 }
@@ -269,7 +265,7 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
     nsCOMPtr<nsIFile> f;
     aBase->Clone(getter_AddRefs(f));
     if (!f)
-        return nullptr;
+        return NULL;
 
     f->AppendNative(append);
     return f.forget();
@@ -390,10 +386,10 @@ nsresult nsComponentManagerImpl::Init()
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(true);
 
-    RegisterModule(&kXPCOMModule, nullptr);
+    RegisterModule(&kXPCOMModule, NULL);
 
     for (uint32_t i = 0; i < sStaticModules->Length(); ++i)
-        RegisterModule((*sStaticModules)[i], nullptr);
+        RegisterModule((*sStaticModules)[i], NULL);
 
     nsRefPtr<nsZipArchive> appOmnijar = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
     if (appOmnijar) {
@@ -834,12 +830,12 @@ nsComponentManagerImpl::~nsComponentManagerImpl()
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG, ("nsComponentManager: Destroyed."));
 }
 
-NS_IMPL_ISUPPORTS5(nsComponentManagerImpl,
-                   nsIComponentManager,
-                   nsIServiceManager,
-                   nsIComponentRegistrar,
-                   nsISupportsWeakReference,
-                   nsIInterfaceRequestor)
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsComponentManagerImpl,
+                              nsIComponentManager,
+                              nsIServiceManager,
+                              nsIComponentRegistrar,
+                              nsISupportsWeakReference,
+                              nsIInterfaceRequestor)
 
 
 nsresult
@@ -872,7 +868,7 @@ nsComponentManagerImpl::FindFactory(const nsCID& aClass)
 {
     nsFactoryEntry* e = GetFactoryEntry(aClass);
     if (!e)
-        return nullptr;
+        return NULL;
 
     return e->GetFactory();
 }
@@ -883,7 +879,7 @@ nsComponentManagerImpl::FindFactory(const char *contractID,
 {
     nsFactoryEntry *entry = GetFactoryEntry(contractID, aContractIDLen);
     if (!entry)
-        return nullptr;
+        return NULL;
 
     return entry->GetFactory();
 }
@@ -1117,8 +1113,8 @@ FreeFactoryEntries(const nsID& aCID,
                    nsFactoryEntry* aEntry,
                    void* arg)
 {
-    aEntry->mFactory = nullptr;
-    aEntry->mServiceObject = nullptr;
+    aEntry->mFactory = NULL;
+    aEntry->mServiceObject = NULL;
     return PL_DHASH_NEXT;
 }
 
@@ -1130,7 +1126,7 @@ nsComponentManagerImpl::FreeServices()
     if (!gXPCOMShuttingDown)
         return NS_ERROR_FAILURE;
 
-    mFactories.EnumerateRead(FreeFactoryEntries, nullptr);
+    mFactories.EnumerateRead(FreeFactoryEntries, NULL);
     return NS_OK;
 }
 
@@ -1488,7 +1484,7 @@ nsComponentManagerImpl::LoaderForExtension(const nsACString& aExt)
         loader = do_GetServiceFromCategory("module-loader",
                                            PromiseFlatCString(aExt).get());
         if (!loader)
-            return nullptr;
+            return NULL;
 
         mLoaderMap.Put(aExt, loader);
     }
@@ -1677,14 +1673,14 @@ nsComponentManagerImpl::ContractIDToCID(const char *aContractID,
             return NS_OK;
         }
     }
-    *_retval = nullptr;
+    *_retval = NULL;
     return NS_ERROR_FACTORY_NOT_REGISTERED;
 }
 
 static size_t
 SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
                                   nsFactoryEntry* const &aData,
-                                  MallocSizeOf aMallocSizeOf,
+                                  nsMallocSizeOfFun aMallocSizeOf,
                                   void* aUserArg)
 {
     return aData->SizeOfIncludingThis(aMallocSizeOf);
@@ -1693,7 +1689,7 @@ SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
 static size_t
 SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
                                     nsFactoryEntry* const &aData,
-                                    MallocSizeOf aMallocSizeOf,
+                                    nsMallocSizeOfFun aMallocSizeOf,
                                     void* aUserArg)
 {
     // We don't measure the nsFactoryEntry data because its owned by mFactories
@@ -1702,7 +1698,7 @@ SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
 }
 
 size_t
-nsComponentManagerImpl::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsComponentManagerImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     n += mLoaderMap.SizeOfExcludingThis(nullptr, aMallocSizeOf);
@@ -1744,8 +1740,8 @@ nsFactoryEntry::nsFactoryEntry(const mozilla::Module::CIDEntry* entry,
 }
 
 nsFactoryEntry::nsFactoryEntry(const nsCID& aCID, nsIFactory* factory)
-    : mCIDEntry(nullptr)
-    , mModule(nullptr)
+    : mCIDEntry(NULL)
+    , mModule(NULL)
     , mFactory(factory)
 {
     mozilla::Module::CIDEntry* e = new mozilla::Module::CIDEntry();
@@ -1753,7 +1749,7 @@ nsFactoryEntry::nsFactoryEntry(const nsCID& aCID, nsIFactory* factory)
     *cid = aCID;
     e->cid = cid;
     mCIDEntry = e;
-}
+}        
 
 nsFactoryEntry::~nsFactoryEntry()
 {
@@ -1773,10 +1769,10 @@ nsFactoryEntry::GetFactory()
         // RegisterFactory then UnregisterFactory can leave an entry in mContractIDs
         // pointing to an unusable nsFactoryEntry.
         if (!mModule)
-            return nullptr;
+            return NULL;
 
         if (!mModule->Load())
-            return nullptr;
+            return NULL;
 
         // Don't set mFactory directly, it needs to be locked
         nsCOMPtr<nsIFactory> factory;
@@ -1793,7 +1789,7 @@ nsFactoryEntry::GetFactory()
             factory = new mozilla::GenericFactory(mCIDEntry->constructorProc);
         }
         if (!factory)
-            return nullptr;
+            return NULL;
 
         SafeMutexAutoLock lock(nsComponentManagerImpl::gComponentManager->mLock);
         // Threads can race to set mFactory
@@ -1806,7 +1802,7 @@ nsFactoryEntry::GetFactory()
 }
 
 size_t
-nsFactoryEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsFactoryEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
 
@@ -1863,7 +1859,7 @@ XRE_AddStaticComponent(const mozilla::Module* aComponent)
 
     if (nsComponentManagerImpl::gComponentManager &&
         nsComponentManagerImpl::NORMAL == nsComponentManagerImpl::gComponentManager->mStatus)
-        nsComponentManagerImpl::gComponentManager->RegisterModule(aComponent, nullptr);
+        nsComponentManagerImpl::gComponentManager->RegisterModule(aComponent, NULL);
 
     return NS_OK;
 }

@@ -17,7 +17,6 @@
 #include "nsScreenManagerWin.h"
 #include "nsSound.h"
 #include "WinMouseScrollHandler.h"
-#include "KeyboardLayout.h"
 #include "GfxInfo.h"
 #include "nsToolkit.h"
 
@@ -25,7 +24,6 @@
 #include "nsXULAppAPI.h"
 // Desktop
 #include "nsFilePicker.h" // needs to be included before other shobjidl.h includes
-#include "nsColorPicker.h"
 #include "nsNativeThemeWin.h"
 #include "nsWindow.h"
 // Content processes
@@ -126,31 +124,6 @@ FilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
   return picker->QueryInterface(aIID, aResult);
 }
 
-static nsresult
-ColorPickerConstructor(nsISupports *aOuter, REFNSIID aIID,
-                       void **aResult)
-{
-  *aResult = nullptr;
-  if (aOuter != nullptr) {
-    return NS_ERROR_NO_AGGREGATION;
-  }
-  nsCOMPtr<nsIColorPicker> picker;
-
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-#ifdef MOZ_METRO
-    // TODO
-    // picker = new nsMetroColorPicker;
-    NS_ERROR("metro color picker isn't implemented currently");
-    return NS_ERROR_NO_INTERFACE;
-#else
-    NS_RUNTIMEABORT("build does not support metro.");
-#endif
-  } else {
-    picker = new nsColorPicker;
-  }
-  return picker->QueryInterface(aIID, aResult);
-}
-
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerWin)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIdleServiceWin, nsIdleServiceWin::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboard)
@@ -186,7 +159,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(GfxInfo, Init)
 NS_DEFINE_NAMED_CID(NS_WINDOW_CID);
 NS_DEFINE_NAMED_CID(NS_CHILD_CID);
 NS_DEFINE_NAMED_CID(NS_FILEPICKER_CID);
-NS_DEFINE_NAMED_CID(NS_COLORPICKER_CID);
 NS_DEFINE_NAMED_CID(NS_APPSHELL_CID);
 NS_DEFINE_NAMED_CID(NS_SCREENMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_GFXINFO_CID);
@@ -220,7 +192,6 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_WINDOW_CID, false, NULL, WindowConstructor },
   { &kNS_CHILD_CID, false, NULL, ChildWindowConstructor },
   { &kNS_FILEPICKER_CID, false, NULL, FilePickerConstructor },
-  { &kNS_COLORPICKER_CID, false, NULL, ColorPickerConstructor },
   { &kNS_APPSHELL_CID, false, NULL, nsAppShellConstructor },
   { &kNS_SCREENMANAGER_CID, false, NULL, nsScreenManagerWinConstructor },
   { &kNS_GFXINFO_CID, false, NULL, GfxInfoConstructor },
@@ -255,7 +226,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/widgets/window/win;1", &kNS_WINDOW_CID },
   { "@mozilla.org/widgets/child_window/win;1", &kNS_CHILD_CID },
   { "@mozilla.org/filepicker;1", &kNS_FILEPICKER_CID },
-  { "@mozilla.org/colorpicker;1", &kNS_COLORPICKER_CID },
   { "@mozilla.org/widget/appshell/win;1", &kNS_APPSHELL_CID },
   { "@mozilla.org/gfx/screenmanager;1", &kNS_SCREENMANAGER_CID },
   { "@mozilla.org/gfx/info;1", &kNS_GFXINFO_CID },
@@ -289,7 +259,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
 static void
 nsWidgetWindowsModuleDtor()
 {
-  KeyboardLayout::Shutdown();
   MouseScrollHandler::Shutdown();
   nsLookAndFeel::Shutdown();
   nsToolkit::Shutdown();

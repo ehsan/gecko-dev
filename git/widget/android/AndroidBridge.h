@@ -87,7 +87,7 @@ typedef struct AndroidSystemColors {
 
 class nsFilePickerCallback : nsISupports {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     virtual void handleResult(nsAString& filePath) = 0;
     nsFilePickerCallback() {}
 protected:
@@ -120,13 +120,12 @@ private:
 };
 
 
-class AndroidBridge MOZ_FINAL : public mozilla::layers::GeckoContentController
+class AndroidBridge : public mozilla::layers::GeckoContentController
 {
 public:
     enum {
         // Values for NotifyIME, in addition to values from the Gecko
         // NotificationToIME enum; use negative values here to prevent conflict
-        NOTIFY_IME_OPEN_VKB = -2,
         NOTIFY_IME_REPLY_EVENT = -1,
     };
 
@@ -191,11 +190,9 @@ public:
 
     nsresult CaptureThumbnail(nsIDOMWindow *window, int32_t bufW, int32_t bufH, int32_t tabId, jobject buffer);
     void SendThumbnail(jobject buffer, int32_t tabId, bool success);
-    void GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
-    void ContentDocumentChanged();
-    bool IsContentDocumentDisplayed();
+    nsresult GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
 
-    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
+    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
 
     void AcknowledgeEvent();
 
@@ -257,7 +254,6 @@ public:
     void CloseNotification(const nsAString& aAlertName);
 
     int GetDPI();
-    int GetScreenDepth();
 
     void ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString& aExtensions);
     void ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& aMimeType);
@@ -313,9 +309,6 @@ public:
     // caller is responsible for ensuring this doesn't leak by calling
     // DeleteGlobalRef() when the context is no longer needed.
     jobject GetGlobalContextRef(void);
-
-    // Returns a local reference. Caller must manage this reference
-    jobject GetContext(void);
 
     void UnlockBitmap(jobject bitmap);
 
@@ -373,16 +366,16 @@ public:
     void EnableNetworkNotifications();
     void DisableNetworkNotifications();
 
-    void SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect);
-    void SetPageRect(const CSSRect& aCssPageRect);
-    void SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                          bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                          LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
-    void SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
-                          bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                          bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
+    void SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect);
+    void SetPageRect(const gfx::Rect& aCssPageRect);
+    void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
+                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
+                          gfx::Margin& aFixedLayerMargins, gfx::Point& aOffset);
+    void SyncFrameMetrics(const gfx::Point& aScrollOffset, float aZoom, const gfx::Rect& aCssPageRect,
+                          bool aLayersUpdated, const gfx::Rect& aDisplayPort, float aDisplayResolution,
+                          bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, gfx::Point& aOffset);
 
-    void AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen);
+    void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
     void RemovePluginView(jobject view, bool isFullScreen);
 
     // These methods don't use a ScreenOrientation because it's an
@@ -422,7 +415,7 @@ public:
                             const int32_t      aPort,
                             nsACString & aResult);
 protected:
-    static StaticRefPtr<AndroidBridge> sBridge;
+    static nsRefPtr<AndroidBridge> sBridge;
     nsTArray<nsCOMPtr<nsIMobileMessageCallback> > mSmsRequests;
 
     // the global JavaVM
@@ -475,6 +468,8 @@ protected:
     jmethodID jGetMimeTypeFromExtensions;
     jmethodID jGetExtensionFromMimeType;
     jmethodID jMoveTaskToBack;
+    jmethodID jGetClipboardText;
+    jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
     jmethodID jShowFilePickerForExtensions;
     jmethodID jShowFilePickerForMimeType;
@@ -484,7 +479,6 @@ protected:
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jCloseNotification;
     jmethodID jGetDpi;
-    jmethodID jGetScreenDepth;
     jmethodID jSetFullScreen;
     jmethodID jShowInputMethodPicker;
     jmethodID jNotifyDefaultPrevented;
@@ -563,10 +557,6 @@ protected:
     jmethodID jRequestContentRepaint;
     jmethodID jPostDelayedCallback;
 
-    jclass jClipboardClass;
-    jmethodID jClipboardGetText;
-    jmethodID jClipboardSetText;
-
     // some convinient types to have around
     jclass jStringClass;
 
@@ -599,12 +589,10 @@ public:
     jobject SetNativePanZoomController(jobject obj);
     // GeckoContentController methods
     void RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
-    void HandleDoubleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
-    void HandleSingleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
-    void HandleLongTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
-    void SendAsyncScrollDOMEvent(mozilla::layers::FrameMetrics::ViewID aScrollId,
-                                 const CSSRect& aContentRect,
-                                 const CSSSize& aScrollableSize) MOZ_OVERRIDE;
+    void HandleDoubleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE;
+    void HandleSingleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE;
+    void HandleLongTap(const nsIntPoint& aPoint) MOZ_OVERRIDE;
+    void SendAsyncScrollDOMEvent(const gfx::Rect& aContentRect, const gfx::Size& aScrollableSize) MOZ_OVERRIDE;
     void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE;
     int64_t RunDelayedTasks();
 };
@@ -722,7 +710,7 @@ private:
 { 0x0FE2321D, 0xEBD9, 0x467D, \
     { 0xA7, 0x43, 0x03, 0xA6, 0x8D, 0x40, 0x59, 0x9E } }
 
-class nsAndroidBridge MOZ_FINAL : public nsIAndroidBridge
+class nsAndroidBridge : public nsIAndroidBridge
 {
 public:
   NS_DECL_ISUPPORTS

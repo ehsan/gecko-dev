@@ -167,13 +167,23 @@ XULButtonAccessible::CacheChildren()
 {
   // In general XUL button has not accessible children. Nevertheless menu
   // buttons can have button (@type="menu-button") and popup accessibles
-  // (@type="menu-button", @type="menu" or columnpicker.
+  // (@type="menu-button" or @type="menu").
 
   // XXX: no children until the button is menu button. Probably it's not
   // totally correct but in general AT wants to have leaf buttons.
+  bool isMenu = mContent->AttrValueIs(kNameSpaceID_None,
+                                       nsGkAtoms::type,
+                                       nsGkAtoms::menu,
+                                       eCaseMatters);
 
-  bool isMenuButton = mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                                            nsGkAtoms::menuButton, eCaseMatters);
+  bool isMenuButton = isMenu ?
+    false :
+    mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                          nsGkAtoms::menuButton, eCaseMatters);
+
+  NS_ENSURE_TRUE_VOID(mDoc);
+  if (!isMenu && !isMenuButton)
+    return;
 
   Accessible* menupopup = nullptr;
   Accessible* button = nullptr;
@@ -244,7 +254,7 @@ XULDropmarkerAccessible::DropmarkerOpen(bool aToggleOpen)
   bool isOpen = false;
 
   nsCOMPtr<nsIDOMXULButtonElement> parentButtonElement =
-    do_QueryInterface(mContent->GetFlattenedTreeParent());
+    do_QueryInterface(mContent->GetParent());
 
   if (parentButtonElement) {
     parentButtonElement->GetOpen(&isOpen);
@@ -817,17 +827,10 @@ XULTextFieldAccessible::CacheChildren()
   if (!inputContent)
     return;
 
-  // XXX: entry shouldn't contain anything but text leafs. Currently it may
-  // contain a trailing fake HTML br element added for layout needs. We don't
-  // need to expose it since it'd be confusing for AT.
   TreeWalker walker(this, inputContent);
+
   Accessible* child = nullptr;
-  while ((child = walker.NextChild())) {
-    if (child->IsTextLeaf())
-      AppendChild(child);
-    else
-      Document()->UnbindFromDocument(child);
-  }
+  while ((child = walker.NextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -837,10 +840,6 @@ already_AddRefed<nsFrameSelection>
 XULTextFieldAccessible::FrameSelection()
 {
   nsCOMPtr<nsIContent> inputContent(GetInputField());
-  NS_ASSERTION(inputContent, "No input content");
-  if (!inputContent)
-    return nullptr;
-
   nsIFrame* frame = inputContent->GetPrimaryFrame();
   return frame ? frame->GetFrameSelection() : nullptr;
 }

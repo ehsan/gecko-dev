@@ -7,7 +7,6 @@
 #ifndef _nsDiskCacheMap_h_
 #define _nsDiskCacheMap_h_
 
-#include "mozilla/MemoryReporting.h"
 #include <limits.h>
 
 #include "prtypes.h"
@@ -486,7 +485,7 @@ public:
     
     int32_t  EntryCount()  { return mHeader.mEntryCount; }
 
-    size_t  SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t  SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 
 private:

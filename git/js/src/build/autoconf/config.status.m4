@@ -67,6 +67,7 @@ test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix='${prefix}'
 
 trap 'rm -f $CONFIG_STATUS conftest*; exit 1' 1 2 15
+
 : ${CONFIG_STATUS=./config.status}
 
 dnl We're going to need [ ] for python syntax.
@@ -87,7 +88,7 @@ if not os.path.isabs(topsrcdir):
     rel = os.path.join(os.path.dirname(<<<__file__>>>), topsrcdir)
     topsrcdir = os.path.normpath(os.path.abspath(rel))
 
-topobjdir = os.path.abspath(os.path.dirname(<<<__file__>>>))
+topobjdir = os.path.dirname(<<<__file__>>>)
 
 dnl All defines and substs are stored with an additional space at the beginning
 dnl and at the end of the string, to avoid any problem with values starting or
@@ -176,8 +177,5 @@ changequote([, ])
 chmod +x $CONFIG_STATUS
 rm -fr confdefs* $ac_clean_files
 dnl Execute config.status, unless --no-create was passed to configure.
-if test "$no_create" != yes && ! ${PYTHON} $CONFIG_STATUS; then
-    trap '' EXIT
-    exit 1
-fi
+test "$no_create" = yes || ${PYTHON} $CONFIG_STATUS || exit 1
 ])

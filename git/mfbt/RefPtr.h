@@ -1,16 +1,14 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Helpers for defining and using refcounted objects. */
 
-#ifndef mozilla_RefPtr_h
-#define mozilla_RefPtr_h
+#ifndef mozilla_RefPtr_h_
+#define mozilla_RefPtr_h_
 
 #include "mozilla/Assertions.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TypeTraits.h"
 
@@ -43,19 +41,13 @@ template<typename T> OutParamRef<T> byRef(RefPtr<T>&);
  * state distinguishes use-before-ref (refcount==0) from
  * use-after-destroy (refcount==0xffffdead).
  */
-namespace detail {
 #ifdef DEBUG
+namespace detail {
 static const int DEAD = 0xffffdead;
+}
 #endif
 
-// This is used WeakPtr.h as well as this file.
-enum RefCountAtomicity
-{
-  AtomicRefCount,
-  NonAtomicRefCount
-};
-
-template<typename T, RefCountAtomicity Atomicity>
+template<typename T>
 class RefCounted
 {
     friend class RefPtr<T>;
@@ -64,6 +56,8 @@ class RefCounted
     RefCounted() : refCnt(0) { }
     ~RefCounted() {
       MOZ_ASSERT(refCnt == detail::DEAD);
+      MOZ_STATIC_ASSERT((IsBaseOf<RefCounted<T>, T>::value),
+                        "T must derive from RefCounted<T>");
     }
 
   public:
@@ -93,33 +87,7 @@ class RefCounted
     }
 
   private:
-    typename Conditional<Atomicity == AtomicRefCount, Atomic<int>, int>::Type refCnt;
-};
-
-}
-
-template<typename T>
-class RefCounted : public detail::RefCounted<T, detail::NonAtomicRefCount>
-{
-  public:
-    ~RefCounted() {
-      static_assert(IsBaseOf<RefCounted, T>::value,
-                    "T must derive from RefCounted<T>");
-    }
-};
-
-/**
- * AtomicRefCounted<T> is like RefCounted<T>, with an atomically updated
- * reference counter.
- */
-template<typename T>
-class AtomicRefCounted : public detail::RefCounted<T, detail::AtomicRefCount>
-{
-  public:
-    ~AtomicRefCounted() {
-      static_assert(IsBaseOf<AtomicRefCounted, T>::value,
-                    "T must derive from AtomicRefCounted<T>");
-    }
+    int refCnt;
 };
 
 /**
@@ -291,6 +259,9 @@ byRef(RefPtr<T>& ptr)
 
 } // namespace mozilla
 
+#endif // mozilla_RefPtr_h_
+
+
 #if 0
 
 // Command line that builds these tests
@@ -445,5 +416,3 @@ main(int argc, char** argv)
 }
 
 #endif
-
-#endif /* mozilla_RefPtr_h */

@@ -416,10 +416,6 @@ XPCOMGlueLoad(const char *xpcomFile)
         cursor = xpcomDir;
     }
 
-    if (getenv("MOZ_RUN_GTEST")) {
-        strcat(xpcomDir, ".gtest");
-    }
-
     ScopedCloseFile flist;
     flist = TS_tfopen(xpcomDir, READ_TEXTMODE);
     if (!flist) {
@@ -952,15 +948,6 @@ NS_CycleCollectorSuspect2(void* obj, nsCycleCollectionParticipant *p)
         return nullptr;
 
     return xpcomFunctions.cycleSuspect2Func(obj, p);
-}
-
-XPCOM_API(void)
-NS_CycleCollectorSuspect3(void* obj, nsCycleCollectionParticipant *p,
-                          nsCycleCollectingAutoRefCnt* aRefCnt,
-                          bool* aShouldDelete)
-{
-    if (xpcomFunctions.cycleSuspect3Func)
-        xpcomFunctions.cycleSuspect3Func(obj, p, aRefCnt, aShouldDelete);
 }
 
 XPCOM_API(bool)

@@ -5,14 +5,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Nursery_inl_h
-#define gc_Nursery_inl_h
-
 #ifdef JSGC_GENERATIONAL
-
-#include "gc/Nursery.h"
+#ifndef gc_Nursery_inl_h__
+#define gc_Nursery_inl_h__
 
 #include "gc/Heap.h"
+#include "gc/Nursery.h"
 
 namespace js {
 namespace gc {
@@ -23,7 +21,7 @@ namespace gc {
  */
 class RelocationOverlay
 {
-    friend class MinorCollectionTracer;
+    friend struct MinorCollectionTracer;
 
     /* The low bit is set so this should never equal a normal pointer. */
     const static uintptr_t Relocated = uintptr_t(0xbad0bad1);
@@ -81,6 +79,5 @@ js::Nursery::getForwardedPointer(T **ref)
     return true;
 }
 
+#endif /* gc_Nursery_inl_h__ */
 #endif /* JSGC_GENERATIONAL */
-
-#endif /* gc_Nursery_inl_h */

@@ -6,7 +6,6 @@
 #ifndef gfxMacPlatformFontList_H_
 #define gfxMacPlatformFontList_H_
 
-#include "mozilla/MemoryReporting.h"
 #include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
 
@@ -41,11 +40,10 @@ public:
 
     virtual CGFontRef GetFontRef();
 
-    // override gfxFontEntry table access function to bypass table cache,
-    // use CGFontRef API to get direct access to system font data
-    virtual hb_blob_t *GetFontTable(uint32_t aTag) MOZ_OVERRIDE;
+    virtual nsresult GetFontTable(uint32_t aTableTag,
+                                  FallibleTArray<uint8_t>& aBuffer);
 
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     nsresult ReadCMAP();
@@ -58,8 +56,6 @@ protected:
     virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold);
 
     virtual bool HasFontTable(uint32_t aTableTag);
-
-    static void DestroyBlobFunc(void* aUserData);
 
     CGFontRef mFontRef; // owning reference to the CGFont, released on destruction
 

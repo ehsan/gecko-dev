@@ -20,7 +20,6 @@
 #include "TimeZoneSettingObserver.h"
 #include "xpcpublic.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 
 #undef LOG
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Time Zone Setting" , ## args)
@@ -81,6 +80,7 @@ public:
 
     // Set the system timezone based on the current settings.
     if (aResult.isString()) {
+      JSAutoRequest ar(cx);
       return TimeZoneSettingObserver::SetTimeZone(aResult, cx);
     }
 
@@ -132,7 +132,7 @@ nsresult TimeZoneSettingObserver::SetTimeZone(const JS::Value &aValue, JSContext
     ERR("Failed to convert JS value to nsCString");
     return NS_ERROR_FAILURE;
   }
-  NS_ConvertUTF16toUTF8 newTimezone(valueStr);
+  nsCString newTimezone = NS_ConvertUTF16toUTF8(valueStr);
 
   // Set the timezone only when the system timezone is not identical.
   nsCString curTimezone = hal::GetTimezone();
@@ -172,7 +172,7 @@ TimeZoneSettingObserver::Observe(nsISupports *aSubject,
 
   // Parse the JSON value.
   nsDependentString dataStr(aData);
-  JS::Rooted<JS::Value> val(cx);
+  JS::Value val;
   if (!JS_ParseJSON(cx, dataStr.get(), dataStr.Length(), &val) ||
       !val.isObject()) {
     return NS_OK;
@@ -180,19 +180,19 @@ TimeZoneSettingObserver::Observe(nsISupports *aSubject,
 
   // Get the key, which should be the JS string "time.timezone".
   JSObject &obj(val.toObject());
-  JS::Rooted<JS::Value> key(cx);
+  JS::Value key;
   if (!JS_GetProperty(cx, &obj, "key", &key) ||
       !key.isString()) {
     return NS_OK;
   }
-  bool match;
+  JSBool match;
   if (!JS_StringEqualsAscii(cx, key.toString(), TIME_TIMEZONE, &match) ||
-      !match) {
+      match != JS_TRUE) {
     return NS_OK;
   }
 
   // Get the value, which should be a JS string like "America/Chicago".
-  JS::Rooted<JS::Value> value(cx);
+  JS::Value value;
   if (!JS_GetProperty(cx, &obj, "value", &value) ||
       !value.isString()) {
     return NS_OK;

@@ -9,8 +9,9 @@ VPATH		= @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES := \
+_BROWSER_FILES = \
 	browser_thumbnails_background.js \
 	browser_thumbnails_capture.js \
 	browser_thumbnails_expiration.js \
@@ -20,15 +21,13 @@ MOCHITEST_BROWSER_FILES := \
 	browser_thumbnails_storage_migrate3.js \
 	browser_thumbnails_bug726727.js \
 	browser_thumbnails_bug727765.js \
-	browser_thumbnails_bug818225.js \
-	browser_thumbnails_update.js \
 	head.js \
 	background_red.html \
 	background_red_scroll.html \
 	background_red_redirect.sjs \
 	privacy_cache_control.sjs \
 	thumbnails_background.sjs \
-	thumbnails_update.sjs \
 	$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_BROWSER_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

@@ -8,13 +8,12 @@
 #include "DOMMediaStream.h"
 #include "nsIUUIDGenerator.h"
 #include "nsServiceManagerUtils.h"
-#include "MediaStreamGraph.h"
 
 namespace mozilla {
 namespace dom {
 
 MediaStreamTrack::MediaStreamTrack(DOMMediaStream* aStream, TrackID aTrackID)
-  : mStream(aStream), mTrackID(aTrackID), mEnded(false), mEnabled(true)
+  : mStream(aStream), mTrackID(aTrackID), mEnded(false)
 {
   SetIsDOMBinding();
 
@@ -46,16 +45,6 @@ MediaStreamTrack::GetId(nsAString& aID)
   char chars[NSID_LENGTH];
   mID.ToProvidedString(chars);
   aID = NS_ConvertASCIItoUTF16(chars);
-}
-
-void
-MediaStreamTrack::SetEnabled(bool aEnabled)
-{
-  mEnabled = aEnabled;
-  MediaStream* stream = mStream->GetStream();
-  if (stream) {
-    stream->SetTrackEnabled(mTrackID, aEnabled);
-  }
 }
 
 }

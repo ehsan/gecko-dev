@@ -110,58 +110,58 @@
       gTestCount++;
       gExpected = [false];
       gBrowser.loadURI(test1Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [true, false];
       var test2Doc = test1Doc.replace(/1/,"2");
       gBrowser.loadURI(test2Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [true, true, false];
       gBrowser.loadURI(test1Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [true, true, true, false];
       gBrowser.loadURI(test2Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, true, true, true, false];
       gBrowser.loadURI(test1Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.loadURI(test2Doc);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, false, true, true, false, true];
       gBrowser.goBack();
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.goForward();
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, false, true, true, true, false];
       gBrowser.gotoIndex(1);
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, true, true, true, false, false];
       gBrowser.goBack();
-      yield undefined;
+      yield;
 
       gTestCount++;
       gExpected = [false, false, true, true, false, false];
       gBrowser.gotoIndex(5);
-      yield undefined;
+      yield;
     }
   ]]></script>
 

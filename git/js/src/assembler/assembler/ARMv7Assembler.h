@@ -28,15 +28,16 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_ARMv7Assembler_h
-#define assembler_assembler_ARMv7Assembler_h
+#ifndef ARMAssembler_h
+#define ARMAssembler_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#include "assembler/assembler/AssemblerBuffer.h"
+#include "AssemblerBuffer.h"
 #include "assembler/wtf/Assertions.h"
+#include "assembler/wtf/Vector.h"
 #include <stdint.h>
 
 namespace JSC {
@@ -1928,4 +1929,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#endif /* assembler_assembler_ARMv7Assembler_h */
+#endif // ARMAssembler_h

@@ -1,5 +1,3 @@
-"use strict";
-
 load('Util.js');
 
 function run_test() {

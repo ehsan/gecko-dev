@@ -283,7 +283,7 @@ static void seg_to(const SkPoint pts[], int segType,
 
     switch (segType) {
         case kLine_SegType:
-            if (SK_Scalar1 == stopT) {
+            if (stopT == kMaxTValue) {
                 dst->lineTo(pts[1]);
             } else {
                 dst->lineTo(SkScalarInterp(pts[0].fX, pts[1].fX, stopT),
@@ -291,8 +291,8 @@ static void seg_to(const SkPoint pts[], int segType,
             }
             break;
         case kQuad_SegType:
-            if (0 == startT) {
-                if (SK_Scalar1 == stopT) {
+            if (startT == 0) {
+                if (stopT == SK_Scalar1) {
                     dst->quadTo(pts[1], pts[2]);
                 } else {
                     SkChopQuadAt(pts, tmp0, stopT);
@@ -300,7 +300,7 @@ static void seg_to(const SkPoint pts[], int segType,
                 }
             } else {
                 SkChopQuadAt(pts, tmp0, startT);
-                if (SK_Scalar1 == stopT) {
+                if (stopT == SK_Scalar1) {
                     dst->quadTo(tmp0[3], tmp0[4]);
                 } else {
                     SkChopQuadAt(&tmp0[2], tmp1, SkScalarDiv(stopT - startT,
@@ -310,8 +310,8 @@ static void seg_to(const SkPoint pts[], int segType,
             }
             break;
         case kCubic_SegType:
-            if (0 == startT) {
-                if (SK_Scalar1 == stopT) {
+            if (startT == 0) {
+                if (stopT == SK_Scalar1) {
                     dst->cubicTo(pts[1], pts[2], pts[3]);
                 } else {
                     SkChopCubicAt(pts, tmp0, stopT);
@@ -319,7 +319,7 @@ static void seg_to(const SkPoint pts[], int segType,
                 }
             } else {
                 SkChopCubicAt(pts, tmp0, startT);
-                if (SK_Scalar1 == stopT) {
+                if (stopT == SK_Scalar1) {
                     dst->cubicTo(tmp0[4], tmp0[5], tmp0[6]);
                 } else {
                     SkChopCubicAt(&tmp0[3], tmp1, SkScalarDiv(stopT - startT,
@@ -418,7 +418,8 @@ const SkPathMeasure::Segment* SkPathMeasure::distanceToSegment(
 
 bool SkPathMeasure::getPosTan(SkScalar distance, SkPoint* pos,
                               SkVector* tangent) {
-    if (NULL == fPath) {
+    SkASSERT(fPath);
+    if (fPath == NULL) {
         return false;
     }
 
@@ -445,10 +446,6 @@ bool SkPathMeasure::getPosTan(SkScalar distance, SkPoint* pos,
 
 bool SkPathMeasure::getMatrix(SkScalar distance, SkMatrix* matrix,
                               MatrixFlags flags) {
-    if (NULL == fPath) {
-        return false;
-    }
-
     SkPoint     position;
     SkVector    tangent;
 

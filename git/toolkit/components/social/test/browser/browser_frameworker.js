@@ -3,11 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function makeWorkerUrl(runner) {
-  let prefix =  "http://example.com/browser/toolkit/components/social/test/browser/echo.sjs?";
-  if (typeof runner == "function") {
-    runner = "var run=" + runner.toSource() + ";run();";
-  }
-  return prefix + encodeURI(runner);
+  return "data:application/javascript;charset=utf-8," + encodeURI("let run=" + runner.toSource()) + ";run();"
 }
 
 var getFrameWorkerHandle;
@@ -128,8 +124,7 @@ let tests = {
     }
     let worker = getFrameWorkerHandle(makeWorkerUrl(run), fakeWindow, "testPrototypes");
     worker.port.onmessage = function(e) {
-      if (e.data.topic == "hello") {
-        ok(e.data.data.somextrafunction, "have someextrafunction")
+      if (e.data.topic == "hello" && e.data.data.somextrafunction) {
         worker.terminate();
         cbnext();
       }
@@ -246,34 +241,10 @@ let tests = {
         port.postMessage({topic: "done", result: "ok"});
       }
     }
-    let worker = getFrameWorkerHandle(makeWorkerUrl(run), undefined, "testLocalStorage", null, true);
+    let worker = getFrameWorkerHandle(makeWorkerUrl(run), undefined, "testLocalStorage");
     worker.port.onmessage = function(e) {
       if (e.data.topic == "done") {
         is(e.data.result, "ok", "check the localStorage test worked");
-        worker.terminate();
-        cbnext();
-      }
-    }
-  },
-
-  testNoLocalStorage: function(cbnext) {
-    let run = function() {
-      onconnect = function(e) {
-        let port = e.ports[0];
-        try {
-          localStorage.setItem("foo", "1");
-        } catch(e) {
-          port.postMessage({topic: "done", result: "ok"});
-          return;
-        }
-
-        port.postMessage({topic: "done", result: "FAILED because localStorage was exposed" });
-      }
-    }
-    let worker = getFrameWorkerHandle(makeWorkerUrl(run), undefined, "testNoLocalStorage");
-    worker.port.onmessage = function(e) {
-      if (e.data.topic == "done") {
-        is(e.data.result, "ok", "check that retrieving localStorage fails by default");
         worker.terminate();
         cbnext();
       }
@@ -460,7 +431,7 @@ let tests = {
     let ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService2);
     let oldManage = ioService.manageOfflineStatus;
     let oldOffline = ioService.offline;
-
+    
     ioService.manageOfflineStatus = false;
     let worker = getFrameWorkerHandle(makeWorkerUrl(run), undefined, "testNavigator");
     let expected_topic = "onoffline";
@@ -526,7 +497,7 @@ let tests = {
   },
 
   testEmptyWorker: function(cbnext) {
-    let worker = getFrameWorkerHandle(makeWorkerUrl(''),
+    let worker = getFrameWorkerHandle("data:application/javascript;charset=utf-8,",
                                       undefined, "testEmptyWorker");
     Services.obs.addObserver(function handleError(subj, topic, data) {
       Services.obs.removeObserver(handleError, "social:frameworker-error");
@@ -661,68 +632,4 @@ let tests = {
     }
     worker.port.postMessage({topic: "get-ready"});
   },
-
-  testEventSource: function(cbnext) {
-    let worker = getFrameWorkerHandle("https://example.com/browser/toolkit/components/social/test/browser/worker_eventsource.js", undefined, "testEventSource");
-    worker.port.onmessage = function(e) {
-      let m = e.data;
-      if (m.topic == "eventSourceTest") {
-        if (m.result.ok != undefined)
-          ok(m.result.ok, e.data.result.msg);
-        if (m.result.is != undefined)
-          is(m.result.is, m.result.match, m.result.msg);
-        if (m.result.info != undefined)
-          info(m.result.info);
-      } else if (e.data.topic == "pong") {
-        worker.terminate();
-        cbnext();
-      }
-    }
-    worker.port.postMessage({topic: "ping"})
-  },
-
-
-  testIndexedDB: function(cbnext) {
-    let worker = getFrameWorkerHandle("https://example.com/browser/toolkit/components/social/test/browser/worker_social.js", undefined, "testIndexedDB");
-    worker.port.onmessage = function(e) {
-      let m = e.data;
-      if (m.topic == "social.indexeddb-result") {
-        is(m.data.result, "ok", "created indexeddb");
-        worker.terminate();
-        cbnext();
-      }
-    }
-    worker.port.postMessage({topic: "test-indexeddb-create"})
-  },
-
-  testSubworker: function(cbnext) {
-    // the main "frameworker"...
-    let mainworker = function() {
-      onconnect = function(e) {
-        let port = e.ports[0];
-        port.onmessage = function(e) {
-          if (e.data.topic == "go") {
-            let suburl = e.data.data;
-            let worker = new Worker(suburl);
-            worker.onmessage = function(sube) {
-              port.postMessage({topic: "sub-message", data: sube.data});
-            }
-          }
-        }
-      }
-    }
-
-    // The "subworker" that is actually a real, bona-fide worker.
-    let subworker = function() {
-      postMessage("hello");
-    }
-    let worker = getFrameWorkerHandle(makeWorkerUrl(mainworker), undefined, "testSubWorker");
-    worker.port.onmessage = function(e) {
-      if (e.data.topic == "sub-message" && e.data.data == "hello") {
-        worker.terminate();
-        cbnext();
-      }
-    }
-    worker.port.postMessage({topic: "go", data: makeWorkerUrl(subworker)});
-  }
 }

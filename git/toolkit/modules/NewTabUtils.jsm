@@ -19,6 +19,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+  "resource://gre/modules/FileUtils.jsm");
+
 XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
   let uri = Services.io.newURI("about:newtab", null, null);
   return Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
@@ -76,9 +79,7 @@ function LinksStorage() {
     if (this._storedVersion < this._version) {
       // This is either an upgrade, or version information is missing.
       if (this._storedVersion < 1) {
-        // Version 1 moved data from DOM Storage to prefs.  Since migrating from
-        // version 0 is no more supported, we just reportError a dataloss later.
-        throw new Error("Unsupported newTab storage version");
+        this._migrateToV1();
       }
       // Add further migration steps here.
     }
@@ -116,13 +117,7 @@ LinksStorage.prototype = {
         this.__storedVersion =
           Services.prefs.getIntPref("browser.newtabpage.storageVersion");
       } catch (ex) {
-        // The storage version is unknown, so either:
-        // - it's a new profile
-        // - it's a profile where versioning information got lost
-        // In this case we still run through all of the valid migrations,
-        // starting from 1, as if it was a downgrade.  As previously stated the
-        // migrations should already support running on an updated store.
-        this.__storedVersion = 1;
+        this.__storedVersion = 0;
       }
     }
     return this.__storedVersion;
@@ -131,6 +126,44 @@ LinksStorage.prototype = {
     Services.prefs.setIntPref("browser.newtabpage.storageVersion", aValue);
     this.__storedVersion = aValue;
     return aValue;
+  },
+
+  /**
+   * V1 changes storage from chromeappsstore.sqlite to prefs.
+   */
+  _migrateToV1: function Storage__migrateToV1() {
+    // Import data from the old chromeappsstore.sqlite file, if exists.
+    let file = FileUtils.getFile("ProfD", ["chromeappsstore.sqlite"]);
+    if (!file.exists())
+      return;
+    let db = Services.storage.openUnsharedDatabase(file);
+    let stmt = db.createStatement(
+      "SELECT key, value FROM webappsstore2 WHERE scope = 'batwen.:about'");
+    try {
+      while (stmt.executeStep()) {
+        let key = stmt.row.key;
+        let value = JSON.parse(stmt.row.value);
+        switch (key) {
+          case "pinnedLinks":
+            this.set(key, value);
+            break;
+          case "blockedLinks":
+            // Convert urls to hashes.
+            let hashes = {};
+            for (let url in value) {
+              hashes[toHash(url)] = 1;
+            }
+            this.set(key, hashes);
+            break;
+          default:
+            // Ignore unknown keys.
+            break;
+        }
+      }
+    } finally {
+      stmt.finalize();
+      db.close();
+    }
   },
 
   /**
@@ -254,26 +287,25 @@ let AllPages = {
 
   /**
    * Implements the nsIObserver interface to get notified when the preference
-   * value changes or when a new copy of a page thumbnail is available.
+   * value changes.
    */
-  observe: function AllPages_observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed") {
-      // Clear the cached value.
-      this._enabled = null;
-    }
-    // and all notifications get forwarded to each page.
+  observe: function AllPages_observe() {
+    // Clear the cached value.
+    this._enabled = null;
+
+    let args = Array.slice(arguments);
+
     this._pages.forEach(function (aPage) {
-      aPage.observe(aSubject, aTopic, aData);
+      aPage.observe.apply(aPage, args);
     }, this);
   },
 
   /**
-   * Adds a preference and new thumbnail observer and turns itself into a
-   * no-op after the first invokation.
+   * Adds a preference observer and turns itself into a no-op after the first
+   * invokation.
    */
   _addObserver: function AllPages_addObserver() {
     Services.prefs.addObserver(PREF_NEWTAB_ENABLED, this, true);
-    Services.obs.addObserver(this, "page-thumbnail:create", true);
     this._addObserver = function () {};
   },
 
@@ -383,7 +415,6 @@ let PinnedLinks = {
     while (i >= 0 && links[i] == null)
       i--;
     links.splice(i +1);
-    this.save();
   },
 
   /**

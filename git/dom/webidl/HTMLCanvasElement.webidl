@@ -24,15 +24,13 @@ interface HTMLCanvasElement : HTMLElement {
            attribute unsigned long height;
 
   [Throws]
-  nsISupports? getContext(DOMString contextId, optional any contextOptions = null);
+  nsISupports? getContext(DOMString contextId, optional any contextOptions);
 
   [Throws]
   DOMString toDataURL(optional DOMString type = "",
                       optional any encoderOptions);
   [Throws]
-  void toBlob(FileCallback _callback,
-              optional DOMString type = "",
-              optional any encoderOptions);
+  void toBlob(FileCallback _callback, optional DOMString type = "");
 };
 
 // Mozilla specific bits

@@ -10,12 +10,12 @@
 
 #if SK_ANGLE
 
-#include "SkGLContextHelper.h"
+#include "SkGLContext.h"
 
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
 
-class SkANGLEGLContext : public SkGLContextHelper {
+class SkANGLEGLContext : public SkGLContext {
 public:
     SkANGLEGLContext();
 

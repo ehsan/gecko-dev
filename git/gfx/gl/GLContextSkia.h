@@ -5,4 +5,10 @@
 
 #include "skia/GrGLInterface.h"
 
-GrGLInterface* CreateGrGLInterfaceFromGLContext(mozilla::gl::GLContext* context);
+namespace mozilla {
+namespace gl {
+class GLContext;
+}
+}
+
+GrGLInterface* CreateGrInterfaceFromGLContext(mozilla::gl::GLContext* context);

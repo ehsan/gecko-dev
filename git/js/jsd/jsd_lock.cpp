@@ -9,7 +9,7 @@
  */
 
 /*                                                                           
-* ifdef JSD_USE_NSPR_LOCKS then you must build and run against NSPR2.       
+* ifdef JSD_USE_NSPR_LOCKS then you musat build and run against NSPR2.       
 * Otherwise, there are stubs that can be filled in with your own locking     
 * code. Also, note that these stubs include a jsd_CurrentThread()            
 * implementation that only works on Win32 - this is needed for the inprocess 
@@ -142,16 +142,16 @@ jsd_Unlock(JSDStaticLock* lock)
 }    
 
 #ifdef DEBUG
-bool
+JSBool
 jsd_IsLocked(JSDStaticLock* lock)
 {
     void* me;
     ASSERT_VALID_LOCK(lock);
     _CURRENT_THREAD(me);
     if (lock->owner != me)
-        return false;
+        return JS_FALSE;
     JS_ASSERT(lock->count > 0);
-    return true;
+    return JS_TRUE;
 }    
 #endif /* DEBUG */
 
@@ -194,10 +194,10 @@ jsd_Unlock(void* lock)
 }    
 
 #ifdef DEBUG
-bool
+JSBool
 jsd_IsLocked(void* lock)
 {
-    return true;
+    return JS_TRUE;
 }    
 #endif /* DEBUG */
 

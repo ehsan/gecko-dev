@@ -112,3 +112,4 @@ SkAutoAsciiToLC::~SkAutoAsciiToLC()
         sk_free(fLC);
     }
 }
+

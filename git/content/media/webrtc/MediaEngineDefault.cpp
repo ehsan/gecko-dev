@@ -25,15 +25,14 @@
 
 namespace mozilla {
 
-NS_IMPL_ISUPPORTS1(MediaEngineDefaultVideoSource, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(MediaEngineDefaultVideoSource, nsITimerCallback)
 /**
  * Default video source.
  */
 
 MediaEngineDefaultVideoSource::MediaEngineDefaultVideoSource()
-  : mTimer(nullptr), mMonitor("Fake video")
+  : mTimer(nullptr)
 {
-  mImageContainer = layers::LayerManager::CreateImageContainer();
   mState = kReleased;
 }
 
@@ -121,8 +120,32 @@ MediaEngineDefaultVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
-  aStream->AddTrack(aID, VIDEO_RATE, 0, new VideoSegment());
-  aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
+  mSource = aStream;
+
+  // Allocate a single blank Image
+  ImageFormat format = PLANAR_YCBCR;
+  mImageContainer = layers::LayerManager::CreateImageContainer();
+
+  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(&format, 1);
+  mImage = static_cast<layers::PlanarYCbCrImage*>(image.get());
+
+  layers::PlanarYCbCrImage::Data data;
+  // Allocate a single blank Image
+  mCb = 16;
+  mCr = 16;
+  AllocateSolidColorFrame(data, mOpts.mWidth, mOpts.mHeight, 0x80, mCb, mCr);
+  // SetData copies data, so we can free the frame
+  mImage->SetData(data);
+  ReleaseFrame(data);
+
+  // AddTrack takes ownership of segment
+  VideoSegment *segment = new VideoSegment();
+  segment->AppendFrame(image.forget(), USECS_PER_S / mOpts.mFPS,
+                       gfxIntSize(mOpts.mWidth, mOpts.mHeight));
+  mSource->AddTrack(aID, VIDEO_RATE, 0, segment);
+
+  // We aren't going to add any more tracks
+  mSource->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
   // Remember TrackID so we can end it later
   mTrackID = aID;
@@ -215,54 +238,27 @@ MediaEngineDefaultVideoSource::Notify(nsITimer* aTimer)
   // SetData copies data, so we can free the frame
   ReleaseFrame(data);
 
-  MonitorAutoLock lock(mMonitor);
-
-  // implicitly releases last image
-  mImage = ycbcr_image.forget();
+  // AddTrack takes ownership of segment
+  VideoSegment segment;
+  segment.AppendFrame(ycbcr_image.forget(), USECS_PER_S / mOpts.mFPS,
+                      gfxIntSize(mOpts.mWidth, mOpts.mHeight));
+  mSource->AppendToTrack(mTrackID, &segment);
 
   return NS_OK;
 }
 
 void
 MediaEngineDefaultVideoSource::NotifyPull(MediaStreamGraph* aGraph,
-                                          SourceMediaStream *aSource,
-                                          TrackID aID,
-                                          StreamTime aDesiredTime,
-                                          TrackTicks &aLastEndTime)
+                                          StreamTime aDesiredTime)
 {
-  // AddTrack takes ownership of segment
-  VideoSegment segment;
-  MonitorAutoLock lock(mMonitor);
-  if (mState != kStarted) {
-    return;
-  }
-
-  // Note: we're not giving up mImage here
-  nsRefPtr<layers::Image> image = mImage;
-  TrackTicks target = TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
-  TrackTicks delta = target - aLastEndTime;
-
-  if (delta > 0) {
-    // NULL images are allowed
-    if (image) {
-      segment.AppendFrame(image.forget(), delta,
-                          gfxIntSize(mOpts.mWidth, mOpts.mHeight));
-    } else {
-      segment.AppendFrame(nullptr, delta, gfxIntSize(0,0));
-    }
-    // This can fail if either a) we haven't added the track yet, or b)
-    // we've removed or finished the track.
-    if (aSource->AppendToTrack(aID, &segment)) {
-      aLastEndTime = target;
-    }
-  }
+  // Ignore - we push video data
 }
 
 
 /**
  * Default audio source.
  */
-NS_IMPL_ISUPPORTS1(MediaEngineDefaultAudioSource, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(MediaEngineDefaultAudioSource, nsITimerCallback)
 
 MediaEngineDefaultAudioSource::MediaEngineDefaultAudioSource()
   : mTimer(nullptr)
@@ -272,6 +268,13 @@ MediaEngineDefaultAudioSource::MediaEngineDefaultAudioSource()
 
 MediaEngineDefaultAudioSource::~MediaEngineDefaultAudioSource()
 {}
+
+void
+MediaEngineDefaultAudioSource::NotifyPull(MediaStreamGraph* aGraph,
+                                          StreamTime aDesiredTime)
+{
+  // Ignore - we push audio data
+}
 
 void
 MediaEngineDefaultAudioSource::GetName(nsAString& aName)
@@ -332,8 +335,8 @@ MediaEngineDefaultAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
   // Remember TrackID so we can finish later
   mTrackID = aID;
 
-  // 1 Audio frame per 10ms
-  mTimer->InitWithCallback(this, MediaEngine::DEFAULT_AUDIO_TIMER_MS,
+  // 1 Audio frame per Video frame
+  mTimer->InitWithCallback(this, 1000 / MediaEngineDefaultVideoSource::DEFAULT_VIDEO_FPS,
                            nsITimer::TYPE_REPEATING_SLACK);
   mState = kStarted;
 
@@ -370,9 +373,7 @@ NS_IMETHODIMP
 MediaEngineDefaultAudioSource::Notify(nsITimer* aTimer)
 {
   AudioSegment segment;
-
-  // Notify timer is set every DEFAULT_AUDIO_TIMER_MS milliseconds.
-  segment.InsertNullDataAtStart((AUDIO_RATE * MediaEngine::DEFAULT_AUDIO_TIMER_MS) / 1000);
+  segment.InsertNullDataAtStart(AUDIO_RATE/100); // 10ms of fake data
 
   mSource->AppendToTrack(mTrackID, &segment);
 

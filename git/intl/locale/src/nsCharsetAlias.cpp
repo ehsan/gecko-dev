@@ -6,6 +6,7 @@
 #include "mozilla/Util.h"
 
 #include "nsCharsetAlias.h"
+#include "pratom.h"
 
 // for NS_ERROR_UCONV_NOCONV
 #include "nsEncoderDecoderUtils.h"

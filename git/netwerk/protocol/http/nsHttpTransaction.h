@@ -25,6 +25,7 @@
 
 //-----------------------------------------------------------------------------
 
+class nsHttpTransaction;
 class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpChunkedDecoder;
@@ -42,7 +43,7 @@ class nsHttpTransaction : public nsAHttpTransaction
                         , public nsIOutputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSAHTTPTRANSACTION
     NS_DECL_NSIINPUTSTREAMCALLBACK
     NS_DECL_NSIOUTPUTSTREAMCALLBACK
@@ -52,7 +53,7 @@ public:
 
     //
     // called to initialize the transaction
-    //
+    // 
     // @param caps
     //        the transaction capabilities (see nsHttp.h)
     // @param connInfo
@@ -114,9 +115,8 @@ public:
     const mozilla::TimeStamp GetPendingTime() { return mPendingTime; }
     bool UsesPipelining() const { return mCaps & NS_HTTP_ALLOW_PIPELINING; }
 
-    // overload of nsAHttpTransaction::LoadGroupConnectionInfo()
+    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; } 
     nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return mLoadGroupCI.get(); }
-    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; }
     void DispatchedAsBlocking();
     void RemoveDispatchedAsBlocking();
 
@@ -180,11 +180,10 @@ private:
     nsCOMPtr<nsIInputStream>        mRequestStream;
     uint64_t                        mRequestSize;
 
-    nsRefPtr<nsHttpConnectionInfo>  mConnInfo;
-    nsRefPtr<nsAHttpConnection>     mConnection;
-
+    nsAHttpConnection              *mConnection;      // hard ref
+    nsHttpConnectionInfo           *mConnInfo;        // hard ref
     nsHttpRequestHead              *mRequestHead;     // weak ref
-    nsHttpResponseHead             *mResponseHead;    // owning ref
+    nsHttpResponseHead             *mResponseHead;    // hard ref
 
     nsAHttpSegmentReader           *mReader;
     nsAHttpSegmentWriter           *mWriter;
@@ -251,7 +250,7 @@ private:
     // The time when the transaction was submitted to the Connection Manager
     mozilla::TimeStamp              mPendingTime;
 
-    class RestartVerifier
+    class RestartVerifier 
     {
 
         // When a idemptotent transaction has received part of its response body
@@ -270,7 +269,7 @@ private:
             , mSetup(false)
         {}
         ~RestartVerifier() {}
-
+        
         void Set(int64_t contentLength, nsHttpResponseHead *head);
         bool Verify(int64_t contentLength, nsHttpResponseHead *head);
         bool IsDiscardingContent() { return mToReadBeforeRestart != 0; }
@@ -283,8 +282,8 @@ private:
         int64_t ToReadBeforeRestart() { return mToReadBeforeRestart; }
         void HaveReadBeforeRestart(uint32_t amt)
         {
-            MOZ_ASSERT(amt <= mToReadBeforeRestart,
-                       "too large of a HaveReadBeforeRestart deduction");
+            NS_ABORT_IF_FALSE(amt <= mToReadBeforeRestart,
+                              "too large of a HaveReadBeforeRestart deduction");
             mToReadBeforeRestart -= amt;
         }
 

@@ -42,7 +42,7 @@ DisableFontActivation()
 {
     // get the main bundle identifier
     CFBundleRef mainBundle = ::CFBundleGetMainBundle();
-    CFStringRef mainBundleID = nullptr;
+    CFStringRef mainBundleID = NULL;
 
     if (mainBundle) {
         mainBundleID = ::CFBundleGetIdentifier(mainBundle);
@@ -71,7 +71,7 @@ gfxPlatformMac::gfxPlatformMac()
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
 
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA) | (1 << BACKEND_COREGRAPHICS);
-    uint32_t contentMask = (1 << BACKEND_COREGRAPHICS);
+    uint32_t contentMask = 0;
     InitBackendPrefs(canvasMask, contentMask);
 }
 
@@ -95,9 +95,12 @@ already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> newSurface =
-      new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
-    return newSurface.forget();
+    gfxASurface *newSurface = nullptr;
+
+    newSurface = new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
+
+    NS_IF_ADDREF(newSurface);
+    return newSurface;
 }
 
 already_AddRefed<gfxASurface>
@@ -124,8 +127,8 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
         isurf = new gfxImageSurface (surfaceSize, format);
         if (!isurf->CopyFrom (aSurface)) {
             // don't even bother doing anything more
-            nsRefPtr<gfxASurface> ret = aSurface;
-            return ret.forget();
+            NS_ADDREF(aSurface);
+            return aSurface;
         }
     }
 
@@ -342,8 +345,8 @@ gfxPlatformMac::OSXVersion()
         OSErr err = ::Gestalt(gestaltSystemVersion, reinterpret_cast<SInt32*>(&mOSXVersion));
         if (err != noErr) {
             //This should probably be changed when our minimum version changes
-            NS_ERROR("Couldn't determine OS X version, assuming 10.6");
-            mOSXVersion = MAC_OS_X_VERSION_10_6_HEX;
+            NS_ERROR("Couldn't determine OS X version, assuming 10.4");
+            mOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
         }
     }
     return mOSXVersion;
@@ -431,17 +434,6 @@ gfxPlatformMac::UseAcceleratedCanvas()
   return OSXVersion() >= 0x1070 && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
 }
 
-bool
-gfxPlatformMac::SupportsOffMainThreadCompositing()
-{
-  // 10.6.X has crashes on tinderbox with OMTC, so disable it
-  // for now.
-  if (OSXVersion() >= 0x1070) {
-    return true;
-  }
-  return GetPrefLayersOffMainThreadCompositionForceEnabled();
-}
-
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
@@ -470,7 +462,7 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
         return nullptr;
 
     // get the size of location
-    err = NCMGetProfileLocation(cmProfile, nullptr, &locationSize);
+    err = NCMGetProfileLocation(cmProfile, NULL, &locationSize);
     if (err != noErr)
         return nullptr;
 

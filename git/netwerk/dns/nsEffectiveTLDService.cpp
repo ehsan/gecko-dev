@@ -7,7 +7,6 @@
 // complete description of the expected file format and parsing rules, see
 // http://wiki.mozilla.org/Gecko:Effective_TLD_Service
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "nsEffectiveTLDService.h"
@@ -46,8 +45,8 @@ void
 nsDomainEntry::FuncForStaticAsserts(void)
 {
 #define ETLD_ENTRY(name, ex, wild)                                      \
-  static_assert(ETLD_ENTRY_OFFSET(name) < (1 << ETLD_ENTRY_N_INDEX_BITS), \
-                "invalid strtab index");
+  MOZ_STATIC_ASSERT(ETLD_ENTRY_OFFSET(name) < (1 << ETLD_ENTRY_N_INDEX_BITS), \
+                    "invalid strtab index");
 #include "etld_data.inc"
 #undef ETLD_ENTRY
 }
@@ -122,7 +121,7 @@ nsEffectiveTLDService::~nsEffectiveTLDService()
 }
 
 size_t
-nsEffectiveTLDService::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsEffectiveTLDService::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   size_t n = aMallocSizeOf(this);
   n += mHash.SizeOfExcludingThis(nullptr, aMallocSizeOf);

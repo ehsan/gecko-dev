@@ -39,7 +39,6 @@ function runTest() {
   closeUpdateWindow();
 
   resetPrefs();
-  resetFiles();
   removeUpdateDirsAndFiles();
   reloadUpdateManagerData();
 

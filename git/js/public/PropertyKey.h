@@ -6,8 +6,10 @@
 
 /* JS::PropertyKey implementation. */
 
-#ifndef js_PropertyKey_h
-#define js_PropertyKey_h
+#ifndef js_PropertyKey_h___
+#define js_PropertyKey_h___
+
+#include "mozilla/Attributes.h"
 
 #include "js/Value.h"
 
@@ -93,4 +95,4 @@ ToPropertyKey(JSContext *cx, HandleValue v, PropertyKey *key)
 
 } // namespace JS
 
-#endif /* js_PropertyKey_h */
+#endif /* js_PropertyKey_h___ */

@@ -178,19 +178,11 @@ public class Utils {
     // Truncates towards 0.
     return (long)(decimal * 1000);
   }
-
   public static long decimalSecondsToMilliseconds(Long decimal) {
     return decimal * 1000;
   }
-
   public static long decimalSecondsToMilliseconds(Integer decimal) {
     return (long)(decimal * 1000);
-  }
-
-  public static byte[] sha256(byte[] in)
-      throws NoSuchAlgorithmException {
-    MessageDigest sha1 = MessageDigest.getInstance("SHA-256");
-    return sha1.digest(in);
   }
 
   protected static byte[] sha1(final String utf8)
@@ -528,12 +520,5 @@ public class Utils {
       asciiBytes[i] = (byte) in.codePointAt(i);
     }
     return new String(asciiBytes, "UTF-8");
-  }
-
-  /**
-   * Replace "foo@bar.com" with "XXX@XXX.XXX".
-   */
-  public static String obfuscateEmail(final String in) {
-    return in.replaceAll("[^@\\.]", "X");
   }
 }

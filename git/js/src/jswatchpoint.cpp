@@ -7,15 +7,10 @@
 #include "jswatchpoint.h"
 
 #include "jsatom.h"
-#include "jscompartment.h"
-#include "jsfriendapi.h"
 
 #include "gc/Marking.h"
 
-#include "jsgcinlines.h"
-
-#include "gc/Barrier-inl.h"
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::gc;
@@ -25,8 +20,6 @@ DefaultHasher<WatchKey>::hash(const Lookup &key)
 {
     return DefaultHasher<JSObject *>::hash(key.object.get()) ^ HashId(key.id.get());
 }
-
-namespace {
 
 class AutoEntryHolder {
     typedef WatchpointMap::Map Map;
@@ -50,8 +43,6 @@ class AutoEntryHolder {
             p->value.held = false;
     }
 };
-
-} /* anonymous namespace */
 
 bool
 WatchpointMap::init()
@@ -101,7 +92,7 @@ WatchpointMap::watch(JSContext *cx, HandleObject obj, HandleId id,
         js_ReportOutOfMemory(cx);
         return false;
     }
-    WatchpointWriteBarrierPost(cx->runtime(), &map, WatchKey(obj, id), w);
+    WatchpointWriteBarrierPost(cx->runtime, &map, WatchKey(obj, id), w);
     return true;
 }
 

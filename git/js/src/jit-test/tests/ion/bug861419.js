@@ -1,5 +1,4 @@
 
-arguments = [];
 try {
     arguments.toSource = (function() {
         __proto__.y = x

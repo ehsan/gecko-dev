@@ -35,7 +35,6 @@
 #include "nsAlgorithm.h"
 #include "nsProxyRelease.h"
 #include "nsNetUtil.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "TimeStamp.h"
 #include "mozilla/Telemetry.h"
@@ -58,18 +57,18 @@ using namespace mozilla;
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS11(WebSocketChannel,
-                    nsIWebSocketChannel,
-                    nsIHttpUpgradeListener,
-                    nsIRequestObserver,
-                    nsIStreamListener,
-                    nsIProtocolHandler,
-                    nsIInputStreamCallback,
-                    nsIOutputStreamCallback,
-                    nsITimerCallback,
-                    nsIDNSListener,
-                    nsIInterfaceRequestor,
-                    nsIChannelEventSink)
+NS_IMPL_THREADSAFE_ISUPPORTS11(WebSocketChannel,
+                               nsIWebSocketChannel,
+                               nsIHttpUpgradeListener,
+                               nsIRequestObserver,
+                               nsIStreamListener,
+                               nsIProtocolHandler,
+                               nsIInputStreamCallback,
+                               nsIOutputStreamCallback,
+                               nsITimerCallback,
+                               nsIDNSListener,
+                               nsIInterfaceRequestor,
+                               nsIChannelEventSink)
 
 // We implement RFC 6455, which uses Sec-WebSocket-Version: 13 on the wire.
 #define SEC_WEBSOCKET_VERSION "13"
@@ -424,12 +423,12 @@ public:
 
   void IncrementSessionCount()
   {
-    mSessionCount++;
+    PR_ATOMIC_INCREMENT(&mSessionCount);
   }
 
   void DecrementSessionCount()
   {
-    mSessionCount--;
+    PR_ATOMIC_DECREMENT(&mSessionCount);
   }
 
   int32_t SessionCount()
@@ -468,7 +467,7 @@ private:
 
   // SessionCount might be decremented from the main or the socket
   // thread, so manage it with atomic counters
-  Atomic<int32_t>               mSessionCount;
+  int32_t               mSessionCount;
 
   // Queue for websockets that have not completed connecting yet.
   // The first nsOpenConn with a given address will be either be
@@ -491,7 +490,7 @@ static nsWSAdmissionManager *sWebSocketAdmissions = nullptr;
 class CallOnMessageAvailable MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CallOnMessageAvailable(WebSocketChannel *aChannel,
                          nsCString        &aData,
@@ -516,7 +515,7 @@ private:
   nsCString                         mData;
   int32_t                           mLen;
 };
-NS_IMPL_ISUPPORTS1(CallOnMessageAvailable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CallOnMessageAvailable, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // CallOnStop
@@ -525,7 +524,7 @@ NS_IMPL_ISUPPORTS1(CallOnMessageAvailable, nsIRunnable)
 class CallOnStop MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CallOnStop(WebSocketChannel *aChannel,
              nsresult          aReason)
@@ -552,7 +551,7 @@ private:
   nsRefPtr<WebSocketChannel>        mChannel;
   nsresult                          mReason;
 };
-NS_IMPL_ISUPPORTS1(CallOnStop, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CallOnStop, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // CallOnServerClose
@@ -561,7 +560,7 @@ NS_IMPL_ISUPPORTS1(CallOnStop, nsIRunnable)
 class CallOnServerClose MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CallOnServerClose(WebSocketChannel *aChannel,
                     uint16_t          aCode,
@@ -583,7 +582,7 @@ private:
   uint16_t                          mCode;
   nsCString                         mReason;
 };
-NS_IMPL_ISUPPORTS1(CallOnServerClose, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CallOnServerClose, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // CallAcknowledge
@@ -592,7 +591,7 @@ NS_IMPL_ISUPPORTS1(CallOnServerClose, nsIRunnable)
 class CallAcknowledge MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CallAcknowledge(WebSocketChannel *aChannel,
                   uint32_t          aSize)
@@ -612,7 +611,7 @@ private:
   nsRefPtr<WebSocketChannel>        mChannel;
   uint32_t                          mSize;
 };
-NS_IMPL_ISUPPORTS1(CallAcknowledge, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CallAcknowledge, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // CallOnTransportAvailable
@@ -621,7 +620,7 @@ NS_IMPL_ISUPPORTS1(CallAcknowledge, nsIRunnable)
 class CallOnTransportAvailable MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CallOnTransportAvailable(WebSocketChannel *aChannel,
                            nsISocketTransport *aTransport,
@@ -646,7 +645,7 @@ private:
   nsCOMPtr<nsIAsyncInputStream>  mSocketIn;
   nsCOMPtr<nsIAsyncOutputStream> mSocketOut;
 };
-NS_IMPL_ISUPPORTS1(CallOnTransportAvailable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CallOnTransportAvailable, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // OutboundMessage
@@ -765,7 +764,7 @@ private:
 class OutboundEnqueuer MOZ_FINAL : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   OutboundEnqueuer(WebSocketChannel *aChannel, OutboundMessage *aMsg)
     : mChannel(aChannel), mMessage(aMsg) {}
@@ -782,7 +781,7 @@ private:
   nsRefPtr<WebSocketChannel>  mChannel;
   OutboundMessage            *mMessage;
 };
-NS_IMPL_ISUPPORTS1(OutboundEnqueuer, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(OutboundEnqueuer, nsIRunnable)
 
 //-----------------------------------------------------------------------------
 // nsWSCompression
@@ -1633,8 +1632,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     // and there isn't an internal error, use that.
     if (NS_SUCCEEDED(mStopOnClose)) {
       if (mScriptCloseCode) {
-        uint16_t temp = PR_htons(mScriptCloseCode);
-        memcpy(payload, &temp, 2);
+        *((uint16_t *)payload) = PR_htons(mScriptCloseCode);
         mOutHeader[1] += 2;
         mHdrOutToSend = 8;
         if (!mScriptCloseReason.IsEmpty()) {
@@ -1653,8 +1651,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
         mHdrOutToSend = 6;
       }
     } else {
-      uint16_t temp = PR_htons(ResultToCloseCode(mStopOnClose));
-      memcpy(payload, &temp, 2);
+      *((uint16_t *)payload) = PR_htons(ResultToCloseCode(mStopOnClose));
       mOutHeader[1] += 2;
       mHdrOutToSend = 8;
     }
@@ -1742,8 +1739,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     mask = * reinterpret_cast<uint32_t *>(buffer);
     NS_Free(buffer);
   } while (!mask);
-  uint32_t temp = PR_htonl(mask);
-  memcpy(payload - 4, &temp, 4);
+  *(((uint32_t *)payload) - 1) = PR_htonl(mask);
 
   LOG(("WebSocketChannel::PrimeNewOutgoingMessage() using mask %08x\n", mask));
 

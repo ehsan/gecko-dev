@@ -4,7 +4,7 @@
 
 const Cu = Components.utils;
 
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+let {devtools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let TargetFactory = devtools.TargetFactory;
 
 // Clear preferences that may be set during the course of tests.
@@ -16,39 +16,3 @@ function clearUserPrefs()
 }
 
 registerCleanupFunction(clearUserPrefs);
-
-Services.prefs.setBoolPref("devtools.debugger.log", true);
-SimpleTest.registerCleanupFunction(() => {
-  Services.prefs.clearUserPref("devtools.debugger.log");
-});
-
-function getContainerForRawNode(markupView, rawNode) {
-  let front = markupView.walker.frontForRawNode(rawNode);
-  let container = markupView.getContainer(front);
-  return container;
-}
-
-
-Services.prefs.setBoolPref("devtools.debugger.log", true);
-SimpleTest.registerCleanupFunction(() => {
-  Services.prefs.clearUserPref("devtools.debugger.log");
-});
-
-function getContainerForRawNode(markupView, rawNode) {
-  let front = markupView.walker.frontForRawNode(rawNode);
-  let container = markupView.getContainer(front);
-  return container;
-}
-
-
-Services.prefs.setBoolPref("devtools.debugger.log", true);
-SimpleTest.registerCleanupFunction(() => {
-  Services.prefs.clearUserPref("devtools.debugger.log");
-});
-
-function getContainerForRawNode(markupView, rawNode) {
-  let front = markupView.walker.frontForRawNode(rawNode);
-  let container = markupView.getContainer(front);
-  return container;
-}
-

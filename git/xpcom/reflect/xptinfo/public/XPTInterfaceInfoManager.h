@@ -9,7 +9,6 @@
 
 #include "nsIInterfaceInfoManager.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsDataHashtable.h"
@@ -26,7 +25,7 @@ namespace mozilla {
 class XPTInterfaceInfoManager MOZ_FINAL
     : public nsIInterfaceInfoManager
 {
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEINFOMANAGER
 
 public:
@@ -45,7 +44,7 @@ public:
 
     xptiInterfaceEntry* GetInterfaceEntryForIID(const nsIID *iid);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
     static int64_t GetXPTIWorkingSetSize();
 

@@ -5,6 +5,7 @@
 
 #include <Carbon/Carbon.h>
 #include "nsIPlatformCharset.h"
+#include "pratom.h"
 #include "nsCOMPtr.h"
 #include "nsIServiceManager.h"
 #include "nsLocaleCID.h"

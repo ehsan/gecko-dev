@@ -24,15 +24,7 @@ public:
         kNativeGL_BackEndType,
     };
 
-    struct AttachmentInfo {
-        int fSampleCount;
-        int fStencilBits;
-    };
-
-    bool attach(SkBackEndTypes /* attachType */, int /* msaaSampleCount */, AttachmentInfo* info) {
-        // These are the values requested in SkiaSampleView.java
-        info->fSampleCount = 0;
-        info->fStencilBits = 8;
+    bool attach(SkBackEndTypes /* attachType */, int /* msaaSampleCount */) {
         return true;
     }
     void detach() {}
@@ -51,3 +43,4 @@ private:
 };
 
 #endif
+

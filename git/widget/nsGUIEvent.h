@@ -8,8 +8,10 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include "nsCOMArray.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsRegion.h"
 #include "nsEvent.h"
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
@@ -18,16 +20,16 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIDOMTouchEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
 #include "nsTraceRefcnt.h"
 #include "nsITransferable.h"
+#include "nsIVariant.h"
 #include "nsStyleConsts.h"
 #include "nsAutoPtr.h"
 #include "mozilla/dom/EventTarget.h"
-#include "mozilla/dom/Touch.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace dom {
@@ -347,9 +349,7 @@ enum nsEventStructType {
 #define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+9)
 #define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+10)
 #define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+11)
-#define NS_SIMPLE_GESTURE_EDGE_STARTED   (NS_SIMPLE_GESTURE_EVENT_START+12)
-#define NS_SIMPLE_GESTURE_EDGE_CANCELED  (NS_SIMPLE_GESTURE_EVENT_START+13)
-#define NS_SIMPLE_GESTURE_EDGE_COMPLETED (NS_SIMPLE_GESTURE_EVENT_START+14)
+#define NS_SIMPLE_GESTURE_EDGEUI         (NS_SIMPLE_GESTURE_EVENT_START+12)
 
 // These are used to send native events to plugins.
 #define NS_PLUGIN_EVENT_START            3600
@@ -401,7 +401,6 @@ enum nsEventStructType {
 
 #define NS_WEBAUDIO_EVENT_START      4350
 #define NS_AUDIO_PROCESS             (NS_WEBAUDIO_EVENT_START)
-#define NS_AUDIO_COMPLETE            (NS_WEBAUDIO_EVENT_START + 1)
 
 // script notification events
 #define NS_NOTIFYSCRIPT_START        4500
@@ -458,12 +457,6 @@ enum nsEventStructType {
 #define NS_NETWORK_EVENT_START       5600
 #define NS_NETWORK_UPLOAD_EVENT      (NS_NETWORK_EVENT_START + 1)
 #define NS_NETWORK_DOWNLOAD_EVENT    (NS_NETWORK_EVENT_START + 2)
-
-// MediaRecorder events.
-#define NS_MEDIARECORDER_EVENT_START 5700
-#define NS_MEDIARECORDER_DATAAVAILABLE  (NS_MEDIARECORDER_EVENT_START + 1)
-#define NS_MEDIARECORDER_WARNING        (NS_MEDIARECORDER_EVENT_START + 2)
-#define NS_MEDIARECORDER_STOP           (NS_MEDIARECORDER_EVENT_START + 3)
 
 #ifdef MOZ_GAMEPAD
 // Gamepad input events
@@ -591,7 +584,7 @@ private:
 
   inline void SetRawFlags(RawFlags aRawFlags)
   {
-    static_assert(sizeof(BaseEventFlags) <= sizeof(RawFlags),
+    MOZ_STATIC_ASSERT(sizeof(BaseEventFlags) <= sizeof(RawFlags),
       "mozilla::widget::EventFlags must not be bigger than the RawFlags");
     memcpy(this, &aRawFlags, sizeof(BaseEventFlags));
   }
@@ -674,9 +667,9 @@ public:
   uint32_t    message;
   // Relative to the widget of the event, or if there is no widget then it is
   // in screen coordinates. Not modified by layout code.
-  mozilla::LayoutDeviceIntPoint refPoint;
+  nsIntPoint  refPoint;
   // The previous refPoint, if known, used to calculate mouse movement deltas.
-  mozilla::LayoutDeviceIntPoint lastRefPoint;
+  nsIntPoint  lastRefPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   uint64_t    time;
@@ -685,9 +678,6 @@ public:
 
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
-
-  nsString typeString; // always set on non-main-thread events
-
   // Event targets, needed by DOM Events
   nsCOMPtr<mozilla::dom::EventTarget> target;
   nsCOMPtr<mozilla::dom::EventTarget> currentTarget;
@@ -1076,8 +1066,7 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_KEY_EVENT),
       keyCode(0), charCode(0),
       location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0),
-      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified),
-      mNativeKeyEvent(nullptr)
+      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified)
   {
   }
 
@@ -1094,8 +1083,6 @@ public:
   bool            isChar;
   // DOM KeyboardEvent.key
   mozilla::widget::KeyNameIndex mKeyNameIndex;
-  // OS-specific native event can optionally be preserved
-  void*           mNativeKeyEvent;
 
   void GetDOMKeyName(nsAString& aKeyName)
   {
@@ -1509,7 +1496,7 @@ public:
     mInput.mLength = aLength;
   }
 
-  void InitForQueryDOMWidgetHittest(const mozilla::LayoutDeviceIntPoint& aPoint)
+  void InitForQueryDOMWidgetHittest(nsIntPoint& aPoint)
   {
     NS_ASSERTION(message == NS_QUERY_DOM_WIDGET_HITTEST,
                  "wrong initializer is called");
@@ -1560,6 +1547,20 @@ public:
     SCROLL_ACTION_LINE,
     SCROLL_ACTION_PAGE
   };
+};
+
+class nsFocusEvent : public nsEvent
+{
+public:
+  nsFocusEvent(bool isTrusted, uint32_t msg)
+    : nsEvent(isTrusted, msg, NS_FOCUS_EVENT),
+      fromRaise(false),
+      isRefocus(false)
+  {
+  }
+
+  bool fromRaise;
+  bool isRefocus;
 };
 
 class nsSelectionEvent : public nsGUIEvent
@@ -1655,7 +1656,7 @@ public:
     MOZ_COUNT_DTOR(nsTouchEvent);
   }
 
-  nsTArray< nsRefPtr<mozilla::dom::Touch> > touches;
+  nsTArray<nsCOMPtr<nsIDOMTouch> > touches;
 };
 
 /**
@@ -1714,34 +1715,16 @@ public:
 /**
  * DOM UIEvent
  */
-class nsUIEvent : public nsGUIEvent
+class nsUIEvent : public nsEvent
 {
 public:
   nsUIEvent(bool isTrusted, uint32_t msg, int32_t d)
-    : nsGUIEvent(isTrusted, msg, nullptr, NS_UI_EVENT),
+    : nsEvent(isTrusted, msg, NS_UI_EVENT),
       detail(d)
   {
   }
 
   int32_t detail;
-};
-
-class nsFocusEvent : public nsUIEvent
-{
-public:
-  nsFocusEvent(bool isTrusted, uint32_t msg)
-    : nsUIEvent(isTrusted, msg, 0),
-      fromRaise(false),
-      isRefocus(false)
-  {
-    eventStructType = NS_FOCUS_EVENT;
-  }
-
-  /// The possible related target
-  nsCOMPtr<mozilla::dom::EventTarget> relatedTarget;
-
-  bool fromRaise;
-  bool isRefocus;
 };
 
 /**

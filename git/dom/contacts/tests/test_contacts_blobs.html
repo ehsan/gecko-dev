@@ -21,9 +21,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=674720
 
 "use strict";
 
-if (SpecialPowers.isMainProcess()) {
-  SpecialPowers.Cu.import("resource://gre/modules/ContactService.jsm");
-  SpecialPowers.Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
+// this shouldn't be necessary when bug 792594 is fixed
+if (!SpecialPowers.getBoolPref("dom.mozContacts.enabled")) {
+  var comp = SpecialPowers.wrap(SpecialPowers.Components);
+  comp.utils.import("resource://gre/modules/ContactService.jsm");
+  comp.utils.import("resource://gre/modules/PermissionPromptHelper.jsm");
+  SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
 }
 
 SpecialPowers.addPermission("contacts-write", true, document);
@@ -31,6 +34,8 @@ SpecialPowers.addPermission("contacts-read", true, document);
 SpecialPowers.addPermission("contacts-create", true, document);
 
 var utils = SpecialPowers.getDOMWindowUtils(window);
+
+function tests() {
 
 function getView(size)
 {
@@ -85,13 +90,11 @@ var randomBlob = getRandomBlob(1024);
 var randomBlob2 = getRandomBlob(1024);
 
 var properties1 = {
-  name: "xTestname1",
   givenName: "xTestname1",
   photo: [randomBlob]
 };
 
 var properties2 = {
-  name: "yTestname2",
   givenName: "yTestname2",
   photo: [randomBlob, randomBlob2]
 };
@@ -184,7 +187,7 @@ var steps = [
   function () {
     ok(true, "Retrieving by substring");
     var options = {filterBy: ["givenName"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: properties1.givenName.substring(0,3)};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -210,7 +213,7 @@ var steps = [
   function () {
     ok(true, "Retrieving by substring");
     var options = {filterBy: ["givenName"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: properties2.givenName.substring(0,3)};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -249,7 +252,7 @@ var steps = [
   function () {
     ok(true, "Retrieving by substring");
     var options = {filterBy: ["givenName"],
-                   filterOp: "startsWith",
+                   filterOp: "contains",
                    filterValue: "asdf"};
     req = mozContacts.find(options);
     req.onsuccess = function () {
@@ -303,8 +306,23 @@ function next() {
   index += 1;
 }
 
+function permissionTest() {
+  if (gContactsEnabled) {
+    next();
+  } else {
+    is(mozContacts, null, "mozContacts is null when not enabled.");
+    SimpleTest.finish();
+  }
+}
+
+permissionTest();
+}
+
+var gContactsEnabled = SpecialPowers.getBoolPref("dom.mozContacts.enabled");
+addLoadEvent(tests);
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(next);
+
+ok(true, "test passed");
 </script>
 </pre>
 </body>

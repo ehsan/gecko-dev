@@ -40,7 +40,7 @@ class EventTokenBucket;
 class nsHttpConnectionMgr : public nsIObserver
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     // parameter names
@@ -113,10 +113,9 @@ public:
     // connection manager, nor is the submitter obligated to actually submit a
     // real transaction for this connectionInfo.
     nsresult SpeculativeConnect(nsHttpConnectionInfo *,
-                                nsIInterfaceRequestor *,
-                                uint32_t caps = 0);
+                                nsIInterfaceRequestor *);
 
-    // called when a connection is done processing a transaction.  if the
+    // called when a connection is done processing a transaction.  if the 
     // connection can be reused then it will be added to the idle list, else
     // it will be closed.
     nsresult ReclaimConnection(nsHttpConnection *conn);
@@ -136,6 +135,11 @@ public:
     // to the socket thread
     nsresult UpdateRequestTokenBucket(mozilla::net::EventTokenBucket *aBucket);
 
+    // Lookup/Cancel HTTP->SPDY redirections
+    bool GetSpdyAlternateProtocol(nsACString &key);
+    void ReportSpdyAlternateProtocol(nsHttpConnection *);
+    void RemoveSpdyAlternateProtocol(nsACString &key);
+
     // Pipielining Interfaces and Datatypes
 
     const static uint32_t kPipelineInfoTypeMask = 0xffff0000;
@@ -154,7 +158,7 @@ public:
         // Used when a HTTP Server response header that is on the banned from
         // pipelining list is received
         RedBannedServer = kPipelineInfoTypeRed | kPipelineInfoTypeBad | 0x0002,
-
+    
         // Used when a response is terminated early, when it fails an
         // integrity check such as assoc-req or when a 304 contained a Last-Modified
         // differnet than the entry being validated.
@@ -180,7 +184,7 @@ public:
         // Used when a response is received that is not framed with either chunked
         // encoding or a complete content length.
         BadInsufficientFraming = kPipelineInfoTypeBad | 0x0008,
-
+        
         // Used when a very large response is recevied in a potential pipelining
         // context. Large responses cause head of line blocking.
         BadUnexpectedLarge = kPipelineInfoTypeBad | 0x000B,
@@ -192,7 +196,7 @@ public:
         // Used when a response is received successfully to a pipelined request.
         GoodCompletedOK = kPipelineInfoTypeGood | 0x000A
     };
-
+    
     // called to provide information relevant to the pipelining manager
     // may be called from any thread
     void     PipelineFeedbackInfo(nsHttpConnectionInfo *,
@@ -232,7 +236,7 @@ public:
     // in future sessions to speed up the opening portions of the connection.
     void ReportSpdyCWNDSetting(nsHttpConnectionInfo *host, uint32_t cwndValue);
     uint32_t GetSpdyCWNDSetting(nsHttpConnectionInfo *host);
-
+    
     bool     SupportsPipelining(nsHttpConnectionInfo *);
 
     bool GetConnectionData(nsTArray<mozilla::net::HttpRetParams> *);
@@ -258,7 +262,7 @@ private:
         // other positive experiences will eventually allow it to try again.
         PS_RED
     };
-
+    
     class nsHalfOpenSocket;
 
     // nsConnectionEntry
@@ -273,11 +277,11 @@ private:
         nsConnectionEntry(nsHttpConnectionInfo *ci);
         ~nsConnectionEntry();
 
-        nsRefPtr<nsHttpConnectionInfo> mConnInfo;
+        nsHttpConnectionInfo        *mConnInfo;
         nsTArray<nsHttpTransaction*> mPendingQ;    // pending transaction queue
         nsTArray<nsHttpConnection*>  mActiveConns; // active connections
         nsTArray<nsHttpConnection*>  mIdleConns;   // idle persistent connections
-        nsTArray<nsHalfOpenSocket*>  mHalfOpens;   // half open connections
+        nsTArray<nsHalfOpenSocket*>  mHalfOpens;
 
         // calculate the number of half open sockets that have not had at least 1
         // connection complete
@@ -290,7 +294,7 @@ private:
         const static uint32_t kPipelineUnlimited  = 1024; // fully open - extended green
         const static uint32_t kPipelineOpen       = 6;    // 6 on each conn - normal green
         const static uint32_t kPipelineRestricted = 2;    // 2 on just 1 conn in yellow
-
+        
         nsHttpConnectionMgr::PipeliningState PipelineState();
         void OnPipelineFeedbackInfo(
             nsHttpConnectionMgr::PipelineFeedbackInfoType info,
@@ -390,13 +394,13 @@ private:
     class nsConnectionHandle : public nsAHttpConnection
     {
     public:
-        NS_DECL_THREADSAFE_ISUPPORTS
+        NS_DECL_ISUPPORTS
         NS_DECL_NSAHTTPCONNECTION(mConn)
 
-        nsConnectionHandle(nsHttpConnection *conn) : mConn(conn) { }
+        nsConnectionHandle(nsHttpConnection *conn) { NS_ADDREF(mConn = conn); }
         virtual ~nsConnectionHandle();
 
-        nsRefPtr<nsHttpConnection> mConn;
+        nsHttpConnection *mConn;
     };
 
     // nsHalfOpenSocket is used to hold the state of an opening TCP socket
@@ -408,7 +412,7 @@ private:
                                        public nsITimerCallback
     {
     public:
-        NS_DECL_THREADSAFE_ISUPPORTS
+        NS_DECL_ISUPPORTS
         NS_DECL_NSIOUTPUTSTREAMCALLBACK
         NS_DECL_NSITRANSPORTEVENTSINK
         NS_DECL_NSIINTERFACEREQUESTOR
@@ -418,7 +422,7 @@ private:
                          nsAHttpTransaction *trans,
                          uint32_t caps);
         ~nsHalfOpenSocket();
-
+        
         nsresult SetupStreams(nsISocketTransport **,
                               nsIAsyncInputStream **,
                               nsIAsyncOutputStream **,
@@ -627,7 +631,7 @@ private:
     // that are accessed from mCT connection table
     uint32_t mNumHalfOpenConns;
 
-    // Holds time in seconds for next wake-up to prune dead connections.
+    // Holds time in seconds for next wake-up to prune dead connections. 
     uint64_t mTimeOfNextWakeUp;
     // Timer for next pruning of dead connections.
     nsCOMPtr<nsITimer> mTimer;
@@ -646,6 +650,12 @@ private:
     // be accessed from the socket thread.
     //
     nsClassHashtable<nsCStringHashKey, nsConnectionEntry> mCT;
+
+    // mAlternateProtocolHash is used only for spdy/* upgrades for now
+    // protected by the monitor
+    nsTHashtable<nsCStringHashKey> mAlternateProtocolHash;
+    static PLDHashOperator TrimAlternateProtocolHash(nsCStringHashKey *entry,
+                                                     void *closure);
 
     static PLDHashOperator ReadConnectionEntry(const nsACString &key,
                                                nsAutoPtr<nsConnectionEntry> &ent,

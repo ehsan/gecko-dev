@@ -1011,13 +1011,14 @@ nsWindow::GetAttention(int32_t aCycleCount)
 static already_AddRefed<gfxASurface>
 GetSurfaceForQWidget(QWidget* aDrawable)
 {
-    nsRefPtr<gfxASurface> result =
+    gfxASurface* result =
         new gfxXlibSurface(gfxQtPlatform::GetXDisplay(aDrawable),
                            aDrawable->winId(),
                            DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aDrawable)),
                            gfxIntSize(aDrawable->size().width(),
                            aDrawable->size().height()));
-    return result.forget();
+    NS_IF_ADDREF(result);
+    return result;
 }
 #endif
 
@@ -1076,7 +1077,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 #endif //MOZ_ENABLE_QTMOBILITY
 
         if (mWidgetListener)
-          painted = mWidgetListener->PaintWindow(this, region);
+          painted = mWidgetListener->PaintWindow(this, region, 0);
         aPainter->endNativePainting();
         if (mWidgetListener)
           mWidgetListener->DidPaintWindow();
@@ -1134,7 +1135,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
         if (mWidgetListener) {
           nsIntRegion region(rect);
-          painted = mWidgetListener->PaintWindow(this, region);
+          painted = mWidgetListener->PaintWindow(this, region, 0);
         }
     }
 
@@ -1523,6 +1524,8 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     // The user has done something.
     UserActivity();
 
+    bool setNoDefault = false;
+
     if (aEvent->key() == Qt::Key_AltGr) {
         sAltGrModifier = true;
     }
@@ -1631,10 +1634,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
             return status;
         }
 
-        // If prevent default on keydown, don't dispatch keypress event
-        if (status == nsEventStatus_eConsumeNoDefault) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
+        // If prevent default on keydown, do same for keypress
+        if (status == nsEventStatus_eConsumeNoDefault)
+            setNoDefault = true;
     }
 
     // Don't pass modifiers as NS_KEY_PRESS events.
@@ -1648,7 +1650,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         aEvent->key() == Qt::Key_Alt     ||
         aEvent->key() == Qt::Key_AltGr) {
 
-        return nsEventStatus_eIgnore;
+        return setNoDefault ?
+            nsEventStatus_eConsumeNoDefault :
+            nsEventStatus_eIgnore;
     }
 
     // Look for specialized app-command keys
@@ -1691,6 +1695,11 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
     InitKeyEvent(event, aEvent);
+
+    // If prevent default on keydown, do same for keypress
+    if (setNoDefault) {
+        event.mFlags.mDefaultPrevented = true;
+    }
 
     // If there is no charcode attainable from the text, try to
     // generate it from the keycode. Check shift state for case
@@ -1867,10 +1876,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
-        // If prevent default on keydown, don't dispatch keypress event
-        if (status == nsEventStatus_eConsumeNoDefault) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
+        // If prevent default on keydown, do same for keypress
+        if (status == nsEventStatus_eConsumeNoDefault)
+            setNoDefault = true;
     }
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
@@ -1880,6 +1888,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
     event.mKeyNameIndex = keyNameIndex;
+
+    if (setNoDefault)
+        event.mFlags.mDefaultPrevented = true;
 
     // send the key press event
     return DispatchEvent(&event);
@@ -2011,7 +2022,7 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, bool &handled)
         for (int i = touchPoints.count() -1; i >= 0; i--) {
             QPointF fpos = touchPoints[i].pos();
             nsGestureNotifyEvent gestureNotifyEvent(true, NS_GESTURENOTIFY_EVENT_START, this);
-            gestureNotifyEvent.refPoint = LayoutDeviceIntPoint(fpos.x(), fpos.y());
+            gestureNotifyEvent.refPoint = nsIntPoint(fpos.x(), fpos.y());
             DispatchEvent(&gestureNotifyEvent);
         }
     }
@@ -2117,7 +2128,7 @@ nsWindow::DispatchGestureEvent(uint32_t aMsg, uint32_t aDirection,
     nsSimpleGestureEvent mozGesture(true, aMsg, this, 0, 0.0);
     mozGesture.direction = aDirection;
     mozGesture.delta = aDelta;
-    mozGesture.refPoint = LayoutDeviceIntPoint::FromUntyped(aRefPoint);
+    mozGesture.refPoint = aRefPoint;
 
     Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
 
@@ -2582,7 +2593,7 @@ void
 key_event_to_context_menu_event(nsMouseEvent &aEvent,
                                 QKeyEvent *aGdkEvent)
 {
-    aEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+    aEvent.refPoint = nsIntPoint(0, 0);
     aEvent.modifiers = 0;
     aEvent.time = 0;
     aEvent.clickCount = 1;
@@ -3254,10 +3265,10 @@ nsWindow::GetInputContext()
     mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
     // Our qt widget looks like using only one context per process.
     // However, it's better to set the context's pointer.
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+#if (QT_VERSION <= QT_VERSION_CHECK(5, 0, 0))
     mInputContext.mNativeIMEContext = qApp->inputContext();
 #else
-    mInputContext.mNativeIMEContext = qApp->inputMethod();
+    mInputContext.mNativeIMEContext = nullptr;
 #endif
     return mInputContext;
 }

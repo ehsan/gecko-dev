@@ -4,13 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_MatchPairs_h
-#define vm_MatchPairs_h
-
-#include "jsalloc.h"
-
-#include "ds/LifoAlloc.h"
-#include "js/Vector.h"
+#ifndef MatchPairs_h__
+#define MatchPairs_h__
 
 /*
  * RegExp match results are succinctly represented by pairs of integer
@@ -78,17 +73,7 @@ class MatchPairs
     void forgetArray() { pairs_ = NULL; }
 
     void displace(size_t disp);
-    void checkAgainst(size_t inputLength) {
-#ifdef DEBUG
-        for (size_t i = 0; i < pairCount_; i++) {
-            const MatchPair &p = pair(i);
-            JS_ASSERT(p.check());
-            if (p.isUndefined())
-                continue;
-            JS_ASSERT(size_t(p.limit) <= inputLength);
-        }
-#endif
-    }
+    inline void checkAgainst(size_t length);
 
   public:
     /* Querying functions in the style of RegExpStatics. */
@@ -171,4 +156,4 @@ struct MatchConduit
 
 } /* namespace js */
 
-#endif /* vm_MatchPairs_h */
+#endif /* MatchPairs_h__ */

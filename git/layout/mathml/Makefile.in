@@ -26,6 +26,39 @@ LOCAL_INCLUDES = \
 	-I$(srcdir)/../xul/base/src \
 	$(NULL)
 
+CPPSRCS =         nsMathMLChar.cpp		        \
+                  nsMathMLFrame.cpp		\
+                  nsMathMLContainerFrame.cpp		\
+                  nsMathMLOperators.cpp \
+                  nsMathMLTokenFrame.cpp		\
+                  nsMathMLmoFrame.cpp			\
+                  nsMathMLmrowFrame.cpp		        \
+                  nsMathMLmphantomFrame.cpp		\
+                  nsMathMLmfencedFrame.cpp		\
+                  nsMathMLmfracFrame.cpp		\
+                  nsMathMLmsupFrame.cpp			\
+                  nsMathMLmsubFrame.cpp			\
+                  nsMathMLmsubsupFrame.cpp		\
+                  nsMathMLmmultiscriptsFrame.cpp	\
+                  nsMathMLmtableFrame.cpp		\
+                  nsMathMLmunderoverFrame.cpp		\
+                  nsMathMLmpaddedFrame.cpp		\
+                  nsMathMLmspaceFrame.cpp		\
+                  nsMathMLmstyleFrame.cpp		\
+                  nsMathMLmsqrtFrame.cpp		\
+                  nsMathMLmrootFrame.cpp		\
+                  nsMathMLSelectedFrame.cpp		\
+                  nsMathMLmactionFrame.cpp		\
+                  nsMathMLmencloseFrame.cpp		\
+                  nsMathMLsemanticsFrame.cpp		\
+                  $(NULL)
+
+include $(topsrcdir)/config/config.mk
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+# do we still want this? - DJF
+FORCE_STATIC_LIB = 1
+
 include $(topsrcdir)/config/rules.mk
 
 font_properties = \
@@ -59,3 +92,4 @@ $(DIST)/bin/res/fonts/$(math_properties) $(DESTDIR)$(mozappdir)/res/fonts/$(math
 libs:: $(DIST)/bin/res/fonts/$(math_properties)
 install:: $(DESTDIR)$(mozappdir)/res/fonts/$(math_properties)
 
+DEFINES += -D_IMPL_NS_LAYOUT

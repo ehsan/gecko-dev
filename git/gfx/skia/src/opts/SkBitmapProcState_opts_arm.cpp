@@ -218,3 +218,4 @@ void SkBitmapProcState::platformProcs() {
             break;
     }
 }
+

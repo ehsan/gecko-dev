@@ -7,7 +7,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AboutHomeUtils",
-  "resource:///modules/AboutHome.jsm");
+  "resource:///modules/AboutHomeUtils.jsm");
 
 let gRightsVersion = Services.prefs.getIntPref("browser.rights.version");
 
@@ -89,8 +89,27 @@ let gTests = [
 },
 
 {
-  desc: "Check that performing a search fires a search event and records to " +
-        "Firefox Health Report.",
+  desc: "Check that performing a search fires a search event.",
+  setup: function () { },
+  run: function () {
+    let deferred = Promise.defer();
+    let doc = gBrowser.contentDocument;
+
+    doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
+      is(e.detail, doc.documentElement.getAttribute("searchEngineName"), "Detail is search engine name");
+
+      gBrowser.stop();
+      deferred.resolve();
+    }, true, true);
+
+    doc.getElementById("searchText").value = "it works";
+    doc.getElementById("searchSubmit").click();
+    return deferred.promise;
+  }
+},
+
+{
+  desc: "Check that performing a search records to Firefox Health Report.",
   setup: function () { },
   run: function () {
     try {
@@ -101,35 +120,46 @@ let gTests = [
       return Promise.resolve();
     }
 
-    let numSearchesBefore = 0;
     let deferred = Promise.defer();
     let doc = gBrowser.contentDocument;
-    let engineName = doc.documentElement.getAttribute("searchEngineName");
 
+    // We rely on the listener in browser.js being installed and fired before
+    // this one. If this ever changes, we should add an executeSoon() or similar.
     doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
-      is(e.detail, engineName, "Detail is search engine name");
+      executeSoon(gBrowser.stop.bind(gBrowser));
+      let reporter = Components.classes["@mozilla.org/datareporting/service;1"]
+                                       .getService()
+                                       .wrappedJSObject
+                                       .healthReporter;
+      ok(reporter, "Health Reporter instance available.");
 
-      // We use executeSoon() to ensure that this code runs after the
-      // count has been updated in browser.js, since it uses the same
-      // event.
-      executeSoon(function () {
-        getNumberOfSearches(engineName).then(num => {
-          is(num, numSearchesBefore + 1, "One more search recorded.");
+      reporter.onInit().then(function onInit() {
+        let provider = reporter.getProvider("org.mozilla.searches");
+        ok(provider, "Searches provider is available.");
+
+        let engineName = doc.documentElement.getAttribute("searchEngineName");
+        let id = Services.search.getEngineByName(engineName).identifier;
+
+        let m = provider.getMeasurement("counts", 2);
+        m.getValues().then(function onValues(data) {
+          let now = new Date();
+          ok(data.days.hasDay(now), "Have data for today.");
+
+          let day = data.days.getDay(now);
+          let field = id + ".abouthome";
+          ok(day.has(field), "Have data for about home on this engine.");
+
+          // Note the search from the previous test.
+          is(day.get(field), 2, "Have searches recorded.");
+
           deferred.resolve();
         });
+
       });
     }, true, true);
 
-    // Get the current number of recorded searches.
-    getNumberOfSearches(engineName).then(num => {
-      numSearchesBefore = num;
-
-      info("Perform a search.");
-      doc.getElementById("searchText").value = "a search";
-      doc.getElementById("searchSubmit").click();
-      gBrowser.stop();
-    });
-
+    doc.getElementById("searchText").value = "a search";
+    doc.getElementById("searchSubmit").click();
     return deferred.promise;
   }
 },
@@ -213,116 +243,6 @@ let gTests = [
 
     Services.prefs.clearUserPref("browser.rights.override");
   }
-},
-
-{
-  desc: "Check that the search UI/ action is updated when the search engine is changed",
-  setup: function() {},
-  run: function()
-  {
-    let currEngine = Services.search.currentEngine;
-    let unusedEngines = [].concat(Services.search.getVisibleEngines()).filter(x => x != currEngine);
-    let searchbar = document.getElementById("searchbar");
-
-    function checkSearchUI(engine) {
-      let doc = gBrowser.selectedTab.linkedBrowser.contentDocument;
-      let searchText = doc.getElementById("searchText");
-      let logoElt = doc.getElementById("searchEngineLogo");
-      let engineName = doc.documentElement.getAttribute("searchEngineName");
-
-      is(engineName, engine.name, "Engine name should've been updated");
-
-      if (!logoElt.parentNode.hidden) {
-        is(logoElt.alt, engineName, "Alt text of logo image should match search engine name")
-      } else {
-        is(searchText.placeholder, engineName, "Placeholder text should match search engine name");
-      }
-    }
-    // Do a sanity check that all attributes are correctly set to begin with
-    checkSearchUI(currEngine);
-
-    let deferred = Promise.defer();
-    promiseBrowserAttributes(gBrowser.selectedTab).then(function() {
-      // Test if the update propagated
-      checkSearchUI(unusedEngines[0]);
-      searchbar.currentEngine = currEngine;
-      deferred.resolve();
-    });
-
-    // The following cleanup function will set currentEngine back to the previous
-    // engine if we fail to do so above.
-    registerCleanupFunction(function() {
-      searchbar.currentEngine = currEngine;
-    });
-    // Set the current search engine to an unused one
-    searchbar.currentEngine = unusedEngines[0];
-    searchbar.select();
-    return deferred.promise;
-  }
-},
-
-{
-  desc: "Check POST search engine support",
-  setup: function() {},
-  run: function()
-  {
-    let deferred = Promise.defer();
-    let currEngine = Services.search.defaultEngine;
-    let searchObserver = function search_observer(aSubject, aTopic, aData) {
-      let engine = aSubject.QueryInterface(Ci.nsISearchEngine);
-      info("Observer: " + aData + " for " + engine.name);
-
-      if (aData != "engine-added")
-        return;
-
-      if (engine.name != "POST Search")
-        return;
-
-      // Ready to execute the tests!
-      let needle = "Search for something awesome.";
-      let document = gBrowser.selectedTab.linkedBrowser.contentDocument;
-      let searchText = document.getElementById("searchText");
-
-      // We're about to change the search engine. Once the change has
-      // propagated to the about:home content, we want to perform a search.
-      let mutationObserver = new MutationObserver(function (mutations) {
-        for (let mutation of mutations) {
-          if (mutation.attributeName == "searchEngineURL") {
-            searchText.value = needle;
-            searchText.focus();
-            EventUtils.synthesizeKey("VK_RETURN", {});
-          }
-        }
-      });
-      mutationObserver.observe(document.documentElement, { attributes: true });
-
-      // Change the search engine, triggering the observer above.
-      Services.search.defaultEngine = engine;
-
-      registerCleanupFunction(function() {
-        mutationObserver.disconnect();
-        Services.search.removeEngine(engine);
-        Services.search.defaultEngine = currEngine;
-      });
-
-
-      // When the search results load, check them for correctness.
-      waitForLoad(function() {
-        let loadedText = gBrowser.contentDocument.body.textContent;
-        ok(loadedText, "search page loaded");
-        is(loadedText, "searchterms=" + escape(needle.replace(/\s/g, "+")),
-           "Search text should arrive correctly");
-        deferred.resolve();
-      });
-    };
-    Services.obs.addObserver(searchObserver, "browser-search-engine-modified", false);
-    registerCleanupFunction(function () {
-      Services.obs.removeObserver(searchObserver, "browser-search-engine-modified");
-    });
-    Services.search.addEngine("http://test:80/browser/browser/base/content/test/POSTSearchEngine.xml",
-                              Ci.nsISearchEngine.DATA_XML, null, false);
-    return deferred.promise;
-  }
 }
 
 ];
@@ -331,7 +251,6 @@ function test()
 {
   waitForExplicitFinish();
   requestLongerTimeout(2);
-  ignoreAllUncaughtExceptions();
 
   Task.spawn(function () {
     for (let test of gTests) {
@@ -458,68 +377,4 @@ function promiseBrowserAttributes(aTab)
   observer.observe(docElt, { attributes: true });
 
   return deferred.promise;
-}
-
-/**
- * Retrieves the number of about:home searches recorded for the current day.
- *
- * @param aEngineName
- *        name of the setup search engine.
- *
- * @return {Promise} Returns a promise resolving to the number of searches.
- */
-function getNumberOfSearches(aEngineName) {
-  let reporter = Components.classes["@mozilla.org/datareporting/service;1"]
-                                   .getService()
-                                   .wrappedJSObject
-                                   .healthReporter;
-  ok(reporter, "Health Reporter instance available.");
-
-  return reporter.onInit().then(function onInit() {
-    let provider = reporter.getProvider("org.mozilla.searches");
-    ok(provider, "Searches provider is available.");
-
-    let m = provider.getMeasurement("counts", 2);
-    return m.getValues().then(data => {
-      let now = new Date();
-      let yday = new Date(now);
-      yday.setDate(yday.getDate() - 1);
-
-      // Add the number of searches recorded yesterday to the number of searches
-      // recorded today. This makes the test not fail intermittently when it is
-      // run at midnight and we accidentally compare the number of searches from
-      // different days. Tests are always run with an empty profile so there
-      // are no searches from yesterday, normally. Should the test happen to run
-      // past midnight we make sure to count them in as well.
-      return getNumberOfSearchesByDate(aEngineName, data, now) +
-             getNumberOfSearchesByDate(aEngineName, data, yday);
-    });
-  });
-}
-
-function getNumberOfSearchesByDate(aEngineName, aData, aDate) {
-  if (aData.days.hasDay(aDate)) {
-    let id = Services.search.getEngineByName(aEngineName).identifier;
-
-    let day = aData.days.getDay(aDate);
-    let field = id + ".abouthome";
-
-    if (day.has(field)) {
-      return day.get(field) || 0;
-    }
-  }
-
-  return 0; // No records found.
-}
-
-function waitForLoad(cb) {
-  let browser = gBrowser.selectedBrowser;
-  browser.addEventListener("load", function listener() {
-    if (browser.currentURI.spec == "about:blank")
-      return;
-    info("Page loaded: " + browser.currentURI.spec);
-    browser.removeEventListener("load", listener, true);
-
-    cb();
-  }, true);
 }

@@ -26,10 +26,17 @@ JoinElementTxn::JoinElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(JoinElementTxn, EditTxn,
-                                     mLeftNode,
-                                     mRightNode,
-                                     mParent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(JoinElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLeftNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRightNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(JoinElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLeftNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRightNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(JoinElementTxn)
 NS_INTERFACE_MAP_END_INHERITING(EditTxn)
@@ -67,12 +74,18 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
   NS_PRECONDITION((mEditor && mLeftNode && mRightNode), "null arg");
   if (!mEditor || !mLeftNode || !mRightNode) { return NS_ERROR_NOT_INITIALIZED; }
 
+  nsCOMPtr<nsINode> leftNode = do_QueryInterface(mLeftNode);
+  NS_ENSURE_STATE(leftNode);
+
+  nsCOMPtr<nsINode> rightNode = do_QueryInterface(mRightNode);
+  NS_ENSURE_STATE(rightNode);
+
   // get the parent node
-  nsCOMPtr<nsINode> leftParent = mLeftNode->GetParentNode();
+  nsCOMPtr<nsINode> leftParent = leftNode->GetParentNode();
   NS_ENSURE_TRUE(leftParent, NS_ERROR_NULL_POINTER);
 
   // verify that mLeftNode and mRightNode have the same parent
-  nsCOMPtr<nsINode> rightParent = mRightNode->GetParentNode();
+  nsCOMPtr<nsINode> rightParent = rightNode->GetParentNode();
   NS_ENSURE_TRUE(rightParent, NS_ERROR_NULL_POINTER);
 
   if (leftParent != rightParent) {
@@ -83,9 +96,11 @@ NS_IMETHODIMP JoinElementTxn::DoTransaction(void)
   // set this instance mParent. 
   // Other methods will see a non-null mParent and know all is well
   mParent = leftParent;
-  mOffset = mLeftNode->Length();
+  mOffset = leftNode->Length();
 
-  nsresult rv = mEditor->JoinNodesImpl(mRightNode, mLeftNode, mParent);
+  nsresult rv = mEditor->JoinNodesImpl(mRightNode->AsDOMNode(),
+                                       mLeftNode->AsDOMNode(),
+                                       mParent->AsDOMNode(), false);
 
 #ifdef DEBUG
   if (NS_SUCCEEDED(rv) && gNoisy) {

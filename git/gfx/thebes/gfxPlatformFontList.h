@@ -16,7 +16,6 @@
 
 #include "nsIMemoryReporter.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 class CharMapHashKey : public PLDHashEntryHdr
 {
@@ -162,9 +161,9 @@ public:
     // (platforms may override, eg Mac)
     virtual bool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     // search for existing cmap that matches the input
@@ -253,7 +252,7 @@ protected:
     static size_t
     SizeOfFamilyNameEntryExcludingThis(const nsAString&               aKey,
                                        const nsRefPtr<gfxFontFamily>& aFamily,
-                                       mozilla::MallocSizeOf          aMallocSizeOf,
+                                       nsMallocSizeOfFun              aMallocSizeOf,
                                        void*                          aUserArg);
 
     // canonical family name ==> family entry (unique, one name per family entry)

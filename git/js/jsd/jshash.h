@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include "jstypes.h"
 
-extern "C" {
+JS_BEGIN_EXTERN_C
 
 typedef uint32_t JSHashNumber;
 typedef struct JSHashEntry JSHashEntry;
@@ -82,9 +82,11 @@ JS_HashTableDestroy(JSHashTable *ht);
 extern JSHashEntry **
 JS_HashTableRawLookup(JSHashTable *ht, JSHashNumber keyHash, const void *key);
 
+#ifdef __cplusplus
 extern JSHashEntry *
 JS_HashTableRawAdd(JSHashTable *ht, JSHashEntry **&hep, JSHashNumber keyHash,
                    const void *key, void *value);
+#endif
 
 extern void
 JS_HashTableRawRemove(JSHashTable *ht, JSHashEntry **hep, JSHashEntry *he);
@@ -93,7 +95,7 @@ JS_HashTableRawRemove(JSHashTable *ht, JSHashEntry **hep, JSHashEntry *he);
 extern JSHashEntry *
 JS_HashTableAdd(JSHashTable *ht, const void *key, void *value);
 
-extern bool
+extern JSBool
 JS_HashTableRemove(JSHashTable *ht, const void *key);
 
 extern int
@@ -113,6 +115,6 @@ JS_HashString(const void *key);
 extern int
 JS_CompareValues(const void *v1, const void *v2);
 
-} // extern "C"
+JS_END_EXTERN_C
 
 #endif /* jshash_h___ */

@@ -72,22 +72,12 @@ exports.remove = function remove(array, element) {
  *    Source array.
  * @returns {Array}
  */
-function unique(array) {
-  return array.reduce(function(result, item) {
-    add(result, item);
-    return result;
+exports.unique = function unique(array) {
+  return array.reduce(function(values, element) {
+    add(values, element);
+    return values;
   }, []);
 };
-exports.unique = unique;
-
-/**
- * Produce an array that contains the union: each distinct element from all
- * of the passed-in arrays.
- */
-function union() {
-  return unique(Array.concat.apply(null, arguments));
-};
-exports.union = union;
 
 exports.flatten = function flatten(array){
    var flat = [];
@@ -111,7 +101,8 @@ function fromIterator(iterator) {
 }
 exports.fromIterator = fromIterator;
 
-function find(array, predicate, fallback) {
+
+function find(array, predicate) {
   var index = 0;
   var count = array.length;
   while (index < count) {
@@ -119,6 +110,5 @@ function find(array, predicate, fallback) {
     if (predicate(value)) return value;
     else index = index + 1;
   }
-  return fallback;
 }
 exports.find = find;

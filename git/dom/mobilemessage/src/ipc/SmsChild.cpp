@@ -30,7 +30,8 @@ CreateMessageFromMessageData(const MobileMessageData& aData)
       message = new SmsMessage(aData.get_SmsMessageData());
       break;
     default:
-      MOZ_CRASH("Unexpected type of MobileMessageData");
+      MOZ_NOT_REACHED("Unexpected type of MobileMessageData");
+      return nullptr;
   }
 
   return message.forget();
@@ -64,13 +65,6 @@ bool
 SmsChild::RecvNotifyReceivedMessage(const MobileMessageData& aData)
 {
   NotifyObserversWithMobileMessage(kSmsReceivedObserverTopic, aData);
-  return true;
-}
-
-bool
-SmsChild::RecvNotifyRetrievingMessage(const MobileMessageData& aData)
-{
-  NotifyObserversWithMobileMessage(kSmsRetrievingObserverTopic, aData);
   return true;
 }
 
@@ -109,34 +103,29 @@ SmsChild::RecvNotifyDeliveryErrorMessage(const MobileMessageData& aData)
   return true;
 }
 
-bool
-SmsChild::RecvNotifyReceivedSilentMessage(const MobileMessageData& aData)
-{
-  NotifyObserversWithMobileMessage(kSilentSmsReceivedObserverTopic, aData);
-  return true;
-}
-
 PSmsRequestChild*
-SmsChild::AllocPSmsRequestChild(const IPCSmsRequest& aRequest)
+SmsChild::AllocPSmsRequest(const IPCSmsRequest& aRequest)
 {
-  MOZ_CRASH("Caller is supposed to manually construct a request!");
+  MOZ_NOT_REACHED("Caller is supposed to manually construct a request!");
+  return nullptr;
 }
 
 bool
-SmsChild::DeallocPSmsRequestChild(PSmsRequestChild* aActor)
+SmsChild::DeallocPSmsRequest(PSmsRequestChild* aActor)
 {
   delete aActor;
   return true;
 }
 
 PMobileMessageCursorChild*
-SmsChild::AllocPMobileMessageCursorChild(const IPCMobileMessageCursor& aCursor)
+SmsChild::AllocPMobileMessageCursor(const IPCMobileMessageCursor& aCursor)
 {
-  MOZ_CRASH("Caller is supposed to manually construct a cursor!");
+  MOZ_NOT_REACHED("Caller is supposed to manually construct a cursor!");
+  return nullptr;
 }
 
 bool
-SmsChild::DeallocPMobileMessageCursorChild(PMobileMessageCursorChild* aActor)
+SmsChild::DeallocPMobileMessageCursor(PMobileMessageCursorChild* aActor)
 {
   // MobileMessageCursorChild is refcounted, must not be freed manually.
   // Originally AddRefed in SendCursorRequest() in SmsIPCService.cpp.
@@ -204,7 +193,8 @@ SmsRequestChild::Recv__delete__(const MessageReply& aReply)
       mReplyRequest->NotifyMarkMessageReadFailed(aReply.get_ReplyMarkeMessageReadFail().error());
       break;
     default:
-      MOZ_CRASH("Received invalid response parameters!");
+      MOZ_NOT_REACHED("Received invalid response parameters!");
+      return false;
   }
 
   return true;
@@ -246,7 +236,8 @@ MobileMessageCursorChild::RecvNotifyResult(const MobileMessageCursorData& aData)
       result = new MobileMessageThread(aData.get_ThreadData());
       break;
     default:
-      MOZ_CRASH("Received invalid response parameters!");
+      MOZ_NOT_REACHED("Received invalid response parameters!");
+      return false;
   }
 
   mCursorCallback->NotifyCursorResult(result);

@@ -4,11 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Marking_h
-#define gc_Marking_h
+#ifndef gc_marking_h___
+#define gc_marking_h___
+
+#include "jsgc.h"
+#include "jscntxt.h"
+#include "jslock.h"
 
 #include "gc/Barrier.h"
-#include "jit/IonCode.h"
+#include "gc/Nursery.h"
+#include "js/TemplateLib.h"
+#include "ion/IonCode.h"
 
 extern "C" {
 struct JSContext;
@@ -24,15 +30,10 @@ namespace js {
 
 class ArgumentsObject;
 class ArrayBufferObject;
-class ArrayBufferViewObject;
 class BaseShape;
-class DebugScopeObject;
-struct GCMarker;
 class GlobalObject;
-class LazyScript;
-class ScopeObject;
-class Shape;
 class UnownedBaseShape;
+class Shape;
 
 template<class, typename> class HeapPtr;
 
@@ -94,14 +95,12 @@ DeclMarker(BaseShape, UnownedBaseShape)
 DeclMarker(IonCode, ion::IonCode)
 DeclMarker(Object, ArgumentsObject)
 DeclMarker(Object, ArrayBufferObject)
-DeclMarker(Object, ArrayBufferViewObject)
 DeclMarker(Object, DebugScopeObject)
 DeclMarker(Object, GlobalObject)
 DeclMarker(Object, JSObject)
 DeclMarker(Object, JSFunction)
 DeclMarker(Object, ScopeObject)
 DeclMarker(Script, JSScript)
-DeclMarker(LazyScript, LazyScript)
 DeclMarker(Shape, Shape)
 DeclMarker(String, JSAtom)
 DeclMarker(String, JSString)
@@ -182,6 +181,9 @@ MarkValueRootRange(JSTracer *trc, Value *begin, Value *end, const char *name)
 }
 
 void
+MarkValueRootRangeMaybeNullPayload(JSTracer *trc, size_t len, Value *vec, const char *name);
+
+void
 MarkTypeRoot(JSTracer *trc, types::Type *v, const char *name);
 
 bool
@@ -191,9 +193,6 @@ bool
 IsValueAboutToBeFinalized(Value *v);
 
 /*** Slot Marking ***/
-
-bool
-IsSlotMarked(HeapSlot *s);
 
 void
 MarkSlot(JSTracer *trc, HeapSlot *s, const char *name);
@@ -397,12 +396,6 @@ TraceKind(JSScript *script)
     return JSTRACE_SCRIPT;
 }
 
-inline JSGCTraceKind
-TraceKind(LazyScript *lazy)
-{
-    return JSTRACE_LAZY_SCRIPT;
-}
-
 } /* namespace gc */
 
 void
@@ -410,4 +403,4 @@ TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind);
 
 } /* namespace js */
 
-#endif /* gc_Marking_h */
+#endif /* gc_marking_h___ */

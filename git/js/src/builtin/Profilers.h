@@ -8,10 +8,10 @@
  * Functions for controlling profilers from within JS: Valgrind, Perf,
  * Shark, etc.
  */
-#ifndef builtin_Profilers_h
-#define builtin_Profilers_h
+#ifndef Profilers_h___
+#define Profilers_h___
 
-#include "jstypes.h"
+#include "jsapi.h"
 
 /**
  * Start any profilers that are available and have been configured on for this
@@ -24,21 +24,21 @@
  *
  * Returns true if no profilers fail to start.
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_StartProfiling(const char *profileName);
 
 /**
  * Stop any profilers that were previously started with JS_StartProfiling.
  * Returns true if no profilers fail to stop.
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_StopProfiling(const char *profileName);
 
 /**
  * Write the current profile data to the given file, if applicable to whatever
  * profiler is being used.
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_DumpProfile(const char *outfile, const char *profileName);
 
 /**
@@ -46,13 +46,13 @@ JS_DumpProfile(const char *outfile, const char *profileName);
  * whether any profilers failed to pause. (Profilers that do not support
  * pause/resume do not count.)
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_PauseProfilers(const char *profileName);
 
 /**
  * Resume suspended profilers
  */
-extern JS_PUBLIC_API(bool)
+extern JS_PUBLIC_API(JSBool)
 JS_ResumeProfilers(const char *profileName);
 
 /**
@@ -65,25 +65,25 @@ JS_UnsafeGetLastProfilingError();
 
 #ifdef MOZ_CALLGRIND
 
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(JSBool)
 js_StopCallgrind();
 
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(JSBool)
 js_StartCallgrind();
 
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(JSBool)
 js_DumpCallgrind(const char *outfile);
 
 #endif /* MOZ_CALLGRIND */
 
 #ifdef __linux__
 
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(JSBool)
 js_StartPerf();
 
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(JSBool)
 js_StopPerf();
 
 #endif /* __linux__ */
 
-#endif /* builtin_Profilers_h */
+#endif /* Profilers_h___ */

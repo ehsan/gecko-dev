@@ -6,6 +6,8 @@
 
 #include "AudioListener.h"
 #include "AudioContext.h"
+#include "nsContentUtils.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/AudioListenerBinding.h"
 
 namespace mozilla {
@@ -48,11 +50,6 @@ AudioListener::RegisterPannerNode(PannerNode* aPannerNode)
   aPannerNode->SendDoubleParameterToStream(PannerNode::LISTENER_DOPPLER_FACTOR, mDopplerFactor);
   aPannerNode->SendDoubleParameterToStream(PannerNode::LISTENER_SPEED_OF_SOUND, mSpeedOfSound);
   UpdatePannersVelocity();
-}
-
-void AudioListener::UnregisterPannerNode(PannerNode* aPannerNode)
-{
-  mPanners.RemoveElement(aPannerNode);
 }
 
 void

@@ -32,6 +32,7 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nullptr;
   mWidgetIsTopLevel = false;
+  mInAlternatePaint = false;
 }
 
 void nsView::DropMouseGrabbing()
@@ -94,24 +95,6 @@ nsView::~nsView()
   delete mDirtyRegion;
 }
 
-class DestroyWidgetRunnable : public nsRunnable {
-public:
-  NS_DECL_NSIRUNNABLE
-
-  explicit DestroyWidgetRunnable(nsIWidget* aWidget) : mWidget(aWidget) {}
-
-private:
-  nsCOMPtr<nsIWidget> mWidget;
-};
-
-NS_IMETHODIMP DestroyWidgetRunnable::Run()
-{
-  mWidget->Destroy();
-  mWidget = nullptr;
-  return NS_OK;
-}
-
-
 void nsView::DestroyWidget()
 {
   if (mWindow)
@@ -125,11 +108,7 @@ void nsView::DestroyWidget()
     }
     else {
       mWindow->SetWidgetListener(nullptr);
-
-      nsCOMPtr<nsIRunnable> widgetDestroyer =
-        new DestroyWidgetRunnable(mWindow);
-
-      NS_DispatchToMainThread(widgetDestroyer);
+      mWindow->Destroy();
     }
 
     NS_RELEASE(mWindow);
@@ -208,10 +187,9 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
   nsRect viewBounds(mDimBounds);
 
   nsView* parent = GetParent();
-  nsIWidget* parentWidget = nullptr;
   if (parent) {
     nsPoint offset;
-    parentWidget = parent->GetNearestWidget(&offset, p2a);
+    nsIWidget* parentWidget = parent->GetNearestWidget(&offset, p2a);
     // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
@@ -226,33 +204,6 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
 
   // Compute widget bounds in device pixels
   nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
-
-#ifdef XP_MACOSX
-  // cocoa rounds widget coordinates to the nearest global "display pixel"
-  // integer value. So we avoid fractional display pixel values by rounding
-  // to the nearest value that won't yield a fractional display pixel.
-  nsIWidget* widget = parentWidget ? parentWidget : mWindow;
-  uint32_t round;
-  if (aType == eWindowType_popup && widget &&
-      ((round = widget->RoundsWidgetCoordinatesTo()) > 1)) {
-    nsIntSize pixelRoundedSize = newBounds.Size();
-    // round the top left and bottom right to the nearest round pixel
-    newBounds.x = NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.x, p2a) / round) * round;
-    newBounds.y = NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.y, p2a) / round) * round;
-    newBounds.width =
-      NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.XMost(), p2a) / round) * round - newBounds.x;
-    newBounds.height =
-      NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.YMost(), p2a) / round) * round - newBounds.y;
-    // but if that makes the widget larger then our frame may not paint the
-    // extra pixels, so reduce the size to the nearest round value
-    if (newBounds.width > pixelRoundedSize.width) {
-      newBounds.width -= round;
-    }
-    if (newBounds.height > pixelRoundedSize.height) {
-      newBounds.height -= round;
-    }
-  }
-#endif
 
   // Compute where the top-left of our widget ended up relative to the parent
   // widget, in appunits.
@@ -735,11 +686,12 @@ nsresult nsView::DetachFromTopLevelWidget()
   return NS_OK;
 }
 
-void nsView::SetZIndex(bool aAuto, int32_t aZIndex)
+void nsView::SetZIndex(bool aAuto, int32_t aZIndex, bool aTopMost)
 {
   bool oldIsAuto = GetZIndexIsAuto();
   mVFlags = (mVFlags & ~NS_VIEW_FLAG_AUTO_ZINDEX) | (aAuto ? NS_VIEW_FLAG_AUTO_ZINDEX : 0);
   mZIndex = aZIndex;
+  SetTopMost(aTopMost);
   
   if (HasWidget() || !oldIsAuto || !aAuto) {
     UpdateNativeWidgetZIndexes(this, FindNonAutoZIndex(this));
@@ -1038,12 +990,19 @@ nsView::WillPaintWindow(nsIWidget* aWidget)
 }
 
 bool
-nsView::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+nsView::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, uint32_t aFlags)
 {
   NS_ASSERTION(this == nsView::GetViewFor(aWidget), "wrong view for widget?");
 
+  mInAlternatePaint = aFlags & PAINT_IS_ALTERNATE;
   nsRefPtr<nsViewManager> vm = mViewManager;
-  bool result = vm->PaintWindow(aWidget, aRegion);
+  bool result = vm->PaintWindow(aWidget, aRegion, aFlags);
+  // PaintWindow can destroy this via WillPaintWindow notification, so we have
+  // to re-get the view from the widget.
+  nsView* view = nsView::GetViewFor(aWidget);
+  if (view) {
+    view->mInAlternatePaint = false;
+  }
   return result;
 }
 
