@@ -32,7 +32,6 @@ namespace mozilla {
  * SVG clip-path), including no clipping at all.
  */
 class DisplayItemClip {
-  typedef mozilla::gfx::Color Color;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::Path Path;
 
@@ -86,11 +85,8 @@ public:
                                uint32_t aBegin, uint32_t aEnd) const;
 
   // Draw (fill) the rounded rects in this clip to aContext
-  void FillIntersectionOfRoundedRectClips(gfxContext* aContext,
-                                          const Color& aColor,
-                                          int32_t aAppUnitsPerDevPixel,
-                                          uint32_t aBegin,
-                                          uint32_t aEnd) const;
+  void DrawRoundedRectsTo(gfxContext* aContext, int32_t A2D,
+                          uint32_t aBegin, uint32_t aEnd) const;
   // 'Draw' (create as a path, does not stroke or fill) aRoundRect to aContext
   mozilla::TemporaryRef<Path> MakeRoundedRectPath(DrawTarget& aDrawTarget,
                                                   int32_t A2D,

@@ -57,22 +57,17 @@ var PackagedTestHelper = (function PackagedTestHelper() {
     finish();
   }
 
-  function setAppVersion(aVersion, aCb, aDontUpdatePackage, aAllowCancel, aRole, aFailOnce) {
+  function setAppVersion(aVersion, aCb, aDontUpdatePackage, aAllowCancel, aRole) {
     var xhr = new XMLHttpRequest();
     var dontUpdate = "";
     var allowCancel = "";
-    var failOnce = "";
     if (aDontUpdatePackage) {
       dontUpdate = "&dontUpdatePackage=1";
     }
     if (aAllowCancel) {
       allowCancel= "&allowCancel=1";
     }
-    if (aFailOnce) {
-      failOnce = "&failPackageDownloadOnce=1";
-    }
-    var url = gSJS + "?setVersion=" + aVersion + dontUpdate + allowCancel +
-                failOnce;
+    var url = gSJS + "?setVersion=" + aVersion + dontUpdate + allowCancel;
     if (aRole) {
       url += "&role=" + aRole;
     }

@@ -6,12 +6,14 @@ const TAB_URL = EXAMPLE_URL + "doc_closures.html";
 // Test that inspecting a closure works as expected.
 
 function test() {
-  let gPanel, gTab, gDebugger;
+  let gPanel, gTab, gDebuggee, gDebugger;
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
+    gDebuggee.gRecurseLimit = 2;
 
     waitForSourceShown(gPanel, ".html")
       .then(testClosure)
@@ -22,7 +24,13 @@ function test() {
   });
 
   function testClosure() {
-    sendMouseClickToTab(gTab, content.document.querySelector("button"));
+    // Spin the event loop before causing the debuggee to pause, to allow
+    // this function to return first.
+    executeSoon(() => {
+      EventUtils.sendMouseEvent({ type: "click" },
+        gDebuggee.document.querySelector("button"),
+        gDebuggee);
+    });
 
     return waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES).then(() => {
       let gVars = gDebugger.DebuggerView.Variables;

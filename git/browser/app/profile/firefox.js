@@ -1669,6 +1669,7 @@ pref("loop.oauth.google.scope", "https://www.google.com/m8/feeds");
 pref("loop.rooms.enabled", true);
 pref("loop.fxa_oauth.tokendata", "");
 pref("loop.fxa_oauth.profile", "");
+pref("loop.support_url", "https://support.mozilla.org/kb/group-conversations-firefox-hello-webrtc");
 
 // serverURL to be assigned by services team
 pref("services.push.serverURL", "wss://push.services.mozilla.com/");
@@ -1810,7 +1811,7 @@ pref("privacy.trackingprotection.ui.enabled", false);
 #endif
 
 #ifdef NIGHTLY_BUILD
-pref("browser.tabs.remote.autostart.1", false);
+pref("browser.tabs.remote.autostart.1", true);
 #endif
 
 // Temporary pref to allow printing in e10s windows on some platforms.
@@ -1818,11 +1819,6 @@ pref("browser.tabs.remote.autostart.1", false);
 pref("print.enable_e10s_testing", false);
 #else
 pref("print.enable_e10s_testing", true);
-#endif
-
-#ifdef NIGHTLY_BUILD
-// Enable e10s add-on interposition by default.
-pref("extensions.interposition.enabled", true);
 #endif
 
 pref("browser.defaultbrowser.notificationbar", false);

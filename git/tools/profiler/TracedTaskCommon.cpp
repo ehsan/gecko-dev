@@ -12,7 +12,7 @@ namespace tasktracer {
 
 TracedTaskCommon::TracedTaskCommon()
   : mSourceEventId(0)
-  , mSourceEventType(SourceEventType::Unknown)
+  , mSourceEventType(SourceEventType::UNKNOWN)
 {
   Init();
 }
@@ -52,7 +52,7 @@ TracedTaskCommon::ClearTraceInfo()
   }
 
   info->mCurTraceSourceId = 0;
-  info->mCurTraceSourceType = SourceEventType::Unknown;
+  info->mCurTraceSourceType = SourceEventType::UNKNOWN;
   info->mCurTaskId = 0;
 }
 

@@ -2101,16 +2101,6 @@ TabParent::RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
   return true;
 }
 
-bool
-TabParent::RecvSetTargetAPZC(const uint64_t& aInputBlockId,
-                             const nsTArray<ScrollableLayerGuid>& aTargets)
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->SetTargetAPZC(aInputBlockId, aTargets);
-  }
-  return true;
-}
-
 already_AddRefed<nsILoadContext>
 TabParent::GetLoadContext()
 {

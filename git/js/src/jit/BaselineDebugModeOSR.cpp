@@ -392,8 +392,7 @@ PatchBaselineFramesForDebugMode(JSContext *cx, const Debugger::ExecutionObservab
             // We undo a previous recompile by handling cases B, C, D, and E
             // like normal, except that we retrieved the pc information via
             // the previous OSR debug info stashed on the frame.
-            BaselineDebugModeOSRInfo *info = iter.baselineFrame()->getDebugModeOSRInfo();
-            if (info) {
+            if (BaselineDebugModeOSRInfo *info = iter.baselineFrame()->getDebugModeOSRInfo()) {
                 MOZ_ASSERT(info->pc == pc);
                 MOZ_ASSERT(info->frameKind == kind);
 

@@ -503,7 +503,7 @@ public:
 #ifdef MOZ_TASK_TRACER
     // Make unix socket creation events to be the source events of TaskTracer,
     // and originate the rest correlation tasks from here.
-    AutoSourceEvent taskTracerEvent(SourceEventType::Unixsocket);
+    AutoSourceEvent taskTracerEvent(SourceEventType::UNIXSOCKET);
 #endif
 
     nsRefPtr<nsRunnable> r =
