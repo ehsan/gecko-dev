@@ -80,9 +80,6 @@ public:
   }
   virtual bool
     RecvAppendAppNotes(const nsCString& data);
-  virtual mozilla::ipc::IProtocol*
-  CloneProtocol(Channel* aChannel,
-                mozilla::ipc::ProtocolCloneContext *aCtx) MOZ_OVERRIDE;
 
 #ifdef MOZ_CRASHREPORTER
   AnnotationTable mNotes;

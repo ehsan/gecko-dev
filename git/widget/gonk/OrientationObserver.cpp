@@ -264,14 +264,7 @@ OrientationObserver::LockScreenOrientation(ScreenOrientation aOrientation)
   MOZ_ASSERT(aOrientation | (eScreenOrientation_PortraitPrimary |
                              eScreenOrientation_PortraitSecondary |
                              eScreenOrientation_LandscapePrimary |
-                             eScreenOrientation_LandscapeSecondary |
-                             eScreenOrientation_Default));
-
-  if (aOrientation == eScreenOrientation_Default) {
-    aOrientation = (sOrientationOffset == sDefaultPortrait) ?
-                    eScreenOrientation_PortraitPrimary :
-                    eScreenOrientation_LandscapePrimary;
-  }
+                             eScreenOrientation_LandscapeSecondary));
 
   // If there are multiple orientations allowed, we should enable the
   // auto-rotation.
