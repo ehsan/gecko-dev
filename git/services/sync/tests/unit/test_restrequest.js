@@ -5,8 +5,6 @@ Cu.import("resource://services-sync/rest.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 
-const TEST_RESOURCE_URL = TEST_SERVER_URL + "resource";
-
 function run_test() {
   Log4Moz.repository.getLogger("Sync.RESTRequest").level = Log4Moz.Level.Trace;
   initTestLogging();
@@ -91,7 +89,7 @@ add_test(function test_simple_get() {
   let handler = httpd_handler(200, "OK", "Huzzah!");
   let server = httpd_setup({"/resource": handler});
 
-  let uri = TEST_RESOURCE_URL;
+  let uri = "http://localhost:8080/resource";
   let request = new RESTRequest(uri).get(function (error) {
     do_check_eq(error, null);
 
@@ -113,7 +111,7 @@ add_test(function test_get() {
   let handler = httpd_handler(200, "OK", "Huzzah!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -162,7 +160,7 @@ add_test(function test_put() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -211,7 +209,7 @@ add_test(function test_post() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -260,7 +258,7 @@ add_test(function test_delete() {
   let handler = httpd_handler(200, "OK", "Got it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   do_check_eq(request.status, request.NOT_SENT);
 
   request.onProgress = request.onComplete = function () {
@@ -306,7 +304,7 @@ add_test(function test_get_404() {
   let handler = httpd_handler(404, "Not Found", "Cannae find it!");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
 
@@ -332,7 +330,7 @@ add_test(function test_put_json() {
     injson: "format",
     number: 42
   };
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.put(sample_data, function (error) {
     do_check_eq(error, null);
 
@@ -362,7 +360,7 @@ add_test(function test_post_json() {
     injson: "format",
     number: 42
   };
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.post(sample_data, function (error) {
     do_check_eq(error, null);
 
@@ -386,7 +384,7 @@ add_test(function test_put_override_content_type() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.setHeader("Content-Type", "application/lolcat");
   request.put("O HAI!!1!", function (error) {
     do_check_eq(error, null);
@@ -411,7 +409,7 @@ add_test(function test_post_override_content_type() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.setHeader("Content-Type", "application/lolcat");
   request.post("O HAI!!1!", function (error) {
     do_check_eq(error, null);
@@ -441,7 +439,7 @@ add_test(function test_get_no_headers() {
                         "connection", "pragma", "cache-control",
                         "content-length"];
 
-  new RESTRequest(TEST_RESOURCE_URL).get(function (error) {
+  new RESTRequest("http://localhost:8080/resource").get(function (error) {
     do_check_eq(error, null);
 
     do_check_eq(this.response.status, 200);
@@ -467,7 +465,7 @@ add_test(function test_changing_uri() {
   let server = httpd_setup({"/resource": handler});
 
   let request = new RESTRequest("http://localhost:8080/the-wrong-resource");
-  request.uri = Utils.makeURI(TEST_RESOURCE_URL);
+  request.uri = Utils.makeURI("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
@@ -482,7 +480,7 @@ add_test(function test_request_setHeader() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
 
   request.setHeader("X-What-Is-Weave", "awesome");
   request.setHeader("X-WHAT-is-Weave", "more awesomer");
@@ -511,7 +509,7 @@ add_test(function test_response_headers() {
     response.setStatusLine(request.httpVersion, 200, "OK");
   }
   let server = httpd_setup({"/resource": handler});
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
 
   request.get(function (error) {
     do_check_eq(error, null);
@@ -531,7 +529,7 @@ add_test(function test_response_headers() {
  * (e.g. NS_ERROR_CONNECTION_REFUSED).
  */
 add_test(function test_connection_refused() {
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.onProgress = function onProgress() {
     do_throw("Shouldn't have called request.onProgress()!");
   };
@@ -553,7 +551,7 @@ add_test(function test_abort() {
   }
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
 
   // Aborting a request that hasn't been sent yet is pointless and will throw.
   do_check_throws(function () {
@@ -593,7 +591,7 @@ add_test(function test_timeout() {
   };
   server.start(8080);
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.timeout = 0.1; // 100 milliseconds
   request.get(function (error) {
     do_check_eq(error.result, Cr.NS_ERROR_NET_TIMEOUT);
@@ -611,7 +609,7 @@ add_test(function test_exception_in_onProgress() {
   let handler = httpd_handler(200, "OK", "Foobar");
   let server = httpd_setup({"/resource": handler});
 
-  let request = new RESTRequest(TEST_RESOURCE_URL);
+  let request = new RESTRequest("http://localhost:8080/resource");
   request.onProgress = function onProgress() {
     it.does.not.exist();
   };

@@ -71,9 +71,7 @@ add_test(function test_removeClientData() {
   Service.startOver();
   do_check_false(engine.removed);
 
-  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
-  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
-  
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   do_check_false(engine.removed);
   Service.startOver();
   do_check_true(engine.removed);

@@ -44,7 +44,7 @@ function run_test() {
   });
 
   try {
-    Service.serverURL = TEST_SERVER_URL;
+    Service.serverURL = "http://localhost:8080/";
 
     _("Force the initial state.");
     Status.service = STATUS_OK;

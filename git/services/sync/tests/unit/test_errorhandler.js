@@ -9,7 +9,6 @@ Cu.import("resource://services-sync/status.js");
 Svc.DefaultPrefs.set("registerEngines", "");
 Cu.import("resource://services-sync/service.js");
 
-const TEST_MAINTENANCE_URL = "http://localhost:8080/maintenance/";
 const logsdir = FileUtils.getDir("ProfD", ["weave", "logs"], true);
 const LOG_PREFIX_SUCCESS = "success-";
 const LOG_PREFIX_ERROR   = "error-";
@@ -121,10 +120,8 @@ function setUp() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
-
-
+  Service.serverURL  = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
   return generateAndUploadKeys();
 }
 
@@ -222,8 +219,7 @@ add_test(function test_shouldReportError() {
 
   // Give ourselves a clusterURL so that the temporary 401 no-error situation
   // doesn't come into play.
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
 
   // Test dontIgnoreErrors, non-network, non-prolonged, login error reported
   Status.resetSync();
@@ -514,8 +510,7 @@ add_test(function test_login_syncAndReportErrors_network_error() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -553,8 +548,7 @@ add_test(function test_login_syncAndReportErrors_prolonged_network_error() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -633,8 +627,7 @@ add_test(function test_login_prolonged_network_error() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -711,8 +704,7 @@ add_test(function test_login_network_error() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
 
   // Test network errors are not reported.
   Svc.Obs.add("weave:ui:clear-error", function onClearError() {
@@ -785,8 +777,7 @@ add_test(function test_info_collections_login_server_maintenance_error() {
   setUp();
 
   Service.username = "broken.info";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -825,8 +816,7 @@ add_test(function test_meta_global_login_server_maintenance_error() {
   setUp();
 
   Service.username = "broken.meta";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -865,8 +855,7 @@ add_test(function test_crypto_keys_login_server_maintenance_error() {
   setUp();
 
   Service.username = "broken.keys";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   // Force re-download of keys
   CollectionKeys.clear();
 
@@ -933,8 +922,7 @@ add_test(function test_info_collections_login_prolonged_server_maintenance_error
   setUp();
 
   Service.username = "broken.info";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -966,8 +954,7 @@ add_test(function test_meta_global_login_prolonged_server_maintenance_error(){
   setUp();
 
   Service.username = "broken.meta";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -999,8 +986,7 @@ add_test(function test_download_crypto_keys_login_prolonged_server_maintenance_e
   setUp();
 
   Service.username = "broken.keys";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   // Force re-download of keys
   CollectionKeys.clear();
 
@@ -1036,8 +1022,7 @@ add_test(function test_upload_crypto_keys_login_prolonged_server_maintenance_err
   Service.username = "broken.keys";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1072,8 +1057,7 @@ add_test(function test_wipeServer_login_prolonged_server_maintenance_error(){
   Service.username = "broken.wipe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1107,8 +1091,7 @@ add_test(function test_wipeRemote_prolonged_server_maintenance_error(){
   Service.username = "broken.wipe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   generateAndUploadKeys();
 
   let engine = Engines.get("catapult");
@@ -1175,8 +1158,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_server_mainten
   setUp();
 
   Service.username = "broken.info";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1209,8 +1191,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_server_maintenance_
   setUp();
 
   Service.username = "broken.meta";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1243,8 +1224,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_server_mai
   setUp();
 
   Service.username = "broken.keys";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   // Force re-download of keys
   CollectionKeys.clear();
 
@@ -1281,8 +1261,7 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_server_maint
   Service.username = "broken.keys";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1317,8 +1296,7 @@ add_test(function test_wipeServer_login_syncAndReportErrors_server_maintenance_e
   Service.username = "broken.wipe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1352,8 +1330,7 @@ add_test(function test_wipeRemote_syncAndReportErrors_server_maintenance_error()
   Service.username = "broken.wipe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   generateAndUploadKeys();
 
   let engine = Engines.get("catapult");
@@ -1420,8 +1397,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_prolonged_serv
   setUp();
 
   Service.username = "broken.info";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1454,8 +1430,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_prolonged_server_ma
   setUp();
 
   Service.username = "broken.meta";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1488,8 +1463,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_prolonged_
   setUp();
 
   Service.username = "broken.keys";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
   // Force re-download of keys
   CollectionKeys.clear();
 
@@ -1526,8 +1500,7 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_prolonged_se
   Service.username = "broken.keys";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
@@ -1562,8 +1535,7 @@ add_test(function test_wipeServer_login_syncAndReportErrors_prolonged_server_mai
   Service.username = "broken.wipe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_MAINTENANCE_URL;
-  Service.clusterURL = TEST_MAINTENANCE_URL;
+  Service.clusterURL = "http://localhost:8080/maintenance/";
 
   let backoffInterval;
   Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
