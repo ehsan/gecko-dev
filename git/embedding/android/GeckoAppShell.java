@@ -58,9 +58,11 @@ import android.graphics.*;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
+import android.telephony.*;
 import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
+import android.provider.Settings;
 
 import android.util.*;
 import android.net.Uri;
@@ -94,6 +96,10 @@ public class GeckoAppShell
     static private File sCacheFile = null;
     static private int sFreeSpace = -1;
 
+    static private String sNetworkState = "unknown";
+    static private String sNetworkType = "unknown";
+    static private int sNetworkTypeCode = 0;
+
     /* The Android-side API: API methods that Android calls */
 
     // Initialization methods
@@ -108,7 +114,7 @@ public class GeckoAppShell
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadLibs(String apkName, boolean shouldExtract);
-    public static native void onChangeNetworkLinkStatus(String status);
+    public static native void onChangeNetworkLinkStatus(String status, String type);
     public static native void reportJavaCrash(String stack);
 
     // A looper thread, accessed by GeckoAppShell.getHandler
@@ -552,6 +558,9 @@ public class GeckoAppShell
         if (imm == null)
             return;
 
+        // Log.d("GeckoAppJava", String.format("IME: notifyIMEChange: t=%s s=%d ne=%d oe=%d",
+        //                                      text, start, newEnd, end));
+
         if (newEnd < 0)
             GeckoApp.surfaceView.inputConnection.notifySelectionChange(
                 imm, start, end);
@@ -654,6 +663,9 @@ public class GeckoAppShell
         // mLaunchState can only be Launched at this point
         GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoRunning);
         sendPendingEventsToGecko();
+
+        // Refresh the network connectivity state
+        onNetworkStateChange(false);
     }
 
     static void onXreExit() {
@@ -674,14 +686,20 @@ public class GeckoAppShell
     }
 
     // "Installs" an application by creating a shortcut
-    static void installWebApplication(String aURI, String aTitle, String aIconData) {
-        Log.w("GeckoAppJava", "installWebApplication for " + aURI + " [" + aTitle + "]");
+    static void createShortcut(String aTitle, String aURI, String aIconData, String aType) {
+        Log.w("GeckoAppJava", "createShortcut for " + aURI + " [" + aTitle + "]");
 
         // the intent to be launched by the shortcut
-        Intent shortcutIntent = new Intent("org.mozilla.fennec.WEBAPP");
+        Intent shortcutIntent = new Intent();
+        if (aType == "webapp") {
+            shortcutIntent.setAction("org.mozilla.gecko.WEBAPP");
+            shortcutIntent.putExtra("args", "--webapp=" + aURI);
+        } else {
+            shortcutIntent.setAction("org.mozilla.gecko.BOOKMARK");
+            shortcutIntent.putExtra("args", "--url=" + aURI);
+        }
         shortcutIntent.setClassName(GeckoApp.mAppContext,
                                     GeckoApp.mAppContext.getPackageName() + ".App");
-        shortcutIntent.putExtra("args", "--webapp=" + aURI);
 
         Intent intent = new Intent();
         intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
@@ -827,7 +845,7 @@ public class GeckoAppShell
         getHandler().post(new Runnable() { 
             public void run() {
                 Context context = GeckoApp.surfaceView.getContext();
-                ClipboardManager cm = (ClipboardManager)
+                android.text.ClipboardManager cm = (android.text.ClipboardManager)
                     context.getSystemService(Context.CLIPBOARD_SERVICE);
                 try {
                     sClipboardQueue.put(cm.hasText() ? cm.getText().toString() : "");
@@ -844,7 +862,7 @@ public class GeckoAppShell
         getHandler().post(new Runnable() { 
             public void run() {
                 Context context = GeckoApp.surfaceView.getContext();
-                ClipboardManager cm = (ClipboardManager)
+                android.text.ClipboardManager cm = (android.text.ClipboardManager)
                     context.getSystemService(Context.CLIPBOARD_SERVICE);
                 cm.setText(text);
             }});
@@ -1010,20 +1028,92 @@ public class GeckoAppShell
     }
 
     public static boolean isNetworkLinkUp() {
-        ConnectivityManager cm = (ConnectivityManager)
-            GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo info = cm.getActiveNetworkInfo();
-        if (info == null || !info.isConnected())
+        if (sNetworkState == "up")
+            return true;
+        return false;
+    }
+
+    public static boolean isNetworkLinkKnown() {
+        if (sNetworkState == "unknown")
             return false;
         return true;
     }
 
-    public static boolean isNetworkLinkKnown() {
+    public static int getNetworkLinkType() {
+        return sNetworkTypeCode;
+    }
+
+    public static void onNetworkStateChange(boolean notifyChanged) {
+        String state;
+        String type;
+        int typeCode;
+
         ConnectivityManager cm = (ConnectivityManager)
             GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm.getActiveNetworkInfo() == null)
-            return false;
-        return true;
+        NetworkInfo info = cm.getActiveNetworkInfo();
+
+        // Note, these strings and codes correspond to those specified in
+        // nsINetworkLinkService. Make sure to keep them in sync!
+        type = "unknown";
+        typeCode = 0;
+        if (info == null) {
+            state = "unknown";
+        } else if (!info.isConnected()) {
+            state = "down";
+        } else {
+            state = "up";
+
+            int androidType = info.getType();
+
+            if (androidType == ConnectivityManager.TYPE_WIFI) {
+                type = "wifi";
+                typeCode = 3;
+            } else if (androidType == ConnectivityManager.TYPE_WIMAX) {
+                type = "wimax";
+                typeCode = 4;
+            } else if (androidType == ConnectivityManager.TYPE_MOBILE) {
+                TelephonyManager tm = (TelephonyManager)
+                    GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+                typeCode = tm.getNetworkType();
+
+                // Note that the value of some of these constants are used due
+                // to not all of these existing in API level 8.
+                //
+                // In particular, EVDO_B appears at level 9, and EHRPD and LTE
+                // appear at level 11.
+                if (androidType == TelephonyManager.NETWORK_TYPE_GPRS ||
+                    androidType == TelephonyManager.NETWORK_TYPE_EDGE ||
+                    androidType == TelephonyManager.NETWORK_TYPE_CDMA ||
+                    androidType == TelephonyManager.NETWORK_TYPE_IDEN ||
+                    androidType == TelephonyManager.NETWORK_TYPE_1xRTT) {
+                    type = "2g";
+                    typeCode = 5;
+                } else if (androidType == TelephonyManager.NETWORK_TYPE_UMTS ||
+                           androidType == TelephonyManager.NETWORK_TYPE_HSDPA ||
+                           androidType == TelephonyManager.NETWORK_TYPE_HSUPA ||
+                           androidType == TelephonyManager.NETWORK_TYPE_HSPA ||
+                           androidType == TelephonyManager.NETWORK_TYPE_EVDO_0 ||
+                           androidType == TelephonyManager.NETWORK_TYPE_EVDO_A ||
+                           androidType == 12 || // TelephonyManager.NETWORK_TYPE_EVDO_B
+                           androidType == 14) { // TelephonyManager.NETWORK_TYPE_EHRPD
+                    type = "3g";
+                    typeCode = 6;
+                } else if (androidType == 13) { // TelephonyManager.NETWORK_TYPE_LTE
+                    type = "4g";
+                    typeCode = 7;
+                }
+            }
+        }
+
+        // If the network state has changed, notify Gecko
+        if (notifyChanged && (state != sNetworkState || typeCode != sNetworkTypeCode)) {
+            Log.i("GeckoAppShell", "Network state changed: (" + state + ", " + type + ") ");
+            sNetworkState = state;
+            sNetworkType = type;
+            sNetworkTypeCode = typeCode;
+            if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning))
+                onChangeNetworkLinkStatus(sNetworkState, sNetworkType);
+        }
     }
 
     public static void setSelectedLocale(String localeCode) {
@@ -1083,6 +1173,52 @@ public class GeckoAppShell
         }
 
         return result;
+    }
+
+    public static void putChildInBackground() {
+        try {
+            File cgroupFile = new File("/proc/" + android.os.Process.myPid() + "/cgroup");
+            BufferedReader br = new BufferedReader(new FileReader(cgroupFile));
+            String[] cpuLine = br.readLine().split("/");
+            br.close();
+            final String backgroundGroup = cpuLine.length == 2 ? cpuLine[1] : "";
+            GeckoProcessesVisitor visitor = new GeckoProcessesVisitor() {
+                public boolean callback(int pid) {
+                    if (pid != android.os.Process.myPid()) {
+                        try {
+                            FileOutputStream fos = new FileOutputStream(
+                                new File("/dev/cpuctl/" + backgroundGroup +"/tasks"));
+                            fos.write(new Integer(pid).toString().getBytes());
+                            fos.close();
+                        } catch(Exception e) {
+                            Log.e("GeckoAppShell", "error putting child in the background", e);
+                        }
+                    }
+                    return true;
+                }
+            };
+            EnumerateGeckoProcesses(visitor);
+        } catch (Exception e) {
+            Log.e("GeckoInputStream", "error reading cgroup", e);
+        }
+    }
+
+    public static void putChildInForeground() {
+        GeckoProcessesVisitor visitor = new GeckoProcessesVisitor() {
+            public boolean callback(int pid) {
+                if (pid != android.os.Process.myPid()) {
+                    try {
+                        FileOutputStream fos = new FileOutputStream(new File("/dev/cpuctl/tasks"));
+                        fos.write(new Integer(pid).toString().getBytes());
+                        fos.close();
+                    } catch(Exception e) {
+                        Log.e("GeckoAppShell", "error putting child in the foreground", e);
+                    }
+                }
+                return true;
+            }
+        };   
+        EnumerateGeckoProcesses(visitor);
     }
 
     public static void killAnyZombies() {
@@ -1233,5 +1369,17 @@ public class GeckoAppShell
         ActivityInfo activityInfo = resolveInfo.activityInfo;
 
         return activityInfo.loadIcon(pm);
+    }
+
+    public static boolean getShowPasswordSetting() {
+        try {
+            int showPassword =
+                Settings.System.getInt(GeckoApp.mAppContext.getContentResolver(),
+                                       Settings.System.TEXT_SHOW_PASSWORD);
+            return (showPassword > 0);
+        }
+        catch (Exception e) {
+            return false;
+        }
     }
 }

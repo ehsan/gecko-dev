@@ -91,7 +91,7 @@ class nsIWidget;
 class nsIDOMRange;
 class nsISelectionController;
 class nsBoxLayoutState;
-class nsIBoxLayout;
+class nsBoxLayout;
 class nsILineIterator;
 #ifdef ACCESSIBILITY
 class nsAccessible;
@@ -896,6 +896,8 @@ public:
 
   NS_DECLARE_FRAME_PROPERTY(ScrollLayerCount, nsnull)
 
+  NS_DECLARE_FRAME_PROPERTY(LineBaselineOffset, nsnull)
+
   /**
    * Return the distance between the border edge of the frame and the
    * margin edge of the frame.  Like GetRect(), returns the dimensions
@@ -1552,10 +1554,9 @@ public:
 
   /*
    * For replaced elements only. Gets the intrinsic dimensions of this element.
-   * The dimensions may only be one of the following three types:
+   * The dimensions may only be one of the following two types:
    *
    *   eStyleUnit_Coord   - a length in app units
-   *   eStyleUnit_Percent - a percentage of the available space
    *   eStyleUnit_None    - the element has no intrinsic size in this dimension
    */
   struct IntrinsicSize {
@@ -1895,7 +1896,7 @@ public:
    * @return A gfxMatrix that converts points in this frame's coordinate space into
    *         points in aOutAncestor's coordinate space.
    */
-  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
+  virtual gfx3DMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Bit-flags to pass to IsFrameOfType()
@@ -2595,8 +2596,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   NS_IMETHOD GetBorder(nsMargin& aBorder)=0;
   NS_IMETHOD GetPadding(nsMargin& aBorderAndPadding)=0;
   NS_IMETHOD GetMargin(nsMargin& aMargin)=0;
-  virtual void SetLayoutManager(nsIBoxLayout* aLayout) { }
-  virtual nsIBoxLayout* GetLayoutManager() { return nsnull; }
+  virtual void SetLayoutManager(nsBoxLayout* aLayout) { }
+  virtual nsBoxLayout* GetLayoutManager() { return nsnull; }
   NS_HIDDEN_(nsresult) GetClientRect(nsRect& aContentRect);
 
   // For nsSprocketLayout

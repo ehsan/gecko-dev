@@ -37,6 +37,8 @@
 # ***** END LICENSE BLOCK *****
 */
 
+"use strict";
+
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
@@ -60,7 +62,7 @@ const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
 const PREF_DSS_SWITCHPENDING          = "extensions.dss.switchPending";
 const PREF_DSS_SKIN_TO_SELECT         = "extensions.lastSelectedSkin";
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
-const PREF_EM_CHECK_COMPATIBILITY     = "extensions.checkCompatibility";
+const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
 const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_UPDATE_URL              = "extensions.update.url";
 const PREF_EM_ENABLED_ADDONS          = "extensions.enabledAddons";
@@ -76,7 +78,9 @@ const PREF_XPI_UNPACK                 = "extensions.alwaysUnpack";
 const PREF_INSTALL_REQUIREBUILTINCERTS = "extensions.install.requireBuiltInCerts";
 const PREF_INSTALL_DISTRO_ADDONS      = "extensions.installDistroAddons";
 const PREF_BRANCH_INSTALLED_ADDON     = "extensions.installedDistroAddon.";
+const PREF_SHOWN_SELECTION_UI         = "extensions.shownSelectionUI";
 
+const URI_EXTENSION_SELECT_DIALOG     = "chrome://mozapps/content/extensions/selectAddons.xul";
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
 const URI_EXTENSION_STRINGS           = "chrome://mozapps/locale/extensions/extensions.properties";
 
@@ -120,6 +124,14 @@ const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
 const DB_SCHEMA                       = 5;
 const REQ_VERSION                     = 2;
+
+#ifdef MOZ_COMPATIBILITY_NIGHTLY
+const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE +
+                                    ".nightly";
+#else
+const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
+                                    Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+#endif
 
 // Properties that exist in the install manifest
 const PROP_METADATA      = ["id", "version", "type", "internalName", "updateURL",
@@ -382,7 +394,7 @@ function findClosestLocale(aLocales) {
   for each (var locale in matchLocales) {
     var lparts = locale.split("-");
     for each (var localized in aLocales) {
-      for each (found in localized.locales) {
+      for each (let found in localized.locales) {
         found = found.toLowerCase();
         // Exact match is returned immediately
         if (locale == found)
@@ -1429,9 +1441,6 @@ var XPIProvider = {
   // will be the same as currentSkin when it is the skin to be used when the
   // application is restarted
   selectedSkin: null,
-  // The name of the checkCompatibility preference for the current application
-  // version
-  checkCompatibilityPref: null,
   // The value of the checkCompatibility preference
   checkCompatibility: true,
   // The value of the checkUpdateSecurity preference
@@ -1557,15 +1566,13 @@ var XPIProvider = {
     this.selectedSkin = this.currentSkin;
     this.applyThemeChange();
 
-    var version = Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-    this.checkCompatibilityPref = PREF_EM_CHECK_COMPATIBILITY + "." + version;
-    this.checkCompatibility = Prefs.getBoolPref(this.checkCompatibilityPref,
+    this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
                                                 true)
     this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
                                                  true)
     this.enabledAddons = [];
 
-    Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
+    Services.prefs.addObserver(PREF_EM_CHECK_COMPATIBILITY, this, false);
     Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
 
     let flushCaches = this.checkForChanges(aAppChanged, aOldAppVersion,
@@ -1579,8 +1586,12 @@ var XPIProvider = {
     // information but only if the mismatch UI isn't disabled
     if (aAppChanged && !this.allAppGlobal &&
         Prefs.getBoolPref(PREF_EM_SHOW_MISMATCH_UI, true)) {
-      this.showMismatchWindow();
+      this.showUpgradeUI();
       flushCaches = true;
+    }
+    else if (aAppChanged === undefined) {
+      // For new profiles we will never need to show the add-on selection UI
+      Services.prefs.setBoolPref(PREF_SHOWN_SELECTION_UI, true);
     }
 
     if (flushCaches) {
@@ -1641,7 +1652,7 @@ var XPIProvider = {
   shutdown: function XPI_shutdown() {
     LOG("shutdown");
 
-    Services.prefs.removeObserver(this.checkCompatibilityPref, this);
+    Services.prefs.removeObserver(PREF_EM_CHECK_COMPATIBILITY, this);
     Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
 
     this.bootstrappedAddons = {};
@@ -1696,16 +1707,24 @@ var XPIProvider = {
   /**
    * Shows the "Compatibility Updates" UI
    */
-  showMismatchWindow: function XPI_showMismatchWindow() {
-    var variant = Cc["@mozilla.org/variant;1"].
-                  createInstance(Ci.nsIWritableVariant);
-    variant.setFromVariant(this.inactiveAddonIDs);
-
-    // This *must* be modal as it has to block startup.
-    var features = "chrome,centerscreen,dialog,titlebar,modal";
-    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-             getService(Ci.nsIWindowWatcher);
-    ww.openWindow(null, URI_EXTENSION_UPDATE_DIALOG, "", features, variant);
+  showUpgradeUI: function XPI_showUpgradeUI() {
+    if (!Prefs.getBoolPref(PREF_SHOWN_SELECTION_UI, false)) {
+      // This *must* be modal as it has to block startup.
+      var features = "chrome,centerscreen,dialog,titlebar,modal";
+      Services.ww.openWindow(null, URI_EXTENSION_SELECT_DIALOG, "", features, null);
+      Services.prefs.setBoolPref(PREF_SHOWN_SELECTION_UI, true);
+    }
+    else {
+      var variant = Cc["@mozilla.org/variant;1"].
+                    createInstance(Ci.nsIWritableVariant);
+      variant.setFromVariant(this.inactiveAddonIDs);
+  
+      // This *must* be modal as it has to block startup.
+      var features = "chrome,centerscreen,dialog,titlebar,modal";
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.openWindow(null, URI_EXTENSION_UPDATE_DIALOG, "", features, variant);
+    }
 
     // Ensure any changes to the add-ons list are flushed to disk
     XPIDatabase.writeAddonsList([]);
@@ -1897,8 +1916,8 @@ var XPIProvider = {
         return;
 
       let seenFiles = [];
-      entries = stagingDir.directoryEntries
-                          .QueryInterface(Ci.nsIDirectoryEnumerator);
+      let entries = stagingDir.directoryEntries
+                              .QueryInterface(Ci.nsIDirectoryEnumerator);
       while (entries.hasMoreElements()) {
         let stageDirEntry = entries.getNext().QueryInterface(Ci.nsILocalFile);
 
@@ -2775,7 +2794,7 @@ var XPIProvider = {
     }, this);
 
     // Cache the new install location states
-    cache = JSON.stringify(this.getInstallLocationStates());
+    let cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
 
     return changed;
@@ -3250,9 +3269,9 @@ var XPIProvider = {
    */
   observe: function XPI_observe(aSubject, aTopic, aData) {
     switch (aData) {
-    case this.checkCompatibilityPref:
+    case PREF_EM_CHECK_COMPATIBILITY:
     case PREF_EM_CHECK_UPDATE_SECURITY:
-      this.checkCompatibility = Prefs.getBoolPref(this.checkCompatibilityPref,
+      this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
                                                   true);
       this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
                                                    true);
@@ -3688,6 +3707,50 @@ var XPIProvider = {
     AddonManagerPrivate.callAddonListeners("onUninstalling", wrapper,
                                            requiresRestart);
 
+    // Reveal the highest priority add-on with the same ID
+    function revealAddon(aAddon) {
+      XPIDatabase.makeAddonVisible(aAddon);
+
+      let wrappedAddon = createWrapper(aAddon);
+      AddonManagerPrivate.callAddonListeners("onInstalling", wrappedAddon, false);
+
+      if (!isAddonDisabled(aAddon) && !XPIProvider.enableRequiresRestart(aAddon)) {
+        aAddon.active = true;
+        XPIDatabase.updateAddonActive(aAddon);
+      }
+
+      if (aAddon.bootstrap) {
+        let file = aAddon._installLocation.getLocationForID(aAddon.id);
+        XPIProvider.callBootstrapMethod(aAddon.id, aAddon.version, file,
+                                        "install", BOOTSTRAP_REASONS.ADDON_INSTALL);
+
+        if (aAddon.active) {
+          XPIProvider.callBootstrapMethod(aAddon.id, aAddon.version, file,
+                                          "startup", BOOTSTRAP_REASONS.ADDON_INSTALL);
+        }
+        else {
+          XPIProvider.unloadBootstrapScope(aAddon.id);
+        }
+      }
+
+      // We always send onInstalled even if a restart is required to enable
+      // the revealed add-on
+      AddonManagerPrivate.callAddonListeners("onInstalled", wrappedAddon);
+    }
+
+    function checkInstallLocation(aPos) {
+      if (aPos < 0)
+        return;
+
+      let location = XPIProvider.installLocations[aPos];
+      XPIDatabase.getAddonInLocation(aAddon.id, location.name, function(aNewAddon) {
+        if (aNewAddon)
+          revealAddon(aNewAddon);
+        else
+          checkInstallLocation(aPos - 1);
+      })
+    }
+
     if (!requiresRestart) {
       if (aAddon.bootstrap) {
         let file = aAddon._installLocation.getLocationForID(aAddon.id);
@@ -3704,50 +3767,6 @@ var XPIProvider = {
       aAddon._installLocation.uninstallAddon(aAddon.id);
       XPIDatabase.removeAddonMetadata(aAddon);
       AddonManagerPrivate.callAddonListeners("onUninstalled", wrapper);
-
-      // Reveal the highest priority add-on with the same ID
-      function revealAddon(aAddon) {
-        XPIDatabase.makeAddonVisible(aAddon);
-
-        let wrappedAddon = createWrapper(aAddon);
-        AddonManagerPrivate.callAddonListeners("onInstalling", wrappedAddon, false);
-
-        if (!isAddonDisabled(aAddon) && !XPIProvider.enableRequiresRestart(aAddon)) {
-          aAddon.active = true;
-          XPIDatabase.updateAddonActive(aAddon);
-        }
-
-        if (aAddon.bootstrap) {
-          let file = aAddon._installLocation.getLocationForID(aAddon.id);
-          XPIProvider.callBootstrapMethod(aAddon.id, aAddon.version, file,
-                                          "install", BOOTSTRAP_REASONS.ADDON_INSTALL);
-
-          if (aAddon.active) {
-            XPIProvider.callBootstrapMethod(aAddon.id, aAddon.version, file,
-                                            "startup", BOOTSTRAP_REASONS.ADDON_INSTALL);
-          }
-          else {
-            XPIProvider.unloadBootstrapScope(aAddon.id);
-          }
-        }
-
-        // We always send onInstalled even if a restart is required to enable
-        // the revealed add-on
-        AddonManagerPrivate.callAddonListeners("onInstalled", wrappedAddon);
-      }
-
-      function checkInstallLocation(aPos) {
-        if (aPos < 0)
-          return;
-
-        let location = XPIProvider.installLocations[aPos];
-        XPIDatabase.getAddonInLocation(aAddon.id, location.name, function(aNewAddon) {
-          if (aNewAddon)
-            revealAddon(aNewAddon);
-          else
-            checkInstallLocation(aPos - 1);
-        })
-      }
 
       checkInstallLocation(this.installLocations.length - 1);
     }
@@ -5029,26 +5048,28 @@ var XPIDatabase = {
   addAddonMetadata: function XPIDB_addAddonMetadata(aAddon, aDescriptor) {
     this.beginTransaction();
 
+    var self = this;
+    function insertLocale(aLocale) {
+      let localestmt = self.getStatement("addAddonMetadata_locale");
+      let stringstmt = self.getStatement("addAddonMetadata_strings");
+
+      copyProperties(aLocale, PROP_LOCALE_SINGLE, localestmt.params);
+      executeStatement(localestmt);
+      let row = XPIDatabase.connection.lastInsertRowID;
+
+      PROP_LOCALE_MULTI.forEach(function(aProp) {
+        aLocale[aProp].forEach(function(aStr) {
+          stringstmt.params.locale = row;
+          stringstmt.params.type = aProp;
+          stringstmt.params.value = aStr;
+          executeStatement(stringstmt);
+        });
+      });
+      return row;
+    }
+
     // Any errors in here should rollback the transaction
     try {
-      let localestmt = this.getStatement("addAddonMetadata_locale");
-      let stringstmt = this.getStatement("addAddonMetadata_strings");
-
-      function insertLocale(aLocale) {
-        copyProperties(aLocale, PROP_LOCALE_SINGLE, localestmt.params);
-        executeStatement(localestmt);
-        let row = XPIDatabase.connection.lastInsertRowID;
-
-        PROP_LOCALE_MULTI.forEach(function(aProp) {
-          aLocale[aProp].forEach(function(aStr) {
-            stringstmt.params.locale = row;
-            stringstmt.params.type = aProp;
-            stringstmt.params.value = aStr;
-            executeStatement(stringstmt);
-          });
-        });
-        return row;
-      }
 
       if (aAddon.visible) {
         let stmt = this.getStatement("clearVisibleAddons");
@@ -7509,7 +7530,7 @@ DirectoryInstallLocation.prototype = {
       }
 
       if (entry.isFile() && !directLoad) {
-        newEntry = this._readDirectoryFromFile(entry);
+        let newEntry = this._readDirectoryFromFile(entry);
         if (!newEntry) {
           LOG("Deleting stale pointer file " + entry.path);
           entry.remove(true);
