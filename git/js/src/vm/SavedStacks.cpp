@@ -7,7 +7,6 @@
 #include "vm/SavedStacks.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
 
 #include <math.h>
 
@@ -31,7 +30,6 @@
 #include "vm/NativeObject-inl.h"
 
 using mozilla::AddToHash;
-using mozilla::DebugOnly;
 using mozilla::HashString;
 
 namespace js {

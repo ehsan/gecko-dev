@@ -2722,13 +2722,15 @@ public:
   void NotifySelectionBackgroundNeedsFill(const Rect& aBackgroundRect,
                                           nscolor aColor,
                                           DrawTarget& aDrawTarget) MOZ_OVERRIDE;
-  void PaintDecorationLine(Rect aPath, nscolor aColor) MOZ_OVERRIDE;
-  void PaintSelectionDecorationLine(Rect aPath, nscolor aColor) MOZ_OVERRIDE;
   void NotifyBeforeText(nscolor aColor) MOZ_OVERRIDE;
   void NotifyGlyphPathEmitted() MOZ_OVERRIDE;
   void NotifyBeforeSVGGlyphPainted() MOZ_OVERRIDE;
   void NotifyAfterSVGGlyphPainted() MOZ_OVERRIDE;
   void NotifyAfterText() MOZ_OVERRIDE;
+  void NotifyBeforeDecorationLine(nscolor aColor) MOZ_OVERRIDE;
+  void NotifyDecorationLinePathEmitted() MOZ_OVERRIDE;
+  void NotifyBeforeSelectionDecorationLine(nscolor aColor) MOZ_OVERRIDE;
+  void NotifySelectionDecorationLinePathEmitted() MOZ_OVERRIDE;
 
 private:
   void SetupContext();
@@ -2836,24 +2838,22 @@ SVGTextDrawPathCallbacks::NotifyAfterText()
 }
 
 void
-SVGTextDrawPathCallbacks::PaintDecorationLine(Rect aPath, nscolor aColor)
+SVGTextDrawPathCallbacks::NotifyBeforeDecorationLine(nscolor aColor)
 {
   mColor = aColor;
-  AntialiasMode aaMode =
-    nsSVGUtils::ToAntialiasMode(mFrame->StyleSVG()->mTextRendering);
+  SetupContext();
+}
 
-  gfx->Save();
-  gfx->NewPath();
-  gfx->SetAntialiasMode(aaMode);
-  gfx->Rectangle(ThebesRect(aPath));
+void
+SVGTextDrawPathCallbacks::NotifyDecorationLinePathEmitted()
+{
   HandleTextGeometry();
   gfx->NewPath();
   gfx->Restore();
 }
 
 void
-SVGTextDrawPathCallbacks::PaintSelectionDecorationLine(Rect aPath,
-                                                       nscolor aColor)
+SVGTextDrawPathCallbacks::NotifyBeforeSelectionDecorationLine(nscolor aColor)
 {
   if (IsClipPathChild()) {
     // Don't paint selection decorations when in a clip path.
@@ -2861,10 +2861,17 @@ SVGTextDrawPathCallbacks::PaintSelectionDecorationLine(Rect aPath,
   }
 
   mColor = aColor;
-
   gfx->Save();
-  gfx->NewPath();
-  gfx->Rectangle(ThebesRect(aPath));
+}
+
+void
+SVGTextDrawPathCallbacks::NotifySelectionDecorationLinePathEmitted()
+{
+  if (IsClipPathChild()) {
+    // Don't paint selection decorations when in a clip path.
+    return;
+  }
+
   FillAndStrokeGeometry();
   gfx->Restore();
 }

@@ -202,34 +202,55 @@ void
 LIRGeneratorX86::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
+    LAllocation ptrAlloc;
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
 
-    // For simplicity, require a register if we're going to emit a bounds-check
-    // branch, so that we don't have special cases for constants.
-    LAllocation ptrAlloc = gen->needsAsmJSBoundsCheckBranch(ins)
-                           ? useRegisterAtStart(ptr)
-                           : useRegisterOrZeroAtStart(ptr);
-
-    define(new(alloc()) LAsmJSLoadHeap(ptrAlloc), ins);
+    // For the x86 it is best to keep the 'ptr' in a register if a bounds check is needed.
+    if (ptr->isConstant() && !ins->needsBoundsCheck()) {
+        // A bounds check is only skipped for a positive index.
+        MOZ_ASSERT(ptr->toConstant()->value().toInt32() >= 0);
+        ptrAlloc = LAllocation(ptr->toConstant()->vp());
+    } else {
+        ptrAlloc = useRegisterAtStart(ptr);
+    }
+    LAsmJSLoadHeap *lir = new(alloc()) LAsmJSLoadHeap(ptrAlloc);
+    define(lir, ins);
 }
 
 void
 LIRGeneratorX86::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
 {
     MDefinition *ptr = ins->ptr();
+    LAsmJSStoreHeap *lir;
     MOZ_ASSERT(ptr->type() == MIRType_Int32);
 
-    // For simplicity, require a register if we're going to emit a bounds-check
-    // branch, so that we don't have special cases for constants.
-    LAllocation ptrAlloc = gen->needsAsmJSBoundsCheckBranch(ins)
-                           ? useRegisterAtStart(ptr)
-                           : useRegisterOrZeroAtStart(ptr);
+    if (ptr->isConstant() && !ins->needsBoundsCheck()) {
+        MOZ_ASSERT(ptr->toConstant()->value().toInt32() >= 0);
+        LAllocation ptrAlloc = LAllocation(ptr->toConstant()->vp());
+        switch (ins->accessType()) {
+          case Scalar::Int8: case Scalar::Uint8:
+            // See comment below.
+            lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useFixed(ins->value(), eax));
+            break;
+          case Scalar::Int16: case Scalar::Uint16:
+          case Scalar::Int32: case Scalar::Uint32:
+          case Scalar::Float32: case Scalar::Float64:
+          case Scalar::Float32x4: case Scalar::Int32x4:
+            // See comment below.
+            lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useRegisterAtStart(ins->value()));
+            break;
+          case Scalar::Uint8Clamped:
+          case Scalar::MaxTypedArrayViewType:
+            MOZ_CRASH("unexpected array type");
+        }
+        add(lir, ins);
+        return;
+    }
 
-    LAsmJSStoreHeap *lir = nullptr;
     switch (ins->accessType()) {
       case Scalar::Int8: case Scalar::Uint8:
         // See comment for LIRGeneratorX86::useByteOpRegister.
-        lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useFixed(ins->value(), eax));
+        lir = new(alloc()) LAsmJSStoreHeap(useRegister(ins->ptr()), useFixed(ins->value(), eax));
         break;
       case Scalar::Int16: case Scalar::Uint16:
       case Scalar::Int32: case Scalar::Uint32:
@@ -237,12 +258,13 @@ LIRGeneratorX86::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
       case Scalar::Float32x4: case Scalar::Int32x4:
         // For now, don't allow constant values. The immediate operand
         // affects instruction layout which affects patching.
-        lir = new(alloc()) LAsmJSStoreHeap(ptrAlloc, useRegisterAtStart(ins->value()));
+        lir = new(alloc()) LAsmJSStoreHeap(useRegisterAtStart(ptr), useRegisterAtStart(ins->value()));
         break;
       case Scalar::Uint8Clamped:
       case Scalar::MaxTypedArrayViewType:
         MOZ_CRASH("unexpected array type");
     }
+
     add(lir, ins);
 }
 

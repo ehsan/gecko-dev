@@ -122,7 +122,7 @@ IsJavaMIME(const nsACString & aMIMEType)
 static bool
 InActiveDocument(nsIContent *aContent)
 {
-  if (!aContent->IsInComposedDoc()) {
+  if (!aContent->IsInDoc()) {
     return false;
   }
   nsIDocument *doc = aContent->OwnerDoc();
@@ -3315,10 +3315,11 @@ nsObjectLoadingContent::GetContentDocument()
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
 
-  if (!thisContent->IsInComposedDoc()) {
+  if (!thisContent->IsInDoc()) {
     return nullptr;
   }
 
+  // XXXbz should this use GetComposedDoc()?  sXBL/XBL2 issue!
   nsIDocument *sub_doc = thisContent->OwnerDoc()->GetSubDocumentFor(thisContent);
   if (!sub_doc) {
     return nullptr;
