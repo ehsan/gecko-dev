@@ -6,6 +6,7 @@
 #ifndef MOZILLA_GFX_TYPES_H_
 #define MOZILLA_GFX_TYPES_H_
 
+#include "mozilla/NullPtr.h"
 #include "mozilla/TypedEnum.h"
 
 #include <stddef.h>

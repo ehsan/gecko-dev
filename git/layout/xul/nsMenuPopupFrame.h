@@ -63,12 +63,6 @@ enum nsPopupState {
   ePopupInvisible
 };
 
-enum ConsumeOutsideClicksResult {
-  ConsumeOutsideClicks_ParentOnly = 0, // Only consume clicks on the parent anchor
-  ConsumeOutsideClicks_True = 1, // Always consume clicks
-  ConsumeOutsideClicks_Never = 2 // Never consume clicks
-};
-
 // How a popup may be flipped. Flipping to the outside edge is like how
 // a submenu would work. The entire popup is flipped to the opposite side
 // of the anchor.
@@ -194,7 +188,7 @@ public:
    * Unix    Eat           No              Eat
    *
    */
-  ConsumeOutsideClicksResult ConsumeOutsideClicks();
+  bool ConsumeOutsideClicks();
 
   virtual bool IsContextMenu() MOZ_OVERRIDE { return mIsContextMenu; }
 

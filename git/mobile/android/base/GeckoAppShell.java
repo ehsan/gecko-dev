@@ -255,7 +255,7 @@ public class GeckoAppShell
 
     // Initialization methods
     public static native void registerJavaUiThread();
-    public static native void nativeInit(ClassLoader clsLoader);
+    public static native void nativeInit();
 
     // helper methods
     public static native void onResume();
@@ -339,8 +339,8 @@ public class GeckoAppShell
         };
         Looper.myQueue().addIdleHandler(idleHandler);
 
-        // Initialize AndroidBridge.
-        nativeInit(GeckoAppShell.class.getClassLoader());
+        // run gecko -- it will spawn its own thread
+        GeckoAppShell.nativeInit();
 
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;

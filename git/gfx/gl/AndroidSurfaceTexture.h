@@ -87,8 +87,7 @@ public:
   void NotifyFrameAvailable();
 
   GLuint Texture() { return mTexture; }
-  const widget::sdk::Surface::Ref& JavaSurface() { return mSurface; }
-
+  jobject JavaSurface() { return mSurface->wrappedObject(); }
 private:
   AndroidSurfaceTexture();
   ~AndroidSurfaceTexture();
@@ -96,8 +95,8 @@ private:
   bool Init(GLContext* aContext, GLuint aTexture);
 
   GLuint mTexture;
-  widget::sdk::SurfaceTexture::GlobalRef mSurfaceTexture;
-  widget::sdk::Surface::GlobalRef mSurface;
+  nsAutoPtr<mozilla::widget::android::sdk::SurfaceTexture> mSurfaceTexture;
+  nsAutoPtr<mozilla::widget::android::sdk::Surface> mSurface;
 
   Monitor mMonitor;
   GLContext* mAttachedContext;

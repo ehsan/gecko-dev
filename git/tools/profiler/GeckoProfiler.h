@@ -49,6 +49,7 @@
 #ifndef SAMPLER_H
 #define SAMPLER_H
 
+#include "mozilla/NullPtr.h"
 #include "js/TypeDecls.h"
 
 namespace mozilla {

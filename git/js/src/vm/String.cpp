@@ -485,11 +485,7 @@ js::ConcatStrings(ExclusiveContext *cx,
                            ? JSFatInlineString::latin1LengthFits(wholeLength)
                            : JSFatInlineString::twoByteLengthFits(wholeLength);
     if (canUseFatInline && cx->isJSContext()) {
-        Latin1Char *latin1Buf;
-        char16_t *twoByteBuf;
-        JSInlineString *str = isLatin1
-            ? AllocateFatInlineString<allowGC>(cx, wholeLength, &latin1Buf)
-            : AllocateFatInlineString<allowGC>(cx, wholeLength, &twoByteBuf);
+        JSFatInlineString *str = NewGCFatInlineString<allowGC>(cx);
         if (!str)
             return nullptr;
 
@@ -502,19 +498,21 @@ js::ConcatStrings(ExclusiveContext *cx,
             return nullptr;
 
         if (isLatin1) {
-            PodCopy(latin1Buf, leftLinear->latin1Chars(nogc), leftLen);
-            PodCopy(latin1Buf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
-            latin1Buf[wholeLength] = 0;
+            Latin1Char *buf = str->initLatin1(wholeLength);
+            PodCopy(buf, leftLinear->latin1Chars(nogc), leftLen);
+            PodCopy(buf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
+            buf[wholeLength] = 0;
         } else {
+            char16_t *buf = str->initTwoByte(wholeLength);
             if (leftLinear->hasTwoByteChars())
-                PodCopy(twoByteBuf, leftLinear->twoByteChars(nogc), leftLen);
+                PodCopy(buf, leftLinear->twoByteChars(nogc), leftLen);
             else
-                CopyAndInflateChars(twoByteBuf, leftLinear->latin1Chars(nogc), leftLen);
+                CopyAndInflateChars(buf, leftLinear->latin1Chars(nogc), leftLen);
             if (rightLinear->hasTwoByteChars())
-                PodCopy(twoByteBuf + leftLen, rightLinear->twoByteChars(nogc), rightLen);
+                PodCopy(buf + leftLen, rightLinear->twoByteChars(nogc), rightLen);
             else
-                CopyAndInflateChars(twoByteBuf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
-            twoByteBuf[wholeLength] = 0;
+                CopyAndInflateChars(buf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
+            buf[wholeLength] = 0;
         }
 
         return str;

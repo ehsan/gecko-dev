@@ -13,7 +13,7 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(SubtleCrypto, mParent)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(SubtleCrypto, mWindow)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(SubtleCrypto)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(SubtleCrypto)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SubtleCrypto)
@@ -23,8 +23,8 @@ NS_INTERFACE_MAP_END
 
 
 
-SubtleCrypto::SubtleCrypto(nsIGlobalObject* aParent)
-  : mParent(aParent)
+SubtleCrypto::SubtleCrypto(nsPIDOMWindow* aWindow)
+  : mWindow(aWindow)
 {
 }
 
@@ -35,8 +35,9 @@ SubtleCrypto::WrapObject(JSContext* aCx)
 }
 
 #define SUBTLECRYPTO_METHOD_BODY(Operation, aRv, ...)                   \
-  MOZ_ASSERT(mParent);                                                  \
-  nsRefPtr<Promise> p = Promise::Create(mParent, aRv);                  \
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mWindow);        \
+  MOZ_ASSERT(global);                                                   \
+  nsRefPtr<Promise> p = Promise::Create(global, aRv);                   \
   if (aRv.Failed()) {                                                   \
     return nullptr;                                                     \
   }                                                                     \

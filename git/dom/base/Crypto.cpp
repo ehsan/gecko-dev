@@ -5,6 +5,7 @@
 #include "jsfriendapi.h"
 #include "nsCOMPtr.h"
 #include "nsIRandomGenerator.h"
+#include "nsPIDOMWindow.h"
 #include "MainThreadUtils.h"
 #include "nsXULAppAPI.h"
 
@@ -26,7 +27,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Crypto)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Crypto)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(Crypto, mParent, mSubtle)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(Crypto, mWindow, mSubtle)
 
 Crypto::Crypto()
 {
@@ -39,10 +40,10 @@ Crypto::~Crypto()
 }
 
 void
-Crypto::Init(nsIGlobalObject* aParent)
+Crypto::Init(nsIDOMWindow* aWindow)
 {
-  mParent = do_QueryInterface(aParent);
-  MOZ_ASSERT(mParent);
+  mWindow = do_QueryInterface(aWindow);
+  MOZ_ASSERT(mWindow);
 }
 
 /* virtual */ JSObject*
@@ -53,8 +54,8 @@ Crypto::WrapObject(JSContext* aCx)
 
 void
 Crypto::GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
-                        JS::MutableHandle<JSObject*> aRetval,
-                        ErrorResult& aRv)
+			JS::MutableHandle<JSObject*> aRetval,
+			ErrorResult& aRv)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Called on the wrong thread");
 

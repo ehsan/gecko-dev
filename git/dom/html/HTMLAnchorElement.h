@@ -28,7 +28,7 @@ public:
 
   explicit HTMLAnchorElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
-    , Link(this)
+    , Link(MOZ_THIS_IN_INITIALIZER_LIST())
   {
   }
 

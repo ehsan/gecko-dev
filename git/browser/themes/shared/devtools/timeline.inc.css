@@ -217,7 +217,7 @@
 #timeline-waterfall-details {
   -moz-padding-start: 8px;
   -moz-padding-end: 8px;
-  padding-top: 2vh;
+  padding-top: 8vh;
   overflow: auto;
 }
 
@@ -228,7 +228,9 @@
   border-radius: 1px;
 }
 
-#timeline-waterfall-details > * {
+.marker-details-start,
+.marker-details-end,
+.marker-details-duration {
   padding-top: 3px;
 }
 

@@ -136,8 +136,8 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
     script.set(nullptr);
     function.set(nullptr);
 
-    // We create a channel and call SetContentType, to avoid expensive MIME type
-    // lookups (bug 632490).
+    // Instead of calling NS_OpenURI, we create the channel ourselves and call
+    // SetContentType, to avoid expensive MIME type lookups (bug 632490).
     nsCOMPtr<nsIChannel> chan;
     nsCOMPtr<nsIInputStream> instream;
     nsresult rv;

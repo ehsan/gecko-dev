@@ -16,13 +16,12 @@ Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import('resource://gre/modules/Payment.jsm');
 Cu.import("resource://gre/modules/NotificationDB.jsm");
 Cu.import("resource://gre/modules/SpatialNavigation.jsm");
+// TODO: Lazy load this based on a message...?
+Cu.import("resource://gre/modules/DownloadNotifications.jsm");
 
 #ifdef ACCESSIBILITY
 Cu.import("resource://gre/modules/accessibility/AccessFu.jsm");
 #endif
-
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadNotifications",
-                                  "resource://gre/modules/DownloadNotifications.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
@@ -373,7 +372,6 @@ var BrowserApp = {
           Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
 
           CastingApps.init();
-          DownloadNotifications.init();
 
           // Delay this a minute because there's no rush
           setTimeout(() => {
@@ -468,6 +466,7 @@ var BrowserApp = {
 
     NativeWindow.init();
     LightWeightThemeWebInstaller.init();
+    DownloadNotifications.init();
     FormAssistant.init();
     IndexedDB.init();
     HealthReportStatusListener.init();

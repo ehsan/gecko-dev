@@ -80,18 +80,18 @@ public:
         mBrowserApp(aBrowserApp), mPoints(aPoints), mTabId(aTabId), mBuffer(aBuffer) {}
 
     virtual nsresult Run() {
-        const auto& buffer = jni::Object::Ref::From(mBuffer->GetObject());
+        jobject buffer = mBuffer->GetObject();
         nsCOMPtr<nsIDOMWindow> domWindow;
         nsCOMPtr<nsIBrowserTab> tab;
         mBrowserApp->GetBrowserTab(mTabId, getter_AddRefs(tab));
         if (!tab) {
-            widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
+            mozilla::widget::android::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
             return NS_ERROR_FAILURE;
         }
 
         tab->GetWindow(getter_AddRefs(domWindow));
         if (!domWindow) {
-            widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
+            mozilla::widget::android::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
             return NS_ERROR_FAILURE;
         }
 
@@ -99,7 +99,7 @@ public:
 
         bool shouldStore = true;
         nsresult rv = AndroidBridge::Bridge()->CaptureThumbnail(domWindow, mPoints[0].x, mPoints[0].y, mTabId, buffer, shouldStore);
-        widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, NS_SUCCEEDED(rv), shouldStore);
+        mozilla::widget::android::ThumbnailHelper::SendThumbnail(buffer, mTabId, NS_SUCCEEDED(rv), shouldStore);
         return rv;
     }
 private:
@@ -117,7 +117,7 @@ public:
   NS_DECL_ISUPPORTS;
 
   nsresult Callback(const nsAString& topic, const nsAString& state) {
-    widget::GeckoAppShell::NotifyWakeLockChanged(topic, state);
+    mozilla::widget::android::GeckoAppShell::NotifyWakeLockChanged(topic, state);
     return NS_OK;
   }
 };
@@ -312,11 +312,14 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
       break;
 
     case AndroidGeckoEvent::PROCESS_OBJECT: {
+      JNIEnv* const env = AndroidBridge::Bridge()->GetJNIEnv();
+      AutoLocalJNIFrame frame(env, 1);
 
       switch (curEvent->Action()) {
       case AndroidGeckoEvent::ACTION_OBJECT_LAYER_CLIENT:
-        AndroidBridge::Bridge()->SetLayerClient(
-                widget::GeckoLayerClient::Ref::From(curEvent->Object().wrappedObject()));
+        // SetLayerClient expects a local reference
+        const jobject obj = env->NewLocalRef(curEvent->Object().wrappedObject());
+        AndroidBridge::Bridge()->SetLayerClient(env, obj);
         break;
       }
       break;
@@ -626,8 +629,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
                                              mozilla::dom::GamepadMappingType::Standard,
                                              mozilla::dom::kStandardGamepadButtons,
                                              mozilla::dom::kStandardGamepadAxes);
-                widget::GeckoAppShell::GamepadAdded(curEvent->ID(),
-                                                    svc_id);
+                mozilla::widget::android::GeckoAppShell::GamepadAdded(curEvent->ID(),
+                                                                      svc_id);
             } else if (curEvent->Action() == AndroidGeckoEvent::ACTION_GAMEPAD_REMOVED) {
                 svc->RemoveGamepad(curEvent->ID());
             }
@@ -668,7 +671,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     }
 
     if (curEvent->AckNeeded()) {
-        widget::GeckoAppShell::AcknowledgeEvent();
+        mozilla::widget::android::GeckoAppShell::AcknowledgeEvent();
     }
 
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());

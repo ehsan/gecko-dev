@@ -2107,8 +2107,11 @@ public:
   virtual bool
   IsFile() const MOZ_OVERRIDE;
 
-  virtual bool
-  MayBeClonedToOtherThreads() const MOZ_OVERRIDE;
+  virtual void
+  Unlink() MOZ_OVERRIDE;
+
+  virtual void
+  Traverse(nsCycleCollectionTraversalCallback& aCallback) MOZ_OVERRIDE;
 
   virtual BlobChild*
   GetBlobChild() MOZ_OVERRIDE;
@@ -2837,11 +2840,18 @@ RemoteBlobImpl::IsFile() const
   return mBlobImpl->IsFile();
 }
 
-bool
+void
 BlobParent::
-RemoteBlobImpl::MayBeClonedToOtherThreads() const
+RemoteBlobImpl::Unlink()
 {
-  return mBlobImpl->MayBeClonedToOtherThreads();
+  return mBlobImpl->Unlink();
+}
+
+void
+BlobParent::
+RemoteBlobImpl::Traverse(nsCycleCollectionTraversalCallback& aCallback)
+{
+  return mBlobImpl->Traverse(aCallback);
 }
 
 BlobChild*

@@ -821,20 +821,6 @@ public:
                                 nsIFrame * aFrame);
 #endif
 
-  void ConstructedFrame() {
-    ++mFramesConstructed;
-  }
-  void ReflowedFrame() {
-    ++mFramesReflowed;
-  }
-
-  uint64_t FramesConstructedCount() {
-    return mFramesConstructed;
-  }
-  uint64_t FramesReflowedCount() {
-    return mFramesReflowed;
-  }
-
   /**
    * This table maps border-width enums 'thin', 'medium', 'thick'
    * to actual nscoord values.
@@ -1302,11 +1288,6 @@ protected:
   nscoord               mBorderWidthTable[3];
 
   uint32_t              mInterruptChecksToSkip;
-
-  // Counters for tests and tools that want to detect frame construction
-  // or reflow.
-  uint64_t              mFramesConstructed;
-  uint64_t              mFramesReflowed;
 
   mozilla::TimeStamp    mReflowStartTime;
 

@@ -9,7 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Types.h"
 #include "jspubtd.h"
-#include "typedefs.h"
 
 #define EXPORT_CDECL(type)   MOZ_EXPORT type
 #if defined(_WIN32)
@@ -28,7 +27,7 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(void*) get_voidptr_t_cdecl();
   EXPORT_CDECL(void*) set_voidptr_t_cdecl(void*);
 
-#define DECLARE_CDECL_FUNCTIONS(name, type, ffiType)                           \
+#define DEFINE_TYPE(name, type, ffiType)                                       \
   EXPORT_CDECL(type) get_##name##_cdecl();                                     \
   EXPORT_CDECL(type) set_##name##_cdecl(type);                                 \
   EXPORT_CDECL(type) sum_##name##_cdecl(type, type);                           \
@@ -42,8 +41,8 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(void) get_##name##_stats(size_t* align, size_t* size,           \
                                         size_t* nalign, size_t* nsize,         \
                                         size_t offsets[]);
-  CTYPES_FOR_EACH_TYPE(DECLARE_CDECL_FUNCTIONS)
-#undef DECLARE_CDECL_FUNCTIONS
+
+#include "typedefs.h"
 
 #if defined(_WIN32)
   EXPORT_STDCALL(void) test_void_t_stdcall();
@@ -51,7 +50,7 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_STDCALL(void*) get_voidptr_t_stdcall();
   EXPORT_STDCALL(void*) set_voidptr_t_stdcall(void*);
 
-#define DECLARE_STDCALL_FUNCTIONS(name, type, ffiType)                         \
+#define DEFINE_TYPE(name, type, ffiType)                                       \
   EXPORT_STDCALL(type) get_##name##_stdcall();                                 \
   EXPORT_STDCALL(type) set_##name##_stdcall(type);                             \
   EXPORT_STDCALL(type) sum_##name##_stdcall(type, type);                       \
@@ -62,8 +61,8 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_STDCALL(type) sum_many_##name##_stdcall(                              \
     type, type, type, type, type, type, type, type, type,                      \
     type, type, type, type, type, type, type, type, type);
-  CTYPES_FOR_EACH_TYPE(DECLARE_STDCALL_FUNCTIONS)
-#undef DECLARE_STDCALL_FUNCTIONS
+
+#include "typedefs.h"
 
 #endif /* defined(_WIN32) */
 

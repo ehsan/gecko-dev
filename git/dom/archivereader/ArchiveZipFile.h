@@ -30,13 +30,13 @@ public:
                      const nsAString& aContentType,
                      uint64_t aLength,
                      ZipCentral& aCentral,
-                     FileImpl* aFileImpl)
+                     ArchiveReader* aReader)
   : FileImplBase(aName, aContentType, aLength),
     mCentral(aCentral),
-    mFileImpl(aFileImpl),
+    mArchiveReader(aReader),
     mFilename(aName)
   {
-    MOZ_ASSERT(mFileImpl);
+    NS_ASSERTION(mArchiveReader, "must have a reader");
     MOZ_COUNT_CTOR(ArchiveZipFileImpl);
   }
 
@@ -45,18 +45,27 @@ public:
                      uint64_t aStart,
                      uint64_t aLength,
                      ZipCentral& aCentral,
-                     FileImpl* aFileImpl)
+                     ArchiveReader* aReader)
   : FileImplBase(aContentType, aStart, aLength),
     mCentral(aCentral),
-    mFileImpl(aFileImpl),
+    mArchiveReader(aReader),
     mFilename(aName)
   {
-    MOZ_ASSERT(mFileImpl);
+    NS_ASSERTION(mArchiveReader, "must have a reader");
     MOZ_COUNT_CTOR(ArchiveZipFileImpl);
   }
 
   // Overrides:
   virtual nsresult GetInternalStream(nsIInputStream**) MOZ_OVERRIDE;
+
+  virtual void Unlink() MOZ_OVERRIDE;
+  virtual void Traverse(nsCycleCollectionTraversalCallback &aCb) MOZ_OVERRIDE;
+
+  virtual bool IsCCed() const MOZ_OVERRIDE
+  {
+    return true;
+  }
+
 protected:
   virtual ~ArchiveZipFileImpl()
   {
@@ -69,7 +78,7 @@ protected:
 
 private: // Data
   ZipCentral mCentral;
-  nsRefPtr<FileImpl> mFileImpl;
+  nsRefPtr<ArchiveReader> mArchiveReader;
 
   nsString mFilename;
 };

@@ -400,7 +400,7 @@ public:
     OnNotDecoded(MediaData::VIDEO_DATA, aReason);
   }
 
-  void OnSeekCompleted(int64_t aTime);
+  void OnSeekCompleted();
   void OnSeekFailed(nsresult aResult);
 
   void OnWaitForDataResolved(MediaData::Type aType)

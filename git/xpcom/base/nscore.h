@@ -26,6 +26,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+#  include "mozilla/NullPtr.h"
+#endif
+
 #include "mozilla/RefCountType.h"
 
 /* Core XPCOM declarations. */
