@@ -1858,25 +1858,19 @@ nsDownloadManager::OnVisit(nsIURI *aURI, PRInt64 aVisitID, PRTime aTime,
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnTitleChanged(nsIURI *aURI,
-                                  const nsAString &aPageTitle,
-                                  const nsACString &aGUID)
+nsDownloadManager::OnTitleChanged(nsIURI *aURI, const nsAString &aPageTitle)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnBeforeDeleteURI(nsIURI *aURI,
-                                     const nsACString& aGUID,
-                                     PRUint16 aReason)
+nsDownloadManager::OnBeforeDeleteURI(nsIURI *aURI, const nsACString& aGUID)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnDeleteURI(nsIURI *aURI,
-                               const nsACString& aGUID,
-                               PRUint16 aReason)
+nsDownloadManager::OnDeleteURI(nsIURI *aURI, const nsACString& aGUID)
 {
   return RemoveDownloadsForURI(aURI);
 }
@@ -1888,18 +1882,15 @@ nsDownloadManager::OnClearHistory()
 }
 
 NS_IMETHODIMP
-nsDownloadManager::OnPageChanged(nsIURI *aURI,
-                                 PRUint32 aChangedAttribute,
-                                 const nsAString& aNewValue,
-                                 const nsACString &aGUID)
+nsDownloadManager::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
+                                 const nsAString &aValue)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDownloadManager::OnDeleteVisits(nsIURI *aURI, PRTime aVisitTime,
-                                  const nsACString& aGUID,
-                                  PRUint16 aReason)
+                                  const nsACString& aGUID)
 {
   // Don't bother removing downloads until the page is removed.
   return NS_OK;

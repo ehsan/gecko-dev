@@ -4076,8 +4076,7 @@ nsContentUtils::IsSystemPrincipal(nsIPrincipal* aPrincipal)
 void
 nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
                             nsIURI *aLinkURI, const nsString &aTargetSpec,
-                            PRBool aClick, PRBool aIsUserTriggered,
-                            PRBool aIsTrusted)
+                            PRBool aClick, PRBool aIsUserTriggered)
 {
   NS_ASSERTION(aPresContext, "Need a nsPresContext");
   NS_PRECONDITION(aLinkURI, "No link URI");
@@ -4112,8 +4111,7 @@ nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
 
   // Only pass off the click event if the script security manager says it's ok.
   if (NS_SUCCEEDED(proceed)) {
-    handler->OnLinkClick(aContent, aLinkURI, aTargetSpec.get(), nsnull, nsnull,
-                         aIsTrusted);
+    handler->OnLinkClick(aContent, aLinkURI, aTargetSpec.get());
   }
 }
 

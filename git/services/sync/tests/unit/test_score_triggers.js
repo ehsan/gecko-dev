@@ -3,7 +3,6 @@
 
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/policies.js");
 
 Svc.DefaultPrefs.set("registerEngines", "");
 Cu.import("resource://services-sync/service.js");
@@ -59,11 +58,9 @@ function run_test() {
 add_test(function test_tracker_score_updated() {
   let scoreUpdated = 0;
 
-  function onScoreUpdated() {
+  Svc.Obs.add("weave:engine:score:updated", function() {
     scoreUpdated++;
-  }
-
-  Svc.Obs.add("weave:engine:score:updated", onScoreUpdated());
+  });
 
   try {
     do_check_eq(engine.score, 0);
@@ -73,7 +70,6 @@ add_test(function test_tracker_score_updated() {
 
     do_check_eq(scoreUpdated, 1);
   } finally {
-    Svc.Obs.remove("weave:engine:score:updated", onScoreUpdated);
     tracker.resetScore();
     run_next_test();
   }
@@ -85,9 +81,8 @@ add_test(function test_sync_triggered() {
 
   Service.login();
 
-  SyncScheduler.syncThreshold = MULTI_DEVICE_THRESHOLD;
+  Service.syncThreshold = MULTI_DEVICE_THRESHOLD;
   Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
-    Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
     _("Sync completed!");
     server.stop(run_next_test);
   });
