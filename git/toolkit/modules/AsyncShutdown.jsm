@@ -631,7 +631,7 @@ Barrier.prototype = Object.freeze({
       let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       timer.initWithCallback(function() {
         let msg = "At least one completion condition is taking too long to complete." +
-	  " Conditions: " + JSON.stringify(this.state) +
+	  " Conditions: " + safeGetState(this.state) +
 	  " Barrier: " + topic;
         warn(msg);
       }.bind(this), warnAfterMS, Ci.nsITimer.TYPE_ONE_SHOT);

@@ -342,17 +342,12 @@ this.InterAppCommService = {
     let pubApp = appsService.getAppByManifestURL(aPubAppManifestURL);
     let subApp = appsService.getAppByManifestURL(aSubAppManifestURL);
 
-    let isPubAppCertified =
-      (pubApp.appStatus == Ci.nsIPrincipal.APP_STATUS_CERTIFIED);
-
-    let isSubAppCertified =
-      (subApp.appStatus == Ci.nsIPrincipal.APP_STATUS_CERTIFIED);
-
     // TODO Bug 907068 In the initiative step, we only expose this API to
     // certified apps to meet the time line. Eventually, we need to make
     // it available for the non-certified apps as well. For now, only the
     // certified apps can match the rules.
-    if (!isPubAppCertified || !isSubAppCertified) {
+    if (pubApp.appStatus != Ci.nsIPrincipal.APP_STATUS_CERTIFIED ||
+        subApp.appStatus != Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
       if (DEBUG) {
         debug("Only certified apps are allowed to do connections.");
       }
@@ -378,14 +373,14 @@ this.InterAppCommService = {
       return false;
     }
 
-    // Check installOrigins. Note that we only check the install origin for the
-    // non-certified app, because the certified app doesn't have install origin.
-    if ((!isSubAppCertified &&
-         !this._matchInstallOrigins(aPubRules, subApp.installOrigin)) ||
-        (!isPubAppCertified &&
-         !this._matchInstallOrigins(aSubRules, pubApp.installOrigin))) {
+    // Check installOrigins.
+    if (!this._matchInstallOrigins(aPubRules, subApp.installOrigin) ||
+        !this._matchInstallOrigins(aSubRules, pubApp.installOrigin)) {
       return false;
     }
+
+    // Check developers.
+    // TODO Do we really want to check this? This one seems naive.
 
     if (DEBUG) debug("All rules are matched.");
     return true;

@@ -681,7 +681,9 @@ ThreadActor.prototype = {
    */
   globalManager: {
     findGlobals: function () {
-      const { getContentGlobals } = require("devtools/server/content-globals");
+      const { gDevToolsExtensions: {
+        getContentGlobals
+      } } = Cu.import("resource://gre/modules/devtools/DevToolsExtensions.jsm", {});
 
       this.globalDebugObject = this._addDebuggees(this.global);
 
