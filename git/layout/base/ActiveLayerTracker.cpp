@@ -115,11 +115,7 @@ LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
   nsIFrame* f = aObject->mFrame;
   aObject->mFrame = nullptr;
 
-  // The pres context might have been detached during the delay -
-  // that's fine, just skip the paint.
-  if (f->PresContext()->GetContainerWeak()) {
-    f->SchedulePaint();
-  }
+  f->SchedulePaint();
   f->RemoveStateBits(NS_FRAME_HAS_LAYER_ACTIVITY_PROPERTY);
   f->Properties().Delete(LayerActivityProperty());
 }

@@ -103,7 +103,7 @@ void
 ImageClientSingle::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+    GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
 }
@@ -112,11 +112,11 @@ void
 ImageClientBuffered::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+    GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
   if (mBackBuffer) {
-    GetForwarder()->HoldUntilTransaction(mBackBuffer);
+    GetForwarder()->AddForceRemovingTexture(mBackBuffer);
     mBackBuffer = nullptr;
   }
 }
@@ -140,9 +140,14 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     // fast path: no need to allocate and/or copy image data
     RefPtr<TextureClient> texture = image->AsSharedImage()->GetTextureClient();
 
+    if (texture->IsSharedWithCompositor()) {
+      // XXX - temporary fix for bug 911941
+      // This will be changed with bug 912907
+      return false;
+    }
 
     if (mFrontBuffer) {
-      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     }
     mFrontBuffer = texture;
     if (!AddTextureClient(texture)) {
@@ -159,7 +164,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     }
 
     if (mFrontBuffer && mFrontBuffer->IsImmutable()) {
-      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -202,7 +207,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     gfx::IntSize size = gfx::IntSize(image->GetSize().width, image->GetSize().height);
 
     if (mFrontBuffer) {
-      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -223,7 +228,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
     if (mFrontBuffer &&
         (mFrontBuffer->IsImmutable() || mFrontBuffer->GetSize() != size)) {
-      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 

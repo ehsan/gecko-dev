@@ -230,11 +230,6 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
 
       if (IsAsync()) {
         ScheduleComposition(op);
-        // Async layer updates don't trigger invalidation, manually tell the layer
-        // that its content have changed.
-        if (compositable->GetLayer()) {
-          compositable->GetLayer()->SetInvalidRectToVisibleRegion();
-        }
       }
       break;
     }

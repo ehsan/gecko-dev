@@ -134,7 +134,7 @@ struct WebGLElementArrayCacheTree
 
 private:
   WebGLElementArrayCache& mParent;
-  FallibleTArray<T> mTreeData;
+  nsTArray<T> mTreeData;
   size_t mNumLeaves;
   bool mInvalidated;
   size_t mFirstInvalidatedLeaf;

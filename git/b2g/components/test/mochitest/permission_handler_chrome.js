@@ -48,19 +48,15 @@ function addChromeEventListener(type, listener) {
 function checkPromptEvent(prompt_evt) {
   let detail = prompt_evt.detail;
 
-  if (detail.permissions) {
-    if ("audio-capture" in detail.permissions) {
-      sendAsyncMessage("permission.granted", "audio-capture");
-      test_counts--;
-    }
-    if ("desktop-notification" in detail.permissions) {
-      sendAsyncMessage("permission.granted", "desktop-notification");
-      test_counts--;
-    }
-    if ("geolocation" in detail.permissions) {
-      sendAsyncMessage("permission.granted", "geolocation");
-      test_counts--;
-    }
+  if (detail.permission == "audio-capture") {
+    sendAsyncMessage("permission.granted", "audio-capture");
+    test_counts--;
+  } else if (detail.permission == "desktop-notification") {
+    sendAsyncMessage("permission.granted", "desktop-notification");
+    test_counts--;
+  } else if (detail.permission == "geolocation") {
+    sendAsyncMessage("permission.granted", "geolocation");
+    test_counts--;
   }
 
   if (!test_counts) {

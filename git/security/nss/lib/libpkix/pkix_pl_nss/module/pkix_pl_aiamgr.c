@@ -11,7 +11,6 @@
 #include "pkix_pl_aiamgr.h"
 extern PKIX_PL_HashTable *aiaConnectionCache;
 
-#ifndef NSS_PKIX_NO_LDAP
 /* --Virtual-LdapClient-Functions------------------------------------ */
 
 PKIX_Error *
@@ -52,7 +51,6 @@ cleanup:
         PKIX_RETURN(LDAPCLIENT);
 
 }
-#endif /* !NSS_PKIX_NO_LDAP */
 
 /* --Private-AIAMgr-Functions----------------------------------*/
 
@@ -83,9 +81,7 @@ pkix_pl_AIAMgr_Destroy(
         PKIX_DECREF(aiaMgr->aia);
         PKIX_DECREF(aiaMgr->location);
         PKIX_DECREF(aiaMgr->results);
-#ifndef NSS_PKIX_NO_LDAP
         PKIX_DECREF(aiaMgr->client.ldapClient);
-#endif
 
 cleanup:
 
@@ -118,7 +114,6 @@ pkix_pl_AIAMgr_RegisterSelf(void *plContext)
         PKIX_RETURN(AIAMGR);
 }
 
-#ifndef NSS_PKIX_NO_LDAP
 /*
  * FUNCTION: pkix_pl_AiaMgr_FindLDAPClient
  * DESCRIPTION:
@@ -217,7 +212,6 @@ cleanup:
 
         PKIX_RETURN(AIAMGR);
 }
-#endif /* !NSS_PKIX_NO_LDAP */
 
 PKIX_Error *
 pkix_pl_AIAMgr_GetHTTPCerts(
@@ -394,7 +388,6 @@ cleanup:
         PKIX_RETURN(AIAMGR);
 }
 
-#ifndef NSS_PKIX_NO_LDAP
 PKIX_Error *
 pkix_pl_AIAMgr_GetLDAPCerts(
         PKIX_PL_AIAMgr *aiaMgr,
@@ -503,7 +496,6 @@ cleanup:
 
         PKIX_RETURN(AIAMGR);
 }
-#endif /* !NSS_PKIX_NO_LDAP */
 
 /*
  * FUNCTION: PKIX_PL_AIAMgr_Create
@@ -640,12 +632,10 @@ PKIX_PL_AIAMgr_GetAIACerts(
 			PKIX_CHECK(pkix_pl_AIAMgr_GetHTTPCerts
 				(aiaMgr, ia, &nbio, &certs, plContext),
 				PKIX_AIAMGRGETHTTPCERTSFAILED);
-#ifndef NSS_PKIX_NO_LDAP
                 } else if (iaType == PKIX_INFOACCESS_LOCATION_LDAP) {
 			PKIX_CHECK(pkix_pl_AIAMgr_GetLDAPCerts
 				(aiaMgr, ia, &nbio, &certs, plContext),
 				PKIX_AIAMGRGETLDAPCERTSFAILED);
-#endif
                 } else {
                         /* We only support http and ldap requests. */
                         PKIX_DECREF(ia);
@@ -687,9 +677,7 @@ cleanup:
         if (PKIX_ERROR_RECEIVED) {
                 PKIX_DECREF(aiaMgr->aia);
                 PKIX_DECREF(aiaMgr->results);
-#ifndef NSS_PKIX_NO_LDAP
                 PKIX_DECREF(aiaMgr->client.ldapClient);
-#endif
         }
 
         PKIX_DECREF(certs);
