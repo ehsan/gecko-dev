@@ -15,11 +15,7 @@ function FakeMicrosummaryService() {
 }
 
 function run_test() {
-  // -----
-  // Setup
-  // -----
-
-  var syncTesting = new SyncTestingInfrastructure(BookmarksEngine);
+  var syncTesting = new SyncTestingInfrastructure();
 
   function freshEngineSync(cb) {
     let engine = new BookmarksEngine();
@@ -27,14 +23,46 @@ function run_test() {
     engine.sync(cb);
   };
 
+  function resetProfile() {
+    syncTesting.fakeFilesystem.fakeContents = {};
+    let engine = new BookmarksEngine();
+    engine._store.wipe();
+  }
+
+  function saveClientState() {
+    return Utils.deepCopy(syncTesting.fakeFilesystem.fakeContents);
+  }
+
+  function restoreClientState(state, label) {
+    function _restoreState() {
+      let self = yield;
+
+      syncTesting.fakeFilesystem.fakeContents = Utils.deepCopy(state);
+      let engine = new BookmarksEngine();
+      engine._store.wipe();
+      let originalSnapshot = Utils.deepCopy(engine._store.wrap());
+      engine._snapshot.load();
+      let snapshot = engine._snapshot.data;
+
+      engine._core.detectUpdates(self.cb, originalSnapshot, snapshot);
+      let commands = yield;
+
+      engine._store.applyCommands.async(engine._store, self.cb, commands);
+      yield;
+    }
+
+    function restoreState(cb) {
+      _restoreState.async(this, cb);
+    }
+
+    syncTesting.runAsyncFunc("restore client state of " + label,
+                             restoreState);
+  }
+
   let bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
     getService(Ci.nsINavBookmarksService);
 
   cleanUp();
-
-  // -----------
-  // Test Proper
-  // -----------
 
   let boogleBm = bms.insertBookmark(bms.bookmarksMenuFolder,
                                     uri("http://www.boogle.com"),
@@ -61,9 +89,9 @@ function run_test() {
   syncTesting.runAsyncFunc("swap bookmark order and re-sync",
                            freshEngineSync);
 
-  syncTesting.saveClientState("first computer");
+  var firstComputerState = saveClientState();
 
-  syncTesting.resetClientState();
+  resetProfile();
 
   syncTesting.runAsyncFunc("re-sync on second computer", freshEngineSync);
 
@@ -76,12 +104,8 @@ function run_test() {
   syncTesting.runAsyncFunc("add bookmark on second computer and resync",
                            freshEngineSync);
 
-  syncTesting.restoreClientState("first computer");
+  restoreClientState(firstComputerState, "first computer");
   syncTesting.runAsyncFunc("re-sync on first computer", freshEngineSync);
-
-  // --------
-  // Teardown
-  // --------
 
   cleanUp();
 }
