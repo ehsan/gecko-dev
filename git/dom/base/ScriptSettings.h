@@ -110,12 +110,9 @@ public:
     mWebIDLCallerPrincipal = aPrincipal;
   }
 
-  JSContext* cx() const { return mCx; }
-
 private:
   dom::ScriptSettingsStack& mStack;
   nsCOMPtr<nsIPrincipal> mWebIDLCallerPrincipal;
-  JSContext *mCx;
   mozilla::Maybe<AutoCxPusher> mCxPusher;
   mozilla::Maybe<JSAutoCompartment> mAc; // This can de-Maybe-fy when mCxPusher
                                          // goes away.

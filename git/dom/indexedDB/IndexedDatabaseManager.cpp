@@ -343,8 +343,7 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
     error->GetName(errorName);
   }
 
-  ThreadsafeAutoJSContext cx;
-  RootedDictionary<ErrorEventInit> init(cx);
+  ErrorEventInit init;
   request->FillScriptErrorEvent(init);
 
   init.mMessage = errorName;

@@ -63,7 +63,6 @@
 #endif
 #endif
 
-#include "nsJSUtils.h"
 #include "nsJSNPRuntime.h"
 #include "nsIHttpAuthManager.h"
 #include "nsICookieService.h"
@@ -1485,13 +1484,11 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   nsIDocument *doc = GetDocumentFromNPP(npp);
   NS_ENSURE_TRUE(doc, false);
 
-  nsGlobalWindow* win = static_cast<nsGlobalWindow*>(doc->GetInnerWindow());
-  if (NS_WARN_IF(!win || !win->FastGetGlobalJSObject())) {
-    return false;
-  }
+  AutoPushJSContext cx(GetJSContextFromDoc(doc));
+  NS_ENSURE_TRUE(cx, false);
 
-  AutoSafeJSContext cx;
-  JSAutoCompartment ac(cx, win->FastGetGlobalJSObject());
+  nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
+  NS_ENSURE_TRUE(scx, false);
 
   JS::Rooted<JSObject*> obj(cx, nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj));
 
@@ -1556,9 +1553,9 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   options.setFileAndLine(spec, 0)
          .setVersion(JSVERSION_DEFAULT);
   JS::Rooted<JS::Value> rval(cx);
-  nsJSUtils::EvaluateOptions evalOptions;
-  nsresult rv = nsJSUtils::EvaluateString(cx, utf16script, obj, options,
-                                          evalOptions, rval.address());
+  nsresult rv = scx->EvaluateString(utf16script, obj, options,
+                                    /* aCoerceToString = */ false,
+                                    rval.address());
 
   return NS_SUCCEEDED(rv) &&
          (!result || JSValToNPVariant(npp, cx, rval, result));

@@ -53,7 +53,7 @@ ReadFrameDoubleSlot(IonJSFrameLayout *fp, int32_t slot)
     return *(double *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
-static inline float
+static inline double
 ReadFrameFloat32Slot(IonJSFrameLayout *fp, int32_t slot)
 {
     return *(float *)((char *)fp + OffsetOfFrameSlot(slot));

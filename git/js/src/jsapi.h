@@ -1653,7 +1653,7 @@ extern JS_PUBLIC_API(bool)
 JS_WrapValue(JSContext *cx, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_WrapId(JSContext *cx, JS::MutableHandleId idp);
+JS_WrapId(JSContext *cx, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject target);
@@ -2525,7 +2525,7 @@ extern JS_PUBLIC_API(const JSClass *)
 JS_GetClass(JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
-JS_InstanceOf(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp, JS::CallArgs *args);
+JS_InstanceOf(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp, jsval *argv);
 
 extern JS_PUBLIC_API(bool)
 JS_HasInstance(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<JS::Value> v, bool *bp);
@@ -2537,8 +2537,7 @@ extern JS_PUBLIC_API(void)
 JS_SetPrivate(JSObject *obj, void *data);
 
 extern JS_PUBLIC_API(void *)
-JS_GetInstancePrivate(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp,
-                      JS::CallArgs *args);
+JS_GetInstancePrivate(JSContext *cx, JS::Handle<JSObject*> obj, const JSClass *clasp, jsval *argv);
 
 extern JS_PUBLIC_API(bool)
 JS_GetPrototype(JSContext *cx, JS::HandleObject obj, JS::MutableHandleObject protop);
@@ -2752,7 +2751,7 @@ extern JS_PUBLIC_API(bool)
 JS_PreventExtensions(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_New(JSContext *cx, JSObject *ctor, const JS::HandleValueArray& args);
+JS_New(JSContext *cx, JSObject *ctor, unsigned argc, jsval *argv);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, const JSClass *clasp,
@@ -4544,7 +4543,7 @@ JS_AbortIfWrongThread(JSRuntime *rt);
  * [[Prototype]].
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_NewObjectForConstructor(JSContext *cx, const JSClass *clasp, const JS::CallArgs& args);
+JS_NewObjectForConstructor(JSContext *cx, const JSClass *clasp, const jsval *vp);
 
 /************************************************************************/
 

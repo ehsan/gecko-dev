@@ -46,7 +46,6 @@ public:
   void GetAllActiveCues(nsTArray<nsRefPtr<TextTrackCue> >& aCues);
 
   TextTrack* IndexedGetter(uint32_t aIndex, bool& aFound);
-  TextTrack* operator[](uint32_t aIndex);
 
   already_AddRefed<TextTrack> AddTextTrack(TextTrackKind aKind,
                                            const nsAString& aLabel,

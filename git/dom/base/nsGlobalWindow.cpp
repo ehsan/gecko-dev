@@ -11853,16 +11853,13 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     uint32_t lineNo = 0;
     handler->GetLocation(&filename, &lineNo);
 
-    // New script entry point required, due to the "Create a script" sub-step of
-    // http://www.whatwg.org/specs/web-apps/current-work/#timer-initialization-steps
-    AutoEntryScript entryScript(this, true, aScx->GetNativeContext());
-    JS::CompileOptions options(entryScript.cx());
+    AutoPushJSContext cx(aScx->GetNativeContext());
+    JS::CompileOptions options(cx);
     options.setFileAndLine(filename, lineNo)
            .setVersion(JSVERSION_DEFAULT);
-    JS::Rooted<JSObject*> global(entryScript.cx(), FastGetGlobalJSObject());
-    nsJSUtils::EvaluateOptions evalOptions;
-    nsJSUtils::EvaluateString(entryScript.cx(), nsDependentString(script),
-                              global, options, evalOptions, nullptr);
+    JS::Rooted<JSObject*> global(cx, FastGetGlobalJSObject());
+    aScx->EvaluateString(nsDependentString(script), global,
+                         options, /*aCoerceToString = */ false, nullptr);
   } else {
     // Hold strong ref to ourselves while we call the callback.
     nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));

@@ -351,7 +351,6 @@ LInstruction::dump(FILE *fp)
         }
         fprintf(fp, ")");
     }
-    fprintf(stderr, "\n");
 }
 
 void

@@ -32,7 +32,8 @@ public:
   nsXBLProtoImplField* GetNext() const { return mNext; }
   void SetNext(nsXBLProtoImplField* aNext) { mNext = aNext; }
 
-  nsresult InstallField(JS::Handle<JSObject*> aBoundNode,
+  nsresult InstallField(nsIScriptContext* aContext,
+                        JS::Handle<JSObject*> aBoundNode,
                         nsIURI* aBindingDocURI,
                         bool* aDidInstall) const;
 

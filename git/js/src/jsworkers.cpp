@@ -366,7 +366,7 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
         if (!WorkerThreadState().parseWorklist().append(task.get()))
             return false;
 
-        WorkerThreadState().notifyOne(GlobalWorkerThreadState::PRODUCER);
+        WorkerThreadState().notifyAll(GlobalWorkerThreadState::PRODUCER);
     }
 
     task.forget();
@@ -901,7 +901,7 @@ js::StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task)
     if (!WorkerThreadState().compressionWorklist().append(task))
         return false;
 
-    WorkerThreadState().notifyOne(GlobalWorkerThreadState::PRODUCER);
+    WorkerThreadState().notifyAll(GlobalWorkerThreadState::PRODUCER);
     return true;
 }
 

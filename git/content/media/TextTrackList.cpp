@@ -61,12 +61,6 @@ TextTrackList::IndexedGetter(uint32_t aIndex, bool& aFound)
   return aFound ? mTextTracks[aIndex] : nullptr;
 }
 
-TextTrack*
-TextTrackList::operator[](uint32_t aIndex)
-{
-  return mTextTracks.SafeElementAt(aIndex, nullptr);
-}
-
 already_AddRefed<TextTrack>
 TextTrackList::AddTextTrack(TextTrackKind aKind,
                             const nsAString& aLabel,

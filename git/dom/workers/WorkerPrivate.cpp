@@ -358,7 +358,7 @@ struct WorkerStructuredCloneCallbacks
       uint32_t width, height;
       JS::Rooted<JS::Value> dataArray(aCx);
       if (!JS_ReadUint32Pair(aReader, &width, &height) ||
-          !JS_ReadTypedArray(aReader, &dataArray))
+          !JS_ReadTypedArray(aReader, dataArray.address()))
       {
         return nullptr;
       }
@@ -1185,7 +1185,7 @@ public:
     // they show up in the error console.
     if (!JSREPORT_IS_WARNING(aFlags)) {
       // First fire an ErrorEvent at the worker.
-      RootedDictionary<ErrorEventInit> init(aCx);
+      ErrorEventInit init;
       init.mMessage = aMessage;
       init.mFilename = aFilename;
       init.mLineno = aLineNumber;
@@ -3135,7 +3135,7 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
       continue;
     }
 
-    RootedDictionary<ErrorEventInit> errorInit(aCx);
+    ErrorEventInit errorInit;
     errorInit.mBubbles = false;
     errorInit.mCancelable = true;
     errorInit.mMessage = aMessage;
@@ -3201,7 +3201,7 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
     MOZ_ASSERT(sgo);
 
     MOZ_ASSERT(NS_IsMainThread());
-    RootedDictionary<ErrorEventInit> init(aCx);
+    ErrorEventInit init;
     init.mLineno = aLineNumber;
     init.mFilename = aFilename;
     init.mMessage = aMessage;

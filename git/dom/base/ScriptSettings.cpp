@@ -191,43 +191,31 @@ GetWebIDLCallerPrincipal()
   return aes->mWebIDLCallerPrincipal;
 }
 
-static JSContext*
-FindJSContext(nsIGlobalObject* aGlobalObject)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  JSContext *cx = nullptr;
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobalObject);
-  if (sgo && sgo->GetScriptContext()) {
-    cx = sgo->GetScriptContext()->GetNativeContext();
-  }
-  if (!cx) {
-    cx = nsContentUtils::GetSafeJSContext();
-  }
-  return cx;
-}
-
 AutoEntryScript::AutoEntryScript(nsIGlobalObject* aGlobalObject,
                                  bool aIsMainThread,
                                  JSContext* aCx)
   : ScriptSettingsStackEntry(aGlobalObject, /* aCandidate = */ true)
   , mStack(ScriptSettingsStack::Ref())
-  , mCx(aCx)
 {
   MOZ_ASSERT(aGlobalObject);
-  MOZ_ASSERT_IF(!mCx, aIsMainThread); // cx is mandatory off-main-thread.
-  MOZ_ASSERT_IF(mCx && aIsMainThread, mCx == FindJSContext(aGlobalObject));
-  if (!mCx) {
+  if (!aCx) {
     // If the caller didn't provide a cx, hunt one down. This isn't exactly
     // fast, but the callers that care about performance can pass an explicit
     // cx for now. Eventually, the whole cx pushing thing will go away
     // entirely.
-    mCx = FindJSContext(aGlobalObject);
-    MOZ_ASSERT(mCx);
+    MOZ_ASSERT(aIsMainThread, "cx is mandatory off-main-thread");
+    nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobalObject);
+    if (sgo && sgo->GetScriptContext()) {
+      aCx = sgo->GetScriptContext()->GetNativeContext();
+    }
+    if (!aCx) {
+      aCx = nsContentUtils::GetSafeJSContext();
+    }
   }
   if (aIsMainThread) {
-    mCxPusher.construct(mCx);
+    mCxPusher.construct(aCx);
   }
-  mAc.construct(mCx, aGlobalObject->GetGlobalJSObject());
+  mAc.construct(aCx, aGlobalObject->GetGlobalJSObject());
   mStack.Push(this);
 }
 

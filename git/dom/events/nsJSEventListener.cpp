@@ -165,7 +165,6 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
     Optional<nsAString> fileName;
     Optional<uint32_t> lineNumber;
     Optional<uint32_t> columnNumber;
-    Optional<JS::Handle<JS::Value>> error;
 
     NS_ENSURE_TRUE(aEvent, NS_ERROR_UNEXPECTED);
     ErrorEvent* scriptEvent = aEvent->InternalDOMEvent()->AsErrorEvent();
@@ -178,13 +177,6 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
 
       lineNumber.Construct();
       lineNumber.Value() = scriptEvent->Lineno();
-
-      columnNumber.Construct();
-      columnNumber.Value() = scriptEvent->Column();
-
-      ThreadsafeAutoJSContext cx;
-      error.Construct(cx);
-      error.Value() = scriptEvent->Error(cx);
     } else {
       msgOrEvent.SetAsEvent() = aEvent->InternalDOMEvent();
     }
@@ -193,7 +185,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
       mHandler.OnErrorEventHandler();
     ErrorResult rv;
     bool handled = handler->Call(mTarget, msgOrEvent, fileName, lineNumber,
-                                 columnNumber, error, rv);
+                                 columnNumber, rv);
     if (rv.Failed()) {
       return rv.ErrorCode();
     }

@@ -16,9 +16,8 @@
 #include "nsIURI.h"
 #include "nsXBLSerialize.h"
 #include "nsXBLPrototypeBinding.h"
+#include "nsCxPusher.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ScriptSettings.h"
-#include "nsGlobalWindow.h"
 #include "xpcpublic.h"
 #include "WrapperFactory.h"
 
@@ -205,7 +204,20 @@ InstallXBLField(JSContext* cx,
   nsXBLProtoImplField* field = protoBinding->FindField(fieldName);
   MOZ_ASSERT(field);
 
-  nsresult rv = field->InstallField(thisObj, protoBinding->DocURI(), installed);
+  // This mirrors code in nsXBLProtoImpl::InstallImplementation
+  nsCOMPtr<nsIScriptGlobalObject> global =
+    do_QueryInterface(xblNode->OwnerDoc()->GetWindow());
+  if (!global) {
+    return true;
+  }
+
+  nsCOMPtr<nsIScriptContext> context = global->GetContext();
+  if (!context) {
+    return true;
+  }
+
+  nsresult rv = field->InstallField(context, thisObj, protoBinding->DocURI(),
+                                    installed);
   if (NS_SUCCEEDED(rv)) {
     return true;
   }
@@ -333,7 +345,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // First, enter the XBL scope, and compile the functions there.
   JSAutoCompartment ac(aCx, scopeObject);
   JS::Rooted<JS::Value> wrappedClassObj(aCx, JS::ObjectValue(*aTargetClassObject));
-  if (!JS_WrapValue(aCx, &wrappedClassObj) || !JS_WrapId(aCx, &id))
+  if (!JS_WrapValue(aCx, &wrappedClassObj) || !JS_WrapId(aCx, id.address()))
     return NS_ERROR_OUT_OF_MEMORY;
 
   JS::Rooted<JSObject*> get(aCx,
@@ -360,7 +372,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // them there.
   JSAutoCompartment ac2(aCx, aTargetClassObject);
   if (!JS_WrapObject(aCx, &get) || !JS_WrapObject(aCx, &set) ||
-      !JS_WrapId(aCx, &id))
+      !JS_WrapId(aCx, id.address()))
   {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -376,7 +388,8 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
 }
 
 nsresult
-nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
+nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
+                                  JS::Handle<JSObject*> aBoundNode,
                                   nsIURI* aBindingDocURI,
                                   bool* aDidInstall) const
 {
@@ -400,16 +413,7 @@ nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
   nsAutoCString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
 
-  nsIGlobalObject* globalObject = xpc::WindowGlobalOrNull(aBoundNode);
-  if (!globalObject) {
-    return NS_OK;
-  }
-
-  // We are going to run script via EvaluateString, so we need a script entry
-  // point, but as this is XBL related it does not appear in the HTML spec.
-  AutoEntryScript entryScript(globalObject, true);
-  JSContext* cx = entryScript.cx();
-
+  AutoPushJSContext cx(aContext->GetNativeContext());
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
 
@@ -427,11 +431,11 @@ nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
   JS::CompileOptions options(cx);
   options.setFileAndLine(uriSpec.get(), mLineNumber)
          .setVersion(JSVERSION_LATEST);
-  nsJSUtils::EvaluateOptions evalOptions;
-  rv = nsJSUtils::EvaluateString(cx, nsDependentString(mFieldText,
-                                                       mFieldTextLength),
-                                 wrappedNode, options, evalOptions,
-                                 result.address());
+  rv = aContext->EvaluateString(nsDependentString(mFieldText,
+                                                  mFieldTextLength),
+                                wrappedNode, options,
+                                /* aCoerceToString = */ false,
+                                result.address());
   if (NS_FAILED(rv)) {
     return rv;
   }

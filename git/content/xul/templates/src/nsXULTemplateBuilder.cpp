@@ -69,7 +69,7 @@
 #include "nsXULTemplateQueryProcessorStorage.h"
 #include "nsContentUtils.h"
 #include "ChildIterator.h"
-#include "mozilla/dom/ScriptSettings.h"
+#include "nsCxPusher.h"
 
 using namespace mozilla::dom;
 using namespace mozilla;
@@ -1380,13 +1380,14 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! global)
         return NS_ERROR_UNEXPECTED;
 
-    nsCOMPtr<nsIGlobalObject> innerWin =
-        do_QueryInterface(doc->GetInnerWindow());
+    nsIScriptContext *context = global->GetContext();
+    if (! context)
+        return NS_ERROR_UNEXPECTED;
 
-    // We are going to run script via JS_SetProperty, so we need a script entry
-    // point, but as this is XUL related it does not appear in the HTML spec.
-    AutoEntryScript entryScript(innerWin, true);
-    JSContext* jscontext = entryScript.cx();
+    AutoPushJSContext jscontext(context->GetNativeContext());
+    NS_ASSERTION(context != nullptr, "no jscontext");
+    if (! jscontext)
+        return NS_ERROR_UNEXPECTED;
 
     JS::Rooted<JSObject*> scope(jscontext, global->GetGlobalJSObject());
     JS::Rooted<JS::Value> v(jscontext);
@@ -1403,7 +1404,8 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
                                         &jsdatabase);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        bool ok = JS_SetProperty(jscontext, jselement, "database", jsdatabase);
+        bool ok;
+        ok = JS_SetProperty(jscontext, jselement, "database", jsdatabase);
         NS_ASSERTION(ok, "unable to set database property");
         if (! ok)
             return NS_ERROR_FAILURE;
@@ -1418,7 +1420,8 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
                                         &jsbuilder);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        bool ok = JS_SetProperty(jscontext, jselement, "builder", jsbuilder);
+        bool ok;
+        ok = JS_SetProperty(jscontext, jselement, "builder", jsbuilder);
         if (! ok)
             return NS_ERROR_FAILURE;
     }

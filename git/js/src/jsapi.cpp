@@ -1028,16 +1028,18 @@ JS_WrapValue(JSContext *cx, MutableHandleValue vp)
 }
 
 JS_PUBLIC_API(bool)
-JS_WrapId(JSContext *cx, JS::MutableHandleId idp)
+JS_WrapId(JSContext *cx, jsid *idp)
 {
   AssertHeapIsIdle(cx);
   CHECK_REQUEST(cx);
-  jsid id = idp.get();
-  if (JSID_IS_STRING(id))
-      JS::ExposeGCThingToActiveJS(JSID_TO_STRING(id), JSTRACE_STRING);
-  else if (JSID_IS_OBJECT(id))
-      JS::ExposeGCThingToActiveJS(JSID_TO_OBJECT(id), JSTRACE_OBJECT);
-  return cx->compartment()->wrapId(cx, idp.address());
+  if (idp) {
+      jsid id = *idp;
+      if (JSID_IS_STRING(id))
+          JS::ExposeGCThingToActiveJS(JSID_TO_STRING(id), JSTRACE_STRING);
+      else if (JSID_IS_OBJECT(id))
+          JS::ExposeGCThingToActiveJS(JSID_TO_OBJECT(id), JSTRACE_OBJECT);
+  }
+  return cx->compartment()->wrapId(cx, idp);
 }
 
 /*
@@ -2269,19 +2271,19 @@ JS_GetClass(JSObject *obj)
 }
 
 JS_PUBLIC_API(bool)
-JS_InstanceOf(JSContext *cx, HandleObject obj, const JSClass *clasp, CallArgs *args)
+JS_InstanceOf(JSContext *cx, HandleObject obj, const JSClass *clasp, jsval *argv)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 #ifdef DEBUG
-    if (args) {
+    if (argv) {
         assertSameCompartment(cx, obj);
-        assertSameCompartment(cx, args->thisv(), args->calleev());
+        assertSameCompartment(cx, JSValueArray(argv - 2, 2));
     }
 #endif
     if (!obj || obj->getJSClass() != clasp) {
-        if (args)
-            ReportIncompatibleMethod(cx, *args, Valueify(clasp));
+        if (argv)
+            ReportIncompatibleMethod(cx, CallReceiverFromArgv(argv), Valueify(clasp));
         return false;
     }
     return true;
@@ -2310,9 +2312,9 @@ JS_SetPrivate(JSObject *obj, void *data)
 }
 
 JS_PUBLIC_API(void *)
-JS_GetInstancePrivate(JSContext *cx, HandleObject obj, const JSClass *clasp, CallArgs *args)
+JS_GetInstancePrivate(JSContext *cx, HandleObject obj, const JSClass *clasp, jsval *argv)
 {
-    if (!JS_InstanceOf(cx, obj, clasp, args))
+    if (!JS_InstanceOf(cx, obj, clasp, argv))
         return nullptr;
     return obj->getPrivate();
 }
@@ -2560,14 +2562,13 @@ JS_NewObjectWithGivenProto(JSContext *cx, const JSClass *jsclasp, HandleObject p
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_NewObjectForConstructor(JSContext *cx, const JSClass *clasp, const CallArgs& args)
+JS_NewObjectForConstructor(JSContext *cx, const JSClass *clasp, const jsval *vp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
+    assertSameCompartment(cx, *vp);
 
-    Value callee = args.calleev();
-    assertSameCompartment(cx, callee);
-    RootedObject obj(cx, &callee.toObject());
+    RootedObject obj(cx, JSVAL_TO_OBJECT(*vp));
     return CreateThis(cx, Valueify(clasp), obj);
 }
 
@@ -4901,12 +4902,12 @@ JS::Call(JSContext *cx, HandleValue thisv, HandleValue fval, const JS::HandleVal
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_New(JSContext *cx, JSObject *ctorArg, const JS::HandleValueArray& inputArgs)
+JS_New(JSContext *cx, JSObject *ctorArg, unsigned argc, jsval *argv)
 {
     RootedObject ctor(cx, ctorArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, ctor, inputArgs);
+    assertSameCompartment(cx, ctor, JSValueArray(argv, argc));
     AutoLastFrameCheck lfc(cx);
 
     // This is not a simple variation of JS_CallFunctionValue because JSOP_NEW
@@ -4914,12 +4915,12 @@ JS_New(JSContext *cx, JSObject *ctorArg, const JS::HandleValueArray& inputArgs)
     // of object to create, create it, and clamp the return value to an object,
     // among other details. InvokeConstructor does the hard work.
     InvokeArgs args(cx);
-    if (!args.init(inputArgs.length()))
+    if (!args.init(argc))
         return nullptr;
 
     args.setCallee(ObjectValue(*ctor));
     args.setThis(NullValue());
-    PodCopy(args.array(), inputArgs.begin(), inputArgs.length());
+    PodCopy(args.array(), argv, argc);
 
     if (!InvokeConstructor(cx, args))
         return nullptr;
