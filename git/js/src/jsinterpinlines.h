@@ -230,20 +230,6 @@ ValuePropertyBearer(JSContext *cx, const Value &v, int spindex)
 }
 
 inline bool
-FunctionNeedsPrologue(JSContext *cx, JSFunction *fun)
-{
-    /* Heavyweight functions need call objects created. */
-    if (fun->isHeavyweight())
-        return true;
-
-    /* Outer and inner functions need to preserve nesting invariants. */
-    if (cx->typeInferenceEnabled() && fun->script()->nesting())
-        return true;
-
-    return false;
-}
-
-inline bool
 ScriptPrologue(JSContext *cx, StackFrame *fp, bool newType)
 {
     JS_ASSERT_IF(fp->isNonEvalFunctionFrame() && fp->fun()->isHeavyweight(), fp->hasCallObj());

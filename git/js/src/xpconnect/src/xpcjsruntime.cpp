@@ -1366,10 +1366,7 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         case JSTRACE_SCRIPT:
         {
             JSScript *script = static_cast<JSScript *>(thing);
-#if JS_SCRIPT_INLINE_DATA_LIMIT
-            if (script->data != script->inlineData)
-#endif
-            {
+            if (script->data != script->inlineData) {
                 size_t usable = moz_malloc_usable_size(script->data);
                 curr->scriptData += usable ? usable : script->dataSize();
             }

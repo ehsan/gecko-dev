@@ -691,10 +691,9 @@ class SetPropCompiler : public PICStubCompiler
                  * objects may differ due to eval(), DEFFUN, etc.).
                  */
                 RecompilationMonitor monitor(cx);
-                JSFunction *fun = obj->getCallObjCalleeFunction();
-                JSScript *script = fun->script();
+                JSScript *script = obj->getCallObjCalleeFunction()->script();
                 uint16 slot = uint16(shape->shortid);
-                if (!script->ensureHasTypes(cx, fun))
+                if (!script->ensureHasTypes(cx))
                     return error();
                 {
                     types::AutoEnterTypeInference enter(cx);

@@ -1488,7 +1488,8 @@ class AutoGCRooter {
         DESCRIPTOR =  -13, /* js::AutoPropertyDescriptorRooter */
         STRING =      -14, /* js::AutoStringRooter */
         IDVECTOR =    -15, /* js::AutoIdVector */
-        OBJVECTOR =   -16  /* js::AutoObjectVector */
+        OBJVECTOR =   -16, /* js::AutoObjectVector */
+        TYPE =        -17  /* js::types::AutoTypeRooter */
     };
 
     private:
