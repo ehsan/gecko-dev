@@ -2,13 +2,12 @@
 // That is, it can be applied to arraylike objects and strings, not just arrays.
 
 load(libdir + "asserts.js");
-load(libdir + "iteration.js");
 
 function test(obj) {
-    var it = Array.prototype[std_iterator].call(obj);
+    var it = Array.prototype.iterator.call(obj);
     for (var i = 0; i < (obj.length >>> 0); i++)
-        assertIteratorNext(it, obj[i]);
-    assertIteratorDone(it, undefined);
+        assertEq(it.next(), obj[i]);
+    assertThrowsValue(function () { it.next(); }, StopIteration);
 }
 
 test({length: 0});

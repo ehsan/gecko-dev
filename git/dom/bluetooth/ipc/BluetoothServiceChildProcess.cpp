@@ -329,27 +329,6 @@ BluetoothServiceChildProcess::IsScoConnected(BluetoothReplyRunnable* aRunnable)
 }
 
 void
-BluetoothServiceChildProcess::AnswerWaitingCall(
-  BluetoothReplyRunnable* aRunnable)
-{
-  SendRequest(aRunnable, AnswerWaitingCallRequest());
-}
-
-void
-BluetoothServiceChildProcess::IgnoreWaitingCall(
-  BluetoothReplyRunnable* aRunnable)
-{
-  SendRequest(aRunnable, IgnoreWaitingCallRequest());
-}
-
-void
-BluetoothServiceChildProcess::ToggleCalls(
-  BluetoothReplyRunnable* aRunnable)
-{
-  SendRequest(aRunnable, ToggleCallsRequest());
-}
-
-void
 BluetoothServiceChildProcess::SendMetaData(const nsAString& aTitle,
                                            const nsAString& aArtist,
                                            const nsAString& aAlbum,

@@ -742,7 +742,7 @@ AdjustSystemClock(int64_t aDeltaMilliseconds)
   hal::NotifySystemClockChange(aDeltaMilliseconds);
 }
 
-int32_t
+static int32_t
 GetTimezoneOffset()
 {
   PRExplodedTime prTime;

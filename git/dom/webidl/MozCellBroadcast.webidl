@@ -8,7 +8,6 @@
  * unacknowledged general CBS messages to be broadcast to all receivers within
  * a particular region.
  */
-[Pref="dom.cellbroadcast.enabled"]
 interface MozCellBroadcast : EventTarget
 {
   /**

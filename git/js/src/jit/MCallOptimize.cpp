@@ -8,7 +8,6 @@
 
 #include "builtin/ParallelArray.h"
 #include "builtin/TestingFunctions.h"
-#include "jit/BaselineInspector.h"
 #include "jit/IonBuilder.h"
 #include "jit/Lowering.h"
 #include "jit/MIR.h"
@@ -157,10 +156,16 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
     return InliningStatus_NotInlined;
 }
 
+types::StackTypeSet *
+IonBuilder::getOriginalInlineReturnTypeSet()
+{
+    return types::TypeScript::BytecodeTypes(script(), pc);
+}
+
 types::TemporaryTypeSet *
 IonBuilder::getInlineReturnTypeSet()
 {
-    return bytecodeTypes(pc);
+    return cloneTypeSet(getOriginalInlineReturnTypeSet());
 }
 
 MIRType
@@ -202,17 +207,15 @@ IonBuilder::inlineArray(CallInfo &callInfo)
     uint32_t initLength = 0;
     MNewArray::AllocatingBehaviour allocating = MNewArray::NewArray_Unallocating;
 
-    JSObject *templateObject = inspector->getTemplateObjectForNative(pc, js_Array);
-    if (!templateObject)
-        return InliningStatus_NotInlined;
-    JS_ASSERT(templateObject->is<ArrayObject>());
-
     // Multiple arguments imply array initialization, not just construction.
     if (callInfo.argc() >= 2) {
         initLength = callInfo.argc();
         allocating = MNewArray::NewArray_Allocating;
 
-        types::TypeObjectKey *type = types::TypeObjectKey::get(templateObject);
+        types::TypeObject *baseType = types::TypeScript::InitObject(cx, script(), pc, JSProto_Array);
+        if (!baseType)
+            return InliningStatus_Error;
+        types::TypeObjectKey *type = types::TypeObjectKey::get(baseType);
         if (!type->unknownProperties()) {
             types::HeapTypeSetKey elemTypes = type->property(JSID_VOID);
 
@@ -241,6 +244,10 @@ IonBuilder::inlineArray(CallInfo &callInfo)
     }
 
     callInfo.unwrapArgs();
+
+    JSObject *templateObject = getNewArrayTemplateObject(initLength);
+    if (!templateObject)
+        return InliningStatus_Error;
 
     types::TemporaryTypeSet::DoubleConversion conversion =
         getInlineReturnTypeSet()->convertDoubleElements(constraints());
@@ -321,7 +328,7 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
 
     callInfo.unwrapArgs();
 
-    types::TemporaryTypeSet *returnTypes = getInlineReturnTypeSet();
+    types::StackTypeSet *returnTypes = getOriginalInlineReturnTypeSet();
     bool needsHoleCheck = thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_NON_PACKED);
     bool maybeUndefined = returnTypes->hasType(types::Type::UndefinedType());
 
@@ -339,7 +346,7 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
     if (!resumeAfter(ins))
         return InliningStatus_Error;
 
-    if (!pushTypeBarrier(ins, returnTypes, barrier))
+    if (!pushTypeBarrier(ins, cloneTypeSet(returnTypes), barrier))
         return InliningStatus_Error;
 
     return InliningStatus_Inlined;
@@ -493,10 +500,10 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     }
 
     // Inline the call.
-    JSObject *templateObj = inspector->getTemplateObjectForNative(pc, js::array_concat);
-    if (!templateObj || templateObj->type() != baseThisType)
-        return InliningStatus_NotInlined;
-    JS_ASSERT(templateObj->is<ArrayObject>());
+    JSObject *templateObj = NewDenseEmptyArray(cx, thisType->proto().toObject(), TenuredObject);
+    if (!templateObj)
+        return InliningStatus_Error;
+    templateObj->setType(baseThisType);
 
     callInfo.unwrapArgs();
 
@@ -889,12 +896,12 @@ IonBuilder::inlineStringObject(CallInfo &callInfo)
     if (type != MIRType_Int32 && type != MIRType_String)
         return InliningStatus_NotInlined;
 
-    JSObject *templateObj = inspector->getTemplateObjectForNative(pc, js_String);
-    if (!templateObj)
-        return InliningStatus_NotInlined;
-    JS_ASSERT(templateObj->is<StringObject>());
-
     callInfo.unwrapArgs();
+
+    RootedString emptyString(cx, cx->runtime()->emptyString);
+    JSObject *templateObj = StringObject::create(cx, emptyString, TenuredObject);
+    if (!templateObj)
+        return InliningStatus_Error;
 
     MNewStringObject *ins = MNewStringObject::New(callInfo.getArg(0), templateObj);
     current->add(ins);
@@ -1398,9 +1405,6 @@ IonBuilder::inlineUnsafeSetReservedSlot(CallInfo &callInfo)
     MStoreFixedSlot *store = MStoreFixedSlot::New(callInfo.getArg(0), slot, callInfo.getArg(2));
     current->add(store);
     current->push(store);
-
-    if (NeedsPostBarrier(info(), callInfo.getArg(2)))
-        current->add(MPostWriteBarrier::New(callInfo.thisArg(), callInfo.getArg(2)));
 
     return InliningStatus_Inlined;
 }

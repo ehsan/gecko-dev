@@ -304,7 +304,7 @@ jit::CanEnterBaselineAtBranch(JSContext *cx, StackFrame *fp, bool newType)
    // If constructing, allocate a new |this| object.
    if (fp->isConstructing() && fp->functionThis().isPrimitive()) {
        RootedObject callee(cx, &fp->callee());
-       RootedObject obj(cx, CreateThisForFunction(cx, callee, newType ? SingletonObject : GenericObject));
+       RootedObject obj(cx, CreateThisForFunction(cx, callee, newType));
        if (!obj)
            return Method_Skipped;
        fp->functionThis().setObject(*obj);
@@ -331,10 +331,7 @@ jit::CanEnterBaselineMethod(JSContext *cx, RunState &state)
         // If constructing, allocate a new |this| object.
         if (invoke.constructing() && invoke.args().thisv().isPrimitive()) {
             RootedObject callee(cx, &invoke.args().callee());
-            RootedObject obj(cx, CreateThisForFunction(cx, callee,
-                                                       invoke.useNewType()
-                                                       ? SingletonObject
-                                                       : GenericObject));
+            RootedObject obj(cx, CreateThisForFunction(cx, callee, invoke.useNewType()));
             if (!obj)
                 return Method_Skipped;
             invoke.args().setThis(ObjectValue(*obj));

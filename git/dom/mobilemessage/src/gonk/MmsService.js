@@ -1232,24 +1232,9 @@ MmsService.prototype = {
     return config >= CONFIG_SEND_REPORT_DEFAULT_YES;
   },
 
-  /**
-   * Get phone number from iccInfo.
-   *
-   * If the icc card is gsm card, the phone number is in msisdn.
-   * @see nsIDOMMozGsmIccInfo
-   *
-   * Otherwise, the phone number is in mdn.
-   * @see nsIDOMMozCdmaIccInfo
-   */
-  getPhoneNumber: function getPhoneNumber() {
+  getMsisdn: function getMsisdn() {
     let iccInfo = gRadioInterface.rilContext.iccInfo;
-
-    if (!iccInfo) {
-      return null;
-    }
-
-    let number = (iccInfo instanceof Ci.nsIDOMMozGsmIccInfo)
-               ? iccInfo.msisdn : iccInfo.mdn;
+    let number = iccInfo ? iccInfo.msisdn : null;
 
     // Workaround an xpconnect issue with undefined string objects.
     // See bug 808220
@@ -1300,7 +1285,7 @@ MmsService.prototype = {
       intermediate.sender = "anonymous";
     }
     intermediate.receivers = [];
-    intermediate.phoneNumber = this.getPhoneNumber();
+    intermediate.msisdn = this.getMsisdn();
     return intermediate;
   },
 
@@ -1786,7 +1771,7 @@ MmsService.prototype = {
     aMessage["type"] = "mms";
     aMessage["timestamp"] = Date.now();
     aMessage["receivers"] = receivers;
-    aMessage["sender"] = this.getPhoneNumber();
+    aMessage["sender"] = this.getMsisdn();
     try {
       aMessage["deliveryStatusRequested"] =
         Services.prefs.getBoolPref("dom.mms.requestStatusReport");

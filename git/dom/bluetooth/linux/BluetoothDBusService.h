@@ -24,9 +24,6 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothDBusService : public BluetoothService
 {
 public:
-  BluetoothDBusService();
-  ~BluetoothDBusService();
-
   bool IsReady();
 
   virtual nsresult StartInternal() MOZ_OVERRIDE;
@@ -136,15 +133,6 @@ public:
   IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  AnswerWaitingCall(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  IgnoreWaitingCall(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  ToggleCalls(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
   SendMetaData(const nsAString& aTitle,
                const nsAString& aArtist,
                const nsAString& aAlbum,
@@ -171,6 +159,11 @@ public:
   virtual nsresult
   SendInputMessage(const nsAString& aDeviceAddresses,
                    const nsAString& aMessage) MOZ_OVERRIDE;
+
+protected:
+  BluetoothDBusService();
+  ~BluetoothDBusService();
+
 private:
   /**
    * For DBus Control method of "UpdateNotification", event id should be

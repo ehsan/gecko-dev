@@ -104,7 +104,6 @@
     _(PowD)                         \
     _(Random)                       \
     _(MathFunctionD)                \
-    _(MathFunctionF)                \
     _(NotI)                         \
     _(NotD)                         \
     _(NotO)                         \

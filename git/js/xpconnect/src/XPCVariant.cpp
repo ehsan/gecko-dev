@@ -375,7 +375,7 @@ XPCVariant::GetAsJSVal(jsval* result)
 // static
 bool
 XPCVariant::VariantDataToJS(nsIVariant* variant,
-                            nsresult* pErr, MutableHandleValue pJSVal)
+                            nsresult* pErr, jsval* pJSVal)
 {
     // Get the type early because we might need to spoof it below.
     uint16_t type;
@@ -393,7 +393,7 @@ XPCVariant::VariantDataToJS(nsIVariant* variant,
          type == nsIDataType::VTYPE_ID)) {
         if (!JS_WrapValue(cx, realVal.address()))
             return false;
-        pJSVal.set(realVal);
+        *pJSVal = realVal;
         return true;
     }
 
@@ -405,7 +405,7 @@ XPCVariant::VariantDataToJS(nsIVariant* variant,
 
         if (!JS_WrapValue(cx, realVal.address()))
             return false;
-        pJSVal.set(realVal);
+        *pJSVal = realVal;
         return true;
     }
 
@@ -436,7 +436,7 @@ XPCVariant::VariantDataToJS(nsIVariant* variant,
             double d;
             if (NS_FAILED(variant->GetAsDouble(&d)))
                 return false;
-            pJSVal.setNumber(d);
+            *pJSVal = JS_NumberValue(d);
             return true;
         }
         case nsIDataType::VTYPE_BOOL:
@@ -444,7 +444,7 @@ XPCVariant::VariantDataToJS(nsIVariant* variant,
             bool b;
             if (NS_FAILED(variant->GetAsBool(&b)))
                 return false;
-            pJSVal.setBoolean(b);
+            *pJSVal = BOOLEAN_TO_JSVAL(b);
             return true;
         }
         case nsIDataType::VTYPE_CHAR:
@@ -647,14 +647,14 @@ VARIANT_DONE:
             JSObject* array = JS_NewArrayObject(cx, 0, nullptr);
             if (!array)
                 return false;
-            pJSVal.setObject(*array);
+            *pJSVal = OBJECT_TO_JSVAL(array);
             return true;
         }
         case nsIDataType::VTYPE_VOID:
-            pJSVal.setUndefined();
+            *pJSVal = JSVAL_VOID;
             return true;
         case nsIDataType::VTYPE_EMPTY:
-            pJSVal.setNull();
+            *pJSVal = JSVAL_NULL;
             return true;
         default:
             NS_ERROR("bad type in variant!");

@@ -42,9 +42,9 @@ public:
   }
 
   bool
-  ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue)
+  ParseSuccessfulReply(JS::Value* aValue)
   {
-    aValue.setUndefined();
+    *aValue = JSVAL_VOID;
 
     const BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
     if (v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {

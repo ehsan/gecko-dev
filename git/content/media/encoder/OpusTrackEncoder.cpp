@@ -119,7 +119,6 @@ OpusTrackEncoder::OpusTrackEncoder()
   , mEncoder(nullptr)
   , mSourceSegment(new AudioSegment())
   , mLookahead(0)
-  , mResampler(nullptr)
 {
 }
 
@@ -148,24 +147,16 @@ OpusTrackEncoder::Init(int aChannels, int aSamplingRate)
   // The granule position is required to be incremented at a rate of 48KHz, and
   // it is simply calculated as |granulepos = samples * (48000/source_rate)|,
   // that is, the source sampling rate must divide 48000 evenly.
-  // If this constraint is not satisfied, we resample the input to 48kHz.
   if (!((aSamplingRate >= 8000) && (kOpusSamplingRate / aSamplingRate) *
          aSamplingRate == kOpusSamplingRate)) {
-    int error;
-    mResampler = speex_resampler_init(mChannels,
-                                      aSamplingRate,
-                                      kOpusSamplingRate,
-                                      SPEEX_RESAMPLER_QUALITY_DEFAULT,
-                                      &error);
-
-    if (error != RESAMPLER_ERR_SUCCESS) {
-      return NS_ERROR_FAILURE;
-    }
+    LOG("[Opus] Error! The source sample rate should be greater than 8000 and"
+        " divides 48000 evenly.");
+    return NS_ERROR_FAILURE;
   }
   mSamplingRate = aSamplingRate;
 
   int error = 0;
-  mEncoder = opus_encoder_create(GetOutputSampleRate(), mChannels,
+  mEncoder = opus_encoder_create(mSamplingRate, mChannels,
                                  OPUS_APPLICATION_AUDIO, &error);
 
   mInitialized = (error == OPUS_OK);
@@ -176,15 +167,9 @@ OpusTrackEncoder::Init(int aChannels, int aSamplingRate)
 }
 
 int
-OpusTrackEncoder::GetOutputSampleRate()
-{
-  return mResampler ? kOpusSamplingRate : mSamplingRate;
-}
-
-int
 OpusTrackEncoder::GetPacketDuration()
 {
-  return GetOutputSampleRate() * kFrameDurationMs / 1000;
+  return mSamplingRate * kFrameDurationMs / 1000;
 }
 
 nsresult
@@ -297,35 +282,8 @@ OpusTrackEncoder::GetEncodedTrack(nsTArray<uint8_t>* aOutput,
     iter.Next();
   }
 
-  if (mResampler) {
-    nsAutoTArray<AudioDataValue, 9600> resamplingDest;
-    // We want to consume all the input data, so we slightly oversize the
-    // resampled data buffer so we can fit the output data in. We cannot really
-    // predict the output frame count at each call.
-    uint32_t outframes = frameCopied * kOpusSamplingRate / mSamplingRate + 1;
-    uint32_t inframes = frameCopied;
-
-    resamplingDest.SetLength(outframes * mChannels);
-
-#if MOZ_SAMPLE_TYPE_S16
-    short* in = reinterpret_cast<short*>(pcm.Elements());
-    short* out = reinterpret_cast<short*>(resamplingDest.Elements());
-    speex_resampler_process_interleaved_int(mResampler, in, &inframes,
-                                                        out, &outframes);
-#else
-    float* in = reinterpret_cast<float*>(pcm.Elements());
-    float* out = reinterpret_cast<float*>(resamplingDest.Elements());
-    speex_resampler_process_interleaved_float(mResampler, in, &inframes,
-                                                          out, &outframes);
-#endif
-
-    pcm = resamplingDest;
-    // This is always at 48000Hz.
-    aOutputDuration = outframes;
-  } else {
-    // The ogg time stamping and pre-skip is always timed at 48000.
-    aOutputDuration = frameCopied * (kOpusSamplingRate / mSamplingRate);
-  }
+  // The ogg time stamping and pre-skip is always timed at 48000.
+  aOutputDuration = frameCopied * (kOpusSamplingRate / mSamplingRate);
 
   // Remove the raw data which has been pulled to pcm buffer.
   // The value of frameCopied should equal to (or smaller than, if eos)
@@ -336,9 +294,6 @@ OpusTrackEncoder::GetEncodedTrack(nsTArray<uint8_t>* aOutput,
   // encoding.
   if (mSourceSegment->GetDuration() == 0 && mEndOfStream) {
     mDoneEncoding = true;
-    if (mResampler) {
-      speex_resampler_destroy(mResampler);
-    }
     LOG("[Opus] Done encoding.");
   }
 

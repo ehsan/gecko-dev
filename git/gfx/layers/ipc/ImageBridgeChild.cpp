@@ -422,9 +422,9 @@ void ImageBridgeChild::DispatchImageClientUpdate(ImageClient* aClient,
       nsRefPtr<ImageContainer> >(&UpdateImageClientNow, aClient, aContainer));
 }
 
-static void FlushAllImagesSync(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront, ReentrantMonitor* aBarrier, bool* aDone)
+static void FlushImageSync(ImageClient* aClient, ImageContainer* aContainer, ReentrantMonitor* aBarrier, bool* aDone)
 {
-  ImageBridgeChild::FlushAllImagesNow(aClient, aContainer, aExceptFront);
+  ImageBridgeChild::FlushImageNow(aClient, aContainer);
 
   ReentrantMonitorAutoEnter autoMon(*aBarrier);
   *aDone = true;
@@ -432,10 +432,10 @@ static void FlushAllImagesSync(ImageClient* aClient, ImageContainer* aContainer,
 }
 
 //static
-void ImageBridgeChild::FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront)
+void ImageBridgeChild::FlushImage(ImageClient* aClient, ImageContainer* aContainer)
 {
   if (InImageBridgeChildThread()) {
-    FlushAllImagesNow(aClient, aContainer, aExceptFront);
+    FlushImageNow(aClient, aContainer);
     return;
   }
 
@@ -445,7 +445,7 @@ void ImageBridgeChild::FlushAllImages(ImageClient* aClient, ImageContainer* aCon
 
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
     FROM_HERE,
-    NewRunnableFunction(&FlushAllImagesSync, aClient, aContainer, aExceptFront, &barrier, &done));
+    NewRunnableFunction(&FlushImageSync, aClient, aContainer, &barrier, &done));
 
   // should stop the thread until the ImageClient has been created on
   // the other thread
@@ -455,14 +455,14 @@ void ImageBridgeChild::FlushAllImages(ImageClient* aClient, ImageContainer* aCon
 }
 
 //static
-void ImageBridgeChild::FlushAllImagesNow(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront)
+void ImageBridgeChild::FlushImageNow(ImageClient* aClient, ImageContainer* aContainer)
 {
   MOZ_ASSERT(aClient);
   sImageBridgeChildSingleton->BeginTransaction();
-  if (aContainer && !aExceptFront) {
+  if (aContainer) {
     aContainer->ClearCurrentImage();
   }
-  aClient->FlushAllImages(aExceptFront);
+  aClient->FlushImage();
   aClient->OnTransaction();
   sImageBridgeChildSingleton->EndTransaction();
   aClient->FlushTexturesToRemoveCallbacks();

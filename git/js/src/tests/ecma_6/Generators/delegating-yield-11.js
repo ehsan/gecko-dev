@@ -8,7 +8,6 @@ function Iter() {
     }
 
     this.next = next;
-    this[std_iterator] = function () { return this; }
 }
 
 function* delegate(iter) { return yield* iter; }

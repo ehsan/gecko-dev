@@ -8,13 +8,20 @@ function IteratorIdentity() {
 
 var LegacyIteratorWrapperMap = new std_WeakMap();
 
+function IteratorResult(value, done) {
+    var result = std_Object_create(null);
+    result.value = value;
+    result.done = done;
+    return result;
+}
+
 function LegacyIteratorNext(arg) {
     var iter = callFunction(std_WeakMap_get, LegacyIteratorWrapperMap, this);
     try {
-        return { value: iter.next(arg), done: false };
+        return IteratorResult(iter.next(arg), false);
     } catch (e) {
         if (e instanceof std_StopIteration)
-            return { value: undefined, done: true };
+            return IteratorResult(undefined, true);
         throw e;
     }
 }
@@ -22,10 +29,10 @@ function LegacyIteratorNext(arg) {
 function LegacyIteratorThrow(exn) {
     var iter = callFunction(std_WeakMap_get, LegacyIteratorWrapperMap, this);
     try {
-        return { value: iter.throw(exn), done: false };
+        return IteratorResult(iter.throw(exn), false);
     } catch (e) {
         if (e instanceof std_StopIteration)
-            return { value: undefined, done: true };
+            return IteratorResult(undefined, true);
         throw e;
     }
 }
@@ -83,4 +90,8 @@ function LegacyIteratorShim() {
 
 function LegacyGeneratorIteratorShim() {
     return NewLegacyIterator(ToObject(this), LegacyGeneratorIterator);
+}
+
+function ArrayIterator() {
+    return NewLegacyIterator(callFunction(std_Array_iterator, this), LegacyIterator);
 }

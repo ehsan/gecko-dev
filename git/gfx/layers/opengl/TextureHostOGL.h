@@ -70,7 +70,6 @@ public:
   virtual ~CompositableDataGonkOGL();
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
-  virtual void ClearData() MOZ_OVERRIDE;
   GLuint GetTexture();
   void DeleteTextureIfPresent();
   gl::GLContext* gl() const;

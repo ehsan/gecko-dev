@@ -259,7 +259,6 @@ WEBIDL_FILES = [
     'RTCIceCandidate.webidl',
     'RTCPeerConnection.webidl',
     'RTCSessionDescription.webidl',
-    'RTCStatsReport.webidl',
     'Range.webidl',
     'Rect.webidl',
     'SVGAElement.webidl',
