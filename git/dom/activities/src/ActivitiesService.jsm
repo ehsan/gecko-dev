@@ -207,14 +207,13 @@ let Activities = {
   startActivity: function activities_startActivity(aMsg) {
     debug("StartActivity: " + JSON.stringify(aMsg));
 
-    let self = this;
     let successCb = function successCb(aResults) {
       debug(JSON.stringify(aResults));
 
       function getActivityChoice(aResultType, aResult) {
         switch(aResultType) {
           case Ci.nsIActivityUIGlueCallback.NATIVE_ACTIVITY: {
-            self.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireSuccess", {
+            Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireSuccess", {
               "id": aMsg.id,
               "result": aResult
             });
@@ -227,19 +226,21 @@ let Activities = {
             // Don't do this check until we have passed to UIGlue so the glue can choose to launch
             // its own activity if needed.
             if (aResults.options.length === 0) {
-              self.trySendAndCleanup(aMsg.id, "Activity:FireError", {
+              Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireError", {
                 "id": aMsg.id,
                 "error": "NO_PROVIDER"
               });
+              delete Activities.callers[aMsg.id];
               return;
             }
 
             // The user has cancelled the choice, fire an error.
             if (aResult === -1) {
-              self.trySendAndCleanup(aMsg.id, "Activity:FireError", {
+              Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireError", {
                 "id": aMsg.id,
                 "error": "ActivityCanceled"
               });
+              delete Activities.callers[aMsg.id];
               return;
             }
 
@@ -247,7 +248,7 @@ let Activities = {
                           .getService(Ci.nsISystemMessagesInternal);
             if (!sysmm) {
               // System message is not present, what should we do?
-              delete self.callers[aMsg.id];
+              delete Activities.callers[aMsg.id];
               return;
             }
 
@@ -261,17 +262,18 @@ let Activities = {
               Services.io.newURI(result.description.href, null, null),
               Services.io.newURI(result.manifest, null, null),
               {
-                "manifestURL": self.callers[aMsg.id].manifestURL,
-                "pageURL": self.callers[aMsg.id].pageURL
+                "manifestURL": Activities.callers[aMsg.id].manifestURL,
+                "pageURL": Activities.callers[aMsg.id].pageURL
               });
 
             if (!result.description.returnValue) {
-              // No need to notify observers, since we don't want the caller
-              // to be raised on the foreground that quick.
-              self.trySendAndCleanup(aMsg.id, "Activity:FireSuccess", {
+              Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireSuccess", {
                 "id": aMsg.id,
                 "result": null
               });
+              // No need to notify observers, since we don't want the caller
+              // to be raised on the foreground that quick.
+              delete Activities.callers[aMsg.id];
             }
             break;
           }
@@ -330,14 +332,6 @@ let Activities = {
     this.db.find(aMsg, successCb, errorCb, matchFunc);
   },
 
-  trySendAndCleanup: function activities_trySendAndCleanup(aId, aName, aPayload) {
-    try {
-      this.callers[aId].mm.sendAsyncMessage(aName, aPayload);
-    } finally {
-      delete this.callers[aId];
-    }
-  },
-
   receiveMessage: function activities_receiveMessage(aMessage) {
     let mm = aMessage.target;
     let msg = aMessage.json;
@@ -371,10 +365,12 @@ let Activities = {
         break;
 
       case "Activity:PostResult":
-        this.trySendAndCleanup(msg.id, "Activity:FireSuccess", msg);
+        caller.mm.sendAsyncMessage("Activity:FireSuccess", msg);
+        delete this.callers[msg.id];
         break;
       case "Activity:PostError":
-        this.trySendAndCleanup(msg.id, "Activity:FireError", msg);
+        caller.mm.sendAsyncMessage("Activity:FireError", msg);
+        delete this.callers[msg.id];
         break;
 
       case "Activities:Register":
@@ -402,10 +398,11 @@ let Activities = {
       case "child-process-shutdown":
         for (let id in this.callers) {
           if (this.callers[id].childMM == mm) {
-            this.trySendAndCleanup(id, "Activity:FireError", {
+            this.callers[id].mm.sendAsyncMessage("Activity:FireError", {
               "id": id,
               "error": "ActivityCanceled"
             });
+            delete this.callers[id];
             break;
           }
         }

@@ -10,6 +10,7 @@
 #include "nsPKIParamBlock.h"
 #include "nsASN1Tree.h"
 #include "nsFormSigningDialog.h"
+#include "nsISSLCertErrorDialog.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNSSDialogs, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPKIParamBlock, Init)
@@ -31,6 +32,7 @@ static const mozilla::Module::CIDEntry kPKICIDs[] = {
 };
 
 static const mozilla::Module::ContractIDEntry kPKIContracts[] = {
+  { NS_SSLCERTERRORDIALOG_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_TOKENPASSWORDSDIALOG_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_CERTIFICATEDIALOGS_CONTRACTID, &kNS_NSSDIALOGS_CID },
   { NS_CLIENTAUTHDIALOGS_CONTRACTID, &kNS_NSSDIALOGS_CID },

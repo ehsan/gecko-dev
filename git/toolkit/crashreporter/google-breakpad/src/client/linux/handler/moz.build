@@ -26,4 +26,3 @@ LOCAL_INCLUDES += [
     '/toolkit/crashreporter/google-breakpad/src',
 ]
 
-include('/toolkit/crashreporter/crashreporter.mozbuild')

@@ -1163,6 +1163,7 @@ nsSocketTransport::BuildSocket(PRFileDesc *&fd, bool &proxyTransparent, bool &us
         }
     }
 
+    CleanupTypes();
     return rv;
 }
 
