@@ -28,7 +28,6 @@ include ../../dom/src/jsurl/crashtests/crashtests.list
 include ../../editor/libeditor/html/crashtests/crashtests.list
 include ../../editor/libeditor/base/crashtests/crashtests.list
 include ../../editor/composer/src/crashtests/crashtests.list
-include ../../editor/txmgr/tests/crashtests/crashtests.list
 
 include ../../intl/lwbrk/src/crashtests/crashtests.list
 
@@ -47,8 +46,6 @@ include ../../layout/xul/base/src/tree/src/crashtests/crashtests.list
 
 include ../../gfx/src/thebes/crashtests/crashtests.list
 include ../../gfx/thebes/crashtests/crashtests.list
-
-include ../../modules/libpr0n/test/crashtests/crashtests.list
 
 include ../../parser/htmlparser/tests/crashtests/crashtests.list
 

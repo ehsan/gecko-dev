@@ -241,17 +241,24 @@ nsHTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 }
 
 NS_IMETHODIMP
-nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
-                                         nsIAccessibleRelation **aRelation)
+nsHTMLTableAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                            nsIAccessible **aRelated)
 {
-  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
-                                                    aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aRelated);
+  *aRelated = nsnull;
+
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = nsAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
+  if (NS_FAILED(rv) || *aRelated) {
+    // Either the node is shut down, or another relation mechanism has been used
+    return rv;
+  }
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY) {
-    nsCOMPtr<nsIAccessible> accCaption;
-    GetCaption(getter_AddRefs(accCaption));
-    return nsRelUtils::AddTarget(aRelationType, aRelation, accCaption);
+    return GetCaption(aRelated);
   }
 
   return NS_OK;
@@ -1247,17 +1254,24 @@ nsHTMLTableHeadAccessible::GetRows(PRInt32 *aRows)
 }
 
 NS_IMETHODIMP
-nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
-                                           nsIAccessibleRelation **aRelation)
+nsHTMLCaptionAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                              nsIAccessible **aRelated)
 {
-  nsresult rv = nsHyperTextAccessible::GetRelationByType(aRelationType,
-                                                         aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aRelated);
+  *aRelated = nsnull;
+
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = nsHyperTextAccessible::GetAccessibleRelated(aRelationType, aRelated);
+  if (NS_FAILED(rv) || *aRelated) {
+    // Either the node is shut down, or another relation mechanism has been used
+    return rv;
+  }
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
-    nsCOMPtr<nsIAccessible> accParent;
-    GetParent(getter_AddRefs(accParent));
-    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+    return GetParent(aRelated);
   }
 
   return NS_OK;

@@ -73,8 +73,7 @@ const OBSERVING = [
   "domwindowopened", "domwindowclosed",
   "quit-application-requested", "quit-application-granted",
   "quit-application", "browser:purge-session-history",
-  "private-browsing", "browser:purge-domain-data",
-  "private-browsing-change-granted"
+  "private-browsing", "browser:purge-domain-data"
 ];
 
 /*
@@ -407,7 +406,9 @@ SessionStoreService.prototype = {
     case "private-browsing":
       switch (aData) {
       case "enter":
+        this.saveState(true);
         this._inPrivateBrowsing = true;
+        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
         break;
       case "exit":
         aSubject.QueryInterface(Ci.nsISupportsPRBool);
@@ -428,12 +429,6 @@ SessionStoreService.prototype = {
           this._inPrivateBrowsing = false;
         delete this._stateBackup;
         break;
-      }
-      break;
-    case "private-browsing-change-granted":
-      if (aData == "enter") {
-        this.saveState(true);
-        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
       }
       break;
     }
@@ -2022,9 +2017,6 @@ SessionStoreService.prototype = {
         
         let value = aData[key];
         if (typeof value == "string" && node.type != "file") {
-          if (node.value == value)
-            continue; // don't dispatch an input event for no change
-          
           node.value = value;
           
           let event = aDocument.createEvent("UIEvents");
@@ -2157,20 +2149,20 @@ SessionStoreService.prototype = {
     if (!isNaN(aLeft) && !isNaN(aTop) && (aLeft != win_("screenX") || aTop != win_("screenY"))) {
       aWindow.moveTo(aLeft, aTop);
     }
-    if (aSizeMode && win_("sizemode") != aSizeMode)
+    switch (aSizeMode)
     {
-      switch (aSizeMode)
-      {
-      case "maximized":
-        aWindow.maximize();
-        break;
-      case "minimized":
-        aWindow.minimize();
-        break;
-      case "normal":
-        aWindow.restore();
-        break;
-      }
+    case "maximized":
+    	if (win_("sizemode") != "maximized")
+    	  aWindow.maximize();
+    	break
+    case "minimized":
+    	if (win_("sizemode") != "minimized")
+    	  aWindow.minimize();
+    	break
+    default:
+    	if (win_("sizemode") != "normal")
+    	  aWindow.restore();
+    	break
     }
     var sidebar = aWindow.document.getElementById("sidebar-box");
     if (sidebar.getAttribute("sidebarcommand") != aSidebar) {

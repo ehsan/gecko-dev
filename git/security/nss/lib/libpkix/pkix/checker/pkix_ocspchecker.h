@@ -61,7 +61,6 @@ pkix_OcspChecker_CheckLocal(
         pkix_RevocationMethod *checkerObject,
         PKIX_ProcessingParams *procParams,
         PKIX_UInt32 methodFlags,
-        PKIX_Boolean chainVerificationState,
         PKIX_RevocationStatus *pRevStatus,
         PKIX_UInt32 *reasonCode,
         void *plContext);

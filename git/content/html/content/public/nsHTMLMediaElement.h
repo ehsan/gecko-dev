@@ -39,24 +39,12 @@
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
 #include "nsIChannel.h"
-#include "nsThreadUtils.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
 
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
-
-// Object representing a single execution of the media load algorithm.
-// Used by implicit load events so that they can be cancelled when Load()
-// is executed.
-// Note: When bug 465458 lands, all events are expected to do this, not
-//       just implicit load events.
-class nsMediaLoad : public nsISupports
-{
-public:
-  NS_DECL_ISUPPORTS
-};
 
 class nsHTMLMediaElement : public nsGenericHTMLElement
 {
@@ -123,6 +111,11 @@ public:
   // when the video playback has ended.
   void PlaybackEnded();
 
+  // Called by the decoder object, on the main thread, when
+  // approximately enough of the resource has been loaded to play
+  // through without pausing for buffering.
+  void CanPlayThrough();
+
   // Called by the video decoder object, on the main thread,
   // when the resource has started seeking.
   void SeekStarted();
@@ -140,22 +133,6 @@ public:
   nsresult DispatchProgressEvent(const nsAString& aName);
   nsresult DispatchAsyncSimpleEvent(const nsAString& aName);
   nsresult DispatchAsyncProgressEvent(const nsAString& aName);
-
-  // Called by the decoder when some data has been downloaded or
-  // buffering/seeking has ended. aNextFrameAvailable is true when
-  // the data for the next frame is available. This method will
-  // decide whether to set the ready state to HAVE_CURRENT_DATA,
-  // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA.
-  enum NextFrameStatus {
-    // The next frame of audio/video is available
-    NEXT_FRAME_AVAILABLE,
-    // The next frame of audio/video is unavailable because the decoder
-    // is paused while it buffers up data
-    NEXT_FRAME_UNAVAILABLE_BUFFERING,
-    // The next frame of audio/video is unavailable for some other reasons
-    NEXT_FRAME_UNAVAILABLE
-  };
-  void UpdateReadyStateForData(NextFrameStatus aNextFrame);
 
   // Use this method to change the mReadyState member, so required
   // events can be fired.
@@ -204,29 +181,6 @@ public:
    */
   static void ShutdownMediaTypes();
 
-  /**
-   * Called when a child source element is added to this media element. This
-   * may queue a load() task if appropriate.
-   */
-  void NotifyAddedSource();
-
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-
-  /**
-   * Queues an event to call Load().
-   */
-  void QueueLoadTask();
-
-  /**
-   * Returns the current nsMediaLoad object. Implicit load events store a
-   * reference to the nsMediaLoad object that was current when they were
-   * enqueued, and if it has changed when they come to fire, they consider
-   * themselves cancelled, and don't fire.
-   * Note: When bug 465458 lands, all events are expected to do this, not
-   *       just implicit load events.
-   */
-  nsMediaLoad* GetCurrentMediaLoad() { return mCurrentLoad; }
-
 protected:
   class nsMediaLoadListener;
 
@@ -257,21 +211,12 @@ protected:
    */
   nsresult NewURIFromString(const nsAutoString& aURISpec, nsIURI** aURI);
 
-  /**
-   * Does step 12 of the media load() algorithm, sends error/emptied events to
-   * to the media element, and reset network/begun state.
-   */
-  void NoSupportedMediaError();
-
   nsRefPtr<nsMediaDecoder> mDecoder;
 
   nsCOMPtr<nsIChannel> mChannel;
 
   // Error attribute
   nsCOMPtr<nsIDOMHTMLMediaError> mError;
-
-  // The current media load object.
-  nsRefPtr<nsMediaLoad> mCurrentLoad;
 
   // Media loading flags. See: 
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
@@ -325,11 +270,8 @@ protected:
   // to ensure that the playstate doesn't change when the user goes Forward/Back
   // from the bfcache.
   PRPackedBool mPausedBeforeFreeze;
-  
-  // PR_TRUE if we've reported a "waiting" event since the last
-  // readyState change to HAVE_CURRENT_DATA.
-  PRPackedBool mWaitingFired;
 
-  // PR_TRUE if we're in BindToTree().
-  PRPackedBool mIsBindingToTree;
+  // True if playback was requested before a decoder was available to begin
+  // playback with.
+  PRPackedBool mPlayRequested;
 };

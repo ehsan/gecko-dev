@@ -62,7 +62,6 @@ pkix_LocalRevocationCheckFn(PKIX_PL_Cert *cert, PKIX_PL_Cert *issuer,
                             pkix_RevocationMethod *checkerObject,
                             PKIX_ProcessingParams *procParams,
                             PKIX_UInt32 methodFlags,
-                            PKIX_Boolean chainVerificationState,
                             PKIX_RevocationStatus *pRevStatus,
                             PKIX_UInt32 *reasonCode,
                             void *plContext);

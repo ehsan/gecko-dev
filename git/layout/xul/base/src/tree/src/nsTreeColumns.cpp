@@ -78,7 +78,7 @@ nsTreeColumn::~nsTreeColumn()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumn)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumn)
   if (aIID.Equals(NS_GET_IID(nsTreeColumn))) {
     AddRef();
     *aInstancePtr = this;
@@ -318,15 +318,9 @@ nsTreeColumn::Invalidate()
   const nsStyleText* textStyle = frame->GetStyleText();
 
   mTextAlignment = textStyle->mTextAlign;
-  // DEFAULT or END alignment sometimes means RIGHT
-  if ((mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT &&
-       vis->mDirection == NS_STYLE_DIRECTION_RTL) ||
-      (mTextAlignment == NS_STYLE_TEXT_ALIGN_END &&
-       vis->mDirection == NS_STYLE_DIRECTION_LTR)) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_RIGHT;
-  } else if (mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT ||
-             mTextAlignment == NS_STYLE_TEXT_ALIGN_END) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_LEFT;
+  if (mTextAlignment == 0 || mTextAlignment == 2) { // Left or Right
+    if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+      mTextAlignment = 2 - mTextAlignment; // Right becomes left, left becomes right.
   }
 
   // Figure out if we're the primary column (that has to have indentation
@@ -395,7 +389,7 @@ nsTreeColumns::~nsTreeColumns()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumns)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumns)
 NS_INTERFACE_MAP_END
                                                                                 
 NS_IMPL_ADDREF(nsTreeColumns)

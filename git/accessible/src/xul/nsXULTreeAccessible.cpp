@@ -1281,40 +1281,31 @@ NS_IMETHODIMP nsXULTreeitemAccessible::TakeFocus()
   return nsAccessible::TakeFocus();
 }
 
-NS_IMETHODIMP
-nsXULTreeitemAccessible::GetRelationByType(PRUint32 aRelationType,
-                                           nsIAccessibleRelation **aRelation)
+NS_IMETHODIMP nsXULTreeitemAccessible::GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated)
 {
-  NS_ENSURE_ARG_POINTER(aRelation);
-  *aRelation = nsnull;
-
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  *aRelated = nsnull;
   if (aRelationType == nsIAccessibleRelation::RELATION_NODE_CHILD_OF) {
     PRInt32 columnIndex;
     if (NS_SUCCEEDED(mColumn->GetIndex(&columnIndex)) && columnIndex == 0) {
       PRInt32 parentIndex;
       if (NS_SUCCEEDED(mTreeView->GetParentIndex(mRow, &parentIndex))) {
-        if (parentIndex == -1)
-          return nsRelUtils::AddTarget(aRelationType, aRelation, mParent);
-  
-        nsCOMPtr<nsIAccessibleTreeCache> cache =
-          do_QueryInterface(mParent);
-        nsCOMPtr<nsIAccessible> accParent;
-        nsresult rv = cache->
-          GetCachedTreeitemAccessible(parentIndex, mColumn,
-                                      getter_AddRefs(accParent));
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+        if (parentIndex == -1) {
+          NS_IF_ADDREF(*aRelated = mParent);
+          return NS_OK;
+        } else {
+          nsCOMPtr<nsIAccessibleTreeCache> cache =
+            do_QueryInterface(mParent);
+          return cache->GetCachedTreeitemAccessible(parentIndex, mColumn, aRelated);
+        }
       }
     }
-
     return NS_OK;
   }
 
-  return nsAccessible::GetRelationByType(aRelationType, aRelation);
+  return nsAccessible::GetAccessibleRelated(aRelationType, aRelated);
 }
 
 // attribute AString nsIAccessibleTreeItem::cachedName

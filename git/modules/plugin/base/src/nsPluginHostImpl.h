@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginHostImpl_h_
-#define nsPluginHostImpl_h_
+#ifndef nsPluginHostImpl_h__
+#define nsPluginHostImpl_h__
 
 #include "nsIPluginManager.h"
 #include "nsIPluginManager2.h"
@@ -84,8 +84,11 @@ class nsPluginHostImpl;
 #define NS_PLUGIN_FLAG_UNWANTED     0x0008    // this is an unwanted plugin
 #define NS_PLUGIN_FLAG_BLOCKLISTED  0x0010    // this is a blocklisted plugin
 
-// A linked-list of plugin information that is used for instantiating plugins
-// and reflecting plugin information into JavaScript.
+/**
+ * A linked-list of plugin information that is used for
+ * instantiating plugins and reflecting plugin information
+ * into JavaScript.
+ */
 class nsPluginTag : public nsIPluginTag
 {
 public:
@@ -170,9 +173,9 @@ private:
   nsresult EnsureMembersAreUTF8();
 };
 
-struct nsPluginInstanceTag
+struct nsActivePlugin
 {
-  nsPluginInstanceTag*   mNext;
+  nsActivePlugin*        mNext;
   char*                  mURL;
   nsIPluginInstancePeer* mPeer;
   nsRefPtr<nsPluginTag>  mPluginTag;
@@ -182,39 +185,39 @@ struct nsPluginInstanceTag
   PRPackedBool           mDefaultPlugin;
   PRPackedBool           mXPConnected;
   // Array holding all opened stream listeners for this entry
-  nsCOMPtr <nsISupportsArray> mStreams; 
+  nsCOMPtr <nsISupportsArray>  mStreams; 
 
-  nsPluginInstanceTag(nsPluginTag* aPluginTag,
-                      nsIPluginInstance* aInstance, 
-                      const char * url,
-                      PRBool aDefaultPlugin,
-                      nsIPluginInstancePeer *peer);
-  ~nsPluginInstanceTag();
+  nsActivePlugin(nsPluginTag* aPluginTag,
+                 nsIPluginInstance* aInstance, 
+                 const char * url,
+                 PRBool aDefaultPlugin,
+                 nsIPluginInstancePeer *peer);
+  ~nsActivePlugin();
 
   void setStopped(PRBool stopped);
 };
 
-class nsPluginInstanceTagList
+class nsActivePluginList
 {
 public:
-  nsPluginInstanceTag *mFirst;
-  nsPluginInstanceTag *mLast;
+  nsActivePlugin * mFirst;
+  nsActivePlugin * mLast;
   PRInt32 mCount;
 
-  nsPluginInstanceTagList();
-  ~nsPluginInstanceTagList();
+  nsActivePluginList();
+  ~nsActivePluginList();
 
-  void shutdown();
-  PRBool add(nsPluginInstanceTag *plugin);
-  PRBool remove(nsPluginInstanceTag *plugin);
-  nsPluginInstanceTag *find(nsIPluginInstance *instance);
-  nsPluginInstanceTag *find(const char *mimetype);
-  nsPluginInstanceTag *findStopped(const char *url);
+  void shut();
+  PRBool add(nsActivePlugin * plugin);
+  PRBool remove(nsActivePlugin * plugin);
+  nsActivePlugin * find(nsIPluginInstance* instance);
+  nsActivePlugin * find(const char * mimetype);
+  nsActivePlugin * findStopped(const char * url);
   PRUint32 getStoppedCount();
-  nsPluginInstanceTag *findOldestStopped();
+  nsActivePlugin * findOldestStopped();
   void removeAllStopped();
-  void stopRunning(nsISupportsArray *aReloadDocs, nsPluginTag *aPluginTag);
-  PRBool IsLastInstance(nsPluginInstanceTag *plugin);
+  void stopRunning(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
+  PRBool IsLastInstance(nsActivePlugin * plugin);
 };
 
 class nsPluginHostImpl : public nsIPluginManager2,
@@ -294,8 +297,15 @@ public:
   NS_IMETHOD
   UnregisterPlugin(REFNSIID aCID);
 
+  //nsIPluginHost interface - used to communicate to the nsPluginInstanceOwner
+
   NS_DECL_NSIPLUGINHOST
   NS_DECL_NSIPLUGINMANAGER2
+
+  NS_IMETHOD
+  ProcessNextEvent(PRBool *bEventHandled);
+
+  // XXX not currently used?
   NS_DECL_NSIFACTORY
   NS_DECL_NSIFILEUTILITIES
   NS_DECL_NSICOOKIESTORAGE
@@ -442,14 +452,14 @@ private:
   // Whether java is enabled
   PRPackedBool mJavaEnabled;
 
-  nsPluginInstanceTagList mPluginInstanceTagList;
+  nsActivePluginList mActivePluginList;
   nsVoidArray mUnusedLibraries;
 
-  nsCOMPtr<nsIFile> mPluginRegFile;
-  nsCOMPtr<nsIPrefBranch> mPrefService;
+  nsCOMPtr<nsIFile>                    mPluginRegFile;
+  nsCOMPtr<nsIPrefBranch>              mPrefService;
 #ifdef XP_WIN
   nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
-#endif
+#endif /* XP_WIN */
 
   nsWeakPtr mCurrentDocument; // weak reference, we use it to id document only
 

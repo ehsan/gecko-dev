@@ -49,7 +49,6 @@ menupopup,
 popup,
 panel {
   -moz-appearance: menupopup;
-  background-color: Menu;
 }
 
 menupopup > menu > menupopup,
@@ -60,8 +59,8 @@ popup > menu > menupopup {
 /* ::::: popup internal box ::::: */
 
 .popup-internal-box {
-  -moz-appearance: none;
-  padding: 4px 0;
+        -moz-appearance: none;
+	padding: 4px 0px 4px 0px !important;
 }
 
 /* ::::: tooltip ::::: */
@@ -87,12 +86,4 @@ tooltip[titletip="true"] {
 menulist > menupopup,
 .menulist-menupopup {
   min-width: 0px;
-}
-
-menulist[editable="true"] > menupopup {
-  -moz-appearance: none;
-}
-
-menulist[editable="true"] > menupopup > .popup-internal-box {
-  padding: 0;
 }

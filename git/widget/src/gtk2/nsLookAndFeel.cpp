@@ -412,6 +412,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
             GtkRequisition req;
             GtkWidget *text = gtk_entry_new();
             // needed to avoid memory leak
+            g_object_ref(text);
             g_object_ref_sink(GTK_OBJECT(text));
             gtk_widget_size_request(text,&req);
             aMetric = req.height;
@@ -489,6 +490,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
             gboolean select_on_focus;
 
             entry = gtk_entry_new();
+            g_object_ref(entry);
             g_object_ref_sink(GTK_OBJECT(entry));
             settings = gtk_widget_get_settings(entry);
             g_object_get(settings, 
@@ -534,7 +536,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
                          "gtk-dnd-drag-threshold", &threshold,
                          NULL);
             g_object_ref_sink(GTK_OBJECT(box));
-            
             aMetric = threshold;
         }
         break;
@@ -654,6 +655,7 @@ nsLookAndFeel::InitLookAndFeel()
     GtkWidget *accel_label = gtk_accel_label_new("M");
     GtkWidget *menuitem = gtk_menu_item_new();
     GtkWidget *menu = gtk_menu_new();
+    g_object_ref(GTK_OBJECT(menu));
     g_object_ref_sink(GTK_OBJECT(menu));
 
     gtk_container_add(GTK_CONTAINER(menuitem), accel_label);

@@ -154,8 +154,8 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x075803c5, 0xb37f, 0x489f, \
-  { 0x9b, 0x17, 0x9a, 0x60, 0x44, 0x5d, 0x66, 0x1b } }
+{ 0x355cc896, 0x2ed0, 0x4237, \
+ { 0x85, 0xf7, 0x4d, 0xb0, 0xcf, 0x4d, 0xc4, 0x90 } }
  
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -215,9 +215,7 @@ public:
      returns a non-null value for nsIContent::GetText() */
     eDATA_NODE           = 1 << 12,
     /** nsMathMLElement */
-    eMATHML              = 1 << 13,
-    /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 14
+    eMATHML              = 1 << 13
   };
 
   /**

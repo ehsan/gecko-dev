@@ -2046,9 +2046,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   case NPNVprivateModeBool: {
     nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
     if (pbs) {
-      PRBool enabled;
-      pbs->GetPrivateBrowsingEnabled(&enabled);
-      *(NPBool*)result = (NPBool)enabled;
+      pbs->GetPrivateBrowsingEnabled((PRBool*)result);
       return NPERR_NO_ERROR;
     }
     return NPERR_GENERIC_ERROR;

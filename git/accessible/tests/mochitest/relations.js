@@ -24,106 +24,59 @@ const RELATION_SUBWINDOW_OF = nsIAccessibleRelation.RELATION_SUBWINDOW_OF;
 /**
  * Test the accessible relation.
  *
- * @param aIdentifier          [in] identifier to get an accessible, may be ID
- *                             attribute or DOM element or accessible object
- * @param aRelType             [in] relation type (see constants above)
- * @param aRelatedIdentifiers  [in] identifier or array of identifiers of
- *                             expected related accessibles
+ * @param aIdentifier        [in] identifier to get an accessible implementing
+ *                           the given interfaces may be ID attribute or DOM
+ *                           element or accessible object
+ * @param aRelType           [in] relation type (see constants above)
+ * @param aRelatedIdentifier [in] identifier of expected related accessible
  */
-function testRelation(aIdentifier, aRelType, aRelatedIdentifiers)
+function testRelation(aIdentifier, aRelType, aRelatedIdentifier)
 {
-  var relation = getRelationByType(aIdentifier, aRelType);
+  var actualRelatedAcc = getRelatedAccessible(aIdentifier, aRelType);
 
   var relDescr = getRelationErrorMsg(aIdentifier, aRelType);
-  var relDescrStart = getRelationErrorMsg(aIdentifier, aRelType, true);
-
-  if (!relation || !relation.targetsCount) {
-    if (!aRelatedIdentifiers) {
-      ok(true, "No" + relDescr);
-      return;
-    }
-
-    var msg = relDescrStart + "has no expected targets: '" +
-      prettyName(aRelatedIdentifiers) + "'";
-
-    ok(false, msg);
-    return;
-
-  } else if (!aRelatedIdentifiers) {
-    ok(false, "There are unexpected targets of " + relDescr);
+  if (!actualRelatedAcc && !aRelatedIdentifier) {
+    ok(true, "No" + relDescr);
     return;
   }
 
-  var relatedIds = (aRelatedIdentifiers instanceof Array) ?
-  aRelatedIdentifiers : [aRelatedIdentifiers];
-
-  var targets = [];
-   for (var idx = 0; idx < relatedIds.length; idx++)
-     targets.push(getAccessible(relatedIds[idx]));
-
-  if (targets.length != relatedIds.length)
+  var relatedAcc = getAccessible(aRelatedIdentifier);
+  if (!relatedAcc)
     return;
 
-  var actualTargets = relation.getTargets();
-
-  // Check if all given related accessibles are targets of obtained relation.
-  for (var idx = 0; idx < targets.length; idx++) {
-    var isFound = false;
-    var enumerate = actualTargets.enumerate();
-    while (enumerate.hasMoreElements()) {
-      var relatedAcc = enumerate.getNext().QueryInterface(nsIAccessible);
-      if (targets[idx] == relatedAcc) {
-        isFound = true;
-        break;
-      }
-    }
-
-    ok(isFound, relatedIds[idx] + " is not a target of" + relDescr);
-  }
-
-  // Check if all obtained targets are given related accessibles.
-  var enumerate = actualTargets.enumerate();
-  while (enumerate.hasMoreElements()) {
-    var relatedAcc = enumerate.getNext().QueryInterface(nsIAccessible);
-    for (var idx = 0; idx < targets.length && relatedAcc != targets[idx]; idx++);
-
-    if (idx == targets.length)
-      ok(false, "There is unexpected target" + prettyName(relatedAcc) + "of" + relDescr);
-  }
+  is(actualRelatedAcc, relatedAcc,
+      aRelatedIdentifier + " is not a target of" + relDescr);
 }
 
 /**
  * Return related accessible for the given relation type.
  *
- * @param aIdentifier  [in] identifier to get an accessible, may be ID attribute
- *                     or DOM element or accessible object
+ * @param aIdentifier  [in] identifier to get an accessible implementing
+ *                     the given interfaces may be ID attribute or DOM
+ *                     element or accessible object
  * @param aRelType     [in] relation type (see constants above)
  */
-function getRelationByType(aIdentifier, aRelType)
+function getRelatedAccessible(aIdentifier, aRelType)
 {
   var acc = getAccessible(aIdentifier);
   if (!acc)
     return;
 
-  var relation = null;
+  var relatedAcc = null;
   try {
-    relation = acc.getRelationByType(aRelType);
+    relatedAcc = acc.getAccessibleRelated(aRelType);
   } catch (e) {
     ok(false, "Can't get" + getRelationErrorMsg(aIdentifier, aRelType));
   }
 
-  return relation;
+  return relatedAcc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Private implementation details
 
-function getRelationErrorMsg(aIdentifier, aRelType, aIsStartSentence)
+function getRelationErrorMsg(aIdentifier, aRelType)
 {
   var relStr = relationTypeToString(aRelType);
-  var msg = aIsStartSentence ? "Relation of '" : " relation of '";
-  msg += relStr + "' type for '" + prettyName(aIdentifier) + "'";
-  msg += aIsStartSentence ? " " : ".";
-
-  return msg;
+  return " relation of '" + relStr + "' type for " + aIdentifier + ".";
 }

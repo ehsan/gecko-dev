@@ -431,8 +431,10 @@ endif
 # the Solaris WorkShop template repository cache.  it occasionally can get
 # out of sync, so targets like clobber should kill it.
 #
-ifeq ($(SOLARIS_SUNPRO_CXX),1)
+ifeq ($(OS_ARCH),SunOS)
+ifeq ($(GNU_CXX),)
 GARBAGE_DIRS += SunWS_cache
+endif
 endif
 
 ifeq ($(OS_ARCH),OpenVMS)
@@ -1325,7 +1327,7 @@ endif
 
 ifdef MOZ_AUTO_DEPS
 ifdef COMPILER_DEPEND
-ifeq ($(SOLARIS_SUNPRO_CC),1)
+ifeq (__SunOS,$(GNU_CC)_$(GNU_CXX)_$(OS_ARCH))
 _MDDEPFILE = $(MDDEPDIR)/$(@F).pp
 
 define MAKE_DEPS_AUTO_CC

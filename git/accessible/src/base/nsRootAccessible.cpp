@@ -1029,15 +1029,13 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
   return nsnull;
 }
 
-NS_IMETHODIMP
-nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
-                                    nsIAccessibleRelation **aRelation)
+NS_IMETHODIMP nsRootAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                                     nsIAccessible **aRelated)
 {
-  NS_ENSURE_ARG_POINTER(aRelation);
-  *aRelation = nsnull;
+  *aRelated = nsnull;
 
   if (!mDOMNode || aRelationType != nsIAccessibleRelation::RELATION_EMBEDS) {
-    return nsDocAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+    return nsDocAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
   }
 
   nsCOMPtr<nsIDocShellTreeItem> treeItem =
@@ -1048,10 +1046,9 @@ nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
     nsCOMPtr<nsIAccessibleDocument> accDoc =
       GetDocAccessibleFor(contentTreeItem, PR_TRUE);
 
-    nsCOMPtr<nsIAccessible> acc(do_QueryInterface(accDoc));
-    return nsRelUtils::AddTarget(aRelationType, aRelation, acc);
+    if (accDoc)
+      CallQueryInterface(accDoc, aRelated);
   }
-
   return NS_OK;
 }
 

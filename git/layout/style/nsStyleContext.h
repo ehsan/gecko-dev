@@ -163,6 +163,9 @@ public:
   NS_HIDDEN_(nsChangeHint) CalcStyleDifference(nsStyleContext* aOther);
 
 #ifdef DEBUG
+  NS_HIDDEN_(void) DumpRegressionData(nsPresContext* aPresContext, FILE* out,
+                                      PRInt32 aIndent);
+
   NS_HIDDEN_(void) List(FILE* out, PRInt32 aIndent);
 #endif
 

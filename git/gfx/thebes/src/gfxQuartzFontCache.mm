@@ -133,11 +133,11 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSUFontID aFontID,
                                PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle,
                                gfxUserFontData *aUserFontData)
-    : gfxFontEntry(aPostscriptName), mFamily(nsnull), mATSUFontID(aFontID),
-      mATSUIDInitialized(PR_TRUE), mStandardFace(PR_FALSE)
 {
     // xxx - stretch is basically ignored for now
 
+    mATSUIDInitialized = PR_TRUE;
+    mATSUFontID = aFontID;
     mUserFontData = aUserFontData;
     mWeight = aWeight;
     mStretch = aStretch;
@@ -147,12 +147,15 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSUFontID aFon
     mTraits = (mItalic ? NSItalicFontMask : NSUnitalicFontMask) |
               (mFixedPitch ? NSFixedPitchFontMask : 0) |
               (mWeight >= 600 ? NSBoldFontMask : NSUnboldFontMask);
+
+    mName = aPostscriptName;
+
+    mStandardFace = PR_FALSE;
 }
 
 const nsString& 
 MacOSFontEntry::FamilyName()
 {
-    // XXXbz what if mFamily is null, as it seems to be for downloaded fonts?
     return mFamily->Name();
 }
 
@@ -1289,37 +1292,25 @@ gfxQuartzFontCache::AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString
 }
 
 gfxFontEntry* 
-gfxQuartzFontCache::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                    const nsAString& aFontName)
+gfxQuartzFontCache::LookupLocalFont(const nsAString& aFontName)
 {
     NSString *faceName = GetNSStringForString(aFontName);
-    
-    // first lookup a single face based on postscript name
-    ATSFontRef fontRef = ATSFontFindFromPostScriptName(CFStringRef(faceName), 
-                                                       kATSOptionFlagsDefault);
+    NSFont *font = [NSFont fontWithName:faceName size:0.0];
 
-    // if not found, lookup using full font name
-    if (fontRef == kInvalidFont)
-        fontRef = ATSFontFindFromName(CFStringRef(faceName), 
-                                      kATSOptionFlagsDefault);
-                                      
-    // not found                                  
-    if (fontRef == kInvalidFont)
-        return nsnull;
+    if (font) {
+        nsAutoString availableFamilyName;
+        NSString *availableFamily = [font familyName];
+        GetStringForNSString(availableFamily, availableFamilyName);
 
-    PRUint16 w = aProxyEntry->mWeight;
-    NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
+        MacOSFamilyEntry *familyEntry = FindFamily(availableFamilyName);
+        if (familyEntry) {
+            MacOSFontEntry *fontEntry = familyEntry->FindFont(aFontName);
+            return fontEntry;
+        }
+    }
 
-    MacOSFontEntry *newFontEntry =
-        new MacOSFontEntry(aFontName, 
-                           FMGetFontFromATSFontRef(fontRef),
-                           w, aProxyEntry->mStretch, 
-                           (PRUint32(aProxyEntry->mItalic) ? 
-                           FONT_STYLE_ITALIC : 
-                           FONT_STYLE_NORMAL), 
-                           nsnull);
-
-    return newFontEntry;
+    // didn't find the font
+    return nsnull;
 }
 
 // grumble, another non-publised Apple API dependency (found in Webkit code)

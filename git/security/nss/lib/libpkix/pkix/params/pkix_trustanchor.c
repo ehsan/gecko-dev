@@ -393,10 +393,6 @@ PKIX_TrustAnchor_CreateWithCert(
                     PKIX_COULDNOTCREATETRUSTANCHOROBJECT);
 
         /* initialize fields */
-        PKIX_CHECK(
-            PKIX_PL_Cert_SetAsTrustAnchor(cert, plContext),
-            PKIX_CERTSETASTRUSTANCHORFAILED);
-
         PKIX_INCREF(cert);
         anchor->trustedCert = cert;
 

@@ -28,7 +28,6 @@
  *   Ginn Chen <ginn.chen@sun.com>
  *   Simon Bünzli <zeniko@gmail.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Ningjie Chen <chenn@email.uc.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,7 +47,7 @@
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
 #include "nsIMEStateManager.h"
-#include "nsContentEventHandler.h"
+#include "nsQueryContentEventHandler.h"
 #include "nsIContent.h"
 #include "nsINodeInfo.h"
 #include "nsIDocument.h"
@@ -375,90 +374,47 @@ class nsMouseWheelTransaction {
 public:
   static nsIFrame* GetTargetFrame() { return sTargetFrame; }
   static void BeginTransaction(nsIFrame* aTargetFrame,
-                               PRInt32 aNumLines,
-                               PRBool aScrollHorizontal);
-  // Be careful, UpdateTransaction may fire a DOM event, therefore, the target
-  // frame might be destroyed in the event handler.
-  static PRBool UpdateTransaction(PRInt32 aNumLines,
-                                  PRBool aScrollHorizontal);
+                               nsGUIEvent* aEvent);
+  static void UpdateTransaction();
   static void EndTransaction();
   static void OnEvent(nsEvent* aEvent);
-  static void Shutdown();
 protected:
   static nsIntPoint GetScreenPoint(nsGUIEvent* aEvent);
-  static void OnFailToScrollTarget();
-  static void OnTimeout(nsITimer *aTimer, void *aClosure);
-  static void SetTimeout();
   static PRUint32 GetTimeoutTime();
   static PRUint32 GetIgnoreMoveDelayTime();
 
   static nsWeakFrame sTargetFrame;
   static PRUint32    sTime;        // in milliseconds
   static PRUint32    sMouseMoved;  // in milliseconds
-  static nsITimer*   sTimer;
 };
 
 nsWeakFrame nsMouseWheelTransaction::sTargetFrame(nsnull);
 PRUint32    nsMouseWheelTransaction::sTime        = 0;
 PRUint32    nsMouseWheelTransaction::sMouseMoved  = 0;
-nsITimer*   nsMouseWheelTransaction::sTimer       = nsnull;
-
-static PRBool
-CanScrollOn(nsIScrollableView* aScrollView, PRInt32 aNumLines,
-            PRBool aScrollHorizontal)
-{
-  NS_PRECONDITION(aScrollView, "aScrollView is null");
-  NS_PRECONDITION(aNumLines, "aNumLines must be non-zero");
-  PRBool canScroll;
-  nsresult rv =
-    aScrollView->CanScroll(aScrollHorizontal, aNumLines > 0, canScroll);
-  return NS_SUCCEEDED(rv) && canScroll;
-}
 
 void
 nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
-                                          PRInt32 aNumLines,
-                                          PRBool aScrollHorizontal)
+                                          nsGUIEvent* aEvent)
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
   sTargetFrame = aTargetFrame;
-  if (!UpdateTransaction(aNumLines, aScrollHorizontal)) {
-    NS_ERROR("BeginTransaction is called even cannot scroll the frame");
-    EndTransaction();
-  }
+  UpdateTransaction();
 }
 
-PRBool
-nsMouseWheelTransaction::UpdateTransaction(PRInt32 aNumLines,
-                                           PRBool aScrollHorizontal)
+void
+nsMouseWheelTransaction::UpdateTransaction()
 {
-  nsIScrollableViewProvider* svp = do_QueryFrame(GetTargetFrame());
-  NS_ENSURE_TRUE(svp, PR_FALSE);
-  nsIScrollableView *scrollView = svp->GetScrollableView();
-  NS_ENSURE_TRUE(scrollView, PR_FALSE);
-
-  if (!CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
-    OnFailToScrollTarget();
-    // We should not modify the transaction state when the view will not be
-    // scrolled actually.
-    return PR_FALSE;
-  }
-
-  SetTimeout();
   // We should use current time instead of nsEvent.time.
   // 1. Some events doesn't have the correct creation time.
   // 2. If the computer runs slowly by other processes eating the CPU resource,
   //    the event creation time doesn't keep real time.
   sTime = PR_IntervalToMilliseconds(PR_IntervalNow());
   sMouseMoved = 0;
-  return PR_TRUE;
 }
 
 void
 nsMouseWheelTransaction::EndTransaction()
 {
-  if (sTimer)
-    sTimer->Cancel();
   sTargetFrame = nsnull;
 }
 
@@ -476,11 +432,8 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
     return;
 
   if (OutOfTime(sTime, GetTimeoutTime())) {
-    // Even if the scroll event which is handled after timeout, but onTimeout
-    // was not fired by timer, then the scroll event will scroll old frame,
-    // therefore, we should call OnTimeout here and ensure to finish the old
-    // transaction.
-    OnTimeout(nsnull, nsnull);
+    // Time out the current transaction.
+    EndTransaction();
     return;
   }
 
@@ -527,65 +480,6 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
       EndTransaction();
       return;
   }
-}
-
-void
-nsMouseWheelTransaction::Shutdown()
-{
-  NS_IF_RELEASE(sTimer);
-}
-
-void
-nsMouseWheelTransaction::OnFailToScrollTarget()
-{
-  NS_PRECONDITION(sTargetFrame, "We don't have mouse scrolling transaction");
-  // This event is used for automated tests, see bug 442774.
-  nsContentUtils::DispatchTrustedEvent(
-                    sTargetFrame->GetContent()->GetOwnerDoc(),
-                    sTargetFrame->GetContent(),
-                    NS_LITERAL_STRING("MozMouseScrollFailed"),
-                    PR_TRUE, PR_TRUE);
-  // The target frame might be destroyed in the event handler, at that time,
-  // we need to finish the current transaction
-  if (!sTargetFrame)
-    EndTransaction();
-}
-
-void
-nsMouseWheelTransaction::OnTimeout(nsITimer* aTimer, void* aClosure)
-{
-  if (!sTargetFrame) {
-    // The transaction target was destroyed already
-    EndTransaction();
-    return;
-  }
-  // Store the sTargetFrame, the variable becomes null in EndTransaction.
-  nsIFrame* frame = sTargetFrame;
-  // We need to finish current transaction before DOM event firing. Because
-  // the next DOM event might create strange situation for us.
-  EndTransaction();
-  // This event is used for automated tests, see bug 442774.
-  nsContentUtils::DispatchTrustedEvent(
-                    frame->GetContent()->GetOwnerDoc(),
-                    frame->GetContent(),
-                    NS_LITERAL_STRING("MozMouseScrollTransactionTimeout"),
-                    PR_TRUE, PR_TRUE);
-}
-
-void
-nsMouseWheelTransaction::SetTimeout()
-{
-  if (!sTimer) {
-    nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
-    if (!timer)
-      return;
-    timer.swap(sTimer);
-  }
-  sTimer->Cancel();
-  nsresult rv =
-    sTimer->InitWithFuncCallback(OnTimeout, nsnull, GetTimeoutTime(),
-                                 nsITimer::TYPE_ONE_SHOT);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "nsITimer::InitWithFuncCallback failed");
 }
 
 nsIntPoint
@@ -726,7 +620,6 @@ nsEventStateManager::~nsEventStateManager()
 
   --sESMInstanceCount;
   if(sESMInstanceCount == 0) {
-    nsMouseWheelTransaction::Shutdown();
     NS_IF_RELEASE(gLastFocusedContent);
     NS_IF_RELEASE(gLastFocusedDocument);
     if (gUserInteractionTimerCallback) {
@@ -1066,8 +959,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         break;
 
       if (mDocument) {
-        nsIMEStateManager::OnTextStateBlur(mPresContext, mCurrentFocus);
-
         if (gLastFocusedDocument && gLastFocusedPresContextWeak) {
           nsCOMPtr<nsPIDOMWindow> ourWindow =
             gLastFocusedDocument->GetWindow();
@@ -1185,8 +1076,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           NS_IF_RELEASE(gLastFocusedContent);
           gLastFocusedContent = mCurrentFocus;
           NS_IF_ADDREF(gLastFocusedContent);
-
-          nsIMEStateManager::OnTextStateFocus(mPresContext, mCurrentFocus);
         }
 
         // Try to keep the focus controllers and the globals in synch
@@ -1257,8 +1146,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         if (gLastFocusedContent && !gLastFocusedContent->IsInDoc()) {
           NS_RELEASE(gLastFocusedContent);
         }
-
-        nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
 
         // Now fire blurs.  We fire a blur on the focused document, element,
         // and window.
@@ -1432,8 +1319,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
       if (focusController)
         focusController->SetSuppressFocus(PR_TRUE, "Deactivate Suppression");
-
-      nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
 
       // Now fire blurs.  Blur the content, then the document, then the window.
 
@@ -1609,38 +1494,26 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_QUERY_SELECTED_TEXT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQueryTextContent((nsQueryContentEvent*)aEvent);
+    }
+    break;
+  case NS_QUERY_CHARACTER_RECT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQueryCharacterRect((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_CARET_RECT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQueryCaretRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_QUERY_TEXT_RECT:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnQueryTextRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_QUERY_EDITOR_RECT:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnQueryEditorRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_SELECTION_SET:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnSelectionEvent((nsSelectionEvent*)aEvent);
     }
     break;
   }
@@ -2738,14 +2611,9 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   nsIFrame* lastScrollFrame = nsMouseWheelTransaction::GetTargetFrame();
   if (lastScrollFrame) {
     nsIScrollableViewProvider* svp = do_QueryFrame(lastScrollFrame);
-    if (svp && (scrollView = svp->GetScrollableView())) {
-      nsMouseWheelTransaction::UpdateTransaction(aNumLines, aScrollHorizontal);
-      // When the scroll event will not scroll any views, UpdateTransaction
-      // fired MozMouseScrollFailed event which is for automated testing.
-      // In the event handler, the target frame might be destroyed.  Then,
-      // we should not keep handling this scroll event.
-      if (!nsMouseWheelTransaction::GetTargetFrame())
-        return NS_OK;
+    if (svp) {
+      scrollView = svp->GetScrollableView();
+      nsMouseWheelTransaction::UpdateTransaction();
     } else {
       nsMouseWheelTransaction::EndTransaction();
       lastScrollFrame = nsnull;
@@ -2777,10 +2645,12 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     scrollView->GetLineHeight(&lineHeight);
 
     if (lineHeight != 0) {
-      if (CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
+      PRBool canScroll;
+      nsresult rv = scrollView->CanScroll(aScrollHorizontal,
+                                          (aNumLines > 0), canScroll);
+      if (NS_SUCCEEDED(rv) && canScroll) {
         passToParent = PR_FALSE;
-        nsMouseWheelTransaction::BeginTransaction(scrollFrame,
-                                                  aNumLines, aScrollHorizontal);
+        nsMouseWheelTransaction::BeginTransaction(scrollFrame, aEvent);
       }
 
       // Comboboxes need special care.
@@ -5161,8 +5031,6 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
   // Track the old focus controller if any focus suppressions is used on it.
   nsFocusSuppressor oldFocusSuppressor;
   
-  nsIMEStateManager::OnTextStateBlur(aPresContext, aContent);
-
   if (nsnull != gLastFocusedPresContextWeak) {
 
     nsCOMPtr<nsIContent> focusAfterBlur;
@@ -5393,8 +5261,6 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
     if (clearFirstFocusEvent) {
       mFirstFocusEvent = nsnull;
     }
-
-    nsIMEStateManager::OnTextStateFocus(mPresContext, mCurrentFocus);
   } else if (!aContent) {
     //fire focus on document even if the content isn't focusable (ie. text)
     //see bugzilla bug 93521
@@ -5964,6 +5830,13 @@ nsEventStateManager::MoveCaretToFocus()
   }
 
   if (itemType != nsIDocShellTreeItem::typeChrome) {
+    nsCOMPtr<nsIContent> selectionContent, endSelectionContent;
+    nsIFrame *selectionFrame;
+    PRUint32 selectionOffset;
+    GetDocSelectionLocation(getter_AddRefs(selectionContent),
+                            getter_AddRefs(endSelectionContent),
+                            &selectionFrame, &selectionOffset);
+
     nsIPresShell *shell = mPresContext->GetPresShell();
     if (shell) {
       // rangeDoc is a document interface we can create a range with
@@ -5977,7 +5850,7 @@ nsEventStateManager::MoveCaretToFocus()
           nsCOMPtr<nsIDOMNode> currentFocusNode(do_QueryInterface(mCurrentFocus));
           // First clear the selection
           domSelection->RemoveAllRanges();
-          if (currentFocusNode && !mCurrentFocus->IsNodeOfType(nsINode::eXUL)) {
+          if (currentFocusNode) {
             nsCOMPtr<nsIDOMRange> newRange;
             nsresult rv = rangeDoc->CreateRange(getter_AddRefs(newRange));
             if (NS_SUCCEEDED(rv)) {

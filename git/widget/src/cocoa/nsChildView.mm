@@ -85,10 +85,6 @@
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
 
-// Don't put more than this many rects in the dirty region, just fluff
-// out to the bounding-box if there are more
-#define MAX_RECTS_IN_REGION 100
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -123,8 +119,6 @@ CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
 extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
-PRBool gChildViewMethodsSwizzled = PR_FALSE;
-
 extern nsISupportsArray *gDraggedTransferables;
 
 PRBool nsTSMManager::sIsIMEEnabled = PR_TRUE;
@@ -146,7 +140,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 
 PRUint32 gLastModifierState = 0;
 
-PRBool gUserCancelledDrag = PR_FALSE;
 
 @interface ChildView(Private)
 
@@ -578,12 +571,6 @@ nsresult nsChildView::StandardCreate(nsIWidget *aParent,
     nsToolkit::SwizzleMethods([NSWindow class], @selector(sendEvent:),
                               @selector(nsCocoaWindow_NSWindow_sendEvent:));
     gCocoaWindowMethodsSwizzled = PR_TRUE;
-  }
-  // See NSView (MethodSwizzling) below.
-  if (nsToolkit::OnLeopardOrLater() && !gChildViewMethodsSwizzled) {
-    nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
-                              @selector(nsChildView_NSView_mouseDownCanMoveWindow));
-    gChildViewMethodsSwizzled = PR_TRUE;
   }
 
   mBounds = aRect;
@@ -1329,19 +1316,11 @@ PRBool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
 }
 
 
-// In QuickDraw mode the coordinate system used here should be that of the
-// browser window's content region (defined as everything but the 22-pixel
-// high titlebar).  But in CoreGraphics mode the coordinate system should be
-// that of the browser window as a whole (including its titlebar).  Both
-// coordinate systems have a top-left origin.  See bmo bug 474491.
-//
-// There's a bug in this method's code -- it currently uses the QuickDraw
-// coordinate system for both the QuickDraw and CoreGraphics drawing modes.
-// This bug is fixed by the patch for bug 474491.  But the Flash plugin (both
-// version 10.0.12.36 from Adobe and version 9.0 r151 from Apple) has Mozilla-
-// specific code to work around this bug, which breaks when we fix it (see bmo
-// bug 477077).  So we'll need to coordinate releasing a fix for this bug with
-// Adobe and other major plugin vendors that support the CoreGraphics mode.
+// In QuickDraw mode the coordinate system used here is that of the browser
+// window's content region (defined as everything but the 22-pixel high
+// titlebar).  But in CoreGraphics mode the coordinate system is that of the
+// browser window as a whole (including its titlebar).  Both coordinate
+// systems have a top-left origin.  See bmo bug 474491.
 NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, PRBool& outWidgetVisible)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1353,14 +1332,20 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
   if (!window) return NS_ERROR_FAILURE;
   
   NSPoint viewOrigin = [mView convertPoint:NSZeroPoint toView:nil];
-  NSRect frame = [[window contentView] frame];
+  NSRect frame;
+  if (mPluginIsCG) {
+    frame = [window frame];
+    frame.origin.x = frame.origin.y = 0;
+  } else {
+    frame = [[window contentView] frame];
+  }
   viewOrigin.y = frame.size.height - viewOrigin.y;
   
   // set up the clipping region for plugins.
   NSRect visibleBounds = [mView visibleRect];
   NSPoint clipOrigin   = [mView convertPoint:visibleBounds.origin toView:nil];
   
-  // Convert from cocoa to QuickDraw coordinates
+  // Convert from cocoa to QuickDraw/CoreGraphics coordinates
   clipOrigin.y = frame.size.height - clipOrigin.y;
   
   outClipRect.x = NSToIntRound(clipOrigin.x);
@@ -3054,30 +3039,25 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   if (rgn)
     rgn->Init();
 
+  const NSRect *rects;
+  int count, i;
+  [self getRectsBeingDrawn:&rects count:&count];
+  for (i = 0; i < count; ++i) {
+    const NSRect& r = rects[i];
+
+    // add to the region
+    if (rgn)
+      rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
+
+    // to the context for clipping
+    targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
+  }
+  targetContext->Clip();
+  
   // bounding box of the dirty area
   nsIntRect fullRect;
   NSRectToGeckoRect(aRect, fullRect);
 
-  const NSRect *rects;
-  int count, i;
-  [self getRectsBeingDrawn:&rects count:&count];
-  if (count < MAX_RECTS_IN_REGION) {
-    for (i = 0; i < count; ++i) {
-      const NSRect& r = rects[i];
-
-      // add to the region
-      if (rgn)
-        rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
-
-      // to the context for clipping
-      targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
-    }
-  } else {
-    rgn->Union(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
-    targetContext->Rectangle(gfxRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
-  }
-  targetContext->Clip();
-  
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);
   paintEvent.renderingContext = rc;
   paintEvent.rect = &fullRect;
@@ -5500,8 +5480,8 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   nsIntRect r;
   PRBool useCaretRect = theRange.length == 0;
   if (!useCaretRect) {
-    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_TEXT_RECT, mGeckoChild);
-    charRect.InitForQueryTextRect(theRange.location, 1);
+    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, mGeckoChild);
+    charRect.InitForQueryCharacterRect(theRange.location);
     mGeckoChild->DispatchWindowEvent(charRect);
     if (charRect.mSucceeded)
       r = charRect.mReply.mRect;
@@ -6362,10 +6342,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   gDraggedTransferables = nsnull;
 
-  NSEvent *currentEvent = [NSApp currentEvent];
-  gUserCancelledDrag = ([currentEvent type] == NSKeyDown &&
-                        [currentEvent keyCode] == kEscapeKeyCode);
-
   if (!mDragService) {
     CallGetService(kDragServiceContractID, &mDragService);
     NS_ASSERTION(mDragService, "Couldn't get a drag service - big problem!");
@@ -6960,33 +6936,3 @@ void NS_RemovePluginKeyEventsHandler()
   ::RemoveEventHandler(gPluginKeyEventsHandler);
   gPluginKeyEventsHandler = NULL;
 }
-
-@interface NSView (MethodSwizzling)
-- (BOOL)nsChildView_NSView_mouseDownCanMoveWindow;
-@end
-
-@implementation NSView (MethodSwizzling)
-
-// All top-level browser windows belong to the ToolbarWindow class and have
-// NSTexturedBackgroundWindowMask turned on in their "style" (see particularly
-// [ToolbarWindow initWithContentRect:...] in nsCocoaWindow.mm).  This style
-// normally means the window "may be moved by clicking and dragging anywhere
-// in the window background", but we've suppressed this by giving the
-// ChildView class a mouseDownCanMoveWindow method that always returns NO.
-// Normally a ToolbarWindow's contentView (not a ChildView) returns YES when
-// NSTexturedBackgroundWindowMask is turned on.  But normally this makes no
-// difference.  However, under some (probably very unusual) circumstances
-// (and only on Leopard) it *does* make a difference -- for example it
-// triggers bmo bugs 431902 and 476393.  So here we make sure that a
-// ToolbarWindow's contentView always returns NO from the
-// mouseDownCanMoveWindow method.
-- (BOOL)nsChildView_NSView_mouseDownCanMoveWindow
-{
-  NSWindow *ourWindow = [self window];
-  NSView *contentView = [ourWindow contentView];
-  if ([ourWindow isKindOfClass:[ToolbarWindow class]] && (self == contentView))
-    return NO;
-  return [self nsChildView_NSView_mouseDownCanMoveWindow];
-}
-
-@end

@@ -1573,9 +1573,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
     else if (nsCSSPseudoClasses::mozReadWrite == pseudoClass->mAtom) {
       stateToCheck = NS_EVENT_STATE_MOZ_READWRITE;
     }
-    else if (nsCSSPseudoClasses::indeterminate == pseudoClass->mAtom) {
-      stateToCheck = NS_EVENT_STATE_INDETERMINATE;
-    }
     else if (nsCSSPseudoClasses::mozIsHTML == pseudoClass->mAtom) {
       result = data.mIsHTMLContent &&
         data.mContent->GetNameSpaceID() == kNameSpaceID_None;
@@ -2212,7 +2209,6 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
         (pseudoClass->mAtom == nsCSSPseudoClasses::outOfRange) ||
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozReadOnly) ||
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozReadWrite) ||
-        (pseudoClass->mAtom == nsCSSPseudoClasses::indeterminate) ||
 #ifdef MOZ_MATHML
         (pseudoClass->mAtom == nsCSSPseudoClasses::mozMathIncrementScriptLevel) ||
 #endif

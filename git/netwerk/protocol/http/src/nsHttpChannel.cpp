@@ -255,19 +255,11 @@ nsHttpChannel::Init(nsIURI *uri,
 //-----------------------------------------------------------------------------
 
 nsresult
-nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
-                         nsRunnableMethod<nsHttpChannel> **retval)
+nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr)
 {
-    nsresult rv;
-
-    nsRefPtr<nsRunnableMethod<nsHttpChannel> > event =
+    nsCOMPtr<nsIRunnable> event =
             new nsRunnableMethod<nsHttpChannel>(this, funcPtr);
-    rv = NS_DispatchToCurrentThread(event);
-    if (NS_SUCCEEDED(rv) && retval) {
-        *retval = event;
-    }
-
-    return rv;
+    return NS_DispatchToCurrentThread(event);
 }
 
 PRBool
@@ -349,15 +341,7 @@ nsHttpChannel::Connect(PRBool firstTime)
 
         // read straight from the cache if possible...
         if (mCachedContentIsValid) {
-            nsRunnableMethod<nsHttpChannel> *event = nsnull;
-            if (!mCachedContentIsPartial) {
-                AsyncCall(&nsHttpChannel::AsyncOnExamineCachedResponse, &event);
-            }
-            rv = ReadFromCache();
-            if (NS_FAILED(rv) && event) {
-                event->Revoke();
-            }
-            return rv;
+            return ReadFromCache();
         }
         else if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
             // the cache contains the requested resource, but it must be 
@@ -672,11 +656,6 @@ nsHttpChannel::SetupTransaction()
     if (!mTransaction)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(mTransaction);
-
-    // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-        mCaps |= NS_HTTP_LOAD_ANONYMOUS;
-    }
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
     rv = mTransaction->Init(mCaps, mConnectionInfo, &mRequestHead,
@@ -5612,8 +5591,3 @@ nsHttpChannel::DetermineStoragePolicy()
     return policy;
 }
 
-void
-nsHttpChannel::AsyncOnExamineCachedResponse()
-{
-    gHttpHandler->OnExamineCachedResponse(this);
-}

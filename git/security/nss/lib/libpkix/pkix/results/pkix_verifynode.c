@@ -1203,7 +1203,7 @@ pkix_VerifyNode_FindError(
         }
     }
     
-    if (node->error && node->error->plErr) {
+    if (node->error) {
         PKIX_INCREF(node->error);
         *error = node->error;
     }

@@ -235,11 +235,11 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   // gather the new frames (only those which are cells) into an array
   nsIAtom* cellFrameType = (tableFrame->IsBorderCollapse()) ? nsGkAtoms::bcTableCellFrame : nsGkAtoms::tableCellFrame;
   nsTableCellFrame* prevCellFrame = (nsTableCellFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, cellFrameType);
-  nsTArray<nsTableCellFrame*> cellChildren;
+  nsVoidArray cellChildren;
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
-      cellChildren.AppendElement(static_cast<nsTableCellFrame*>(childFrame));
+      cellChildren.AppendElement(childFrame);
     }
   }
   // insert the cells into the cell map
@@ -924,7 +924,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
                                             cellDesiredSize.height);
         
         // if we are in a floated table, our position is not yet established, so we cannot reposition our views
-        // the containing block will do this for us after positioning the table
+        // the containing glock will do this for us after positioning the table
         if (!aTableFrame.GetStyleDisplay()->IsFloating()) {
           // Because we may have moved the frame we need to make sure any views are
           // positioned properly. We have to do this, because any one of our parent

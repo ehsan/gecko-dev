@@ -559,8 +559,18 @@ nsNavBookmarks::InitRoots()
 
   // Set titles for special folders
   // We cannot rely on createdPlacesRoot due to Fx3beta->final migration path
+  nsCOMPtr<nsIPrefService> prefService =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIPrefBranch> prefBranch;
+  rv = prefService->GetBranch("", getter_AddRefs(prefBranch));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   PRUint16 databaseStatus = nsINavHistoryService::DATABASE_STATUS_OK;
   rv = History()->GetDatabaseStatus(&databaseStatus);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (NS_FAILED(rv) ||
       databaseStatus != nsINavHistoryService::DATABASE_STATUS_OK) {
     rv = InitDefaults();
@@ -1149,8 +1159,6 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder, nsIURI *aItem, PRInt32 aIndex,
 NS_IMETHODIMP
 nsNavBookmarks::RemoveItem(PRInt64 aItemId)
 {
-  NS_ENSURE_TRUE(aItemId != mRoot, NS_ERROR_INVALID_ARG);
-
   nsresult rv;
   PRInt32 childIndex;
   PRInt64 placeId, folderId;
@@ -1213,11 +1221,14 @@ nsNavBookmarks::RemoveItem(PRInt64 aItemId)
   rv = UpdateBookmarkHashOnRemove(placeId);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // XXX is this too expensive when updating livemarks?
+  // UpdateBookmarkHashOnRemove() does a sanity check using
+  // IsBookmarkedInDatabase(),  so it might not have actually 
+  // removed the bookmark.  should we have a boolean out param
+  // for if we actually removed it, and use that to decide if we call
+  // UpdateFrecency() and the rest of this code?
   if (itemType == TYPE_BOOKMARK) {
-    // UpdateFrecency needs to know whether placeId is still bookmarked.
-    // Although we removed aItemId, placeId may still be bookmarked elsewhere;
-    // IsRealBookmark will know.
-    rv = History()->UpdateFrecency(placeId, IsRealBookmark(placeId));
+    rv = History()->UpdateFrecency(placeId, PR_FALSE /* isBookmark */);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1479,11 +1490,10 @@ nsNavBookmarks::GetLastChildId(PRInt64 aFolder, PRInt64* aItemId)
   NS_ENSURE_SUCCESS(rv, rv);
   if (!hasMore) {
     // Item doesn't exist
-    *aItemId = -1;
+    return NS_ERROR_INVALID_ARG;
   }
-  else
-    *aItemId = statement->AsInt64(0);
 
+  *aItemId = statement->AsInt64(0);
   return NS_OK;
 }
 
@@ -1493,8 +1503,7 @@ nsNavBookmarks::GetIdForItemAt(PRInt64 aFolder, PRInt32 aIndex, PRInt64* aItemId
   nsresult rv;
   if (aIndex == nsINavBookmarksService::DEFAULT_INDEX) {
     // we want the last item within aFolder
-    rv = GetLastChildId(aFolder, aItemId);
-    NS_ENSURE_SUCCESS(rv, rv);
+    return GetLastChildId(aFolder, aItemId);
   } else {
     {
       // get the item in aFolder with position aIndex
@@ -1510,10 +1519,10 @@ nsNavBookmarks::GetIdForItemAt(PRInt64 aFolder, PRInt32 aIndex, PRInt64* aItemId
       NS_ENSURE_SUCCESS(rv, rv);
       if (!hasMore) {
         // Item doesn't exist
-        *aItemId = -1;
+        return NS_ERROR_INVALID_ARG;
       }
-      else
-        *aItemId = mDBGetChildAt->AsInt64(0);
+      // actually found an item
+      *aItemId = mDBGetChildAt->AsInt64(0);
     }
   }
   return NS_OK;
@@ -1591,11 +1600,10 @@ nsNavBookmarks::GetParentAndIndexOfFolder(PRInt64 aFolder, PRInt64* aParent,
 NS_IMETHODIMP
 nsNavBookmarks::RemoveFolder(PRInt64 aFolderId)
 {
-  NS_ENSURE_TRUE(aFolderId != mRoot, NS_ERROR_INVALID_ARG);
-
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   nsresult rv;
+
   PRInt64 parent;
   PRInt32 index, type;
   nsCAutoString folderType;
@@ -1801,17 +1809,13 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
   // Delete items from the database now.
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
-  nsCOMPtr<mozIStorageStatement> deleteStatement;
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = mDBConn->ExecuteSimpleSQL(
+    NS_LITERAL_CSTRING(
       "DELETE FROM moz_bookmarks "
-      "WHERE parent IN (?1") +
+      "WHERE parent IN (") +
+        nsPrintfCString("%d", aFolderId) +
         foldersToRemove +
-      NS_LITERAL_CSTRING(")"),
-    getter_AddRefs(deleteStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = deleteStatement->BindInt64Parameter(0, aFolderId);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = deleteStatement->Execute();
+      NS_LITERAL_CSTRING(")"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Clean up orphan items annotations.
@@ -1834,10 +1838,13 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
       PRInt64 placeId = child.placeId;
       UpdateBookmarkHashOnRemove(placeId);
 
-      // UpdateFrecency needs to know whether placeId is still bookmarked.
-      // Although we removed a child of aFolderId that bookmarked it, it may
-      // still be bookmarked elsewhere; IsRealBookmark will know.
-      rv = History()->UpdateFrecency(placeId, IsRealBookmark(placeId));
+      // XXX is this too expensive when updating livemarks?
+      // UpdateBookmarkHashOnRemove() does a sanity check using
+      // IsBookmarkedInDatabase(),  so it might not have actually
+      // removed the bookmark.  should we have a boolean out param
+      // for if we actually removed it, and use that to decide if we call
+      // UpdateFrecency() and the rest of this code?
+      rv = History()->UpdateFrecency(placeId, PR_FALSE /* isBookmark */);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -1885,8 +1892,6 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
 NS_IMETHODIMP
 nsNavBookmarks::MoveItem(PRInt64 aItemId, PRInt64 aNewParent, PRInt32 aIndex)
 {
-  NS_ENSURE_TRUE(aItemId != mRoot, NS_ERROR_INVALID_ARG);
-
   // You can pass -1 to indicate append, but no other negative number is allowed
   if (aIndex < -1)
     return NS_ERROR_INVALID_ARG;

@@ -552,7 +552,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   // Make sure we call CalculateChromeFlags() *before* we push the
   // callee context onto the context stack so that
-  // CalculateChromeFlags() sees the actual caller when doing its
+  // CalculateChromeFlags() sees the actual caller when doing it's
   // security checks.
   chromeFlags = CalculateChromeFlags(features.get(), featuresSpecified,
                                      aDialog, uriToLoadIsChrome,
@@ -646,11 +646,12 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
         nsIWebBrowserChrome::CHROME_DEPENDENT;
     }
 
-    // Make sure to not create modal windows if our parent is invisible and
+    // Make sure to not create dependent windows if our parent is invisible and
     // isn't a chrome window.  Otherwise we can end up in a bizarre situation
     // where we can't shut down because an invisible window is open.  If
     // someone tries to do this, throw.
-    if (!chromeParent && (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL)) {
+    if (!chromeParent &&
+        (chromeFlags & nsIWebBrowserChrome::CHROME_DEPENDENT)) {
       PRBool parentVisible = PR_TRUE;
       nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(parentTreeOwner));
       nsCOMPtr<nsIWidget> parentWidget;

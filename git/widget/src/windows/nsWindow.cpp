@@ -34,7 +34,6 @@
  *   Dainis Jonitis <Dainis_Jonitis@swh-t.lv>
  *   Christian Biesinger <cbiesinger@web.de>
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Ningjie Chen <chenn@email.uc.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,20 +77,9 @@
 #include "gfxImageSurface.h"
 
 #ifdef WINCE
-
 #include "aygshell.h"
 #include "imm.h"
-
-#define PAINT_USE_IMAGE_SURFACE
-
-#ifdef WINCE_WINDOWS_MOBILE
-#define WINCE_HAVE_SOFTKB
 #include "tpcshell.h"
-#else
-#undef WINCE_HAVE_SOFTKB
-#include "winuserm.h"
-#endif
-
 #else
 
 #include "nsUXThemeData.h"
@@ -161,20 +149,10 @@
 #include "prprf.h"
 #include "prmem.h"
 
-#ifdef NS_ENABLE_TSF
-#include "nsTextStore.h"
-#endif //NS_ENABLE_TSF
 
-// Don't put more than this many rects in the dirty region, just fluff
-// out to the bounding-box if there are more
-#define MAX_RECTS_IN_REGION 100
 
-/*
- * WinCE helpers
- */
 #ifdef WINCE
 
-#ifdef WINCE_HAVE_SOFTKB
 static PRBool gSoftKeyMenuBar = PR_FALSE;
 
 static void CreateSoftKeyMenuBar(HWND wnd)
@@ -219,7 +197,6 @@ static void CreateSoftKeyMenuBar(HWND wnd)
   
   gSoftKeyMenuBar = mbi.hwndMB;
 }
-#endif  //defined(WINCE_HAVE_SOFTKB)
 
 
 #define IDI_APPLICATION MAKEINTRESOURCE(32512)
@@ -270,7 +247,7 @@ inline BOOL EnumThreadWindows(DWORD inThreadID, WNDENUMPROC inFunc, LPARAM inPar
   return FALSE;
 }
 
-#endif  //defined(WINCE)
+#endif
 
 
 
@@ -769,19 +746,14 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsTopWidgetWindow = PR_FALSE;
   mLastKeyboardLayout = 0;
 
-#ifdef NS_ENABLE_TSF
-  if (!sInstanceCount)
-    nsTextStore::Initialize();
-#endif //NS_ENABLE_TSF
-
 #ifndef WINCE
   if (!sInstanceCount && SUCCEEDED(::OleInitialize(NULL))) {
     sIsOleInitialized = TRUE;
   }
   NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
-#endif
 
   sInstanceCount++;
+#endif
 }
 
 //-------------------------------------------------------------------------
@@ -816,17 +788,11 @@ nsWindow::~nsWindow()
     SetCursor(eCursor_standard);
   }
 
-  sInstanceCount--;
-
-#ifdef NS_ENABLE_TSF
-  if (!sInstanceCount)
-    nsTextStore::Terminate();
-#endif //NS_ENABLE_TSF
-
 #ifndef WINCE
   //
   // delete any of the IME structures that we allocated
   //
+  sInstanceCount--;
   if (sInstanceCount == 0) {
     if (sIMECompUnicode) 
       delete sIMECompUnicode;
@@ -1421,7 +1387,7 @@ nsWindow::StandardWindowCreate(nsIWidget *aParent,
       }
     }
   }
-#if defined(WINCE) && defined(WINCE_HAVE_SOFTKB)
+#ifdef WINCE
   if (mWindowType == eWindowType_dialog || mWindowType == eWindowType_toplevel )
      CreateSoftKeyMenuBar(mWnd);
 #endif
@@ -1679,28 +1645,21 @@ NS_METHOD nsWindow::Show(PRBool bState)
     if (bState) {
       if (!wasVisible && mWindowType == eWindowType_toplevel) {
         switch (mSizeMode) {
-#ifdef WINCE
-          case nsSizeMode_Maximized :
-#ifdef WINCE_WINDOWS_MOBILE
-            ::SetForegroundWindow(mWnd);
-#endif
-            ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
-            break;
-          // use default for nsSizeMode_Minimized on Windows CE
-#else
           case nsSizeMode_Maximized :
             ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
             break;
           case nsSizeMode_Minimized :
+#ifndef WINCE
             ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
-            break;
 #endif
+            break;
           default:
             if (CanTakeFocus()) {
-#ifdef WINCE_WINDOWS_MOBILE
+              ::ShowWindow(mWnd, SW_SHOWNORMAL);
+
+#ifdef WINCE
               ::SetForegroundWindow(mWnd);
 #endif
-              ::ShowWindow(mWnd, SW_SHOWNORMAL);
             } else {
               // Place the window behind the foreground window
               // (as long as it is not topmost)
@@ -1812,14 +1771,6 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
   if (aMode == mSizeMode)
     return NS_OK;
 
-#ifdef WINCE_WINDOWS_MOBILE
-  // on windows mobile, dialogs and top level windows are full screen
-  // This is partly due to the lack of a GetWindowPlacement.
-  if (mWindowType == eWindowType_dialog || mWindowType == eWindowType_toplevel) {
-    aMode = nsSizeMode_Maximized;
-  }
-#endif
-
   // save the requested state
   rv = nsBaseWidget::SetSizeMode(aMode);
   if (NS_SUCCEEDED(rv) && mIsVisible) {
@@ -1829,8 +1780,8 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Maximized :
         mode = SW_MAXIMIZE;
         break;
-#ifndef WINCE
       case nsSizeMode_Minimized :
+#ifndef WINCE
         mode = gTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
         if (!gTrimOnMinimize) {
           // Find the next window that is visible and not minimized.
@@ -1851,8 +1802,8 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
           // forgotten when we use SW_SHOWMINIMIZED.
           ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
         }
-        break;
 #endif
+        break;
       default :
         mode = SW_RESTORE;
     }
@@ -2865,12 +2816,6 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
 #else
       return (void*)::GetDC(mWnd);
 #endif
-
-#ifdef NS_ENABLE_TSF
-    case NS_NATIVE_TSF_POINTER:
-      return nsTextStore::GetNativeData();
-#endif //NS_ENABLE_TSF
-
     case NS_NATIVE_COLORMAP:
     default:
       break;
@@ -4095,10 +4040,6 @@ EventMsgInfo gAllEvents[] = {
   {"WM_PENWINFIRST",            0x0380},
   {"WM_PENWINLAST",             0x038F},
   {"WM_APP",                    0x8000},
-  {"WM_DWMCOMPOSITIONCHANGED",  0x031E},
-  {"WM_DWMNCRENDERINGCHANGED",  0x031F},
-  {"WM_DWMCOLORIZATIONCOLORCHANGED", 0x0320},
-  {"WM_DWMWINDOWMAXIMIZEDCHANGE", 0x0321},
   {NULL, 0x0}
 };
 
@@ -4755,9 +4696,11 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
         if (WA_INACTIVE == fActive) {
           gJustGotDeactivate = PR_TRUE;
-#ifndef WINCE
           if (mIsTopWidgetWindow)
+#ifndef WINCE
             mLastKeyboardLayout = gKbdLayout.GetLayout();
+#else
+          ;
 #endif
         } else {
           gJustGotActivate = PR_TRUE;
@@ -4827,7 +4770,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
       }
 #endif
 
-#if defined(WINCE) && defined(WINCE_HAVE_SOFTKB)
+#ifdef WINCE
       // On Windows CE, we have a window that overlaps
       // the ISP button.  In this case, we should always
       // try to hide it when we are activated
@@ -4855,7 +4798,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
       break;
 
     case WM_KILLFOCUS:
-#if defined(WINCE) && defined(WINCE_HAVE_SOFTKB)
+#ifdef WINCE
       {
         // Get current input context
         HIMC hC = ImmGetContext(mWnd);
@@ -4994,7 +4937,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
           }
           gJustGotDeactivate = PR_FALSE;
           result = DispatchFocus(NS_DEACTIVATE, isMozWindowTakingFocus);
-        } else if (pl.showCmd == SW_SHOWNORMAL && !(wp->flags & SWP_NOACTIVATE)){
+        } else if (pl.showCmd == SW_SHOWNORMAL){
           // Make sure we're active
           result = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
           result = DispatchFocus(NS_ACTIVATE, PR_TRUE);
@@ -5008,6 +4951,22 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
     break;
 
     case WM_SETTINGCHANGE:
+#ifdef WINCE
+      if (wParam == SPI_SETWORKAREA)
+      {
+        RECT workArea;
+        ::SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
+     
+        SetWindowPos(mWnd, 
+                     nsnull, 
+                     workArea.left, 
+                     workArea.top, 
+                     workArea.right, 
+                     workArea.bottom, 
+                     SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+      }
+      else
+#endif
         getWheelInfo = PR_TRUE;
       break;
 
@@ -5350,12 +5309,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
       }
 #endif // WINCE
 
-#ifdef NS_ENABLE_TSF
-      else if (msg == WM_USER_TSF_TEXTCHANGE) {
-        nsTextStore::OnTextChangeMsg();
-      }
-#endif //NS_ENABLE_TSF
-
     }
     break;
 #ifndef WINCE
@@ -5370,6 +5323,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
     break;
 #endif
   }
+
 
   //*aRetValue = result;
   if (mWnd) {
@@ -5703,36 +5657,15 @@ DWORD nsWindow::WindowStyle()
 {
   DWORD style;
 
-  /* On Windows Mobile, we want very simple window styles; this is
-   * just optimizing for full-screen apps that don't want any
-   * titlebar/etc.  UI.  We should probably allow apps some
-   * finer-grained control over these types at some point, but for now
-   * this will work fine.  If we're on Windows CE, we probably have a
-   * full window manager, so we make dialog/toplevel windows be real
-   * windows.  In addition, we do the post-processing on the style
-   * (e.g. disabling the thick resize window if we don't have resize
-   * handles specified in the style).
-   */
-  /* Note: On Windows CE (and presumably Mobile), WS_OVERLAPPED provides
-   * space for a menu bar in the window, which we don't want; it shouldn't
-   * be used. */
-#if defined(WINCE)
+#ifdef WINCE
   switch (mWindowType) {
     case eWindowType_child:
       style = WS_CHILD;
       break;
 
     case eWindowType_dialog:
-      style = WS_BORDER | WS_POPUP;
-#ifndef WINCE_WINDOWS_MOBILE
-      style |= WS_SYSMENU;
-      if (mBorderStyle != eBorderStyle_default)
-        style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
-#endif
-      break;
-
     case eWindowType_popup:
-      style = WS_POPUP;
+      style = WS_BORDER | WS_POPUP;
       break;
 
     default:
@@ -5742,11 +5675,9 @@ DWORD nsWindow::WindowStyle()
     case eWindowType_toplevel:
     case eWindowType_invisible:
       style = WS_BORDER;
-#ifndef WINCE_WINDOWS_MOBILE
-      style |= WS_DLGFRAME | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
-#endif
       break;
   }
+
 #else
   switch (mWindowType) {
     case eWindowType_child:
@@ -5754,19 +5685,23 @@ DWORD nsWindow::WindowStyle()
       break;
 
     case eWindowType_dialog:
-      style = WS_OVERLAPPED | WS_BORDER | WS_DLGFRAME | WS_SYSMENU | DS_3DLOOK | DS_MODALFRAME;
-      if (mBorderStyle != eBorderStyle_default)
-        style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+      if (mBorderStyle == eBorderStyle_default) {
+        style = WS_OVERLAPPED | WS_BORDER | WS_DLGFRAME | WS_SYSMENU |
+                DS_3DLOOK | DS_MODALFRAME;
+      } else {
+        style = WS_OVERLAPPED | WS_BORDER | WS_DLGFRAME | WS_SYSMENU |
+                DS_3DLOOK | DS_MODALFRAME |
+                WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+      }
       break;
 
     case eWindowType_popup:
-      style = WS_POPUP;
       if (mTransparencyMode == eTransparencyGlass) {
         /* Glass seems to need WS_CAPTION or WS_THICKFRAME to work.
            WS_THICKFRAME has issues with autohiding popups but looks better */
-        style |= WS_THICKFRAME;
+        style = WS_POPUP | WS_THICKFRAME;
       } else {
-        style |= WS_OVERLAPPED;
+        style = WS_OVERLAPPED | WS_POPUP;
       }
       break;
 
@@ -5780,9 +5715,7 @@ DWORD nsWindow::WindowStyle()
               WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
       break;
   }
-#endif
 
-#ifndef WINCE_WINDOWS_MOBILE
   if (mBorderStyle != eBorderStyle_default && mBorderStyle != eBorderStyle_all) {
     if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_border))
       style &= ~WS_BORDER;
@@ -5955,12 +5888,6 @@ PRBool nsWindow::OnMove(PRInt32 aX, PRInt32 aY)
 
 static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 
-static void
-AddRECTToRegion(const RECT& aRect, nsIRegion* aRegion)
-{
-  aRegion->Union(aRect.left, aRect.top, aRect.right - aRect.left, aRect.bottom - aRect.top);
-}
-
 static already_AddRefed<nsIRegion>
 ConvertHRGNToRegion(HRGN aRgn)
 {
@@ -5980,16 +5907,11 @@ ConvertHRGNToRegion(HRGN aRgn)
   RGNDATA* data = reinterpret_cast<RGNDATA*>(buffer.Elements());
   if (!::GetRegionData(aRgn, size, data))
     return region.forget();
-
-  if (data->rdh.nCount > MAX_RECTS_IN_REGION) {
-    AddRECTToRegion(data->rdh.rcBound, region);
-    return region.forget();
-  }
-
+    
   RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
   for (PRUint32 i = 0; i < data->rdh.nCount; ++i) {
     RECT* r = rects + i;
-    AddRECTToRegion(*r, region);
+    region->Union(r->left, r->top, r->right - r->left, r->bottom - r->top);
   }
 
   return region.forget();
@@ -6095,7 +6017,8 @@ PRBool nsWindow::OnPaint(HDC aDC)
                            (PRInt32) mWnd);
 #endif // NS_DEBUG
 
-#if defined(MOZ_XUL) && !defined(PAINT_USE_IMAGE_SURFACE)
+#ifndef WINCE
+#ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
       if (eTransparencyTransparent == mTransparencyMode) {
         if (mTransparentSurface == nsnull)
@@ -6104,25 +6027,24 @@ PRBool nsWindow::OnPaint(HDC aDC)
       } else {
         targetSurface = new gfxWindowsSurface(hDC);
       }
-#elif defined(PAINT_USE_IMAGE_SURFACE)
-      gfxIntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
-                             ps.rcPaint.bottom - ps.rcPaint.top);
-      nsRefPtr<gfxImageSurface> targetSurface = new gfxImageSurface(surfaceSize,
+#else
+      nsRefPtr<gfxASurface> targetSurface = new gfxWindowsSurface(hDC);
+#endif
+#else
+      nsRefPtr<gfxImageSurface> targetSurface = new gfxImageSurface(gfxIntSize(ps.rcPaint.right - ps.rcPaint.left,
+                                                                               ps.rcPaint.bottom - ps.rcPaint.top),
                                                                     gfxASurface::ImageFormatRGB24);
       if (targetSurface && !targetSurface->CairoStatus()) {
         targetSurface->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
       }
-#else
-      nsRefPtr<gfxASurface> targetSurface = new gfxWindowsSurface(hDC);
 #endif
+
 
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
       thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
-      // don't need to double buffer with PAINT_USE_IMAGE_SURFACE;
-      // it's implicitly double buffered
-#if !defined(PAINT_USE_IMAGE_SURFACE)
-# if defined(MOZ_XUL)
+#ifndef WINCE
+#if defined(MOZ_XUL)
       if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
         thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
       } else if (eTransparencyTransparent == mTransparencyMode) {
@@ -6135,11 +6057,11 @@ PRBool nsWindow::OnPaint(HDC aDC)
         // If we're not doing translucency, then double buffer
         thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
       }
-# else
+#else
       // If we're not doing translucency, then double buffer
       thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
-# endif
 #endif
+#endif /* ifndef WINCE */
 
       nsCOMPtr<nsIRenderingContext> rc;
       nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
@@ -6164,37 +6086,24 @@ PRBool nsWindow::OnPaint(HDC aDC)
         // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
         // that displayed on the screen.
         UpdateTranslucentWindow();
-      } else
-#endif
-      if (result) {
-#ifndef PAINT_USE_IMAGE_SURFACE
+      } else if (result) {
+
+#ifndef WINCE
         // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
         // this, and we'll just end up painting with black.
         thebesContext->PopGroupToSource();
         thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
         thebesContext->Paint();
 #else
-        // Just blit this directly
-        BITMAPINFOHEADER bi;
-        memset(&bi, 0, sizeof(BITMAPINFOHEADER));
-        bi.biSize = sizeof(BITMAPINFOHEADER);
-        bi.biWidth = surfaceSize.width;
-        bi.biHeight = - surfaceSize.height;
-        bi.biPlanes = 1;
-        bi.biBitCount = 32;
-        bi.biCompression = BI_RGB;
+        nsRefPtr<gfxASurface> winSurface = new gfxWindowsSurface(hDC);
+        nsRefPtr<gfxContext> winCtx = new gfxContext(winSurface);
 
-        StretchDIBits(hDC,
-                      ps.rcPaint.left, ps.rcPaint.top,
-                      surfaceSize.width, surfaceSize.height,
-                      0, 0,
-                      surfaceSize.width, surfaceSize.height,
-                      targetSurface->Data(),
-                      (BITMAPINFO*) &bi,
-                      DIB_RGB_COLORS,
-                      SRCCOPY);
+        winCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        winCtx->SetSource(targetSurface);
+        winCtx->Paint();
 #endif
       }
+#endif
     }
   }
 
@@ -6982,7 +6891,7 @@ nsWindow::GetTextRangeList(PRUint32* aListLength,
 
     // iterate over the attributes
     int lastOffset = 0;
-    for (unsigned int i = 0; i < *aListLength; i++) {
+    for (int i = 0; i < *aListLength; i++) {
       long current = sIMECompClauseArray[i + 1];
       NS_ASSERTION(current <= maxlen, "wrong offset");
       if(current > maxlen)
@@ -7524,8 +7433,8 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 
   nsIntRect r;
   if (!useCaretRect) {
-    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_TEXT_RECT, this);
-    charRect.InitForQueryTextRect(offset, 1);
+    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, this);
+    charRect.InitForQueryCharacterRect(offset);
     InitEvent(charRect, &point);
     DispatchWindowEvent(&charRect);
     if (charRect.mSucceeded)
@@ -7633,11 +7542,6 @@ NS_IMETHODIMP nsWindow::ResetInputState()
 #ifdef DEBUG_KBSTATE
   printf("ResetInputState\n");
 #endif
-
-#ifdef NS_ENABLE_TSF
-  nsTextStore::CommitComposition(PR_FALSE);
-#endif //NS_ENABLE_TSF
-
   HIMC hIMC = ::ImmGetContext(mWnd);
   if (hIMC) {
     BOOL ret = FALSE;
@@ -7655,11 +7559,6 @@ NS_IMETHODIMP nsWindow::SetIMEOpenState(PRBool aState)
 #ifdef DEBUG_KBSTATE
   printf("SetIMEOpenState %s\n", (aState ? "Open" : "Close"));
 #endif 
-
-#ifdef NS_ENABLE_TSF
-  nsTextStore::SetIMEOpenState(aState);
-#endif //NS_ENABLE_TSF
-
   HIMC hIMC = ::ImmGetContext(mWnd);
   if (hIMC) {
     ::ImmSetOpenStatus(hIMC, aState ? TRUE : FALSE);
@@ -7678,21 +7577,12 @@ NS_IMETHODIMP nsWindow::GetIMEOpenState(PRBool* aState)
     ::ImmReleaseContext(mWnd, hIMC);
   } else 
     *aState = PR_FALSE;
-
-#ifdef NS_ENABLE_TSF
-  *aState |= nsTextStore::GetIMEOpenState();
-#endif //NS_ENABLE_TSF
-
   return NS_OK;
 }
 
 //==========================================================================
 NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
 {
-#ifdef NS_ENABLE_TSF
-  nsTextStore::SetIMEEnabled(aState);
-#endif //NS_ENABLE_TSF
-
   if (sIMEIsComposing)
     ResetInputState();
   mIMEEnabled = aState;
@@ -7719,11 +7609,6 @@ NS_IMETHODIMP nsWindow::CancelIMEComposition()
 #ifdef DEBUG_KBSTATE
   printf("CancelIMEComposition\n");
 #endif 
-
-#ifdef NS_ENABLE_TSF
-  nsTextStore::CommitComposition(PR_TRUE);
-#endif //NS_ENABLE_TSF
-
   HIMC hIMC = ::ImmGetContext(mWnd);
   if (hIMC) {
     BOOL ret = FALSE;
@@ -7928,30 +7813,6 @@ static VOID CALLBACK nsGetAttentionTimerFunc(HWND hwnd, UINT uMsg, UINT idEvent,
   else
     gAttentionTimerMonitor->KillTimer(hwnd);
 }
-
-
-#ifdef NS_ENABLE_TSF
-NS_IMETHODIMP
-nsWindow::OnIMEFocusChange(PRBool aFocus)
-{
-  return nsTextStore::OnFocusChange(aFocus, this, mIMEEnabled);
-}
-
-NS_IMETHODIMP
-nsWindow::OnIMETextChange(PRUint32 aStart,
-                          PRUint32 aOldEnd,
-                          PRUint32 aNewEnd)
-{
-  return nsTextStore::OnTextChange(aStart, aOldEnd, aNewEnd);
-}
-
-NS_IMETHODIMP
-nsWindow::OnIMESelectionChange(void)
-{
-  return nsTextStore::OnSelectionChange();
-}
-#endif //NS_ENABLE_TSF
-
 
 // Draw user's attention to this window until it comes to foreground.
 NS_IMETHODIMP

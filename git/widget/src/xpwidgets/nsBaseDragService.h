@@ -129,8 +129,6 @@ protected:
   PRPackedBool mDoingDrag;
   // true if mImage should be used to set a drag image
   PRPackedBool mHasImage;
-  // true if the user cancelled the drag operation
-  PRPackedBool mUserCancelled;
 
   PRUint32 mDragAction;
   nsSize mTargetSize;

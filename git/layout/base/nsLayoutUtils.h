@@ -329,10 +329,10 @@ public:
   static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
 
   /**
-   * @return PR_TRUE if aFrame is the root element frame for
+   * @return PR_TRUE if aFrame is the CSS initial containing block for
    * its pres-shell
    */
-  static PRBool IsRootElementFrame(nsIFrame* aFrame);
+  static PRBool IsInitialContainingBlock(nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -755,8 +755,7 @@ public:
                          nsIRenderingContext* aContext,
                          const PRUnichar*     aString,
                          PRInt32              aLength,
-                         nsPoint              aPoint,
-                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         nsPoint              aPoint);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsIRenderingContext* aContext,

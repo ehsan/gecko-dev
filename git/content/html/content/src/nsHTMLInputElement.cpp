@@ -322,9 +322,6 @@ protected:
                             nsITextControlFrame* aFrame,
                             PRBool aUserInput);
 
-  nsresult SetIndeterminateInternal(PRBool aValue,
-                                    PRBool aShouldInvalidate);
-
   nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
 
   /**
@@ -689,7 +686,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                        NS_EVENT_STATE_USERDISABLED |
                                        NS_EVENT_STATE_SUPPRESSED |
                                        NS_EVENT_STATE_LOADING |
-                                       NS_EVENT_STATE_INDETERMINATE |
                                        NS_EVENT_STATE_MOZ_READONLY |
                                        NS_EVENT_STATE_MOZ_READWRITE);
       }
@@ -767,33 +763,17 @@ nsHTMLInputElement::GetIndeterminate(PRBool* aValue)
   return NS_OK;
 }
 
-nsresult
-nsHTMLInputElement::SetIndeterminateInternal(PRBool aValue,
-                                             PRBool aShouldInvalidate)
-{
-  SET_BOOLBIT(mBitField, BF_INDETERMINATE, aValue);
-
-  if (aShouldInvalidate) {
-    // Repaint the frame
-    nsIFrame* frame = GetPrimaryFrame();
-    if (frame)
-      frame->InvalidateOverflowRect();
-  }
-
-  // Notify the document so it can update :indeterminate pseudoclass rules
-  nsIDocument* document = GetCurrentDoc();
-  if (document) {
-    mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
-    document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INDETERMINATE);
-  }
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsHTMLInputElement::SetIndeterminate(PRBool aValue)
 {
-  return SetIndeterminateInternal(aValue, PR_TRUE);
+  SET_BOOLBIT(mBitField, BF_INDETERMINATE, aValue);
+
+  // Repaint the frame
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame)
+    frame->InvalidateOverflowRect();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1559,7 +1539,7 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
         {
           if (GET_BOOLBIT(mBitField, BF_INDETERMINATE)) {
             // indeterminate is always set to FALSE when the checkbox is toggled
-            SetIndeterminateInternal(PR_FALSE, PR_FALSE);
+            SET_BOOLBIT(mBitField, BF_INDETERMINATE, PR_FALSE);
             aVisitor.mItemFlags |= NS_ORIGINAL_INDETERMINATE_VALUE;
           }
 
@@ -1715,7 +1695,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       } else if (oldType == NS_FORM_INPUT_CHECKBOX) {
         PRBool originalIndeterminateValue =
           !!(aVisitor.mItemFlags & NS_ORIGINAL_INDETERMINATE_VALUE);
-        SetIndeterminateInternal(originalIndeterminateValue, PR_FALSE);
+        SET_BOOLBIT(mBitField, BF_INDETERMINATE, originalIndeterminateValue);
         DoSetChecked(originalCheckedValue);
       }
     } else {
@@ -2747,11 +2727,6 @@ nsHTMLInputElement::IntrinsicState() const
     // Check current checked state (:checked)
     if (GET_BOOLBIT(mBitField, BF_CHECKED)) {
       state |= NS_EVENT_STATE_CHECKED;
-    }
-
-    // Check current indeterminate state (:indeterminate)
-    if (mType == NS_FORM_INPUT_CHECKBOX && GET_BOOLBIT(mBitField, BF_INDETERMINATE)) {
-      state |= NS_EVENT_STATE_INDETERMINATE;
     }
 
     // Check whether we are the default checked element (:default)

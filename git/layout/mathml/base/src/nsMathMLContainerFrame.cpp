@@ -714,7 +714,8 @@ nsMathMLContainerFrame::RebuildAutomaticDataForChildren(nsIFrame* aParentFrame)
 }
 
 /* static */ nsresult
-nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame)
+nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame,
+                                         nsFrameState aBits)
 {
   if (!aParentFrame)
     return NS_OK;
@@ -742,9 +743,6 @@ nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame)
 
     // mark the frame dirty, and continue to climb up.  It's important that
     // we're NOT doing this to the frame we plan to pass to FrameNeedsReflow()
-    // XXXldb Why do we need to bother with this?  Marking ancestor
-    // dirty (which we do below) should do a superset of the work this
-    // does.
     frame->AddStateBits(NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
 
     frame = parent;
@@ -760,7 +758,7 @@ nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame)
     return NS_OK;
 
   return frame->PresContext()->PresShell()->
-    FrameNeedsReflow(frame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+    FrameNeedsReflow(frame, nsIPresShell::eStyleChange, aBits);
 }
 
 // There are precise rules governing children of a MathML frame,
@@ -784,13 +782,10 @@ nsMathMLContainerFrame::ChildListChanged(PRInt32 aModType)
 
       // Important: do not do this to the frame we plan to pass to
       // ReLayoutChildren
-      // XXXldb Why do we need to bother with this?  Marking ancestor
-      // dirty (which we do below) should do a superset of the work this
-      // does.
       frame->AddStateBits(NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
     }
   }
-  return ReLayoutChildren(frame);
+  return ReLayoutChildren(frame, NS_FRAME_IS_DIRTY);
 }
 
 NS_IMETHODIMP

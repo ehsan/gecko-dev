@@ -77,8 +77,8 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     NS_IMETHOD GetName(nsAString& aName);
     NS_IMETHOD GetParent(nsIAccessible * *aParent);
     NS_IMETHOD GetRole(PRUint32 *aRole);
-    NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                                 nsIAccessibleRelation **aRelation);
+    NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType,
+                                    nsIAccessible **aRelated);
 
     // ----- nsPIAccessibleDocument -----------------------
     NS_IMETHOD FireDocLoadEvents(PRUint32 aEventType);

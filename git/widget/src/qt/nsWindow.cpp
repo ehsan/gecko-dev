@@ -248,7 +248,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsWindow, nsBaseWidget, nsISupportsWeakReference)
 
 NS_IMETHODIMP
 nsWindow::Create(nsIWidget        *aParent,
-                 const nsIntRect     &aRect,
+                 const nsRect     &aRect,
                  EVENT_CALLBACK   aHandleEventFunction,
                  nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
@@ -264,7 +264,7 @@ nsWindow::Create(nsIWidget        *aParent,
 
 NS_IMETHODIMP
 nsWindow::Create(nsNativeWidget aParent,
-                 const nsIntRect     &aRect,
+                 const nsRect     &aRect,
                  EVENT_CALLBACK   aHandleEventFunction,
                  nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
@@ -416,7 +416,7 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
     QPoint pos(aX, aY);
     if (mDrawingArea) {
         if (mParent && mDrawingArea->windowType() == Qt::Popup) {
-            nsIntRect oldrect, newrect;
+            nsRect oldrect, newrect;
             oldrect.x = aX;
             oldrect.y = aY;
 
@@ -586,9 +586,9 @@ nsWindow::SetFocus(PRBool aRaise)
 }
 
 NS_IMETHODIMP
-nsWindow::GetScreenBounds(nsIntRect &aRect)
+nsWindow::GetScreenBounds(nsRect &aRect)
 {
-    nsIntRect origin(0, 0, mBounds.width, mBounds.height);
+    nsRect origin(0, 0, mBounds.width, mBounds.height);
     WidgetToScreen(origin, aRect);
     LOG(("GetScreenBounds %d %d | %d %d | %d %d\n",
          aRect.x, aRect.y,
@@ -708,7 +708,7 @@ nsWindow::Invalidate(PRBool aIsSynchronous)
 }
 
 NS_IMETHODIMP
-nsWindow::Invalidate(const nsIntRect &aRect,
+nsWindow::Invalidate(const nsRect &aRect,
                      PRBool        aIsSynchronous)
 {
     LOGDRAW(("Invalidate (rect) [%p,%p]: %d %d %d %d (sync: %d)\n", (void *)this,
@@ -774,7 +774,7 @@ nsWindow::SetColorMap(nsColorMap *aColorMap)
 NS_IMETHODIMP
 nsWindow::Scroll(PRInt32  aDx,
                  PRInt32  aDy,
-                 nsIntRect  *aClipRect)
+                 nsRect  *aClipRect)
 {
     if (!mDrawingArea)
         return NS_OK;
@@ -783,7 +783,7 @@ nsWindow::Scroll(PRInt32  aDx,
 
     // Update bounds on our child windows
     for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
-        nsIntRect bounds;
+        nsRect bounds;
         kid->GetBounds(bounds);
         bounds.x += aDx;
         bounds.y += aDy;
@@ -806,7 +806,7 @@ nsWindow::ScrollWidgets(PRInt32 aDx,
 }
 
 NS_IMETHODIMP
-nsWindow::ScrollRect(nsIntRect  &aSrcRect,
+nsWindow::ScrollRect(nsRect  &aSrcRect,
                      PRInt32  aDx,
                      PRInt32  aDy)
 {
@@ -914,7 +914,7 @@ nsWindow::ShowMenuBar(PRBool aShow)
 }
 
 NS_IMETHODIMP
-nsWindow::WidgetToScreen(const nsIntRect& aOldRect, nsIntRect& aNewRect)
+nsWindow::WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect)
 {
     NS_ENSURE_TRUE(mDrawingArea, NS_OK);
 
@@ -930,7 +930,7 @@ nsWindow::WidgetToScreen(const nsIntRect& aOldRect, nsIntRect& aNewRect)
 }
 
 NS_IMETHODIMP
-nsWindow::ScreenToWidget(const nsIntRect& aOldRect, nsIntRect& aNewRect)
+nsWindow::ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect)
 {
     NS_ENSURE_TRUE(mDrawingArea, NS_OK);
 
@@ -1174,7 +1174,7 @@ nsWindow::OnPaintEvent(QPaintEvent *aEvent)
     QRect r = aEvent->rect();
     if (!r.isValid())
         r = mDrawingArea->rect();
-    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
+    nsRect rect(r.x(), r.y(), r.width(), r.height());
     event.refPoint.x = aEvent->rect().x();
     event.refPoint.y = aEvent->rect().y();
     event.rect = &rect; // was null FIXME
@@ -1225,7 +1225,7 @@ nsWindow::OnMoveEvent(QMoveEvent *aEvent)
     QPoint pos = aEvent->pos();
     if (mIsTopLevel) {
         // Need to translate this into the right coordinates
-        nsIntRect oldrect, newrect;
+        nsRect oldrect, newrect;
         WidgetToScreen(oldrect, newrect);
         mBounds.x = newrect.x;
         mBounds.y = newrect.y;
@@ -1244,7 +1244,7 @@ nsWindow::OnMoveEvent(QMoveEvent *aEvent)
 nsEventStatus
 nsWindow::OnResizeEvent(QResizeEvent *e)
 {
-    nsIntRect rect;
+    nsRect rect;
 
     // Generate XPFE resize event
     GetBounds(rect);
@@ -1634,7 +1634,7 @@ nsWindow::showEvent(QShowEvent *)
     // qDebug("FIXME:>>>>>>Func:%s::%d\n", __PRETTY_FUNCTION__, __LINE__);
 /*
     QRect r = mDrawingArea->rect();
-    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
+    nsRect rect(r.x(), r.y(), r.width(), r.height());
 
     nsCOMPtr<nsIRenderingContext> rc = getter_AddRefs(GetRenderingContext());
        // Generate XPFE paint event
@@ -1774,7 +1774,7 @@ GetBrandName(nsXPIDLString& brandName)
 nsresult
 nsWindow::NativeCreate(nsIWidget        *aParent,
                        nsNativeWidget    aNativeParent,
-                       const nsIntRect     &aRect,
+                       const nsRect     &aRect,
                        EVENT_CALLBACK    aHandleEventFunction,
                        nsIDeviceContext *aContext,
                        nsIAppShell      *aAppShell,
@@ -1810,12 +1810,6 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
     mDrawingArea = createQWidget(parent, aInitData);
 
     Initialize(mDrawingArea);
-
-    // disable focus handling for secondary windows (problems with mouse selection and NS_ACTIVATE)
-    if (aParent != nsnull)
-    {
-        mDrawingArea->setFocusPolicy(Qt::NoFocus);
-    }
 
     LOG(("Create: nsWindow [%p] [%p]\n", (void *)this, (void *)mDrawingArea));
 
@@ -1905,7 +1899,7 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     if (mDrawingArea)
     {
         if (mParent && mDrawingArea->windowType() == Qt::Popup) {
-            nsIntRect oldrect, newrect;
+            nsRect oldrect, newrect;
             oldrect.x = aX;
             oldrect.y = aY;
 
@@ -2196,7 +2190,7 @@ void
 key_event_to_context_menu_event(nsMouseEvent &aEvent,
                                 QKeyEvent *aGdkEvent)
 {
-    aEvent.refPoint = nsIntPoint(0, 0);
+    aEvent.refPoint = nsPoint(0, 0);
     aEvent.isShift = PR_FALSE;
     aEvent.isControl = PR_FALSE;
     aEvent.isAlt = PR_FALSE;
@@ -2448,7 +2442,7 @@ nsWindow::DispatchDeactivateEvent(void)
 }
 
 void
-nsWindow::DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus)
+nsWindow::DispatchResizeEvent(nsRect &aRect, nsEventStatus &aStatus)
 {
     nsSizeEvent event(PR_TRUE, NS_SIZE, this);
 
@@ -2537,7 +2531,7 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
     // XXXvlad what?
 #if 0
     if (mParent && mDrawingArea->windowType() == Qt::Popup) {
-        nsIntRect oldrect, newrect;
+        nsRect oldrect, newrect;
         oldrect.x = aX;
         oldrect.y = aY;
 

@@ -127,7 +127,6 @@ public:
 
   CacheEntry* GetEntry(nsIURI* aURI, nsIPrincipal* aPrincipal,
                        PRBool aWithCredentials, PRBool aCreate);
-  void RemoveEntries(nsIURI* aURI, nsIPrincipal* aPrincipal);
 
   void Clear();
 

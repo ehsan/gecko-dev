@@ -3834,17 +3834,11 @@ nsWebBrowserPersist::MakeAndStoreLocalFilenameInURIMap(
 
     // Create a sensibly named filename for the URI and store in the URI map
     nsCStringKey key(spec.get());
-    URIData *data;
     if (mURIMap.Exists(&key))
     {
-        data = (URIData *) mURIMap.Get(&key);
-        if (aNeedsPersisting)
-        {
-          data->mNeedsPersisting = PR_TRUE;
-        }
         if (aData)
         {
-            *aData = data;
+            *aData = (URIData *) mURIMap.Get(&key);
         }
         return NS_OK;
     }
@@ -3855,7 +3849,7 @@ nsWebBrowserPersist::MakeAndStoreLocalFilenameInURIMap(
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     // Store the file name
-    data = new URIData;
+    URIData *data = new URIData;
     NS_ENSURE_TRUE(data, NS_ERROR_OUT_OF_MEMORY);
 
     data->mNeedsPersisting = aNeedsPersisting;

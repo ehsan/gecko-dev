@@ -303,7 +303,6 @@ public:
 
   virtual NS_HIDDEN_(nsresult) SaveWindowState(nsISupports **aState);
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
-  virtual NS_HIDDEN_(void) SuspendTimeouts();
   virtual NS_HIDDEN_(nsresult) ResumeTimeouts();
   virtual NS_HIDDEN_(nsresult) FireDelayedDOMEvents();
   virtual NS_HIDDEN_(PRBool) IsFrozen() const
@@ -600,6 +599,8 @@ protected:
 
   already_AddRefed<nsIWidget> GetMainWidget();
 
+  void SuspendTimeouts();
+
   void Freeze()
   {
     NS_ASSERTION(!IsFrozen(), "Double-freezing?");
@@ -626,14 +627,6 @@ protected:
   PRBool IsTimeout(PRCList* aList) {
     return aList != &mTimeouts;
   }
-
-  // Convenience functions for the many methods that need to scale
-  // from device to CSS pixels or vice versa.  Note: if a presentation
-  // context is not available, they will assume a 1:1 ratio.
-  PRInt32 DevToCSSIntPixels(PRInt32 px);
-  PRInt32 CSSToDevIntPixels(PRInt32 px);
-  nsIntSize DevToCSSIntPixels(nsIntSize px);
-  nsIntSize CSSToDevIntPixels(nsIntSize px);
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
 
@@ -731,8 +724,6 @@ protected:
   JSObject* mJSObject;
 
   nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
-
-  PRUint32 mTimeoutsSuspendDepth;
 
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;

@@ -118,9 +118,26 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 } // extern "C"
 
 
-/* We don't need STUB_ENTRY, since the stubs are defined explicitly in xptc_arm_ceppc.asm */
 
-#define STUB_ENTRY(n) /* */
+// these macros get defined inside xptc_asm_ceppc.asm
+// asm prototypes
+#define STUB_ENTRY(n)                               \
+nsresult __stdcall asmXPTCStubBase_Stub##n( void );
+
+#define SENTINEL_ENTRY(n)
+
+#include "xptcstubsdef.inc"
+
+#undef STUB_ENTRY
+#undef SENTINEL_ENTRY
+
+#define STUB_ENTRY(n)                               \
+nsresult 					                          \
+__stdcall nsXPTCStubBase::Stub##n()                 \
+{                                                   \
+	return asmXPTCStubBase_Stub##n();               \
+}                                                   \
+
 
 #define SENTINEL_ENTRY(n)                              \
 nsresult __stdcall nsXPTCStubBase::Sentinel##n()       \
@@ -129,6 +146,8 @@ nsresult __stdcall nsXPTCStubBase::Sentinel##n()       \
     return NS_ERROR_NOT_IMPLEMENTED;                   \
 }                                                      
 #include "xptcstubsdef.inc"
+
+
 
 void xptc_dummy()
 {

@@ -2,11 +2,6 @@
 // General
 
 /**
- * Set up this variable to dump events into DOM.
- */
-var gA11yEventDumpID = "";
-
-/**
  * Register accessibility event listener.
  *
  * @param aEventType     the accessible event type (see nsIAccessibleEvent for
@@ -208,20 +203,6 @@ function eventQueue(aEventType)
       // We wait for events in order specified by eventSeq variable.
       var idx = this.mEventSeqIdx + 1;
 
-      if (gA11yEventDumpID) { // debug stuff
-        var eventType = this.mEventSeq[idx][0];
-        var target = this.mEventSeq[idx][1];
-
-        var info = "Event queue processing. Event type: ";
-        info += gAccRetrieval.getStringEventType(eventType) + ". Target: ";
-        info += (target.localName ? target.localName : target);
-        if (target.nodeType == nsIDOMNode.ELEMENT_NODE &&
-            target.hasAttribute("id"))
-          info += " '" + target.getAttribute("id") + "'";
-
-        dumpInfoToDOM(info);
-      }
-
       if (aEvent.eventType == this.mEventSeq[idx][0] &&
           aEvent.DOMNode == this.mEventSeq[idx][1]) {
 
@@ -261,7 +242,7 @@ function eventQueue(aEventType)
 
     if (this.mEventSeq) {
       aInvoker.wasCaught = new Array(this.mEventSeq.length);
-
+      
       for (var idx = 0; idx < this.mEventSeq.length; idx++)
         addA11yEventListener(this.mEventSeq[idx][0], this);
     }
@@ -298,6 +279,7 @@ var gObserverService = null;
 
 var gA11yEventListeners = {};
 var gA11yEventApplicantsCount = 0;
+var gA11yEventDumpID = ""; // set up this variable to dump events into DOM.
 
 var gA11yEventObserver =
 {
@@ -310,8 +292,9 @@ var gA11yEventObserver =
     var listenersArray = gA11yEventListeners[event.eventType];
 
     if (gA11yEventDumpID) { // debug stuff
-      var target = event.DOMNode;
       var dumpElm = document.getElementById(gA11yEventDumpID);
+
+      var target = event.DOMNode;
 
       var parent = target;
       while (parent && parent != dumpElm)
@@ -319,17 +302,14 @@ var gA11yEventObserver =
 
       if (parent != dumpElm) {
         var type = gAccRetrieval.getStringEventType(event.eventType);
-        var info = "Event type: " + type + ". Target: ";
-        info += (target.localName ? target.localName : target);
-
-        if (target.nodeType == nsIDOMNode.ELEMENT_NODE &&
-            target.hasAttribute("id"))
-          info += " '" + target.getAttribute("id") + "'";
-
+        var info = "event type: " + type + ", target: " + target.localName;
         if (listenersArray)
-          info += ". Listeners count: " + listenersArray.length;
+          info += ", registered listeners count is " + listenersArray.length;
 
-        dumpInfoToDOM(info);
+        var div = document.createElement("div");      
+        div.textContent = info;
+
+        dumpElm.appendChild(div);
       }
     }
 
@@ -382,12 +362,4 @@ function removeA11yEventListener(aEventType, aEventHandler)
   }
 
   return true;
-}
-
-function dumpInfoToDOM(aInfo)
-{
-  var dumpElm = document.getElementById(gA11yEventDumpID);
-  var div = document.createElement("div");      
-  div.textContent = aInfo;
-  dumpElm.appendChild(div);
 }

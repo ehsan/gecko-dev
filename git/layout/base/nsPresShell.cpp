@@ -1009,8 +1009,6 @@ public:
   static PRLogModuleInfo* gLog;
 #endif
 
-  NS_IMETHOD DisableNonTestMouseEvents(PRBool aDisable);
-
 protected:
   virtual ~PresShell();
 
@@ -1177,8 +1175,6 @@ protected:
   ReflowCountMgr * mReflowCountMgr;
 #endif
 
-  static PRBool sDisableNonTestMouseEvents;
-
 private:
 
   PRBool InZombieDocument(nsIContent *aContent);
@@ -1253,8 +1249,6 @@ public:
 
   nsRefPtr<PresShell> mPresShell;
 };
-
-PRBool PresShell::sDisableNonTestMouseEvents = PR_FALSE;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* PresShell::gLog;
@@ -5379,62 +5373,34 @@ PresShell::Paint(nsIView*             aView,
 
   // Compute the backstop color for the view.  This color must be
   // totally transparent if the view is within a glass or transparent
-  // widget; otherwise it must be totally opaque.  The user's default
-  // background color as recorded in the prescontext is guaranteed to
+  // widget; otherwise, use the default in the prescontext, which will
   // be opaque.
 
-  nscolor backgroundColor = mPresContext->DefaultBackgroundColor();
+  PRBool needTransparency = PR_FALSE;
+
   for (nsIView *view = aView; view; view = view->GetParent()) {
     if (view->HasWidget() &&
         view->GetWidget()->GetTransparencyMode() != eTransparencyOpaque) {
-      backgroundColor = NS_RGBA(0,0,0,0);
+      needTransparency = PR_TRUE;
       break;
     }
   }
 
-  // Check whether the view manager knows the background color of the
-  // canvas.  We set this below, and the docshell propagates it across
-  // page loads; using it in preference to the user's default color
-  // avoids screen flashing in between pages that use the same
-  // non-default background.
-  //
-  // If we're called at some weird moment when there is no view
-  // manager, default to transparent.
-  nscolor viewDefaultColor = NS_RGBA(0,0,0,0);
-  if (mViewManager)
-    mViewManager->GetDefaultBackgroundColor(&viewDefaultColor);
+  nscolor backgroundColor;
+  if (needTransparency)
+    backgroundColor = NS_RGBA(0,0,0,0);
+  else
+    backgroundColor = mPresContext->DefaultBackgroundColor();
 
-  // If we don't have a frame tree yet, all we can do is paint the
-  // backstop colors.
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (!frame) {
-    backgroundColor = NS_ComposeColors(backgroundColor, viewDefaultColor);
+  if (frame) {
+    nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
+                              backgroundColor);
+  } else if (NS_GET_A(backgroundColor) > 0) {
     aRenderingContext->SetColor(backgroundColor);
     aRenderingContext->FillRect(aDirtyRegion.GetBounds());
-    return NS_OK;
   }
 
-  // If we do have a frame tree, check whether it specifies a canvas
-  // background color yet.  If it does, use that instead of whatever
-  // color the view manager reported, and update the view manager
-  // accordingly.
-  nsIFrame* rootFrame = FrameConstructor()->GetRootElementStyleFrame();
-  if (rootFrame) {
-    const nsStyleBackground* bgStyle =
-      nsCSSRendering::FindRootFrameBackground(rootFrame);
-    // XXX ideally we would set the view manager default to
-    // bgStyle->mBackgroundColor, and nsViewManager::DefaultRefresh would
-    // be able to cope with partial transparency.  But it can't so we can't.
-    // -- zwol 2009-02-11
-    backgroundColor = NS_ComposeColors(backgroundColor,
-                                       bgStyle->mBackgroundColor);
-    mViewManager->SetDefaultBackgroundColor(backgroundColor);
-  } else {
-    backgroundColor = NS_ComposeColors(backgroundColor, viewDefaultColor);
-  }
-
-  nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
-                            backgroundColor);
   return NS_OK;
 }
 
@@ -5565,22 +5531,13 @@ nsresult PresShell::RetargetEventToParent(nsGUIEvent*     aEvent,
 }
 
 NS_IMETHODIMP
-PresShell::DisableNonTestMouseEvents(PRBool aDisable)
-{
-  sDisableNonTestMouseEvents = aDisable;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 PresShell::HandleEvent(nsIView         *aView,
                        nsGUIEvent*     aEvent,
                        nsEventStatus*  aEventStatus)
 {
   NS_ASSERTION(aView, "null view");
 
-  if (mIsDestroying || !nsContentUtils::IsSafeToRunScript() ||
-      (sDisableNonTestMouseEvents && NS_IS_MOUSE_EVENT(aEvent) &&
-       !(aEvent->flags & NS_EVENT_FLAG_SYNTETIC_TEST_EVENT))) {
+  if (mIsDestroying || !nsContentUtils::IsSafeToRunScript()) {
     return NS_OK;
   }
 

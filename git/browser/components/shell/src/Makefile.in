@@ -65,7 +65,7 @@ REQUIRES	= \
 		  layout \
 		  $(NULL)
 
-ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
+ifeq ($(OS_ARCH),WINNT)
 CPPSRCS = nsWindowsShellService.cpp
 REQUIRES	+= \
 		browsercomps \

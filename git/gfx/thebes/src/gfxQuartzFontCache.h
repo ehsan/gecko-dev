@@ -234,8 +234,7 @@ public:
     
     void AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString& aOtherFamilyName);
 
-    gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                  const nsAString& aFontName);
+    gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
     
     gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength);
 
