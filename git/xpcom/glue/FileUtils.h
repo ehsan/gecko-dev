@@ -1,4 +1,5 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -11,14 +12,16 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla code
+ * The Original Code is Mozilla code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Justin Lebar <justin.lebar@gmail.com>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *   Taras Glek <tglek@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,30 +37,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function run_test() {
-  var ps = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefService);
+#ifndef mozilla_FileUtils_h
+#define mozilla_FileUtils_h
+namespace mozilla {
 
-  var pb2= Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch2);
+class AutoFDClose
+{
+public:
+  AutoFDClose(PRFileDesc* fd = nsnull) : mFD(fd) { }
+  ~AutoFDClose() { if (mFD) PR_Close(mFD); }
 
-  var pb = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
-
-  var observer = {
-    QueryInterface: function QueryInterface(aIID) {
-      if (aIID.equals(Ci.nsIObserver) ||
-          aIID.equals(Ci.nsISupports))
-         return this;
-      throw Components.results.NS_NOINTERFACE;
-    },
-
-    observe: function observe(aSubject, aTopic, aState) {
-      // Don't do anything.
-    }
+  PRFileDesc* operator= (PRFileDesc *fd) {
+    if (mFD) PR_Close(mFD);
+    mFD = fd;
+    return fd;
   }
 
-  /* Set the same pref twice.  This shouldn't leak. */
-  pb.addObserver("UserPref.nonexistent.setIntPref", observer, false);
-  pb.addObserver("UserPref.nonexistent.setIntPref", observer, false);
-}
+  operator PRFileDesc* () { return mFD; }
+  PRFileDesc** operator &() { *this = nsnull; return &mFD; }
+
+private:
+  PRFileDesc *mFD;
+};
+
+} // namespace mozilla
+#endif
