@@ -24,7 +24,7 @@
 #include <media/stagefright/foundation/ABase.h>
 #include <utils/RefBase.h>
 
-namespace stagefright {
+namespace android {
 
 struct AMessage;
 
@@ -66,6 +66,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ABuffer);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // A_BUFFER_H_

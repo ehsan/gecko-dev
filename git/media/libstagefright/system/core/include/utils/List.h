@@ -30,7 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace stagefright {
+namespace android {
 
 /*
  * Doubly-linked list.  Instantiate with "List<MyClass> myList".
@@ -56,11 +56,9 @@ protected:
         inline void setVal(const T& val) { mVal = val; }
         inline void setPrev(_Node* ptr) { mpPrev = ptr; }
         inline void setNext(_Node* ptr) { mpNext = ptr; }
-#ifndef _MSC_VER
     private:
         friend class List;
         friend class _ListIterator;
-#endif
         T           mVal;
         _Node*      mpPrev;
         _Node*      mpNext;
@@ -329,6 +327,6 @@ List<T>& List<T>::operator=(const List<T>& right)
     return *this;
 }
 
-}; // namespace stagefright
+}; // namespace android
 
 #endif // _LIBS_UTILS_LIST_H

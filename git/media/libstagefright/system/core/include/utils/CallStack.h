@@ -25,7 +25,7 @@
 
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 class CallStack
 {
@@ -68,7 +68,7 @@ private:
     backtrace_frame_t mStack[MAX_DEPTH];
 };
 
-}; // namespace stagefright
+}; // namespace android
 
 
 // ---------------------------------------------------------------------------

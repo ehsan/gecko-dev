@@ -27,11 +27,7 @@
 
 // ---------------------------------------------------------------------------
 
-#ifdef _MSC_VER
-#define __attribute__(X)
-#endif
-
-namespace stagefright {
+namespace android {
 
 class String16;
 class TextOutput;
@@ -392,11 +388,7 @@ inline String8::operator const char*() const
     return mString;
 }
 
-}  // namespace stagefright
-
-#ifdef _MSC_VER
-#undef __attribute__
-#endif
+}  // namespace android
 
 // ---------------------------------------------------------------------------
 

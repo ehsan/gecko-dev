@@ -6733,16 +6733,16 @@ HTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       switch (mType)
       {
         case NS_FORM_INPUT_FILE:
-          key.AssignLiteral("FormValidationFileMissing");
+          key.Assign("FormValidationFileMissing");
           break;
         case NS_FORM_INPUT_CHECKBOX:
-          key.AssignLiteral("FormValidationCheckboxMissing");
+          key.Assign("FormValidationCheckboxMissing");
           break;
         case NS_FORM_INPUT_RADIO:
-          key.AssignLiteral("FormValidationRadioMissing");
+          key.Assign("FormValidationRadioMissing");
           break;
         default:
-          key.AssignLiteral("FormValidationValueMissing");
+          key.Assign("FormValidationValueMissing");
       }
       rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                               key.get(), message);

@@ -317,7 +317,7 @@ DeviceStorageTypeChecker::Check(const nsAString& aType, nsIFile* aFile)
   nsAutoString extensionMatch;
   extensionMatch.AssignLiteral("*");
   extensionMatch.Append(Substring(path, dotIdx));
-  extensionMatch.Append(';');
+  extensionMatch.AppendLiteral(";");
 
   if (aType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
     return CaseInsensitiveFindInReadable(extensionMatch, mPicturesExtensions);
@@ -360,7 +360,7 @@ DeviceStorageTypeChecker::GetTypeFromFileName(const nsAString& aFileName,
   nsAutoString extensionMatch;
   extensionMatch.AssignLiteral("*");
   extensionMatch.Append(Substring(aFileName, dotIdx));
-  extensionMatch.Append(';');
+  extensionMatch.AppendLiteral(";");
 
   if (CaseInsensitiveFindInReadable(extensionMatch, mPicturesExtensions)) {
     aType.AssignLiteral(DEVICESTORAGE_PICTURES);
@@ -802,13 +802,13 @@ DeviceStorageFile::GetFullPath(nsAString &aFullPath)
 {
   aFullPath.Truncate();
   if (!mStorageName.EqualsLiteral("")) {
-    aFullPath.Append('/');
+    aFullPath.AppendLiteral("/");
     aFullPath.Append(mStorageName);
-    aFullPath.Append('/');
+    aFullPath.AppendLiteral("/");
   }
   if (!mRootDir.EqualsLiteral("")) {
     aFullPath.Append(mRootDir);
-    aFullPath.Append('/');
+    aFullPath.AppendLiteral("/");
   }
   aFullPath.Append(mPath);
 }
@@ -3440,7 +3440,7 @@ nsDOMDeviceStorage::Add(nsIDOMBlob* aBlob, ErrorResult& aRv)
 
   nsAutoCString path;
   path.Assign(nsDependentCString(buffer));
-  path.Append('.');
+  path.Append(".");
   path.Append(extension);
 
   return AddNamed(aBlob, NS_ConvertASCIItoUTF16(path), aRv);

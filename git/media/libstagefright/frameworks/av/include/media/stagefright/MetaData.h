@@ -26,7 +26,7 @@
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 
-namespace stagefright {
+namespace android {
 
 // The following keys map to int32_t data unless indicated otherwise.
 enum {
@@ -48,7 +48,6 @@ enum {
     kKeyChannelCount      = '#chn',  // int32_t
     kKeyChannelMask       = 'chnm',  // int32_t
     kKeySampleRate        = 'srte',  // int32_t (audio sampling rate Hz)
-    kKeySampleSize        = 'ssiz',  // int32_t (sample size in bits)
     kKeyFrameRate         = 'frmR',  // int32_t (video frame rate fps)
     kKeyBitRate           = 'brte',  // int32_t (bps)
     kKeyESDS              = 'esds',  // raw data
@@ -267,6 +266,6 @@ private:
     // MetaData &operator=(const MetaData &);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // META_DATA_H_

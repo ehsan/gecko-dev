@@ -4451,7 +4451,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             rv2 = nestedURI->GetInnerURI(getter_AddRefs(tempURI));
             if (NS_SUCCEEDED(rv2) && tempURI) {
                 tempURI->GetScheme(scheme);
-                formatStrs[0].AppendLiteral(", ");
+                formatStrs[0].Append(NS_LITERAL_STRING(", "));
                 AppendASCIItoUTF16(scheme, formatStrs[0]);
             }
             nestedURI = do_QueryInterface(tempURI);
@@ -4612,7 +4612,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
       // If the page doesn't have a title, we will use a blank space which will be trimmed
       // and thus treated as empty by the front-end.
       if (messageStr.IsEmpty()) {
-        messageStr.Assign(' ');
+        messageStr.Assign(NS_LITERAL_STRING(" "));
       }
     }
     else {
@@ -10931,12 +10931,12 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
     if (NS_FAILED(rv))
         return false;
 
-    if (buf.EqualsLiteral("about")) {
+    if (buf.Equals("about")) {
         rv = aURI->GetPath(buf);
         if (NS_FAILED(rv))
             return false;
 
-        if (buf.EqualsLiteral("blank")) {
+        if (buf.Equals("blank")) {
             return false;
         }
     }
@@ -11678,7 +11678,7 @@ nsDocShell::ChannelIsPost(nsIChannel* aChannel)
 
     nsAutoCString method;
     httpChannel->GetRequestMethod(method);
-    return method.EqualsLiteral("POST");
+    return method.Equals("POST");
 }
 
 void

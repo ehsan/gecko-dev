@@ -1353,7 +1353,7 @@ nsNSSCertificate::GetUsagesString(bool localOnly, uint32_t* _verified,
   NS_ENSURE_SUCCESS(rv,rv);
   _usages.Truncate();
   for (uint32_t i=0; i<tmpCount; i++) {
-    if (i>0) _usages.Append(',');
+    if (i>0) _usages.AppendLiteral(",");
     _usages.Append(tmpUsages[i]);
     nsMemory::Free(tmpUsages[i]);
   }

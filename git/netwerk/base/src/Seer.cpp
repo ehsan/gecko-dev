@@ -920,7 +920,7 @@ ExtractOrigin(nsIURI *uri, nsAutoCString &s)
   s.AppendLiteral("://");
   s.Append(host);
   if (port != -1) {
-    s.Append(':');
+    s.AppendLiteral(":");
     s.AppendInt(port);
   }
 }

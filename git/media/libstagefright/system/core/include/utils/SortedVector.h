@@ -29,7 +29,7 @@
 
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 template <class TYPE>
 class SortedVector : private SortedVectorImpl
@@ -48,6 +48,7 @@ public:
     virtual                 ~SortedVector();
 
     /*! copy operator */
+    const SortedVector<TYPE>&   operator = (const SortedVector<TYPE>& rhs) const;    
     SortedVector<TYPE>&         operator = (const SortedVector<TYPE>& rhs);    
 
     /*
@@ -167,6 +168,12 @@ SortedVector<TYPE>& SortedVector<TYPE>::operator = (const SortedVector<TYPE>& rh
 }
 
 template<class TYPE> inline
+const SortedVector<TYPE>& SortedVector<TYPE>::operator = (const SortedVector<TYPE>& rhs) const {
+    SortedVectorImpl::operator = (rhs);
+    return *this; 
+}
+
+template<class TYPE> inline
 const TYPE* SortedVector<TYPE>::array() const {
     return static_cast<const TYPE *>(arrayImpl());
 }
@@ -267,7 +274,7 @@ int SortedVector<TYPE>::do_compare(const void* lhs, const void* rhs) const {
     return compare_type( *reinterpret_cast<const TYPE*>(lhs), *reinterpret_cast<const TYPE*>(rhs) );
 }
 
-}; // namespace stagefright
+}; // namespace android
 
 
 // ---------------------------------------------------------------------------

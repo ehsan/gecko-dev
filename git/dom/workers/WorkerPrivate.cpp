@@ -3390,7 +3390,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
   }
 
   if (NS_SUCCEEDED(aBaseURI->GetScheme(mLocationInfo.mProtocol))) {
-    mLocationInfo.mProtocol.Append(':');
+    mLocationInfo.mProtocol.AppendLiteral(":");
   }
   else {
     mLocationInfo.mProtocol.Truncate();
@@ -3401,7 +3401,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
     mLocationInfo.mPort.AppendInt(port);
 
     nsAutoCString host(mLocationInfo.mHostname);
-    host.Append(':');
+    host.AppendLiteral(":");
     host.Append(mLocationInfo.mPort);
 
     mLocationInfo.mHost.Assign(host);

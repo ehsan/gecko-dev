@@ -8,7 +8,6 @@
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
 
@@ -243,41 +242,6 @@ WidgetEvent::IsAllowedToDispatchDOMEvent() const
     default:
       return true;
   }
-}
-
-/******************************************************************************
- * mozilla::WidgetInputEvent
- ******************************************************************************/
-
-/* static */
-Modifier
-WidgetInputEvent::AccelModifier()
-{
-  static Modifier sAccelModifier = MODIFIER_NONE;
-  if (sAccelModifier == MODIFIER_NONE) {
-    switch (Preferences::GetInt("ui.key.accelKey", 0)) {
-      case nsIDOMKeyEvent::DOM_VK_META:
-        sAccelModifier = MODIFIER_META;
-        break;
-      case nsIDOMKeyEvent::DOM_VK_WIN:
-        sAccelModifier = MODIFIER_OS;
-        break;
-      case nsIDOMKeyEvent::DOM_VK_ALT:
-        sAccelModifier = MODIFIER_ALT;
-        break;
-      case nsIDOMKeyEvent::DOM_VK_CONTROL:
-        sAccelModifier = MODIFIER_CONTROL;
-        break;
-      default:
-#ifdef XP_MACOSX
-        sAccelModifier = MODIFIER_META;
-#else
-        sAccelModifier = MODIFIER_CONTROL;
-#endif
-        break;
-    }
-  }
-  return sAccelModifier;
 }
 
 /******************************************************************************

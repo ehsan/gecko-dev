@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 
-namespace stagefright {
+namespace android {
 
 struct ABitReader {
     ABitReader(const uint8_t *data, size_t size);
@@ -49,6 +49,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ABitReader);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // A_BIT_READER_H_

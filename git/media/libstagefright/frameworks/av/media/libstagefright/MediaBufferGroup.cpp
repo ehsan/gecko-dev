@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#undef LOG_TAG
 #define LOG_TAG "MediaBufferGroup"
 #include <utils/Log.h>
 
@@ -22,7 +21,7 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
 
-namespace stagefright {
+namespace android {
 
 MediaBufferGroup::MediaBufferGroup()
     : mFirstBuffer(NULL),
@@ -84,6 +83,4 @@ void MediaBufferGroup::signalBufferReturned(MediaBuffer *) {
     mCondition.signal();
 }
 
-}  // namespace stagefright
-
-#undef LOG_TAG
+}  // namespace android

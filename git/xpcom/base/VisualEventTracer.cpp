@@ -564,18 +564,19 @@ NS_IMETHODIMP
 VisualEventTracerLog::GetJSONString(nsACString& aResult)
 {
   nsCString buffer;
-  buffer.AssignLiteral("{\n\"version\": 1,\n\"records\":[\n");
+
+  buffer.Assign(NS_LITERAL_CSTRING("{\n\"version\": 1,\n\"records\":[\n"));
 
   RecordBatch* batch = mBatch;
   while (batch) {
     if (batch != mBatch) {
       // This is not the first batch we are writting, add comma
-      buffer.AppendLiteral(",\n");
+      buffer.Append(NS_LITERAL_CSTRING(",\n"));
     }
 
-    buffer.AppendLiteral("{\"thread\":\"");
+    buffer.Append(NS_LITERAL_CSTRING("{\"thread\":\""));
     buffer.Append(batch->mThreadNameCopy);
-    buffer.AppendLiteral("\",\"log\":[\n");
+    buffer.Append(NS_LITERAL_CSTRING("\",\"log\":[\n"));
 
     static const int kBufferSize = 2048;
     char buf[kBufferSize];
@@ -602,13 +603,13 @@ VisualEventTracerLog::GetJSONString(nsACString& aResult)
       buffer.Append(buf);
     }
 
-    buffer.AppendLiteral("]}\n");
+    buffer.Append(NS_LITERAL_CSTRING("]}\n"));
 
     RecordBatch* next = batch->mNextBatch;
     batch = next;
   }
 
-  buffer.AppendLiteral("]}\n");
+  buffer.Append(NS_LITERAL_CSTRING("]}\n"));
   aResult.Assign(buffer);
 
   return NS_OK;

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#undef LOG_TAG
 #define LOG_TAG "SampleIterator"
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
@@ -29,7 +28,7 @@
 
 #include "include/SampleTable.h"
 
-namespace stagefright {
+namespace android {
 
 SampleIterator::SampleIterator(SampleTable *table)
     : mTable(table),
@@ -313,6 +312,5 @@ status_t SampleIterator::findSampleTime(
     return OK;
 }
 
-}  // namespace stagefright
+}  // namespace android
 
-#undef LOG_TAG

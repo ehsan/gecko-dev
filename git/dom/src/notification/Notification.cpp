@@ -429,12 +429,12 @@ Notification::Notification(const nsAString& aID, const nsAString& aTitle, const 
 
   // Get the notification name that is unique per origin + tag/ID.
   // The name of the alert is of the form origin#tag/ID.
-  alertName.Append('#');
+  alertName.AppendLiteral("#");
   if (!mTag.IsEmpty()) {
-    alertName.AppendLiteral("tag:");
+    alertName.Append(NS_LITERAL_STRING("tag:"));
     alertName.Append(mTag);
   } else {
-    alertName.AppendLiteral("notag:");
+    alertName.Append(NS_LITERAL_STRING("notag:"));
     alertName.Append(mID);
   }
 

@@ -223,9 +223,7 @@ private:
             return false;
         }
 
-        if (!(version.EqualsLiteral("7") ||
-              version.EqualsLiteral("8") ||
-              version.EqualsLiteral("13"))) {
+        if (!(version.Equals("7") || version.Equals("8") || version.Equals("13"))) {
             return false;
         }
 
@@ -245,10 +243,10 @@ private:
         Base64Encode(newString, res);
 
         nsCString response("HTTP/1.1 101 Switching Protocols\r\n");
-        response.AppendLiteral("Upgrade: websocket\r\n");
-        response.AppendLiteral("Connection: Upgrade\r\n");
+        response.Append("Upgrade: websocket\r\n");
+        response.Append("Connection: Upgrade\r\n");
         response.Append(nsCString("Sec-WebSocket-Accept: ") + res + nsCString("\r\n"));
-        response.AppendLiteral("Sec-WebSocket-Protocol: binary\r\n\r\n");
+        response.Append("Sec-WebSocket-Protocol: binary\r\n\r\n");
         uint32_t written = 0;
         uint32_t size = response.Length();
         while (written < size) {

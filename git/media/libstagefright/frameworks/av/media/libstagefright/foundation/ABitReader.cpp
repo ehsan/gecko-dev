@@ -16,10 +16,9 @@
 
 #include "ABitReader.h"
 
-#include <log/log.h>
 #include <media/stagefright/foundation/ADebug.h>
 
-namespace stagefright {
+namespace android {
 
 ABitReader::ABitReader(const uint8_t *data, size_t size)
     : mData(data),
@@ -100,4 +99,4 @@ const uint8_t *ABitReader::data() const {
     return mData - (mNumBitsLeft + 7) / 8;
 }
 
-}  // namespace stagefright
+}  // namespace android

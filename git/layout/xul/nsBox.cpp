@@ -60,7 +60,7 @@ nsBox::ListBox(nsAutoString& aResult)
 
     aResult.AppendASCII(addr);
     aResult.Append(name);
-    aResult.Append(' ');
+    aResult.AppendLiteral(" ");
 
     nsIContent* content = GetContent();
 

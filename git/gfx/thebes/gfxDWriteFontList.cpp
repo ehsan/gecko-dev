@@ -184,7 +184,7 @@ gfxDWriteFontFamily::FindStyleVariations(FontInfoData *aFontInfoData)
         if (FAILED(hr)) {
             continue;
         }
-        fullID.Append(' ');
+        fullID.Append(NS_LITERAL_STRING(" "));
         fullID.Append(faceName);
 
         gfxDWriteFontEntry *fe = new gfxDWriteFontEntry(fullID, font);
@@ -1626,7 +1626,7 @@ DirectWriteFontInfo::LoadFontFamilyData(const nsAString& aFamilyName)
         if (FAILED(hr)) {
             continue;
         }
-        fullID.Append(' ');
+        fullID.Append(NS_LITERAL_STRING(" "));
         fullID.Append(fontName);
 
         FontFaceData fontData;

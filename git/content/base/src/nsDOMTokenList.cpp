@@ -146,8 +146,7 @@ nsDOMTokenList::AddInternal(const nsAttrValue* aAttr,
     if (oneWasAdded ||
         (!resultStr.IsEmpty() &&
         !nsContentUtils::IsHTMLWhitespace(resultStr.Last()))) {
-      resultStr.Append(' ');
-      resultStr.Append(aToken);
+      resultStr.Append(NS_LITERAL_STRING(" ") + aToken);
     } else {
       resultStr.Append(aToken);
     }

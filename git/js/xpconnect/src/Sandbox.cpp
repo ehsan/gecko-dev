@@ -507,7 +507,7 @@ EvalInWindow(JSContext *cx, const nsAString &source, HandleObject scope, Mutable
     unsigned lineNo;
     if (!GetFilenameAndLineNumber(cx, filename, lineNo)) {
         // Default values for non-scripted callers.
-        filename.AssignLiteral("Unknown");
+        filename.Assign("Unknown");
         lineNo = 0;
     }
 
@@ -1539,9 +1539,9 @@ AssembleSandboxMemoryReporterName(JSContext *cx, nsCString &sandboxName)
 
         sandboxName.AppendLiteral(" (from: ");
         sandboxName.Append(NS_ConvertUTF16toUTF8(location));
-        sandboxName.Append(':');
+        sandboxName.AppendLiteral(":");
         sandboxName.AppendInt(lineNumber);
-        sandboxName.Append(')');
+        sandboxName.AppendLiteral(")");
     }
 
     return NS_OK;

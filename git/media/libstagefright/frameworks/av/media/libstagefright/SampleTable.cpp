@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#undef LOG_TAG
 #define LOG_TAG "SampleTable"
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
@@ -28,7 +27,7 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/Utils.h>
 
-namespace stagefright {
+namespace android {
 
 // static
 const uint32_t SampleTable::kChunkOffsetType32 = FOURCC('s', 't', 'c', 'o');
@@ -828,6 +827,5 @@ uint32_t SampleTable::getCompositionTimeOffset(uint32_t sampleIndex) {
     return mCompositionDeltaLookup->getCompositionTimeOffset(sampleIndex);
 }
 
-}  // namespace stagefright
+}  // namespace android
 
-#undef LOG_TAG

@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef SAMPLE_ITERATOR_H_
-#define SAMPLE_ITERATOR_H_
-
 #include <utils/Vector.h>
 
-namespace stagefright {
+namespace android {
 
 struct SampleTable;
 
@@ -74,6 +71,5 @@ private:
     SampleIterator &operator=(const SampleIterator &);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
-#endif
