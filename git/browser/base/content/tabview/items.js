@@ -14,12 +14,11 @@
  * The Original Code is items.js.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Ian Gilman <ian@iangilman.com>.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  *
@@ -681,8 +680,10 @@ window.Item.prototype = {
         var cancel = false;
         var $target = iQ(e.target);
         cancelClasses.forEach(function(className) {
-          if ($target.hasClass(className))
+          if ($target.hasClass(className)) {
             cancel = true;
+            return false;
+          }
         });
 
         if (cancel) {
@@ -949,7 +950,12 @@ window.Items = {
 
     var a;
     for (a = 0; a < count; a++) {
-      immediately = !animate;
+/*
+      if (animate == 'sometimes')
+        immediately = (typeof item.groupItemData.row == 'undefined' || item.groupItemData.row == row);
+      else
+*/
+        immediately = !animate;
 
       if (rects)
         rects.push(new Rect(box));
@@ -962,6 +968,11 @@ window.Items = {
             item.setZ(options.z);
         }
       }
+
+/*
+      item.groupItemData.column = column;
+      item.groupItemData.row = row;
+*/
 
       box.left += box.width + padding;
       column++;
@@ -1046,16 +1057,16 @@ window.Items = {
             return;
 
           var bounds2 = pair2.bounds;
-          if (bounds2.intersects(newBounds))
+          if (bounds2.intersects(newBounds)) {
             blocked = true;
-					return;
+            return false;
+          }
         });
 
         if (!blocked) {
           pair.bounds.copy(newBounds);
         }
       }
-      return;
     });
 
     if (!pairsProvided) {

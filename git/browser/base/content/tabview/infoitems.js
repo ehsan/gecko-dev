@@ -14,12 +14,11 @@
  * The Original Code is infoitems.js.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Ian Gilman <ian@iangilman.com>.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
@@ -150,7 +149,10 @@ window.InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         return;
 
       var data = this.getStorageData();
-
+  /*
+      if (GroupItems.groupItemStorageSanity(data))
+        Storage.saveGroupItem(Utils.getCurrentWindow(), data);
+  */
     } catch(e) {
       Utils.log(e);
     }
@@ -237,6 +239,7 @@ window.InfoItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         Items.unsquish();
       });
 
+  /*     Storage.deleteGroupItem(Utils.getCurrentWindow(), this.id); */
     } catch(e) {
       Utils.log(e);
     }

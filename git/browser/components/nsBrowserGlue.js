@@ -52,11 +52,6 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
-
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -845,18 +840,16 @@ BrowserGlue.prototype = {
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
                        getService(Ci.nsIProperties);
 
-      var bookmarksURI = null;
+      var bookmarksFile = null;
       if (restoreDefaultBookmarks) {
         // User wants to restore bookmarks.html file from default profile folder
-        bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
+        bookmarksFile.append("bookmarks.html");
       }
-      else {
-        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-        if (bookmarksFile.exists())
-          bookmarksURI = NetUtil.newURI(bookmarksFile);
-      }
+      else
+        bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
-      if (bookmarksURI) {
+      if (bookmarksFile.exists()) {
         // Add an import observer.  It will ensure that smart bookmarks are
         // created once the operation is complete.
         Services.obs.addObserver(this, "bookmarks-restore-success", false);
@@ -866,7 +859,7 @@ BrowserGlue.prototype = {
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
-          importer.importHTMLFromURI(bookmarksURI, true /* overwrite existing */);
+          importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
         } catch (err) {
           // Report the error, but ignore it.
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);

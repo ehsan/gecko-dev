@@ -162,8 +162,6 @@ private:
 ;
 
 
-    virtual bool RecvLoadURIExternal(const IPC::URI& uri);
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;

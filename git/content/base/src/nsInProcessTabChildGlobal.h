@@ -43,17 +43,18 @@
 #include "nsFrameMessageManager.h"
 #include "nsIScriptContext.h"
 #include "nsDOMEventTargetHelper.h"
+#include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIClassInfo.h"
 #include "jsapi.h"
 #include "nsIDocShell.h"
+#include "nsIXPConnect.h"
 #include "nsIDOMElement.h"
 #include "nsCOMArray.h"
 #include "nsThreadUtils.h"
 
 class nsInProcessTabChildGlobal : public nsDOMEventTargetHelper,
-                                  public nsFrameScriptExecutor,
                                   public nsIInProcessContentFrameMessageManager,
                                   public nsIScriptObjectPrincipal,
                                   public nsIScriptContextPrincipal
@@ -125,6 +126,9 @@ protected:
   nsresult Init();
   nsresult InitTabChildGlobal();
   nsCOMPtr<nsIContentFrameMessageManager> mMessageManager;
+  JSContext* mCx;
+  nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
+  nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIDocShell> mDocShell;
   PRPackedBool mInitialized;
   PRPackedBool mLoadingScript;

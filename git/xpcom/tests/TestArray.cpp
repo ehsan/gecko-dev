@@ -113,10 +113,7 @@ const char* AssertEqual(PRInt32 aValue1, PRInt32 aValue2)
 void DumpArray(nsISupportsArray* aArray, PRInt32 aExpectedCount, PRInt32 aElementIDs[], PRInt32 aExpectedTotal)
 {
   PRUint32 cnt = 0;
-#ifdef DEBUG
-  nsresult rv =
-#endif
-    aArray->Count(&cnt);
+  nsresult rv = aArray->Count(&cnt);
   NS_ASSERTION(NS_SUCCEEDED(rv), "Count failed");
   PRInt32 count = cnt;
   PRInt32 index;

@@ -13,7 +13,8 @@
  *
  * The Original Code is iq.js.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
@@ -123,7 +124,7 @@ let iQClass = function(selector, context) {
           }
 
         } else {
-          Utils.assert(false, 'does not support complex HTML creation');
+            Utils.assert(false, 'does not support complex HTML creation');
         }
 
         return Utils.merge(this, selector);
@@ -209,8 +210,10 @@ iQClass.prototype = {
   // Function: addClass
   // Adds the given class(es) to the receiver.
   addClass: function(value) {
-    Utils.assertThrow(typeof value == "string" && value,
-                      'requires a valid string argument');
+    if (typeof value != "string" || !value) {
+      Utils.assert(false, 'requires a valid string argument');
+      return null;
+    }
 
     let length = this.length;
     for (let i = 0; i < length; i++) {
@@ -525,53 +528,57 @@ iQClass.prototype = {
   //   complete - function to call once the animation is done, takes nothing
   //     in, but "this" is set to the element that was animated.
   animate: function(css, options) {
-    Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
+    try {
+      Utils.assert(this.length == 1, 'does not yet support multi-objects (or null objects)');
 
-    if (!options)
-      options = {};
+      if (!options)
+        options = {};
 
-    let easings = {
-      tabviewBounce: "cubic-bezier(0.0, 0.63, .6, 1.0)", 
-      // TODO: change 1.0 above to 1.29 after bug 575672 is fixed
-      
-      easeInQuad: 'ease-in', // TODO: make it a real easeInQuad, or decide we don't care
-      fast: 'cubic-bezier(0.7,0,1,1)'
-    };
+      let easings = {
+        tabviewBounce: "cubic-bezier(0.0, 0.63, .6, 1.0)", 
+        // TODO: change 1.0 above to 1.29 after bug 575672 is fixed
+        
+        easeInQuad: 'ease-in', // TODO: make it a real easeInQuad, or decide we don't care
+        fast: 'cubic-bezier(0.7,0,1,1)'
+      };
 
-    let duration = (options.duration || 400);
-    let easing = (easings[options.easing] || 'ease');
+      let duration = (options.duration || 400);
+      let easing = (easings[options.easing] || 'ease');
 
-    // The latest versions of Firefox do not animate from a non-explicitly
-    // set css properties. So for each element to be animated, go through
-    // and explicitly define 'em.
-    let rupper = /([A-Z])/g;
-    this.each(function(elem) {
-      let cStyle = window.getComputedStyle(elem, null);
-      for (let prop in css) {
-        prop = prop.replace(rupper, "-$1").toLowerCase();
-        iQ(elem).css(prop, cStyle.getPropertyValue(prop));
-      }
-    });
-
-    this.css({
-      '-moz-transition-property': 'all', // TODO: just animate the properties we're changing
-      '-moz-transition-duration': (duration / 1000) + 's',
-      '-moz-transition-timing-function': easing
-    });
-
-    this.css(css);
-
-    let self = this;
-    setTimeout(function() {
-      self.css({
-        '-moz-transition-property': 'none',
-        '-moz-transition-duration': '',
-        '-moz-transition-timing-function': ''
+      // The latest versions of Firefox do not animate from a non-explicitly
+      // set css properties. So for each element to be animated, go through
+      // and explicitly define 'em.
+      let rupper = /([A-Z])/g;
+      this.each(function(elem) {
+        let cStyle = window.getComputedStyle(elem, null);
+        for (let prop in css) {
+          prop = prop.replace(rupper, "-$1").toLowerCase();
+          iQ(elem).css(prop, cStyle.getPropertyValue(prop));
+        }
       });
 
-      if (typeof options.complete == "function")
-        options.complete.apply(self);
-    }, duration);
+      this.css({
+        '-moz-transition-property': 'all', // TODO: just animate the properties we're changing
+        '-moz-transition-duration': (duration / 1000) + 's',
+        '-moz-transition-timing-function': easing
+      });
+
+      this.css(css);
+
+      let self = this;
+      setTimeout(function() {
+        self.css({
+          '-moz-transition-property': 'none',
+          '-moz-transition-duration': '',
+          '-moz-transition-timing-function': ''
+        });
+
+        if (typeof options.complete == "function")
+          options.complete.apply(self);
+      }, duration);
+    } catch(e) {
+      Utils.log(e);
+    }
 
     return this;
   },
@@ -632,7 +639,15 @@ iQClass.prototype = {
   // Binds the given function to the given event type. Also wraps the function
   // in a try/catch block that does a Utils.log on any errors.
   bind: function(type, func) {
-    let handler = function(event) func.apply(this, [event]);
+    Utils.assert(typeof func == "function", 'does not support eventData argument');
+
+    let handler = function(event) {
+      try {
+        return func.apply(this, [event]);
+      } catch(e) {
+        Utils.log(e);
+      }
+    };
 
     for (let i = 0; this[i] != null; i++) {
       let elem = this[i];

@@ -14,12 +14,11 @@
  * The Original Code is storage.js.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Ehsan Akhgari <ehsan@mozilla.com>
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Ehsan Akhgari <ehsan@mozilla.com>
  * Ian Gilman <ian@iangilman.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -42,25 +41,20 @@
 // ##########
 // Class: Storage
 // Singleton for permanent storage of TabView data.
-let Storage = {
-  GROUP_DATA_IDENTIFIER: "tabview-group",
+Storage = {
+  GROUP_DATA_IDENTIFIER:  "tabview-group",
   GROUPS_DATA_IDENTIFIER: "tabview-groups",
-  TAB_DATA_IDENTIFIER: "tabview-tab",
-  UI_DATA_IDENTIFIER: "tabview-ui",
+  TAB_DATA_IDENTIFIER:    "tabview-tab",
+  UI_DATA_IDENTIFIER:    "tabview-ui",
+  VISIBILITY_DATA_IDENTIFIER:    "tabview-visibility",
 
   // ----------
   // Function: init
   // Sets up the object.
   init: function() {
     this._sessionStore =
-      Cc["@mozilla.org/browser/sessionstore;1"].
-        getService(Ci.nsISessionStore);
-  },
-
-  // ----------
-  // Function: uninit
-  uninit : function() {
-    this._sessionStore = null;
+      Components.classes["@mozilla.org/browser/sessionstore;1"]
+        .getService(Components.interfaces.nsISessionStore);
   },
 
   // ----------
@@ -107,6 +101,7 @@ let Storage = {
 
     var existingData = null;
     try {
+/*         Utils.log("readTabData: " + this._sessionStore.getTabValue(tab, this.TAB_DATA_IDENTIFIER)); */
       var tabData = this._sessionStore.getTabValue(tab, this.TAB_DATA_IDENTIFIER);
       if (tabData != "") {
         existingData = JSON.parse(tabData);
@@ -116,6 +111,7 @@ let Storage = {
       Utils.log(e);
     }
 
+/*     Utils.log('tab', existingData); */
     return existingData;
   },
 
@@ -146,6 +142,7 @@ let Storage = {
   readGroupItemData: function(win) {
     var existingData = {};
     try {
+/*         Utils.log("readGroupItemData" + this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER)); */
       existingData = JSON.parse(
         this._sessionStore.getWindowValue(win, this.GROUP_DATA_IDENTIFIER)
       );
@@ -193,6 +190,8 @@ let Storage = {
     } catch (e) {
       Utils.log("Error in saveData: "+e);
     }
+
+/*     Utils.log('save data', id, data); */
   },
 
   // ----------
@@ -208,6 +207,7 @@ let Storage = {
       Utils.log("Error in readData: "+e);
     }
 
+/*     Utils.log('read data', id, existingData); */
     return existingData;
   }
 };

@@ -68,10 +68,6 @@ Requestor.prototype = {
 };
 
 function run_test() {
-// DISABLE TEST: bug 586238
-  _dump('FIXME/bug 586238: disabled to avoid perma-orange\n');
-}
-function never() {
   dump("*** run_test\n");
   httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/auth", authHandler);
@@ -192,18 +188,6 @@ function never() {
     do_check_true(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(data, rangeBody);
 
-    // Try a successful suspend/resume from 0
-    var chan = make_channel("http://localhost:4444/range");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.asyncOpen(new ChannelListener(try_suspend_resume, null,
-                                       CL_SUSPEND | CL_EXPECT_3S_DELAY), null);
-  }
-
-  function try_suspend_resume(request, data, ctx) {
-    dump("*** try_suspend_resume()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(data, rangeBody);
-
     // Try a successful resume from 0
     var chan = make_channel("http://localhost:4444/range");
     chan.nsIResumableChannel.resumeAt(0, entityID);
@@ -215,20 +199,12 @@ function never() {
     do_check_true(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(data, rangeBody);
 
-    // XXX skip all authentication tests for now, as they're busted on e10s (bug 537782)
-
     // Authentication (no password; working resume)
     // (should not give us any data)
-    /*var chan = make_channel("http://localhost:4444/range");
-    chan.nsIResumableChannel.resumeAt(1, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Need-Auth", "true", false);
-    chan.asyncOpen(new ChannelListener(test_auth_nopw, null, CL_EXPECT_FAILURE), null);*/
-
-    // 404 page (same content length as real content)
     var chan = make_channel("http://localhost:4444/range");
     chan.nsIResumableChannel.resumeAt(1, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Want-404", "true", false);
-    chan.asyncOpen(new ChannelListener(test_404, null, CL_EXPECT_FAILURE), null);
+    chan.nsIHttpChannel.setRequestHeader("X-Need-Auth", "true", false);
+    chan.asyncOpen(new ChannelListener(test_auth_nopw, null, CL_EXPECT_FAILURE), null);
   }
 
   function test_auth_nopw(request, data, ctx) {

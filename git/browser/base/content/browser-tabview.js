@@ -19,7 +19,6 @@
 #
 # Contributor(s):
 #   Raymond Lee <raymond@appcoast.com>
-#   Ian Gilman <ian@iangilman.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,27 +41,21 @@ let TabView = {
   _visibilityID: "tabview-visibility",
   
   // ----------
-  get windowTitle() {
-    delete this.windowTitle;
-    let brandBundle = document.getElementById("bundle_brand");
-    let brandShortName = brandBundle.getString("brandShortName");
-    let title = gNavigatorBundle.getFormattedString("tabView.title", [brandShortName]);
-    return this.windowTitle = title;
-  },
-
-  // ----------
   init: function TabView_init() {    
     // ___ keys    
     this._setBrowserKeyHandlers();
 
     // ___ visibility
     this._sessionstore =
-      Cc["@mozilla.org/browser/sessionstore;1"].
-        getService(Ci.nsISessionStore);
+      Components.classes["@mozilla.org/browser/sessionstore;1"]
+        .getService(Components.interfaces.nsISessionStore);
 
     let data = this._sessionstore.getWindowValue(window, this._visibilityID);
-    if (data && data == "true")
-      this.show();
+    if (data) {
+      data = JSON.parse(data);
+      if (data && data.visible)
+        this.show();
+    }
   },
 
   // ----------
@@ -77,7 +70,7 @@ let TabView = {
       this._deck = document.getElementById("tab-view-deck");
       
       // ___ create the frame
-      let iframe = document.createElement("iframe");
+      var iframe = document.createElement("iframe");
       iframe.id = "tab-view";
       iframe.setAttribute("transparent", "true");
       iframe.flex = 1;
@@ -93,8 +86,11 @@ let TabView = {
       let self = this;
       function observer(subject, topic, data) {
         if (topic == "quit-application-requested") {
-          let data = (self.isVisible() ? "true" : "false");
-          self._sessionstore.setWindowValue(window, self._visibilityID, data);
+          let data = {
+            visible: self.isVisible()
+          };
+          
+          self._sessionstore.setWindowValue(window, self._visibilityID, JSON.stringify(data));
         }
       }
       
@@ -135,6 +131,13 @@ let TabView = {
       this.hide();
     else 
       this.show();
+  },
+
+  // ----------
+  getWindowTitle: function() {
+    let brandBundle = document.getElementById("bundle_brand");
+    let brandShortName = brandBundle.getString("brandShortName");
+    return gNavigatorBundle.getFormattedString("tabView.title", [brandShortName]);
   },
 
   // ----------
@@ -180,16 +183,16 @@ let TabView = {
   },
 
   // ----------
-  // Adds new key commands to the browser, for invoking the Tab Candy UI
-  // and for switching between groups of tabs when outside of the Tab Candy UI.
+  // Overrides the browser's keys for navigating between tab (outside of the
+  // TabView UI) so they do the right thing in respect to groupItems.
   _setBrowserKeyHandlers : function() {
-    let self = this;
+    var self = this;
 
     window.addEventListener("keypress", function(event) {
       if (self.isVisible())
         return;
 
-      let charCode = event.charCode;
+      var charCode = event.charCode;
 #ifdef XP_MACOSX
       // if a text box in a webpage has the focus, the event.altKey would
       // return false so we are depending on the charCode here.
@@ -212,7 +215,7 @@ let TabView = {
         event.preventDefault();
 
         self._initFrame(function() {
-          let tabItem = self._window.GroupItems.getNextGroupItemTab(event.shiftKey);
+          var tabItem = self._window.GroupItems.getNextGroupItemTab(event.shiftKey);
           if (tabItem)
             window.gBrowser.selectedTab = tabItem.tab;
         });

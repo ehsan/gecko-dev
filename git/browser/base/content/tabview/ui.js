@@ -14,12 +14,11 @@
  * The Original Code is ui.js.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Ian Gilman <ian@iangilman.com>.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Ian Gilman <ian@iangilman.com>
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
@@ -102,7 +101,7 @@ var UIManager = {
       gWindow.addEventListener("tabviewshow", function() {
         self.showTabView(true);
       }, false);
-
+      
       // ___ currentTab
       this._currentTab = gBrowser.selectedTab;
 
@@ -126,9 +125,6 @@ var UIManager = {
         Array.forEach(gBrowser.tabs, function(tab) {
           tab.hidden = false;
         });
-      });
-      iQ(window).bind("unload", function() {
-        self.uninit();
       });
 
       gWindow.addEventListener("tabviewhide", function() {
@@ -227,17 +223,6 @@ var UIManager = {
     } catch(e) {
       Utils.log(e);
     }
-  },
-
-  uninit: function() {
-    TabItems.uninit();
-    GroupItems.uninit();
-    Storage.uninit();
-
-    this._currentTab = null;
-    this._pageBounds = null;
-    this._reorderTabItemsOnShow = null;
-    this._reorderTabsOnHide = null;
   },
 
   // ----------
@@ -358,7 +343,9 @@ var UIManager = {
     gBrowser.contentWindow.focus();
 
     // set the close button on tab
-    gBrowser.tabContainer.adjustTabstrip();
+/*     setTimeout(function() { // Marshal event from chrome thread to DOM thread    */
+      gBrowser.tabContainer.adjustTabstrip();
+/*     }, 1); */
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
@@ -432,6 +419,7 @@ var UIManager = {
           }, 1);
         }
       }
+      return false;
     });
 
     AllTabs.register("move", function(tab) {

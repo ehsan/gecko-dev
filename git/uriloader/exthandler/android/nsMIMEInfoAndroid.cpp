@@ -42,7 +42,7 @@
 #include "nsStringEnumerator.h"
 #include "nsNetUtil.h"
 
-NS_IMPL_ISUPPORTS2(nsMIMEInfoAndroid, nsIMIMEInfo, nsIHandlerInfo)
+NS_IMPL_ISUPPORTS1(nsMIMEInfoAndroid, nsIMIMEInfo)
 
 nsMIMEInfoAndroid::~nsMIMEInfoAndroid()
 {
@@ -230,7 +230,9 @@ nsMIMEInfoAndroid::SetPreferredAction(nsHandlerInfoAction aPrefAction)
 NS_IMETHODIMP
 nsMIMEInfoAndroid::GetAlwaysAskBeforeHandling(PRBool* aAlwaysAsk)
 {
-  *aAlwaysAsk = mAlwaysAsk;
+  // the chooser dialog currently causes a crash on Android, avoid this by returning false here
+  // but be sure to return mAlwaysAsk when that gets fixed (bug 584896)
+  *aAlwaysAsk = PR_FALSE;
   return NS_OK;
 }
 

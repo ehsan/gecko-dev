@@ -1889,14 +1889,6 @@ nsFrameLoader::EnsureMessageManager()
     return rv;
   }
 
-  if (!mIsTopLevelContent
-#ifdef MOZ_IPC
-      && !mRemoteFrame
-#endif
-      ) {
-    return NS_OK;
-  }
-
   if (mMessageManager) {
 #ifdef MOZ_IPC
     if (ShouldUseRemoteProcess()) {
