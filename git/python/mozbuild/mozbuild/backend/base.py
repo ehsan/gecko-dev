@@ -17,8 +17,6 @@ from contextlib import contextmanager
 
 from mach.mixin.logging import LoggingMixin
 
-import mozpack.path as mozpath
-from ..preprocessor import Preprocessor
 from ..pythonutil import iter_modules_in_path
 from ..util import FileAvoidWrite
 from ..frontend.data import (
@@ -26,7 +24,6 @@ from ..frontend.data import (
     SandboxDerived,
 )
 from .configenvironment import ConfigEnvironment
-import mozpack.path as mozpath
 
 
 class BackendConsumeSummary(object):
@@ -131,12 +128,12 @@ class BuildBackend(LoggingMixin):
         self._backend_output_files = set()
 
         # Previously generated files.
-        self._backend_output_list_file = mozpath.join(environment.topobjdir,
+        self._backend_output_list_file = os.path.join(environment.topobjdir,
             'backend.%s' % self.__class__.__name__)
         self._backend_output_list = set()
         if os.path.exists(self._backend_output_list_file):
-            l = open(self._backend_output_list_file).read().split('\n')
-            self._backend_output_list.update(mozpath.normsep(p) for p in l)
+            self._backend_output_list.update(open(self._backend_output_list_file) \
+                                               .read().split('\n'))
 
         # Pull in all loaded Python as dependencies so any Python changes that
         # could influence our output result in a rescan.
@@ -165,7 +162,7 @@ class BuildBackend(LoggingMixin):
         """
         environment = self._environments.get(obj.topobjdir, None)
         if not environment:
-            config_status = mozpath.join(obj.topobjdir, 'config.status')
+            config_status = os.path.join(obj.topobjdir, 'config.status')
 
             environment = ConfigEnvironment.from_config_status(config_status)
             self._environments[obj.topobjdir] = environment
@@ -207,12 +204,12 @@ class BuildBackend(LoggingMixin):
         delete_files = self._backend_output_list - self._backend_output_files
         for path in delete_files:
             try:
-                os.unlink(mozpath.join(self.environment.topobjdir, path))
+                os.unlink(os.path.join(self.environment.topobjdir, path))
                 self.summary.deleted_count += 1
             except OSError:
                 pass
         # Remove now empty directories
-        for dir in set(mozpath.dirname(d) for d in delete_files):
+        for dir in set(os.path.dirname(d) for d in delete_files):
             try:
                 os.removedirs(dir)
             except OSError:
@@ -266,7 +263,7 @@ class BuildBackend(LoggingMixin):
         else:
             assert fh is not None
 
-        dirname = mozpath.dirname(fh.name)
+        dirname = os.path.dirname(fh.name)
         try:
             os.makedirs(dirname)
         except OSError as error:
@@ -275,7 +272,7 @@ class BuildBackend(LoggingMixin):
 
         yield fh
 
-        self._backend_output_files.add(mozpath.relpath(fh.name, self.environment.topobjdir))
+        self._backend_output_files.add(os.path.relpath(fh.name, self.environment.topobjdir))
         existed, updated = fh.close()
         if not existed:
             self.summary.created_count += 1
@@ -283,23 +280,3 @@ class BuildBackend(LoggingMixin):
             self.summary.updated_count += 1
         else:
             self.summary.unchanged_count += 1
-
-    @contextmanager
-    def _get_preprocessor(self, obj):
-        '''Returns a preprocessor with a few predefined values depending on
-        the given BaseConfigSubstitution(-like) object, and all the substs
-        in the current environment.'''
-        pp = Preprocessor()
-        srcdir = mozpath.dirname(obj.input_path)
-        pp.context.update(self.environment.substs)
-        pp.context.update(
-            top_srcdir=self.environment.topsrcdir,
-            srcdir=srcdir,
-            relativesrcdir=mozpath.relpath(srcdir, self.environment.topsrcdir) or '.',
-            DEPTH=mozpath.relpath(self.environment.topobjdir, mozpath.dirname(obj.output_path)) or '.',
-        )
-        pp.do_filter('attemptSubstitution')
-        pp.setMarker(None)
-        with self._write_file(obj.output_path) as fh:
-            pp.out = fh
-            yield pp

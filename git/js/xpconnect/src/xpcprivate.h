@@ -1137,23 +1137,11 @@ public:
     void
     DebugDump(int16_t depth);
 
-    struct ScopeSizeInfo {
-        ScopeSizeInfo(mozilla::MallocSizeOf mallocSizeOf)
-            : mMallocSizeOf(mallocSizeOf),
-              mScopeAndMapSize(0),
-              mProtoAndIfaceCacheSize(0)
-        {}
+    static size_t
+    SizeOfAllScopesIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
-        mozilla::MallocSizeOf mMallocSizeOf;
-        size_t mScopeAndMapSize;
-        size_t mProtoAndIfaceCacheSize;
-    };
-
-    static void
-    AddSizeOfAllScopesIncludingThis(ScopeSizeInfo* scopeSizeInfo);
-
-    void
-    AddSizeOfIncludingThis(ScopeSizeInfo* scopeSizeInfo);
+    size_t
+    SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
     bool
     IsValid() const {return mRuntime != nullptr;}

@@ -15,21 +15,19 @@ from mozbuild.frontend.reader import BuildReader
 
 from mozbuild.test.common import MockConfig
 
-import mozpack.path as mozpath
-
 
 if sys.version_info.major == 2:
     text_type = 'unicode'
 else:
     text_type = 'str'
 
-data_path = mozpath.abspath(mozpath.dirname(__file__))
-data_path = mozpath.join(data_path, 'data')
+data_path = os.path.abspath(os.path.dirname(__file__))
+data_path = os.path.join(data_path, 'data')
 
 
 class TestBuildReader(unittest.TestCase):
     def config(self, name, **kwargs):
-        path = mozpath.join(data_path, name)
+        path = os.path.join(data_path, name)
 
         return MockConfig(path, **kwargs)
 
@@ -42,7 +40,7 @@ class TestBuildReader(unittest.TestCase):
         return BuildReader(config)
 
     def file_path(self, name, *args):
-        return mozpath.join(data_path, name, *args)
+        return os.path.join(data_path, name, *args)
 
     def test_dirs_traversal_simple(self):
         reader = self.reader('traversal-simple')
@@ -54,7 +52,7 @@ class TestBuildReader(unittest.TestCase):
     def test_dirs_traversal_no_descend(self):
         reader = self.reader('traversal-simple')
 
-        path = mozpath.join(reader.topsrcdir, 'moz.build')
+        path = os.path.join(reader.topsrcdir, 'moz.build')
         self.assertTrue(os.path.exists(path))
 
         sandboxes = list(reader.read_mozbuild(path,

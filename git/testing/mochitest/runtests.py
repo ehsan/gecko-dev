@@ -857,7 +857,9 @@ class Mochitest(MochitestUtilsMixin):
       self.handleTimeout(timeout, proc, utilityPath, debuggerInfo, browserProcessId)
     kp_kwargs = {'kill_on_timeout': False,
                  'onTimeout': [timeoutHandler]}
-    kp_kwargs['processOutputLine'] = [outputHandler]
+    # if the output handler is a pipe, it will process output via the subprocess
+    if not outputHandler.pipe:
+      kp_kwargs['processOutputLine'] = [outputHandler]
 
     # create mozrunner instance and start the system under test process
     self.lastTestSeen = self.test_name
@@ -887,6 +889,9 @@ class Mochitest(MochitestUtilsMixin):
                  outputTimeout=timeout)
     proc = runner.process_handler
     log.info("INFO | runtests.py | Application pid: %d", proc.pid)
+
+    # set process information on the output handler
+    outputHandler.setProcess(proc if interactive else proc.proc, timeout)
 
     if onLaunch is not None:
       # Allow callers to specify an onLaunch callback to be fired after the
@@ -1075,7 +1080,11 @@ class Mochitest(MochitestUtilsMixin):
       self.browserProcessId = None
 
       # stack fixer function and/or process
-      self.stackFixerFunction, self.stackFixerProcess = self.stackFixer()
+      self.stackFixerFunction, self.stackFixerCommand = self.stackFixer()
+      self.stackFixerProcess = None
+
+      # if there is a stack fixer subprocess, function as a pipe
+      self.pipe = bool(self.stackFixerCommand)
 
     def processOutputLine(self, line):
       """per line handler of output for mozprocess"""
@@ -1103,7 +1112,7 @@ class Mochitest(MochitestUtilsMixin):
       if not mozinfo.info.get('debug'):
         return None, None
 
-      stackFixerFunction = stackFixerProcess = None
+      stackFixerFunction = stackFixerCommand = None
 
       def import_stackFixerModule(module_name):
         sys.path.insert(0, self.utilityPath)
@@ -1120,21 +1129,22 @@ class Mochitest(MochitestUtilsMixin):
       elif mozinfo.isLinux and self.perl:
         # Run logsource through fix-linux-stack.pl (uses addr2line)
         # This method is preferred for developer machines, so we don't have to run "make buildsymbols".
+
         stackFixerCommand = [self.perl, os.path.join(self.utilityPath, "fix-linux-stack.pl")]
-        stackFixerProcess = subprocess.Popen(stackFixerCommand, stdin=subprocess.PIPE,
-                                             stdout=subprocess.PIPE)
-        def fixFunc(line):
-          stackFixerProcess.stdin.write(line + '\n')
-          return stackFixerProcess.stdout.readline().strip()
 
-        stackFixerFunction = fixFunc
+      return (stackFixerFunction, stackFixerCommand)
 
-      return (stackFixerFunction, stackFixerProcess)
+    def setProcess(self, proc, outputTimeout=None):
+      if self.stackFixerCommand:
+        self.stackFixerProcess = mozprocess.ProcessHandler(self.stackFixerCommand,
+                                                           stdin=proc.stdout,
+                                                           processOutputLine=[self],
+          )
+        self.stackFixerProcess.run(outputTimeout=outputTimeout)
 
     def finish(self, didTimeout):
       if self.stackFixerProcess:
-        self.stackFixerProcess.communicate()
-        status = self.stackFixerProcess.returncode
+        status = self.stackFixerProcess.wait()
         if status and not didTimeout:
           log.info("TEST-UNEXPECTED-FAIL | runtests.py | Stack fixer process exited with code %d during test run", status)
 

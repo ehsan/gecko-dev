@@ -113,7 +113,7 @@ JSFunction *
 js::ExistingCloneFunctionAtCallsite(const CallsiteCloneTable &table, JSFunction *fun,
                                     JSScript *script, jsbytecode *pc)
 {
-    JS_ASSERT(fun->nonLazyScript()->shouldCloneAtCallsite());
+    JS_ASSERT(fun->nonLazyScript()->shouldCloneAtCallsite);
     JS_ASSERT(!fun->nonLazyScript()->enclosingStaticScope());
     JS_ASSERT(types::UseNewTypeForClone(fun));
 
@@ -148,7 +148,9 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
      * Store a link back to the original for function.caller and avoid cloning
      * clones.
      */
-    clone->nonLazyScript()->setIsCallsiteClone(fun);
+    clone->nonLazyScript()->shouldCloneAtCallsite = false;
+    clone->nonLazyScript()->isCallsiteClone = true;
+    clone->nonLazyScript()->setOriginalFunctionObject(fun);
 
     typedef CallsiteCloneKey Key;
     typedef CallsiteCloneTable Table;
@@ -468,7 +470,7 @@ checkReportFlags(JSContext *cx, unsigned *flags)
          * strict if the nearest scripted frame is strict, see bug 536306.
          */
         JSScript *script = cx->currentScript();
-        if (script && script->strict())
+        if (script && script->strict)
             *flags &= ~JSREPORT_WARNING;
         else if (cx->options().extraWarnings())
             *flags |= JSREPORT_WARNING;

@@ -384,7 +384,7 @@ nsXPLookAndFeel::InitColorFromPref(int32_t i)
 }
 
 // static
-void
+int
 nsXPLookAndFeel::OnPrefChanged(const char* aPref, void* aClosure)
 {
 
@@ -395,23 +395,25 @@ nsXPLookAndFeel::OnPrefChanged(const char* aPref, void* aClosure)
   for (i = 0; i < ArrayLength(sIntPrefs); ++i) {
     if (prefName.Equals(sIntPrefs[i].name)) {
       IntPrefChanged(&sIntPrefs[i]);
-      return;
+      return 0;
     }
   }
 
   for (i = 0; i < ArrayLength(sFloatPrefs); ++i) {
     if (prefName.Equals(sFloatPrefs[i].name)) {
       FloatPrefChanged(&sFloatPrefs[i]);
-      return;
+      return 0;
     }
   }
 
   for (i = 0; i < ArrayLength(sColorPrefs); ++i) {
     if (prefName.Equals(sColorPrefs[i])) {
       ColorPrefChanged(i, sColorPrefs[i]);
-      return;
+      return 0;
     }
   }
+
+  return 0;
 }
 
 //

@@ -197,9 +197,9 @@ jit::CheckFrequentBailouts(JSContext *cx, JSScript *script)
         IonScript *ionScript = script->ionScript();
 
         if (ionScript->numBailouts() >= js_IonOptions.frequentBailoutThreshold &&
-            !script->hadFrequentBailouts())
+            !script->hadFrequentBailouts)
         {
-            script->setHadFrequentBailouts();
+            script->hadFrequentBailouts = true;
 
             IonSpew(IonSpew_Invalidate, "Invalidating due to too many bailouts");
 

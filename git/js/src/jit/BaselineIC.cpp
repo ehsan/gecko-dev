@@ -4234,9 +4234,7 @@ ICGetElemNativeCompiler::generateStubCode(MacroAssembler &masm)
     }
 
     // Since this stub sometimes enter a stub frame, we manually set this to true (lie).
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     // Key has been atomized if necessary.  Do identity check on string pointer.
     masm.branchPtr(Assembler::NotEqual, nameAddr, strExtract, &failure);
@@ -4479,9 +4477,7 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Check if __noSuchMethod__ should be called.
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
     if (isCallElem_) {
         Label afterNoSuchMethod;
         Label skipNoSuchMethod;
@@ -4611,9 +4607,7 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
     // Variatns of GetElem_Arguments can enter stub frames if entered in CallProp
     // context when noSuchMethod support is on.
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 #endif
 
     Label failure;
@@ -4958,7 +4952,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
         if (!InitArrayElemOperation(cx, pc, obj, index.toInt32(), rhs))
             return false;
     } else {
-        if (!SetObjectElement(cx, obj, index, rhs, script->strict(), script, pc))
+        if (!SetObjectElement(cx, obj, index, rhs, script->strict, script, pc))
             return false;
     }
 
@@ -6384,9 +6378,7 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     leaveStubFrame(masm, true);
 
@@ -6570,9 +6562,7 @@ ICGetPropNativeCompiler::generateStubCode(MacroAssembler &masm)
     BaseIndex result(holderReg, scratch, TimesOne);
 
 #if JS_HAS_NO_SUCH_METHOD
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
     if (isCallProp_) {
         // Check for __noSuchMethod__ invocation.
         Label afterNoSuchMethod;
@@ -7246,7 +7236,7 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
             return false;
     } else if (op == JSOP_SETALIASEDVAR) {
         obj->as<ScopeObject>().setAliasedVar(cx, pc, name, rhs);
-    } else if (script->strict()) {
+    } else if (script->strict) {
         if (!js::SetProperty<true>(cx, obj, id, rhs))
             return false;
     } else {
@@ -7308,9 +7298,7 @@ ICSetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Even though the fallback frame doesn't enter a stub frame, the CallScripted
     // frame that we are emulating does. Again, we lie.
-#ifdef DEBUG
     entersStubFrame_ = true;
-#endif
 
     leaveStubFrame(masm, true);
 
@@ -7923,7 +7911,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
         if (!calleeScript->hasBaselineScript() && !calleeScript->hasIonScript())
             return true;
 
-        if (calleeScript->shouldCloneAtCallsite())
+        if (calleeScript->shouldCloneAtCallsite)
             return true;
 
         // Check if this stub chain has already generalized scripted calls.
@@ -8028,7 +8016,7 @@ MaybeCloneFunctionAtCallsite(JSContext *cx, MutableHandleValue callee, HandleScr
     if (!IsFunctionObject(callee, fun.address()))
         return true;
 
-    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite())
+    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite)
         return true;
 
     if (!cx->typeInferenceEnabled())

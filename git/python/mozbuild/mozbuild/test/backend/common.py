@@ -16,15 +16,13 @@ from mozbuild.backend.configenvironment import ConfigEnvironment
 from mozbuild.frontend.emitter import TreeMetadataEmitter
 from mozbuild.frontend.reader import BuildReader
 
-import mozpack.path as mozpath
-
 
 log_manager = LoggingManager()
 log_manager.add_terminal_logging()
 
 
-test_data_path = mozpath.abspath(mozpath.dirname(__file__))
-test_data_path = mozpath.join(test_data_path, 'data')
+test_data_path = os.path.abspath(os.path.dirname(__file__))
+test_data_path = os.path.join(test_data_path, 'data')
 
 
 CONFIGS = {
@@ -100,16 +98,6 @@ CONFIGS = {
         'non_global_defines': [],
         'substs': [],
     },
-    'test_config': {
-        'defines': [
-            ('foo', 'baz qux'),
-            ('baz', 1)
-        ],
-        'non_global_defines': [],
-        'substs': [
-            ('foo', 'bar baz'),
-        ],
-    },
 }
 
 
@@ -125,7 +113,7 @@ class BackendTester(unittest.TestCase):
         objdir = mkdtemp()
         self.addCleanup(rmtree, objdir)
 
-        srcdir = mozpath.join(test_data_path, name)
+        srcdir = os.path.join(test_data_path, name)
         config['substs'].append(('top_srcdir', srcdir))
         return ConfigEnvironment(srcdir, objdir, **config)
 
@@ -147,7 +135,7 @@ class BackendTester(unittest.TestCase):
         for dirpath, dirnames, filenames in os.walk(topdir):
             for f in filenames:
                 if f == filename:
-                    yield mozpath.relpath(mozpath.join(dirpath, f), topdir)
+                    yield os.path.relpath(os.path.join(dirpath, f), topdir)
 
     def _mozbuild_paths(self, env):
         return self._tree_paths(env.topsrcdir, 'moz.build')

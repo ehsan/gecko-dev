@@ -702,7 +702,7 @@ private:
 
     static void CreateCMSOutputProfile();
 
-    friend void RecordingPrefChanged(const char *aPrefName, void *aClosure);
+    friend int RecordingPrefChanged(const char *aPrefName, void *aClosure);
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 

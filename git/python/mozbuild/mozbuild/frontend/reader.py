@@ -40,8 +40,6 @@ from mozbuild.util import (
 
 from mozbuild.backend.configenvironment import ConfigEnvironment
 
-import mozpack.path as mozpath
-
 from .data import (
     JavaJarData,
 )
@@ -84,8 +82,8 @@ def is_read_allowed(path, config):
     assert os.path.isabs(path)
     assert os.path.isabs(config.topsrcdir)
 
-    path = mozpath.normpath(path)
-    topsrcdir = mozpath.normpath(config.topsrcdir)
+    path = os.path.normpath(path)
+    topsrcdir = os.path.normpath(config.topsrcdir)
 
     if path.startswith(topsrcdir):
         return True
@@ -93,8 +91,8 @@ def is_read_allowed(path, config):
     external_dirs = config.substs.get('EXTERNAL_SOURCE_DIR', '').split()
     for external in external_dirs:
         if not os.path.isabs(external):
-            external = mozpath.join(config.topsrcdir, external)
-        external = mozpath.normpath(external)
+            external = os.path.join(config.topsrcdir, external)
+        external = os.path.normpath(external)
 
         if path.startswith(external):
             return True
@@ -130,19 +128,19 @@ class MozbuildSandbox(Sandbox):
         self.config = config
         self.metadata = dict(metadata)
 
-        topobjdir = mozpath.abspath(config.topobjdir)
+        topobjdir = os.path.abspath(config.topobjdir)
         topsrcdir = config.topsrcdir
-        norm_topsrcdir = mozpath.normpath(topsrcdir)
+        norm_topsrcdir = os.path.normpath(topsrcdir)
 
         if not path.startswith(norm_topsrcdir):
             external_dirs = config.substs.get('EXTERNAL_SOURCE_DIR', '').split()
             for external in external_dirs:
-                external = mozpath.normpath(external)
+                external = os.path.normpath(external)
 
                 if not os.path.isabs(external):
-                    external = mozpath.join(config.topsrcdir, external)
+                    external = os.path.join(config.topsrcdir, external)
 
-                external = mozpath.normpath(external)
+                external = os.path.normpath(external)
 
                 if not path.startswith(external):
                     continue
@@ -154,27 +152,27 @@ class MozbuildSandbox(Sandbox):
                 # is in play that the main build system is built in a
                 # subdirectory of its topobjdir. Therefore, the topobjdir of
                 # the external source directory is the parent of our topobjdir.
-                topobjdir = mozpath.dirname(topobjdir)
+                topobjdir = os.path.dirname(topobjdir)
 
                 # This is suboptimal because we load the config.status multiple
                 # times. We should consider caching it, possibly by moving this
                 # code up to the reader.
                 config = ConfigEnvironment.from_config_status(
-                    mozpath.join(topobjdir, 'config.status'))
+                    os.path.join(topobjdir, 'config.status'))
                 self.config = config
                 break
 
         self.topsrcdir = topsrcdir
 
-        relpath = mozpath.relpath(path, topsrcdir)
-        reldir = mozpath.dirname(relpath)
+        relpath = os.path.relpath(path, topsrcdir).replace(os.sep, '/')
+        reldir = os.path.dirname(relpath)
 
         with self._globals.allow_all_writes() as d:
             d['TOPSRCDIR'] = topsrcdir
             d['TOPOBJDIR'] = topobjdir
             d['RELATIVEDIR'] = reldir
-            d['SRCDIR'] = mozpath.join(topsrcdir, reldir).rstrip('/')
-            d['OBJDIR'] = mozpath.join(topobjdir, reldir).rstrip('/')
+            d['SRCDIR'] = os.path.join(topsrcdir, reldir).replace(os.sep, '/').rstrip('/')
+            d['OBJDIR'] = os.path.join(topobjdir, reldir).replace(os.sep, '/').rstrip('/')
 
             d['CONFIG'] = ReadOnlyDefaultDict(self.config.substs_unicode,
                 global_default=None)
@@ -207,21 +205,21 @@ class MozbuildSandbox(Sandbox):
         """
         if os.path.isabs(path):
             if not filesystem_absolute:
-                path = mozpath.normpath(mozpath.join(self.topsrcdir,
+                path = os.path.normpath(os.path.join(self.topsrcdir,
                     path[1:]))
 
         else:
             if len(self._execution_stack):
-                path = mozpath.normpath(mozpath.join(
-                    mozpath.dirname(self._execution_stack[-1]),
+                path = os.path.normpath(os.path.join(
+                    os.path.dirname(self._execution_stack[-1]),
                     path))
             else:
-                path = mozpath.normpath(mozpath.join(
+                path = os.path.normpath(os.path.join(
                     self.topsrcdir, path))
 
         # realpath() is needed for true security. But, this isn't for security
         # protection, so it is omitted.
-        normalized_path = mozpath.normpath(path)
+        normalized_path = os.path.normpath(path)
         if not is_read_allowed(normalized_path, self.config):
             raise SandboxLoadError(list(self._execution_stack),
                 sys.exc_info()[2], illegal_path=path)
@@ -611,7 +609,7 @@ class BuildReader(object):
         This is a generator of Sandbox instances. As each mozbuild file is
         read, a new Sandbox is created. Each created Sandbox is returned.
         """
-        path = mozpath.join(self.topsrcdir, 'moz.build')
+        path = os.path.join(self.topsrcdir, 'moz.build')
         return self.read_mozbuild(path, read_tiers=True,
             filesystem_absolute=True, metadata={'tier': None})
 
@@ -674,7 +672,7 @@ class BuildReader(object):
 
     def _read_mozbuild(self, path, read_tiers, filesystem_absolute, descend,
             metadata):
-        path = mozpath.normpath(path)
+        path = os.path.normpath(path)
         log(self._log, logging.DEBUG, 'read_mozbuild', {'path': path},
             'Reading file: {path}')
 
@@ -752,15 +750,15 @@ class BuildReader(object):
                                        'parent': sandbox['RELATIVEDIR'],
                                        'var': 'DIRS'}
 
-        curdir = mozpath.dirname(path)
+        curdir = os.path.dirname(path)
         for relpath, child_metadata in recurse_info.items():
-            child_path = mozpath.join(curdir, relpath, 'moz.build')
+            child_path = os.path.join(curdir, relpath, 'moz.build')
 
             # Ensure we don't break out of the topsrcdir. We don't do realpath
             # because it isn't necessary. If there are symlinks in the srcdir,
             # that's not our problem. We're not a hosted application: we don't
             # need to worry about security too much.
-            child_path = mozpath.normpath(child_path)
+            child_path = os.path.normpath(child_path)
             if not is_read_allowed(child_path, self.config):
                 raise SandboxValidationError(
                     'Attempting to process file outside of allowed paths: %s' %

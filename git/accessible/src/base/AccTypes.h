@@ -34,7 +34,6 @@ enum AccType {
   eHTMLMediaType,
   eHTMLRadioButtonType,
   eHTMLRangeType,
-  eHTMLSpinnerType,
   eHTMLTableType,
   eHTMLTableCellType,
   eHTMLTableRowType,

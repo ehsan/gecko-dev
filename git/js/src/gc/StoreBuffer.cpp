@@ -10,7 +10,6 @@
 
 #include "mozilla/Assertions.h"
 
-#include "vm/ArgumentsObject.h"
 #include "vm/ForkJoin.h"
 
 #include "jsgcinlines.h"
@@ -65,11 +64,7 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
     JS_ASSERT(tenured->isTenured());
     JSGCTraceKind kind = GetGCThingTraceKind(tenured);
     if (kind <= JSTRACE_OBJECT) {
-        JSObject *object = static_cast<JSObject *>(tenured);
-        if (object->is<ArgumentsObject>())
-            ArgumentsObject::trace(trc, object);
-        else
-            MarkChildren(trc, object);
+        MarkChildren(trc, static_cast<JSObject *>(tenured));
         return;
     }
 #ifdef JS_ION

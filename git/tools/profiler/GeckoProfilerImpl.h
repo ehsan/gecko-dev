@@ -366,6 +366,27 @@ inline void mozilla_sampler_call_exit(void *aHandle)
   stack->pop();
 }
 
-void mozilla_sampler_add_marker(const char *aMarker, ProfilerMarkerPayload *aPayload);
+inline void mozilla_sampler_add_marker(const char *aMarker, ProfilerMarkerPayload *aPayload)
+{
+  if (!stack_key_initialized)
+    return;
+
+  // Don't insert a marker if we're not profiling to avoid
+  // the heap copy (malloc).
+  if (!profiler_is_active()) {
+    return;
+  }
+
+  // Don't add a marker if we don't want to include personal information
+  if (profiler_in_privacy_mode()) {
+    return;
+  }
+
+  PseudoStack *stack = tlsPseudoStack.get();
+  if (!stack) {
+    return;
+  }
+  stack->addMarker(aMarker, aPayload);
+}
 
 #endif /* ndef TOOLS_SPS_SAMPLER_H_ */

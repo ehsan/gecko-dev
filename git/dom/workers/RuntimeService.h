@@ -194,8 +194,8 @@ public:
                              const JS::ContextOptions& aChromeOptions)
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.content.contextOptions = aContentOptions;
-    sDefaultJSSettings.chrome.contextOptions = aChromeOptions;
+    sDefaultJSSettings.content.options = aContentOptions;
+    sDefaultJSSettings.chrome.options = aChromeOptions;
   }
 
   void
@@ -293,11 +293,8 @@ private:
   static void
   ShutdownIdleThreads(nsITimer* aTimer, void* aClosure);
 
-  static void
+  static int
   WorkerPrefChanged(const char* aPrefName, void* aClosure);
-
-  static void
-  JSVersionChanged(const char* aPrefName, void* aClosure);
 };
 
 END_WORKERS_NAMESPACE
