@@ -413,19 +413,10 @@ struct nsStyleBackground {
     };
     PRUint8 mWidthType, mHeightType;
 
-    // True if the effective image size described by this depends on
-    // the size of the corresponding frame.  Gradients depend on the
-    // frame size when their dimensions are 'auto', images don't; both
-    // types depend on the frame size when their dimensions are
-    // 'contain', 'cover', or a percentage.
-    PRBool DependsOnFrameSize(nsStyleImageType aType) const {
-      if (aType == eStyleImageType_Image) {
-        return mWidthType <= ePercentage || mHeightType <= ePercentage;
-      } else if (aType == eStyleImageType_Gradient) {
-        return mWidthType <= eAuto || mHeightType <= eAuto;
-      } else {
-        NS_NOTREACHED("unrecognized image type");
-      }
+    // True if the effective image size described by this depends on the size
+    // of the corresponding frame.
+    PRBool DependsOnFrameSize() const {
+      return mWidthType <= ePercentage || mHeightType <= ePercentage;
     }
 
     // Initialize nothing
@@ -457,16 +448,12 @@ struct nsStyleBackground {
 
     void SetInitialValues();
 
-    // True if the rendering of this layer might change when the size
-    // of the corresponding frame changes.  This is true for any
-    // non-solid-color background whose position or size depends on
-    // the frame size (that is, was specified with percentages) and is
-    // also true for nearly all gradients.  We don't currently bother
-    // trying to identify gradients that don't depend on the frame size.
+    // True if the rendering of this layer might change when the size of the
+    // corresponding frame changes (if its position or size is a percentage of
+    // the frame's dimensions).
     PRBool RenderingMightDependOnFrameSize() const {
-      return (!mImage.IsEmpty() &&
-              (mPosition.DependsOnFrameSize() ||
-               mSize.DependsOnFrameSize(mImage.GetType())));
+      return !mImage.IsEmpty() &&
+             (mPosition.DependsOnFrameSize() || mSize.DependsOnFrameSize());
     }
 
     // An equality operator that compares the images using URL-equality

@@ -362,18 +362,9 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
 }
 
 static void
-TouchBadMemory()
-{
-  // XXX this should use the frame poisoning code
-  gAssertionCount += *((PRInt32 *) 0); // TODO annotation saying we know 
-                                       // this is crazy
-}
-
-static void
 Abort(const char *aMsg)
 {
 #if defined(_WIN32)
-  TouchBadMemory();
 
 #ifndef WINCE
   //This should exit us
@@ -395,7 +386,9 @@ Abort(const char *aMsg)
 #endif
 
   // Still haven't aborted?  Try dereferencing null.
-  TouchBadMemory();
+  // (Written this way to lessen the likelihood of it being optimized away.)
+  gAssertionCount += *((PRInt32 *) 0); // TODO annotation saying we know 
+                                       // this is crazy
 
   // Still haven't aborted?  Try _exit().
   PR_ProcessExit(127);

@@ -217,16 +217,16 @@ private:
 private:
     // Used in rendering windowless plugins in other processes.
     bool SharedSurfaceSetWindow(const NPWindow* aWindow, NPRemoteWindow& aRemoteWindow);
-    void SharedSurfaceBeforePaint(RECT &rect, NPRemoteEvent& npremoteevent);
+    bool SharedSurfaceBeforePaint(RECT &rect, NPRemoteEvent& npremoteevent);
     void SharedSurfaceAfterPaint(NPEvent* npevent);
-    void SharedSurfaceSetOrigin(NPRemoteEvent& npremoteevent);
     void SharedSurfaceRelease();
 
 private:
     gfx::SharedDIBWin  mSharedSurfaceDib;
     nsIntRect          mPluginPort;
     nsIntRect          mSharedSize;
-    nsIntPoint         mPluginPosOrigin;
+    PRUint32           mDoublePassEvent;
+    bool               mLocalCopyRender;
 #endif // defined(XP_WIN)
 };
 

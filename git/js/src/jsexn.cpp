@@ -1104,8 +1104,7 @@ static struct exnname { char *name; char *exception; } errortoexnname[] = {
 #endif /* DEBUG */
 
 JSBool
-js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
-                    JSErrorCallback callback, void *userRef)
+js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp)
 {
     JSErrNum errorNumber;
     const JSErrorFormatString *errorString;
@@ -1125,10 +1124,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
 
     /* Find the exception index associated with this error. */
     errorNumber = (JSErrNum) reportp->errorNumber;
-    if (!callback || callback == js_GetErrorMessage)
-        errorString = js_GetLocalizedErrorMessage(cx, NULL, NULL, errorNumber);
-    else
-        errorString = callback(userRef, NULL, errorNumber);
+    errorString = js_GetLocalizedErrorMessage(cx, NULL, NULL, errorNumber);
     exn = errorString ? (JSExnType) errorString->exnType : JSEXN_NONE;
     JS_ASSERT(exn < JSEXN_LIMIT);
 

@@ -1281,8 +1281,7 @@ MarkLocalRoots(JSTracer *trc, JSLocalRootStack *lrs)
 }
 
 static void
-ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
-            JSErrorCallback callback, void *userRef)
+ReportError(JSContext *cx, const char *message, JSErrorReport *reportp)
 {
     /*
      * Check the error report, and set a JavaScript-catchable exception
@@ -1291,8 +1290,7 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
      * on the error report, and exception-aware hosts should ignore it.
      */
     JS_ASSERT(reportp);
-    if ((!callback || callback == js_GetErrorMessage) &&
-        reportp->errorNumber == JSMSG_UNCAUGHT_EXCEPTION)
+    if (reportp->errorNumber == JSMSG_UNCAUGHT_EXCEPTION)
         reportp->flags |= JSREPORT_EXCEPTION;
 
     /*
@@ -1303,8 +1301,7 @@ ReportError(JSContext *cx, const char *message, JSErrorReport *reportp,
      * propagates out of scope.  This is needed for compatability
      * with the old scheme.
      */
-    if (!JS_IsRunning(cx) ||
-        !js_ErrorToException(cx, message, reportp, callback, userRef)) {
+    if (!JS_IsRunning(cx) || !js_ErrorToException(cx, message, reportp)) {
         js_ReportErrorAgain(cx, message, reportp);
     } else if (cx->debugHooks->debugErrorHook && cx->errorReporter) {
         JSDebugErrorHook hook = cx->debugHooks->debugErrorHook;
@@ -1460,7 +1457,7 @@ js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap)
 
     warning = JSREPORT_IS_WARNING(report.flags);
 
-    ReportError(cx, message, &report, NULL, NULL);
+    ReportError(cx, message, &report);
     js_free(message);
     cx->free(ucmessage);
     return warning;
@@ -1654,7 +1651,7 @@ js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
         return JS_FALSE;
     }
 
-    ReportError(cx, message, &report, callback, userRef);
+    ReportError(cx, message, &report);
 
     if (message)
         cx->free(message);

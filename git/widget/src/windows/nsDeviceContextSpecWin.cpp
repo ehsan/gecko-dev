@@ -925,7 +925,13 @@ nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameLis
   PRInt32 printerInx = 0;
   while( printerInx < numPrinters ) {
     LPWSTR name = GlobalPrinters::GetInstance()->GetItemFromList(printerInx++);
-    printers->AppendElement(nsDependentString(name));
+#ifdef UNICODE
+    nsDependentString newName(name);
+#else
+    nsAutoString newName; 
+    NS_CopyNativeToUnicode(nsDependentCString(name), newName);
+#endif
+    printers->AppendElement(newName);
   }
 
   return NS_NewAdoptingStringEnumerator(aPrinterNameList, printers);
