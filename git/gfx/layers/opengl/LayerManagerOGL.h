@@ -539,7 +539,6 @@ public:
 
   LayerManagerOGL* OGLManager() const { return mOGLManager; }
   GLContext *gl() const { return mOGLManager->gl(); }
-  virtual void CleanupResources() = 0;
 
 protected:
   LayerManagerOGL *mOGLManager;

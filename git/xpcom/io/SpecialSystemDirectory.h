@@ -51,6 +51,7 @@
 #endif
 
 extern void StartupSpecialSystemDirectory();
+extern void ShutdownSpecialSystemDirectory();
 
 
 enum SystemDirectories {

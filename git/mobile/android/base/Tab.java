@@ -41,7 +41,6 @@ import android.content.ContentResolver;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.Bitmap;
-import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.graphics.Bitmap;
@@ -78,7 +77,6 @@ public class Tab {
     private boolean mBookmark;
     private HashMap<String, DoorHanger> mDoorHangers;
     private long mFaviconLoadId;
-    private CheckBookmarkTask mCheckBookmarkTask;
     private String mDocumentURI;
     private String mContentType;
 
@@ -276,15 +274,7 @@ public class Tab {
     }
 
     private void updateBookmark() {
-        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            public void run() {
-                if (mCheckBookmarkTask != null)
-                    mCheckBookmarkTask.cancel(false);
-
-                mCheckBookmarkTask = new CheckBookmarkTask(getURL());
-                mCheckBookmarkTask.execute();
-            }
-        });
+        new CheckBookmarkTask().execute();
     }
 
     public void addBookmark() {
@@ -404,38 +394,16 @@ public class Tab {
         }
     }
 
-    private class CheckBookmarkTask extends AsyncTask<Void, Void, Boolean> {
-        private final String mUrl;
-
-        public CheckBookmarkTask(String url) {
-            mUrl = url;
-        }
-
+    private class CheckBookmarkTask extends GeckoAsyncTask<Void, Void, Boolean> {
         @Override
         protected Boolean doInBackground(Void... unused) {
             ContentResolver resolver = Tabs.getInstance().getContentResolver();
-            return BrowserDB.isBookmark(resolver, mUrl);
+            return BrowserDB.isBookmark(resolver, getURL());
         }
 
         @Override
-        protected void onCancelled() {
-            mCheckBookmarkTask = null;
-        }
-
-        @Override
-        protected void onPostExecute(final Boolean isBookmark) {
-            mCheckBookmarkTask = null;
-
-            GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-                public void run() {
-                    // Ignore this task if it's not about the current
-                    // tab URL anymore.
-                    if (!mUrl.equals(getURL()))
-                        return;
-
-                    setBookmark(isBookmark.booleanValue());
-                }
-            });
+        protected void onPostExecute(Boolean isBookmark) {
+            setBookmark(isBookmark.booleanValue());
         }
     }
 

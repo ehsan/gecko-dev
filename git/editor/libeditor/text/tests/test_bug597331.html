@@ -31,7 +31,6 @@ addLoadEvent(function() {
     t.selectionStart = 4;
     t.selectionEnd = 4;
     SimpleTest.executeSoon(function() {
-      t.getBoundingClientRect(); // flush layout
       var before = snapshotWindow(window, true);
       t.selectionStart = 5;
       t.selectionEnd = 5;

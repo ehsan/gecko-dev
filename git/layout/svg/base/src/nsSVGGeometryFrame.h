@@ -116,7 +116,8 @@ protected:
   virtual PRUint16 GetHitTestFlags();
 
 private:
-  bool GetStrokeDashData(FallibleTArray<gfxFloat>& dashes, gfxFloat *dashOffset);
+  nsresult GetStrokeDashArray(double **arr, PRUint32 *count);
+  float GetStrokeDashoffset();
 
   /**
    * Returns the given 'fill-opacity' or 'stroke-opacity' value multiplied by

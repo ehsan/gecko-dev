@@ -120,10 +120,6 @@ LayerManagerOGL::CleanupResources()
   if (!mGLContext)
     return;
 
-  if (mRoot) {
-    RootLayer()->CleanupResources();
-  }
-
   nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
   if (!ctx) {
     ctx = mGLContext;

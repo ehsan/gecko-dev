@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Corporation code.
+ * The Original Code is The Browser Profile Migrator.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * The Initial Developer of the Original Code is Ben Goodger.
+ * Portions created by the Initial Developer are Copyright (C) 2004
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Matt Woodrow <mwoodrow@mozilla.com>
+ *  Ben Goodger <ben@bengoodger.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,37 +34,31 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+ 
+#ifndef profilemigrator___h___
+#define profilemigrator___h___
 
-#ifndef MOZILLA_GFX_SCALEDFONTSKIA_H_
-#define MOZILLA_GFX_SCALEDFONTSKIA_H_
+#include "nsIBrowserProfileMigrator.h"
+#include "nsIProfileMigrator.h"
+#include "nsCOMPtr.h"
 
-#include "2D.h"
-#include "skia/SkTypeface.h"
+#define NS_FIREFOX_PROFILEMIGRATOR_CID \
+{ 0x4ca3c946, 0x5408, 0x49f0, { 0x9e, 0xca, 0x3a, 0x97, 0xd5, 0xc6, 0x77, 0x50 } }
 
-class gfxFont;
-
-namespace mozilla {
-namespace gfx {
-
-class ScaledFontSkia : public ScaledFont
+class nsProfileMigrator : public nsIProfileMigrator
 {
 public:
-  ScaledFontSkia(gfxFont* aFont, Float aSize);
-  ScaledFontSkia(Float aSize);
-  virtual ~ScaledFontSkia();
+  NS_DECL_NSIPROFILEMIGRATOR
+  NS_DECL_ISUPPORTS
 
-  virtual FontType GetType() const { return FONT_SKIA; }
-
-  virtual TemporaryRef<Path> GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget);
+  nsProfileMigrator() { }
 
 protected:
-  friend class DrawTargetSkia;
+  ~nsProfileMigrator() { }
 
-  SkTypeface* mTypeface;
-  Float mSize;
+  nsresult GetDefaultBrowserMigratorKey(nsACString& key,
+                                        nsCOMPtr<nsIBrowserProfileMigrator>& bpm);
 };
 
-}
-}
+#endif
 
-#endif /* MOZILLA_GFX_SCALEDFONTSKIA_H_ */

@@ -183,6 +183,11 @@ static const char NEVER_ASK_FOR_SAVE_TO_DISK_PREF[] =
 static const char NEVER_ASK_FOR_OPEN_FILE_PREF[] =
   "browser.helperApps.neverAsk.openFile";
 
+/**
+ * Contains a pointer to the helper app service, set in its constructor
+ */
+nsExternalHelperAppService* gExtProtSvc;
+
 // Helper functions for Content-Disposition headers
 
 /**
@@ -537,6 +542,7 @@ NS_IMPL_ISUPPORTS6(
 nsExternalHelperAppService::nsExternalHelperAppService() :
   mInPrivateBrowsing(false)
 {
+  gExtProtSvc = this;
 }
 nsresult nsExternalHelperAppService::Init()
 {
@@ -566,6 +572,7 @@ nsresult nsExternalHelperAppService::Init()
 
 nsExternalHelperAppService::~nsExternalHelperAppService()
 {
+  gExtProtSvc = nsnull;
 }
 
 static PRInt64 GetContentLengthAsInt64(nsIRequest *request)
@@ -640,8 +647,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     NS_ADDREF(*aStreamListener = childListener);
 
     nsRefPtr<nsExternalAppHandler> handler =
-      new nsExternalAppHandler(nsnull, EmptyCString(), aWindowContext, this,
-                               fileName,
+      new nsExternalAppHandler(nsnull, EmptyCString(), aWindowContext, fileName,
                                reason, aForceSave);
     if (!handler)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -754,7 +760,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   nsExternalAppHandler * handler = new nsExternalAppHandler(mimeInfo,
                                                             buf,
                                                             aWindowContext,
-                                                            this,
                                                             fileName,
                                                             reason,
                                                             aForceSave);
@@ -1115,7 +1120,6 @@ NS_INTERFACE_MAP_END_THREADSAFE
 nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
                                            const nsCSubstring& aTempFileExtension,
                                            nsIInterfaceRequestor* aWindowContext,
-                                           nsExternalHelperAppService *aExtProtSvc,
                                            const nsAString& aSuggestedFilename,
                                            PRUint32 aReason, bool aForceSave)
 : mMimeInfo(aMIMEInfo)
@@ -1134,7 +1138,6 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 , mDataBuffer(nsnull)
 , mKeepRequestAlive(false)
 , mRequest(nsnull)
-, mExtProtSvc(aExtProtSvc)
 {
 
   // make sure the extention includes the '.'
@@ -1162,6 +1165,8 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
   // Make sure extension is correct.
   EnsureSuggestedFileName();
 
+  gExtProtSvc->AddRef();
+
   mBufferSize = Preferences::GetUint("network.buffer.cache.size", 4096);
   mDataBuffer = (char*) malloc(mBufferSize);
   if (!mDataBuffer)
@@ -1170,6 +1175,9 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 
 nsExternalAppHandler::~nsExternalAppHandler()
 {
+  // Not using NS_RELEASE, since we don't want to set gExtProtSvc to NULL
+  gExtProtSvc->Release();
+
   if (mDataBuffer)
     free(mDataBuffer);
 }
@@ -1505,7 +1513,8 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
             rv = encEnum->GetNext(encType);
             if (NS_SUCCEEDED(rv) && !encType.IsEmpty())
             {
-              mExtProtSvc->ApplyDecodingForExtension(extension, encType,
+              NS_ASSERTION(gExtProtSvc, "Where did the service go?");
+              gExtProtSvc->ApplyDecodingForExtension(extension, encType,
                                                      &applyConversion);
             }
           }
@@ -1561,6 +1570,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     // at some point in the distant past that they don't
     // want to be asked.  The latter fact would have been
     // stored in pref strings back in the old days.
+    NS_ASSERTION(gExtProtSvc, "Service gone away!?");
 
     bool mimeTypeIsInDatastore = false;
     nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
@@ -1905,7 +1915,7 @@ nsresult nsExternalAppHandler::ExecuteDesiredAction()
       else if(action == nsIMIMEInfo::saveToDisk)
       {
         nsCOMPtr<nsILocalFile> destfile(do_QueryInterface(mFinalFileDestination));
-        mExtProtSvc->FixFilePermissions(destfile);
+        gExtProtSvc->FixFilePermissions(destfile);
       }
     }
 
@@ -2219,7 +2229,7 @@ nsresult nsExternalAppHandler::OpenWithApplication()
 
     // make the tmp file readonly so users won't edit it and lose the changes
     // only if we're going to delete the file
-    if (deleteTempFileOnExit || mExtProtSvc->InPrivateBrowsing())
+    if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing())
       mFinalFileDestination->SetPermissions(0400);
 
     rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);
@@ -2233,8 +2243,9 @@ nsresult nsExternalAppHandler::OpenWithApplication()
     }
     // Always schedule files to be deleted at the end of the private browsing
     // mode, regardless of the value of the pref.
-    else if (deleteTempFileOnExit || mExtProtSvc->InPrivateBrowsing()) {
-      mExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
+    else if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing()) {
+      NS_ASSERTION(gExtProtSvc, "Service gone away!?");
+      gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
     }
   }
 

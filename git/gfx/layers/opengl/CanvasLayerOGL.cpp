@@ -68,7 +68,12 @@ void
 CanvasLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    CleanupResources();
+    if (mTexture) {
+      GLContext *cx = mOGLManager->glForResources();
+      cx->MakeCurrent();
+      cx->fDeleteTextures(1, &mTexture);
+    }
+
     mDestroyed = true;
   }
 }
@@ -247,17 +252,12 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
     gl()->BindTex2DOffscreen(mCanvasGLContext);
     program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), true);
   } else if (mDelayedUpdates) {
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, "WebGL canvases should always be using full texture upload");
+    NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
     
     drawRect.IntersectRect(drawRect, GetEffectiveVisibleRegion().GetBounds());
 
-    nsRefPtr<gfxASurface> surf = mCanvasSurface;
-    if (mDrawTarget) {
-      surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    }
-
     mLayerProgram =
-      gl()->UploadSurfaceToTexture(surf,
+      gl()->UploadSurfaceToTexture(mCanvasSurface,
                                    nsIntRect(0, 0, drawRect.width, drawRect.height),
                                    mTexture,
                                    true,
@@ -293,16 +293,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   if (useGLContext) {
     gl()->UnbindTex2DOffscreen(mCanvasGLContext);
-  }
-}
-
-void
-CanvasLayerOGL::CleanupResources()
-{
-  if (mTexture) {
-    GLContext* cx = mOGLManager->glForResources();
-    cx->MakeCurrent();
-    cx->fDeleteTextures(1, &mTexture);
   }
 }
 
@@ -420,10 +410,4 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     program->SetLayerQuadRect(mTexImage->GetTileRect());
     mOGLManager->BindAndDrawQuad(program, mNeedsYFlip); // FIXME flip order of tiles?
   } while (mTexImage->NextTile());
-}
-
-void
-ShadowCanvasLayerOGL::CleanupResources()
-{
-  DestroyFrontBuffer();
 }
