@@ -94,6 +94,14 @@ let Utils = {
            getService(Ci.nsILoginManager);
   },
 
+  makeNewLoginInfo: function getNewLoginInfo() {
+    return new Components.Constructor(
+      "@mozilla.org/login-manager/loginInfo;1",
+      Ci.nsILoginInfo,
+      "init"
+    );
+  },
+
   findPassword: function findPassword(realm, username) {
     // fixme: make a request and get the realm ?
     let password;

@@ -113,15 +113,15 @@ Engine.prototype = {
   get score() this._tracker.score,
 
   get _store() {
-    if (!this.__store)
-      this.__store = new this._storeObj();
-    return this.__store;
+    let store = new this._storeObj();
+    this.__defineGetter__("_store", function() store);
+    return store;
   },
 
   get _tracker() {
-    if (!this.__tracker)
-      this.__tracker = new this._trackerObj();
-    return this.__tracker;
+    let tracker = new this._trackerObj();
+    this.__defineGetter__("_tracker", function() tracker);
+    return tracker;
   },
 
   _init: function Engine__init() {
@@ -165,6 +165,12 @@ SyncEngine.prototype = {
   __proto__: Engine.prototype,
 
   _recordObj: CryptoWrapper,
+
+  get _memory() {
+    let mem = Cc["@mozilla.org/xpcom/memory-service;1"].getService(Ci.nsIMemory);
+    this.__defineGetter__("_memory", function() mem);
+    return mem;
+  },
 
   get baseURL() {
     let url = Svc.Prefs.get("clusterURL");
@@ -221,10 +227,10 @@ SyncEngine.prototype = {
   },
 
   _lowMemCheck: function SyncEngine__lowMemCheck() {
-    if (Svc.Memory.isLowMemory()) {
+    if (this._memory.isLowMemory()) {
       this._log.warn("Low memory, forcing GC");
       Cu.forceGC();
-      if (Svc.Memory.isLowMemory()) {
+      if (this._memory.isLowMemory()) {
         this._log.warn("Low memory, aborting sync!");
         throw "Low memory";
       }
