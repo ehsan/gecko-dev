@@ -28,20 +28,17 @@ function test_socket_conn()
 {
   DebuggerServer.openListener(2929, true);
 
-  let unicodeString = "(╯°□°）╯︵ ┻━┻";
   let transport = debuggerSocketConnect("127.0.0.1", 2929);
   transport.hooks = {
     onPacket: function(aPacket) {
       this.onPacket = function(aPacket) {
-        do_check_eq(aPacket.unicode, unicodeString);
         transport.close();
       }
       // Verify that things work correctly when bigger than the output
-      // transport buffers and when transporting unicode...
+      // transport buffers...
       transport.send({to: "root",
                       type: "echo",
-                      reallylong: really_long(),
-                      unicode: unicodeString});
+                      reallylong: really_long()});
       do_check_eq(aPacket.from, "root");
     },
     onClosed: function(aStatus) {

@@ -149,7 +149,7 @@ protected:
                      bool aBypassSyncQueue = false,
                      ClearingBehavior aClearingBehavior = SkipWhenClearing)
   : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
-                   aClearingBehavior),
+                   SkipWhenClearing),
     mSyncQueueKey(aSyncQueueKey), mBypassSyncQueue(aBypassSyncQueue)
   { }
 
