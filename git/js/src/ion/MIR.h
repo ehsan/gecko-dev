@@ -2142,114 +2142,6 @@ class MCreateThis
     }
 };
 
-// Eager initialization of arguments object.
-class MCreateArgumentsObject
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-    MCreateArgumentsObject(MDefinition *callObj)
-      : MUnaryInstruction(callObj)
-    {
-        setResultType(MIRType_Object);
-        setGuard();
-    }
-
-  public:
-    INSTRUCTION_HEADER(CreateArgumentsObject)
-    static MCreateArgumentsObject *New(MDefinition *callObj) {
-        return new MCreateArgumentsObject(callObj);
-    }
-
-    MDefinition *getCallObject() const {
-        return getOperand(0);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-class MGetArgumentsObjectArg
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-    size_t argno_;
-
-    MGetArgumentsObjectArg(MDefinition *argsObject, size_t argno)
-      : MUnaryInstruction(argsObject),
-        argno_(argno)
-    {
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GetArgumentsObjectArg)
-    static MGetArgumentsObjectArg *New(MDefinition *argsObj, size_t argno)
-    {
-        return new MGetArgumentsObjectArg(argsObj, argno);
-    }
-
-    MDefinition *getArgsObject() const {
-        return getOperand(0);
-    }
-
-    size_t argno() const {
-        return argno_;
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::Any);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-class MSetArgumentsObjectArg
-  : public MBinaryInstruction,
-    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
-{
-    size_t argno_;
-
-    MSetArgumentsObjectArg(MDefinition *argsObj, size_t argno, MDefinition *value)
-      : MBinaryInstruction(argsObj, value),
-        argno_(argno)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(SetArgumentsObjectArg)
-    static MSetArgumentsObjectArg *New(MDefinition *argsObj, size_t argno, MDefinition *value)
-    {
-        return new MSetArgumentsObjectArg(argsObj, argno, value);
-    }
-
-    MDefinition *getArgsObject() const {
-        return getOperand(0);
-    }
-
-    size_t argno() const {
-        return argno_;
-    }
-
-    MDefinition *getValue() const {
-        return getOperand(1);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::Any);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 // Given a MIRType_Value A and a MIRType_Object B:
 // If the Value may be safely unboxed to an Object, return Object(A).
 // Otherwise, return B.
@@ -5633,29 +5525,37 @@ class MBindNameCache
     }
 };
 
-// Guard on an object's shape.
-class MGuardShape
+// Guard on an object's shape or type, either inclusively or exclusively.
+class MGuardShapeOrType
   : public MUnaryInstruction,
     public SingleObjectPolicy
 {
     CompilerRootShape shape_;
+    CompilerRoot<types::TypeObject*> typeObject_;
+    bool bailOnEquality_;
     BailoutKind bailoutKind_;
 
-    MGuardShape(MDefinition *obj, Shape *shape, BailoutKind bailoutKind)
+    MGuardShapeOrType(MDefinition *obj, Shape *shape, types::TypeObject *typeObject,
+                      bool bailOnEquality, BailoutKind bailoutKind)
       : MUnaryInstruction(obj),
         shape_(shape),
+        typeObject_(typeObject),
+        bailOnEquality_(bailOnEquality),
         bailoutKind_(bailoutKind)
     {
+        // Exactly one of the shape or type object to guard on must be specified.
+        JS_ASSERT(!!shape != !!typeObject);
         setGuard();
         setMovable();
         setResultType(MIRType_Object);
     }
 
   public:
-    INSTRUCTION_HEADER(GuardShape)
+    INSTRUCTION_HEADER(GuardShapeOrType)
 
-    static MGuardShape *New(MDefinition *obj, Shape *shape, BailoutKind bailoutKind) {
-        return new MGuardShape(obj, shape, bailoutKind);
+    static MGuardShapeOrType *New(MDefinition *obj, Shape *shape, types::TypeObject *typeObject,
+                                  bool bailOnEquality, BailoutKind bailoutKind) {
+        return new MGuardShapeOrType(obj, shape, typeObject, bailOnEquality, bailoutKind);
     }
 
     TypePolicy *typePolicy() {
@@ -5667,67 +5567,25 @@ class MGuardShape
     const RawShape shape() const {
         return shape_;
     }
-    BailoutKind bailoutKind() const {
-        return bailoutKind_;
-    }
-    bool congruentTo(MDefinition * const &ins) const {
-        if (!ins->isGuardShape())
-            return false;
-        if (shape() != ins->toGuardShape()->shape())
-            return false;
-        if (bailoutKind() != ins->toGuardShape()->bailoutKind())
-            return false;
-        return congruentIfOperandsEqual(ins);
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::ObjectFields);
-    }
-};
-
-// Guard on an object's type, inclusively or exclusively.
-class MGuardObjectType
-  : public MUnaryInstruction,
-    public SingleObjectPolicy
-{
-    CompilerRoot<types::TypeObject *> typeObject_;
-    bool bailOnEquality_;
-
-    MGuardObjectType(MDefinition *obj, types::TypeObject *typeObject, bool bailOnEquality)
-      : MUnaryInstruction(obj),
-        typeObject_(typeObject),
-        bailOnEquality_(bailOnEquality)
-    {
-        setGuard();
-        setMovable();
-        setResultType(MIRType_Object);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GuardObjectType)
-
-    static MGuardObjectType *New(MDefinition *obj, types::TypeObject *typeObject,
-                                 bool bailOnEquality) {
-        return new MGuardObjectType(obj, typeObject, bailOnEquality);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-    MDefinition *obj() const {
-        return getOperand(0);
-    }
-    const types::TypeObject *typeObject() const {
+    types::TypeObject *typeObject() const {
         return typeObject_;
     }
     bool bailOnEquality() const {
         return bailOnEquality_;
     }
+    BailoutKind bailoutKind() const {
+        return bailoutKind_;
+    }
     bool congruentTo(MDefinition * const &ins) const {
-        if (!ins->isGuardObjectType())
+        if (!ins->isGuardShapeOrType())
             return false;
-        if (typeObject() != ins->toGuardObjectType()->typeObject())
+        if (shape() != ins->toGuardShapeOrType()->shape())
             return false;
-        if (bailOnEquality() != ins->toGuardObjectType()->bailOnEquality())
+        if (typeObject() != ins->toGuardShapeOrType()->typeObject())
+            return false;
+        if (bailOnEquality() != ins->toGuardShapeOrType()->bailOnEquality())
+            return false;
+        if (bailoutKind() != ins->toGuardShapeOrType()->bailoutKind())
             return false;
         return congruentIfOperandsEqual(ins);
     }

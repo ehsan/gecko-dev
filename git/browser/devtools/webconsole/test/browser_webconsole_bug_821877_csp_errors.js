@@ -12,17 +12,14 @@ function test()
   browser.addEventListener("load", function onLoad(aEvent) {
     browser.removeEventListener(aEvent.type, onLoad, true);
     openConsole(null, function testCSPErrorLogged (hud) {
-      waitForMessages({
-        webconsole: hud,
-        messages: [
-          {
-            name: "Deprecated CSP header error displayed successfully",
-            text: CSP_DEPRECATED_HEADER_MSG,
-            category: CATEGORY_SECURITY,
-            severity: SEVERITY_WARNING
-          },
-        ],
-      }).then(finishTest);
+      waitForSuccess({
+        name: "CSP error displayed successfully",
+        validatorFn: function () {
+          return hud.outputNode.textContent.indexOf(CSP_DEPRECATED_HEADER_MSG) > -1;
+        },
+        successFn: finishTest,
+        failureFn: finishTest,
+      });
     });
   }, true);
 }

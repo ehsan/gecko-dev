@@ -941,20 +941,47 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
 }
 
 void
-MacroAssembler::loadBaselineOrIonRaw(Register script, Register dest, ExecutionMode mode,
-                                     Label *failure)
+MacroAssembler::loadBaselineOrIonCode(Register script, Register scratch, Label *failure)
 {
-    if (mode == SequentialExecution) {
-        loadPtr(Address(script, JSScript::offsetOfBaselineOrIonRaw()), dest);
-        if (failure)
-            branchTestPtr(Assembler::Zero, dest, dest, failure);
-    } else {
-        loadPtr(Address(script, JSScript::offsetOfParallelIonScript()), dest);
-        if (failure)
-            branchPtr(Assembler::BelowOrEqual, dest, ImmWord(ION_COMPILING_SCRIPT), failure);
-        loadPtr(Address(dest, IonScript::offsetOfMethod()), dest);
-        loadPtr(Address(dest, IonCode::offsetOfCode()), dest);
+    bool baselineEnabled = ion::IsBaselineEnabled(GetIonContext()->cx);
+
+    Label noIonScript, done;
+    Address scriptIon(script, JSScript::offsetOfIonScript());
+    branchPtr(Assembler::BelowOrEqual, scriptIon, ImmWord(ION_COMPILING_SCRIPT),
+              &noIonScript);
+    {
+        // Load IonScript method.
+        loadPtr(scriptIon, scratch);
+
+        // Check bailoutExpected flag
+        if (baselineEnabled || failure) {
+            Address bailoutExpected(scratch, IonScript::offsetOfBailoutExpected());
+            branch32(Assembler::NotEqual, bailoutExpected, Imm32(0), &noIonScript);
+        }
+
+        loadPtr(Address(scratch, IonScript::offsetOfMethod()), script);
+        jump(&done);
     }
+    bind(&noIonScript);
+    {
+        // The script does not have an IonScript. If |failure| is NULL,
+        // assume the script has a baseline script.
+        if (baselineEnabled) {
+            loadPtr(Address(script, JSScript::offsetOfBaselineScript()), script);
+            if (failure)
+                branchPtr(Assembler::BelowOrEqual, script, ImmWord(BASELINE_DISABLED_SCRIPT), failure);
+            loadPtr(Address(script, BaselineScript::offsetOfMethod()), script);
+        } else if (failure) {
+            jump(failure);
+        } else {
+#ifdef DEBUG
+            breakpoint();
+            breakpoint();
+#endif
+        }
+    }
+
+    bind(&done);
 }
 
 void

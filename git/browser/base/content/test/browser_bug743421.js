@@ -8,14 +8,8 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 function test() {
   waitForExplicitFinish();
-  registerCleanupFunction(function() {
-    Services.prefs.clearUserPref("plugins.click_to_play");
-    var plugin = getTestPlugin();
-    plugin.enabledState = Ci.nsIPluginTag.STATE_ENABLED;
-  });
+  registerCleanupFunction(function() { Services.prefs.clearUserPref("plugins.click_to_play"); });
   Services.prefs.setBoolPref("plugins.click_to_play", true);
-  var plugin = getTestPlugin();
-  plugin.enabledState = Ci.nsIPluginTag.STATE_CLICKTOPLAY;
 
   var newTab = gBrowser.addTab();
   gBrowser.selectedTab = newTab;

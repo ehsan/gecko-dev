@@ -195,8 +195,6 @@ public:
     float GetY(JNIEnv *env);
     float GetScale(JNIEnv *env);
     void GetFixedLayerMargins(JNIEnv *env, gfx::Margin &aFixedLayerMargins);
-    float GetOffsetX(JNIEnv *env);
-    float GetOffsetY(JNIEnv *env);
 
 private:
     static jclass jViewTransformClass;
@@ -207,8 +205,6 @@ private:
     static jfieldID jFixedLayerMarginTop;
     static jfieldID jFixedLayerMarginRight;
     static jfieldID jFixedLayerMarginBottom;
-    static jfieldID jOffsetXField;
-    static jfieldID jOffsetYField;
 };
 
 class AndroidProgressiveUpdateData : public WrappedJavaObject {
@@ -270,7 +266,7 @@ public:
     void SetPageRect(const gfx::Rect& aCssPageRect);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
-                          gfx::Margin& aFixedLayerMargins, float& aOffsetX, float& aOffsetY);
+                          gfx::Margin& aFixedLayerMargins);
     bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
     bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
     bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
@@ -398,15 +394,6 @@ enum {
     AKEYCODE_CALENDAR           = 208,
     AKEYCODE_MUSIC              = 209,
     AKEYCODE_CALCULATOR         = 210,
-    AKEYCODE_ZENKAKU_HANKAKU    = 211,
-    AKEYCODE_EISU               = 212,
-    AKEYCODE_MUHENKAN           = 213,
-    AKEYCODE_HENKAN             = 214,
-    AKEYCODE_KATAKANA_HIRAGANA  = 215,
-    AKEYCODE_YEN                = 216,
-    AKEYCODE_RO                 = 217,
-    AKEYCODE_KANA               = 218,
-    AKEYCODE_ASSIST             = 219,
 
     AMETA_CTRL_ON               = 0x00001000,
     AMETA_CTRL_LEFT_ON          = 0x00002000,

@@ -1321,9 +1321,7 @@ class ModuleCompiler
             return false;
         return exits_.add(p, Move(exitDescriptor), *exitIndex);
     }
-    bool addFunctionCounts(IonScriptCounts *counts) {
-        return module_->addFunctionCounts(counts);
-    }
+
 
     void setSecondPassComplete() {
         JS_ASSERT(currentPass_ == 2);
@@ -2311,12 +2309,6 @@ js::AsmJSModuleObjectToModule(JSObject *obj)
 {
     JS_ASSERT(obj->getClass() == &AsmJSModuleClass);
     return *(AsmJSModule *)obj->getReservedSlot(ASM_CODE_RESERVED_SLOT).toPrivate();
-}
-
-bool
-js::IsAsmJSModuleObject(JSObject *obj)
-{
-    return obj->getClass() == &AsmJSModuleClass;
 }
 
 static const unsigned ASM_MODULE_FUNCTION_MODULE_OBJECT_SLOT = 0;
@@ -4439,12 +4431,6 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
     if (!m.collectAccesses(mirGen))
         return false;
 
-    ion::IonScriptCounts *counts = codegen->extractUnassociatedScriptCounts();
-    if (counts && !m.addFunctionCounts(counts)) {
-        js_delete(counts);
-        return false;
-    }
-
     // A single MacroAssembler is reused for all function compilations so
     // that there is a single linear code segment for each module. To avoid
     // spiking memory, a LifoAllocScope in the caller frees all MIR/LIR
@@ -5578,8 +5564,3 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-AsmJSModule::~AsmJSModule()
-{
-    for (size_t i = 0; i < numFunctionCounts(); i++)
-        js_delete(functionCounts(i));
-}

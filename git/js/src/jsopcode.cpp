@@ -269,23 +269,6 @@ PCCounts::countName(JSOp op, size_t which)
 #ifdef DEBUG
 
 void
-js::DumpIonScriptCounts(Sprinter *sp, ion::IonScriptCounts *ionCounts)
-{
-    Sprint(sp, "IonScript [%lu blocks]:\n", ionCounts->numBlocks());
-    for (size_t i = 0; i < ionCounts->numBlocks(); i++) {
-        const ion::IonBlockCounts &block = ionCounts->block(i);
-        if (block.hitCount() < 10)
-            continue;
-        Sprint(sp, "BB #%lu [%05u]", block.id(), block.offset());
-        for (size_t j = 0; j < block.numSuccessors(); j++)
-            Sprint(sp, " -> #%lu", block.successor(j));
-        Sprint(sp, " :: %llu hits %u instruction bytes %u spill bytes\n",
-               block.hitCount(), block.instructionBytes(), block.spillBytes());
-        Sprint(sp, "%s\n", block.code());
-    }
-}
-
-void
 js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 {
     JS_ASSERT(script->hasScriptCounts);
@@ -322,7 +305,18 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
     ion::IonScriptCounts *ionCounts = script->getIonCounts();
 
     while (ionCounts) {
-        DumpIonScriptCounts(sp, ionCounts);
+        Sprint(sp, "IonScript [%lu blocks]:\n", ionCounts->numBlocks());
+        for (size_t i = 0; i < ionCounts->numBlocks(); i++) {
+            const ion::IonBlockCounts &block = ionCounts->block(i);
+            if (block.hitCount() < 10)
+                continue;
+            Sprint(sp, "BB #%lu [%05u]", block.id(), block.offset());
+            for (size_t j = 0; j < block.numSuccessors(); j++)
+                Sprint(sp, " -> #%lu", block.successor(j));
+            Sprint(sp, " :: %llu hits %u instruction bytes %u spill bytes\n",
+                   block.hitCount(), block.instructionBytes(), block.spillBytes());
+            Sprint(sp, "%s\n", block.code());
+        }
         ionCounts = ionCounts->previous();
     }
 }

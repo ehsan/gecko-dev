@@ -312,8 +312,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   // Make sure to do this before entering the compartment, since pushing Push()
   // may call JS_SaveFrameChain(), which puts us back in an unentered state.
   nsCxPusher pusher;
-  if (!pusher.Push(aBoundElement))
-    return NS_ERROR_UNEXPECTED;
+  NS_ENSURE_STATE(pusher.Push(aBoundElement));
   MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
 
   JS::Rooted<JSObject*> thisObject(cx, &v.toObject());

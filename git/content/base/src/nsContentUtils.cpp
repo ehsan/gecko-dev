@@ -1709,7 +1709,7 @@ nsContentUtils::GetWindowFromCaller()
   return nullptr;
 }
 
-nsIDocument*
+nsIDOMDocument *
 nsContentUtils::GetDocumentFromCaller()
 {
   JSContext *cx = nullptr;
@@ -1725,10 +1725,10 @@ nsContentUtils::GetDocumentFromCaller()
     return nullptr;
   }
 
-  return win->GetExtantDoc();
+  return win->GetExtantDocument();
 }
 
-nsIDocument*
+nsIDOMDocument *
 nsContentUtils::GetDocumentFromContext()
 {
   JSContext *cx = nullptr;
@@ -1740,7 +1740,7 @@ nsContentUtils::GetDocumentFromContext()
     if (sgo) {
       nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(sgo);
       if (pwin) {
-        return pwin->GetExtantDoc();
+        return pwin->GetExtantDocument();
       }
     }
   }
@@ -3147,9 +3147,7 @@ nsCxPusher::DoPush(JSContext* cx)
 {
   nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
   if (!stack) {
-    // If someone tries to push a cx when we don't have the relevant state,
-    // it's probably safest to just crash.
-    MOZ_CRASH();
+    return;
   }
 
   if (cx && IsContextOnStack(stack, cx)) {
@@ -3180,8 +3178,7 @@ void
 nsCxPusher::Pop()
 {
   nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-  MOZ_ASSERT(stack);
-  if (!mPushedSomething) {
+  if (!mPushedSomething || !stack) {
     mScx = nullptr;
     mPushedSomething = false;
 

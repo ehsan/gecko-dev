@@ -425,7 +425,7 @@ public:
    *
    * @return The document or null if no JS Context.
    */
-  static nsIDocument* GetDocumentFromCaller();
+  static nsIDOMDocument *GetDocumentFromCaller();
 
   /**
    * Get the document through the JS context that's currently on the stack.
@@ -434,7 +434,7 @@ public:
    *
    * @return The document or null if no JS context
    */
-  static nsIDocument* GetDocumentFromContext();
+  static nsIDOMDocument *GetDocumentFromContext();
 
   // Check if a node is in the document prolog, i.e. before the document
   // element.

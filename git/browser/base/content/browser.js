@@ -946,6 +946,7 @@ var gBrowserInit = {
     // Misc. inits.
     CombinedStopReload.init();
     TabsOnTop.init();
+    BookmarksMenuButton.init();
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
@@ -1316,7 +1317,7 @@ var gBrowserInit = {
     } catch (ex) {
     }
 
-    BookmarksMenuButton.uninit();
+    PlacesStarButton.uninit();
 
     TabsOnTop.uninit();
 
@@ -2234,8 +2235,6 @@ function UpdatePageProxyState()
 
 function SetPageProxyState(aState)
 {
-  BookmarksMenuButton.onPageProxyStateChanged(aState);
-
   if (!gURLBar)
     return;
 
@@ -3407,7 +3406,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (gURLBar) {
     URLBarSetURI();
     XULBrowserWindow.asyncUpdateUI();
-    BookmarksMenuButton.updateStarState();
+    PlacesStarButton.updateState();
     SocialShareButton.updateShareState();
   }
 
@@ -3881,7 +3880,7 @@ var XULBrowserWindow = {
         URLBarSetURI(aLocationURI);
 
         // Update starring UI
-        BookmarksMenuButton.updateStarState();
+        PlacesStarButton.updateState();
         SocialShareButton.updateShareState();
       }
 
@@ -4499,7 +4498,7 @@ function setToolbarVisibility(toolbar, isVisible) {
   document.persist(toolbar.id, hidingAttribute);
 
   PlacesToolbarHelper.init();
-  BookmarksMenuButton.onToolbarVisibilityChange();
+  BookmarksMenuButton.updatePosition();
   gBrowser.updateWindowResizers();
 
 #ifdef MENUBAR_CAN_AUTOHIDE

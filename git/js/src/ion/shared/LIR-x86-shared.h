@@ -173,29 +173,17 @@ class LTableSwitchV : public LInstructionHelper<0, BOX_PIECES, 3>
     }
 };
 
-class LGuardShape : public LInstructionHelper<0, 1, 0>
+// Guard against an object's shape.
+class LGuardShapeOrType : public LInstructionHelper<0, 1, 0>
 {
   public:
-    LIR_HEADER(GuardShape)
+    LIR_HEADER(GuardShapeOrType)
 
-    LGuardShape(const LAllocation &in) {
+    LGuardShapeOrType(const LAllocation &in) {
         setOperand(0, in);
     }
-    const MGuardShape *mir() const {
-        return mir_->toGuardShape();
-    }
-};
-
-class LGuardObjectType : public LInstructionHelper<0, 1, 0>
-{
-  public:
-    LIR_HEADER(GuardObjectType)
-
-    LGuardObjectType(const LAllocation &in) {
-        setOperand(0, in);
-    }
-    const MGuardObjectType *mir() const {
-        return mir_->toGuardObjectType();
+    const MGuardShapeOrType *mir() const {
+        return mir_->toGuardShapeOrType();
     }
 };
 

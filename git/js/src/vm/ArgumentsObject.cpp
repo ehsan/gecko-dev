@@ -18,21 +18,16 @@
 #include "vm/Stack-inl.h"
 #include "vm/ArgumentsObject-inl.h"
 
-#include "ion/IonFrames.h"
-
 using namespace js;
 using namespace js::gc;
 
 static void
-CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst, unsigned totalArgs)
+CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst)
 {
     JS_ASSERT_IF(frame.isStackFrame(), !frame.asStackFrame()->runningInIon());
 
     unsigned numActuals = frame.numActualArgs();
     unsigned numFormals = frame.callee()->nargs;
-    JS_ASSERT(numActuals <= totalArgs);
-    JS_ASSERT(numFormals <= totalArgs);
-    JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
 
     /* Copy formal arguments. */
     Value *src = frame.formals();
@@ -50,8 +45,7 @@ CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst, unsigned t
 }
 
 /* static */ void
-ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
-                                          ArgumentsData *data)
+ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj, ArgumentsData *data)
 {
     RawScript script = frame.script();
     if (frame.fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
@@ -61,22 +55,6 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
     }
 }
 
-#if defined(JS_ION)
-/* static */ void
-ArgumentsObject::MaybeForwardToCallObject(ion::IonJSFrameLayout *frame, HandleObject callObj,
-                                          JSObject *obj, ArgumentsData *data)
-{
-    RawFunction callee = ion::CalleeTokenToFunction(frame->calleeToken());
-    RawScript script = callee->nonLazyScript();
-    if (callee->isHeavyweight() && script->argsObjAliasesFormals()) {
-        JS_ASSERT(callObj && callObj->isCall());
-        obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(*callObj.get()));
-        for (AliasedFormalIter fi(script); fi; fi++)
-            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
-    }
-}
-#endif
-
 struct CopyFrameArgs
 {
     AbstractFramePtr frame_;
@@ -85,8 +63,8 @@ struct CopyFrameArgs
       : frame_(frame)
     { }
 
-    void copyArgs(JSContext *, HeapValue *dst, unsigned totalArgs) const {
-        CopyStackFrameArguments(frame_, dst, totalArgs);
+    void copyArgs(JSContext *, HeapValue *dst) const {
+        CopyStackFrameArguments(frame_, dst);
     }
 
     /*
@@ -98,47 +76,6 @@ struct CopyFrameArgs
     }
 };
 
-#if defined(JS_ION)
-struct CopyIonJSFrameArgs
-{
-    ion::IonJSFrameLayout *frame_;
-    HandleObject callObj_;
-
-    CopyIonJSFrameArgs(ion::IonJSFrameLayout *frame, HandleObject callObj)
-      : frame_(frame), callObj_(callObj)
-    { }
-
-    void copyArgs(JSContext *, HeapValue *dstBase, unsigned totalArgs) const {
-        unsigned numActuals = frame_->numActualArgs();
-        unsigned numFormals = ion::CalleeTokenToFunction(frame_->calleeToken())->nargs;
-        JS_ASSERT(numActuals <= totalArgs);
-        JS_ASSERT(numFormals <= totalArgs);
-        JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
-
-        /* Copy all arguments. */
-        Value *src = frame_->argv() + 1;  /* +1 to skip this. */
-        Value *end = src + numActuals;
-        HeapValue *dst = dstBase;
-        while (src != end)
-            (dst++)->init(*src++);
-
-        if (numActuals < numFormals) {
-            HeapValue *dstEnd = dstBase + totalArgs;
-            while (dst != dstEnd)
-                (dst++)->init(UndefinedValue());
-        }
-    }
-
-    /*
-     * If a call object exists and the arguments object aliases formals, the
-     * call object is the canonical location for formals.
-     */
-    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
-        ArgumentsObject::MaybeForwardToCallObject(frame_, callObj_, obj, data);
-    }
-};
-#endif
-
 struct CopyStackIterArgs
 {
     StackIter &iter_;
@@ -147,9 +84,9 @@ struct CopyStackIterArgs
       : iter_(iter)
     { }
 
-    void copyArgs(JSContext *cx, HeapValue *dstBase, unsigned totalArgs) const {
+    void copyArgs(JSContext *cx, HeapValue *dstBase) const {
         if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.abstractFramePtr(), dstBase, totalArgs);
+            CopyStackFrameArguments(iter_.abstractFramePtr(), dstBase);
             return;
         }
 
@@ -159,12 +96,8 @@ struct CopyStackIterArgs
         /* Define formals which are not part of the actuals. */
         unsigned numActuals = iter_.numActualArgs();
         unsigned numFormals = iter_.callee()->nargs;
-        JS_ASSERT(numActuals <= totalArgs);
-        JS_ASSERT(numFormals <= totalArgs);
-        JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
-
         if (numActuals < numFormals) {
-            HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + totalArgs;
+            HeapValue *dst = dstBase + numActuals, *dstEnd = dstBase + numFormals;
             while (dst != dstEnd)
                 (dst++)->init(UndefinedValue());
         }
@@ -219,7 +152,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
 
     /* Copy [0, numArgs) into data->slots. */
     HeapValue *dst = data->args, *dstEnd = data->args + numArgs;
-    copy.copyArgs(cx, dst, numArgs);
+    copy.copyArgs(cx, dst);
 
     data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
@@ -274,20 +207,6 @@ ArgumentsObject::createUnexpected(JSContext *cx, AbstractFramePtr frame)
     CopyFrameArgs copy(frame);
     return create(cx, script, callee, frame.numActualArgs(), copy);
 }
-
-#if defined(JS_ION)
-ArgumentsObject *
-ArgumentsObject::createForIon(JSContext *cx, ion::IonJSFrameLayout *frame, HandleObject scopeChain)
-{
-    ion::CalleeToken token = frame->calleeToken();
-    JS_ASSERT(ion::CalleeTokenIsFunction(token));
-    RootedScript script(cx, ion::ScriptFromCalleeToken(token));
-    RootedFunction callee(cx, ion::CalleeTokenToFunction(token));
-    RootedObject callObj(cx, scopeChain->isCall() ? scopeChain.get() : NULL);
-    CopyIonJSFrameArgs copy(frame, callObj);
-    return create(cx, script, callee, frame->numActualArgs(), copy);
-}
-#endif
 
 static JSBool
 args_delProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)

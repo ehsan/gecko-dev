@@ -260,7 +260,7 @@ nsDSURIContentListener::SetParentContentListener(nsIURIContentListener*
     return NS_OK;
 }
 
-bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChannel,
+bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIRequest *request,
                                                         const nsAString& policy) {
     static const char allowFrom[] = "allow-from";
     const uint32_t allowFromLen = ArrayLength(allowFrom) - 1;
@@ -272,6 +272,11 @@ bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChan
         !policy.LowerCaseEqualsLiteral("sameorigin") &&
         !isAllowFrom)
         return true;
+
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(request);
+    if (!httpChannel) {
+        return true;
+    }
 
     nsCOMPtr<nsIURI> uri;
     httpChannel->GetURI(getter_AddRefs(uri));
@@ -397,20 +402,7 @@ bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChan
 // in the request (comma-separated in a header, multiple headers, etc).
 bool nsDSURIContentListener::CheckFrameOptions(nsIRequest *request)
 {
-    nsresult rv;
-    nsCOMPtr<nsIChannel> chan = do_QueryInterface(request);
-    if (!chan) {
-      return true;
-    }
-
-    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(chan);
-    if (!httpChannel) {
-      // check if it is hiding in a multipart channel
-      rv = mDocShell->GetHttpChannel(chan, getter_AddRefs(httpChannel));
-      if (NS_FAILED(rv))
-        return false;
-    }
-
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(request);
     if (!httpChannel) {
         return true;
     }
@@ -429,7 +421,7 @@ bool nsDSURIContentListener::CheckFrameOptions(nsIRequest *request)
     nsCharSeparatedTokenizer tokenizer(xfoHeaderValue, ',');
     while (tokenizer.hasMoreTokens()) {
         const nsSubstring& tok = tokenizer.nextToken();
-        if (!CheckOneFrameOptionsPolicy(httpChannel, tok)) {
+        if (!CheckOneFrameOptionsPolicy(request, tok)) {
             // cancel the load and display about:blank
             httpChannel->Cancel(NS_BINDING_ABORTED);
             if (mDocShell) {

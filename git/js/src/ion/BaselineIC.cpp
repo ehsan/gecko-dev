@@ -2498,8 +2498,7 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
     // TODO: unlink previous !allowDouble stub.
     if (lhs.isInt32() && rhs.isInt32()) {
         bool allowDouble = ret.isDouble();
-        IonSpew(IonSpew_BaselineIC, "  Generating %s(Int32, Int32%s) stub", js_CodeName[op],
-                allowDouble ? " => Double" : "");
+        IonSpew(IonSpew_BaselineIC, "  Generating %s(Int32, Int32) stub", js_CodeName[op]);
         ICBinaryArith_Int32::Compiler compilerInt32(cx, op, allowDouble);
         ICStub *int32Stub = compilerInt32.getStub(compilerInt32.getStubSpace(script));
         if (!int32Stub)
@@ -5116,7 +5115,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         ICStub::Kind kind = (obj == holder) ? ICStub::GetProp_Native
                                             : ICStub::GetProp_NativePrototype;
 
-        IonSpew(IonSpew_BaselineIC, "  Generating GetProp(%s %s) stub",
+        IonSpew(IonSpew_BaselineIC, "  Generating GetProp(%s %s%s) stub",
                     isListBase ? "ListBase" : "Native",
                     (obj == holder) ? "direct" : "prototype");
         ICGetPropNativeCompiler compiler(cx, kind, monitorStub, obj, holder, isFixedSlot, offset);
@@ -5528,7 +5527,8 @@ ICGetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
     Register code = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallScripted::offsetOfGetter()), callee);
     masm.loadPtr(Address(callee, JSFunction::offsetOfNativeOrScript()), code);
-    masm.loadBaselineOrIonRaw(code, code, SequentialExecution, &failureLeaveStubFrame);
+    masm.loadBaselineOrIonCode(code, scratch, &failureLeaveStubFrame);
+    masm.loadPtr(Address(code, IonCode::offsetOfCode()), code);
 
     // Getter is called with 0 arguments, just |obj| as thisv.
     // Note that we use Push, not push, so that callIon will align the stack
@@ -6229,7 +6229,8 @@ ICSetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
     Register code = regs.takeAny();
     masm.loadPtr(Address(BaselineStubReg, ICSetProp_CallScripted::offsetOfSetter()), callee);
     masm.loadPtr(Address(callee, JSFunction::offsetOfNativeOrScript()), code);
-    masm.loadBaselineOrIonRaw(code, code, SequentialExecution, &failureLeaveStubFrame);
+    masm.loadBaselineOrIonCode(code, scratch, &failureLeaveStubFrame);
+    masm.loadPtr(Address(code, IonCode::offsetOfCode()), code);
 
     // Setter is called with the new value as the only argument, and |obj| as thisv.
     // Note that we use Push, not push, so that callIon will align the stack
@@ -6764,14 +6765,14 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
         masm.loadPtr(Address(callee, JSFunction::offsetOfNativeOrScript()), callee);
     }
 
+    // Load IonScript or BaselineScript.
+    masm.loadBaselineOrIonCode(callee, regs.getAny(), &failure);
+
     // Load the start of the target IonCode.
     Register code;
     if (!isConstructing_) {
         code = regs.takeAny();
-        masm.loadBaselineOrIonRaw(callee, code, SequentialExecution, &failure);
-    } else {
-        Address scriptCode(callee, JSScript::offsetOfBaselineOrIonRaw());
-        masm.branchPtr(Assembler::Equal, scriptCode, ImmWord((void *)NULL), &failure);
+        masm.loadPtr(Address(callee, IonCode::offsetOfCode()), code);
     }
 
     // We no longer need R1.
@@ -6838,16 +6839,17 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
         regs.add(R0);
         regs.takeUnchecked(callee);
         masm.loadPtr(Address(callee, JSFunction::offsetOfNativeOrScript()), callee);
-
-        code = regs.takeAny();
-        masm.loadBaselineOrIonRaw(callee, code, SequentialExecution, &failureLeaveStubFrame);
-
+        Register loadScratch = ArgumentsRectifierReg;
+        masm.loadBaselineOrIonCode(callee, loadScratch, &failureLeaveStubFrame);
         // Release callee register, but don't add ExtractTemp0 back into the pool
         // ExtractTemp0 is used later, and if it's allocated to some other register at that
         // point, it will get clobbered when used.
         if (callee != ExtractTemp0)
             regs.add(callee);
 
+        // Load the start of the target IonCode.
+        code = regs.takeAny();
+        masm.loadPtr(Address(callee, IonCode::offsetOfCode()), code);
         if (canUseTailCallReg)
             regs.addUnchecked(BaselineTailCallReg);
     }
@@ -6914,7 +6916,7 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
 
         masm.bind(&skipProfilerUpdate);
     }
-
+    // Do call
     masm.callIon(code);
 
     // If this is a constructing call, and the callee returns a non-object, replace it with

@@ -21,8 +21,8 @@
 #include "nsComponentManagerUtils.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsIStreamBufferAccess.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Endian.h"
 
 #include "zlib.h"
 #include <algorithm>
@@ -339,125 +339,58 @@ namespace mozilla {
 struct AutoSwap_PRUint16 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint16& operator = (const uint16_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP16(aValue); return *this; }
 #else
-    AutoSwap_PRUint16(uint16_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint16(uint16_t aValue) { value = NS_SWAP16(aValue); }
 #endif
-    operator uint16_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint64_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint16_t() const { return NS_SWAP16(value); }
+    operator uint32_t() const { return NS_SWAP16(value); }
+    operator uint64_t() const { return NS_SWAP16(value); }
     uint16_t value;
 };
 
 struct AutoSwap_PRInt16 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRInt16& operator = (const int16_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP16(aValue); return *this; }
 #else
-    AutoSwap_PRInt16(int16_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRInt16(int16_t aValue) { value = NS_SWAP16(aValue); }
 #endif
-    operator int16_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator int16_t() const { return NS_SWAP16(value); }
+    operator uint32_t() const { return NS_SWAP16(value); }
     int16_t  value;
 };
 
 struct AutoSwap_PRUint32 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint32& operator = (const uint32_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP32(aValue); return *this; }
 #else
-    AutoSwap_PRUint32(uint32_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint32(uint32_t aValue) { value = NS_SWAP32(aValue); }
 #endif
-    operator uint32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint32_t() const { return NS_SWAP32(value); }
     uint32_t  value;
 };
 
 struct AutoSwap_PRInt32 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRInt32& operator = (const int32_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP32(aValue); return *this; }
 #else
-    AutoSwap_PRInt32(int32_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRInt32(int32_t aValue) { value = NS_SWAP32(aValue); }
 #endif
-    operator int32_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator int32_t() const { return NS_SWAP32(value); }
     int32_t  value;
 };
 
 struct AutoSwap_PRUint64 {
 #ifdef __SUNPRO_CC
     AutoSwap_PRUint64& operator = (const uint64_t aValue)
-    {
-        this->value = mozilla::NativeEndian::swapToBigEndian(aValue);
-        return *this;
-    }
+      { this->value = NS_SWAP64(aValue); return *this; }
 #else
-    AutoSwap_PRUint64(uint64_t aValue)
-    {
-        value = mozilla::NativeEndian::swapToBigEndian(aValue);
-    }
+    AutoSwap_PRUint64(uint64_t aValue) { value = NS_SWAP64(aValue); }
 #endif
-    operator uint64_t() const
-    {
-        return mozilla::NativeEndian::swapFromBigEndian(value);
-    }
-
-private:
+    operator uint64_t() const { return NS_SWAP64(value); }
     uint64_t  value;
 };
 

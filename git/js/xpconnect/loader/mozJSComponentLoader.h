@@ -50,8 +50,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     // ModuleLoader
     const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
 
-    nsresult FindTargetObject(JSContext* aCx,
-                              JS::MutableHandleObject aTargetObject);
+    nsresult FindTargetObject(JSContext* aCx, JSObject** aTargetObject);
 
     static mozJSComponentLoader* Get() { return sSelf; }
 
@@ -73,13 +72,12 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                                nsIURI *aComponent,
                                JSObject **aObject,
                                char **location,
-                               bool aCatchException,
-                               JS::MutableHandleValue aException);
+                               jsval *exception);
 
-    nsresult ImportInto(const nsACString &aLocation,
-                        JS::HandleObject targetObj,
-                        JSContext *callercx,
-                        JS::MutableHandleObject vp);
+    nsresult ImportInto(const nsACString & aLocation,
+                        JSObject * targetObj,
+                        JSContext * callercx,
+                        JSObject * *_retval);
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;

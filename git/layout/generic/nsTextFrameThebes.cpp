@@ -83,9 +83,11 @@
 #include "GeckoProfiler.h"
 
 #ifdef DEBUG
+#undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
 #else
+#undef NOISY_BLINK
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
 #endif

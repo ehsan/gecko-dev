@@ -205,17 +205,11 @@ void
 AudioNode::DestroyMediaStream()
 {
   if (mStream) {
-    {
-      // Remove the node reference on the engine, and take care to not
-      // hold the lock when the stream gets destroyed, because that will
-      // cause the engine to be destroyed as well, and we don't want to
-      // be holding the lock as we're trying to destroy it!
-      AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-      MutexAutoLock lock(ns->Engine()->NodeMutex());
-      MOZ_ASSERT(ns, "How come we don't have a stream here?");
-      MOZ_ASSERT(ns->Engine()->Node() == this, "Invalid node reference");
-      ns->Engine()->ClearNode();
-    }
+    // Remove the node reference on the engine
+    AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
+    MOZ_ASSERT(ns, "How come we don't have a stream here?");
+    MOZ_ASSERT(ns->Engine()->mNode == this, "Invalid node reference");
+    ns->Engine()->mNode = nullptr;
 
     mStream->Destroy();
     mStream = nullptr;

@@ -60,6 +60,9 @@ let gDirSvc = Cc["@mozilla.org/file/directory_service;1"]
                 .getService(Ci.nsIProperties);
 
 let gPluginHost = null;
+let gIsWindows = null;
+let gIsOSX = null;
+let gIsLinux = null;
 
 function test_expected_permission_string(aPermString) {
   gPluginHost.reloadPlugins(false);

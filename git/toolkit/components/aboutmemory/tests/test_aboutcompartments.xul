@@ -140,8 +140,9 @@
   ]]>
   </script>
 
+  <iframe id="acFrame"  height="400" src="about:compartments"></iframe>
   <!-- vary the capitalization to make sure that works -->
-  <iframe id="acFrame"  height="400" src="abouT:compartMENTS"></iframe>
+  <iframe id="acvFrame" height="400" src="abouT:compartMENTS?veRBOse"></iframe>
 
   <script type="application/javascript">
   <![CDATA[
@@ -177,6 +178,9 @@ child-system-compartment\n\
 Ghost Windows\n\
 \n\
 ";
+
+  // Verbose mode output is the same when you cut and paste.
+  var acvExpectedText = acExpectedText;
 
   function finish()
   {
@@ -236,7 +240,13 @@ Ghost Windows\n\
       "acFrame",
       acExpectedText,
       function() {
-        finish()
+        test(
+          "acvFrame",
+          acvExpectedText,
+          function() {
+            finish()
+          }
+        )
       }
     );
   });

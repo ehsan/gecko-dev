@@ -41,9 +41,6 @@ GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 bool
 IsXrayResolving(JSContext *cx, JSHandleObject wrapper, JSHandleId id);
 
-bool
-HasNativeProperty(JSContext *cx, JSHandleObject wrapper, JSHandleId id,
-                  bool *hasProp);
 }
 
 class XrayTraits;
@@ -167,9 +164,9 @@ extern SandboxCallableProxyHandler sandboxCallableProxyHandler;
 class AutoSetWrapperNotShadowing;
 class XPCWrappedNativeXrayTraits;
 
-class MOZ_STACK_CLASS ResolvingId {
+class ResolvingId {
 public:
-    ResolvingId(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
+    ResolvingId(JSObject *wrapper, jsid id);
     ~ResolvingId();
 
     bool isXrayShadowing(jsid id);
@@ -182,8 +179,8 @@ private:
     friend class AutoSetWrapperNotShadowing;
     friend class XPCWrappedNativeXrayTraits;
 
-    JS::HandleId mId;
-    JS::RootedObject mHolder;
+    jsid mId;
+    JSObject *mHolder;
     ResolvingId *mPrev;
     bool mXrayShadowing;
 };

@@ -302,7 +302,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
         if (*pc == JSOP_SETLOCAL)
             slot = info().localSlot(GET_SLOTNO(pc));
         else if (*pc == JSOP_SETARG)
-            slot = info().argSlotUnchecked(GET_SLOTNO(pc));
+            slot = info().argSlot(GET_SLOTNO(pc));
         else
             continue;
         if (slot >= info().firstStackSlot())
@@ -321,7 +321,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
         } else if (*last == JSOP_GETLOCAL || *last == JSOP_GETARG) {
             uint32_t slot = (*last == JSOP_GETLOCAL)
                             ? info().localSlot(GET_SLOTNO(last))
-                            : info().argSlotUnchecked(GET_SLOTNO(last));
+                            : info().argSlot(GET_SLOTNO(last));
             if (slot < info().firstStackSlot()) {
                 MPhi *otherPhi = entry->getSlot(slot)->toPhi();
                 if (otherPhi->hasBackedgeType())
@@ -458,13 +458,6 @@ IonBuilder::build()
         current->initSlot(info().scopeChainSlot(), scope);
     }
 
-    // Initialize the arguments object slot to undefined if necessary.
-    if (info().hasArguments()) {
-        MInstruction *argsObj = MConstant::New(UndefinedValue());
-        current->add(argsObj);
-        current->initSlot(info().argsObjSlot(), argsObj);
-    }
-
     // Emit the start instruction, so we can begin real instructions.
     current->makeStart(MStart::New(MStart::StartType_Default));
     if (instrumentedProfiling())
@@ -476,9 +469,6 @@ IonBuilder::build()
 
     // It's safe to start emitting actual IR, so now build the scope chain.
     if (!initScopeChain())
-        return false;
-
-    if (info().needsArgsObj() && !initArgumentsObject())
         return false;
 
     // Guard against over-recursion.
@@ -505,14 +495,13 @@ IonBuilder::build()
     // So we attach the initial resume point to each parameter, which the type
     // analysis explicitly checks (this is the same mechanism used for
     // effectful operations).
-    for (uint32_t i = 0; i < info().endArgSlot(); i++) {
+    for (uint32_t i = 0; i < CountArgSlots(info().fun()); i++) {
         MInstruction *ins = current->getEntrySlot(i)->toInstruction();
         if (ins->type() == MIRType_Value)
             ins->setResumePoint(current->entryResumePoint());
     }
 
-    // lazyArguments should never be accessed in |argsObjAliasesFormals| scripts.
-    if (info().hasArguments() && !info().argsObjAliasesFormals()) {
+    if (script()->argumentsHasVarBinding()) {
         lazyArguments_ = MConstant::New(MagicValue(JS_OPTIMIZED_ARGUMENTS));
         current->add(lazyArguments_);
     }
@@ -611,24 +600,14 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
     if (!inlinedArguments_.append(callInfo.argv().begin(), callInfo.argv().end()))
         return false;
 
-    // canEnterInlinedFunction vetoes scripts which use the scope chain or needs an
-    // arguments object.
+    // canEnterInlinedFunction vetoes scripts which use the scope chain.
     JS_ASSERT(!script()->analysis()->usesScopeChain());
     MInstruction *scope = MConstant::New(UndefinedValue());
     current->add(scope);
     current->initSlot(info().scopeChainSlot(), scope);
-    if (info().hasArguments()) {
-        MInstruction *argsObj = MConstant::New(UndefinedValue());
-        current->add(argsObj);
-        current->initSlot(info().argsObjSlot(), argsObj);
-    }
     current->initSlot(info().thisSlot(), callInfo.thisArg());
 
     IonSpew(IonSpew_Inlining, "Initializing %u arg slots", info().nargs());
-
-    // NB: Ion does not inline functions which |needsArgsObj|.  So using argSlot()
-    // instead of argSlotUnchecked() below is OK
-    JS_ASSERT(!info().needsArgsObj());
 
     // Initialize actually set arguments.
     uint32_t existing_args = Min<uint32_t>(callInfo.argc(), info().nargs());
@@ -656,8 +635,8 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
     IonSpew(IonSpew_Inlining, "Inline entry block MResumePoint %p, %u operands",
             (void *) current->entryResumePoint(), current->entryResumePoint()->numOperands());
 
-    // +2 for the scope chain and |this|, maybe another +1 for arguments object slot.
-    JS_ASSERT(current->entryResumePoint()->numOperands() == info().totalSlots());
+    // +2 for the scope chain and |this|.
+    JS_ASSERT(current->entryResumePoint()->numOperands() == info().nargs() + info().nlocals() + 2);
 
     if (script_->argumentsHasVarBinding()) {
         lazyArguments_ = MConstant::New(MagicValue(JS_OPTIMIZED_ARGUMENTS));
@@ -667,53 +646,6 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
     return traverseBytecode();
 }
 
-void
-IonBuilder::rewriteParameter(uint32_t slotIdx, MDefinition *param, int32_t argIndex)
-{
-    JS_ASSERT(param->isParameter() || param->isGetArgumentsObjectArg());
-
-    // Find the original (not cloned) type set for the MParameter, as we
-    // will be adding constraints to it.
-    types::StackTypeSet *types;
-    if (argIndex == MParameter::THIS_SLOT)
-        types = types::TypeScript::ThisTypes(script());
-    else
-        types = types::TypeScript::ArgTypes(script(), argIndex);
-
-    JSValueType definiteType = types->getKnownTypeTag();
-    if (definiteType == JSVAL_TYPE_UNKNOWN)
-        return;
-
-    MInstruction *actual = NULL;
-    switch (definiteType) {
-      case JSVAL_TYPE_UNDEFINED:
-        param->setFoldedUnchecked();
-        actual = MConstant::New(UndefinedValue());
-        break;
-
-      case JSVAL_TYPE_NULL:
-        param->setFoldedUnchecked();
-        actual = MConstant::New(NullValue());
-        break;
-
-      default:
-        actual = MUnbox::New(param, MIRTypeFromValueType(definiteType), MUnbox::Infallible);
-        break;
-    }
-
-    // Careful! We leave the original MParameter in the entry resume point. The
-    // arguments still need to be checked unless proven otherwise at the call
-    // site, and these checks can bailout. We can end up:
-    //   v0 = Parameter(0)
-    //   v1 = Unbox(v0, INT32)
-    //   --   ResumePoint(v0)
-    //
-    // As usual, it would be invalid for v1 to be captured in the initial
-    // resume point, rather than v0.
-    current->add(actual);
-    current->rewriteSlot(slotIdx, actual);
-}
-
 // Apply Type Inference information to parameters early on, unboxing them if
 // they have a definitive type. The actual guards will be emitted by the code
 // generator, explicitly, as part of the function prologue.
@@ -721,13 +653,51 @@ void
 IonBuilder::rewriteParameters()
 {
     JS_ASSERT(info().scopeChainSlot() == 0);
+    static const uint32_t START_SLOT = 1;
 
-    if (!info().fun())
-        return;
+    for (uint32_t i = START_SLOT; i < CountArgSlots(info().fun()); i++) {
+        MParameter *param = current->getSlot(i)->toParameter();
 
-    for (uint32_t i = info().startArgSlot(); i < info().endArgSlot(); i++) {
-        MDefinition *param = current->getSlot(i);
-        rewriteParameter(i, param, param->toParameter()->index());
+        // Find the original (not cloned) type set for the MParameter, as we
+        // will be adding constraints to it.
+        types::StackTypeSet *types;
+        if (param->index() == MParameter::THIS_SLOT)
+            types = types::TypeScript::ThisTypes(script());
+        else
+            types = types::TypeScript::ArgTypes(script(), param->index());
+
+        JSValueType definiteType = types->getKnownTypeTag();
+        if (definiteType == JSVAL_TYPE_UNKNOWN)
+            continue;
+
+        MInstruction *actual = NULL;
+        switch (definiteType) {
+          case JSVAL_TYPE_UNDEFINED:
+            param->setFoldedUnchecked();
+            actual = MConstant::New(UndefinedValue());
+            break;
+
+          case JSVAL_TYPE_NULL:
+            param->setFoldedUnchecked();
+            actual = MConstant::New(NullValue());
+            break;
+
+          default:
+            actual = MUnbox::New(param, MIRTypeFromValueType(definiteType), MUnbox::Infallible);
+            break;
+        }
+
+        // Careful! We leave the original MParameter in the entry resume point. The
+        // arguments still need to be checked unless proven otherwise at the call
+        // site, and these checks can bailout. We can end up:
+        //   v0 = Parameter(0)
+        //   v1 = Unbox(v0, INT32)
+        //   --   ResumePoint(v0)
+        //
+        // As usual, it would be invalid for v1 to be captured in the initial
+        // resume point, rather than v0.
+        current->add(actual);
+        current->rewriteSlot(i, actual);
     }
 }
 
@@ -745,7 +715,7 @@ IonBuilder::initParameters()
     for (uint32_t i = 0; i < info().nargs(); i++) {
         param = MParameter::New(i, cloneTypeSet(types::TypeScript::ArgTypes(script(), i)));
         current->add(param);
-        current->initSlot(info().argSlotUnchecked(i), param);
+        current->initSlot(info().argSlot(i), param);
     }
 
     return true;
@@ -757,10 +727,8 @@ IonBuilder::initScopeChain()
     MInstruction *scope = NULL;
 
     // If the script doesn't use the scopechain, then it's already initialized
-    // from earlier.  However, always make a scope chain when |needsArgsObj| is true
-    // for the script, since arguments object construction requires the scope chain
-    // to be passed in.
-    if (!info().needsArgsObj() && !script()->analysis()->usesScopeChain())
+    // from earlier.
+    if (!script()->analysis()->usesScopeChain())
         return true;
 
     // The scope chain is only tracked in scripts that have NAME opcodes which
@@ -795,18 +763,6 @@ IonBuilder::initScopeChain()
     }
 
     current->setScopeChain(scope);
-    return true;
-}
-
-bool
-IonBuilder::initArgumentsObject()
-{
-    IonSpew(IonSpew_MIR, "%s:%d - Emitting code to initialize arguments object! block=%p",
-                              script()->filename(), script()->lineno, current);
-    JS_ASSERT(info().needsArgsObj());
-    MCreateArgumentsObject *argsObj = MCreateArgumentsObject::New(current->scopeChain());
-    current->add(argsObj);
-    current->setArgumentsObject(argsObj);
     return true;
 }
 
@@ -905,7 +861,7 @@ IonBuilder::maybeAddOsrTypeBarriers()
     static const size_t OSR_PHI_POSITION = 1;
     JS_ASSERT(preheader->getPredecessor(OSR_PHI_POSITION) == osrBlock);
 
-    for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
+    for (uint32_t i = 1; i < osrBlock->stackDepth(); i++) {
         MInstruction *def = osrBlock->getSlot(i)->toOsrValue();
 
         MPhi *headerPhi = header->getSlot(i)->toPhi();
@@ -1180,14 +1136,7 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_GETARG:
       case JSOP_CALLARG:
-        if (info().argsObjAliasesFormals()) {
-            MGetArgumentsObjectArg *getArg = MGetArgumentsObjectArg::New(current->argumentsObject(),
-                                                                         GET_SLOTNO(pc));
-            current->add(getArg);
-            current->push(getArg);
-        } else {
-            current->pushArg(GET_SLOTNO(pc));
-        }
+        current->pushArg(GET_SLOTNO(pc));
         return true;
 
       case JSOP_SETARG:
@@ -1196,16 +1145,9 @@ IonBuilder::inspectOpcode(JSOp op)
         // to wrap the spilling action, we don't want the spilling to be
         // captured by the GETARG and by the resume point, only by
         // MGetArgument.
-        if (info().argsObjAliasesFormals()) {
-            current->add(MSetArgumentsObjectArg::New(current->argumentsObject(), GET_SLOTNO(pc),
-                                                     current->peek(-1)));
-        } else {
-            // TODO: if hasArguments() is true, and the script has a JSOP_SETARG, then
-            // convert all arg accesses to go through the arguments object.
-            if (info().hasArguments())
-                return abort("NYI: arguments & setarg.");
-            current->setArg(GET_SLOTNO(pc));
-        }
+        if (info().hasArguments())
+            return abort("NYI: arguments & setarg.");
+        current->setArg(GET_SLOTNO(pc));
         return true;
 
       case JSOP_GETLOCAL:
@@ -4253,7 +4195,7 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
     for (AliasedFormalIter i(script()); i; i++) {
         unsigned slot = i.scopeSlot();
         unsigned formal = i.frameIndex();
-        MDefinition *param = current->getSlot(info().argSlotUnchecked(formal));
+        MDefinition *param = current->getSlot(info().argSlot(formal));
         if (slot >= templateObj->numFixedSlots())
             current->add(MStoreSlot::New(slots, slot - templateObj->numFixedSlots(), param));
         else
@@ -5286,15 +5228,6 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
         osrBlock->initSlot(slot, scopev);
     }
 
-    // Initialize arguments object.  Ion will not allow OSR-ing into scripts
-    // with |needsArgsObj| set, so this can be undefined.
-    JS_ASSERT(!info().needsArgsObj());
-    if (info().hasArguments()) {
-        MInstruction *argsObj = MConstant::New(UndefinedValue());
-        osrBlock->add(argsObj);
-        osrBlock->initSlot(info().argsObjSlot(), argsObj);
-    }
-
     if (info().fun()) {
         // Initialize |this| parameter.
         uint32_t slot = info().thisSlot();
@@ -5306,8 +5239,6 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 
         // Initialize arguments.
         for (uint32_t i = 0; i < info().nargs(); i++) {
-            // NB: Ion does not OSR into any function which |needsArgsObj|, so
-            // using argSlot() here instead of argSlotUnchecked() is ok.
             uint32_t slot = info().argSlot(i);
             ptrdiff_t offset = StackFrame::offsetOfFormalArg(info().fun(), i);
 
@@ -5328,8 +5259,8 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     }
 
     // Initialize stack.
-    uint32_t numStackSlots = preheader->stackDepth() - info().firstStackSlot();
-    for (uint32_t i = 0; i < numStackSlots; i++) {
+    uint32_t numSlots = preheader->stackDepth() - CountArgSlots(info().fun()) - info().nlocals();
+    for (uint32_t i = 0; i < numSlots; i++) {
         uint32_t slot = info().stackSlot(i);
         ptrdiff_t offset = StackFrame::offsetOfFixed(info().nlocals() + i);
 
@@ -5363,7 +5294,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     // coming in to the loop. These will be fixed up with appropriate
     // unboxing and type barriers in finishLoop, once the possible types
     // at the loop header are known.
-    for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
+    for (uint32_t i = 1; i < osrBlock->stackDepth(); i++) {
         MDefinition *existing = current->getSlot(i);
         MDefinition *def = osrBlock->getSlot(i);
         JS_ASSERT(def->type() == MIRType_Value);
@@ -5401,13 +5332,13 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
         // during the OSR itself.
 
         // Unbox the MOsrValue if it is known to be unboxable.
-        for (uint32_t i = info().startArgSlot(); i < block->stackDepth(); i++) {
+        for (uint32_t i = 1; i < block->stackDepth(); i++) {
             MPhi *phi = block->getSlot(i)->toPhi();
 
             bool haveValue = false;
             Value existingValue;
             {
-                uint32_t arg = i - info().firstActualArgSlot();
+                uint32_t arg = i - info().firstArgSlot();
                 uint32_t var = i - info().firstLocalSlot();
                 if (arg < info().nargs()) {
                     if (!script()->formalIsAliased(arg)) {
@@ -6557,10 +6488,6 @@ IonBuilder::jsop_length_fastPath()
 bool
 IonBuilder::jsop_arguments()
 {
-    if (info().needsArgsObj()) {
-        current->push(current->argumentsObject());
-        return true;
-    }
     JS_ASSERT(lazyArguments_);
     current->push(lazyArguments_);
     return true;
@@ -6801,7 +6728,7 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types, Handle
 
     // Pass the guard back so it can be an operand.
     if (isGetter) {
-        JS_ASSERT(wrapper->isGuardShape());
+        JS_ASSERT(wrapper->isGuardShapeOrType());
         *guardOut = wrapper;
     }
 
@@ -7819,7 +7746,7 @@ IonBuilder::addBoundsCheck(MDefinition *index, MDefinition *length)
 MInstruction *
 IonBuilder::addShapeGuard(MDefinition *obj, const RawShape shape, BailoutKind bailoutKind)
 {
-    MGuardShape *guard = MGuardShape::New(obj, shape, bailoutKind);
+    MGuardShapeOrType *guard = MGuardShapeOrType::New(obj, shape, NULL, false, bailoutKind);
     current->add(guard);
 
     // If a shape guard failed in the past, don't optimize shape guard.
