@@ -147,12 +147,11 @@ AudioChannelService::GetMuted(AudioChannelAgent* aAgent, bool aElementHidden)
     return true;
   }
 
-  bool oldElementHidden = data->mElementHidden;
+  bool muted = GetMutedInternal(data->mType, CONTENT_PARENT_NO_CHILD_ID,
+                                aElementHidden, data->mElementHidden);
+
   // Update visibility.
   data->mElementHidden = aElementHidden;
-
-  bool muted = GetMutedInternal(data->mType, CONTENT_PARENT_NO_CHILD_ID,
-                                aElementHidden, oldElementHidden);
   data->mMuted = muted;
 
   SendAudioChannelChangedNotification();
@@ -191,10 +190,6 @@ AudioChannelService::GetMutedInternal(AudioChannelType aType, uint64_t aChildID,
            !mActiveContentChildIDsFrozen &&
            mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty()) {
     mActiveContentChildIDsFrozen = true;
-  }
-
-  if (newType != oldType && aType == AUDIO_CHANNEL_CONTENT) {
-    Notify();
   }
 
   // Let play any visible audio channel.

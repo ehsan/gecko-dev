@@ -256,8 +256,6 @@ interface nsIDOMMozIccManager : nsIDOMEventTarget
    *        one of events below:
    *        - MozStkLocationEvent
    *        - MozStkCallEvent
-   *        - MozStkLanguageSelectionEvent
-   *        - MozStkGeneralEvent
    */
   void sendStkEventDownload(in jsval event);
 

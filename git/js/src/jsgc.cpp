@@ -199,10 +199,6 @@ static const AllocKind FinalizePhaseScripts[] = {
     FINALIZE_SCRIPT
 };
 
-static const AllocKind FinalizePhaseIonCode[] = {
-    FINALIZE_IONCODE
-};
-
 static const AllocKind FinalizePhaseShapes[] = {
     FINALIZE_SHAPE,
     FINALIZE_BASE_SHAPE,
@@ -212,7 +208,6 @@ static const AllocKind FinalizePhaseShapes[] = {
 static const AllocKind* FinalizePhases[] = {
     FinalizePhaseStrings,
     FinalizePhaseScripts,
-    FinalizePhaseIonCode,
     FinalizePhaseShapes
 };
 static const int FinalizePhaseCount = sizeof(FinalizePhases) / sizeof(AllocKind*);
@@ -220,14 +215,12 @@ static const int FinalizePhaseCount = sizeof(FinalizePhases) / sizeof(AllocKind*
 static const int FinalizePhaseLength[] = {
     sizeof(FinalizePhaseStrings) / sizeof(AllocKind),
     sizeof(FinalizePhaseScripts) / sizeof(AllocKind),
-    sizeof(FinalizePhaseIonCode) / sizeof(AllocKind),
     sizeof(FinalizePhaseShapes) / sizeof(AllocKind)
 };
 
 static const gcstats::Phase FinalizePhaseStatsPhase[] = {
     gcstats::PHASE_SWEEP_STRING,
     gcstats::PHASE_SWEEP_SCRIPT,
-    gcstats::PHASE_SWEEP_IONCODE,
     gcstats::PHASE_SWEEP_SHAPE
 };
 
@@ -1167,8 +1160,8 @@ JSCompartment::reduceGCTriggerBytes(size_t amount)
     gcTriggerBytes -= amount;
 }
 
-Allocator::Allocator(Zone *zone)
-  : zone(zone)
+Allocator::Allocator(JSCompartment *compartment)
+  : compartment(compartment)
 {}
 
 inline void
@@ -1471,13 +1464,6 @@ ArenaLists::queueScriptsForSweep(FreeOp *fop)
 }
 
 void
-ArenaLists::queueIonCodeForSweep(FreeOp *fop)
-{
-    gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_IONCODE);
-    queueForForegroundSweep(fop, FINALIZE_IONCODE);
-}
-
-void
 ArenaLists::queueShapesForSweep(FreeOp *fop)
 {
     gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_SHAPE);
@@ -1485,6 +1471,13 @@ ArenaLists::queueShapesForSweep(FreeOp *fop)
     queueForForegroundSweep(fop, FINALIZE_SHAPE);
     queueForForegroundSweep(fop, FINALIZE_BASE_SHAPE);
     queueForForegroundSweep(fop, FINALIZE_TYPE_OBJECT);
+}
+
+void
+ArenaLists::queueIonCodeForSweep(FreeOp *fop)
+{
+    gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_IONCODE);
+    finalizeNow(fop, FINALIZE_IONCODE);
 }
 
 static void *
@@ -3641,16 +3634,16 @@ BeginSweepingZoneGroup(JSRuntime *rt)
         gcstats::AutoSCC scc(rt->gcStats, rt->gcZoneGroupIndex);
         zone->allocator.arenas.queueScriptsForSweep(&fop);
     }
+    for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
+        gcstats::AutoSCC scc(rt->gcStats, rt->gcZoneGroupIndex);
+        zone->allocator.arenas.queueShapesForSweep(&fop);
+    }
 #ifdef JS_ION
     for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
         gcstats::AutoSCC scc(rt->gcStats, rt->gcZoneGroupIndex);
         zone->allocator.arenas.queueIonCodeForSweep(&fop);
     }
 #endif
-    for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
-        gcstats::AutoSCC scc(rt->gcStats, rt->gcZoneGroupIndex);
-        zone->allocator.arenas.queueShapesForSweep(&fop);
-    }
 
     rt->gcSweepPhase = 0;
     rt->gcSweepZone = rt->gcCurrentZoneGroup;

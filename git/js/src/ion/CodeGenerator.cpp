@@ -735,26 +735,6 @@ CodeGenerator::visitElements(LElements *lir)
     return true;
 }
 
-typedef bool (*ConvertElementsToDoublesFn)(JSContext *, uintptr_t);
-static const VMFunction ConvertElementsToDoublesInfo =
-    FunctionInfo<ConvertElementsToDoublesFn>(ObjectElements::ConvertElementsToDoubles);
-
-bool
-CodeGenerator::visitConvertElementsToDoubles(LConvertElementsToDoubles *lir)
-{
-    Register elements = ToRegister(lir->elements());
-
-    OutOfLineCode *ool = oolCallVM(ConvertElementsToDoublesInfo, lir,
-                                   (ArgList(), elements), StoreNothing());
-    if (!ool)
-        return false;
-
-    Address convertedAddress(elements, ObjectElements::offsetOfConvertDoubleElements());
-    masm.branch32(Assembler::Equal, convertedAddress, Imm32(0), ool->entry());
-    masm.bind(ool->rejoin());
-    return true;
-}
-
 bool
 CodeGenerator::visitFunctionEnvironment(LFunctionEnvironment *lir)
 {
@@ -4533,12 +4513,10 @@ CodeGenerator::visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir)
     Label fail;
     if (key.isConstant()) {
         Address source(scratch, key.constant() * width);
-        masm.loadFromTypedArray(arrayType, source, out, lir->mir()->allowDouble(),
-                                out.scratchReg(), &fail);
+        masm.loadFromTypedArray(arrayType, source, out, lir->mir()->allowDouble(), &fail);
     } else {
         BaseIndex source(scratch, key.reg(), ScaleFromElemWidth(width));
-        masm.loadFromTypedArray(arrayType, source, out, lir->mir()->allowDouble(),
-                                out.scratchReg(), &fail);
+        masm.loadFromTypedArray(arrayType, source, out, lir->mir()->allowDouble(), &fail);
     }
 
     if (fail.used() && !bailoutFrom(&fail, lir->snapshot()))

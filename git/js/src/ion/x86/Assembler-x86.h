@@ -144,16 +144,6 @@ class Operand
         base_(reinterpret_cast<int32_t>(address))
     { }
 
-    Address toAddress() {
-        JS_ASSERT(kind() == REG_DISP);
-        return Address(Register::FromCode(base()), disp());
-    }
-
-    BaseIndex toBaseIndex() {
-        JS_ASSERT(kind() == SCALE);
-        return BaseIndex(Register::FromCode(base()), Register::FromCode(index()), scale(), disp());
-    }
-
     Kind kind() const {
         return kind_;
     }

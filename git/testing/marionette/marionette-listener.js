@@ -906,7 +906,7 @@ function switchToFrame(msg) {
     if (elementManager.seenItems[msg.json.element] != undefined) {
       let wantedFrame = elementManager.getKnownElement(msg.json.element, curWindow); //HTMLIFrameElement
       for (let i = 0; i < frames.length; i++) {
-        if (frames[i].isEqualNode(wantedFrame)) {
+        if (frames[i] == wantedFrame) {
           curWindow = frames[i]; 
           foundFrame = i;
         }

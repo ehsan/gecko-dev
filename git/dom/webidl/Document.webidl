@@ -31,7 +31,7 @@ enum VisibilityState { "hidden", "visible" };
 /* http://dom.spec.whatwg.org/#interface-document */
 [Constructor]
 interface Document : Node {
-  [Throws]
+  [Throws, Constant]
   readonly attribute DOMImplementation implementation;
   readonly attribute DOMString URL;
   readonly attribute DOMString documentURI;

@@ -172,10 +172,4 @@ JSScript::writeBarrierPost(js::UnrootedScript script, void *addr)
 {
 }
 
-inline JSPrincipals *
-JSScript::principals()
-{
-    return compartment()->principals;
-}
-
 #endif /* jsscriptinlines_h___ */

@@ -26,8 +26,6 @@
 #include "nsIArray.h"
 #include "nsIVariant.h"
 #include "nsThreadUtils.h"
-#include "nsISerializable.h"
-#include "nsSerializationHelper.h"
 
 #include "mozIStorageService.h"
 #include "mozIStorageStatement.h"
@@ -478,19 +476,6 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
 
   entry->UnflattenMetaData((const char *) rec.metaData, rec.metaDataLen);
 
-  // Restore security info, if present
-  const char* info = entry->GetMetaDataElement("security-info");
-  if (info) {
-    nsCOMPtr<nsISupports> infoObj;
-    rv = NS_DeserializeObject(nsDependentCString(info),
-                              getter_AddRefs(infoObj));
-    if (NS_FAILED(rv)) {
-      delete entry;
-      return nullptr;
-    }
-    entry->SetSecurityInfo(infoObj);
-  }
-
   // create a binding object for this entry
   nsOfflineCacheBinding *binding =
       nsOfflineCacheBinding::Create(device->CacheDirectory(),
@@ -932,21 +917,6 @@ nsOfflineCacheDevice::UpdateEntry(nsCacheEntry *entry)
 
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
-
-  // Store security info, if it is serializable
-  nsCOMPtr<nsISupports> infoObj = entry->SecurityInfo();
-  nsCOMPtr<nsISerializable> serializable = do_QueryInterface(infoObj);
-  if (infoObj && !serializable)
-    return NS_ERROR_UNEXPECTED;
-
-  if (serializable) {
-    nsCString info;
-    nsresult rv = NS_SerializeToString(serializable, info);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = entry->SetMetaDataElement("security-info", info.get());
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   nsCString metaDataBuf;
   uint32_t mdSize = entry->MetaDataSize();

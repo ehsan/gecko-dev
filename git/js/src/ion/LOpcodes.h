@@ -111,7 +111,6 @@
     _(ImplicitThis)                 \
     _(Slots)                        \
     _(Elements)                     \
-    _(ConvertElementsToDoubles)     \
     _(LoadSlotV)                    \
     _(LoadSlotT)                    \
     _(StoreSlotV)                   \

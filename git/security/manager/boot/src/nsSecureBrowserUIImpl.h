@@ -99,7 +99,7 @@ protected:
 #endif
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
-  nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
+  static nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
   nsresult UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
                                bool withUpdateStatus, bool withUpdateTooltip);
   bool UpdateMyFlags(lockIconState &warnSecurityState);

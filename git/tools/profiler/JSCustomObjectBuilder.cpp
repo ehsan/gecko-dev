@@ -208,7 +208,7 @@ operator<<(std::ostream& stream, JSCustomArray* entry)
 {
   bool needsComma = false;
   stream << "[";
-  for (size_t i = 0; i < entry->mValues.Length(); i++) {
+  for (int i = 0; i < entry->mValues.Length(); i++) {
     if (needsComma) {
       stream << ",";
     }

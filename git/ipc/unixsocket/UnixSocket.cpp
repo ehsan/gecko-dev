@@ -47,7 +47,6 @@ public:
                  const nsACString& aAddress)
     : mConsumer(aConsumer)
     , mIOLoop(nullptr)
-    , mTask(nullptr)
     , mFd(-1)
     , mConnector(aConnector)
     , mCurrentTaskIsCanceled(false)
@@ -655,7 +654,7 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
     if (!mIncoming) {
       uint8_t data[MAX_READ_SIZE];
       ssize_t ret = read(aFd, data, MAX_READ_SIZE);
-      if (ret < 0) {
+      if (ret <= 0) {
         if (ret == -1) {
           if (errno == EINTR) {
             continue; // retry system call when interrupted
@@ -676,13 +675,11 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
         NS_DispatchToMainThread(t);
         return;
       }
-      if (ret) {
-        mIncoming = new UnixSocketRawData(ret);
-        memcpy(mIncoming->mData, data, ret);
-        nsRefPtr<SocketReceiveTask> t =
-          new SocketReceiveTask(this, mIncoming.forget());
-        NS_DispatchToMainThread(t);
-      }
+      mIncoming = new UnixSocketRawData(ret);
+      memcpy(mIncoming->mData, data, ret);
+      nsRefPtr<SocketReceiveTask> t =
+        new SocketReceiveTask(this, mIncoming.forget());
+      NS_DispatchToMainThread(t);
       if (ret < ssize_t(MAX_READ_SIZE)) {
         return;
       }

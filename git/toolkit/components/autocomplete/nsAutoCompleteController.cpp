@@ -587,11 +587,7 @@ nsAutoCompleteController::HandleDelete(bool *_retval)
     // Nothing left in the popup, clear any pending search timers and
     // close the popup.
     ClearSearchTimer();
-    uint32_t minResults;
-    input->GetMinResultsForPopup(&minResults);
-    if (minResults) {
-      ClosePopup();
-    }
+    ClosePopup();
   }
 
   return NS_OK;
@@ -1348,13 +1344,10 @@ nsAutoCompleteController::ProcessResult(int32_t aSearchIndex, nsIAutoCompleteRes
     NS_ENSURE_TRUE(popup != nullptr, NS_ERROR_FAILURE);
     popup->Invalidate();
 
-    uint32_t minResults;
-    input->GetMinResultsForPopup(&minResults);
-
     // Make sure the popup is open, if necessary, since we now have at least one
     // search result ready to display. Don't force the popup closed if we might
     // get results in the future to avoid unnecessarily canceling searches.
-    if (mRowCount || !minResults) {
+    if (mRowCount) {
       OpenPopup();
     } else if (result != nsIAutoCompleteResult::RESULT_NOMATCH_ONGOING) {
       ClosePopup();

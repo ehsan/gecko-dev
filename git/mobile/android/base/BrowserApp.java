@@ -1050,17 +1050,12 @@ abstract public class BrowserApp extends GeckoApp
                 return true;
 
             case R.id.abouthome_topsites_unpin:
-                mAboutHomeContent.unpinSite(AboutHomeContent.UnpinFlags.REMOVE_PIN);
+                mAboutHomeContent.unpinSite();
                 return true;
 
             case R.id.abouthome_topsites_pin:
                 mAboutHomeContent.pinSite();
                 return true;
-
-            case R.id.abouthome_topsites_remove:
-                mAboutHomeContent.unpinSite(AboutHomeContent.UnpinFlags.REMOVE_HISTORY);
-                return true;
-
         }
         return super.onContextItemSelected(item);
     }

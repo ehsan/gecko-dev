@@ -559,12 +559,6 @@ let test_iter = maketest("iter", function iter(test) {
     yield iterator.close();
     test.info("Closed iterator");
 
-    test.info("Double closing DirectoryIterator");
-    iterator = new OS.File.DirectoryIterator(currentDir);
-    yield iterator.close();
-    yield iterator.close(); //double closing |DirectoryIterator|
-    test.ok(true, "|DirectoryIterator| was closed twice successfully");
-
     let allFiles2 = [];
     let i = 0;
     iterator = new OS.File.DirectoryIterator(currentDir);

@@ -478,7 +478,10 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
         NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
         nsAutoString namespaceURI;
-        nodeInfo->GetNamespaceURI(namespaceURI);
+        tmp = nodeInfo->GetNamespaceURI(namespaceURI);
+        if (NS_FAILED(tmp)) {
+          rv = tmp;
+        }
         tmp = aStream->WriteWStringZ(namespaceURI.get());
         if (NS_FAILED(tmp)) {
           rv = tmp;

@@ -110,48 +110,40 @@ this.DOMApplicationRegistry = {
           this.webapps = aData;
           let appDir = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], false);
           for (let id in this.webapps) {
-            let app = this.webapps[id];
 
-            app.id = id;
+            this.webapps[id].id = id;
 
             // Make sure we have a localId
-            if (app.localId === undefined) {
-              app.localId = this._nextLocalId();
+            if (this.webapps[id].localId === undefined) {
+              this.webapps[id].localId = this._nextLocalId();
             }
 
-            if (app.basePath === undefined) {
-              app.basePath = appDir.path;
+            if (this.webapps[id].basePath === undefined) {
+              this.webapps[id].basePath = appDir.path;
             }
 
             // Default to removable apps.
-            if (app.removable === undefined) {
-              app.removable = true;
+            if (this.webapps[id].removable === undefined) {
+              this.webapps[id].removable = true;
             }
 
             // Default to a non privileged status.
-            if (app.appStatus === undefined) {
-              app.appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
+            if (this.webapps[id].appStatus === undefined) {
+              this.webapps[id].appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
             }
 
             // Default to NO_APP_ID and not in browser.
-            if (app.installerAppId === undefined) {
-              app.installerAppId = Ci.nsIScriptSecurityManager.NO_APP_ID;
+            if (this.webapps[id].installerAppId === undefined) {
+              this.webapps[id].installerAppId = Ci.nsIScriptSecurityManager.NO_APP_ID;
             }
-            if (app.installerIsBrowser === undefined) {
-              app.installerIsBrowser = false;
-            }
-
-            // Default installState to "installed", and reset if we shutdown
-            // during an update.
-            if (app.installState === undefined ||
-                app.installState === "updating") {
-              app.installState = "installed";
+            if (this.webapps[id].installerIsBrowser === undefined) {
+              this.webapps[id].installerIsBrowser = false;
             }
 
-            // At startup we can't be downloading, and the $TMP directory
-            // will be empty so we can't just apply a staged update.
-            app.downloading = false;
-            app.readyToApplyDownload = false;
+            // Default installState to "installed".
+            if (this.webapps[id].installState === undefined) {
+              this.webapps[id].installState = "installed";
+            }
           };
         }
         aNext();
@@ -2273,7 +2265,7 @@ this.DOMApplicationRegistry = {
 
     let deviceStorage = Services.wm.getMostRecentWindow("navigator:browser")
                                 .navigator.getDeviceStorage("apps");
-    let req = deviceStorage.freeSpace();
+    let req = deviceStorage.stat();
     req.onsuccess = req.onerror = function statResult(e) {
       // Even if we could not retrieve the device storage free space, we try
       // to download the package.
@@ -2282,7 +2274,7 @@ this.DOMApplicationRegistry = {
         return;
       }
 
-      let freeBytes = e.target.result;
+      let freeBytes = e.target.result.freeBytes;
       if (freeBytes) {
         debug("Free storage: " + freeBytes + ". Download size: " +
               aApp.downloadSize);
@@ -2306,10 +2298,8 @@ this.DOMApplicationRegistry = {
 
       dump("-- webapps.js uninstall " + app.manifestURL + "\n");
 
-      if (!app.removable) {
-        debug("Error: cannot unintall a non-removable app.");
-        break;
-      }
+      if (!app.removable)
+        return;
 
       // Check if we are downloading something for this app, and cancel the
       // download if needed.
@@ -2353,9 +2343,6 @@ this.DOMApplicationRegistry = {
       return;
     }
 
-    // Fall-through, fails to uninstall the desired app because:
-    //   - we cannot find the app to be uninstalled.
-    //   - the app to be uninstalled is not removable.
     aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
   },
 

@@ -92,7 +92,6 @@ public:
     bool           IsSpdyV3Enabled() { return mSpdyV3; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-    bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
     uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
@@ -397,7 +396,6 @@ private:
     bool           mSpdyV3;
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
-    bool           mSpdyPersistentSettings;
     uint32_t       mSpdySendingChunkSize;
     uint32_t       mSpdySendBufferSize;
     PRIntervalTime mSpdyPingThreshold;

@@ -333,30 +333,6 @@ DOMError.prototype = {
   * mozIDOMApplication object
   */
 
-// A simple cache for the wrapped manifests.
-let manifestCache = {
-  _cache: { },
-
-  // Gets an entry from the cache, and populates the cache if needed.
-  get : function mcache_get(aManifestURL, aManifest, aWindow) {
-    if (!(aManifestURL in this._cache)) {
-      this._cache[aManifestURL] = ObjectWrapper.wrap(aManifest, aWindow);
-    }
-    return this._cache[aManifestURL];
-  },
-
-  // Invalidates an entry in the cache.
-  evict: function mcache_evict(aManifestURL) {
-    if (aManifestURL in this._cache) {
-      delete this._cache[aManifestURL];
-    }
-  },
-
-  clear: function mcache_clear() {
-    this._cache = { };
-  }
-}
-
 function createApplicationObject(aWindow, aApp) {
   let app = Cc["@mozilla.org/webapps/application;1"].createInstance(Ci.mozIDOMApplication);
   app.wrappedJSObject.init(aWindow, aApp);
@@ -411,7 +387,7 @@ WebappsApplication.prototype = {
   },
 
   get manifest() {
-    return manifestCache.get(this.manifestURL, this._manifest, this._window);
+    return this.manifest = ObjectWrapper.wrap(this._manifest, this._window);
   },
 
   get updateManifest() {
@@ -507,7 +483,6 @@ WebappsApplication.prototype = {
                           ["Webapps:OfflineCache",
                            "Webapps:PackageEvent",
                            "Webapps:CheckForUpdate:Return:OK"]);
-    manifestCache.clear();
   },
 
   _fireEvent: function(aName, aHandler) {
@@ -597,7 +572,6 @@ WebappsApplication.prototype = {
             this._fireEvent("downloadprogress", this._onprogress);
             break;
           case "installed":
-            manifestCache.evict(this.manifestURL);
             this._manifest = msg.manifest;
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             this._fireEvent("downloadapplied", this._ondownloadapplied);
@@ -606,13 +580,11 @@ WebappsApplication.prototype = {
             // We don't update the packaged apps manifests until they
             // are installed or until the update is unstaged.
             if (msg.manifest) {
-              manifestCache.evict(this.manifestURL);
               this._manifest = msg.manifest;
             }
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             break;
           case "applied":
-            manifestCache.evict(this.manifestURL);
             this._manifest = msg.manifest;
             this._fireEvent("downloadapplied", this._ondownloadapplied);
             break;

@@ -264,10 +264,12 @@ class XDRState {
 
         /* The origin principals must be normalized at this point. */
         JS_ASSERT_IF(principals, originPrincipals);
+        JS_ASSERT(!script->principals);
         JS_ASSERT(!script->originPrincipals);
-        if (principals)
-            JS_ASSERT(script->principals() == principals);
-
+        if (principals) {
+            script->principals = principals;
+            JS_HoldPrincipals(principals);
+        }
         if (originPrincipals) {
             script->originPrincipals = originPrincipals;
             JS_HoldPrincipals(originPrincipals);

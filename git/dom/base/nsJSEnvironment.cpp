@@ -149,8 +149,6 @@ static PRTime sCCLockedOutTime;
 static JS::GCSliceCallback sPrevGCSliceCallback;
 static js::AnalysisPurgeCallback sPrevAnalysisPurgeCallback;
 
-static bool sHasRunGC;
-
 // The number of currently pending document loads. This count isn't
 // guaranteed to always reflect reality and can't easily as we don't
 // have an easy place to know when a load ends or is interrupted in
@@ -3082,7 +3080,7 @@ nsJSContext::PokeShrinkGCBuffers()
 void
 nsJSContext::MaybePokeCC()
 {
-  if (sCCTimer || sShuttingDown || !sHasRunGC) {
+  if (sCCTimer || sShuttingDown) {
     return;
   }
 
@@ -3241,7 +3239,6 @@ DOMGCSliceCallback(JSRuntime *aRt, JS::GCProgress aProgress, const JS::GCDescrip
     sCCollectedWaitingForGC = 0;
     sCleanupsSinceLastGC = 0;
     sNeedsFullCC = true;
-    sHasRunGC = true;
     nsJSContext::MaybePokeCC();
 
     if (aDesc.isCompartment) {
@@ -3361,7 +3358,6 @@ nsJSRuntime::Startup()
   sCCLockedOut = false;
   sCCLockedOutTime = 0;
   sLastCCEndTime = 0;
-  sHasRunGC = false;
   sPendingLoadCount = 0;
   sLoadingInProgress = false;
   sCCollectedWaitingForGC = 0;

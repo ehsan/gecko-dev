@@ -506,8 +506,7 @@ void MediaDecoderStateMachine::SendStreamAudio(AudioData* aAudio,
                                                DecodedStreamData* aStream,
                                                AudioSegment* aOutput)
 {
-  NS_ASSERTION(OnDecodeThread() ||
-               OnStateMachineThread(), "Should be on decode thread or state machine thread");
+  NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
 
   if (aAudio->mTime <= aStream->mLastAudioPacketTime) {
@@ -1211,7 +1210,7 @@ uint32_t MediaDecoderStateMachine::PlaySilence(uint32_t aFrames,
 }
 
 uint32_t MediaDecoderStateMachine::PlayFromAudioQueue(uint64_t aFrameOffset,
-                                                      uint32_t aChannels)
+                                                          uint32_t aChannels)
 {
   NS_ASSERTION(OnAudioThread(), "Only call on audio thread.");
   NS_ASSERTION(!mAudioStream->IsPaused(), "Don't play when paused");
@@ -1219,6 +1218,7 @@ uint32_t MediaDecoderStateMachine::PlayFromAudioQueue(uint64_t aFrameOffset,
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     NS_WARN_IF_FALSE(IsPlaying(), "Should be playing");
+    NS_ASSERTION(!mAudioCaptured, "Audio cannot be captured here!");
     // Awaken the decode loop if it's waiting for space to free up in the
     // audio queue.
     mDecoder->GetReentrantMonitor().NotifyAll();
@@ -1861,6 +1861,7 @@ nsresult MediaDecoderStateMachine::DecodeMetadata()
                                  mInfo.mAudioChannels,
                                  mInfo.mAudioRate,
                                  HasAudio(),
+                                 HasVideo(),
                                  tags);
   NS_DispatchToMainThread(metadataLoadedEvent, NS_DISPATCH_NORMAL);
 
@@ -2786,7 +2787,12 @@ bool MediaDecoderStateMachine::IsShutdown()
   return GetState() == DECODER_STATE_SHUTDOWN;
 }
 
-void MediaDecoderStateMachine::QueueMetadata(int64_t aPublishTime, int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags)
+void MediaDecoderStateMachine::QueueMetadata(int64_t aPublishTime,
+                                             int aChannels,
+                                             int aRate,
+                                             bool aHasAudio,
+                                             bool aHasVideo,
+                                             MetadataTags* aTags)
 {
   NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();

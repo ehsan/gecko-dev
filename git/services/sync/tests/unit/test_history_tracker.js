@@ -43,19 +43,18 @@ function addVisit() {
 
   let cb = Async.makeSpinningCallback();
   PlacesUtils.asyncHistory.updatePlaces(place, {
-    handleError: function () {
+    handleError: function Add_handleError() {
       _("Error adding visit for " + uriString);
       cb(new Error("Error adding history entry"));
     },
-
-    handleResult: function () {
-    },
-
-    handleCompletion: function () {
+    handleResult: function Add_handleResult() {
       _("Added visit for " + uriString);
       cb();
-    }
-  });
+    },
+    handleCompletion: function Add_handleCompletion() {
+       // Nothing to do
+     }
+   });
 
   // Spin the event loop to embed this async call in a sync API.
   cb.wait();
@@ -69,10 +68,9 @@ function run_test() {
 }
 
 add_test(function test_empty() {
-  _("Verify we've got an empty, disabled tracker to work with.");
+  _("Verify we've got an empty tracker to work with.");
   do_check_empty(tracker.changedIDs);
   do_check_eq(tracker.score, 0);
-  do_check_false(tracker._enabled);
   run_next_test();
 });
 
@@ -102,6 +100,7 @@ add_test(function test_start_tracking() {
     _("Score updated in test_start_tracking.");
     do_check_attribute_count(tracker.changedIDs, 1);
     do_check_eq(tracker.score, SCORE_INCREMENT_SMALL);
+    run_next_test();
   });
 
   Svc.Obs.notify("weave:engine:start-tracking");
@@ -127,8 +126,6 @@ add_test(function test_start_tracking_twice() {
 
 add_test(function test_track_delete() {
   _("Deletions are tracked.");
-
-  // This isn't present because we weren't tracking when it was visited.
   let uri = Utils.makeURI("http://getfirefox.com/0");
   let guid = engine._store.GUIDForUri(uri);
   do_check_false(guid in tracker.changedIDs);
@@ -139,7 +136,6 @@ add_test(function test_track_delete() {
     do_check_eq(tracker.score, SCORE_INCREMENT_XLARGE + 2 * SCORE_INCREMENT_SMALL);
     run_next_test();
   });
-
   do_check_eq(tracker.score, 2 * SCORE_INCREMENT_SMALL);
   PlacesUtils.history.removePage(uri);
 });

@@ -88,7 +88,6 @@ namespace ion {
     _(Slots)                                                                \
     _(Elements)                                                             \
     _(ConstantElements)                                                     \
-    _(ConvertElementsToDoubles)                                             \
     _(LoadSlot)                                                             \
     _(StoreSlot)                                                            \
     _(FunctionEnvironment)                                                  \

@@ -6980,15 +6980,10 @@ mjit::Compiler::jsop_newinit()
     }
 
     JSObject *templateObject;
-    if (isArray) {
+    if (isArray)
         templateObject = NewDenseUnallocatedArray(cx, count);
-        types::StackTypeSet::DoubleConversion conversion =
-            script->analysis()->pushedTypes(PC, 0)->convertDoubleElements(cx);
-        if (conversion == types::StackTypeSet::AlwaysConvertToDoubles)
-            templateObject->setShouldConvertDoubleElements();
-    } else {
+    else
         templateObject = CopyInitializerObject(cx, baseobj);
-    }
     if (!templateObject)
         return false;
     templateObject->setType(type);

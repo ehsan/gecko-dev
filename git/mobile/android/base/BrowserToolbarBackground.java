@@ -61,7 +61,7 @@ public class BrowserToolbarBackground extends GeckoLinearLayout
 
         int width = getMeasuredWidth();
         int height = getMeasuredHeight();
-        int curve = (int) (height * 1.125f);
+        float curve = height * 1.125f;
 
         mPath.reset();
 
