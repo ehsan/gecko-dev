@@ -3559,7 +3559,7 @@ HeadsUpDisplay.prototype = {
       }
       else {
         this.gcliterm = new GcliTerm(aWindow, this.hudId, this.chromeDocument,
-                                     this.console, this.hintNode, this.consoleWrap);
+                                     this.console, this.hintNode);
         aParentNode.appendChild(this.gcliterm.element);
       }
     }
@@ -3657,19 +3657,21 @@ HeadsUpDisplay.prototype = {
     consoleFilterToolbar.setAttribute("id", "viewGroup");
     this.consoleFilterToolbar = consoleFilterToolbar;
 
+    let hintSpacerNode = this.makeXULNode("box");
+    hintSpacerNode.setAttribute("flex", 1);
+
     this.hintNode = this.makeXULNode("div");
     this.hintNode.setAttribute("class", "gcliterm-hint-node");
 
     let hintParentNode = this.makeXULNode("vbox");
     hintParentNode.setAttribute("flex", "0");
     hintParentNode.setAttribute("class", "gcliterm-hint-parent");
-    hintParentNode.setAttribute("pack", "end");
+    hintParentNode.appendChild(hintSpacerNode);
     hintParentNode.appendChild(this.hintNode);
     hintParentNode.hidden = true;
 
     let hbox = this.makeXULNode("hbox");
     hbox.setAttribute("flex", "1");
-    hbox.setAttribute("class", "gcliterm-display");
 
     this.outputNode = this.makeXULNode("richlistbox");
     this.outputNode.setAttribute("class", "hud-output-node");
@@ -6949,7 +6951,7 @@ let commandExports = undefined;
  *        The node to which we add GCLI's hints.
  * @constructor
  */
-function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConsoleWrap)
+function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
 {
   this.context = Cu.getWeakReference(aContentWindow);
   this.hudId = aHudId;
@@ -6975,7 +6977,7 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConso
     completeElement: this.completeNode,
     inputBackgroundElement: this.inputStack,
     hintElement: this.hintNode,
-    consoleWrap: aConsoleWrap,
+    completionPrompt: "",
     gcliTerm: this
   };
 
@@ -6993,15 +6995,7 @@ GcliTerm.prototype = {
    */
   hide: function GcliTerm_hide()
   {
-    let permaHint = false;
-    try {
-      permaHint = Services.prefs.getBoolPref("devtools.gcli.permaHint");
-    }
-    catch (ex) {}
-
-    if (!permaHint) {
-      this.hintNode.parentNode.hidden = true;
-    }
+    this.hintNode.parentNode.hidden = true;
   },
 
   /**
