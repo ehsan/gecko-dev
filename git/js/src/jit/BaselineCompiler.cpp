@@ -12,6 +12,7 @@
 #include "jit/FixedList.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
+#include "jit/PerfSpewer.h"
 #include "jit/VMFunctions.h"
 
 #include "jsscriptinlines.h"

@@ -7,10 +7,9 @@
 #ifndef jit_PerfSpewer_h
 #define jit_PerfSpewer_h
 
-#ifdef JS_ION_PERF
-# include <stdio.h>
-# include "jit/IonMacroAssembler.h"
-#endif
+#include <stdio.h>
+
+#include "jit/IonMacroAssembler.h"
 
 namespace js {
 namespace jit {

@@ -11,6 +11,7 @@
 
 #include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
+#include "jit/ParallelFunctions.h"
 #include "jit/RangeAnalysis.h"
 
 #include "jit/shared/CodeGenerator-shared-inl.h"
@@ -225,7 +226,7 @@ CodeGeneratorX86Shared::visitAsmJSPassStackArg(LAsmJSPassStackArg *ins)
     const MAsmJSPassStackArg *mir = ins->mir();
     Address dst(StackPointer, mir->spOffset());
     if (ins->arg()->isConstant()) {
-        masm.storePtr(ImmWord(ToInt32(ins->arg())), dst);
+        masm.store32(Imm32(ToInt32(ins->arg())), dst);
     } else {
         if (ins->arg()->isGeneralReg())
             masm.storePtr(ToRegister(ins->arg()), dst);

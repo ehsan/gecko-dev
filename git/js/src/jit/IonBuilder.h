@@ -14,7 +14,6 @@
 
 #include "jit/BytecodeAnalysis.h"
 #include "jit/MIR.h"
-#include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
 #include "jit/TypeRepresentationSet.h"
 

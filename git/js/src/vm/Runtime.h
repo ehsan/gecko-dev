@@ -19,22 +19,16 @@
 #include "jsatom.h"
 #include "jsclist.h"
 #include "jsgc.h"
-#ifdef DEBUG
-# include "jsproxy.h"
-#endif
+#include "jsproxy.h"
 #include "jsscript.h"
 
 #include "ds/FixedSizeHash.h"
 #include "frontend/ParseMaps.h"
-#ifdef JSGC_GENERATIONAL
-# include "gc/Nursery.h"
-#endif
+#include "gc/Nursery.h"
 #include "gc/Statistics.h"
-#ifdef JSGC_GENERATIONAL
-# include "gc/StoreBuffer.h"
-#endif
+#include "gc/StoreBuffer.h"
 #ifdef XP_MACOSX
-# include "jit/AsmJSSignalHandlers.h"
+#include "jit/AsmJSSignalHandlers.h"
 #endif
 #include "js/HashTable.h"
 #include "js/Vector.h"

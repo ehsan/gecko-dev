@@ -8,6 +8,8 @@
 
 #include <stdio.h>
 
+#include "jsobj.h"
+
 #include "js/RootingAPI.h"
 
 JSAPITest *JSAPITest::list;

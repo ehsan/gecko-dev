@@ -8,7 +8,6 @@
 
 #include "mozilla/MathAlgorithms.h"
 
-#include "jit/BitSet.h"
 #include "jit/IonSpewer.h"
 #include "jit/LIR.h"
 

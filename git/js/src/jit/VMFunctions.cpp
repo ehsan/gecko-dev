@@ -10,6 +10,7 @@
 #include "builtin/TypedObject.h"
 #include "frontend/BytecodeCompiler.h"
 #include "jit/BaselineIC.h"
+#include "jit/Ion.h"
 #include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
 #include "vm/ArrayObject.h"

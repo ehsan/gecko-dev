@@ -35,7 +35,7 @@
     winUtils.loadSheet(newThemeUrl, winUtils.AUTHOR_SHEET);
 
     // Floating scrollbars à la osx
-    if (!window.matchMedia("(-moz-overlay-scrollbars)").matches) {
+    if (Services.appinfo.OS != "Darwin") {
       let scrollbarsUrl = Services.io.newURI(
         DEVTOOLS_SKIN_URL + "floating-scrollbars-light.css", null, null);
 

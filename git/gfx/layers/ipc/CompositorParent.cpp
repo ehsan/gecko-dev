@@ -23,7 +23,6 @@
 #include "ipc/ShadowLayersManager.h"    // for ShadowLayersManager
 #include "mozilla/AutoRestore.h"        // for AutoRestore
 #include "mozilla/DebugOnly.h"          // for DebugOnly
-#include "mozilla/gfx/2D.h"          // for DrawTarget
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/ipc/Transport.h"      // for Transport
 #include "mozilla/layers/APZCTreeManager.h"  // for APZCTreeManager
@@ -53,7 +52,6 @@
 using namespace base;
 using namespace mozilla;
 using namespace mozilla::ipc;
-using namespace mozilla::gfx;
 using namespace std;
 
 namespace mozilla {
@@ -297,13 +295,7 @@ CompositorParent::RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
                                    SurfaceDescriptor* aOutSnapshot)
 {
   AutoOpenSurface opener(OPEN_READ_WRITE, aInSnapshot);
-  gfxIntSize size = opener.Size();
-  // XXX CreateDrawTargetForSurface will always give us a Cairo surface, we can
-  // do better if AutoOpenSurface uses Moz2D directly.
-  RefPtr<DrawTarget> target =
-    gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(opener.Get(),
-                                                           IntSize(size.width,
-                                                                   size.height));
+  nsRefPtr<gfxContext> target = new gfxContext(opener.Get());
   ComposeToTarget(target);
   *aOutSnapshot = aInSnapshot;
   return true;
@@ -549,7 +541,7 @@ CompositorParent::Composite()
 }
 
 void
-CompositorParent::ComposeToTarget(DrawTarget* aTarget)
+CompositorParent::ComposeToTarget(gfxContext* aTarget)
 {
   PROFILER_LABEL("CompositorParent", "ComposeToTarget");
   AutoRestore<bool> override(mOverrideComposeReadiness);
@@ -558,7 +550,7 @@ CompositorParent::ComposeToTarget(DrawTarget* aTarget)
   if (!CanComposite()) {
     return;
   }
-  mLayerManager->BeginTransactionWithDrawTarget(aTarget);
+  mLayerManager->BeginTransactionWithTarget(aTarget);
   // Since CanComposite() is true, Composite() must end the layers txn
   // we opened above.
   Composite();

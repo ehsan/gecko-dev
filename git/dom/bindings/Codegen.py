@@ -1571,25 +1571,17 @@ class MethodDefiner(PropertyDefiner):
             return m["condition"]
 
         def specData(m):
-            if "selfHostedName" in m:
-                selfHostedName = '"%s"' % m["selfHostedName"]
-                assert not m.get("methodInfo", True)
-                accessor = "nullptr"
-                jitinfo = "nullptr"
+            accessor = m.get("nativeName", m["name"])
+            if m.get("methodInfo", True):
+                jitinfo = ("&%s_methodinfo" % accessor)
+                accessor = "genericMethod"
             else:
-                selfHostedName = "nullptr";
-                accessor = m.get("nativeName", m["name"])
-                if m.get("methodInfo", True):
-                    jitinfo = ("&%s_methodinfo" % accessor)
-                    accessor = "genericMethod"
-                else:
-                    jitinfo = "nullptr"
-
-            return (m["name"], accessor, jitinfo, m["length"], m["flags"], selfHostedName)
+                jitinfo = "nullptr"
+            return (m["name"], accessor, jitinfo, m["length"], m["flags"])
 
         return self.generatePrefableArray(
             array, name,
-            '  JS_FNSPEC("%s", %s, %s, %s, %s, %s)',
+            '  JS_FNINFO("%s", %s, %s, %s, %s)',
             '  JS_FS_END',
             'JSFunctionSpec',
             condition, specData, doIdArrays)

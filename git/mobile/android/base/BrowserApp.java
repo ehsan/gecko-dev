@@ -2268,12 +2268,8 @@ abstract public class BrowserApp extends GeckoApp
     // HomePager.OnNewTabsListener
     @Override
     public void onNewTabs(String[] urls) {
-        final EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB);
- 
         for (String url : urls) {
-            if (!maybeSwitchToTab(url, flags)) {
-                openUrl(url, true);
-            }
+            openUrl(url, true);
         }
     }
 

@@ -11,7 +11,6 @@
 #include "nsICacheEntryOpenCallback.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsThreadUtils.h"
-#include "mozilla/TimeStamp.h"
 
 class nsIURI;
 class nsICacheEntryOpenCallback;
@@ -89,8 +88,6 @@ private:
   nsresult mStatus;
   uint32_t mRunCount;
   nsCOMPtr<nsIApplicationCache> mAppCache;
-
-  mozilla::TimeStamp mLoadStart;
 };
 
 

@@ -52,7 +52,6 @@ union ObjectStoreRequestParams
 {
   GetParams;
   GetAllParams;
-  GetAllKeysParams;
   AddParams;
   PutParams;
   DeleteParams;

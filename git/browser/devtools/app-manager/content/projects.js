@@ -208,15 +208,9 @@ let UI = {
   },
 
   install: function(project) {
+    let install;
     if (project.type == "packaged") {
-      return installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin)
-        .then(({ appId }) => {
-          // If the packaged app specified a custom origin override,
-          // we need to update the local project origin
-          project.packagedAppOrigin = appId;
-          // And ensure the indexed db on disk is also updated
-          AppProjects.update(project);
-        });
+      install = installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin);
     } else {
       let manifestURLObject = Services.io.newURI(project.location, null, null);
       let origin = Services.io.newURI(manifestURLObject.prePath, null, null);
@@ -225,8 +219,9 @@ let UI = {
         origin: origin.spec,
         manifestURL: project.location
       };
-      return installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
+      install = installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
     }
+    return install;
   },
 
   start: function(project) {

@@ -9,6 +9,7 @@
 
 #include "mozilla/Util.h"
 
+#include "jit/CompactBuffer.h"
 #include "jit/IonCode.h"
 #include "jit/shared/Assembler-shared.h"
 

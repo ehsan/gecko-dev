@@ -8,6 +8,9 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "jscntxt.h"
+#include "jsgc.h"
+
 #include "gc/FindSCCs.h"
 #include "jsapi-tests/tests.h"
 

@@ -8,6 +8,7 @@
 #define gc_Marking_h
 
 #include "gc/Barrier.h"
+#include "js/TypeDecls.h"
 
 class JSAtom;
 class JSLinearString;

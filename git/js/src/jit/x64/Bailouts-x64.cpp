@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/Bailouts.h"
+#include "jit/IonCompartment.h"
 
 using namespace js;
 using namespace js::jit;

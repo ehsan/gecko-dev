@@ -645,7 +645,7 @@ struct TextRenderedRun
    *   eIncludeStroke) indicating what parts of the text to include in
    *   the rectangle.
    */
-  SVGBBox GetRunUserSpaceRect(nsPresContext* aContext, uint32_t aFlags) const;
+  gfxRect GetRunUserSpaceRect(nsPresContext* aContext, uint32_t aFlags) const;
 
   /**
    * Returns a rectangle that covers the fill and/or stroke of the rendered run
@@ -682,7 +682,7 @@ struct TextRenderedRun
    *   eIncludeStroke) indicating what parts of the text to include in
    *   the rectangle.
    */
-  SVGBBox GetFrameUserSpaceRect(nsPresContext* aContext, uint32_t aFlags) const;
+  gfxRect GetFrameUserSpaceRect(nsPresContext* aContext, uint32_t aFlags) const;
 
   /**
    * Returns a rectangle that covers the fill and/or stroke of the rendered run
@@ -695,7 +695,7 @@ struct TextRenderedRun
    *   frame user space rectangle before its bounds are transformed into
    *   user space.
    */
-  SVGBBox GetUserSpaceRect(nsPresContext* aContext, uint32_t aFlags,
+  gfxRect GetUserSpaceRect(nsPresContext* aContext, uint32_t aFlags,
                            const gfxMatrix* aAdditionalTransform = nullptr) const;
 
   /**
@@ -865,11 +865,11 @@ TextRenderedRun::GetTransformFromRunUserSpaceToFrameUserSpace(
                               0));
 }
 
-SVGBBox
+gfxRect
 TextRenderedRun::GetRunUserSpaceRect(nsPresContext* aContext,
                                      uint32_t aFlags) const
 {
-  SVGBBox r;
+  gfxRect r;
   if (!mFrame) {
     return r;
   }
@@ -930,34 +930,28 @@ TextRenderedRun::GetRunUserSpaceRect(nsPresContext* aContext,
   // Include the stroke if requested.
   if ((aFlags & eIncludeStroke) &&
       nsSVGUtils::GetStrokeWidth(mFrame) > 0) {
-    r.UnionEdges(nsSVGUtils::PathExtentsToMaxStrokeExtents(fill, mFrame,
-                                                           gfxMatrix()));
+    r = r.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(fill, mFrame,
+                                                          gfxMatrix()));
   }
 
   return r;
 }
 
-SVGBBox
+gfxRect
 TextRenderedRun::GetFrameUserSpaceRect(nsPresContext* aContext,
                                        uint32_t aFlags) const
 {
-  SVGBBox r = GetRunUserSpaceRect(aContext, aFlags);
-  if (r.IsEmpty()) {
-    return r;
-  }
+  gfxRect r = GetRunUserSpaceRect(aContext, aFlags);
   gfxMatrix m = GetTransformFromRunUserSpaceToFrameUserSpace(aContext);
   return m.TransformBounds(r);
 }
 
-SVGBBox
+gfxRect
 TextRenderedRun::GetUserSpaceRect(nsPresContext* aContext,
                                   uint32_t aFlags,
                                   const gfxMatrix* aAdditionalTransform) const
 {
-  SVGBBox r = GetRunUserSpaceRect(aContext, aFlags);
-  if (r.IsEmpty()) {
-    return r;
-  }
+  gfxRect r = GetRunUserSpaceRect(aContext, aFlags);
   gfxMatrix m = GetTransformFromRunUserSpaceToUserSpace(aContext);
   if (aAdditionalTransform) {
     m.Multiply(*aAdditionalTransform);
@@ -3313,17 +3307,16 @@ nsSVGTextFrame2::FindCloserFrameForSelection(
     uint32_t flags = TextRenderedRun::eIncludeFill |
                      TextRenderedRun::eIncludeStroke |
                      TextRenderedRun::eNoHorizontalOverflow;
-    SVGBBox userRect = run.GetUserSpaceRect(presContext, flags);
-    if (!userRect.IsEmpty()) {
-      nsRect rect = nsSVGUtils::ToCanvasBounds(userRect,
-                                               GetCanvasTM(FOR_HIT_TESTING),
-                                               presContext);
+    gfxRect userRect = run.GetUserSpaceRect(presContext, flags);
 
-      if (nsLayoutUtils::PointIsCloserToRect(aPoint, rect,
-                                             aCurrentBestFrame->mXDistance,
-                                             aCurrentBestFrame->mYDistance)) {
-        aCurrentBestFrame->mFrame = run.mFrame;
-      }
+    nsRect rect = nsSVGUtils::ToCanvasBounds(userRect,
+                                             GetCanvasTM(FOR_HIT_TESTING),
+                                             presContext);
+
+    if (nsLayoutUtils::PointIsCloserToRect(aPoint, rect,
+                                           aCurrentBestFrame->mXDistance,
+                                           aCurrentBestFrame->mYDistance)) {
+      aCurrentBestFrame->mFrame = run.mFrame;
     }
   }
 }
@@ -3647,7 +3640,7 @@ nsSVGTextFrame2::ReflowSVG()
 
   nsPresContext* presContext = PresContext();
 
-  SVGBBox r;
+  gfxRect r;
   TextRenderedRunIterator it(this, TextRenderedRunIterator::eAllFrames);
   for (TextRenderedRun run = it.Current(); run.mFrame; run = it.Next()) {
     uint32_t runFlags = 0;
@@ -3663,21 +3656,17 @@ nsSVGTextFrame2::ReflowSVG()
     }
 
     if (runFlags) {
-      r.UnionEdges(run.GetUserSpaceRect(presContext, runFlags));
+      r = r.Union(run.GetUserSpaceRect(presContext, runFlags));
     }
   }
+  mRect =
+    nsLayoutUtils::RoundGfxRectToAppRect(r, presContext->AppUnitsPerCSSPixel());
 
-  if (r.IsEmpty()) {
-    mRect.SetEmpty();
-  } else {
-    mRect =
-      nsLayoutUtils::RoundGfxRectToAppRect(r, presContext->AppUnitsPerCSSPixel());
+  // Due to rounding issues when we have a transform applied, we sometimes
+  // don't include an additional row of pixels.  For now, just inflate our
+  // covered region.
+  mRect.Inflate(presContext->AppUnitsPerDevPixel());
 
-    // Due to rounding issues when we have a transform applied, we sometimes
-    // don't include an additional row of pixels.  For now, just inflate our
-    // covered region.
-    mRect.Inflate(presContext->AppUnitsPerDevPixel());
-  }
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
     // Make sure we have our filter property (if any) before calling
@@ -3730,15 +3719,15 @@ nsSVGTextFrame2::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 
   UpdateGlyphPositioning();
 
-  SVGBBox bbox;
+  gfxRect bbox;
   nsPresContext* presContext = PresContext();
 
   TextRenderedRunIterator it(this);
   for (TextRenderedRun run = it.Current(); run.mFrame; run = it.Next()) {
     uint32_t flags = TextRenderedRunFlagsForBBoxContribution(run, aFlags);
-    SVGBBox bboxForRun =
+    gfxRect bboxForRun =
       run.GetUserSpaceRect(presContext, flags, &aToBBoxUserspace);
-    bbox.UnionEdges(bboxForRun);
+    bbox = bbox.Union(bboxForRun);
   }
 
   return bbox;
@@ -5315,10 +5304,7 @@ nsSVGTextFrame2::TransformFrameRectToTextChild(const gfxRect& aRect,
     // Intersect it with this run's rectangle.
     uint32_t flags = TextRenderedRun::eIncludeFill |
                      TextRenderedRun::eIncludeStroke;
-    SVGBBox runRectInFrameUserSpace = run.GetFrameUserSpaceRect(presContext, flags);
-    if (runRectInFrameUserSpace.IsEmpty()) {
-      continue;
-    }
+    gfxRect runRectInFrameUserSpace = run.GetFrameUserSpaceRect(presContext, flags);
     gfxRect runIntersectionInFrameUserSpace =
       incomingRectInFrameUserSpace.Intersect(runRectInFrameUserSpace);
 
