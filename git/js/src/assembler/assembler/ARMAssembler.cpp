@@ -275,8 +275,8 @@ void ARMAssembler::dataTransfer32(bool isLoad, RegisterID srcDst, RegisterID bas
             add_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | (10 << 8));
             dtr_u(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
         } else {
-            moveImm(offset, ARMRegisters::S0);
-            dtr_ur(isLoad, srcDst, base, ARMRegisters::S0);
+            ARMWord reg = getImm(offset, ARMRegisters::S0);
+            dtr_ur(isLoad, srcDst, base, reg);
         }
     } else {
         offset = -offset;
@@ -286,8 +286,8 @@ void ARMAssembler::dataTransfer32(bool isLoad, RegisterID srcDst, RegisterID bas
             sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | (10 << 8));
             dtr_d(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
         } else {
-            moveImm(offset, ARMRegisters::S0);
-            dtr_dr(isLoad, srcDst, base, ARMRegisters::S0);
+            ARMWord reg = getImm(offset, ARMRegisters::S0);
+            dtr_dr(isLoad, srcDst, base, reg);
         }
     }
 }
@@ -301,8 +301,8 @@ void ARMAssembler::dataTransfer8(bool isLoad, RegisterID srcDst, RegisterID base
             add_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | (10 << 8));
             dtrb_u(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
         } else {
-            moveImm(offset, ARMRegisters::S0);
-            dtrb_ur(isLoad, srcDst, base, ARMRegisters::S0);
+            ARMWord reg = getImm(offset, ARMRegisters::S0);
+            dtrb_ur(isLoad, srcDst, base, reg);
         }
     } else {
         offset = -offset;
@@ -312,8 +312,8 @@ void ARMAssembler::dataTransfer8(bool isLoad, RegisterID srcDst, RegisterID base
             sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | (10 << 8));
             dtrb_d(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
         } else {
-            moveImm(offset, ARMRegisters::S0);
-            dtrb_dr(isLoad, srcDst, base, ARMRegisters::S0);
+            ARMWord reg = getImm(offset, ARMRegisters::S0);
+            dtrb_dr(isLoad, srcDst, base, reg);
         }
     }
 }
