@@ -45,6 +45,10 @@
   color: -moz-FieldText;
 }
 
+#root {
+  display: -moz-box;
+}
+
 .property-header {
   padding: 5px 0;
   white-space: nowrap;
@@ -68,6 +72,7 @@
 }
 
 .helplink {
+  display: block;
   height: 14px;
   width: 0;
   overflow: hidden;
@@ -92,6 +97,7 @@
   -moz-margin-start: 5px;
   -moz-margin-end: 5px;
   background: url("chrome://global/skin/tree/twisty-clsd.png") center center no-repeat;
+  display: inline-block;
   vertical-align: middle;
 }
 
@@ -99,18 +105,22 @@
   background-image: url("chrome://global/skin/tree/twisty-open.png");
 }
 
+.expandable {
+  cursor: pointer;
+}
+
 .match {
   visibility: hidden;
 }
 
-.expandable {
-  cursor: pointer;
+.expandable > .property-header > .match {
   visibility: visible;
 }
 
 .property-name {
   font-size: 12px;
   color: -moz-FieldText;
+  display: inline-block;
 }
 .property-value {
   padding: 0;
@@ -118,6 +128,11 @@
   color: grey;
   vertical-align: text-top;
   width: 100%;
+}
+
+.property-view-hidden,
+.property-content-hidden {
+  display: none;
 }
 
 .rule-link {
@@ -145,6 +160,10 @@
 }
 
 #propertyContainer {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+  -moz-box-flex: 1;
+  overflow-y: auto;
   border-collapse: collapse;
 }
 
@@ -186,7 +205,7 @@
 
 .ruleview-rule-source {
   background-color: -moz-dialog;
-  color: -moz-dialogText;
+  color: #0091ff;
   padding: 2px 5px;
   cursor: pointer;
 }
@@ -201,19 +220,19 @@
 
 .ruleview-warning {
   background: url("chrome://browser/skin/devtools/alerticon-warning.png");
+  display: inline-block;
   -moz-margin-start: 5px;
   vertical-align: middle;
   width: 13px;
   height: 12px;
 }
 
-.ruleview-ruleopen {
-  -moz-padding-end: 5px;
+.ruleview-warning[hidden] {
+  display: none;
 }
 
-.ruleview-ruleclose {
-  width: -moz-min-content;
-  padding-right: 20px;
+.ruleview-ruleopen {
+  -moz-padding-end: 5px;
 }
 
 .ruleview-propertylist {
@@ -230,6 +249,7 @@
 }
 
 .ruleview-expander {
+  display: inline-block;
   width: 8px;
   height: 8px;
   background: url("chrome://browser/skin/devtools/arrows.png") 24px 0;
@@ -248,6 +268,7 @@
 }
 
 .ruleview-propertyname {
+  display: inline-block;
   padding: 1px 0;
   cursor: text;
   color: #0060C0;

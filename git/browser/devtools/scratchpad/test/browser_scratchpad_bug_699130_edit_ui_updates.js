@@ -27,7 +27,7 @@ function runTests()
   let doc = gScratchpadWindow.document;
   let winUtils = gScratchpadWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                  getInterface(Ci.nsIDOMWindowUtils);
-  let OS = Services.appinfo.OS;
+  let OS = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 
   info("will test the Edit menu");
 
@@ -51,9 +51,9 @@ function runTests()
 
   let menuPopup = editMenu.menupopup;
   ok(menuPopup, "the Edit menupopup");
-  let cutItem = doc.getElementById("se-menu-cut");
+  let cutItem = doc.getElementById("sp-menu-cut");
   ok(cutItem, "the Cut menuitem");
-  let pasteItem = doc.getElementById("se-menu-paste");
+  let pasteItem = doc.getElementById("sp-menu-paste");
   ok(pasteItem, "the Paste menuitem");
 
   let anchor = doc.documentElement;
@@ -174,9 +174,9 @@ function runTests()
 
     menuPopup = doc.getElementById("scratchpad-text-popup");
     ok(menuPopup, "the context menupopup");
-    cutItem = doc.getElementById("se-cMenu-cut");
+    cutItem = doc.getElementById("menu_cut");
     ok(cutItem, "the Cut menuitem");
-    pasteItem = doc.getElementById("se-cMenu-paste");
+    pasteItem = doc.getElementById("menu_paste");
     ok(pasteItem, "the Paste menuitem");
 
     sp.setText("bug 699130: hello world! (context menu)");

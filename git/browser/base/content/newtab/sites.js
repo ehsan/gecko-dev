@@ -82,17 +82,12 @@ Site.prototype = {
   /**
    * Blocks the site (removes it from the grid) and calls the given callback
    * when done.
-   * @param aCallback The function to be called when finished.
+   * @param aCallback The callback to be called when finished.
    */
   block: function Site_block(aCallback) {
-    if (gBlockedLinks.isBlocked(this._link)) {
-      if (aCallback)
-        aCallback();
-    } else {
-      gBlockedLinks.block(this._link);
-      gUpdater.updateGrid(aCallback);
-      gPage.updateModifiedFlag();
-    }
+    gBlockedLinks.block(this._link);
+    gUpdater.updateGrid(aCallback);
+    gPage.updateModifiedFlag();
   },
 
   /**

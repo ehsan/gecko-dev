@@ -313,16 +313,6 @@ SourceEditor.EVENTS = {
 };
 
 /**
- * Allowed vertical alignment options for the line index
- * when you call SourceEditor.setCaretPosition().
- */
-SourceEditor.VERTICAL_ALIGN = {
-  TOP: 0,
-  CENTER: 1,
-  BOTTOM: 2,
-};
-
-/**
  * Extend a destination object with properties from a source object.
  *
  * @param object aDestination
@@ -346,7 +336,6 @@ extend(SourceEditor.prototype, {
   MODES: SourceEditor.MODES,
   THEMES: SourceEditor.THEMES,
   DEFAULTS: SourceEditor.DEFAULTS,
-  VERTICAL_ALIGN: SourceEditor.VERTICAL_ALIGN,
 
   _lastFind: null,
 

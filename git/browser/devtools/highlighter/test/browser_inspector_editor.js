@@ -3,8 +3,13 @@
 /* ***** BEGIN LICENSE BLOCK *****
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/
- * ***** END LICENSE BLOCK *****
- */
+ *
+ * Contributor(s):
+ *   Rob Campbell <rcampbell@mozilla.com>
+ *   Mihai Sucan <mihai.sucan@gmail.com>
+ *   Kyle Simpson <ksimpson@mozilla.com>
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 let doc;
 let div;
