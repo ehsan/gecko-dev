@@ -205,13 +205,11 @@ LocalDevice.prototype = {
     if (topic !== "mozsettings-changed") {
       return;
     }
-    if ("wrappedJSObject" in subject) {
-      subject = subject.wrappedJSObject;
-    }
-    if (subject.key !== LocalDevice.SETTING) {
+    let setting = JSON.parse(data);
+    if (setting.key !== LocalDevice.SETTING) {
       return;
     }
-    this._name = subject.value;
+    this._name = setting.value;
     log("Device: " + this._name);
   },
 
