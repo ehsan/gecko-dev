@@ -66,6 +66,8 @@ public:
     cairo_font_face_t *CairoFontFace();
     cairo_scaled_font_t *CairoScaledFont();
 
+    virtual nsString GetUniqueName();
+
     // Get the glyphID of a space
     virtual PRUint32 GetSpaceGlyph() {
         if (!mMetrics)

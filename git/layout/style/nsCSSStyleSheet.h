@@ -210,12 +210,7 @@ public:
                                           nsIDOMNode* aCloneOwningNode) const;
 
   PRBool IsModified() const { return mDirty; }
-
-  void SetModifiedByChildRule() {
-    NS_ASSERTION(mDirty,
-                 "sheet must be marked dirty before handing out child rules");
-    DidDirty();
-  }
+  void SetModified(PRBool aModified) { mDirty = aModified; }
 
   nsresult AddRuleProcessor(nsCSSRuleProcessor* aProcessor);
   nsresult DropRuleProcessor(nsCSSRuleProcessor* aProcessor);

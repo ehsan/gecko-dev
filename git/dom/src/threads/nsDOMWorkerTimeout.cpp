@@ -170,7 +170,7 @@ nsDOMWorkerTimeout::ExpressionCallback::ExpressionCallback(PRUint32 aArgc,
   // Get the calling location.
   const char* fileName;
   PRUint32 lineNumber;
-  if (nsJSUtils::GetCallingLocation(aCx, &fileName, &lineNumber)) {
+  if (nsJSUtils::GetCallingLocation(aCx, &fileName, &lineNumber, nsnull)) {
     mFileName.Assign(fileName);
     mLineNumber = lineNumber;
   }

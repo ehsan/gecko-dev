@@ -523,7 +523,8 @@ js_InternalThrow(VMFrame &f)
           case JSTRAP_RETURN:
             cx->clearPendingException();
             cx->fp()->setReturnValue(rval);
-            return cx->jaegerCompartment()->forceReturnFromExternC();
+            return JS_FUNC_TO_DATA_PTR(void *,
+                   cx->jaegerCompartment()->forceReturnTrampoline());
 
           case JSTRAP_THROW:
             cx->setPendingException(rval);
@@ -1043,7 +1044,10 @@ RunTracer(VMFrame &f)
     if (FrameIsFinished(cx)) {
         if (!HandleFinishedFrame(f, entryFrame))
             THROWV(NULL);
-        *f.returnAddressLocation() = cx->jaegerCompartment()->forceReturnFromFastCall();
+
+        void *retPtr = JS_FUNC_TO_DATA_PTR(void *,
+                       cx->jaegerCompartment()->forceReturnTrampoline());
+        *f.returnAddressLocation() = retPtr;
         return NULL;
     }
 
