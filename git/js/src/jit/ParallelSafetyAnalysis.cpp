@@ -773,7 +773,7 @@ ParallelSafetyVisitor::visitThrow(MThrow *thr)
 
 static bool
 GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
-                   types::TemporaryTypeSet *calleeTypes, CallTargetVector &targets);
+                   types::StackTypeSet *calleeTypes, CallTargetVector &targets);
 
 static bool
 AddCallTarget(HandleScript script, CallTargetVector &targets);
@@ -804,7 +804,7 @@ jit::AddPossibleCallees(MIRGraph &graph, CallTargetVector &targets)
                 continue;
             }
 
-            types::TemporaryTypeSet *calleeTypes = callIns->getFunction()->resultTypeSet();
+            types::StackTypeSet *calleeTypes = callIns->getFunction()->resultTypeSet();
             RootedScript script(cx, callIns->block()->info().script());
             if (!GetPossibleCallees(cx,
                                     script,
@@ -822,7 +822,7 @@ static bool
 GetPossibleCallees(JSContext *cx,
                    HandleScript script,
                    jsbytecode *pc,
-                   types::TemporaryTypeSet *calleeTypes,
+                   types::StackTypeSet *calleeTypes,
                    CallTargetVector &targets)
 {
     if (!calleeTypes || calleeTypes->baseFlags() != 0)

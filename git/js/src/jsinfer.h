@@ -212,31 +212,38 @@ inline Type GetValueType(const Value &val);
 /*
  * Type inference memory management overview.
  *
- * Type information about the values observed within scripts and about the
- * contents of the heap is accumulated as the program executes. Compilation
- * accumulates constraints relating type information on the heap with the
- * compilations that should be invalidated when those types change. This data
- * is periodically cleared to reduce memory usage.
+ * Inference constructs a global web of constraints relating the contents of
+ * type sets particular to various scripts and type objects within a
+ * compartment. This data can consume a significant amount of memory, and to
+ * avoid this building up we try to clear it with some regularity.
  *
- * GCs may clear both analysis information and jitcode. Sometimes GCs will
- * preserve all information and code, and will not collect any scripts, type
- * objects or singleton JS objects.
+ * There are two operations which can clear inference and analysis data.
  *
- * The following data is cleared by all non-preserving GCs:
+ * - Analysis purges clear analysis information while retaining jitcode.
  *
- * - The ScriptAnalysis for each analyzed script and data from each analysis
- *   pass performed.
+ * - GCs may clear both analysis information and jitcode. Sometimes GCs will
+ *   preserve all information and code, and will not collect any scripts,
+ *   type objects or singleton JS objects.
  *
- * - Property type sets for singleton JS objects.
+ * There are several categories of data affected differently by the above
+ * operations.
  *
- * - Type constraints and dead references in all type sets.
+ * - Data cleared by every analysis purge and non-preserving GC. This includes
+ *   the ScriptAnalysis for each analyzed script and data from each analysis
+ *   pass performed, type sets for stack values, and all type constraints for
+ *   such type sets and for observed/argument/local type sets on scripts
+ *   (TypeSet::constraintsPurged, aka StackTypeSet). This is exactly the data
+ *   allocated using compartment->analysisLifoAlloc.
  *
- * The following data is occasionally cleared by non-preserving GCs:
+ * - Data cleared by non-preserving GCs. This includes property type sets for
+ *   singleton JS objects, property read input type sets, type constraints on
+ *   all type sets, and dead references in all type sets. This data is all
+ *   allocated using compartment->typeLifoAlloc; the GC copies live data into a
+ *   new allocator and clears the old one.
  *
- * - TypeScripts and their type sets are occasionally destroyed, per a timer.
- *
- * - When a JSScript or TypeObject is swept, type information for its contents
- *   is destroyed.
+ * - Data cleared occasionally by non-preserving GCs. TypeScripts and the data
+ *   in their sets are occasionally destroyed during GC. When a JSScript or
+ *   TypeObject is swept, type information for its contents is destroyed.
  */
 
 /*
@@ -300,24 +307,22 @@ enum {
     /* Mask of normal type flags on a type set. */
     TYPE_FLAG_BASE_MASK           = 0x000100ff,
 
-    /*
-     * Flags describing the kind of type set this is.
-     *
-     * - StackTypeSet are associated with TypeScripts, for arguments and values
-     *   observed at property reads. These are implicitly frozen on compilation
-     *   and do not have constraints attached to them.
-     *
-     * - HeapTypeSet are associated with the properties of TypeObjects. These
-     *   may have constraints added to them to propagate types around or to
-     *   trigger invalidation of compiled code.
-     *
-     * - TemporaryTypeSet are created during compilation and do not outlive
-     *   that compilation.
-     */
-    TYPE_FLAG_STACK_SET           = 0x00020000,
-    TYPE_FLAG_HEAP_SET            = 0x00040000,
+    /* Flags describing the kind of type set this is. */
 
-    /* Additional flags for HeapTypeSet sets. */
+    /*
+     * Flag for type sets which describe stack values and are cleared on
+     * analysis purges.
+     */
+    TYPE_FLAG_PURGED              = 0x00020000,
+
+    /*
+     * Flag for type sets whose constraints are cleared on analysis purges.
+     * This includes all temporary type sets, as well as sets in TypeScript
+     * which propagate into temporary type sets.
+     */
+    TYPE_FLAG_CONSTRAINTS_PURGED  = 0x00040000,
+
+    /* Flags for type sets which are on object properties. */
 
     /*
      * Whether there are subset constraints propagating the possible types
@@ -425,12 +430,10 @@ typedef uint32_t TypeObjectFlags;
 
 class StackTypeSet;
 class HeapTypeSet;
-class TemporaryTypeSet;
 
 /* Information about the set of types associated with an lvalue. */
 class TypeSet
 {
-  protected:
     /* Flags for this type set. */
     TypeFlags flags;
 
@@ -443,8 +446,10 @@ class TypeSet
     TypeConstraint *constraintList;
 
     TypeSet()
-      : flags(0), objectSet(NULL), constraintList(NULL)
+        : flags(0), objectSet(NULL), constraintList(NULL)
     {}
+
+    TypeSet(Type type);
 
     void print();
 
@@ -474,8 +479,14 @@ class TypeSet
         return flags >> TYPE_FLAG_DEFINITE_SHIFT;
     }
 
+    /*
+     * Clone a type set into an arbitrary allocator. The result should not be
+     * modified further.
+     */
+    StackTypeSet *clone(LifoAlloc *alloc) const;
+
     /* Join two type sets into a new set. The result should not be modified further. */
-    static TemporaryTypeSet *unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc);
+    static StackTypeSet *unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc);
 
     /*
      * Add a type to this set, calling any constraint handlers if this is a new
@@ -485,6 +496,12 @@ class TypeSet
 
     /* Mark this type set as representing an own property or configured property. */
     inline void setOwnProperty(ExclusiveContext *cx, bool configured);
+
+    /*
+     * Add an object to this set using the specified allocator, without
+     * triggering constraints.
+     */
+    bool addObject(TypeObjectKey *key, LifoAlloc *alloc);
 
     /*
      * Iterate through the objects in this set. getObjectCount overapproximates
@@ -510,12 +527,11 @@ class TypeSet
     bool hasPropagatedProperty() { return !!(flags & TYPE_FLAG_PROPAGATED_PROPERTY); }
     void setPropagatedProperty() { flags |= TYPE_FLAG_PROPAGATED_PROPERTY; }
 
-    bool isStackSet() {
-        return flags & TYPE_FLAG_STACK_SET;
-    }
-    bool isHeapSet() {
-        return flags & TYPE_FLAG_HEAP_SET;
-    }
+    bool constraintsPurged() { return !!(flags & TYPE_FLAG_CONSTRAINTS_PURGED); }
+    void setConstraintsPurged() { flags |= TYPE_FLAG_CONSTRAINTS_PURGED; }
+
+    bool purged() { return !!(flags & TYPE_FLAG_PURGED); }
+    void setPurged() { flags |= TYPE_FLAG_PURGED | TYPE_FLAG_CONSTRAINTS_PURGED; }
 
     /*
      * Get whether this type set is known to be a subset of other.
@@ -523,20 +539,11 @@ class TypeSet
      */
     bool isSubset(TypeSet *other);
 
-    /* Forward all types in this set to the specified constraint. */
-    void addTypesToConstraint(JSContext *cx, TypeConstraint *constraint);
+    inline StackTypeSet *toStackTypeSet();
+    inline HeapTypeSet *toHeapTypeSet();
 
-    /* Add a new constraint to this set. */
-    void add(JSContext *cx, TypeConstraint *constraint, bool callExisting = true);
-
-    inline StackTypeSet *toStackSet();
-    inline HeapTypeSet *toHeapSet();
-
-    /*
-     * Clone a type set into an arbitrary allocator. The result should not be
-     * modified further.
-     */
-    TemporaryTypeSet *clone(LifoAlloc *alloc) const;
+    inline void addTypesToConstraint(JSContext *cx, TypeConstraint *constraint);
+    inline void add(JSContext *cx, TypeConstraint *constraint, bool callExisting = true);
 
   protected:
     uint32_t baseObjectCount() const {
@@ -547,78 +554,28 @@ class TypeSet
     inline void clearObjects();
 };
 
+/*
+ * Type set for a stack value manipulated in a script, or the argument or
+ * local types of said script. Constraints on these type sets are cleared
+ * during analysis purges; the contents of the sets are implicitly frozen
+ * during compilation to ensure that changes to the sets trigger recompilation
+ * of the associated script.
+ */
 class StackTypeSet : public TypeSet
 {
   public:
-    StackTypeSet() { flags |= TYPE_FLAG_STACK_SET; }
+
+    StackTypeSet() : TypeSet() {}
+    StackTypeSet(Type type) : TypeSet(type) {}
+
+    /*
+     * Make a type set with the specified debugging name, not embedded in
+     * another structure.
+     */
+    static StackTypeSet *make(JSContext *cx, const char *name);
 
     /* Propagate any types from this set into target. */
     void addSubset(JSContext *cx, StackTypeSet *target);
-};
-
-class HeapTypeSet : public TypeSet
-{
-  public:
-    HeapTypeSet() { flags |= TYPE_FLAG_HEAP_SET; }
-
-    /* Propagate any types from this set into target. */
-    void addSubset(JSContext *cx, HeapTypeSet *target);
-
-    /* Completely freeze the contents of this type set. */
-    void addFreeze(JSContext *cx);
-
-    /*
-     * Watch for a generic object state change on a type object. This currently
-     * includes reallocations of slot pointers for global objects, and changes
-     * to newScript data on types.
-     */
-    static void WatchObjectStateChange(JSContext *cx, TypeObject *object);
-
-    /* Whether an object has any of a set of flags. */
-    static bool HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags flags);
-
-    /*
-     * For type sets on a property, return true if the property has any 'own'
-     * values assigned. If configurable is set, return 'true' if the property
-     * has additionally been reconfigured as non-configurable, non-enumerable
-     * or non-writable (this only applies to properties that have changed after
-     * having been created, not to e.g. properties non-writable on creation).
-     */
-    bool isOwnProperty(JSContext *cx, TypeObject *object, bool configurable);
-
-    /* Get whether this type set is non-empty. */
-    bool knownNonEmpty(JSContext *cx);
-
-    /* Get whether this type set is known to be a subset of other. */
-    bool knownSubset(JSContext *cx, HeapTypeSet *other);
-
-    /* Get the single value which can appear in this type set, otherwise NULL. */
-    JSObject *getSingleton(JSContext *cx);
-
-    /*
-     * Whether a location with this TypeSet needs a write barrier (i.e., whether
-     * it can hold GC things). The type set is frozen if no barrier is needed.
-     */
-    bool needsBarrier(JSContext *cx);
-
-    /* Get any type tag which all values in this set must have. */
-    JSValueType getKnownTypeTag(JSContext *cx);
-};
-
-class TemporaryTypeSet : public TypeSet
-{
-  public:
-    TemporaryTypeSet() {}
-    TemporaryTypeSet(Type type);
-
-    TemporaryTypeSet(uint32_t flags, TypeObjectKey **objectSet) {
-        this->flags = flags;
-        this->objectSet = objectSet;
-        JS_ASSERT(!isStackSet() && !isHeapSet());
-    }
-
-    /* Add an object to this set using the specified allocator. */
-    bool addObject(TypeObjectKey *key, LifoAlloc *alloc);
 
     /*
      * Constraints for JIT compilation.
@@ -681,7 +638,7 @@ class TemporaryTypeSet : public TypeSet
      * Whether this set contains all types in other, except (possibly) the
      * specified type.
      */
-    bool filtersType(const TemporaryTypeSet *other, Type type) const;
+    bool filtersType(const StackTypeSet *other, Type type) const;
 
     enum DoubleConversion {
         /* All types in the set should use eager double conversion. */
@@ -704,17 +661,71 @@ class TemporaryTypeSet : public TypeSet
     DoubleConversion convertDoubleElements(JSContext *cx);
 };
 
-inline StackTypeSet *
-TypeSet::toStackSet()
+/*
+ * Type set for a property of a TypeObject, or for the return value or property
+ * read inputs of a script. In contrast with stack type sets, constraints on
+ * these sets are not cleared during analysis purges, and are not implicitly
+ * frozen during compilation.
+ */
+class HeapTypeSet : public TypeSet
 {
-    JS_ASSERT(isStackSet());
+  public:
+
+    /* Propagate any types from this set into target. */
+    void addSubset(JSContext *cx, HeapTypeSet *target);
+
+    /* Completely freeze the contents of this type set. */
+    void addFreeze(JSContext *cx);
+
+    /*
+     * Watch for a generic object state change on a type object. This currently
+     * includes reallocations of slot pointers for global objects, and changes
+     * to newScript data on types.
+     */
+    static void WatchObjectStateChange(JSContext *cx, TypeObject *object);
+
+    /* Whether an object has any of a set of flags. */
+    static bool HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags flags);
+
+    /*
+     * For type sets on a property, return true if the property has any 'own'
+     * values assigned. If configurable is set, return 'true' if the property
+     * has additionally been reconfigured as non-configurable, non-enumerable
+     * or non-writable (this only applies to properties that have changed after
+     * having been created, not to e.g. properties non-writable on creation).
+     */
+    bool isOwnProperty(JSContext *cx, TypeObject *object, bool configurable);
+
+    /* Get whether this type set is non-empty. */
+    bool knownNonEmpty(JSContext *cx);
+
+    /* Get whether this type set is known to be a subset of other. */
+    bool knownSubset(JSContext *cx, TypeSet *other);
+
+    /* Get the single value which can appear in this type set, otherwise NULL. */
+    JSObject *getSingleton(JSContext *cx);
+
+    /*
+     * Whether a location with this TypeSet needs a write barrier (i.e., whether
+     * it can hold GC things). The type set is frozen if no barrier is needed.
+     */
+    bool needsBarrier(JSContext *cx);
+
+    /* Get any type tag which all values in this set must have. */
+    JSValueType getKnownTypeTag(JSContext *cx);
+};
+
+inline StackTypeSet *
+TypeSet::toStackTypeSet()
+{
+    JS_ASSERT(constraintsPurged());
     return (StackTypeSet *) this;
 }
 
 inline HeapTypeSet *
-TypeSet::toHeapSet()
+TypeSet::toHeapTypeSet()
 {
-    JS_ASSERT(isHeapSet());
+    JS_ASSERT(!constraintsPurged());
     return (HeapTypeSet *) this;
 }
 
@@ -839,13 +850,8 @@ struct Property
     /* Possible types for this property, including types inherited from prototypes. */
     HeapTypeSet types;
 
-    Property(jsid id)
-      : id(id)
-    {}
-
-    Property(const Property &o)
-      : id(o.id.get()), types(o.types)
-    {}
+    inline Property(jsid id);
+    inline Property(const Property &o);
 
     static uint32_t keyBits(jsid id) { return uint32_t(JSID_BITS(id)); }
     static jsid getKey(Property *p) { return p->id; }
@@ -1225,7 +1231,34 @@ ArrayPrototypeHasIndexedProperty(JSContext *cx, HandleScript script);
 
 /* Whether obj or any of its prototypes have an indexed property. */
 bool
-TypeCanHaveExtraIndexedProperties(JSContext *cx, TemporaryTypeSet *types);
+TypeCanHaveExtraIndexedProperties(JSContext *cx, StackTypeSet *types);
+
+/*
+ * Type information about a callsite. this is separated from the bytecode
+ * information itself so we can handle higher order functions not called
+ * directly via a bytecode.
+ */
+struct TypeCallsite
+{
+    JSScript *script;
+    jsbytecode *pc;
+
+    /* Whether this is a 'NEW' call. */
+    bool isNew;
+
+    /* Types of each argument to the call. */
+    unsigned argumentCount;
+    StackTypeSet **argumentTypes;
+
+    /* Types of the this variable. */
+    StackTypeSet *thisTypes;
+
+    /* Type set receiving the return value of this call. */
+    StackTypeSet *returnTypes;
+
+    inline TypeCallsite(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        bool isNew, unsigned argumentCount);
+};
 
 /* Persistent type information for a script, retained across GCs. */
 class TypeScript
@@ -1257,8 +1290,12 @@ class TypeScript
 
     static inline unsigned NumTypeSets(JSScript *script);
 
+    static inline HeapTypeSet  *ReturnTypes(JSScript *script);
     static inline StackTypeSet *ThisTypes(JSScript *script);
     static inline StackTypeSet *ArgTypes(JSScript *script, unsigned i);
+
+    /* Follows slot layout in jsanalyze.h, can get this/arg/local type sets. */
+    static inline StackTypeSet *SlotTypes(JSScript *script, unsigned slot);
 
     /* Get the type set for values observed at an opcode. */
     static inline StackTypeSet *BytecodeTypes(JSScript *script, jsbytecode *pc);

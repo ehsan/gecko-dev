@@ -269,7 +269,7 @@ button {
 }
 
 .sidebar-item.selected {
-  background-color: #46AFE3;
+  background: linear-gradient(to bottom, #276DA3, #155282);
   color: #FFF;
 }
 

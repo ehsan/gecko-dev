@@ -2655,7 +2655,7 @@ nsPresContext::IsCrossProcessRootContentDocument()
     return true;
   }
 
-  TabChild* tabChild = TabChild::GetFrom(mShell);
+  TabChild* tabChild = GetTabChildFrom(mShell);
   return (tabChild && tabChild->IsRootContentDocument());
 }
 

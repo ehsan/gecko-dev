@@ -45,9 +45,9 @@ strong {
   flex: 0 0 350px;
   overflow: hidden;
   z-index: 100;
-  background-color: #E9EAEB;
+  background: #EEE;
   position: relative;
-  box-shadow: 3px 0 1.5px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.3);
 }
 
 #project-list {
@@ -72,13 +72,12 @@ strong {
 
 .project-item {
   padding: 10px 0;
-  background-color: #F0F1F2;
+  background-color: #F6F6F6;
   box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1);
   color: #666;
   line-height: 120%;
   cursor: pointer;
   display: flex;
-  position: relative;
 }
 
 .project-item:hover {
@@ -90,16 +89,7 @@ strong {
 }
 
 .project-item.selected {
-  background-color: #46AFE3;
-}
-
-.project-item.selected strong {
-  color: #FFF;
-}
-
-.project-item.selected p,
-.project-item.selected span {
-  color: #C1DCF0;
+  background-color: #FFF;
 }
 
 .button-remove {
@@ -107,9 +97,8 @@ strong {
   background-size: 20px;
   width: 20px;
   height: 20px;
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
+  float: right;
+  margin-right: 10px;
   visibility: hidden;
 }
 
@@ -118,22 +107,22 @@ strong {
 }
 
 .project-item-status {
-  width: 6px;
+  width: 10px;
   margin: -10px 0;
   border-right: 1px solid rgba(0,0,0,0.1);
-  box-shadow: inset 0 0 1px 1px rgba(255,255,255,0.2), inset 0 -1px 0 0 rgba(0,0,0,0.2);
+  box-shadow: inset 0 0 1px 1px rgba(255,255,255,0.2), inset 0 -1px 0px 0px rgba(0,0,0,0.2);
 }
 
 .project-item-status[status="warning"] {
-  background-color: #F2B33F;
-}
-
-.project-item-status[status="valid"] {
-  background-color: #70BF53;
+  background: linear-gradient(to bottom, #F5BD56, #E3A93D);
 }
 
 .project-item-status[status="error"] {
-  background-color: #ED4C62;
+  background: linear-gradient(to bottom, #E34F22, #B83C16);
+}
+
+.project-item-status[status="valid"] {
+  background: linear-gradient(to bottom, #90D11F, #77AD18);
 }
 
 .project-item-icon {
@@ -152,19 +141,18 @@ strong {
   line-height: 20px;
   float: right;
   padding-right: 10px;
-  color: #7597B9;
+  color: #AAA;
   text-transform: uppercase;
 }
 
 .project-item-description {
-  color: #888;
-  font-size: 90%;
+  color: #AAA;
 }
 
 /********* ADD PROJECT ***********/
 
 #new-packaged-project {
-  box-shadow: 0 -1px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 -1px 10px rgba(0,0,0,0.3);
   background-position: calc(100% - 10px) 10px;
 }
 
@@ -253,9 +241,6 @@ strong {
   flex-direction: row;
   display: flex;
   align-items: flex-start;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #CCC;
-  margin-bottom: 10px;
 }
 
 .project-title > h1 {
@@ -267,7 +252,6 @@ strong {
   color: gray;
   font-size: 10px;
   cursor: pointer;
-  font-family: monospace;
 }
 
 .project-location:hover {
@@ -285,7 +269,6 @@ strong {
   flex-shrink: 0;
   width: 64px;
   height: 64px;
-  margin-right: 10px;
 }
 
 .project-location {
@@ -312,15 +295,15 @@ strong {
 }
 
 [status="valid"] > .project-validation {
-  background-color: #70BF53;
+  background-color: #82BD1B;
 }
 
 [status="warning"] > .project-validation {
-  background-color: #F2B33F;
+  background-color: #ECB51F;
 }
 
 [status="error"] > .project-validation {
-  background-color: #ED4C62;
+  background-color: #C24119;
 }
 
 
@@ -411,15 +394,13 @@ strong {
   padding: 10px 10px;
   border-left: 3px solid #ECB51E;
   background-color: rgba(236, 181, 20, 0.1);
-  font-family: monospace;
 }
 
 .project-errors {
   margin: 20px;
   padding: 10px 10px;
-  border-left: 3px solid #ED4C62;
-  background-color: rgba(237,76,98,0.1);
-  font-family: monospace;
+  border-left: 3px solid #E34F22;
+  background-color: rgba(227,79,34,0.1);
 }
 
 .project-item-warnings {

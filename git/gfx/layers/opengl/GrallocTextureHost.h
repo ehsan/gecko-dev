@@ -26,8 +26,6 @@ public:
                           android::GraphicBuffer* aGraphicBuffer,
                           gfx::SurfaceFormat aFormat);
 
-  virtual ~GrallocTextureSourceOGL();
-
   virtual bool IsValid() const MOZ_OVERRIDE;
 
   virtual void BindTexture(GLenum aTextureUnit) MOZ_OVERRIDE;
@@ -47,13 +45,14 @@ public:
     return LOCAL_GL_CLAMP_TO_EDGE;
   }
 
-  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks) MOZ_OVERRIDE;
-
   void DeallocateDeviceData();
 
   gl::GLContext* gl() const;
 
-  void SetCompositor(CompositorOGL* aCompositor);
+  void SetCompositor(CompositorOGL* aCompositor)
+  {
+    mCompositor = aCompositor;
+  }
 
   void ForgetBuffer()
   {
@@ -103,8 +102,6 @@ public:
   }
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
-
-  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks) MOZ_OVERRIDE;
 
   bool IsValid() const;
 
