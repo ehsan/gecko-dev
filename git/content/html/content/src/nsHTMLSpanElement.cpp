@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIAtom.h"
 #include "nsRuleData.h"
 

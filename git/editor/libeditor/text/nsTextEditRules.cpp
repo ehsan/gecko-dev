@@ -67,6 +67,7 @@
 #include "nsIDOMNodeFilter.h"
 
 // for IBMBIDI
+#include "nsIPresShell.h"
 #include "nsFrameSelection.h"
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);

@@ -1354,27 +1354,6 @@ nsPresContext::GetContainerExternal() const
 }
 
 #ifdef IBMBIDI
-PRBool
-nsPresContext::BidiEnabledInternal() const
-{
-  PRBool bidiEnabled = PR_FALSE;
-  NS_ASSERTION(mShell, "PresShell must be set on PresContext before calling nsPresContext::GetBidiEnabled");
-  if (mShell) {
-    nsIDocument *doc = mShell->GetDocument();
-    NS_ASSERTION(doc, "PresShell has no document in nsPresContext::GetBidiEnabled");
-    if (doc) {
-      bidiEnabled = doc->GetBidiEnabled();
-    }
-  }
-  return bidiEnabled;
-}
-
-PRBool
-nsPresContext::BidiEnabledExternal() const
-{
-  return BidiEnabledInternal();
-}
-
 void
 nsPresContext::SetBidiEnabled() const
 {
@@ -1843,8 +1822,13 @@ nsPresContext::GetUserFontSetInternal()
     // that's a bad thing to do, and the caller was responsible for
     // flushing first.  If we're not (e.g., in frame construction), it's
     // ok.
-    NS_ASSERTION(!userFontSetGottenBefore || !mShell->IsReflowLocked(),
-                 "FlushUserFontSet should have been called first");
+#ifdef DEBUG
+    {
+      PRBool inReflow;
+      NS_ASSERTION(!userFontSetGottenBefore || !mShell->IsReflowLocked(),
+                   "FlushUserFontSet should have been called first");
+    }
+#endif
     FlushUserFontSet();
   }
 

@@ -50,6 +50,7 @@
 class nsGridRowGroupLayout;
 class nsGridLayout2;
 class nsBoxLayoutState;
+class nsIPresShell;
 class nsGrid;
 
 /**

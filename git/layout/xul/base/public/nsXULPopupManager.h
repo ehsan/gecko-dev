@@ -70,6 +70,7 @@
  * calling Rollup.
  */
 
+class nsIPresShell;
 class nsMenuFrame;
 class nsMenuPopupFrame;
 class nsMenuBarFrame;

@@ -48,6 +48,7 @@
 #include "nsIDOMDocumentTraversal.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsITextControlFrame.h"
 #include "nsIFormControl.h"

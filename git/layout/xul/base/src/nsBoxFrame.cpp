@@ -2151,9 +2151,8 @@ void nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
   mList.HitTest(aBuilder, aRect, aState, &outFrames);
 
   PRInt32 originalLength = aOutFrames->Length();
-  PRInt32 localLength = outFrames.Length();
 
-  for (PRUint32 i = 0; i < localLength; i++) {
+  for (PRUint32 i = 0; i < originalLength; i++) {
 
     for (nsIContent* content = outFrames.ElementAt(i)->GetContent();
          content && content != mTargetFrame->GetContent();
