@@ -427,7 +427,6 @@ this.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO = [
 ];
 
 this.GECKO_SUPPORTED_NETWORK_TYPES_DEFAULT = "gsm,wcdma";
-// Index-item pair must be in sync with nsIMobileConnection.MOBILE_NETWORK_TYPE_*
 this.GECKO_SUPPORTED_NETWORK_TYPES = [
   "gsm",
   "wcdma",
