@@ -592,6 +592,8 @@ LinearScanAllocator::populateSafepoints()
                 if (payloadAlloc->isArgument() &&
                     (!payload->canonicalSpill() || payload->canonicalSpill() == payloadAlloc))
                 {
+                    JS_ASSERT(typeAlloc->isArgument());
+                    JS_ASSERT(!type->canonicalSpill() || type->canonicalSpill() == typeAlloc);
                     continue;
                 }
 
