@@ -7,7 +7,7 @@
 
 MARKUPMAP(a,
           New_HTMLLink,
-          roles::LINK)
+          0)
 
 MARKUPMAP(abbr,
           New_HyperText,
@@ -19,8 +19,7 @@ MARKUPMAP(acronym,
 
 MARKUPMAP(article,
           New_HyperText,
-          roles::DOCUMENT,
-          Attr(xmlroles, article))
+          roles::DOCUMENT)
 
 MARKUPMAP(aside,
           New_HyperText,
@@ -48,12 +47,11 @@ MARKUPMAP(dt,
 
 MARKUPMAP(figcaption,
           New_HTMLFigcaption,
-          roles::CAPTION)
+          0)
 
 MARKUPMAP(figure,
           New_HTMLFigure,
-          roles::FIGURE,
-          Attr(xmlroles, figure))
+          0)
 
 MARKUPMAP(form,
           New_HyperText,
@@ -93,11 +91,11 @@ MARKUPMAP(h6,
 
 MARKUPMAP(label,
           New_HTMLLabel,
-          roles::LABEL)
+          0)
 
 MARKUPMAP(legend,
           New_HTMLLegend,
-          roles::LABEL)
+          0)
 
 MARKUPMAP(li,
           New_HTMLListitem,
@@ -109,7 +107,7 @@ MARKUPMAP(nav,
 
 MARKUPMAP(ol,
           New_HTMLList,
-          roles::LIST)
+          0)
 
 MARKUPMAP(option,
           New_HTMLOption,
@@ -121,8 +119,7 @@ MARKUPMAP(optgroup,
 
 MARKUPMAP(output,
           New_HTMLOutput,
-          roles::SECTION,
-          Attr(live, polite))
+          0)
 
 MARKUPMAP(progress,
           New_HTMLProgress,
@@ -134,14 +131,11 @@ MARKUPMAP(q,
 
 MARKUPMAP(section,
           New_HyperText,
-          roles::SECTION,
-          Attr(xmlroles, region))
+          roles::SECTION)
 
 MARKUPMAP(time,
           New_HyperText,
-          0,
-          Attr(xmlroles, time),
-          AttrFromDOM(datetime, datetime))
+          0)
 
 MARKUPMAP(td,
           New_HTMLTableHeaderCellIfScope,
@@ -153,4 +147,4 @@ MARKUPMAP(th,
 
 MARKUPMAP(ul,
           New_HTMLList,
-          roles::LIST)
+          0)

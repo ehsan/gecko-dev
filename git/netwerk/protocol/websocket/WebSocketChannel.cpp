@@ -3656,5 +3656,3 @@ WebSocketChannel::SaveNetworkStats(bool enforce)
 
 } // namespace mozilla::net
 } // namespace mozilla
-
-#undef CLOSE_GOING_AWAY

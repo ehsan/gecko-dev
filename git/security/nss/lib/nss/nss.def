@@ -1064,7 +1064,6 @@ PK11_PrivDecrypt;
 ;+};
 ;+NSS_3.18 { 	# NSS 3.18 release
 ;+    global:
-__PK11_SetCertificateNickname;
 CERT_FindCertURLExtension;
 SEC_CheckCrlTimes;
 SEC_GetCrlTimes;

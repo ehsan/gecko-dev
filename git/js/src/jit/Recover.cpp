@@ -1171,7 +1171,7 @@ RNewObject::RNewObject(CompactBufferReader &reader)
 bool
 RNewObject::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedObject templateObject(cx, &iter.read().toObject());
+    RootedPlainObject templateObject(cx, &iter.read().toObject().as<PlainObject>());
     RootedValue result(cx);
     JSObject *resultObject = nullptr;
 
@@ -1180,7 +1180,7 @@ RNewObject::recover(JSContext *cx, SnapshotIterator &iter) const
         resultObject = NewObjectOperationWithTemplate(cx, templateObject);
     } else {
         MOZ_ASSERT(mode_ == MNewObject::ObjectCreate);
-        resultObject = ObjectCreateWithTemplate(cx, templateObject.as<PlainObject>());
+        resultObject = ObjectCreateWithTemplate(cx, templateObject);
     }
 
     if (!resultObject)

@@ -13,32 +13,25 @@
 #include <queue>
 #include <string>
 
-#include "prio.h"
-
 namespace nss_test {
 
-class DataBuffer;
-class Packet;
+struct Packet;
 class DummyPrSocket;  // Fwd decl.
 
 // Allow us to inspect a packet before it is written.
-class PacketFilter {
+class Inspector {
  public:
-  virtual ~PacketFilter() {}
+  virtual ~Inspector() {}
 
-  // The packet filter takes input and has the option of mutating it.
-  //
-  // A filter that modifies the data places the modified data in *output and
-  // returns true.  A filter that does not modify data returns false, in which
-  // case the value in *output is ignored.
-  virtual bool Filter(const DataBuffer& input, DataBuffer* output) = 0;
+  virtual void Inspect(DummyPrSocket* adapter, const void* data,
+                       size_t len) = 0;
 };
 
 enum Mode { STREAM, DGRAM };
 
 class DummyPrSocket {
  public:
-  ~DummyPrSocket();
+  ~DummyPrSocket() { delete inspector_; }
 
   static PRFileDesc* CreateFD(const std::string& name,
                               Mode mode);  // Returns an FD.
@@ -46,16 +39,16 @@ class DummyPrSocket {
 
   void SetPeer(DummyPrSocket* peer) { peer_ = peer; }
 
-  void SetPacketFilter(PacketFilter* filter) { filter_ = filter; }
+  void SetInspector(Inspector* inspector) { inspector_ = inspector; }
 
-  void PacketReceived(const DataBuffer& data);
+  void PacketReceived(const void* data, int32_t len);
   int32_t Read(void* data, int32_t len);
   int32_t Recv(void* buf, int32_t buflen);
   int32_t Write(const void* buf, int32_t length);
-  int32_t WriteDirect(const DataBuffer& data);
+  int32_t WriteDirect(const void* buf, int32_t length);
 
   Mode mode() const { return mode_; }
-  bool readable() const { return !input_.empty(); }
+  bool readable() { return !input_.empty(); }
   bool writable() { return true; }
 
  private:
@@ -64,13 +57,13 @@ class DummyPrSocket {
         mode_(mode),
         peer_(nullptr),
         input_(),
-        filter_(nullptr) {}
+        inspector_(nullptr) {}
 
   const std::string name_;
   Mode mode_;
   DummyPrSocket* peer_;
   std::queue<Packet*> input_;
-  PacketFilter* filter_;
+  Inspector* inspector_;
 };
 
 // Marker interface.

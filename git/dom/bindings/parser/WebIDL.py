@@ -338,10 +338,7 @@ class IDLUnresolvedIdentifier(IDLObject):
 
         assert len(name) > 0
 
-        if name == "__noSuchMethod__":
-            raise WebIDLError("__noSuchMethod__ is deprecated", [location])
-
-        if name[:2] == "__" and name != "__content" and not allowDoubleUnderscore:
+        if name[:2] == "__" and name != "__content" and name != "___noSuchMethod__"  and not allowDoubleUnderscore:
             raise WebIDLError("Identifiers beginning with __ are reserved",
                               [location])
         if name[0] == '_' and not allowDoubleUnderscore:
@@ -3828,7 +3825,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         return self._hasOverloads
 
     def isIdentifierLess(self):
-        return self.identifier.name[:2] == "__"
+        return self.identifier.name[:2] == "__" and self.identifier.name != "__noSuchMethod__"
 
     def resolve(self, parentScope):
         assert isinstance(parentScope, IDLScope)

@@ -24,6 +24,3 @@ EXTRA_JS_MODULES.loop += [
     'MozLoopService.jsm',
     'MozLoopWorker.js',
 ]
-
-with Files('**'):
-    BUG_COMPONENT = ('Loop', 'Client')
