@@ -87,8 +87,8 @@ js_dmod(jsdouble a, jsdouble b)
 }
 
 /*
- * Note: Caller is responsible for ensuring that b is not 0, or really bad things are going to
- *       happen.
+ * Note: Caller is responsible for ensuring that b is not 0, or really bad 
+ *       things are going to happen.
  */
 
 jsint FASTCALL
