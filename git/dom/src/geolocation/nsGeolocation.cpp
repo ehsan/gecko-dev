@@ -285,7 +285,6 @@ nsDOMGeoPositionError::NotifyCallback(nsIDOMGeoPositionErrorCallback* aCallback)
 nsGeolocationRequest::nsGeolocationRequest(nsGeolocation* aLocator,
                                            nsIDOMGeoPositionCallback* aCallback,
                                            nsIDOMGeoPositionErrorCallback* aErrorCallback,
-                                           mozilla::dom::GeoPositionOptions* aOptions,
                                            bool aWatchPositionRequest,
                                            int32_t aWatchId)
   : mAllowed(false),
@@ -294,7 +293,6 @@ nsGeolocationRequest::nsGeolocationRequest(nsGeolocation* aLocator,
     mIsWatchPositionRequest(aWatchPositionRequest),
     mCallback(aCallback),
     mErrorCallback(aErrorCallback),
-    mOptions(aOptions),
     mLocator(aLocator),
     mWatchId(aWatchId)
 {
@@ -304,21 +302,15 @@ nsGeolocationRequest::~nsGeolocationRequest()
 {
 }
 
-
-static mozilla::dom::GeoPositionOptions*
-OptionsFromJSOptions(JSContext* aCx, const jsval& aOptions, nsresult* aRv)
+nsresult
+nsGeolocationRequest::Init(JSContext* aCx, const jsval& aOptions)
 {
-  *aRv = NS_OK;
-  nsAutoPtr<mozilla::dom::GeoPositionOptions> options(nullptr);
   if (aCx && !JSVAL_IS_VOID(aOptions) && !JSVAL_IS_NULL(aOptions)) {
-    options = new mozilla::dom::GeoPositionOptions();
-    nsresult rv = options->Init(aCx, &aOptions);
-    if (NS_FAILED(rv)) {
-      *aRv = rv;
-      return nullptr;
-    }
+    mOptions = new mozilla::dom::GeoPositionOptions();
+    nsresult rv = mOptions->Init(aCx, &aOptions);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-  return options.forget();
+  return NS_OK;
 }
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGeolocationRequest)
@@ -432,7 +424,7 @@ nsGeolocationRequest::Allow()
 
   // Kick off the geo device, if it isn't already running
   nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
-  nsresult rv = gs->StartDevice(GetPrincipal(), isPrivate);
+  nsresult rv = gs->StartDevice(isPrivate);
 
   if (NS_FAILED(rv)) {
     // Location provider error
@@ -547,15 +539,6 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
   if (mIsWatchPositionRequest) {
     SetTimeoutTimer();
   }
-}
-
-nsIPrincipal*
-nsGeolocationRequest::GetPrincipal()
-{
-  if (!mLocator) {
-    return nullptr;
-  }
-  return mLocator->GetPrincipal();
 }
 
 bool
@@ -873,6 +856,10 @@ nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
     return false;
   }
 
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    return true;
+  }
+
   if (mProviders.Count() == 1 || !mLastPosition) {
     return true;
   }
@@ -965,7 +952,7 @@ nsGeolocationService::GetCachedPosition()
 }
 
 nsresult
-nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal, bool aRequestPrivate)
+nsGeolocationService::StartDevice(bool aRequestPrivate)
 {
   if (!sGeoEnabled || sGeoInitPending) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -978,7 +965,7 @@ nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal, bool aRequestPrivate
 
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendAddGeolocationListener(IPC::Principal(aPrincipal));
+    cpc->SendAddGeolocationListener();
     return NS_OK;
   }
 
@@ -1246,20 +1233,8 @@ nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere, bool aIsBetter)
 NS_IMETHODIMP
 nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
                                   nsIDOMGeoPositionErrorCallback *errorCallback,
-                                  const jsval& jsoptions,
+                                  const jsval& options,
                                   JSContext* cx)
-{
-  nsresult rv;
-  nsAutoPtr<mozilla::dom::GeoPositionOptions> options(
-      OptionsFromJSOptions(cx, jsoptions, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return GetCurrentPosition(callback, errorCallback, options.forget());
-}
-
-nsresult
-nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
-                                  nsIDOMGeoPositionErrorCallback *errorCallback,
-                                  mozilla::dom::GeoPositionOptions *options)
 {
   NS_ENSURE_ARG_POINTER(callback);
 
@@ -1270,8 +1245,13 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
   nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this,
                                                                     callback,
                                                                     errorCallback,
-                                                                    options,
                                                                     false);
+  if (!request) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  nsresult rv = request->Init(cx, options);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!sGeoEnabled) {
     nsCOMPtr<nsIRunnable> ev = new RequestAllowEvent(false, request);
@@ -1318,21 +1298,8 @@ nsGeolocation::GetCurrentPositionReady(nsGeolocationRequest* aRequest)
 NS_IMETHODIMP
 nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
                              nsIDOMGeoPositionErrorCallback *errorCallback,
-                             const jsval& jsoptions,
+                             const jsval& options,
                              JSContext* cx,
-                             int32_t *_retval)
-{
-  nsresult rv;
-  nsAutoPtr<mozilla::dom::GeoPositionOptions> options(
-      OptionsFromJSOptions(cx, jsoptions, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return WatchPosition(callback, errorCallback, options.forget(), _retval);
-}
-
-nsresult
-nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
-                             nsIDOMGeoPositionErrorCallback *errorCallback,
-                             mozilla::dom::GeoPositionOptions *options,
                              int32_t *_retval)
 {
   NS_ENSURE_ARG_POINTER(callback);
@@ -1347,9 +1314,14 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
   nsRefPtr<nsGeolocationRequest> request = new nsGeolocationRequest(this,
                                                                     callback,
                                                                     errorCallback,
-                                                                    options,
                                                                     true,
                                                                     *_retval);
+  if (!request) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  nsresult rv = request->Init(cx, options);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!sGeoEnabled) {
     nsCOMPtr<nsIRunnable> ev = new RequestAllowEvent(false, request);

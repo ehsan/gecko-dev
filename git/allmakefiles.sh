@@ -38,7 +38,6 @@ config/doxygen.cfg
 config/expandlibs_config.py
 mfbt/Makefile
 probes/Makefile
-python/Makefile
 extensions/Makefile
 "
 

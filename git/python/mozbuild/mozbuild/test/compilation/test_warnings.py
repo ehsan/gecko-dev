@@ -5,13 +5,12 @@
 import os
 import unittest
 
-from mozfile.mozfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile
 
 from mozbuild.compilation.warnings import CompilerWarning
 from mozbuild.compilation.warnings import WarningsCollector
 from mozbuild.compilation.warnings import WarningsDatabase
 
-from mozunit import main
 
 CLANG_TESTS = [
     ('foobar.cpp:123:10: warning: you messed up [-Wfoo]',
@@ -143,7 +142,7 @@ class TestWarningsParsing(unittest.TestCase):
 
             self.assertIsNotNone(warning)
 
-            self.assertEqual(warning['filename'], os.path.normpath(filename))
+            self.assertEqual(warning['filename'], filename)
             self.assertEqual(warning['line'], line)
             self.assertEqual(warning['flag'], flag)
             self.assertEqual(warning['message'], message)
@@ -226,16 +225,12 @@ class TestWarningsDatabase(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(warnings[0]['column'], w['column'])
 
-        # If we delete the source file, calling prune should cause the warnings
+        # If we delete the source file, calling prune should call the warnings
         # to go away.
         old_filename = source_files[0].name
-        del source_files[0]
+        source_files[0].close()
 
         self.assertFalse(os.path.exists(old_filename))
 
         db.prune()
         self.assertEqual(len(db), 19)
-
-
-if __name__ == '__main__':
-    main()
