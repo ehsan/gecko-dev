@@ -2,28 +2,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.gecko.util;
+
+import android.content.res.Resources;
+import android.graphics.drawable.BitmapDrawable;
+import android.util.Log;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.EmptyStackException;
 import java.util.Stack;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipEntry;
-import java.io.InputStream;
-import java.io.IOException;
-
-import android.graphics.drawable.BitmapDrawable;
-import android.util.Log;
 
 /* Reads out of a multiple level deep jar file such as
  *  jar:jar:file:///data/app/org.mozilla.fennec.apk!/omni.ja!/chrome/chrome/content/branding/favicon32.png
  */
-public class GeckoJarReader {
+public final class GeckoJarReader {
     private static String LOGTAG = "GeckoJarReader";
 
-    public static BitmapDrawable getBitmapDrawable(String url) {
+    private GeckoJarReader() {}
+
+    public static BitmapDrawable getBitmapDrawable(Resources resources, String url) {
         Stack<String> jarUrls = parseUrl(url);
         InputStream inputStream = null;
         BitmapDrawable bitmap = null;
@@ -34,7 +37,7 @@ public class GeckoJarReader {
             zip = getZipFile(jarUrls.pop());
             inputStream = getStream(zip, jarUrls);
             if (inputStream != null) {
-                bitmap = new BitmapDrawable(inputStream);
+                bitmap = new BitmapDrawable(resources, inputStream);
             }
         } catch (IOException ex) {
             Log.e(LOGTAG, "Exception ", ex);

@@ -86,7 +86,7 @@ nsHTMLButtonControlFrame::CreateAccessible()
                                                   PresContext()->PresShell()); 
   }
 
-  return nsnull;
+  return nullptr;
 }
 #endif
 
@@ -328,7 +328,7 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
   aDesiredSize.ascent += yoff;
 }
 
-PRIntn
+int
 nsHTMLButtonControlFrame::GetSkipSides() const
 {
   return 0;
@@ -352,13 +352,13 @@ nsresult nsHTMLButtonControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aV
 }
 
 nsStyleContext*
-nsHTMLButtonControlFrame::GetAdditionalStyleContext(PRInt32 aIndex) const
+nsHTMLButtonControlFrame::GetAdditionalStyleContext(int32_t aIndex) const
 {
   return mRenderer.GetStyleContext(aIndex);
 }
 
 void
-nsHTMLButtonControlFrame::SetAdditionalStyleContext(PRInt32 aIndex, 
+nsHTMLButtonControlFrame::SetAdditionalStyleContext(int32_t aIndex, 
                                                     nsStyleContext* aStyleContext)
 {
   mRenderer.SetStyleContext(aIndex, aStyleContext);

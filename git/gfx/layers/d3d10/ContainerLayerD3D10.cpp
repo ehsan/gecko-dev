@@ -28,82 +28,95 @@ ContainerLayerD3D10::~ContainerLayerD3D10()
     RemoveChild(mFirstChild);
   }
 }
+template<class Container>
+static void
+ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
+{
+    aChild->SetParent(aContainer);
+    if (!aAfter) {
+        Layer *oldFirstChild = aContainer->GetFirstChild();
+        aContainer->mFirstChild = aChild;
+        aChild->SetNextSibling(oldFirstChild);
+        aChild->SetPrevSibling(nullptr);
+        if (oldFirstChild) {
+            oldFirstChild->SetPrevSibling(aChild);
+        } else {
+            aContainer->mLastChild = aChild;
+        }
+        NS_ADDREF(aChild);
+        aContainer->DidInsertChild(aChild);
+        return;
+    }
+    for (Layer *child = aContainer->GetFirstChild(); 
+        child; child = child->GetNextSibling()) {
+            if (aAfter == child) {
+                Layer *oldNextSibling = child->GetNextSibling();
+                child->SetNextSibling(aChild);
+                aChild->SetNextSibling(oldNextSibling);
+                if (oldNextSibling) {
+                    oldNextSibling->SetPrevSibling(aChild);
+                } else {
+                    aContainer->mLastChild = aChild;
+                }
+                aChild->SetPrevSibling(child);
+                NS_ADDREF(aChild);
+                aContainer->DidInsertChild(aChild);
+                return;
+            }
+    }
+    NS_WARNING("Failed to find aAfter layer!");
+}
+
+template<class Container>
+static void
+ContainerRemoveChild(Container* aContainer, Layer* aChild)
+{
+    if (aContainer->GetFirstChild() == aChild) {
+        aContainer->mFirstChild = aContainer->GetFirstChild()->GetNextSibling();
+        if (aContainer->mFirstChild) {
+            aContainer->mFirstChild->SetPrevSibling(nullptr);
+        } else {
+            aContainer->mLastChild = nullptr;
+        }
+        aChild->SetNextSibling(nullptr);
+        aChild->SetPrevSibling(nullptr);
+        aChild->SetParent(nullptr);
+        aContainer->DidRemoveChild(aChild);
+        NS_RELEASE(aChild);
+        return;
+    }
+    Layer *lastChild = nullptr;
+    for (Layer *child = aContainer->GetFirstChild(); child; 
+        child = child->GetNextSibling()) {
+            if (child == aChild) {
+                // We're sure this is not our first child. So lastChild != NULL.
+                lastChild->SetNextSibling(child->GetNextSibling());
+                if (child->GetNextSibling()) {
+                    child->GetNextSibling()->SetPrevSibling(lastChild);
+                } else {
+                    aContainer->mLastChild = lastChild;
+                }
+                child->SetNextSibling(nullptr);
+                child->SetPrevSibling(nullptr);
+                child->SetParent(nullptr);
+                aContainer->DidRemoveChild(aChild);
+                NS_RELEASE(aChild);
+                return;
+            }
+            lastChild = child;
+    }
+}
 
 void
 ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
 {
-  aChild->SetParent(this);
-  if (!aAfter) {
-    Layer *oldFirstChild = GetFirstChild();
-    mFirstChild = aChild;
-    aChild->SetNextSibling(oldFirstChild);
-    aChild->SetPrevSibling(nsnull);
-    if (oldFirstChild) {
-      oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      mLastChild = aChild;
-    }
-    NS_ADDREF(aChild);
-    DidInsertChild(aChild);
-    return;
-  }
-  for (Layer *child = GetFirstChild();
-       child; child = child->GetNextSibling()) {
-    if (aAfter == child) {
-      Layer *oldNextSibling = child->GetNextSibling();
-      child->SetNextSibling(aChild);
-      aChild->SetNextSibling(oldNextSibling);
-      if (oldNextSibling) {
-        oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        mLastChild = aChild;
-      }
-      aChild->SetPrevSibling(child);
-      NS_ADDREF(aChild);
-      DidInsertChild(aChild);
-      return;
-    }
-  }
-  NS_WARNING("Failed to find aAfter layer!");
+  ContainerInsertAfter(this, aChild, aAfter);
 }
 
 void
 ContainerLayerD3D10::RemoveChild(Layer *aChild)
 {
-  if (GetFirstChild() == aChild) {
-    mFirstChild = GetFirstChild()->GetNextSibling();
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      mLastChild = nsnull;
-    }
-    aChild->SetNextSibling(nsnull);
-    aChild->SetPrevSibling(nsnull);
-    aChild->SetParent(nsnull);
-    DidRemoveChild(aChild);
-    NS_RELEASE(aChild);
-    return;
-  }
-  Layer *lastChild = nsnull;
-  for (Layer *child = GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    if (child == aChild) {
-      // We're sure this is not our first child. So lastChild != NULL.
-      lastChild->SetNextSibling(child->GetNextSibling());
-      if (child->GetNextSibling()) {
-        child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        mLastChild = lastChild;
-      }
-      child->SetNextSibling(nsnull);
-      child->SetPrevSibling(nsnull);
-      child->SetParent(nsnull);
-      DidRemoveChild(aChild);
-      NS_RELEASE(aChild);
-      return;
-    }
-    lastChild = child;
-  }
+  ContainerRemoveChild(this, aChild);
 }
 
 Layer*
@@ -116,7 +129,7 @@ LayerD3D10*
 ContainerLayerD3D10::GetFirstChildD3D10()
 {
   if (!mFirstChild) {
-    return nsnull;
+    return nullptr;
   }
   return static_cast<LayerD3D10*>(mFirstChild->ImplData());
 }
@@ -127,7 +140,7 @@ GetNextSiblingD3D10(LayerD3D10* aLayer)
    Layer* layer = aLayer->GetLayer()->GetNextSibling();
    return layer ? static_cast<LayerD3D10*>(layer->
                                            ImplData())
-                : nsnull;
+                : nullptr;
 }
 
 static bool
@@ -199,8 +212,8 @@ ContainerLayerD3D10::RenderLayer()
         // applied to use relative to our parent, and compensates for the offset
         // that was applied on our parent's rendering.
         D3D10_BOX srcBox;
-        srcBox.left = visibleRect.x + PRInt32(transform.x0) - PRInt32(previousRenderTargetOffset[0]);
-        srcBox.top = visibleRect.y + PRInt32(transform.y0) - PRInt32(previousRenderTargetOffset[1]);
+        srcBox.left = visibleRect.x + int32_t(transform.x0) - int32_t(previousRenderTargetOffset[0]);
+        srcBox.top = visibleRect.y + int32_t(transform.y0) - int32_t(previousRenderTargetOffset[1]);
         srcBox.right = srcBox.left + visibleRect.width;
         srcBox.bottom = srcBox.top + visibleRect.height;
         srcBox.back = 1;
@@ -247,7 +260,7 @@ ContainerLayerD3D10::RenderLayer()
   /*
    * Render this container's contents.
    */
-  for (PRUint32 i = 0; i < children.Length(); i++) {
+  for (uint32_t i = 0; i < children.Length(); i++) {
     LayerD3D10* layerToRender = static_cast<LayerD3D10*>(children.ElementAt(i)->ImplData());
 
     if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
@@ -255,7 +268,7 @@ ContainerLayerD3D10::RenderLayer()
     }
     
     nsIntRect scissorRect =
-        layerToRender->GetLayer()->CalculateScissorRect(oldScissor, nsnull);
+        layerToRender->GetLayer()->CalculateScissorRect(oldScissor, nullptr);
     if (scissorRect.IsEmpty()) {
       continue;
     }
@@ -368,18 +381,23 @@ ShadowContainerLayerD3D10::ShadowContainerLayerD3D10(LayerManagerD3D10 *aManager
   mImplData = static_cast<LayerD3D10*>(this);
 }
 
-ShadowContainerLayerD3D10::~ShadowContainerLayerD3D10() {}
+ShadowContainerLayerD3D10::~ShadowContainerLayerD3D10() 
+{
+  while (mFirstChild) {
+    RemoveChild(mFirstChild);
+  }  
+}
 
 void
 ShadowContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
 {
-  mFirstChild = aChild;
+  ContainerInsertAfter(this, aChild, aAfter);
 }
 
 void
 ShadowContainerLayerD3D10::RemoveChild(Layer* aChild)
 {
-
+  ContainerRemoveChild(this, aChild);
 }
 
 void
@@ -409,6 +427,10 @@ ShadowContainerLayerD3D10::Validate()
 void
 ShadowContainerLayerD3D10::LayerManagerDestroyed()
 {
+  while (mFirstChild) {
+    GetFirstChildD3D10()->LayerManagerDestroyed();
+    RemoveChild(mFirstChild);
+  }
 }
 
 } /* layers */

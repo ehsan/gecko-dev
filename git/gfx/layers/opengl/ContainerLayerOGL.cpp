@@ -18,7 +18,7 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
     Layer *oldFirstChild = aContainer->GetFirstChild();
     aContainer->mFirstChild = aChild;
     aChild->SetNextSibling(oldFirstChild);
-    aChild->SetPrevSibling(nsnull);
+    aChild->SetPrevSibling(nullptr);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
     } else {
@@ -55,18 +55,18 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
   if (aContainer->GetFirstChild() == aChild) {
     aContainer->mFirstChild = aContainer->GetFirstChild()->GetNextSibling();
     if (aContainer->mFirstChild) {
-      aContainer->mFirstChild->SetPrevSibling(nsnull);
+      aContainer->mFirstChild->SetPrevSibling(nullptr);
     } else {
-      aContainer->mLastChild = nsnull;
+      aContainer->mLastChild = nullptr;
     }
-    aChild->SetNextSibling(nsnull);
-    aChild->SetPrevSibling(nsnull);
-    aChild->SetParent(nsnull);
+    aChild->SetNextSibling(nullptr);
+    aChild->SetPrevSibling(nullptr);
+    aChild->SetParent(nullptr);
     aContainer->DidRemoveChild(aChild);
     NS_RELEASE(aChild);
     return;
   }
-  Layer *lastChild = nsnull;
+  Layer *lastChild = nullptr;
   for (Layer *child = aContainer->GetFirstChild(); child; 
        child = child->GetNextSibling()) {
     if (child == aChild) {
@@ -77,9 +77,9 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
       } else {
         aContainer->mLastChild = lastChild;
       }
-      child->SetNextSibling(nsnull);
-      child->SetPrevSibling(nsnull);
-      child->SetParent(nsnull);
+      child->SetNextSibling(nullptr);
+      child->SetPrevSibling(nullptr);
+      child->SetParent(nullptr);
       aContainer->DidRemoveChild(aChild);
       NS_RELEASE(aChild);
       return;
@@ -117,7 +117,7 @@ GetNextSibling(LayerOGL* aLayer)
    Layer* layer = aLayer->GetLayer()->GetNextSibling();
    return layer ? static_cast<LayerOGL*>(layer->
                                          ImplData())
-                 : nsnull;
+                 : nullptr;
 }
 
 static bool
@@ -179,12 +179,14 @@ ContainerRender(Container* aContainer,
     }
 
     aContainer->gl()->PushViewportRect();
-    framebufferRect -= childOffset; 
-    aManager->CreateFBOWithTexture(framebufferRect,
-                                   mode,
-                                   aPreviousFrameBuffer,
-                                   &frameBuffer,
-                                   &containerSurface);
+    framebufferRect -= childOffset;
+    if (!aManager->CompositingDisabled()) {
+      aManager->CreateFBOWithTexture(framebufferRect,
+                                     mode,
+                                     aPreviousFrameBuffer,
+                                     &frameBuffer,
+                                     &containerSurface);
+    }
     childOffset.x = visibleRect.x;
     childOffset.y = visibleRect.y;
   } else {
@@ -199,7 +201,7 @@ ContainerRender(Container* aContainer,
   /**
    * Render this container's contents.
    */
-  for (PRUint32 i = 0; i < children.Length(); i++) {
+  for (uint32_t i = 0; i < children.Length(); i++) {
     LayerOGL* layerToRender = static_cast<LayerOGL*>(children.ElementAt(i)->ImplData());
 
     if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
@@ -239,45 +241,47 @@ ContainerRender(Container* aContainer,
     aManager->SetupPipeline(viewport.width, viewport.height,
                             LayerManagerOGL::ApplyWorldTransform);
     aContainer->gl()->PopScissorRect();
-
     aContainer->gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
-    aContainer->gl()->fDeleteFramebuffers(1, &frameBuffer);
 
-    aContainer->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+    if (!aManager->CompositingDisabled()) {
+      aContainer->gl()->fDeleteFramebuffers(1, &frameBuffer);
 
-    aContainer->gl()->fBindTexture(aManager->FBOTextureTarget(), containerSurface);
+      aContainer->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
-    MaskType maskType = MaskNone;
-    if (aContainer->GetMaskLayer()) {
-      if (!aContainer->GetTransform().CanDraw2D()) {
-        maskType = Mask3d;
-      } else {
-        maskType = Mask2d;
+      aContainer->gl()->fBindTexture(aManager->FBOTextureTarget(), containerSurface);
+
+      MaskType maskType = MaskNone;
+      if (aContainer->GetMaskLayer()) {
+        if (!aContainer->GetTransform().CanDraw2D()) {
+          maskType = Mask3d;
+        } else {
+          maskType = Mask2d;
+        }
       }
+      ShaderProgramOGL *rgb =
+        aManager->GetFBOLayerProgram(maskType);
+
+      rgb->Activate();
+      rgb->SetLayerQuadRect(visibleRect);
+      rgb->SetLayerTransform(transform);
+      rgb->SetLayerOpacity(opacity);
+      rgb->SetRenderOffset(aOffset);
+      rgb->SetTextureUnit(0);
+      rgb->LoadMask(aContainer->GetMaskLayer());
+
+      if (rgb->GetTexCoordMultiplierUniformLocation() != -1) {
+        // 2DRect case, get the multiplier right for a sampler2DRect
+        rgb->SetTexCoordMultiplier(visibleRect.width, visibleRect.height);
+      }
+
+      // Drawing is always flipped, but when copying between surfaces we want to avoid
+      // this. Pass true for the flip parameter to introduce a second flip
+      // that cancels the other one out.
+      aManager->BindAndDrawQuad(rgb, true);
+
+      // Clean up resources.  This also unbinds the texture.
+      aContainer->gl()->fDeleteTextures(1, &containerSurface);
     }
-    ShaderProgramOGL *rgb =
-      aManager->GetFBOLayerProgram(maskType);
-
-    rgb->Activate();
-    rgb->SetLayerQuadRect(visibleRect);
-    rgb->SetLayerTransform(transform);
-    rgb->SetLayerOpacity(opacity);
-    rgb->SetRenderOffset(aOffset);
-    rgb->SetTextureUnit(0);
-    rgb->LoadMask(aContainer->GetMaskLayer());
-
-    if (rgb->GetTexCoordMultiplierUniformLocation() != -1) {
-      // 2DRect case, get the multiplier right for a sampler2DRect
-      rgb->SetTexCoordMultiplier(visibleRect.width, visibleRect.height);
-    }
-
-    // Drawing is always flipped, but when copying between surfaces we want to avoid
-    // this. Pass true for the flip parameter to introduce a second flip
-    // that cancels the other one out.
-    aManager->BindAndDrawQuad(rgb, true);
-
-    // Clean up resources.  This also unbinds the texture.
-    aContainer->gl()->fDeleteTextures(1, &containerSurface);
   } else {
     aContainer->gl()->PopScissorRect();
   }
@@ -317,7 +321,7 @@ LayerOGL*
 ContainerLayerOGL::GetFirstChildOGL()
 {
   if (!mFirstChild) {
-    return nsnull;
+    return nullptr;
   }
   return static_cast<LayerOGL*>(mFirstChild->ImplData());
 }
@@ -344,7 +348,18 @@ ShadowContainerLayerOGL::ShadowContainerLayerOGL(LayerManagerOGL *aManager)
  
 ShadowContainerLayerOGL::~ShadowContainerLayerOGL()
 {
-  Destroy();
+  // We don't Destroy() on destruction here because this destructor
+  // can be called after remote content has crashed, and it may not be
+  // safe to free the IPC resources of our children.  Those resources
+  // are automatically cleaned up by IPDL-generated code.
+  //
+  // In the common case of normal shutdown, either
+  // LayerManagerOGL::Destroy(), a parent
+  // *ContainerLayerOGL::Destroy(), or Disconnect() will trigger
+  // cleanup of our resources.
+  while (mFirstChild) {
+    ContainerRemoveChild(this, mFirstChild);
+  }
 }
 
 void
@@ -369,7 +384,7 @@ LayerOGL*
 ShadowContainerLayerOGL::GetFirstChildOGL()
 {
   if (!mFirstChild) {
-    return nsnull;
+    return nullptr;
    }
   return static_cast<LayerOGL*>(mFirstChild->ImplData());
 }
@@ -385,6 +400,46 @@ void
 ShadowContainerLayerOGL::CleanupResources()
 {
   ContainerCleanupResources(this);
+}
+
+ShadowRefLayerOGL::ShadowRefLayerOGL(LayerManagerOGL* aManager)
+  : ShadowRefLayer(aManager, NULL)
+  , LayerOGL(aManager)
+{
+  mImplData = static_cast<LayerOGL*>(this);
+}
+
+ShadowRefLayerOGL::~ShadowRefLayerOGL()
+{
+  Destroy();
+}
+
+void
+ShadowRefLayerOGL::Destroy()
+{
+  MOZ_ASSERT(!mFirstChild);
+  mDestroyed = true;
+}
+
+LayerOGL*
+ShadowRefLayerOGL::GetFirstChildOGL()
+{
+  if (!mFirstChild) {
+    return nullptr;
+   }
+  return static_cast<LayerOGL*>(mFirstChild->ImplData());
+}
+
+void
+ShadowRefLayerOGL::RenderLayer(int aPreviousFrameBuffer,
+                               const nsIntPoint& aOffset)
+{
+  ContainerRender(this, aPreviousFrameBuffer, aOffset, mOGLManager);
+}
+
+void
+ShadowRefLayerOGL::CleanupResources()
+{
 }
 
 } /* layers */

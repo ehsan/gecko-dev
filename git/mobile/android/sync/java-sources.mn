@@ -3,6 +3,8 @@ sync/CollectionKeys.java
 sync/CommandProcessor.java
 sync/CommandRunner.java
 sync/config/AccountPickler.java
+sync/config/ConfigurationMigrator.java
+sync/CredentialException.java
 sync/CredentialsSource.java
 sync/crypto/CryptoException.java
 sync/crypto/CryptoInfo.java
@@ -178,6 +180,7 @@ sync/setup/activities/SendTabActivity.java
 sync/setup/activities/SetupFailureActivity.java
 sync/setup/activities/SetupSuccessActivity.java
 sync/setup/activities/SetupSyncActivity.java
+sync/setup/activities/WebViewActivity.java
 sync/setup/auth/AccountAuthenticator.java
 sync/setup/auth/AuthenticateAccountStage.java
 sync/setup/auth/AuthenticationResult.java

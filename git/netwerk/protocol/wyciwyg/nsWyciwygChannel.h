@@ -24,7 +24,8 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsIURI.h"
 #include "nsIEventTarget.h"
-#include "PrivateBrowsingConsumer.h"
+#include "nsILoadContext.h"
+#include "nsNetUtil.h"
 
 extern PRLogModuleInfo * gWyciwygLog;
 
@@ -32,8 +33,7 @@ extern PRLogModuleInfo * gWyciwygLog;
 
 class nsWyciwygChannel: public nsIWyciwygChannel,
                         public nsIStreamListener,
-                        public nsICacheListener,
-                        public mozilla::net::PrivateBrowsingConsumer
+                        public nsICacheListener
 {
 public:
     NS_DECL_ISUPPORTS
@@ -62,7 +62,7 @@ protected:
     nsresult ReadFromCache();
     nsresult OpenCacheEntry(const nsACString & aCacheKey, nsCacheAccessMode aWriteAccess);
 
-    void WriteCharsetAndSourceToCache(PRInt32 aSource,
+    void WriteCharsetAndSourceToCache(int32_t aSource,
                                       const nsCString& aCharset);
 
     void NotifyListener();
@@ -72,11 +72,11 @@ protected:
     bool                                mIsPending;
     bool                                mCharsetAndSourceSet;
     bool                                mNeedToWriteCharset;
-    bool                                mPrivate;
-    PRInt32                             mCharsetSource;
+    bool                                mPrivateBrowsing;
+    int32_t                             mCharsetSource;
     nsCString                           mCharset;
-    PRInt32                             mContentLength;
-    PRUint32                            mLoadFlags;
+    int32_t                             mContentLength;
+    uint32_t                            mLoadFlags;
     nsCOMPtr<nsIURI>                    mURI;
     nsCOMPtr<nsIURI>                    mOriginalURI;
     nsCOMPtr<nsISupports>               mOwner;

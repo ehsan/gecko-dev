@@ -28,7 +28,7 @@ private:
     friend class nsCacheEntry;
     friend class nsProcessRequestEvent;
 
-    nsCacheRequest( nsCString *           key, 
+    nsCacheRequest( const nsACString &    key,
                     nsICacheListener *    listener,
                     nsCacheAccessMode     accessRequested,
                     bool                  blockingMode,
@@ -55,7 +55,6 @@ private:
     ~nsCacheRequest()
     {
         MOZ_COUNT_DTOR(nsCacheRequest);
-        delete mKey;
         NS_ASSERTION(PR_CLIST_IS_EMPTY(this), "request still on a list");
 
         if (mListener)
@@ -147,8 +146,8 @@ private:
     /**
      * Data members
      */
-    nsCString *                mKey;
-    PRUint32                   mInfo;
+    nsCString                  mKey;
+    uint32_t                   mInfo;
     nsICacheListener *         mListener;  // strong ref
     nsCOMPtr<nsIThread>        mThread;
     Mutex                      mLock;

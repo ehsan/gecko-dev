@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= ../../..
+DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -16,16 +16,29 @@ DIST_FILES = package-name.txt
 
 include $(topsrcdir)/mobile/android/base/android-sync-files.mk
 
-#These SYNC_ variables could be moved to android-sync/fennec-copy-code.sh
-SYNC_RES_XML=res/xml/sync_authenticator.xml
-SYNC_PP_RES_XML=res/xml/sync_syncadapter.xml res/xml/sync_options.xml
+MOZGLUE_JAVA_FILES := \
+  mozglue/DirectBufferAllocator.java \
+  $(NULL)
+
+UTIL_JAVA_FILES := \
+  ActivityResultHandler.java \
+  ActivityResultHandlerMap.java \
+  GeckoAsyncTask.java \
+  GeckoBackgroundThread.java \
+  GeckoEventListener.java \
+  GeckoEventResponder.java \
+  GeckoJarReader.java \
+  INIParser.java \
+  INISection.java \
+  util/EventDispatcher.java \
+  util/FloatUtils.java \
+  $(NULL)
 
 FENNEC_JAVA_FILES = \
   AboutHomeContent.java \
+  AboutHomePromoBox.java \
   AboutHomeSection.java \
   ActivityHandlerHelper.java \
-  ActivityResultHandler.java \
-  ActivityResultHandlerMap.java \
   AndroidImport.java \
   AndroidImportPreference.java \
   AlertNotification.java \
@@ -41,7 +54,6 @@ FENNEC_JAVA_FILES = \
   CameraImageResultHandler.java \
   CameraVideoResultHandler.java \
   SyncPreference.java \
-  db/AndroidBrowserDB.java \
   db/BrowserDB.java \
   db/LocalBrowserDB.java \
   db/DBUtils.java \
@@ -51,22 +63,18 @@ FENNEC_JAVA_FILES = \
   FilePickerResultHandler.java \
   FilePickerResultHandlerSync.java \
   FindInPageBar.java \
-  FloatUtils.java \
   FlowLayout.java \
+  FontSizePreference.java \
   FormAssistPopup.java \
+  GeckoAccessibility.java \
   GeckoApplication.java \
   GeckoApp.java \
   GeckoAppShell.java \
-  GeckoAsyncTask.java \
   GeckoBatteryManager.java \
-  GeckoBackgroundThread.java \
   GeckoConnectivityReceiver.java \
   GeckoEvent.java \
-  GeckoEventListener.java \
-  GeckoEventResponder.java \
   GeckoHalDefines.java \
   GeckoInputConnection.java \
-  GeckoJarReader.java \
   GeckoMenu.java \
   GeckoMenuInflater.java \
   GeckoMenuItem.java \
@@ -76,8 +84,6 @@ FENNEC_JAVA_FILES = \
   GeckoThread.java \
   GlobalHistory.java \
   GeckoViewsFactory.java \
-  INIParser.java \
-  INISection.java \
   InputMethods.java \
   LinkPreference.java \
   LinkTextView.java \
@@ -96,6 +102,7 @@ FENNEC_JAVA_FILES = \
   sqlite/SQLiteBridge.java \
   sqlite/SQLiteBridgeException.java \
   RemoteTabs.java \
+  RobocopAPI.java \
   SetupScreen.java \
   SiteIdentityPopup.java \
   SuggestClient.java \
@@ -109,6 +116,7 @@ FENNEC_JAVA_FILES = \
   TextSelection.java \
   TextSelectionHandle.java \
   WebAppAllocator.java \
+  ZoomConstraints.java \
   gfx/BitmapUtils.java \
   gfx/BufferedCairoImage.java \
   gfx/CairoGLInfo.java \
@@ -126,7 +134,6 @@ FENNEC_JAVA_FILES = \
   gfx/InputConnectionHandler.java \
   gfx/IntSize.java \
   gfx/Layer.java \
-  gfx/LayerController.java \
   gfx/LayerRenderer.java \
   gfx/LayerView.java \
   gfx/PluginLayer.java \
@@ -147,10 +154,13 @@ FENNEC_JAVA_FILES = \
   gfx/VirtualLayer.java \
   ui/Axis.java \
   ui/PanZoomController.java \
+  ui/PanZoomTarget.java \
   ui/SimpleScaleGestureDetector.java \
   ui/SubdocumentScrollHelper.java \
   GeckoNetworkManager.java \
   GeckoScreenOrientationListener.java \
+  $(MOZGLUE_JAVA_FILES) \
+  $(UTIL_JAVA_FILES) \
   $(NULL)
 
 ifdef MOZ_WEBSMS_BACKEND
@@ -159,6 +169,7 @@ endif
 
 FENNEC_PP_JAVA_FILES = \
   App.java \
+  MarketplaceApp.java \
   WebApp.java \
   WebApps.java \
   GeckoActivity.java \
@@ -178,8 +189,8 @@ FENNEC_PP_XML_FILES = \
   res/layout/abouthome_content.xml \
   res/layout-xlarge-land-v11/abouthome_content.xml \
   res/layout/gecko_app.xml \
-  res/layout/text_selection_handles.xml \
   res/layout-xlarge-v11/gecko_app.xml \
+  res/layout/text_selection_handles.xml \
   res/xml/preferences.xml \
   res/menu/browser_app_menu.xml \
   res/menu-v11/browser_app_menu.xml \
@@ -197,10 +208,15 @@ MIN_CPU_VERSION=5
 endif
 
 ifeq (,$(ANDROID_VERSION_CODE))
-ANDROID_VERSION_CODE=$(shell $(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid | cut -c1-10)
+ifeq ($(MIN_CPU_VERSION),7)
+ANDROID_VERSION_CODE=$(shell cat $(DEPTH)/config/buildid | cut -c1-10)
+else
+# decrement the version code by 1 for armv6 builds so armv7 builds will win any compatability ties
+ANDROID_VERSION_CODE=$(shell echo $$((`cat $(DEPTH)/config/buildid | cut -c1-10` - 1)))
+endif
 endif
 
-UA_BUILDID=$(shell $(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-buildid | cut -c1-8)
+UA_BUILDID=$(shell echo $(ANDROID_VERSION_CODE) | cut -c1-8)
 
 # Mangle our package name to avoid Bug 750548.
 DEFINES += \
@@ -237,6 +253,9 @@ GARBAGE += \
 
 GARBAGE_DIRS += classes res sync db
 
+MOZ_ANDROID_SHARED_ID = "$(ANDROID_PACKAGE_NAME).sharedID"
+MOZ_ANDROID_SHARED_ACCOUNT_TYPE = "$(ANDROID_PACKAGE_NAME)_sync"
+
 # Bug 567884 - Need a way to find appropriate icons during packaging
 ifeq ($(MOZ_APP_NAME),fennec)
 ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_48x48.png
@@ -244,19 +263,29 @@ ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_72x72.png
 
 # we released these builds to the public with shared IDs and need to keep them
 ifeq (org.mozilla.firefox,$(ANDROID_PACKAGE_NAME))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.firefox.sharedID"
+MOZ_ANDROID_SHARED_ID = "org.mozilla.firefox.sharedID"
+MOZ_ANDROID_SHARED_ACCOUNT_TYPE = "org.mozilla.firefox_sync"
 else ifeq (org.mozilla.firefox_beta,$(ANDROID_PACKAGE_NAME))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.firefox.sharedID"
+MOZ_ANDROID_SHARED_ID = "org.mozilla.firefox.sharedID"
+MOZ_ANDROID_SHARED_ACCOUNT_TYPE = "org.mozilla.firefox_sync"
 else ifeq (org.mozilla.fennec_aurora,$(ANDROID_PACKAGE_NAME))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.fennec.sharedID"
+MOZ_ANDROID_SHARED_ID = "org.mozilla.fennec.sharedID"
+MOZ_ANDROID_SHARED_ACCOUNT_TYPE = "org.mozilla.fennec_sync"
 else ifeq (org.mozilla.fennec,$(ANDROID_PACKAGE_NAME))
-DEFINES += -DMOZ_ANDROID_SHARED_ID="org.mozilla.fennec.sharedID"
+MOZ_ANDROID_SHARED_ID = "org.mozilla.fennec.sharedID"
+MOZ_ANDROID_SHARED_ACCOUNT_TYPE = "org.mozilla.fennec_sync"
 endif
 
 else
 ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon48.png
 ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon64.png
-DEFINES += -DMOZ_ANDROID_SHARED_ID="$(ANDROID_PACKAGE_NAME).sharedID"
+endif
+
+ifdef MOZ_ANDROID_SHARED_ID
+DEFINES += -DMOZ_ANDROID_SHARED_ID="$(MOZ_ANDROID_SHARED_ID)"
+endif
+ifdef MOZ_ANDROID_SHARED_ACCOUNT_TYPE
+DEFINES += -DMOZ_ANDROID_SHARED_ACCOUNT_TYPE="$(MOZ_ANDROID_SHARED_ACCOUNT_TYPE)"
 endif
 
 RES_LAYOUT = \
@@ -281,6 +310,7 @@ RES_LAYOUT = \
   res/layout/doorhangerpopup.xml \
   res/layout/doorhanger.xml \
   res/layout/find_in_page_content.xml \
+  res/layout/font_size_preference.xml \
   res/layout/web_app.xml \
   res/layout/launch_app_list.xml \
   res/layout/launch_app_listitem.xml \
@@ -306,6 +336,7 @@ RES_LAYOUT = \
   res/layout/select_dialog_list.xml \
   res/layout/abouthome_addon_row.xml \
   res/layout/abouthome_last_tabs_row.xml \
+  res/layout/abouthome_promo_box.xml \
   res/layout/abouthome_section.xml \
   res/layout/abouthome_remote_tab_row.xml \
   res/layout/abouthome_topsite_item.xml \
@@ -330,6 +361,7 @@ RES_LAYOUT_LARGE_V11 = \
 RES_LAYOUT_XLARGE_V11 = \
   res/layout-xlarge-v11/awesomebar_search.xml \
   res/layout-xlarge-v11/browser_toolbar_menu.xml \
+  res/layout-xlarge-v11/font_size_preference.xml \
   res/layout-xlarge-v11/remote_tabs_child.xml \
   res/layout-xlarge-v11/remote_tabs_group.xml \
   res/layout-xlarge-v11/tabs_panel_toolbar_menu.xml \
@@ -391,9 +423,10 @@ RES_DRAWABLE_BASE = \
   res/drawable/folder.png \
   res/drawable/abouthome_icon.png \
   res/drawable/abouthome_logo.png \
-  res/drawable/abouthome_sync_logo.png \
-  res/drawable/abouthome_sync_bg.9.png \
-  res/drawable/abouthome_sync_pressed_bg.9.png \
+  res/drawable/abouthome_promo_box_bg.9.png \
+  res/drawable/abouthome_promo_box_pressed_bg.9.png \
+  res/drawable/abouthome_promo_logo_apps.png \
+  res/drawable/abouthome_promo_logo_sync.png \
   res/drawable/abouthome_thumbnail.png \
   res/drawable/address_bar_bg_shadow.png \
   res/drawable/alert_addon.png \
@@ -475,9 +508,10 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/home_star.png \
   res/drawable-hdpi/abouthome_icon.png \
   res/drawable-hdpi/abouthome_logo.png \
-  res/drawable-hdpi/abouthome_sync_logo.png \
-  res/drawable-hdpi/abouthome_sync_bg.9.png \
-  res/drawable-hdpi/abouthome_sync_pressed_bg.9.png \
+  res/drawable-hdpi/abouthome_promo_box_bg.9.png \
+  res/drawable-hdpi/abouthome_promo_box_pressed_bg.9.png \
+  res/drawable-hdpi/abouthome_promo_logo_apps.png \
+  res/drawable-hdpi/abouthome_promo_logo_sync.png \
   res/drawable-hdpi/abouthome_thumbnail.png \
   res/drawable-hdpi/address_bar_bg_shadow.png \
   res/drawable-hdpi/alert_addon.png \
@@ -541,9 +575,10 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/folder.png \
   res/drawable-xhdpi/abouthome_icon.png \
   res/drawable-xhdpi/abouthome_logo.png \
-  res/drawable-xhdpi/abouthome_sync_logo.png \
-  res/drawable-xhdpi/abouthome_sync_bg.9.png \
-  res/drawable-xhdpi/abouthome_sync_pressed_bg.9.png \
+  res/drawable-xhdpi/abouthome_promo_box_bg.9.png \
+  res/drawable-xhdpi/abouthome_promo_box_pressed_bg.9.png \
+  res/drawable-xhdpi/abouthome_promo_logo_apps.png \
+  res/drawable-xhdpi/abouthome_promo_logo_sync.png \
   res/drawable-xhdpi/abouthome_thumbnail.png \
   res/drawable-xhdpi/address_bar_bg_curve.png \
   res/drawable-xhdpi/address_bar_bg_shadow.png \
@@ -608,7 +643,6 @@ RES_DRAWABLE_MDPI_V11 = \
   res/drawable-mdpi-v11/ic_menu_back.png \
   res/drawable-mdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-mdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-mdpi-v11/ic_menu_clear_site_settings.png \
   res/drawable-mdpi-v11/ic_menu_desktop_mode.png \
   res/drawable-mdpi-v11/ic_menu_find_in_page.png \
   res/drawable-mdpi-v11/ic_menu_forward.png \
@@ -637,7 +671,6 @@ RES_DRAWABLE_HDPI_V11 = \
   res/drawable-hdpi-v11/ic_menu_back.png \
   res/drawable-hdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-hdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-hdpi-v11/ic_menu_clear_site_settings.png \
   res/drawable-hdpi-v11/ic_menu_desktop_mode.png \
   res/drawable-hdpi-v11/ic_menu_find_in_page.png \
   res/drawable-hdpi-v11/ic_menu_forward.png \
@@ -666,7 +699,6 @@ RES_DRAWABLE_XHDPI_V11 = \
   res/drawable-xhdpi-v11/ic_menu_back.png \
   res/drawable-xhdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-xhdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-xhdpi-v11/ic_menu_clear_site_settings.png \
   res/drawable-xhdpi-v11/ic_menu_desktop_mode.png \
   res/drawable-xhdpi-v11/ic_menu_find_in_page.png \
   res/drawable-xhdpi-v11/ic_menu_forward.png \
@@ -930,7 +962,7 @@ MOZ_ANDROID_DRAWABLES += \
   $(SYNC_RES_DRAWABLE)                                                          \
   mobile/android/base/resources/drawable/abouthome_bg_repeat.xml                \
   mobile/android/base/resources/drawable/abouthome_divider.xml                  \
-  mobile/android/base/resources/drawable/abouthome_sync_box.xml                 \
+  mobile/android/base/resources/drawable/abouthome_promo_box.xml                \
   mobile/android/base/resources/drawable/action_bar_button.xml                  \
   mobile/android/base/resources/drawable/address_bar_bg.xml                     \
   mobile/android/base/resources/drawable/address_bar_bg_shadow_repeat.xml       \
@@ -973,6 +1005,7 @@ MOZ_ANDROID_DRAWABLES += \
   mobile/android/base/resources/drawable/tabs_tray_list_divider.xml             \
   mobile/android/base/resources/drawable/tabs_shadow.xml                        \
   mobile/android/base/resources/drawable/shadow.png                             \
+  mobile/android/base/resources/drawable/marketplace.png                        \
   $(NULL)
 
 MOZ_ANDROID_DRAWABLES += $(shell if test -e $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn; then cat $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn | tr '\n' ' ';  fi)
@@ -1017,7 +1050,6 @@ RES_DIRS= \
   res/menu-large-v11            \
   res/menu-xlarge-v11           \
   $(NULL)
-
 
 include $(topsrcdir)/config/rules.mk
 

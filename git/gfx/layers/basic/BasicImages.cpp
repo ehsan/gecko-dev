@@ -49,7 +49,7 @@ public:
 private:
   gfxIntSize mScaleHint;
   int mStride;
-  nsAutoArrayPtr<PRUint8> mDecodedBuffer;
+  nsAutoArrayPtr<uint8_t> mDecodedBuffer;
 };
 
 class BasicImageFactory : public ImageFactory
@@ -57,17 +57,17 @@ class BasicImageFactory : public ImageFactory
 public:
   BasicImageFactory() {}
 
-  virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
-                                              PRUint32 aNumFormats,
+  virtual already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
+                                              uint32_t aNumFormats,
                                               const gfxIntSize &aScaleHint,
                                               BufferRecycleBin *aRecycleBin)
   {
     if (!aNumFormats) {
-      return nsnull;
+      return nullptr;
     }
 
     nsRefPtr<Image> image;
-    if (aFormats[0] == Image::PLANAR_YCBCR) {
+    if (aFormats[0] == PLANAR_YCBCR) {
       image = new BasicPlanarYCbCrImage(aScaleHint, gfxPlatform::GetPlatform()->GetOffscreenFormat(), aRecycleBin);
       return image.forget();
     }
@@ -115,7 +115,7 @@ static cairo_user_data_key_t imageSurfaceDataKey;
 static void
 DestroyBuffer(void* aBuffer)
 {
-  delete[] static_cast<PRUint8*>(aBuffer);
+  delete[] static_cast<uint8_t*>(aBuffer);
 }
 
 already_AddRefed<gfxASurface>
@@ -137,7 +137,7 @@ BasicPlanarYCbCrImage::GetAsSurface()
   nsRefPtr<gfxImageSurface> imgSurface =
       new gfxImageSurface(mDecodedBuffer, mSize, mStride, format);
   if (!imgSurface || imgSurface->CairoStatus() != 0) {
-    return nsnull;
+    return nullptr;
   }
 
   // Pass ownership of the buffer to the surface

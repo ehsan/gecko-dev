@@ -39,9 +39,31 @@ CairoPathContext::CairoPathContext(cairo_t* aCtx, DrawTargetCairo* aDrawTarget,
 CairoPathContext::~CairoPathContext()
 {
   if (mDrawTarget) {
-    mDrawTarget->SetPathObserver(NULL);
+    mDrawTarget->SetPathObserver(nullptr);
   }
   cairo_destroy(mContext);
+}
+
+void
+CairoPathContext::ObserveTarget(DrawTargetCairo* aDrawTarget)
+{
+  if (!aDrawTarget) {
+    return;
+  }
+
+  if (mDrawTarget) {
+    mDrawTarget->SetPathObserver(nullptr);
+  }
+  mDrawTarget = aDrawTarget;
+
+  // If there is a transform on the path, then we must have a separate context
+  // from the draw target, so we cannot be its observer
+  if (!mTransform.IsIdentity()) {
+    ForgetDrawTarget();
+    return;
+  }
+
+  mDrawTarget->SetPathObserver(this);
 }
 
 void
@@ -137,7 +159,7 @@ CairoPathContext::CopyPathTo(cairo_t* aToContext)
 void
 CairoPathContext::ForgetDrawTarget()
 {
-  mDrawTarget = NULL;
+  mDrawTarget = nullptr;
 }
 
 bool
@@ -320,11 +342,7 @@ PathCairo::CopyPathTo(cairo_t* aContext, DrawTargetCairo* aDrawTarget)
 
     // Since aDrawTarget wants us to be the current path on its context, we
     // should also listen to it for updates to that path (as an optimization).
-    // The easiest way to do this is to just recreate mPathContext, since it
-    // registers with aDrawTarget for updates.
-    mPathContext = new CairoPathContext(aContext, aDrawTarget,
-                                        mPathContext->GetFillRule(),
-                                        mPathContext->GetTransform());
+    mPathContext->ObserveTarget(aDrawTarget);
   }
 }
 

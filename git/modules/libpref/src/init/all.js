@@ -36,6 +36,8 @@ pref("browser.cache.disk.enable",           true);
 pref("browser.cache.disk.smart_size.first_run", true);
 // Does the user want smart-sizing?
 pref("browser.cache.disk.smart_size.enabled", true);
+// Which max value should we use for smart-sizing?
+pref("browser.cache.disk.smart_size.use_old_max", true);
 // Size (in KB) explicitly set by the user. Used when smart_size.enabled == false
 pref("browser.cache.disk.capacity",         256000);
 // Max-size (in KB) for entries in disk cache. Set to -1 for no limit.
@@ -166,7 +168,13 @@ pref("media.webm.enabled", true);
 #ifdef MOZ_GSTREAMER
 pref("media.h264.enabled", true);
 #endif
-
+#ifdef MOZ_WEBRTC
+pref("media.navigator.enabled", false);
+#else
+#ifdef ANDROID
+pref("media.navigator.enabled", true);
+#endif
+#endif
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
@@ -223,12 +231,21 @@ pref("gfx.font_rendering.directwrite.enabled", false);
 pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 
-#ifdef XP_WIN
 pref("gfx.canvas.azure.enabled", true);
+#ifdef XP_WIN
+// comma separated list of backends to use in order of preference
+// e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
+pref("gfx.canvas.azure.backends", "direct2d,cairo");
 pref("gfx.content.azure.enabled", true);
 #else
 #ifdef XP_MACOSX
-pref("gfx.canvas.azure.enabled", true);
+pref("gfx.canvas.azure.backends", "cg");
+#else
+#ifdef ANDROID
+pref("gfx.canvas.azure.backends", "cairo");
+#else
+pref("gfx.canvas.azure.backends", "cairo");
+#endif
 #endif
 #endif
 
@@ -352,6 +369,10 @@ pref("nglayout.enable_drag_images", true);
 
 // enable/disable paint flashing --- useful for debugging
 pref("nglayout.debug.paint_flashing", false);
+
+// enable/disable widget update area flashing --- only supported with 
+// BasicLayers (other layer managers always update the entire widget area)
+pref("nglayout.debug.widget_update_flashing", false);
 
 // scrollbar snapping region
 // 0 - off
@@ -678,7 +699,7 @@ pref("javascript.options.methodjit.chrome",  true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
-pref("javascript.options.xml.content", true);
+pref("javascript.options.xml.content", false);
 pref("javascript.options.xml.chrome", true);
 pref("javascript.options.jit_hardening", true);
 pref("javascript.options.typeinference", true);
@@ -704,6 +725,8 @@ pref("javascript.options.mem.gc_high_frequency_heap_growth_min", 150);
 pref("javascript.options.mem.gc_low_frequency_heap_growth", 150);
 pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
+
+pref("javascript.options.mem.analysis_purge_mb", 100);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -777,8 +800,6 @@ pref("network.http.use-cache", true);
 // HTTP traffic.  an empty value indicates the normal TCP/IP socket type.
 pref("network.http.default-socket-type", "");
 
-pref("network.http.keep-alive", true); // set it to false in case of problems
-pref("network.http.proxy.keep-alive", true);
 // There is a problem with some IIS7 servers that don't close the connection
 // properly after it times out (bug #491541). Default timeout on IIS7 is
 // 120 seconds. We need to reuse or drop the connection within this time.
@@ -792,17 +813,12 @@ pref("network.http.keep-alive.timeout", 115);
 // file descriptors for things other than sockets.   
 pref("network.http.max-connections", 256);
 
-// limit the absolute number of http connections that can be established per
-// host.  if a http proxy server is enabled, then the "server" is the proxy
-// server.  Otherwise, "server" is the http origin server.
-pref("network.http.max-connections-per-server", 15);
-
-// if network.http.keep-alive is true, and if NOT connecting via a proxy, then
+// If NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
 // connections to the server is less then max-persistent-connections-per-server.
 pref("network.http.max-persistent-connections-per-server", 6);
 
-// if network.http.keep-alive is true, and if connecting via a proxy, then a
+// If connecting via a proxy, then a
 // new connection will only be attempted if the number of active persistent
 // connections to the proxy is less then max-persistent-connections-per-proxy.
 pref("network.http.max-persistent-connections-per-proxy", 8);
@@ -1317,13 +1333,13 @@ pref("security.csp.debug", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
-// Use 17 for Ctrl, 18 for Alt, 224 for Meta, 0 for none. Mac settings in macprefs.js
+// Use 17 for Ctrl, 18 for Alt, 224 for Meta, 91 for Win, 0 for none. Mac settings in macprefs.js
 pref("ui.key.accelKey", 17);
 pref("ui.key.menuAccessKey", 18);
 pref("ui.key.generalAccessKey", -1);
 
 // If generalAccessKey is -1, use the following two prefs instead.
-// Use 0 for disabled, 1 for Shift, 2 for Ctrl, 4 for Alt, 8 for Meta
+// Use 0 for disabled, 1 for Shift, 2 for Ctrl, 4 for Alt, 8 for Meta, 16 for Win
 // (values can be combined, e.g. 5 for Alt+Shift)
 pref("ui.key.chromeAccess", 4);
 pref("ui.key.contentAccess", 5);
@@ -1367,40 +1383,46 @@ pref("mousewheel.acceleration.factor", 10);
 pref("mousewheel.system_scroll_override_on_root_content.vertical.factor", 200);
 pref("mousewheel.system_scroll_override_on_root_content.horizontal.factor", 200);
 
-// 0=lines, 1=pages, 2=history , 3=text size
-pref("mousewheel.withnokey.action",0);
-pref("mousewheel.withnokey.numlines",6);
-pref("mousewheel.withnokey.sysnumlines",true);
-pref("mousewheel.withcontrolkey.action",0);
-pref("mousewheel.withcontrolkey.numlines",1);
-pref("mousewheel.withcontrolkey.sysnumlines",true);
-// mousewheel.withshiftkey, see the Mac note below.
-pref("mousewheel.withshiftkey.action",0);
-pref("mousewheel.withshiftkey.numlines",1);
-pref("mousewheel.withshiftkey.sysnumlines",true);
-pref("mousewheel.withaltkey.action",2);
-pref("mousewheel.withaltkey.numlines",1);
-pref("mousewheel.withaltkey.sysnumlines",false);
-pref("mousewheel.withmetakey.action",0);
-pref("mousewheel.withmetakey.numlines",1);
-pref("mousewheel.withmetakey.sysnumlines",true);
+// mousewheel.*.action can specify the action when you use mosue wheel.
+// When no modifier keys are pressed or two or more modifires are pressed,
+// .default is used.
+// 0: Nothing happens
+// 1: Scrolling contents
+// 2: Go back or go forward, in your history
+// 3: Zoom in or out.
+pref("mousewheel.default.action", 1);
+pref("mousewheel.with_alt.action", 2);
+pref("mousewheel.with_control.action", 3);
+pref("mousewheel.with_meta.action", 1);  // command key on Mac
+pref("mousewheel.with_shift.action", 1);
+pref("mousewheel.with_win.action", 1);
 
-// activate horizontal scrolling by default
-pref("mousewheel.horizscroll.withnokey.action",0);
-pref("mousewheel.horizscroll.withnokey.numlines",1);
-pref("mousewheel.horizscroll.withnokey.sysnumlines",true);
-pref("mousewheel.horizscroll.withcontrolkey.action",0);
-pref("mousewheel.horizscroll.withcontrolkey.numlines",1);
-pref("mousewheel.horizscroll.withcontrolkey.sysnumlines",true);
-pref("mousewheel.horizscroll.withshiftkey.action",0);
-pref("mousewheel.horizscroll.withshiftkey.numlines",1);
-pref("mousewheel.horizscroll.withshiftkey.sysnumlines",true);
-pref("mousewheel.horizscroll.withaltkey.action",2);
-pref("mousewheel.horizscroll.withaltkey.numlines",-1);
-pref("mousewheel.horizscroll.withaltkey.sysnumlines",false);
-pref("mousewheel.horizscroll.withmetakey.action",0);
-pref("mousewheel.horizscroll.withmetakey.numlines",1);
-pref("mousewheel.horizscroll.withmetakey.sysnumlines",true);
+// mousewheel.*.delta_multiplier_* can specify the value muliplied by the delta
+// value.  The values will be used after divided by 100.  I.e., 100 means 1.0,
+// -100 means -1.0.  If the values were negative, the direction would be
+// reverted.  The absolue value must be 100 or larger.
+pref("mousewheel.default.delta_multiplier_x", 100);
+pref("mousewheel.default.delta_multiplier_y", 100);
+pref("mousewheel.default.delta_multiplier_z", 100);
+pref("mousewheel.with_alt.delta_multiplier_x", 100);
+pref("mousewheel.with_alt.delta_multiplier_y", 100);
+pref("mousewheel.with_alt.delta_multiplier_z", 100);
+pref("mousewheel.with_control.delta_multiplier_x", 100);
+pref("mousewheel.with_control.delta_multiplier_y", 100);
+pref("mousewheel.with_control.delta_multiplier_z", 100);
+pref("mousewheel.with_meta.delta_multiplier_x", 100);  // command key on Mac
+pref("mousewheel.with_meta.delta_multiplier_y", 100);  // command key on Mac
+pref("mousewheel.with_meta.delta_multiplier_z", 100);  // command key on Mac
+pref("mousewheel.with_shift.delta_multiplier_x", 100);
+pref("mousewheel.with_shift.delta_multiplier_y", 100);
+pref("mousewheel.with_shift.delta_multiplier_z", 100);
+pref("mousewheel.with_win.delta_multiplier_x", 100);
+pref("mousewheel.with_win.delta_multiplier_y", 100);
+pref("mousewheel.with_win.delta_multiplier_z", 100);
+
+// If line-height is lower than this value (in device pixels), 1 line scroll
+// scrolls this height.
+pref("mousewheel.min_line_scroll_amount", 5);
 
 // These define the smooth scroll behavior (min ms, max ms) for different triggers
 // Some triggers:
@@ -1550,6 +1572,9 @@ pref("layout.css.dpi", -1);
 // we have to get this feature working on all platforms.
 pref("layout.css.devPixelsPerPx", "1.0");
 
+// Is support for the the @supports rule enabled?
+pref("layout.css.supports-rule.enabled", true);
+
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
 // 1 = end-side in document/content direction
@@ -1647,20 +1672,13 @@ pref("dom.ipc.plugins.java.enabled", false);
 
 pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
 
-#ifndef ANDROID
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
-// Linux plugins using Xt instead of Xembed don't work out-of-process yet.
-pref("dom.ipc.plugins.enabled.libvlcplugin.so", false);
-pref("dom.ipc.plugins.enabled.nppdf.so", false);
-pref("dom.ipc.plugins.enabled.602plugin.so", false);
-#endif
-#endif
-#endif
-
 pref("dom.ipc.processCount", 1);
 
 pref("svg.smil.enabled", true);
+
+// Enable the use of display-lists for SVG hit-testing and painting.
+pref("svg.display-lists.hit-testing.enabled", true);
+pref("svg.display-lists.painting.enabled", true);
 
 pref("font.minimum-size.ar", 0);
 pref("font.minimum-size.x-armn", 0);
@@ -1739,6 +1757,29 @@ pref("font.size.inflation.minTwips", 0);
  * A value of 0 means there's no character length threshold.
  */
 pref("font.size.inflation.lineThreshold", 400);
+
+/*
+ * Defines the font size inflation mapping intercept parameter.
+ *
+ * Font size inflation computes a minimum font size, m, based on
+ * other preferences (see font.size.inflation.minTwips and
+ * font.size.inflation.emPerLine, above) and the width of the
+ * frame in which the text resides. Using this minimum, a specified
+ * font size, s, is mapped to an inflated font size, i, using an
+ * equation that varies depending on the value of the font size
+ * inflation mapping intercept parameter, P:
+ *
+ * If the intercept parameter is negative, then the following mapping
+ * function is used:
+ *
+ * i = m + s
+ *
+ * If the intercept parameter is non-negative, then the mapping function
+ * is a function such that its graph meets the graph of i = s at the
+ * point where both i and s are (1 + P/2) * m for values of s that are
+ * large enough. This means that when s=0, i is always equal to m.
+ */
+pref("font.size.inflation.mappingIntercept", 1);
 
 #ifdef XP_WIN
 
@@ -3464,9 +3505,6 @@ pref("image.mem.decode_bytes_at_a_time", 4096);
 // The longest time we can spend in an iteration of an async decode
 pref("image.mem.max_ms_before_yield", 5);
 
-// The maximum source data size for which we auto sync decode
-pref("image.mem.max_bytes_for_sync_decode", 150000);
-
 // The maximum amount of decoded image data we'll willingly keep around (we
 // might keep around more than this, but we'll try to get down to this value).
 pref("image.mem.max_decoded_image_kb", 51200);
@@ -3482,6 +3520,9 @@ pref("webgl.min_capability_mode", false);
 pref("webgl.disable-extensions", false);
 pref("webgl.msaa-level", 2);
 pref("webgl.msaa-force", false);
+pref("webgl.prefer-16bpp", false);
+pref("webgl.default-no-alpha", false);
+pref("webgl.force-layers-readback", false);
 
 #ifdef XP_WIN
 // The default TCP send window on Windows is too small, and autotuning only occurs on receive
@@ -3503,6 +3544,11 @@ pref("layers.acceleration.disabled", false);
 pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
+
+// Whether to animate simple opacity and transforms on the compositor
+pref("layers.offmainthreadcomposition.animate-opacity", false);
+pref("layers.offmainthreadcomposition.animate-transform", false);
+pref("layers.offmainthreadcomposition.log-animations", false);
 
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2
@@ -3529,7 +3575,7 @@ pref("layers.prefer-d3d9", false);
 pref("geo.enabled", true);
 
 // Enable/Disable the orientation API for content
-pref("device.motion.enabled", true);
+pref("device.sensors.enabled", true);
 
 // Enable/Disable the device storage API for content
 pref("device.storage.enabled", false);
@@ -3592,11 +3638,9 @@ pref("dom.battery.enabled", true);
 
 // WebSMS
 pref("dom.sms.enabled", false);
-pref("dom.sms.whitelist", "");
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);
-pref("dom.mozContacts.whitelist", "");
 
 // WebAlarms
 pref("dom.mozAlarms.enabled", false);
@@ -3641,3 +3685,7 @@ pref("memory.low_memory_notification_interval_ms", 10000);
 pref("memory.ghost_window_timeout_seconds", 60);
 
 pref("social.enabled", false);
+
+// Disable idle observer fuzz, because only privileged content can access idle
+// observers (bug 780507).
+pref("dom.idle-observers-api.fuzz_time.disabled", true);

@@ -73,7 +73,9 @@ void nsMediaPluginHost::TryLoad(const char *name)
 
 nsMediaPluginHost::nsMediaPluginHost() {
   MOZ_COUNT_CTOR(nsMediaPluginHost);
-#ifdef ANDROID
+#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
+  TryLoad("lib/libomxplugin.so");
+#elif defined(ANDROID) && defined(MOZ_WIDGET_GONK)
   TryLoad("libomxplugin.so");
 #endif
 }
@@ -85,7 +87,7 @@ nsMediaPluginHost::~nsMediaPluginHost() {
 bool nsMediaPluginHost::FindDecoder(const nsACString& aMimeType, const char* const** aCodecs)
 {
   const char *chars;
-  size_t len = NS_CStringGetData(aMimeType, &chars, nsnull);
+  size_t len = NS_CStringGetData(aMimeType, &chars, nullptr);
   for (size_t n = 0; n < mPlugins.Length(); ++n) {
     Manifest *plugin = mPlugins[n];
     const char* const *codecs;
@@ -106,11 +108,11 @@ Decoder::Decoder() :
 MPAPI::Decoder *nsMediaPluginHost::CreateDecoder(MediaResource *aResource, const nsACString& aMimeType)
 {
   const char *chars;
-  size_t len = NS_CStringGetData(aMimeType, &chars, nsnull);
+  size_t len = NS_CStringGetData(aMimeType, &chars, nullptr);
 
   Decoder *decoder = new Decoder();
   if (!decoder) {
-    return nsnull;
+    return nullptr;
   }
   decoder->mResource = aResource;
 
@@ -125,7 +127,7 @@ MPAPI::Decoder *nsMediaPluginHost::CreateDecoder(MediaResource *aResource, const
     }
   }
 
-  return nsnull;
+  return nullptr;
 }
 
 void nsMediaPluginHost::DestroyDecoder(Decoder *aDecoder)
@@ -134,7 +136,7 @@ void nsMediaPluginHost::DestroyDecoder(Decoder *aDecoder)
   delete aDecoder;
 }
 
-nsMediaPluginHost *sMediaPluginHost = nsnull;
+nsMediaPluginHost *sMediaPluginHost = nullptr;
 nsMediaPluginHost *GetMediaPluginHost()
 {
   if (!sMediaPluginHost) {
@@ -147,7 +149,7 @@ void nsMediaPluginHost::Shutdown()
 {
   if (sMediaPluginHost) {
     delete sMediaPluginHost;
-    sMediaPluginHost = nsnull;
+    sMediaPluginHost = nullptr;
   }
 }
 

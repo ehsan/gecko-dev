@@ -6,56 +6,102 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.GfxInfoThread;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerController;
+import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.ScreenshotLayer;
-import org.mozilla.gecko.FloatUtils;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.ViewportMetrics;
 import org.mozilla.gecko.gfx.RectUtils;
+import org.mozilla.gecko.gfx.ScreenshotLayer;
+import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.gecko.util.GeckoBackgroundThread;
+import org.mozilla.gecko.util.GeckoEventListener;
 
-import java.io.*;
-import java.lang.reflect.*;
-import java.nio.*;
-import java.net.URL;
-import java.net.MalformedURLException;
-import java.text.*;
-import java.util.*;
-import java.util.zip.*;
-import java.util.concurrent.*;
-
-import android.os.*;
-import android.app.*;
-import android.text.*;
-import android.view.*;
-import android.view.inputmethod.*;
-import android.content.*;
-import android.content.res.*;
-import android.content.pm.*;
-import android.graphics.*;
-import android.widget.*;
-import android.hardware.*;
-import android.location.*;
-import android.webkit.MimeTypeMap;
+import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.res.TypedArray;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.SurfaceTexture;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationManager;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
-import android.provider.Settings;
-import android.opengl.GLES20;
-
-import android.util.*;
-import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
+import android.opengl.GLES20;
+import android.os.Build;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.os.MessageQueue;
+import android.os.StatFs;
+import android.os.Vibrator;
+import android.provider.Settings;
+import android.util.Base64;
+import android.util.DisplayMetrics;
+import android.util.FloatMath;
+import android.util.Log;
+import android.view.ContextThemeWrapper;
+import android.view.HapticFeedbackConstants;
+import android.view.Surface;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.webkit.MimeTypeMap;
+import android.widget.Toast;
 
-import android.graphics.Bitmap;
-import android.graphics.drawable.*;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.NumberFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.NoSuchElementException;
+import java.util.Queue;
+import java.util.StringTokenizer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.SynchronousQueue;
 
 public class GeckoAppShell
 {
@@ -99,8 +145,7 @@ public class GeckoAppShell
     private static Boolean sNSSLibsLoaded = false;
     private static Boolean sLibsSetup = false;
     private static File sGREDir = null;
-    private static Map<String, CopyOnWriteArrayList<GeckoEventListener>> mEventListeners
-            = new HashMap<String, CopyOnWriteArrayList<GeckoEventListener>>();
+    private static final EventDispatcher sEventDispatcher = new EventDispatcher();
 
     /* Is the value in sVibrationEndTime valid? */
     private static boolean sVibrationMaybePlaying = false;
@@ -207,8 +252,6 @@ public class GeckoAppShell
     public static native void notifyGotNextMessage(int aMessageId, String aReceiver, String aSender, String aBody, long aTimestamp, int aRequestId, long aProcessId);
     public static native void notifyReadingMessageListFailed(int aError, int aRequestId, long aProcessId);
 
-    public static native ByteBuffer allocateDirectBuffer(long size);
-    public static native void freeDirectBuffer(ByteBuffer buf);
     public static native void scheduleComposite();
     public static native void schedulePauseComposition();
     public static native void scheduleResumeComposition(int width, int height);
@@ -354,14 +397,18 @@ public class GeckoAppShell
             if (Build.VERSION.SDK_INT >= 8) {
                 downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 updatesDir  = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            } else {
-                updatesDir = downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
+            }
+            if (downloadDir == null) {
+                downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
+            }
+            if (updatesDir == null) {
+                updatesDir = downloadDir;
             }
             GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
             GeckoAppShell.putenv("UPDATES_DIRECTORY="   + updatesDir.getPath());
         }
         catch (Exception e) {
-            Log.i(LOGTAG, "No download directory has been found: " + e);
+            Log.i(LOGTAG, "No download directory has been found: ", e);
         }
     }
 
@@ -469,7 +516,7 @@ public class GeckoAppShell
         Log.i(LOGTAG, "post native init");
 
         // Tell Gecko where the target byte buffer is for rendering
-        GeckoAppShell.setLayerClient(GeckoApp.mAppContext.getLayerClient());
+        GeckoAppShell.setLayerClient(GeckoApp.mAppContext.getLayerView().getLayerClient());
 
         Log.i(LOGTAG, "setLayerClient called");
 
@@ -484,7 +531,7 @@ public class GeckoAppShell
         if (restoreMode != RESTORE_NONE)
             combinedArgs += " -restoremode " + restoreMode;
 
-        DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
+        DisplayMetrics metrics = GeckoApp.mAppContext.getResources().getDisplayMetrics();
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
         GeckoApp.mAppContext.runOnUiThread(new Runnable() {
@@ -499,10 +546,9 @@ public class GeckoAppShell
 
     // Called on the UI thread after Gecko loads.
     private static void geckoLoaded() {
-        final LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        LayerView v = layerController.getView();
-        mInputConnection = v.setInputConnectionHandler();
-        layerController.notifyLayerClientOfGeometryChange();
+        LayerView v = GeckoApp.mAppContext.getLayerView();
+        mInputConnection = GeckoInputConnection.create(v);
+        v.setInputConnectionHandler(mInputConnection);
     }
 
     static void sendPendingEventsToGecko() {
@@ -539,12 +585,12 @@ public class GeckoAppShell
             mInputConnection.notifyIME(type, state);
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint,
+    public static void notifyIMEEnabled(int state, String typeHint, String modeHint,
                                         String actionHint, boolean landscapeFS) {
         // notifyIMEEnabled() still needs the landscapeFS parameter because it is called from JNI
         // code that assumes it has the same signature as XUL Fennec's (which does use landscapeFS).
         if (mInputConnection != null)
-            mInputConnection.notifyIMEEnabled(state, typeHint, actionHint);
+            mInputConnection.notifyIMEEnabled(state, typeHint, modeHint, actionHint);
     }
 
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
@@ -773,10 +819,14 @@ public class GeckoAppShell
         if (index == -1)
             return null;
 
+        return getWebAppIntent(index, aURI);
+    }
+
+    public static Intent getWebAppIntent(int aIndex, String aURI) {
         Intent intent = new Intent();
-        intent.setAction(GeckoApp.ACTION_WEBAPP_PREFIX + index);
+        intent.setAction(GeckoApp.ACTION_WEBAPP_PREFIX + aIndex);
         intent.setData(Uri.parse(aURI));
-        intent.setClassName(GeckoApp.mAppContext, GeckoApp.mAppContext.getPackageName() + ".WebApps$WebApp" + index);
+        intent.setClassName(GeckoApp.mAppContext, GeckoApp.mAppContext.getPackageName() + ".WebApps$WebApp" + aIndex);
         return intent;
     }
 
@@ -1374,7 +1424,7 @@ public class GeckoAppShell
 
     public static int getDpi() {
         if (sDensityDpi == 0) {
-            sDensityDpi = GeckoApp.mAppContext.getDisplayMetrics().densityDpi;
+            sDensityDpi = GeckoApp.mAppContext.getResources().getDisplayMetrics().densityDpi;
         }
 
         return sDensityDpi;
@@ -1396,8 +1446,7 @@ public class GeckoAppShell
         // Don't perform haptic feedback if a vibration is currently playing,
         // because the haptic feedback will nuke the vibration.
         if (!sVibrationMaybePlaying || System.nanoTime() >= sVibrationEndTime) {
-            LayerController layerController = GeckoApp.mAppContext.getLayerController();
-            LayerView layerView = layerController.getView();
+            LayerView layerView = GeckoApp.mAppContext.getLayerView();
             layerView.performHapticFeedback(aIsLongPress ?
                                             HapticFeedbackConstants.LONG_PRESS :
                                             HapticFeedbackConstants.VIRTUAL_KEY);
@@ -1405,9 +1454,7 @@ public class GeckoAppShell
     }
 
     private static Vibrator vibrator() {
-        LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        LayerView layerView = layerController.getView();
-
+        LayerView layerView = GeckoApp.mAppContext.getLayerView();
         return (Vibrator) layerView.getContext().getSystemService(Context.VIBRATOR_SERVICE);
     }
 
@@ -1454,7 +1501,7 @@ public class GeckoAppShell
     public static void notifyDefaultPrevented(final boolean defaultPrevented) {
         getMainHandler().post(new Runnable() {
             public void run() {
-                LayerView view = GeckoApp.mAppContext.getLayerController().getView();
+                LayerView view = GeckoApp.mAppContext.getLayerView();
                 view.getTouchEventHandler().handleEventListenerAction(!defaultPrevented);
             }
         });
@@ -1890,18 +1937,12 @@ public class GeckoAppShell
      *
      * This method is referenced by Robocop via reflection.
      */
-    public static void registerGeckoEventListener(String event, GeckoEventListener listener) {
-        synchronized (mEventListeners) {
-            CopyOnWriteArrayList<GeckoEventListener> listeners = mEventListeners.get(event);
-            if (listeners == null) {
-                // create a CopyOnWriteArrayList so that we can modify it
-                // concurrently with iterating through it in handleGeckoMessage.
-                // Otherwise we could end up throwing a ConcurrentModificationException.
-                listeners = new CopyOnWriteArrayList<GeckoEventListener>();
-            }
-            listeners.add(listener);
-            mEventListeners.put(event, listeners);
-        }
+    public static void registerEventListener(String event, GeckoEventListener listener) {
+        sEventDispatcher.registerEventListener(event, listener);
+    }
+
+    static EventDispatcher getEventDispatcher() {
+        return sEventDispatcher;
     }
 
     static SynchronousQueue<Date> sTracerQueue = new SynchronousQueue<Date>();
@@ -1931,17 +1972,8 @@ public class GeckoAppShell
      *
      * This method is referenced by Robocop via reflection.
      */
-    public static void unregisterGeckoEventListener(String event, GeckoEventListener listener) {
-        synchronized (mEventListeners) {
-            CopyOnWriteArrayList<GeckoEventListener> listeners = mEventListeners.get(event);
-            if (listeners == null) {
-                return;
-            }
-            listeners.remove(listener);
-            if (listeners.size() == 0) {
-                mEventListeners.remove(event);
-            }
-        }
+    public static void unregisterEventListener(String event, GeckoEventListener listener) {
+        sEventDispatcher.unregisterEventListener(event, listener);
     }
 
     /*
@@ -1952,45 +1984,7 @@ public class GeckoAppShell
     }
 
     public static String handleGeckoMessage(String message) {
-        //        
-        //        {"gecko": {
-        //                "type": "value",
-        //                "event_specific": "value",
-        //                ....
-        try {
-            JSONObject json = new JSONObject(message);
-            final JSONObject geckoObject = json.getJSONObject("gecko");
-            String type = geckoObject.getString("type");
-            
-            CopyOnWriteArrayList<GeckoEventListener> listeners;
-            synchronized (mEventListeners) {
-                listeners = mEventListeners.get(type);
-            }
-
-            if (listeners == null)
-                return "";
-
-            String response = null;
-
-            for (GeckoEventListener listener : listeners) {
-                listener.handleMessage(type, geckoObject);
-                if (listener instanceof GeckoEventResponder) {
-                    String newResponse = ((GeckoEventResponder)listener).getResponse();
-                    if (response != null && newResponse != null) {
-                        Log.e(LOGTAG, "Received two responses for message of type " + type);
-                    }
-                    response = newResponse;
-                }
-            }
-
-            if (response != null)
-                return response;
-
-        } catch (Exception e) {
-            Log.e(LOGTAG, "handleGeckoMessage throws " + e, e);
-        }
-
-        return "";
+        return sEventDispatcher.dispatchEvent(message);
     }
 
     public static void disableBatteryNotifications() {
@@ -2349,7 +2343,7 @@ class ScreenshotHandler implements Runnable {
         mMaxPixels = Math.min(ScreenshotLayer.getMaxNumPixels(), mMaxTextureSize * mMaxTextureSize);
         mMinTextureSize = (int)Math.ceil(mMaxPixels / mMaxTextureSize);
         mPendingScreenshots = new LinkedList<PendingScreenshot>();
-        mBuffer = GeckoAppShell.allocateDirectBuffer(mMaxPixels * BYTES_FOR_16BPP);
+        mBuffer = DirectBufferAllocator.allocate(mMaxPixels * BYTES_FOR_16BPP);
         mDirtyRect = new RectF();
         clearDirtyRect();
     }
@@ -2372,11 +2366,11 @@ class ScreenshotHandler implements Runnable {
     }
 
     private void screenshotWholePage(int tabId) {
-        LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        if (layerController == null) {
+        LayerView layerView = GeckoApp.mAppContext.getLayerView();
+        if (layerView == null) {
             return;
         }
-        ImmutableViewportMetrics viewport = layerController.getViewportMetrics();
+        ImmutableViewportMetrics viewport = layerView.getViewportMetrics();
         RectF pageRect = viewport.getCssPageRect();
 
         if (FloatUtils.fuzzyEquals(pageRect.width(), 0) || FloatUtils.fuzzyEquals(pageRect.height(), 0)) {
@@ -2476,14 +2470,14 @@ class ScreenshotHandler implements Runnable {
             return;
         }
 
-        LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        if (layerController == null) {
+        LayerView layerView = GeckoApp.mAppContext.getLayerView();
+        if (layerView == null) {
             // we could be in the midst of an activity tear-down and re-start, so guard
-            // against a null layer controller.
+            // against a null layer view
             return;
         }
 
-        ImmutableViewportMetrics viewport = layerController.getViewportMetrics();
+        ImmutableViewportMetrics viewport = layerView.getViewportMetrics();
         if (RectUtils.fuzzyEquals(mPageRect, viewport.getCssPageRect())) {
             // the page size hasn't changed, so our dirty rect is still valid and we can just
             // repaint that area
@@ -2563,9 +2557,9 @@ class ScreenshotHandler implements Runnable {
                                 // this screenshot has all its slices done, so push it out
                                 // to the layer renderer and remove it from the list
                             }
-                            LayerController layerController = GeckoApp.mAppContext.getLayerController();
-                            if (layerController != null) {
-                                layerController.getView().getRenderer().setCheckerboardBitmap(
+                            LayerView layerView = GeckoApp.mAppContext.getLayerView();
+                            if (layerView != null) {
+                                layerView.getRenderer().setCheckerboardBitmap(
                                     data, bufferWidth, bufferHeight, handler.mPageRect,
                                     current.getPaintedRegion());
                             }

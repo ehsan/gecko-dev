@@ -79,12 +79,11 @@ private:
 
 // nsWyciwygChannel methods 
 nsWyciwygChannel::nsWyciwygChannel()
-  : PrivateBrowsingConsumer(this),
-    mStatus(NS_OK),
+  : mStatus(NS_OK),
     mIsPending(false),
     mCharsetAndSourceSet(false),
     mNeedToWriteCharset(false),
-    mPrivate(false),
+    mPrivateBrowsing(false),
     mCharsetSource(kCharsetUninitialized),
     mContentLength(-1),
     mLoadFlags(LOAD_NORMAL)
@@ -198,14 +197,14 @@ nsWyciwygChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetLoadFlags(PRUint32 aLoadFlags)
+nsWyciwygChannel::SetLoadFlags(uint32_t aLoadFlags)
 {
   mLoadFlags = aLoadFlags;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetLoadFlags(PRUint32 * aLoadFlags)
+nsWyciwygChannel::GetLoadFlags(uint32_t * aLoadFlags)
 {
   *aLoadFlags = mLoadFlags;
   return NS_OK;
@@ -272,6 +271,10 @@ nsWyciwygChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationC
                                 mLoadGroup,
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
+
+  // Will never change unless SetNotificationCallbacks called again, so cache
+  mPrivateBrowsing = NS_UsePrivateBrowsing(this);
+
   return NS_OK;
 }
 
@@ -310,7 +313,7 @@ nsWyciwygChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetContentDisposition(PRUint32 *aContentDisposition)
+nsWyciwygChannel::GetContentDisposition(uint32_t *aContentDisposition)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -328,14 +331,14 @@ nsWyciwygChannel::GetContentDispositionHeader(nsACString &aContentDispositionHea
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetContentLength(PRInt32 *aContentLength)
+nsWyciwygChannel::GetContentLength(int32_t *aContentLength)
 {
   *aContentLength = mContentLength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetContentLength(PRInt32 aContentLength)
+nsWyciwygChannel::SetContentLength(int32_t aContentLength)
 {
   mContentLength = aContentLength;
 
@@ -378,7 +381,7 @@ nsWyciwygChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
   mListenerContext = ctx;
 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nsnull);
+    mLoadGroup->AddRequest(this, nullptr);
 
   return NS_OK;
 }
@@ -395,9 +398,6 @@ nsWyciwygChannel::WriteToCacheEntry(const nsAString &aData)
   nsresult rv = mURI->GetAsciiSpec(spec);
   if (NS_FAILED(rv)) 
     return rv;
-
-  // UsePrivateBrowsing deals with non-threadsafe objects
-  mPrivate = UsePrivateBrowsing();
 
   return mCacheIOTarget->Dispatch(new nsWyciwygWriteEvent(this, aData, spec),
                                   NS_DISPATCH_NORMAL);
@@ -429,7 +429,7 @@ nsWyciwygChannel::WriteToCacheEntryInternal(const nsAString &aData, const nsACSt
     mNeedToWriteCharset = false;
   }
   
-  PRUint32 out;
+  uint32_t out;
   if (!mCacheOutputStream) {
     // Get the outputstream from the cache entry.
     rv = mCacheEntry->OpenOutputStream(0, getter_AddRefs(mCacheOutputStream));    
@@ -481,7 +481,7 @@ nsWyciwygChannel::SetSecurityInfo(nsISupports *aSecurityInfo)
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetCharsetAndSource(PRInt32 aSource,
+nsWyciwygChannel::SetCharsetAndSource(int32_t aSource,
                                       const nsACString& aCharset)
 {
   NS_ENSURE_ARG(!aCharset.IsEmpty());
@@ -507,7 +507,7 @@ nsWyciwygChannel::SetCharsetAndSourceInternal()
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetCharsetAndSource(PRInt32* aSource, nsACString& aCharset)
+nsWyciwygChannel::GetCharsetAndSource(int32_t* aSource, nsACString& aCharset)
 {
   if (mCharsetAndSourceSet) {
     *aSource = mCharsetSource;
@@ -529,9 +529,8 @@ nsWyciwygChannel::GetCharsetAndSource(PRInt32* aSource, nsACString& aCharset)
   nsXPIDLCString sourceStr;
   mCacheEntry->GetMetaDataElement("charset-source", getter_Copies(sourceStr));
 
-  PRInt32 source;
-  // XXXbz ToInteger takes an PRInt32* but outputs an nsresult in it... :(
-  PRInt32 err;
+  int32_t source;
+  nsresult err;
   source = sourceStr.ToInteger(&err);
   if (NS_FAILED(err) || source == 0) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -594,7 +593,7 @@ nsWyciwygChannel::OnCacheEntryDoomed(nsresult status)
 NS_IMETHODIMP
 nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
                                   nsIInputStream *input,
-                                  PRUint32 offset, PRUint32 count)
+                                  uint32_t offset, uint32_t count)
 {
   LOG(("nsWyciwygChannel::OnDataAvailable [this=%x request=%x offset=%u count=%u]\n",
       this, request, offset, count));
@@ -605,8 +604,8 @@ nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
 
   // XXX handle 64-bit stuff for real
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nsnull, PRUint64(offset + count),
-                              PRUint64(mContentLength));
+    mProgressSink->OnProgress(this, nullptr, uint64_t(offset + count),
+                              uint64_t(mContentLength));
 
   return rv; // let the pump cancel on failure
 }
@@ -639,7 +638,7 @@ nsWyciwygChannel::OnStopRequest(nsIRequest *request, nsISupports *ctx, nsresult 
   mListenerContext = 0;
 
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
 
   CloseCacheEntry(mStatus);
   mPump = 0;
@@ -668,20 +667,20 @@ nsWyciwygChannel::OpenCacheEntry(const nsACString & aCacheKey,
 
   // honor security settings
   nsCacheStoragePolicy storagePolicy;
-  if (mPrivate || mLoadFlags & INHIBIT_PERSISTENT_CACHING)
+  if (mPrivateBrowsing || mLoadFlags & INHIBIT_PERSISTENT_CACHING)
     storagePolicy = nsICache::STORE_IN_MEMORY;
   else
     storagePolicy = nsICache::STORE_ANYWHERE;
 
   nsCOMPtr<nsICacheSession> cacheSession;
   // Open a stream based cache session.
-  const char* sessionName = mPrivate ? "wyciwyg-private" : "wyciwyg";
+  const char* sessionName = mPrivateBrowsing ? "wyciwyg-private" : "wyciwyg";
   rv = cacheService->CreateSession(sessionName, storagePolicy, true,
                                    getter_AddRefs(cacheSession));
   if (!cacheSession) 
     return NS_ERROR_FAILURE;
 
-  cacheSession->SetIsPrivate(mPrivate);
+  cacheSession->SetIsPrivate(mPrivateBrowsing);
 
   if (aAccessMode == nsICache::ACCESS_WRITE)
     rv = cacheSession->OpenCacheEntry(aCacheKey, aAccessMode, false,
@@ -719,11 +718,11 @@ nsWyciwygChannel::ReadFromCache()
   if (NS_FAILED(rv)) return rv;
 
   // Pump the cache data downstream
-  return mPump->AsyncRead(this, nsnull);
+  return mPump->AsyncRead(this, nullptr);
 }
 
 void
-nsWyciwygChannel::WriteCharsetAndSourceToCache(PRInt32 aSource,
+nsWyciwygChannel::WriteCharsetAndSourceToCache(int32_t aSource,
                                                const nsCString& aCharset)
 {
   NS_ASSERTION(IsOnCacheIOThread(), "wrong thread");
@@ -750,7 +749,7 @@ nsWyciwygChannel::NotifyListener()
 
   // Remove ourselves from the load group.
   if (mLoadGroup) {
-    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
   }
 }
 

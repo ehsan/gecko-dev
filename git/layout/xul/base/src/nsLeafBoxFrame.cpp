@@ -73,9 +73,9 @@ nsLeafBoxFrame::Init(
 }
 
 NS_IMETHODIMP
-nsLeafBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
+nsLeafBoxFrame::AttributeChanged(int32_t aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 PRInt32 aModType)
+                                 int32_t aModType)
 {
   nsresult rv = nsLeafFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                               aModType);
@@ -90,7 +90,7 @@ void nsLeafBoxFrame::UpdateMouseThrough()
 {
   if (mContent) {
     static nsIContent::AttrValuesArray strings[] =
-      {&nsGkAtoms::never, &nsGkAtoms::always, nsnull};
+      {&nsGkAtoms::never, &nsGkAtoms::always, nullptr};
     switch (mContent->FindAttrValueIn(kNameSpaceID_None,
                                       nsGkAtoms::mousethrough,
                                       strings, eCaseMatters)) {

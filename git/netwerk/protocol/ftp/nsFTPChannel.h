@@ -28,14 +28,13 @@
 #include "nsIResumableChannel.h"
 #include "nsHashPropertyBag.h"
 #include "nsFtpProtocolHandler.h"
-#include "PrivateBrowsingConsumer.h"
+#include "nsNetUtil.h"
 
 class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,
                      public nsIUploadChannel,
                      public nsIResumableChannel,
-                     public nsIProxiedChannel,
-                     public mozilla::net::PrivateBrowsingConsumer
+                     public nsIProxiedChannel
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -44,8 +43,7 @@ public:
     NS_DECL_NSIPROXIEDCHANNEL
     
     nsFtpChannel(nsIURI *uri, nsIProxyInfo *pi)
-        : mozilla::net::PrivateBrowsingConsumer(this)
-        , mProxyInfo(pi)
+        : mProxyInfo(pi)
         , mStartPos(0)
         , mResumeRequested(false)
         , mLastModifiedTime(0)
@@ -61,7 +59,7 @@ public:
     bool ResumeRequested() { return mResumeRequested; }
 
     // Download from this byte offset
-    PRUint64 StartPos() { return mStartPos; }
+    uint64_t StartPos() { return mStartPos; }
 
     // ID of the entity to resume downloading
     const nsCString &EntityID() {
@@ -100,7 +98,7 @@ private:
     nsCOMPtr<nsIProxyInfo>    mProxyInfo; 
     nsCOMPtr<nsIFTPEventSink> mFTPEventSink;
     nsCOMPtr<nsIInputStream>  mUploadStream;
-    PRUint64                  mStartPos;
+    uint64_t                  mStartPos;
     nsCString                 mEntityID;
     bool                      mResumeRequested;
     PRTime                    mLastModifiedTime;

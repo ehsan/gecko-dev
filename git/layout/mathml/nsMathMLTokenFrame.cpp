@@ -88,8 +88,8 @@ nsMathMLTokenFrame::GetMathMLFrameType()
 static void
 CompressWhitespace(nsIContent* aContent)
 {
-  PRUint32 numKids = aContent->GetChildCount();
-  for (PRUint32 kid = 0; kid < numKids; kid++) {
+  uint32_t numKids = aContent->GetChildCount();
+  for (uint32_t kid = 0; kid < numKids; kid++) {
     nsIContent* cont = aContent->GetChildAt(kid);
     if (cont && cont->IsNodeOfType(nsINode::eTEXT)) {
       nsAutoString text;
@@ -186,7 +186,7 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
        childFrame = childFrame->GetNextSibling()) {
     nsHTMLReflowMetrics childSize;
     GetReflowAndBoundingMetricsFor(childFrame, childSize,
-                                   childSize.mBoundingMetrics, nsnull);
+                                   childSize.mBoundingMetrics, nullptr);
     // compute and cache the bounding metrics
     mBoundingMetrics += childSize.mBoundingMetrics;
   }
@@ -212,7 +212,7 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
 
       // place and size the child; (dx,0) makes the caret happy - bug 188146
       dy = childSize.height == 0 ? 0 : aDesiredSize.ascent - childSize.ascent;
-      FinishReflowChild(childFrame, PresContext(), nsnull, childSize, dx, dy, 0);
+      FinishReflowChild(childFrame, PresContext(), nullptr, childSize, dx, dy, 0);
       dx += childSize.width;
     }
   }
@@ -233,9 +233,9 @@ nsMathMLTokenFrame::MarkIntrinsicWidthsDirty()
 }
 
 NS_IMETHODIMP
-nsMathMLTokenFrame::AttributeChanged(PRInt32         aNameSpaceID,
+nsMathMLTokenFrame::AttributeChanged(int32_t         aNameSpaceID,
                                      nsIAtom*        aAttribute,
-                                     PRInt32         aModType)
+                                     int32_t         aModType)
 {
   if (nsGkAtoms::lquote_ == aAttribute ||
       nsGkAtoms::rquote_ == aAttribute) {
@@ -297,7 +297,7 @@ nsMathMLTokenFrame::SetTextStyle()
   // Get the text content that we enclose and its length
   nsAutoString data;
   nsContentUtils::GetNodeTextContent(mContent, false, data);
-  PRInt32 length = data.Length();
+  int32_t length = data.Length();
   if (!length)
     return false;
 

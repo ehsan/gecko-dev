@@ -2,11 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= ../../..
+DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir	= content/media/test
+relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -80,13 +80,13 @@ MOCHITEST_FILES = \
 		test_defaultMuted.html \
 		test_delay_load.html \
 		test_error_on_404.html \
-		test_error_in_video_document.html \
 		test_info_leak.html \
 		test_load.html \
 		test_load_candidates.html \
 		test_load_same_resource.html \
 		test_load_source.html \
 		test_loop.html \
+		test_metadata.html \
 		test_mozLoadFrom.html \
 		test_no_load_event.html \
 		test_networkState.html \
@@ -121,10 +121,6 @@ MOCHITEST_FILES = \
 		test_audiowrite.html \
 		test_mozHasAudio.html \
 		test_source_media.html \
-		$(NULL)
-
-# Bug 759221
-MOCHITEST_FILES += \
 		test_autoplay_contentEditable.html \
 		test_buffered.html \
 		test_bug448534.html \
@@ -134,6 +130,8 @@ MOCHITEST_FILES += \
 		test_playback.html \
 		test_seekLies.html \
 		$(NULL)
+
+$(warning test_error_in_video_document.html is disabled for intermittent failures. Bug 608634)
 
 # Don't run in suite
 ifndef MOZ_SUITE
@@ -221,6 +219,11 @@ MOCHITEST_FILES += \
 		wavedata_u8.wav \
 		wavedata_s16.wav \
 		audio.wav \
+		$(NULL)
+
+# Media plugin sample files
+MOCHITEST_FILES += \
+		gizmo.mp4 \
 		$(NULL)
 
 # Other files
