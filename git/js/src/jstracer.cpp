@@ -97,7 +97,7 @@ static struct {
         recorderStarted, recorderAborted, traceCompleted, sideExitIntoInterpreter,
         typeMapMismatchAtEntry, returnToDifferentLoopHeader, traceTriggered,
         globalShapeMismatchAtEntry, treesTrashed, slotPromoted,
-        unstableLoopVariable, breakLoopExits;
+        unstableLoopVariable;
 } stat = { 0LL, };
 #define AUDIT(x) (stat.x++)
 #else
@@ -295,7 +295,7 @@ static bool isPromoteInt(LIns* i)
 {
     jsdouble d;
     return i->isop(LIR_i2f) || i->isconst() ||
-        (i->isconstq() && ((d = i->constvalf()) == (jsdouble)(jsint)d));
+        (i->isconstq() && ((d = i->constvalf()) == (jsdouble)(jsint)d) && !JSDOUBLE_IS_NEGZERO(d));
 }
 
 static bool isPromoteUint(LIns* i)
@@ -756,9 +756,9 @@ bool
 TraceRecorder::trackLoopEdges()
 {
     jsbytecode* pc = cx->fp->regs->pc;
-    if (inlinedLoopEdges.contains(pc))
+    if (loopEdgeList.contains(pc))
         return false;
-    inlinedLoopEdges.add(pc);
+    loopEdgeList.add(pc);
     return true;
 }
 
@@ -1283,6 +1283,16 @@ js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* header, jsbytecode* p
     return false;
 }
 
+/* Determine whether a bytecode location (pc) is a break statement. */
+bool
+js_isBreak(JSContext* cx, JSScript* script, jsbytecode* pc)
+{
+    jssrcnote* sn;
+    return (((*pc == JSOP_GOTO) || (*pc == JSOP_GOTOX)) && 
+            ((sn = js_GetSrcNote(cx->fp->script, pc)) != NULL) &&
+            SN_TYPE(sn) == SRC_BREAK);
+}
+
 struct FrameInfo {
     JSObject*       callee;     // callee function object
     jsbytecode*     callpc;     // pc of JSOP_CALL in caller script
@@ -1526,7 +1536,6 @@ TraceRecorder::compile(Fragmento* fragmento)
     fragmento->labels->add(fragment, sizeof(Fragment), 0, label);
     free(label);
 #endif
-    AUDIT(traceCompleted);
 }
 
 /* Complete and compile a trace and link it to the existing tree if appropriate. */
@@ -1622,35 +1631,6 @@ TraceRecorder::emitTreeCall(Fragment* inner, GuardRecord* lr)
     guard(true, lir->ins2(LIR_eq, ret, lir->insImmPtr(lr)), NESTED_EXIT);
     /* Register us as a dependent tree of the inner tree. */
     ((TreeInfo*)inner->vmprivate)->dependentTrees.addUnique(fragment->root);
-}
-
-/* Add a if/if-else control-flow merge point to the list of known merge points. */
-void
-TraceRecorder::trackCfgMerges(jsbytecode* pc)
-{
-    /* If we hit the beginning of an if/if-else, then keep track of the merge point after it. */
-    JS_ASSERT((*pc == JSOP_IFEQ) || (*pc == JSOP_IFEQX));
-    jssrcnote* sn = js_GetSrcNote(cx->fp->script, pc);
-    if (sn != NULL) {
-        if (SN_TYPE(sn) == SRC_IF) {
-            cfgMerges.add((*pc == JSOP_IFEQ) 
-                          ? pc + GET_JUMP_OFFSET(pc)
-                          : pc + GET_JUMPX_OFFSET(pc));
-        } else if (SN_TYPE(sn) == SRC_IF_ELSE) 
-            cfgMerges.add(pc + js_GetSrcNoteOffset(sn, 0));
-    }
-}
-
-/* Emit code for a fused IFEQ/IFNE. */
-void
-TraceRecorder::fuseIf(jsbytecode* pc, bool cond, LIns* x)
-{
-    if (*pc == JSOP_IFEQ) {
-        guard(cond, x, BRANCH_EXIT);
-        trackCfgMerges(pc); 
-    } else if (*pc == JSOP_IFNE) {
-        guard(cond, x, BRANCH_EXIT);
-    }
 }
 
 int
@@ -1977,6 +1957,7 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& inl
                 js_FlushJITCache(cx);
             return false; /* done recording */
         }
+        AUDIT(traceCompleted);
         r->closeLoop(fragmento);
         js_DeleteRecorder(cx);
         return false; /* done recording */
@@ -2279,19 +2260,15 @@ js_MonitorLoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
 }
 
 bool
-js_MonitorRecording(JSContext* cx)
+js_MonitorGoto(JSContext* cx)
 {
-    jsbytecode* pc = cx->fp->regs->pc;
     /* If we hit a break, end the loop and generate an always taken loop exit guard. For other
        downward gotos (like if/else) continue recording. */
-    if ((*pc == JSOP_GOTO) || (*pc == JSOP_GOTOX)) {
-        jssrcnote* sn = js_GetSrcNote(cx->fp->script, pc);
-        if ((sn != NULL) && (SN_TYPE(sn) == SRC_BREAK)) {
-            AUDIT(breakLoopExits);
-            JS_TRACE_MONITOR(cx).recorder->endLoop(JS_TRACE_MONITOR(cx).fragmento);
-            js_DeleteRecorder(cx);
-            return false; /* done recording */
-        }
+    if (js_isBreak(cx, cx->fp->script, cx->fp->regs->pc)) {
+        AUDIT(traceCompleted);
+        JS_TRACE_MONITOR(cx).recorder->endLoop(JS_TRACE_MONITOR(cx).fragmento);
+        js_DeleteRecorder(cx);
+        return false; /* done recording */
     }
     /* If its not a break, continue recording and follow the trace. */
     return true;
@@ -2376,11 +2353,11 @@ js_FinishJIT(JSTraceMonitor *tm)
 {
 #ifdef DEBUG
     printf("recorder: started(%llu), aborted(%llu), completed(%llu), different header(%llu), "
-           "trees trashed(%llu), slot promoted(%llu), unstable loop variable(%llu), "
-           "breaks: (%llu)\n",
+           "trees trashed(%llu), slot promoted(%llu), "
+           "unstable loop variable(%llu)\n",
            stat.recorderStarted, stat.recorderAborted,
            stat.traceCompleted, stat.returnToDifferentLoopHeader, stat.treesTrashed,
-           stat.slotPromoted, stat.unstableLoopVariable, stat.breakLoopExits);
+           stat.slotPromoted, stat.unstableLoopVariable);
     printf("monitor: triggered(%llu), exits(%llu), type mismatch(%llu), "
            "global mismatch(%llu)\n", stat.traceTriggered, stat.sideExitIntoInterpreter,
            stat.typeMapMismatchAtEntry, stat.globalShapeMismatchAtEntry);
@@ -2823,8 +2800,10 @@ TraceRecorder::cmp(LOpcode op, int flags)
 
     /* The interpreter fuses comparisons and the following branch,
        so we have to do that here as well. */
-    if (flags & CMP_TRY_BRANCH_AFTER_COND) 
-        fuseIf(cx->fp->regs->pc + 1, cond, x);
+    if (flags & CMP_TRY_BRANCH_AFTER_COND) {
+        if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
+            guard(cond, x, BRANCH_EXIT);
+    }
 
     /* We update the stack after the guard. This is safe since
        the guard bails out at the comparison and the interpreter
@@ -3454,7 +3433,6 @@ TraceRecorder::record_JSOP_GOTO()
 bool
 TraceRecorder::record_JSOP_IFEQ()
 {
-    trackCfgMerges(cx->fp->regs->pc);
     return ifop();
 }
 
@@ -5150,7 +5128,8 @@ TraceRecorder::record_JSOP_IN()
 
     /* The interpreter fuses comparisons and the following branch,
        so we have to do that here as well. */
-    fuseIf(cx->fp->regs->pc + 1, cond, x);
+    if (cx->fp->regs->pc[1] == JSOP_IFEQ || cx->fp->regs->pc[1] == JSOP_IFNE)
+        guard(cond, x, BRANCH_EXIT);
 
     /* We update the stack after the guard. This is safe since
        the guard bails out at the comparison and the interpreter
@@ -5358,7 +5337,6 @@ TraceRecorder::record_JSOP_GOTOX()
 bool
 TraceRecorder::record_JSOP_IFEQX()
 {
-    trackCfgMerges(cx->fp->regs->pc);
     return record_JSOP_IFEQ();
 }
 
