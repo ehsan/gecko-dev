@@ -95,8 +95,6 @@ public:
    */
   void GetValueOfAnonTextControl(nsAString& aValue);
 
-  bool AnonTextControlIsEmpty();
-
   /**
    * Called to notify this frame that its HTMLInputElement is currently
    * processing a DOM 'input' event.
