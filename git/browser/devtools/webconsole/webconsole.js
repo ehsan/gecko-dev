@@ -3949,9 +3949,13 @@ JSTerm.prototype = {
         }
         break;
 
-      // Bug 873250 - always enter, ignore autocomplete
       case Ci.nsIDOMKeyEvent.DOM_VK_RETURN:
-        this.execute();
+        if (this.autocompletePopup.isOpen && this.autocompletePopup.selectedIndex > -1) {
+          this.acceptProposedCompletion();
+        }
+        else {
+          this.execute();
+        }
         aEvent.preventDefault();
         break;
 
