@@ -3899,9 +3899,9 @@ CodeGenerator::branchIfInvalidated(Register temp, Label *invalidated)
     if (!ionScriptLabels_.append(label))
         return false;
 
-    // If IonScript::invalidationCount_ != 0, the script has been invalidated.
+    // If IonScript::refcount != 0, the script has been invalidated.
     masm.branch32(Assembler::NotEqual,
-                  Address(temp, IonScript::offsetOfInvalidationCount()),
+                  Address(temp, IonScript::offsetOfRefcount()),
                   Imm32(0),
                   invalidated);
     return true;
@@ -4316,50 +4316,6 @@ CodeGenerator::visitNewArrayCopyOnWrite(LNewArrayCopyOnWrite *lir)
         return false;
 
     masm.createGCObject(objReg, tempReg, templateObject, initialHeap, ool->entry());
-
-    masm.bind(ool->rejoin());
-    return true;
-}
-
-typedef ArrayObject *(*ArrayConstructorOneArgFn)(JSContext *, HandleTypeObject, int32_t length);
-static const VMFunction ArrayConstructorOneArgInfo =
-    FunctionInfo<ArrayConstructorOneArgFn>(ArrayConstructorOneArg);
-
-bool
-CodeGenerator::visitNewArrayDynamicLength(LNewArrayDynamicLength *lir)
-{
-    Register lengthReg = ToRegister(lir->length());
-    Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
-
-    ArrayObject *templateObject = lir->mir()->templateObject();
-    gc::InitialHeap initialHeap = lir->mir()->initialHeap();
-
-    OutOfLineCode *ool = oolCallVM(ArrayConstructorOneArgInfo, lir,
-                                   (ArgList(), ImmGCPtr(templateObject->type()), lengthReg),
-                                   StoreRegisterTo(objReg));
-    if (!ool)
-        return false;
-
-    size_t numSlots = gc::GetGCKindSlots(templateObject->asTenured().getAllocKind());
-    size_t inlineLength = numSlots >= ObjectElements::VALUES_PER_HEADER
-                        ? numSlots - ObjectElements::VALUES_PER_HEADER
-                        : 0;
-
-    // Try to do the allocation inline if the template object is big enough
-    // for the length in lengthReg. If the length is bigger we could still
-    // use the template object and not allocate the elements, but it's more
-    // efficient to do a single big allocation than (repeatedly) reallocating
-    // the array later on when filling it.
-    if (!templateObject->hasSingletonType() && templateObject->length() <= inlineLength)
-        masm.branch32(Assembler::Above, lengthReg, Imm32(templateObject->length()), ool->entry());
-    else
-        masm.jump(ool->entry());
-
-    masm.createGCObject(objReg, tempReg, templateObject, initialHeap, ool->entry());
-
-    size_t lengthOffset = NativeObject::offsetOfFixedElements() + ObjectElements::offsetOfLength();
-    masm.store32(lengthReg, Address(objReg, lengthOffset));
 
     masm.bind(ool->rejoin());
     return true;
@@ -10217,24 +10173,6 @@ bool
 CodeGenerator::visitThrowUninitializedLexical(LThrowUninitializedLexical *ins)
 {
     return callVM(ThrowUninitializedLexicalInfo, ins);
-}
-
-bool
-CodeGenerator::visitDebugger(LDebugger *ins)
-{
-    Register cx = ToRegister(ins->getTemp(0));
-    Register temp = ToRegister(ins->getTemp(1));
-
-    // The check for cx->compartment()->isDebuggee() could be inlined, but the
-    // performance of |debugger;| does not matter.
-    masm.loadJSContext(cx);
-    masm.setupUnalignedABICall(1, temp);
-    masm.passABIArg(cx);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, IsCompartmentDebuggee));
-
-    Label bail;
-    masm.branchIfTrueBool(ReturnReg, &bail);
-    return bailoutFrom(&bail, ins->snapshot());
 }
 
 } // namespace jit

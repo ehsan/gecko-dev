@@ -866,7 +866,7 @@ nsDOMWindowUtils::SendPointerEventCommon(const nsAString& aType,
   event.height = aHeight;
   event.tiltX = aTiltX;
   event.tiltY = aTiltY;
-  event.isPrimary = (nsIDOMMouseEvent::MOZ_SOURCE_MOUSE == aInputSourceArg) ? true : aIsPrimary;
+  event.isPrimary = aIsPrimary;
   event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
   event.mFlags.mIsSynthesizedForTests = aOptionalArgCount >= 10 ? aIsSynthesized : true;

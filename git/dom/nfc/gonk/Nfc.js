@@ -71,7 +71,6 @@ const NFC_IPC_READ_PERM_MSG_NAMES = [
 const NFC_IPC_WRITE_PERM_MSG_NAMES = [
   "NFC:WriteNDEF",
   "NFC:MakeReadOnly",
-  "NFC:Format",
   "NFC:SendFile",
   "NFC:RegisterPeerReadyTarget",
   "NFC:UnregisterPeerReadyTarget"
@@ -565,7 +564,6 @@ Nfc.prototype = {
       case "CloseResponse":
       case "ReadNDEFResponse":
       case "MakeReadOnlyResponse":
-      case "FormatResponse":
       case "WriteNDEFResponse":
         this.sendNfcResponse(message);
         break;
@@ -623,9 +621,6 @@ Nfc.prototype = {
         break;
       case "NFC:MakeReadOnly":
         this.sendToNfcService("makeReadOnly", message.data);
-        break;
-      case "NFC:Format":
-        this.sendToNfcService("format", message.data);
         break;
       case "NFC:Connect":
         this.sendToNfcService("connect", message.data);

@@ -860,9 +860,8 @@ LoadScript(JSContext *cx, unsigned argc, jsval *vp, bool scriptRelative)
             .setCompileAndGo(true)
             .setNoScriptRval(true);
         RootedScript script(cx);
-        RootedValue unused(cx);
         if ((compileOnly && !Compile(cx, thisobj, opts, filename.ptr(), &script)) ||
-            !Evaluate(cx, thisobj, opts, filename.ptr(), &unused))
+            !Evaluate(cx, thisobj, opts, filename.ptr()))
         {
             return false;
         }
@@ -2625,9 +2624,10 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
             JS_ReportError(cx, "Invalid scope argument to evalcx");
             return false;
         }
-        JS::CompileOptions opts(cx);
-        opts.setFileAndLine(filename.get(), lineno);
-        if (!JS::Evaluate(cx, sobj, opts, src, srclen, args.rval())) {
+        if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
+                                 filename.get(),
+                                 lineno,
+                                 args.rval())) {
             return false;
         }
     }
@@ -5403,9 +5403,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
         } else {
             const char *code = codeChunks.front();
             RootedValue rval(cx);
-            JS::CompileOptions opts(cx);
-            opts.setFileAndLine("-e", 1);
-            if (!JS::Evaluate(cx, obj, opts, code, strlen(code), &rval))
+            if (!JS_EvaluateScript(cx, obj, code, strlen(code), "-e", 1, &rval))
                 return gExitCode ? gExitCode : EXITCODE_RUNTIME_ERROR;
             codeChunks.popFront();
         }

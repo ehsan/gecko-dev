@@ -7,13 +7,12 @@
 #include <cstdarg>
 
 #ifdef _WIN32
-#include <windows.h>
+#include <io.h>
 #else
 #include <unistd.h>
 #endif
 #include <cstring>
 #include "mozilla/Assertions.h"
-#include "mozilla/NullPtr.h"
 
 /* Template class allowing a limited number of increments on a value */
 template <typename T>
@@ -47,9 +46,9 @@ private:
 };
 
 void
-FdPrintf(intptr_t aFd, const char* aFormat, ...)
+FdPrintf(int aFd, const char* aFormat, ...)
 {
-  if (aFd == 0) {
+  if (aFd == -1) {
     return;
   }
   char buf[256];
@@ -121,12 +120,6 @@ FdPrintf(intptr_t aFd, const char* aFormat, ...)
     f++;
   }
 out:
-#ifdef _WIN32
-  // See comment in FdPrintf.h as to why WriteFile is used.
-  DWORD written;
-  WriteFile(reinterpret_cast<HANDLE>(aFd), buf, b - buf, &written, nullptr);
-#else
   write(aFd, buf, b - buf);
-#endif
   va_end(ap);
 }

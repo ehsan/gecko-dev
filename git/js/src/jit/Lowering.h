@@ -72,7 +72,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitTableSwitch(MTableSwitch *tableswitch);
     bool visitNewArray(MNewArray *ins);
     bool visitNewArrayCopyOnWrite(MNewArrayCopyOnWrite *ins);
-    bool visitNewArrayDynamicLength(MNewArrayDynamicLength *ins);
     bool visitNewObject(MNewObject *ins);
     bool visitNewTypedObject(MNewTypedObject *ins);
     bool visitNewDeclEnvObject(MNewDeclEnvObject *ins);
@@ -297,7 +296,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitUnknownValue(MUnknownValue *ins);
     bool visitLexicalCheck(MLexicalCheck *ins);
     bool visitThrowUninitializedLexical(MThrowUninitializedLexical *ins);
-    bool visitDebugger(MDebugger *ins);
 };
 
 } // namespace jit

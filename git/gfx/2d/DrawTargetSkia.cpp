@@ -843,7 +843,7 @@ DrawTargetSkia::Init(unsigned char* aData, const IntSize &aSize, int32_t aStride
                                        alphaType);
   bitmap.setInfo(info, aStride);
   bitmap.setPixels(aData);
-  mCanvas.adopt(new SkCanvas(bitmap));
+  mCanvas.adopt(new SkCanvas(new SkBitmapDevice(bitmap)));
 
   mSize = aSize;
   mFormat = aFormat;

@@ -420,7 +420,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     // This is the approximate byte position in the stream.
     int64_t pos = mDecoder->GetResource()->Tell();
 
-    nsRefPtr<VideoData> v;
+    VideoData *v;
     if (!frame.mGraphicBuffer) {
 
       VideoData::YCbCrBuffer b;

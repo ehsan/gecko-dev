@@ -736,22 +736,23 @@ WMFReader::CreateBasicVideoFrame(IMFSample* aSample,
   b.mPlanes[2].mOffset = 0;
   b.mPlanes[2].mSkip = 0;
 
-  nsRefPtr<VideoData> v = VideoData::Create(mInfo.mVideo,
-                                            mDecoder->GetImageContainer(),
-                                            aOffsetBytes,
-                                            aTimestampUsecs,
-                                            aDurationUsecs,
-                                            b,
-                                            false,
-                                            -1,
-                                            ToIntRect(mPictureRegion));
+  VideoData *v = VideoData::Create(mInfo.mVideo,
+                                   mDecoder->GetImageContainer(),
+                                   aOffsetBytes,
+                                   aTimestampUsecs,
+                                   aDurationUsecs,
+                                   b,
+                                   false,
+                                   -1,
+                                   ToIntRect(mPictureRegion));
   if (twoDBuffer) {
     twoDBuffer->Unlock2D();
   } else {
     buffer->Unlock();
   }
 
-  v.forget(aOutVideoData);
+  *aOutVideoData = v;
+
   return S_OK;
 }
 
@@ -778,18 +779,18 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
   NS_ENSURE_TRUE(image, E_FAIL);
 
-  nsRefPtr<VideoData> v = VideoData::CreateFromImage(mInfo.mVideo,
-                                                     mDecoder->GetImageContainer(),
-                                                     aOffsetBytes,
-                                                     aTimestampUsecs,
-                                                     aDurationUsecs,
-                                                     image.forget(),
-                                                     false,
-                                                     -1,
-                                                     ToIntRect(mPictureRegion));
+  VideoData *v = VideoData::CreateFromImage(mInfo.mVideo,
+                                            mDecoder->GetImageContainer(),
+                                            aOffsetBytes,
+                                            aTimestampUsecs,
+                                            aDurationUsecs,
+                                            image.forget(),
+                                            false,
+                                            -1,
+                                            ToIntRect(mPictureRegion));
 
   NS_ENSURE_TRUE(v, E_FAIL);
-  v.forget(aOutVideoData);
+  *aOutVideoData = v;
 
   return S_OK;
 }

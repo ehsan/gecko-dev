@@ -1070,12 +1070,12 @@ CompositorD3D11::SetSamplerForFilter(Filter aFilter)
 {
   ID3D11SamplerState *sampler;
   switch (aFilter) {
-    case Filter::POINT:
-    sampler = mAttachments->mPointSamplerState;
-    break;
-  case Filter::LINEAR:
   default:
+  case Filter::LINEAR:
     sampler = mAttachments->mLinearSamplerState;
+    break;
+  case Filter::POINT:
+    sampler = mAttachments->mPointSamplerState;
     break;
   }
 

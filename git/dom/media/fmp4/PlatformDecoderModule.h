@@ -141,7 +141,8 @@ class MediaDataDecoderCallback {
 public:
   virtual ~MediaDataDecoderCallback() {}
 
-  // Called by MediaDataDecoder when a sample has been decoded.
+  // Called by MediaDataDecoder when a sample has been decoded. Callee is
+  // responsibile for deleting aData.
   virtual void Output(MediaData* aData) = 0;
 
   // Denotes an error in the decoding process. The reader will stop calling
@@ -229,8 +230,8 @@ public:
   virtual bool IsDormantNeeded() {
     return false;
   };
-  virtual void ReleaseMediaResources() {}
-  virtual void ReleaseDecoder() {}
+  virtual void ReleaseMediaResources() {};
+  virtual void ReleaseDecoder() {};
 };
 
 } // namespace mozilla

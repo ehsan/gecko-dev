@@ -24,8 +24,7 @@
 #include "base/lock.h"
 
 static const malloc_table_t* sFuncs = nullptr;
-static intptr_t sFd = 0;
-static bool sStdoutOrStderr = false;
+static int sFd = -1;
 
 static Lock sLock;
 
@@ -52,8 +51,13 @@ int pthread_atfork(void (*)(void), void (*)(void), void (*)(void));
 class LogAllocBridge : public ReplaceMallocBridge
 {
   virtual void InitDebugFd(mozilla::DebugFdRegistry& aRegistry) MOZ_OVERRIDE {
-    if (!sStdoutOrStderr) {
-      aRegistry.RegisterHandle(sFd);
+    if (sFd > 2) {
+#ifdef _WIN32
+      intptr_t handle = _get_osfhandle(sFd);
+#else
+      intptr_t handle = sFd;
+#endif
+      aRegistry.RegisterHandle(handle);
     }
   }
 };
@@ -80,46 +84,25 @@ replace_init(const malloc_table_t* aTable)
    * descriptor number. Other values are considered as a file name. */
   char* log = getenv("MALLOC_LOG");
   if (log && *log) {
-    int fd = 0;
+    sFd = 0;
     const char *fd_num = log;
     while (*fd_num) {
       /* Reject non digits. */
       if (*fd_num < '0' || *fd_num > '9') {
-        fd = -1;
+        sFd = -1;
         break;
       }
-      fd = fd * 10 + (*fd_num - '0');
+      sFd = sFd * 10 + (*fd_num - '0');
       /* Reject values >= 10000. */
-      if (fd >= 10000) {
-        fd = -1;
+      if (sFd >= 10000) {
+        sFd = -1;
         break;
       }
       fd_num++;
     }
-    if (fd == 1 || fd == 2) {
-      sStdoutOrStderr = true;
+    if (sFd == -1) {
+      sFd = open(log, O_WRONLY | O_CREAT | O_APPEND, 0644);
     }
-#ifdef _WIN32
-    // See comment in FdPrintf.h as to why CreateFile is used.
-    HANDLE handle;
-    if (fd > 0) {
-      handle = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
-    } else {
-      handle = CreateFileA(log, FILE_APPEND_DATA, FILE_SHARE_READ |
-                           FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, nullptr);
-    }
-    if (handle != INVALID_HANDLE_VALUE) {
-      sFd = reinterpret_cast<intptr_t>(handle);
-    }
-#else
-    if (fd == -1) {
-      fd = open(log, O_WRONLY | O_CREAT | O_APPEND, 0644);
-    }
-    if (fd > 0) {
-      sFd = fd;
-    }
-#endif
   }
 }
 

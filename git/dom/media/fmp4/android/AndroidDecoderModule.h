@@ -87,7 +87,6 @@ protected:
 
   // Only these members are protected by mMonitor.
   Monitor mMonitor;
-  bool mFlushing;
   bool mDraining;
   bool mStopping;
 

@@ -3,7 +3,6 @@ var Ci = Components.interfaces;
 var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/BrowserUtils.jsm");
 
 const baseURL = "http://mochi.test:8888/browser/" +
   "toolkit/components/addoncompat/tests/browser/";
@@ -233,31 +232,6 @@ function testSandbox()
   });
 }
 
-// Test for bug 1095305. We just want to make sure that loading some
-// unprivileged content from an add-on package doesn't crash.
-function testAddonContent()
-{
-  let chromeRegistry = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
-    .getService(Components.interfaces.nsIChromeRegistry);
-  let base = chromeRegistry.convertChromeURL(BrowserUtils.makeURI("chrome://addonshim1/content/"));
-
-  let res = Services.io.getProtocolHandler("resource")
-    .QueryInterface(Ci.nsIResProtocolHandler);
-  res.setSubstitution("addonshim1", base);
-
-  return new Promise(function(resolve, reject) {
-    const url = "resource://addonshim1/page.html";
-    let tab = gBrowser.addTab(url);
-    let browser = tab.linkedBrowser;
-    addLoadListener(browser, function handler() {
-      gBrowser.removeTab(tab);
-      res.setSubstitution("addonshim1", null);
-
-      resolve();
-    });
-  });
-}
-
 function runTests(win, funcs)
 {
   ok = funcs.ok;
@@ -271,8 +245,7 @@ function runTests(win, funcs)
     then(testListeners).
     then(testCapturing).
     then(testObserver).
-    then(testSandbox).
-    then(testAddonContent);
+    then(testSandbox);
 }
 
 /*

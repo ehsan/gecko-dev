@@ -153,7 +153,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNewArray(LNewArray *lir);
     bool visitOutOfLineNewArray(OutOfLineNewArray *ool);
     bool visitNewArrayCopyOnWrite(LNewArrayCopyOnWrite *lir);
-    bool visitNewArrayDynamicLength(LNewArrayDynamicLength *lir);
     bool visitNewObjectVMCall(LNewObject *lir);
     bool visitNewObject(LNewObject *lir);
     bool visitOutOfLineNewObject(OutOfLineNewObject *ool);
@@ -319,7 +318,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAsmJSVoidReturn(LAsmJSVoidReturn *ret);
     bool visitLexicalCheck(LLexicalCheck *ins);
     bool visitThrowUninitializedLexical(LThrowUninitializedLexical *ins);
-    bool visitDebugger(LDebugger *ins);
 
     bool visitCheckOverRecursed(LCheckOverRecursed *lir);
     bool visitCheckOverRecursedFailure(CheckOverRecursedFailure *ool);

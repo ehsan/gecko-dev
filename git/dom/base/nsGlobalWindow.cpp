@@ -194,7 +194,6 @@
 
 #include "mozilla/dom/SelectionChangeEvent.h"
 
-#include "mozilla/AddonPathService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
@@ -652,7 +651,7 @@ public:
                                          JS::AutoIdVector &props) const MOZ_OVERRIDE;
   virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
                        unsigned flags,
-                       JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
+                       JS::MutableHandle<JS::Value> vp) const MOZ_OVERRIDE;
   virtual const char *className(JSContext *cx,
                                 JS::Handle<JSObject*> wrapper) const MOZ_OVERRIDE;
 
@@ -943,13 +942,14 @@ nsOuterWindowProxy::getEnumerablePropertyKeys(JSContext *cx, JS::Handle<JSObject
   return js::AppendUnique(cx, props, innerProps);
 }
 
+
 bool
 nsOuterWindowProxy::iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
-                            unsigned flags, JS::MutableHandle<JSObject*> objp) const
+                            unsigned flags, JS::MutableHandle<JS::Value> vp) const
 {
   // BaseProxyHandler::iterate seems to do what we want here: fall
   // back on the property names returned from keys() and enumerate().
-  return js::BaseProxyHandler::iterate(cx, proxy, flags, objp);
+  return js::BaseProxyHandler::iterate(cx, proxy, flags, vp);
 }
 
 bool
@@ -2270,14 +2270,6 @@ CreateNativeGlobalForInner(JSContext* aCx,
     top = aNewInner->GetTop();
   }
   JS::CompartmentOptions options;
-
-  // Sometimes add-ons load their own XUL windows, either as separate top-level
-  // windows or inside a browser element. In such cases we want to tag the
-  // window's compartment with the add-on ID. See bug 1092156.
-  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
-    options.setAddonId(MapURIToAddonID(aURI));
-  }
-
   if (top) {
     if (top->GetGlobalJSObject()) {
       options.setSameZoneAs(top->GetGlobalJSObject());
@@ -5356,11 +5348,26 @@ nsGlobalWindow::MatchMedia(const nsAString& aMediaQueryList,
   FORWARD_TO_OUTER_OR_THROW(MatchMedia, (aMediaQueryList, aError), aError,
                             nullptr);
 
-  if (!mDoc) {
+  // We need this now to ensure that we have a non-null |presContext|
+  // when we ought to.
+  // This is similar to EnsureSizeUpToDate, but only flushes frames.
+  nsGlobalWindow *parent = static_cast<nsGlobalWindow*>(GetPrivateParent());
+  if (parent) {
+    parent->FlushPendingNotifications(Flush_Frames);
+  }
+
+  if (!mDocShell) {
     return nullptr;
   }
 
-  return mDoc->MatchMedia(aMediaQueryList);
+  nsRefPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+
+  if (!presContext) {
+    return nullptr;
+  }
+
+  return presContext->MatchMedia(aMediaQueryList);
 }
 
 NS_IMETHODIMP

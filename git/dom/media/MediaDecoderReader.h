@@ -20,7 +20,6 @@ class TimeRanges;
 
 class RequestSampleCallback;
 class MediaDecoderReader;
-class SharedDecoderManager;
 
 // Encapsulates the decoding and reading of media data. Reading can either
 // synchronous and done on the calling "decode" thread, or asynchronous and
@@ -48,7 +47,6 @@ public:
   // Release media resources they should be released in dormant state
   // The reader can be made usable again by calling ReadMetadata().
   virtual void ReleaseMediaResources() {};
-  virtual void SetSharedDecoderManager(SharedDecoderManager* aManager) {}
   // Breaks reference-counted cycles. Called during shutdown.
   // WARNING: If you override this, you must call the base implementation
   // in your override.
@@ -322,7 +320,7 @@ public:
 
   // Returns failure on error, or NS_OK.
   // If *aSample is null, EOS has been reached.
-  nsresult Await(nsRefPtr<AudioData>& aSample);
+  nsresult Await(nsAutoPtr<AudioData>& aSample);
 
   // Interrupts a call to Wait().
   void Cancel();
@@ -330,7 +328,7 @@ public:
 private:
   Monitor mMonitor;
   nsresult mStatus;
-  nsRefPtr<AudioData> mSample;
+  nsAutoPtr<AudioData> mSample;
   bool mHaveResult;
 };
 

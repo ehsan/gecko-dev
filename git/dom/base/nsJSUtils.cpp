@@ -253,7 +253,11 @@ nsJSUtils::EvaluateString(JSContext* aCx,
         ok = false;
       }
     } else if (ok) {
-      ok = JS::Evaluate(aCx, scopeChain, aCompileOptions, aSrcBuf, aRetValue);
+      if (!aCompileOptions.noScriptRval) {
+        ok = JS::Evaluate(aCx, scopeChain, aCompileOptions, aSrcBuf, aRetValue);
+      } else {
+        ok = JS::Evaluate(aCx, scopeChain, aCompileOptions, aSrcBuf);
+      }
     }
 
     if (ok && aEvaluateOptions.coerceToString && !aRetValue.isUndefined()) {

@@ -254,12 +254,12 @@ DirectProxyHandler::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
 
 bool
 DirectProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                            MutableHandleObject objp) const
+                            MutableHandleValue vp) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
     MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetIterator(cx, target, flags, objp);
+    return GetIterator(cx, target, flags, vp);
 }
 
 bool

@@ -262,7 +262,7 @@ MediaDecodeTask::Decode()
   mDecoderReader->SetCallback(barrier);
   while (1) {
     mDecoderReader->RequestAudioData();
-    nsRefPtr<AudioData> audio;
+    nsAutoPtr<AudioData> audio;
     if (NS_FAILED(barrier->Await(audio))) {
       ReportFailureOnMainThread(WebAudioDecodeJob::InvalidContent);
       return;
@@ -271,7 +271,7 @@ MediaDecodeTask::Decode()
       // End of stream.
       break;
     }
-    audioQueue.Push(audio);
+    audioQueue.Push(audio.forget());
   }
   mDecoderReader->Shutdown();
   mDecoderReader->BreakCycles();
@@ -325,7 +325,7 @@ MediaDecodeTask::Decode()
     return;
   }
 
-  nsRefPtr<AudioData> audioData;
+  nsAutoPtr<AudioData> audioData;
   while ((audioData = audioQueue.PopFront())) {
     audioData->EnsureAudioBuffer(); // could lead to a copy :(
     AudioDataValue* bufferData = static_cast<AudioDataValue*>

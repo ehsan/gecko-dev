@@ -57,8 +57,10 @@ function frameScript() {
       }
 
       if (message.data.sendCrashMessage) {
+        let propBag = event.detail.QueryInterface(Ci.nsIPropertyBag2);
+        let crashID = propBag.getPropertyAsAString("pluginDumpID");
         sendAsyncMessage("test:crash-plugin:crashed", {
-          crashID: event.pluginDumpID,
+          crashID: crashID,
         });
         return;
       }
