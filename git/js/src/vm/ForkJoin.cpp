@@ -409,6 +409,7 @@ class ForkJoinShared : public TaskExecutor, public Monitor
 
     JSRuntime *runtime() { return cx_->runtime(); }
     JS::Zone *zone() { return cx_->zone(); }
+    JSCompartment *compartment() { return cx_->compartment(); }
 
     JSContext *acquireContext() { PR_Lock(cxLock_); return cx_; }
     void releaseContext() { PR_Unlock(cxLock_); }
@@ -453,6 +454,43 @@ class AutoSetForkJoinSlice
 };
 
 } // namespace js
+
+///////////////////////////////////////////////////////////////////////////
+// ForkJoinActivation
+//
+// Takes care of tidying up GC before we enter a fork join section. Also
+// pauses the barrier verifier, as we cannot enter fork join with the runtime
+// or the zone needing barriers.
+
+ForkJoinActivation::ForkJoinActivation(JSContext *cx)
+  : Activation(cx, ForkJoin),
+    prevIonTop_(cx->mainThread().ionTop),
+    av_(cx->runtime(), false)
+{
+    // Note: we do not allow GC during parallel sections.
+    // Moreover, we do not wish to worry about making
+    // write barriers thread-safe.  Therefore, we guarantee
+    // that there is no incremental GC in progress and force
+    // a minor GC to ensure no cross-generation pointers get
+    // created:
+
+    if (JS::IsIncrementalGCInProgress(cx->runtime())) {
+        JS::PrepareForIncrementalGC(cx->runtime());
+        JS::FinishIncrementalGC(cx->runtime(), JS::gcreason::API);
+    }
+
+    MinorGC(cx->runtime(), JS::gcreason::API);
+
+    cx->runtime()->gcHelperThread.waitBackgroundSweepEnd();
+
+    JS_ASSERT(!cx->runtime()->needsBarrier());
+    JS_ASSERT(!cx->zone()->needsBarrier());
+}
+
+ForkJoinActivation::~ForkJoinActivation()
+{
+    cx_->mainThread().ionTop = prevIonTop_;
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // js::ForkJoin() and ParallelDo class
@@ -1652,6 +1690,13 @@ ForkJoinSlice::ForkJoinSlice(PerThreadData *perThreadData,
      * trigger GCs and is otherwise not thread-safe to access.
      */
     zone_ = shared->zone();
+
+    /*
+     * Unsafely set the compartment. This is used to get read-only access to
+     * shared tables.
+     */
+    compartment_ = shared->compartment();
+
     allocator_ = allocator;
 }
 

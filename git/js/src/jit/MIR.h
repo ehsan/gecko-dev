@@ -359,6 +359,10 @@ class MDefinition : public MNode
         return trackedPc_;
     }
 
+    // Return the range of this value, *before* any bailout checks. Contrast
+    // this with the type() method, and the Range constructor which takes an
+    // MDefinition*, which describe the value *after* any bailout checks.
+    //
     // Warning: Range analysis is removing the bit-operations such as '| 0' at
     // the end of the transformations. Using this function to analyse any
     // operands after the truncate phase of the range analysis will lead to
@@ -438,6 +442,12 @@ class MDefinition : public MNode
     MIR_FLAG_LIST(FLAG_ACCESSOR)
 #undef FLAG_ACCESSOR
 
+    // Return the type of this value. This may be speculative, and enforced
+    // dynamically with the use of bailout checks. If all the bailout checks
+    // pass, the value will have this type.
+    //
+    // Unless this is an MUrsh, which, as a special case, may return a value
+    // in (INT32_MAX,UINT32_MAX] even when its type() is MIRType_Int32.
     MIRType type() const {
         return resultType_;
     }
@@ -548,7 +558,8 @@ class MDefinition : public MNode
     bool is##opcode() const {                                               \
         return op() == Op_##opcode;                                         \
     }                                                                       \
-    inline M##opcode *to##opcode();
+    inline M##opcode *to##opcode();                                         \
+    inline const M##opcode *to##opcode() const;
     MIR_OPCODE_LIST(OPCODE_CASTS)
 #   undef OPCODE_CASTS
 
@@ -1977,13 +1988,13 @@ class MGetDynamicName
     }
 };
 
-// Bailout if the input string contains 'arguments'
-class MFilterArguments
+// Bailout if the input string contains 'arguments' or 'eval'.
+class MFilterArgumentsOrEval
   : public MAryInstruction<1>,
     public StringPolicy<0>
 {
   protected:
-    MFilterArguments(MDefinition *string)
+    MFilterArgumentsOrEval(MDefinition *string)
     {
         setOperand(0, string);
         setGuard();
@@ -1991,11 +2002,10 @@ class MFilterArguments
     }
 
   public:
-    INSTRUCTION_HEADER(FilterArguments)
+    INSTRUCTION_HEADER(FilterArgumentsOrEval)
 
-    static MFilterArguments *
-    New(MDefinition *string) {
-        return new MFilterArguments(string);
+    static MFilterArgumentsOrEval *New(MDefinition *string) {
+        return new MFilterArgumentsOrEval(string);
     }
 
     MDefinition *getString() const {
@@ -3233,11 +3243,11 @@ class MRsh : public MShiftInstruction
 
 class MUrsh : public MShiftInstruction
 {
-    bool canOverflow_;
+    bool bailoutsDisabled_;
 
     MUrsh(MDefinition *left, MDefinition *right)
       : MShiftInstruction(left, right),
-        canOverflow_(true)
+        bailoutsDisabled_(false)
     { }
 
   public:
@@ -3255,11 +3265,11 @@ class MUrsh : public MShiftInstruction
 
     void infer(BaselineInspector *inspector, jsbytecode *pc);
 
-    bool canOverflow();
-
-    bool fallible() {
-        return canOverflow();
+    bool bailoutsDisabled() const {
+        return bailoutsDisabled_;
     }
+
+    bool fallible();
 
     void computeRange();
 };
@@ -3972,12 +3982,8 @@ class MConcatPar
   public:
     INSTRUCTION_HEADER(ConcatPar)
 
-    static MConcatPar *New(MDefinition *slice, MDefinition *left, MDefinition *right) {
-        return new MConcatPar(slice, left, right);
-    }
-
     static MConcatPar *New(MDefinition *slice, MConcat *concat) {
-        return New(slice, concat->lhs(), concat->rhs());
+        return new MConcatPar(slice, concat->lhs(), concat->rhs());
     }
 
     MDefinition *forkJoinSlice() const {
@@ -4553,6 +4559,13 @@ struct LambdaFunctionInfo
         singletonType(fun->hasSingletonType()),
         useNewTypeForClone(types::UseNewTypeForClone(fun))
     {}
+
+    LambdaFunctionInfo(const LambdaFunctionInfo &info)
+      : fun((JSFunction *) info.fun), flags(info.flags),
+        scriptOrLazyScript(info.scriptOrLazyScript),
+        singletonType(info.singletonType),
+        useNewTypeForClone(info.useNewTypeForClone)
+    {}
 };
 
 class MLambda
@@ -4593,11 +4606,11 @@ class MLambdaPar
     LambdaFunctionInfo info_;
 
     MLambdaPar(MDefinition *slice, MDefinition *scopeChain, JSFunction *fun,
-               types::TemporaryTypeSet *resultTypes)
-      : MBinaryInstruction(slice, scopeChain), info_(fun)
+               types::TemporaryTypeSet *resultTypes, const LambdaFunctionInfo &info)
+      : MBinaryInstruction(slice, scopeChain), info_(info)
     {
-        JS_ASSERT(!fun->hasSingletonType());
-        JS_ASSERT(!types::UseNewTypeForClone(fun));
+        JS_ASSERT(!info_.singletonType);
+        JS_ASSERT(!info_.useNewTypeForClone);
         setResultType(MIRType_Object);
         setResultTypeSet(resultTypes);
     }
@@ -4605,13 +4618,9 @@ class MLambdaPar
   public:
     INSTRUCTION_HEADER(LambdaPar);
 
-    static MLambdaPar *New(MDefinition *slice, MDefinition *scopeChain, JSFunction *fun) {
-        return new MLambdaPar(slice, scopeChain, fun, MakeSingletonTypeSet(fun));
-    }
-
     static MLambdaPar *New(MDefinition *slice, MLambda *lambda) {
         return new MLambdaPar(slice, lambda->scopeChain(), lambda->info().fun,
-                              lambda->resultTypeSet());
+                              lambda->resultTypeSet(), lambda->info());
     }
 
     MDefinition *forkJoinSlice() const {
@@ -7916,11 +7925,6 @@ class MRestPar
   public:
     INSTRUCTION_HEADER(RestPar);
 
-    static MRestPar *New(MDefinition *slice, MDefinition *numActuals, unsigned numFormals,
-                         JSObject *templateObject) {
-        return new MRestPar(slice, numActuals, numFormals, templateObject,
-                            MakeSingletonTypeSet(templateObject));
-    }
     static MRestPar *New(MDefinition *slice, MRest *rest) {
         return new MRestPar(slice, rest->numActuals(), rest->numFormals(),
                             rest->templateObject(), rest->resultTypeSet());
@@ -8216,14 +8220,8 @@ class MNewCallObjectPar : public MBinaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObjectPar);
 
-    static MNewCallObjectPar *New(MDefinition *slice, JSObject *templateObj,
-                                  MDefinition *slots)
-    {
-        return new MNewCallObjectPar(slice, templateObj, slots);
-    }
-
     static MNewCallObjectPar *New(MDefinition *slice, MNewCallObject *callObj) {
-        return New(slice, callObj->templateObject(), callObj->slots());
+        return new MNewCallObjectPar(slice, callObj->templateObject(), callObj->slots());
     }
 
     MDefinition *forkJoinSlice() const {
@@ -8949,6 +8947,11 @@ class MAsmJSCheckOverRecursed : public MNullaryInstruction
     {                                                                       \
         JS_ASSERT(is##opcode());                                            \
         return static_cast<M##opcode *>(this);                              \
+    }                                                                       \
+    const M##opcode *MDefinition::to##opcode() const                        \
+    {                                                                       \
+        JS_ASSERT(is##opcode());                                            \
+        return static_cast<const M##opcode *>(this);                        \
     }
 MIR_OPCODE_LIST(OPCODE_CASTS)
 #undef OPCODE_CASTS
