@@ -104,11 +104,13 @@ CompositorParent::PauseComposition()
 void
 CompositorParent::ResumeComposition()
 {
-  mPaused = false;
+  if (mPaused) {
+    mPaused = false;
 
 #ifdef MOZ_WIDGET_ANDROID
-  static_cast<LayerManagerOGL*>(mLayerManager.get())->gl()->RenewSurface();
+    static_cast<LayerManagerOGL*>(mLayerManager.get())->gl()->RenewSurface();
 #endif
+  }
 }
 
 void
