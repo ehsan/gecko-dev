@@ -522,7 +522,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
             JS_DestroyScript(cx, script);
         }
         *buffer = '\0';
-    } while (!hitEOF && !gQuitting);
+    } while (!gQuitting);
 
     free(buffer);
     fprintf(gOutFile, "\n");
@@ -2226,10 +2226,8 @@ GetPDA(JSContext *cx, uintN argc, jsval *vp)
 
     if (!JS_ValueToObject(cx, argc == 0 ? JSVAL_VOID : vp[2], &vobj))
         return JS_FALSE;
-    if (!vobj) {
-        *vp = JSVAL_VOID;
+    if (!vobj)
         return JS_TRUE;
-    }
 
     aobj = JS_NewArrayObject(cx, 0, NULL);
     if (!aobj)
@@ -2240,7 +2238,7 @@ GetPDA(JSContext *cx, uintN argc, jsval *vp)
     if (!ok)
         return JS_FALSE;
     pd = pda.array;
-    for (i = 0; i < pda.length; i++, pd++) {
+    for (i = 0; i < pda.length; i++) {
         pdobj = JS_NewObject(cx, NULL, NULL, NULL);
         if (!pdobj) {
             ok = JS_FALSE;
