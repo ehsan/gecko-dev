@@ -135,6 +135,7 @@ nsHttpChannel::nsHttpChannel()
     , mResuming(false)
     , mInitedCacheEntry(false)
     , mCacheForOfflineUse(false)
+    , mCachingOpportunistically(false)
     , mFallbackChannel(false)
     , mCustomConditionalRequest(false)
     , mFallingBack(false)
@@ -1986,20 +1987,17 @@ nsHttpChannel::ProcessNotModified()
     // that cache entry so there is a fighting chance of getting things on the
     // right track as well as disabling pipelining for that host.
 
-    nsCAutoString lastModifiedCached;
+    nsCAutoString lastModified;
     nsCAutoString lastModified304;
 
     rv = mCachedResponseHead->GetHeader(nsHttp::Last_Modified,
-                                        lastModifiedCached);
-    if (NS_SUCCEEDED(rv)) {
+                                        lastModified);
+    if (NS_SUCCEEDED(rv))
         rv = mResponseHead->GetHeader(nsHttp::Last_Modified, 
                                       lastModified304);
-    }
-
-    if (NS_SUCCEEDED(rv) && !lastModified304.Equals(lastModifiedCached)) {
+    if (NS_SUCCEEDED(rv) && !lastModified304.Equals(lastModified)) {
         LOG(("Cache Entry and 304 Last-Modified Headers Do Not Match "
-             "[%s] and [%s]\n",
-             lastModifiedCached.get(), lastModified304.get()));
+             "%s and %s\n", lastModified.get(), lastModified304.get()));
 
         mCacheEntry->Doom();
         if (mConnectionInfo)
@@ -2007,7 +2005,6 @@ nsHttpChannel::ProcessNotModified()
                 PipelineFeedbackInfo(mConnectionInfo,
                                      nsHttpConnectionMgr::RedCorruptedContent,
                                      nsnull, 0);
-        Telemetry::Accumulate(Telemetry::CACHE_LM_INCONSISTENT, true);
     }
 
     // merge any new headers with the cached response headers
@@ -2076,8 +2073,8 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     NS_ASSERTION(fallbackEntryType & nsIApplicationCache::ITEM_FALLBACK,
                  "Fallback entry not marked correctly!");
 
-    // Kill any offline cache entry, and disable offline caching for the
-    // fallback.
+    // Kill any opportunistic cache entry, and disable opportunistic
+    // caching for the fallback.
     if (mOfflineCacheEntry) {
         mOfflineCacheEntry->Doom();
         mOfflineCacheEntry = 0;
@@ -2085,6 +2082,7 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     }
 
     mCacheForOfflineUse = false;
+    mCachingOpportunistically = false;
     mOfflineCacheClientID.Truncate();
     mOfflineCacheEntry = 0;
     mOfflineCacheAccess = 0;
@@ -2337,10 +2335,12 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
             NS_FAILED(namespaceEntry->GetItemType(&namespaceType)) ||
             (namespaceType &
              (nsIApplicationCacheNamespace::NAMESPACE_FALLBACK |
+              nsIApplicationCacheNamespace::NAMESPACE_OPPORTUNISTIC |
               nsIApplicationCacheNamespace::NAMESPACE_BYPASS)) == 0) {
             // When loading from an application cache, only items
             // on the whitelist or matching a
-            // fallback namespace should hit the network...
+            // fallback/opportunistic namespace should hit the
+            // network...
             mLoadFlags |= LOAD_ONLY_FROM_CACHE;
 
             // ... and if there were an application cache entry,
@@ -2352,6 +2352,19 @@ nsHttpChannel::OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
             nsIApplicationCacheNamespace::NAMESPACE_FALLBACK) {
             rv = namespaceEntry->GetData(mFallbackKey);
             NS_ENSURE_SUCCESS(rv, rv);
+        }
+
+        if ((namespaceType &
+             nsIApplicationCacheNamespace::NAMESPACE_OPPORTUNISTIC) &&
+            mLoadFlags & LOAD_DOCUMENT_URI) {
+            // Document loads for items in an opportunistic namespace
+            // should be placed in the offline cache.
+            nsCString clientID;
+            mApplicationCache->GetClientID(clientID);
+
+            mCacheForOfflineUse = !clientID.IsEmpty();
+            SetOfflineCacheClientID(clientID);
+            mCachingOpportunistically = true;
         }
     }
 
@@ -3092,6 +3105,17 @@ nsHttpChannel::CloseOfflineCacheEntry()
 
     mOfflineCacheEntry = 0;
     mOfflineCacheAccess = 0;
+
+    if (mCachingOpportunistically) {
+        nsCOMPtr<nsIApplicationCacheService> appCacheService =
+            do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
+        if (appCacheService) {
+            nsCAutoString cacheKey;
+            GenerateCacheKey(mPostID, cacheKey);
+            appCacheService->CacheOpportunistically(mApplicationCache,
+                                                    cacheKey);
+        }
+    }
 }
 
 

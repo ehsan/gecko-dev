@@ -91,8 +91,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcMallocBytes(0),
     debugModeBits(rt->debugMode ? DebugFromC : 0),
     mathCache(NULL),
-    watchpointMap(NULL),
-    scriptCountsMap(NULL)
+    watchpointMap(NULL)
 {
     PodArrayZero(evalCache);
     setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
@@ -112,7 +111,6 @@ JSCompartment::~JSCompartment()
 
     Foreground::delete_(mathCache);
     Foreground::delete_(watchpointMap);
-    Foreground::delete_(scriptCountsMap);
 
 #ifdef DEBUG
     for (size_t i = 0; i < ArrayLength(evalCache); ++i)
@@ -748,22 +746,22 @@ JSCompartment::removeDebuggee(FreeOp *fop,
 }
 
 void
-JSCompartment::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *handler)
+JSCompartment::clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler)
 {
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->hasAnyBreakpointsOrStepMode())
-            script->clearBreakpointsIn(fop, dbg, handler);
+            script->clearBreakpointsIn(cx, dbg, handler);
     }
 }
 
 void
-JSCompartment::clearTraps(FreeOp *fop)
+JSCompartment::clearTraps(JSContext *cx)
 {
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->hasAnyBreakpointsOrStepMode())
-            script->clearTraps(fop);
+            script->clearTraps(cx->runtime->defaultFreeOp());
     }
 }
 

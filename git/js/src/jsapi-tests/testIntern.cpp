@@ -36,7 +36,7 @@ BEGIN_TEST(testInternAcrossGC)
     sw.strOk = false;
     CHECK(sw.str);
     JS_SetFinalizeCallback(rt, FinalizeCallback);
-    JS_GC(rt);
+    JS_GC(cx);
     CHECK(sw.strOk);
     return true;
 }

@@ -221,9 +221,7 @@ TimerManager.prototype = {
         lastUpdateTime = Services.prefs.getIntPref(prefLastUpdate);
       }
       else {
-        // Initialize the last update time to 0 so that we check for
-        // an update the first time the interval expires.
-        lastUpdateTime = 0;
+        lastUpdateTime = now;
         Services.prefs.setIntPref(prefLastUpdate, lastUpdateTime);
       }
 

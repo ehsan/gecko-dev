@@ -2937,7 +2937,16 @@ nsHTMLEditor::CreateElementWithDefaults(const nsAString& aTagName, nsIDOMElement
   newElement->SetAttribute(NS_LITERAL_STRING("_moz_dirty"), EmptyString());
 
   // Set default values for new elements
-  if (TagName.EqualsLiteral("table")) {
+  if (TagName.EqualsLiteral("hr"))
+  {
+    // Note that we read the user's attributes for these from prefs (in InsertHLine JS)
+    res = SetAttributeOrEquivalent(newElement, NS_LITERAL_STRING("width"),
+                                   NS_LITERAL_STRING("100%"), true);
+    NS_ENSURE_SUCCESS(res, res);
+    res = SetAttributeOrEquivalent(newElement, NS_LITERAL_STRING("size"),
+                                   NS_LITERAL_STRING("2"), true);
+  } else if (TagName.EqualsLiteral("table"))
+  {
     res = newElement->SetAttribute(NS_LITERAL_STRING("cellpadding"),NS_LITERAL_STRING("2"));
     NS_ENSURE_SUCCESS(res, res);
     res = newElement->SetAttribute(NS_LITERAL_STRING("cellspacing"),NS_LITERAL_STRING("2"));
@@ -4304,7 +4313,7 @@ nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPt
   NS_ENSURE_TRUE(outNode && inParent, NS_ERROR_NULL_POINTER);
   nsresult res = NS_OK;
   *outNode = nsnull;
-  nsCOMPtr<nsIDOMNode> node = nsEditor::GetChildAt(inParent, inOffset + 1);
+  nsCOMPtr<nsIDOMNode> node = nsEditor::GetChildAt(inParent,inOffset);
   if (!node) {
     // return null sibling if no sibling
     return NS_OK;
@@ -4314,7 +4323,7 @@ nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPt
     return res;
   }
   // else
-  return GetNextHTMLSibling(node, outNode);
+  return GetPriorHTMLSibling(node, outNode);
 }
 
 

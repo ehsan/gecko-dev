@@ -83,7 +83,10 @@ Site.prototype = {
    * when done.
    */
   block: function Site_block() {
-    if (!gBlockedLinks.isBlocked(this._link)) {
+    if (gBlockedLinks.isBlocked(this._link)) {
+      if (aCallback)
+        aCallback();
+    } else {
       gBlockedLinks.block(this._link);
       gUpdater.updateGrid();
     }

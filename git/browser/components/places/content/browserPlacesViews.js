@@ -733,8 +733,6 @@ PlacesViewBase.prototype = {
                                  .direction == "rtl";
   },
 
-  get ownerWindow() window,
-
   /**
    * Adds an "Open All in Tabs" menuitem to the bottom of the popup.
    * @param aPopup

@@ -71,18 +71,6 @@ ifeq ($(OS_ARCH),WINNT)
 INSTALLER_DIR   = windows
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-ifndef _APPNAME
-_APPNAME = $(MOZ_MACBUNDLE_NAME)
-endif
-ifndef _BINPATH
-_BINPATH = /$(_APPNAME)/Contents/MacOS
-endif # _BINPATH
-ifdef UNIVERSAL_BINARY
-STAGEPATH = universal/
-endif
-endif
-
 PACKAGE       = $(PKG_PATH)$(PKG_BASENAME)$(PKG_SUFFIX)
 
 # By default, the SDK uses the same packaging type as the main bundle,
@@ -152,11 +140,7 @@ MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | gzip -vf9 > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),BZ2)
 PKG_SUFFIX	= .tar.bz2
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
-else
 INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
-endif
 INNER_UNMAKE_PACKAGE	= bunzip2 -c $(UNPACKAGE) | $(UNPACK_TAR)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
@@ -408,6 +392,12 @@ INNER_UNMAKE_PACKAGE	= \
   popd
 endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
+ifndef _APPNAME
+_APPNAME = $(MOZ_MACBUNDLE_NAME)
+endif
+ifndef _BINPATH
+_BINPATH	= /$(_APPNAME)/Contents/MacOS
+endif # _BINPATH
 PKG_SUFFIX	= .dmg
 PKG_DMG_FLAGS	=
 ifneq (,$(MOZ_PKG_MAC_DSSTORE))
@@ -426,6 +416,9 @@ ifneq (,$(MOZ_PKG_MAC_EXTRA))
 PKG_DMG_FLAGS += $(MOZ_PKG_MAC_EXTRA)
 endif
 _ABS_MOZSRCDIR = $(shell cd $(MOZILLA_DIR) && pwd)
+ifdef UNIVERSAL_BINARY
+STAGEPATH = universal/
+endif
 ifndef PKG_DMG_SOURCE
 PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_DIR)
 endif
@@ -776,7 +769,7 @@ ifdef MOZ_PKG_MANIFEST
 	  $(patsubst %,$(DIST)/manifests/%/chrome,$(MOZ_LOCALIZED_PKG_LIST))
 	printf "manifest components/interfaces.manifest\nmanifest components/components.manifest\nmanifest chrome/nonlocalized.manifest\nmanifest chrome/localized.manifest\n" > $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/chrome.manifest
 else # !MOZ_PKG_MANIFEST
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef STAGE_SDK
 	@cd $(DIST) && rsync -auv --copy-unsafe-links $(_APPNAME) $(MOZ_PKG_DIR)
 	@echo "Linking XPT files..."

@@ -1500,24 +1500,23 @@ struct GlyphBufferAzure {
 
                 if (invFontMatrix) {
                     // The brush matrix needs to be multiplied with the inverted matrix
-                    // as well, to move the brush into the space of the glyphs. Before
-                    // the render target transformation
+	                // as well, to move the brush into the space of the glyphs. Before
+	                // the render target transformation
 
                     // This relies on the returned Pattern not to be reused by
                     // others, but regenerated on GetPattern calls. This is true!
-                    Matrix *mat = nsnull;
+                    Matrix *mat;
                     if (pat->GetType() == PATTERN_LINEAR_GRADIENT) {
                         mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
                     } else if (pat->GetType() == PATTERN_RADIAL_GRADIENT) {
-                        mat = &static_cast<RadialGradientPattern*>(pat)->mMatrix;
+                        mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
                     } else if (pat->GetType() == PATTERN_SURFACE) {
-                        mat = &static_cast<SurfacePattern*>(pat)->mMatrix;
+                        mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
                     }
 
-                    if (mat) {
-                        *mat = (*mat) * (*invFontMatrix);
-                    }
+                    *mat = (*mat) * (*invFontMatrix);
                 }
+
 
                 aDT->FillGlyphs(aFont, buf, *pat,
                                 DrawOptions(), aOptions);

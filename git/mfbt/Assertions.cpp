@@ -47,10 +47,6 @@
 #include <signal.h>
 #endif
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
-
 /* Implementations of runtime and static assertion macros for C and C++. */
 
 extern "C" {
@@ -72,13 +68,6 @@ MOZ_Crash()
    */
   *((volatile int *) NULL) = 123;
   exit(3);
-#elif defined(ANDROID)
-  /*
-   * On Android, raise(SIGABRT) is handled asynchronously. Seg fault now
-   * so we crash immediately and capture the current call stack.
-   */
-  *((volatile int *) NULL) = 123;
-  abort();
 #elif defined(__APPLE__)
   /*
    * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
@@ -94,13 +83,8 @@ MOZ_Crash()
 MOZ_EXPORT_API(void)
 MOZ_Assert(const char* s, const char* file, int ln)
 {
-#ifdef ANDROID
-  __android_log_print(ANDROID_LOG_FATAL, "MOZ_Assert",
-                      "Assertion failure: %s, at %s:%d\n", s, file, ln);
-#else
   fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
   fflush(stderr);
-#endif
   MOZ_Crash();
 }
 

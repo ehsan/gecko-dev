@@ -1,8 +1,6 @@
 
 // pull in the Contacts service
-let tmp = {};
-Components.utils.import("resource:///modules/contacts.jsm", tmp);
-let Contacts = tmp.Contacts;
+Components.utils.import("resource:///modules/contacts.jsm");
 
 let fac = Cc["@mozilla.org/satchel/form-autocomplete;1"].getService(Ci.nsIFormAutoComplete);
 let fh = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);

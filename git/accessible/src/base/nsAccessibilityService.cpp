@@ -36,19 +36,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsAccessibilityService.h"
+#include "mozilla/Util.h"
 
 // NOTE: alphabetically ordered
-#include "ARIAGridAccessibleWrap.h"
-#ifdef MOZ_ACCESSIBILITY_ATK
-#include "AtkSocketAccessible.h"
-#endif
-#include "FocusManager.h"
+#include "nsAccessibilityService.h"
 #include "nsAccessiblePivot.h"
+#include "nsCoreUtils.h"
 #include "nsAccUtils.h"
-#include "nsARIAMap.h"
 #include "nsApplicationAccessibleWrap.h"
-#include "nsIAccessibleProvider.h"
+#include "nsARIAGridAccessibleWrap.h"
+#include "nsARIAMap.h"
+#include "FocusManager.h"
+
+#include "nsIContentViewer.h"
+#include "nsCURILoader.h"
+#include "nsDocAccessible.h"
 #include "nsHTMLCanvasAccessible.h"
 #include "nsHTMLImageMapAccessible.h"
 #include "nsHTMLLinkAccessible.h"
@@ -56,20 +58,12 @@
 #include "nsHTMLTableAccessibleWrap.h"
 #include "nsHTMLTextAccessible.h"
 #include "nsHyperTextAccessibleWrap.h"
-#include "nsRootAccessibleWrap.h"
-#include "nsXFormsFormControlsAccessible.h"
-#include "nsXFormsWidgetsAccessible.h"
-#include "OuterDocAccessible.h"
+#include "nsIAccessibilityService.h"
+#include "nsIAccessibleProvider.h"
 #include "Role.h"
 #include "States.h"
 #include "Statistics.h"
-#ifdef XP_WIN
-#include "nsHTMLWin32ObjectAccessible.h"
-#endif
 
-#include "nsCURILoader.h"
-#include "nsEventStates.h"
-#include "nsIContentViewer.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAreaElement.h"
 #include "nsIDOMHTMLLegendElement.h"
@@ -85,11 +79,11 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsISupportsUtils.h"
 #include "nsObjectFrame.h"
+#include "nsOuterDocAccessible.h"
+#include "nsRootAccessibleWrap.h"
 #include "nsTextFragment.h"
-#include "mozilla/FunctionTimer.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/Services.h"
-#include "mozilla/Util.h"
+#include "nsEventStates.h"
 
 #ifdef MOZ_XUL
 #include "nsXULAlertAccessible.h"
@@ -103,6 +97,22 @@
 #include "nsXULTextAccessible.h"
 #include "nsXULTreeGridAccessibleWrap.h"
 #endif
+
+// For native window support for object/embed/applet tags
+#ifdef XP_WIN
+#include "nsHTMLWin32ObjectAccessible.h"
+#endif
+
+// For embedding plugin accessibles
+#ifdef MOZ_ACCESSIBILITY_ATK
+#include "AtkSocketAccessible.h"
+#endif
+
+#include "nsXFormsFormControlsAccessible.h"
+#include "nsXFormsWidgetsAccessible.h"
+
+#include "mozilla/FunctionTimer.h"
+#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -200,9 +210,9 @@ already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateOuterDocAccessible(nsIContent* aContent,
                                                  nsIPresShell* aPresShell)
 {
-  nsAccessible* accessible =
-    new OuterDocAccessible(aContent,
-                           nsAccUtils::GetDocAccessibleFor(aPresShell));
+  nsAccessible* accessible = 
+    new nsOuterDocAccessible(aContent, 
+                             nsAccUtils::GetDocAccessibleFor(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -1166,12 +1176,12 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 
         if (roleMapEntry->role == roles::TABLE ||
             roleMapEntry->role == roles::TREE_TABLE) {
-          newAcc = new ARIAGridAccessibleWrap(content, docAcc);
+          newAcc = new nsARIAGridAccessibleWrap(content, docAcc);
 
         } else if (roleMapEntry->role == roles::GRID_CELL ||
             roleMapEntry->role == roles::ROWHEADER ||
             roleMapEntry->role == roles::COLUMNHEADER) {
-          newAcc = new ARIAGridCellAccessibleWrap(content, docAcc);
+          newAcc = new nsARIAGridCellAccessibleWrap(content, docAcc);
         }
       }
     }
@@ -1346,7 +1356,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
     return nsnull;
 
   if (type == nsIAccessibleProvider::OuterDoc) {
-    nsAccessible* accessible = new OuterDocAccessible(aContent, aDoc);
+    nsAccessible* accessible = new nsOuterDocAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

@@ -917,7 +917,7 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion);
@@ -946,9 +946,8 @@ GetDisplayItemBounds(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem, nsIFr
 }
 
 nsRect
-nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder)
 {
-  *aSnap = false;
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
@@ -962,8 +961,7 @@ nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
     return false;
 
   nsRect expand;
-  bool snap;
-  expand.IntersectRect(aAllowVisibleRegionExpansion, GetBounds(aBuilder, &snap));
+  expand.IntersectRect(aAllowVisibleRegionExpansion, GetBounds(aBuilder));
   // *Add* our bounds to the visible region so that stuff underneath us is
   // likely to be made visible, so we can use it for a background! This is
   // a bit crazy since we normally only subtract from the visible region.
@@ -972,9 +970,8 @@ nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 nsRect
-nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder)
 {
-  *aSnap = false;
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
@@ -983,8 +980,7 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
                        nsRenderingContext* aCtx)
 {
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
-  bool snap;
-  f->PaintPlugin(aBuilder, *aCtx, mVisibleRect, GetBounds(aBuilder, &snap));
+  f->PaintPlugin(aBuilder, *aCtx, mVisibleRect, GetBounds(aBuilder));
 }
 
 bool
@@ -992,19 +988,18 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion)
 {
-  bool snap;
-  mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder, &snap));
+  mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder));  
   return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
                                           aAllowVisibleRegionExpansion);
 }
 
 nsRegion
 nsDisplayPlugin::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                 bool* aSnap,
                                  bool* aForceTransparentSurface)
 {
-  *aForceTransparentSurface = false;
-  *aSnap = false;
+  if (aForceTransparentSurface) {
+    *aForceTransparentSurface = false;
+  }
   nsRegion result;
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   if (!aBuilder->IsForPluginGeometry()) {
@@ -1023,13 +1018,11 @@ nsDisplayPlugin::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
       }
     }
   }
-  if (f->IsOpaque()) {
-    nsRect bounds = GetBounds(aBuilder, aSnap);
-    if (aBuilder->IsForPluginGeometry() ||
-        (f->GetPaintedRect(this) + ToReferenceFrame()).Contains(bounds)) {
-      // We can treat this as opaque
-      result = bounds;
-    }
+  if (f->IsOpaque() &&
+      (aBuilder->IsForPluginGeometry() ||
+       (f->GetPaintedRect(this) + ToReferenceFrame()).Contains(GetBounds(aBuilder)))) {
+    // We can treat this as opaque
+    result = GetBounds(aBuilder);
   }
   return result;
 }

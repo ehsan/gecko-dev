@@ -37,7 +37,7 @@ BEGIN_TEST(testGCOutOfMemory)
     CHECK(!ok);
     CHECK(!JS_IsExceptionPending(cx));
     CHECK_EQUAL(errorCount, 1);
-    JS_GC(rt);
+    JS_GC(cx);
     EVAL("(function() {"
          "    var array = [];"
          "    for (var i = max >> 2; i != 0;) {"

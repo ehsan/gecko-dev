@@ -151,12 +151,16 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULLinkAccessible. nsIAccessible
 
-void
-nsXULLinkAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXULLinkAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
 
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, aValue);
+  return NS_OK;
 }
 
 nsresult

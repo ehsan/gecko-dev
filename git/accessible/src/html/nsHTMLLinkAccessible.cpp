@@ -106,18 +106,20 @@ nsHTMLLinkAccessible::NativeState()
   return states;
 }
 
-void
-nsHTMLLinkAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
 
-  nsHyperTextAccessible::Value(aValue);
+  nsresult rv = nsHyperTextAccessible::GetValue(aValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (!aValue.IsEmpty())
-    return;
+    return NS_OK;
   
   nsIPresShell* presShell(mDoc->PresShell());
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  presShell->GetLinkLocation(DOMNode, aValue);
+  return presShell->GetLinkLocation(DOMNode, aValue);
 }
 
 PRUint8

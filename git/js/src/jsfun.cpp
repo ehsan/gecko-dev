@@ -429,7 +429,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
         fun->initScript(script);
         if (!script->typeSetFunction(cx, fun))
             return false;
-        JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
+        JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
         js_CallNewScriptHook(cx, fun->script(), fun);
         *objp = fun;
     }
@@ -861,7 +861,7 @@ fun_isGenerator(JSContext *cx, unsigned argc, Value *vp)
     if (fun->isInterpreted()) {
         JSScript *script = fun->script();
         JS_ASSERT(script->length != 0);
-        result = script->isGenerator;
+        result = script->code[0] == JSOP_GENERATOR;
     }
 
     JS_SET_RVAL(cx, vp, BooleanValue(result));
@@ -895,22 +895,6 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
         argslen = args.length() - 1;
     }
 
-    /* Steps 7-9. */
-    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
-
-    JSObject *boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
-    if (!boundFunction)
-        return false;
-
-    /* Step 22. */
-    args.rval().setObject(*boundFunction);
-    return true;
-}
-
-JSObject*
-js_fun_bind(JSContext *cx, HandleObject target, Value thisArg,
-            Value *boundArgs, unsigned argslen)
-{
     /* Steps 15-16. */
     unsigned length = 0;
     if (target->isFunction()) {
@@ -926,18 +910,23 @@ js_fun_bind(JSContext *cx, HandleObject target, Value thisArg,
         js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
                        JSFUN_CONSTRUCTOR, target, name);
     if (!funobj)
-        return NULL;
+        return false;
 
     /* NB: Bound functions abuse |parent| to store their target. */
     if (!funobj->setParent(cx, target))
-        return NULL;
+        return false;
 
+    /* Steps 7-9. */
+    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
     if (!funobj->toFunction()->initBoundFunction(cx, thisArg, boundArgs, argslen))
-        return NULL;
+        return false;
 
     /* Steps 17, 19-21 are handled by fun_resolve. */
     /* Step 18 is the default for new functions. */
-    return funobj;
+
+    /* Step 22. */
+    args.rval().setObject(*funobj);
+    return true;
 }
 
 /*
@@ -1199,7 +1188,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
     fun->flags = flags & (JSFUN_FLAGS_MASK | JSFUN_KINDMASK);
     if ((flags & JSFUN_KINDMASK) >= JSFUN_INTERPRETED) {
         JS_ASSERT(!native);
-        fun->mutableScript().init(NULL);
+        fun->script().init(NULL);
         fun->initEnvironment(parent);
     } else {
         fun->u.native = native;
@@ -1265,7 +1254,7 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
             JS_ASSERT(script->compartment() == fun->compartment());
             JS_ASSERT(script->compartment() != cx->compartment);
 
-            clone->mutableScript().init(NULL);
+            clone->script().init(NULL);
             JSScript *cscript = CloneScript(cx, script);
             if (!cscript)
                 return NULL;

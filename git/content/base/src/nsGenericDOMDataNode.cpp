@@ -980,7 +980,6 @@ nsGenericDOMDataNode::GetInlineStyleRule()
 
 NS_IMETHODIMP
 nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
-                                         const nsAString* aSerialized,
                                          bool aNotify)
 {
   NS_NOTREACHED("How come we're setting inline style on a non-element?");

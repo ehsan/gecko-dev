@@ -652,6 +652,25 @@ MapContextOptionNameToFlag(JSContext* cx, const char* name)
 
 extern JSClass global_class;
 
+#ifdef JS_GC_ZEAL
+static void
+ParseZealArg(JSContext *cx, const char *arg)
+{
+    int zeal, freq = 1, compartment = 0;
+    const char *p = strchr(arg, ',');
+
+    zeal = atoi(arg);
+    if (p) {
+        freq = atoi(p + 1);
+        p = strchr(p + 1, ',');
+        if (p)
+            compartment = atoi(p + 1);
+    }
+
+    JS_SetGCZeal(cx, (uint8_t)zeal, freq, !!compartment);
+}
+#endif
+
 static JSBool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
@@ -1543,8 +1562,12 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
         const char *name = js_SrcNoteSpec[type].name;
         if (type == SRC_LABEL) {
             /* Check if the source note is for a switch case. */
-            if (switchTableStart <= offset && offset < switchTableEnd)
+            if (switchTableStart <= offset && offset < switchTableEnd) {
                 name = "case";
+            } else {
+                JSOp op = JSOp(script->code[offset]);
+                JS_ASSERT(op == JSOP_LABEL);
+            }
         }
         Sprint(sp, "%3u: %4u %5u [%4u] %-8s", unsigned(sn - notes), lineno, offset, delta, name);
         switch (type) {
@@ -1583,7 +1606,7 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
             Sprint(sp, " atom %u (", index);
             size_t len = PutEscapedString(NULL, 0, atom, '\0');
             if (char *buf = sp->reserve(len)) {
-                PutEscapedString(buf, len + 1, atom, 0);
+                PutEscapedString(buf, len, atom, 0);
                 buf[len] = 0;
             }
             Sprint(sp, ")");
@@ -4650,6 +4673,11 @@ ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
         enableMethodJit = true;
         JS_ToggleOptions(cx, JSOPTION_METHODJIT);
     }
+
+#ifdef JS_GC_ZEAL
+    if (const char *zeal = op->getStringOption('Z'))
+        ParseZealArg(cx, zeal);
+#endif
 
     if (op->getBoolOption('d')) {
         JS_SetRuntimeDebugMode(JS_GetRuntime(cx), true);

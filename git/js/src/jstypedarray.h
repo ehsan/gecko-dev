@@ -331,6 +331,9 @@ JS_FRIEND_API(JSObject *)
 js_CreateTypedArrayWithBuffer(JSContext *cx, int atype, JSObject *bufArg,
                               int byteoffset, int length);
 
+extern int32_t JS_FASTCALL
+js_TypedArray_uint8_clamp_double(const double x);
+
 JS_FRIEND_API(JSBool)
 JS_IsArrayBufferObject(JSObject *obj);
 

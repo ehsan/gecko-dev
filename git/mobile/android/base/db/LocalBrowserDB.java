@@ -91,7 +91,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     private final Uri mImagesUriWithProfile;
     private final Uri mCombinedUriWithProfile;
     private final Uri mDeletedHistoryUriWithProfile;
-    private final Uri mUpdateHistoryUriWithProfile;
 
     private static final String[] DEFAULT_BOOKMARK_COLUMNS =
             new String[] { Bookmarks._ID,
@@ -116,10 +115,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         mDeletedHistoryUriWithProfile = mHistoryUriWithProfile.buildUpon().
             appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1").build();
-
-        mUpdateHistoryUriWithProfile = mHistoryUriWithProfile.buildUpon().
-            appendQueryParameter(BrowserContract.PARAM_INCREMENT_VISITS, "true").
-            appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true").build();
     }
 
     // Invalidate cached data
@@ -236,23 +231,50 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void updateVisitedHistory(ContentResolver cr, String uri) {
-        ContentValues values = new ContentValues();
+        long now = System.currentTimeMillis();
+        Cursor cursor = null;
 
-        values.put(History.URL, uri);
-        values.put(History.DATE_LAST_VISITED, System.currentTimeMillis());
-        values.put(History.IS_DELETED, 0);
+        try {
+            final String[] projection = new String[] {
+                    History._ID,    // 0
+                    History.VISITS, // 1
+            };
 
-        // This will insert a new history entry if one for this URL
-        // doesn't already exist
-        int updated = cr.update(mUpdateHistoryUriWithProfile,
-                                values,
-                                History.URL + " = ?",
-                                new String[] { uri });
+            cursor = cr.query(mDeletedHistoryUriWithProfile,
+                              projection,
+                              History.URL + " = ?",
+                              new String[] { uri },
+                              null);
 
-        // If we added a new row, ensure we don't blow up our database
-        // with too many history items.
-        if (updated == 0)
-            truncateHistory(cr);
+            if (cursor.moveToFirst()) {
+                ContentValues values = new ContentValues();
+
+                values.put(History.VISITS, cursor.getInt(1) + 1);
+                values.put(History.DATE_LAST_VISITED, now);
+
+                // Restore deleted record if possible
+                values.put(History.IS_DELETED, 0);
+
+                Uri historyUri = ContentUris.withAppendedId(History.CONTENT_URI, cursor.getLong(0));
+                cr.update(appendProfile(historyUri), values, null, null);
+            } else {
+                // Ensure we don't blow up our database with too
+                // many history items.
+                truncateHistory(cr);
+
+                ContentValues values = new ContentValues();
+
+                values.put(History.URL, uri);
+                values.put(History.VISITS, 1);
+                values.put(History.DATE_LAST_VISITED, now);
+                values.put(History.TITLE, uri);
+
+                cr.insert(mHistoryUriWithProfile, values);
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
     }
 
     public void updateHistoryTitle(ContentResolver cr, String uri, String title) {

@@ -52,14 +52,15 @@ CPPSRCS = \
   AccEvent.cpp \
   AccGroupInfo.cpp \
   AccIterator.cpp \
-  ARIAStateMap.cpp \
   filters.cpp \
   FocusManager.cpp \
   NotificationController.cpp \
   nsAccDocManager.cpp \
   nsAccessNode.cpp \
+  nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
+  nsOuterDocAccessible.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
   nsAccessibilityService.cpp \
@@ -91,7 +92,6 @@ EXPORTS = \
 EXPORTS_NAMESPACES = mozilla/a11y
 
 EXPORTS_mozilla/a11y = \
-  ARIAStateMap.h \
   FocusManager.h \
   States.h \
   Role.h \
@@ -108,10 +108,10 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../html \
   -I$(srcdir)/../xpcom \
   -I$(srcdir)/../xul \
-  -I$(srcdir)/../xforms \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/style \
   -I$(srcdir)/../../../layout/xul/base/src \
+  -I$(srcdir)/../xforms \
   $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)

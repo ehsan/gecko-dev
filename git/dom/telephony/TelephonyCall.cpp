@@ -164,9 +164,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(TelephonyCall,
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(connected)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnecting)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnected)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(holding)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(held)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(resuming)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(incoming)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(TelephonyCall,
@@ -180,9 +178,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(TelephonyCall,
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(connected)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(disconnecting)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(disconnected)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(holding)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(held)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(resuming)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(incoming)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TelephonyCall)
@@ -242,36 +238,6 @@ TelephonyCall::HangUp()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-TelephonyCall::Hold()
-{
-  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_CONNECTED) {
-    NS_WARNING("Hold non-connected call ignored!");
-    return NS_OK;
-  }
-  
-  nsresult rv = mTelephony->RIL()->HoldCall(mCallIndex);
-  NS_ENSURE_SUCCESS(rv,rv);
-  
-  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_HOLDING, true);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyCall::Resume()
-{
-  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_HELD) {
-    NS_WARNING("Resume non-held call ignored!");
-    return NS_OK;
-  }
-  
-  nsresult rv = mTelephony->RIL()->ResumeCall(mCallIndex);
-  NS_ENSURE_SUCCESS(rv,rv);
-  
-  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_RESUMING, true);
-  return NS_OK;
-}
-
 NS_IMPL_EVENT_HANDLER(TelephonyCall, statechange)
 NS_IMPL_EVENT_HANDLER(TelephonyCall, dialing)
 NS_IMPL_EVENT_HANDLER(TelephonyCall, alerting)
@@ -280,6 +246,4 @@ NS_IMPL_EVENT_HANDLER(TelephonyCall, connecting)
 NS_IMPL_EVENT_HANDLER(TelephonyCall, connected)
 NS_IMPL_EVENT_HANDLER(TelephonyCall, disconnecting)
 NS_IMPL_EVENT_HANDLER(TelephonyCall, disconnected)
-NS_IMPL_EVENT_HANDLER(TelephonyCall, holding)
-NS_IMPL_EVENT_HANDLER(TelephonyCall, held)
-NS_IMPL_EVENT_HANDLER(TelephonyCall, resuming)
+NS_IMPL_EVENT_HANDLER(TelephonyCall, incoming)

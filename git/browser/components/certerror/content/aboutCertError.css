@@ -47,8 +47,6 @@
   white-space: pre-wrap;
 }
 
-.expander[hidden],
-.expander[hidden] + *,
 .expander[collapsed] + * {
   display: none;
 }

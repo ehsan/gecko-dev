@@ -45,20 +45,6 @@
 
 namespace js {
 
-inline
-ScopeCoordinate::ScopeCoordinate(jsbytecode *pc)
-  : hops(GET_UINT16(pc)), binding(GET_UINT16(pc + 2))
-{
-    JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
-}
-
-inline JSAtom *
-ScopeCoordinateAtom(JSScript *script, jsbytecode *pc)
-{
-    JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
-    return script->getAtom(GET_UINT32_INDEX(pc + 2 * sizeof(uint16_t)));
-}
-
 inline JSObject &
 ScopeObject::enclosingScope() const
 {
@@ -122,6 +108,20 @@ CallObject::getCalleeFunction() const
 }
 
 inline const Value &
+CallObject::arguments() const
+{
+    JS_ASSERT(!isForEval());
+    return getReservedSlot(ARGUMENTS_SLOT);
+}
+
+inline void
+CallObject::setArguments(const Value &v)
+{
+    JS_ASSERT(!isForEval());
+    setFixedSlot(ARGUMENTS_SLOT, v);
+}
+
+inline const Value &
 CallObject::arg(unsigned i) const
 {
     JS_ASSERT(i < getCalleeFunction()->nargs);
@@ -146,8 +146,8 @@ inline const Value &
 CallObject::var(unsigned i) const
 {
     JSFunction *fun = getCalleeFunction();
-    JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
-    JS_ASSERT(i < fun->script()->bindings.numVars());
+    JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
+    JS_ASSERT(i < fun->script()->bindings.countVars());
     return getSlot(RESERVED_SLOTS + fun->nargs + i);
 }
 
@@ -155,8 +155,8 @@ inline void
 CallObject::setVar(unsigned i, const Value &v)
 {
     JSFunction *fun = getCalleeFunction();
-    JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
-    JS_ASSERT(i < fun->script()->bindings.numVars());
+    JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
+    JS_ASSERT(i < fun->script()->bindings.countVars());
     setSlot(RESERVED_SLOTS + fun->nargs + i, v);
 }
 
@@ -164,8 +164,8 @@ inline void
 CallObject::initVarUnchecked(unsigned i, const Value &v)
 {
     JSFunction *fun = getCalleeFunction();
-    JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
-    JS_ASSERT(i < fun->script()->bindings.numVars());
+    JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
+    JS_ASSERT(i < fun->script()->bindings.countVars());
     initSlotUnchecked(RESERVED_SLOTS + fun->nargs + i, v);
 }
 
@@ -190,7 +190,7 @@ CallObject::varArray()
 {
     JSFunction *fun = getCalleeFunction();
     JS_ASSERT(hasContiguousSlots(RESERVED_SLOTS + fun->nargs,
-                                 fun->script()->bindings.numVars()));
+                                 fun->script()->bindings.countVars()));
     return HeapSlotArray(getSlotAddress(RESERVED_SLOTS + fun->nargs));
 }
 
@@ -221,7 +221,6 @@ BlockObject::slotCount() const
 inline HeapSlot &
 BlockObject::slotValue(unsigned i)
 {
-    JS_ASSERT(i < slotCount());
     return getSlotRef(RESERVED_SLOTS + i);
 }
 
@@ -260,21 +259,9 @@ StaticBlockObject::maybeDefinitionParseNode(unsigned i)
 }
 
 inline void
-StaticBlockObject::setAliased(unsigned i, bool aliased)
+StaticBlockObject::poisonDefinitionParseNode(unsigned i)
 {
-    slotValue(i).init(this, i, BooleanValue(aliased));
-}
-
-inline bool
-StaticBlockObject::isAliased(unsigned i)
-{
-    return slotValue(i).isTrue();
-}
-
-inline bool
-StaticBlockObject::containsVarAtDepth(uint32_t depth)
-{
-    return depth >= stackDepth() && depth < stackDepth() + slotCount();
+    slotValue(i).init(this, i, PrivateValue(NULL));
 }
 
 inline StaticBlockObject &

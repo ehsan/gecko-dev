@@ -125,7 +125,7 @@ public final class Tab {
         mContentType = "";
         mPluginViews = new ArrayList<View>();
         mPluginLayers = new HashMap<Surface, Layer>();
-        setState(STATE_LOADING);
+        mState = STATE_LOADING;
         mContentResolver = Tabs.getInstance().getContentResolver();
         mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
             public void onChange(boolean selfChange) {
@@ -324,11 +324,7 @@ public final class Tab {
     }
 
     public void setState(int state) {
-        // Pages implemented in Java are not bound by Gecko state
-        if ("about:home".equals(mUrl))
-            mState = STATE_SUCCESS;
-        else
-            mState = state;
+        mState = state;
     }
 
     public int getState() {

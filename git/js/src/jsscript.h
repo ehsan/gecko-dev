@@ -141,20 +141,12 @@ class Bindings
      */
     inline void clone(JSContext *cx, Bindings *bindings);
 
-    uint16_t numArgs() const { return nargs; }
-    uint16_t numVars() const { return nvars; }
-    unsigned count() const { return nargs + nvars; }
+    uint16_t countArgs() const { return nargs; }
+    uint16_t countVars() const { return nvars; }
 
-    /*
-     * These functions map between argument/var indices [0, nargs/nvars) and
-     * and Bindings indices [0, nargs + nvars).
-     */
-    bool bindingIsArg(uint16_t i) const { return i < nargs; }
-    bool bindingIsLocal(uint16_t i) const { return i >= nargs; }
-    uint16_t argToBinding(uint16_t i) { JS_ASSERT(i < nargs); return i; }
-    uint16_t localToBinding(uint16_t i) { return i + nargs; }
-    uint16_t bindingToArg(uint16_t i) { JS_ASSERT(bindingIsArg(i)); return i; }
-    uint16_t bindingToLocal(uint16_t i) { JS_ASSERT(bindingIsLocal(i)); return i - nargs; }
+    unsigned countLocalNames() const { return nargs + nvars; }
+
+    bool hasLocalNames() const { return countLocalNames() > 0; }
 
     /* Ensure these bindings have a shape lineage. */
     inline bool ensureShape(JSContext *cx);
@@ -231,7 +223,7 @@ class Bindings
 
     /*
      * This method returns the local variable, argument, etc. names used by a
-     * script.  This function must be called only when count() > 0.
+     * script.  This function must be called only when hasLocalNames().
      *
      * The elements of the vector with index less than nargs correspond to the
      * the names of arguments. An index >= nargs addresses a var binding.
@@ -305,19 +297,22 @@ class ScriptCounts
     PCCounts *pcCountsVector;
 
  public:
-    ScriptCounts() : pcCountsVector(NULL) { }
 
-    inline void destroy(FreeOp *fop);
+    ScriptCounts() : pcCountsVector(NULL) {
+    }
 
-    void set(js::ScriptCounts counts) {
-        pcCountsVector = counts.pcCountsVector;
+    inline void destroy(JSContext *cx);
+
+    void steal(ScriptCounts &other) {
+        *this = other;
+        js::PodZero(&other);
+    }
+
+    // Boolean conversion, for 'if (scriptCounts) ...'
+    operator void*() const {
+        return pcCountsVector;
     }
 };
-
-typedef HashMap<JSScript *,
-                ScriptCounts,
-                DefaultHasher<JSScript *>,
-                SystemAllocPolicy> ScriptCountsMap;
 
 class DebugScript
 {
@@ -353,7 +348,6 @@ struct JSScript : public js::gc::Cell
     static const uint32_t stepCountMask = 0x7fffffffU;
 
   public:
-#ifdef JS_METHODJIT
     // This type wraps JITScript.  It has three possible states.
     // - "Empty": no compilation has been attempted and there is no JITScript.
     // - "Unjittable": compilation failed and there is no JITScript.
@@ -395,7 +389,6 @@ struct JSScript : public js::gc::Cell
 
         static void staticAsserts();
     };
-#endif  // JS_METHODJIT
 
     //
     // We order fields according to their size in order to avoid wasting space
@@ -416,7 +409,7 @@ struct JSScript : public js::gc::Cell
                                    comment above NewScript() for details) */
 
     const char      *filename;  /* source filename or null */
-    js::HeapPtrAtom *atoms;     /* maps immediate index to literal struct */
+    JSAtom          **atoms;    /* maps immediate index to literal struct */
 
     JSPrincipals    *principals;/* principals for this script */
     JSPrincipals    *originPrincipals; /* see jsapi.h 'originPrincipals' comment */
@@ -436,6 +429,9 @@ struct JSScript : public js::gc::Cell
      */
     js::HeapPtr<js::GlobalObject, JSScript*> globalObject;
 
+    /* Execution and profiling information for JIT code in the script. */
+    js::ScriptCounts scriptCounts;
+
     /* Persistent type information retained across GCs. */
     js::types::TypeScript *types;
 
@@ -452,6 +448,9 @@ struct JSScript : public js::gc::Cell
     size_t          useCount;   /* Number of times the script has been called
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
+#if JS_BITS_PER_WORD == 32
+    void *padding_;
+#endif
 
     // 32-bit fields.
 
@@ -469,13 +468,9 @@ struct JSScript : public js::gc::Cell
     // Unique identifier within the compartment for this script, used for
     // printing analysis information.
     uint32_t        id_;
- #if JS_BITS_PER_WORD == 64
   private:
-    uint32_t        idpad64;
- #endif
-#elif JS_BITS_PER_WORD == 32
-  private:
-    uint32_t        pad32;
+    uint32_t        idpad;
+  public:
 #endif
 
     // 16-bit fields.
@@ -492,9 +487,6 @@ struct JSScript : public js::gc::Cell
 
     uint16_t        nslots;     /* vars plus maximum stack depth */
     uint16_t        staticLevel;/* static level for display maintenance */
-
-  private:
-    uint16_t        argsSlot_;  /* slot holding 'arguments' (if argumentsHasLocalBindings) */
 
     // 8-bit fields.
 
@@ -520,7 +512,7 @@ struct JSScript : public js::gc::Cell
     bool            savedCallerFun:1; /* can call getCallerFunction() */
     bool            strictModeCode:1; /* code is in strict mode */
     bool            compileAndGo:1;   /* script was compiled with TCF_COMPILE_N_GO */
-    bool            bindingsAccessedDynamically:1; /* see TCF_BINDINGS_ACCESSED_DYNAMICALLY */
+    bool            usesEval:1;       /* script uses eval() */
     bool            warnedAboutTwoArgumentEval:1; /* have warned about use of
                                                      obsolete eval(s, o) in
                                                      this script */
@@ -541,14 +533,22 @@ struct JSScript : public js::gc::Cell
     bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
 #endif
     bool            callDestroyHook:1;/* need to call destroy hook */
-    bool            isGenerator:1;    /* is a generator */
-    bool            hasScriptCounts:1;/* script has an entry in
-                                         JSCompartment::scriptCountsMap */
 
+    /*
+     * An arguments object is created for a function script (when the function
+     * is first called) iff script->needsArgsObj(). There are several cases
+     * where the 'arguments' keyword is technically used but which don't really
+     * need an object (e.g., 'arguments[i]', 'f.apply(null, arguments')'). This
+     * determination is made during script analysis which occurs lazily (right
+     * before a script is run). Thus, the output of the front-end is a
+     * conservative 'mayNeedArgsObj' which leads to further analysis in
+     * analyzeBytecode and analyzeSSA. To avoid the complexity of spurious
+     * argument objects creation, we maintain the invariant that needsArgsObj()
+     * is only queried after this analysis has occurred (analyzedArgsUsage()).
+     */
   private:
-    /* See comments below. */
-    bool            argsHasLocalBinding_:1;
-    bool            needsArgsAnalysis_:1;
+    bool            mayNeedArgsObj_:1;
+    bool            analyzedArgsUsage_:1;
     bool            needsArgsObj_:1;
 
     //
@@ -574,26 +574,15 @@ struct JSScript : public js::gc::Cell
                                JSVersion version);
     static JSScript *NewScriptFromEmitter(JSContext *cx, js::BytecodeEmitter *bce);
 
-    /* See TCF_ARGUMENTS_HAS_LOCAL_BINDING comment. */
-    bool argumentsHasLocalBinding() const { return argsHasLocalBinding_; }
-    jsbytecode *argumentsBytecode() const { JS_ASSERT(code[0] == JSOP_ARGUMENTS); return code; }
-    unsigned argumentsLocalSlot() const { JS_ASSERT(argsHasLocalBinding_); return argsSlot_; }
-    void setArgumentsHasLocalBinding(uint16_t slot);
-
-    /*
-     * As an optimization, even when argsHasLocalBinding, the function prologue
-     * may not need to create an arguments object. This is determined by
-     * needsArgsObj which is set by ScriptAnalysis::analyzeSSA before running
-     * the script the first time. When !needsArgsObj, the prologue may simply
-     * write MagicValue(JS_OPTIMIZED_ARGUMENTS) to 'arguments's slot and any
-     * uses of 'arguments' will be guaranteed to handle this magic value.
-     * So avoid spurious arguments object creation, we maintain the invariant
-     * that needsArgsObj is only called after the script has been analyzed.
-     */
-    bool analyzedArgsUsage() const { return !needsArgsAnalysis_; }
+    bool mayNeedArgsObj() const { return mayNeedArgsObj_; }
+    bool analyzedArgsUsage() const { return analyzedArgsUsage_; }
     bool needsArgsObj() const { JS_ASSERT(analyzedArgsUsage()); return needsArgsObj_; }
     void setNeedsArgsObj(bool needsArgsObj);
     bool applySpeculationFailed(JSContext *cx);
+
+    void setMayNeedArgsObj() {
+        mayNeedArgsObj_ = true;
+    }
 
     /* Hash table chaining for JSCompartment::evalCache. */
     JSScript *&evalHashLink() { return *globalObject.unsafeGetUnioned(); }
@@ -695,10 +684,12 @@ struct JSScript : public js::gc::Cell
 #endif
 
   public:
-    js::PCCounts getPCCounts(jsbytecode *pc);
+    js::PCCounts getPCCounts(jsbytecode *pc) {
+        JS_ASSERT(size_t(pc - code) < length);
+        return scriptCounts.pcCountsVector[pc - code];
+    }
 
     bool initScriptCounts(JSContext *cx);
-    js::ScriptCounts releaseScriptCounts();
     void destroyScriptCounts(js::FreeOp *fop);
 
     jsbytecode *main() {
@@ -756,15 +747,15 @@ struct JSScript : public js::gc::Cell
         return reinterpret_cast<js::ClosedSlotArray *>(data + closedVarsOffset);
     }
 
-    uint32_t numClosedArgs() {
+    uint32_t nClosedArgs() {
         return isValidOffset(closedArgsOffset) ? closedArgs()->length : 0;
     }
 
-    uint32_t numClosedVars() {
+    uint32_t nClosedVars() {
         return isValidOffset(closedVarsOffset) ? closedVars()->length : 0;
     }
 
-    js::HeapPtrAtom &getAtom(size_t index) const {
+    JSAtom *getAtom(size_t index) {
         JS_ASSERT(index < natoms);
         return atoms[index];
     }
@@ -813,13 +804,6 @@ struct JSScript : public js::gc::Cell
         return arr->vector[index];
     }
 
-
-#ifdef DEBUG
-    bool varIsAliased(unsigned varSlot);
-    bool argIsAliased(unsigned argSlot);
-    bool argLivesInArgumentsObject(unsigned argSlot);
-    bool argLivesInCallObject(unsigned argSlot);
-#endif
   private:
     /*
      * Recompile with or without single-stepping support, as directed
@@ -847,7 +831,7 @@ struct JSScript : public js::gc::Cell
 
     void destroyBreakpointSite(js::FreeOp *fop, jsbytecode *pc);
 
-    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
     void clearTraps(js::FreeOp *fop);
 
     void markTrapClosures(JSTracer *trc);

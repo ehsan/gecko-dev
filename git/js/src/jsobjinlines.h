@@ -511,7 +511,6 @@ JSObject::moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned 
         }
     } else {
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
-        SlotRangeWriteBarrierPost(comp, this, dstStart, count);
     }
 }
 

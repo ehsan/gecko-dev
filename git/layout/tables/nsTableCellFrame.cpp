@@ -401,7 +401,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
 
   NS_DISPLAY_DECL_NAME("TableCellBackground", TYPE_TABLE_CELL_BACKGROUND)
 };
@@ -415,12 +415,11 @@ void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 nsRect
-nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder,
-                                        bool* aSnap)
+nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder)
 {
   // revert from nsDisplayTableItem's implementation ... cell backgrounds
   // don't overflow the cell
-  return nsDisplayItem::GetBounds(aBuilder, aSnap);
+  return nsDisplayItem::GetBounds(aBuilder);
 }
 
 static void

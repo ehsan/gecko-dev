@@ -52,11 +52,6 @@ XPCOMUtils.defineLazyGetter(this, "PluralForm", function() {
   return PluralForm;
 });
 
-XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function() {
-  Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-  return DebuggerServer;
-});
-
 // Lazily-loaded browser scripts:
 [
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
@@ -242,7 +237,6 @@ var BrowserApp = {
     SearchEngines.init();
     ActivityObserver.init();
     WebappsUI.init();
-    RemoteDebugger.init();
 
     // Init LoginManager
     Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
@@ -423,7 +417,6 @@ var BrowserApp = {
     CharacterEncoding.uninit();
     SearchEngines.uninit();
     WebappsUI.uninit();
-    RemoteDebugger.uninit();
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -1477,7 +1470,6 @@ function Tab(aURL, aParams) {
   this.showProgress = true;
   this.create(aURL, aParams);
   this._zoom = 1.0;
-  this._drawZoom = 1.0;
   this.userScrollPos = { x: 0, y: 0 };
   this.contentDocumentIsDisplayed = true;
   this.clickToPlayPluginDoorhangerShown = false;
@@ -1645,14 +1637,10 @@ Tab.prototype = {
     // visible zoom. for foreground tabs, however, if we are drawing at some other
     // resolution, we need to set the resolution as specified.
     let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    if (BrowserApp.selectedTab == this) {
-      if (resolution != this._drawZoom) {
-        this._drawZoom = resolution;
-        cwu.setResolution(resolution, resolution);
-      }
-    } else if (resolution != zoom) {
+    if (BrowserApp.selectedTab == this)
+      cwu.setResolution(resolution, resolution);
+    else if (resolution != zoom)
       dump("Warning: setDisplayPort resolution did not match zoom for background tab!");
-    }
 
     // finally, we set the display port, taking care to convert everything into the CSS-pixel
     // coordinate space, because that is what the function accepts.
@@ -1683,7 +1671,6 @@ Tab.prototype = {
       this._zoom = aZoom;
       if (BrowserApp.selectedTab == this) {
         let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        this._drawZoom = aZoom;
         cwu.setResolution(aZoom, aZoom);
       }
     }
@@ -2722,11 +2709,8 @@ const ElementTouchHelper = {
                                                true,   /* ignore root scroll frame*/
                                                false); /* don't flush layout */
 
-    // if this element is clickable we return quickly. also, if it isn't,
-    // use a cache to speed up future calls to isElementClickable in the
-    // loop below.
-    let unclickableCache = new Array();
-    if (this.isElementClickable(target, unclickableCache))
+    // if this element is clickable we return quickly
+    if (this.isElementClickable(target))
       return target;
 
     let target = null;
@@ -2738,7 +2722,7 @@ const ElementTouchHelper = {
     let threshold = Number.POSITIVE_INFINITY;
     for (let i = 0; i < nodes.length; i++) {
       let current = nodes[i];
-      if (!current.mozMatchesSelector || !this.isElementClickable(current, unclickableCache))
+      if (!current.mozMatchesSelector || !this.isElementClickable(current))
         continue;
 
       let rect = current.getBoundingClientRect();
@@ -2757,17 +2741,13 @@ const ElementTouchHelper = {
     return target;
   },
 
-  isElementClickable: function isElementClickable(aElement, aUnclickableCache) {
+  isElementClickable: function isElementClickable(aElement) {
     const selector = "a,:link,:visited,[role=button],button,input,select,textarea,label";
     for (let elem = aElement; elem; elem = elem.parentNode) {
-      if (aUnclickableCache && aUnclickableCache.indexOf(elem) != -1)
-        continue;
       if (this._hasMouseListener(elem))
         return true;
       if (elem.mozMatchesSelector && elem.mozMatchesSelector(selector))
         return true;
-      if (aUnclickableCache)
-        aUnclickableCache.push(elem);
     }
     return false;
   },
@@ -3532,11 +3512,7 @@ var PopupBlockerObserver = {
           },
           {
             label: strings.GetStringFromName("popupButtonAlwaysAllow2"),
-            callback: function() {
-              // Set permission before opening popup windows
-              PopupBlockerObserver.allowPopupsForSite(true);
-              PopupBlockerObserver.showPopupsForSite();
-            }
+            callback: function() { PopupBlockerObserver.allowPopupsForSite(true); }
           },
           {
             label: strings.GetStringFromName("popupButtonNeverWarn2"),
@@ -4623,71 +4599,5 @@ var WebappsUI = {
       tab = BrowserApp.addTab(aURI);
       ss.setTabValue(tab, "appOrigin", aOrigin);
     }
-  }
-}
-
-var RemoteDebugger = {
-  init: function rd_init() {
-    Services.prefs.addObserver("remote-debugger.", this, false);
-
-    if (this._isEnabled())
-      this._start();
-  },
-
-  observe: function rd_observe(aSubject, aTopic, aData) {
-    if (aTopic != "nsPref:changed")
-      return;
-
-    switch (aData) {
-      case "remote-debugger.enabled":
-        if (this._isEnabled())
-          this._start();
-        else
-          this._stop();
-        break;
-
-      case "remote-debugger.port":
-        if (this._isEnabled())
-          this._restart();
-        break;
-    }
-  },
-
-  uninit: function rd_uninit() {
-    Services.prefs.removeObserver("remote-debugger.", this);
-    this._stop();
-  },
-
-  _getPort: function _rd_getPort() {
-    return Services.prefs.getIntPref("remote-debugger.port");
-  },
-
-  _isEnabled: function rd_isEnabled() {
-    return Services.prefs.getBoolPref("remote-debugger.enabled");
-  },
-
-  _restart: function rd_restart() {
-    this._stop();
-    this._start();
-  },
-
-  _start: function rd_start() {
-    try {
-      if (!DebuggerServer.initialized) {
-        DebuggerServer.init();
-        DebuggerServer.addActors("chrome://browser/content/dbg-browser-actors.js");
-      }
-
-      let port = this._getPort();
-      DebuggerServer.openListener(port, false);
-      dump("Remote debugger listening on port " + port);
-    } catch(e) {
-      dump("Remote debugger didn't start: " + e);
-    }
-  },
-
-  _stop: function rd_start() {
-    DebuggerServer.closeListener();
-    dump("Remote debugger stopped");
   }
 }

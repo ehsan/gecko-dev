@@ -104,7 +104,6 @@ VideoDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
 
   if (aScriptGlobalObject && !nsContentUtils::IsChildOfSameType(this)) {
     LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelVideoDocument.css"));
-    LinkStylesheet(NS_LITERAL_STRING("chrome://global/skin/TopLevelVideoDocument.css"));
   }
 }
 

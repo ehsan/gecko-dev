@@ -135,7 +135,6 @@
 #include "nsIRequest.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5Parser.h"
-#include "nsIDOMJSWindow.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -560,15 +559,15 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   nsIContentSink* aSink)
 {
   if (!aCommand) {
-    MOZ_ASSERT(false, "Command is mandatory");
+    MOZ_NOT_REACHED("Command is mandatory");
     return NS_ERROR_INVALID_POINTER;
   }
   if (aSink) {
-    MOZ_ASSERT(false, "Got a sink override. Should not happen for HTML doc.");
+    MOZ_NOT_REACHED("Got a sink override. Should not happen for HTML doc.");
     return NS_ERROR_INVALID_ARG;
   }
   if (!mIsRegularHTML) {
-    MOZ_ASSERT(false, "Must not set HTML doc to XHTML mode before load start.");
+    MOZ_NOT_REACHED("Must not set HTML doc to XHTML mode before load start.");
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
@@ -580,7 +579,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   bool viewSource = !strcmp(aCommand, "view-source");
   bool asData = !strcmp(aCommand, kLoadAsData);
   if(!(view || viewSource || asData)) {
-    MOZ_ASSERT(false, "Bad parser command");
+    MOZ_NOT_REACHED("Bad parser command");
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -595,7 +594,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     contentType.EqualsLiteral(TEXT_JAVASCRIPT) ||
     contentType.EqualsLiteral(APPLICATION_JSON));
   if (!(html || xhtml || plainText || viewSource)) {
-    MOZ_ASSERT(false, "Channel with bad content type.");
+    MOZ_NOT_REACHED("Channel with bad content type.");
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -1327,10 +1326,9 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
     if (!window) {
       return NS_OK;
     }
-    nsCOMPtr<nsIDOMJSWindow> win = do_QueryInterface(window);
     nsCOMPtr<nsIDOMWindow> newWindow;
-    nsresult rv = win->OpenJS(aContentTypeOrUrl, aReplaceOrName, aFeatures,
-                              getter_AddRefs(newWindow));
+    nsresult rv = window->Open(aContentTypeOrUrl, aReplaceOrName, aFeatures,
+                               getter_AddRefs(newWindow));
     *aReturn = newWindow.forget().get();
     return rv;
   }
@@ -3126,6 +3124,22 @@ nsHTMLDocument::ExecCommand(const nsAString & commandID,
   return rv;
 }
 
+/* TODO: don't let this call do anything if the page is not done loading */
+/* boolean execCommandShowHelp(in DOMString commandID); */
+NS_IMETHODIMP
+nsHTMLDocument::ExecCommandShowHelp(const nsAString & commandID,
+                                    bool *_retval)
+{
+  NS_ENSURE_ARG_POINTER(_retval);
+  *_retval = false;
+
+  // if editing is not on, bail
+  if (!IsEditingOnAfterFlush())
+    return NS_ERROR_FAILURE;
+
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 /* boolean queryCommandEnabled(in DOMString commandID); */
 NS_IMETHODIMP
 nsHTMLDocument::QueryCommandEnabled(const nsAString & commandID,
@@ -3290,6 +3304,20 @@ nsHTMLDocument::QueryCommandSupported(const nsAString & commandID,
     *_retval = true;
 
   return NS_OK;
+}
+
+/* DOMString queryCommandText(in DOMString commandID); */
+NS_IMETHODIMP
+nsHTMLDocument::QueryCommandText(const nsAString & commandID,
+                                 nsAString & _retval)
+{
+  _retval.SetLength(0);
+
+  // if editing is not on, bail
+  if (!IsEditingOnAfterFlush())
+    return NS_ERROR_FAILURE;
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* DOMString queryCommandValue(in DOMString commandID); */

@@ -172,9 +172,6 @@ InlineReturn(VMFrame &f)
 void JS_FASTCALL
 stubs::SlowCall(VMFrame &f, uint32_t argc)
 {
-    if (*f.regs.pc == JSOP_FUNAPPLY && !GuardFunApplySpeculation(f.cx, f.regs))
-        THROW();
-
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
     if (!InvokeKernel(f.cx, args))
         THROW();
@@ -301,8 +298,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
     bool newType = construct && cx->typeInferenceEnabled() &&
         types::UseNewType(cx, f.script(), f.pc());
 
-    if (!types::TypeMonitorCall(cx, args, construct))
-        return false;
+    types::TypeMonitorCall(cx, args, construct);
 
     /* Try to compile if not already compiled. */
     CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct, CompileRequest_Interpreter);

@@ -138,7 +138,9 @@ class LinkerHelper : public JSC::LinkBuffer
     }
 
     bool verifyRange(const JSC::JITCode &other) {
-        markVerified();
+#ifdef DEBUG
+        verifiedRange = true;
+#endif
 #ifdef JS_CPU_X64
         return VerifyRange(m_code, m_size, other.start(), other.size());
 #else
@@ -160,7 +162,6 @@ class LinkerHelper : public JSC::LinkBuffer
         JSC::ExecutablePool *pool;
         m_code = executableAllocAndCopy(masm, allocator, &pool);
         if (!m_code) {
-            markVerified();
             js_ReportOutOfMemory(cx);
             return NULL;
         }
@@ -184,13 +185,6 @@ class LinkerHelper : public JSC::LinkBuffer
 
     size_t size() const {
         return m_size;
-    }
-
-  protected:
-    void markVerified() {
-#ifdef DEBUG
-        verifiedRange = true;
-#endif
     }
 };
 

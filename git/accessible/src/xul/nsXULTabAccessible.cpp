@@ -187,10 +187,10 @@ nsXULTabsAccessible::ActionCount()
   return 0;
 }
 
-void
-nsXULTabsAccessible::Value(nsString& aValue)
+/** no value */
+NS_IMETHODIMP nsXULTabsAccessible::GetValue(nsAString& _retval)
 {
-  aValue.Truncate();
+  return NS_OK;
 }
 
 nsresult

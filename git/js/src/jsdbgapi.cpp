@@ -231,7 +231,7 @@ JS_ClearScriptTraps(JSContext *cx, JSScript *script)
 JS_PUBLIC_API(void)
 JS_ClearAllTrapsForCompartment(JSContext *cx)
 {
-    cx->compartment->clearTraps(cx->runtime->defaultFreeOp());
+    cx->compartment->clearTraps(cx);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -427,7 +427,7 @@ JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 JS_PUBLIC_API(JSBool)
 JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 {
-    return fun->script()->bindings.count() > 0;
+    return fun->script()->bindings.hasLocalNames();
 }
 
 extern JS_PUBLIC_API(uintptr_t *)
@@ -569,9 +569,6 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
     JS_ASSERT(cx->stack.containsSlow(fp));
-
-    if (!fp->compartment()->debugMode())
-        return NULL;
 
     if (!fp->isFunctionFrame())
         return NULL;
@@ -1598,7 +1595,7 @@ extern JS_PUBLIC_API(void)
 JS_DumpPCCounts(JSContext *cx, JSScript *script)
 {
 #if defined(DEBUG)
-    JS_ASSERT(script->hasScriptCounts);
+    JS_ASSERT(script->scriptCounts);
 
     Sprinter sprinter(cx);
     if (!sprinter.init())
@@ -1641,7 +1638,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
 {
     for (CellIter i(cx->compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        if (script->hasScriptCounts)
+        if (script->scriptCounts)
             JS_DumpPCCounts(cx, script);
     }
 }

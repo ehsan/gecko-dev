@@ -18,7 +18,9 @@
 #define _UI_INPUT_READER_H
 
 #include "EventHub.h"
+#ifdef HAVE_ANDROID_OS
 #include "PointerController.h"
+#endif
 #include "InputListener.h"
 
 #include "Input.h"
@@ -207,8 +209,10 @@ public:
     /* Gets the input reader configuration. */
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig) = 0;
 
+#ifdef HAVE_ANDROID_OS
     /* Gets a pointer controller associated with the specified cursor device (ie. a mouse). */
     virtual sp<PointerControllerInterface> obtainPointerController(int32_t deviceId) = 0;
+#endif
 };
 
 
@@ -934,6 +938,7 @@ private:
 };
 
 
+#ifdef HAVE_ANDROID_OS
 class CursorInputMapper : public InputMapper {
 public:
     CursorInputMapper(InputDevice* device);
@@ -997,6 +1002,7 @@ private:
 
     void sync(nsecs_t when);
 };
+#endif // HAVE_ANDROID_OS
 
 
 class TouchInputMapper : public InputMapper {
@@ -1170,8 +1176,10 @@ protected:
     // The time the primary pointer last went down.
     nsecs_t mDownTime;
 
+#ifdef HAVE_ANDROID_OS
     // The pointer controller, or null if the device is not a pointer.
     sp<PointerControllerInterface> mPointerController;
+#endif
 
     Vector<VirtualKey> mVirtualKeys;
 

@@ -68,6 +68,10 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 
+#if defined(MOZ_PLATFORM_MAEMO) || defined(ANDROID) || defined(MOZ_EGL_XRENDER_COMPOSITE)
+#define USE_GLES2 1
+#endif
+
 typedef char realGLboolean;
 
 #include "GLContextSymbols.h"
@@ -527,7 +531,11 @@ public:
         mOffscreenFBOsDirty(false),
         mInitialized(false),
         mIsOffscreen(aIsOffscreen),
+#ifdef USE_GLES2
+        mIsGLES2(true),
+#else
         mIsGLES2(false),
+#endif
         mIsGlobalSharedContext(false),
         mHasRobustness(false),
         mContextLost(false),
@@ -547,14 +555,12 @@ public:
         mMaxTextureSize(0),
         mMaxCubeMapTextureSize(0),
         mMaxTextureImageSize(0),
-        mMaxRenderbufferSize(0),
-        mWorkAroundDriverBugs(true)
+        mMaxRenderbufferSize(0)
 #ifdef DEBUG
         , mGLError(LOCAL_GL_NO_ERROR)
 #endif
     {
         mUserData.Init();
-        mOwningThread = NS_GetCurrentThread();
     }
 
     virtual ~GLContext() {
@@ -640,23 +646,6 @@ public:
 
     bool IsGlobalSharedContext() { return mIsGlobalSharedContext; }
     void SetIsGlobalSharedContext(bool aIsOne) { mIsGlobalSharedContext = aIsOne; }
-
-    /**
-     * Returns true if the thread on which this context was created is the currently
-     * executing thread.
-     */
-    bool IsOwningThreadCurrent() { return NS_GetCurrentThread() == mOwningThread; }
-
-    void DispatchToOwningThread(nsIRunnable *event) {
-        // Before dispatching, we need to ensure we're not in the middle of
-        // shutting down. Dispatching runnables in the middle of shutdown
-        // (that is, when the main thread is no longer get-able) can cause them
-        // to leak. See Bug 741319, and Bug 744115.
-        nsCOMPtr<nsIThread> mainThread;
-        if (NS_SUCCEEDED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
-            mOwningThread->Dispatch(event, NS_DISPATCH_NORMAL);
-        }
-    }
 
     const ContextFormat& CreationFormat() { return mCreationFormat; }
     const ContextFormat& ActualFormat() { return mActualFormat; }
@@ -1511,7 +1500,6 @@ public:
         OES_rgb8_rgba8,
         ARB_robustness,
         EXT_robustness,
-        ARB_sync,
         Extensions_Max
     };
 
@@ -1599,9 +1587,6 @@ protected:
     ContextFormat mCreationFormat;
     nsRefPtr<GLContext> mSharedContext;
 
-    // The thread on which this context was created.
-    nsCOMPtr<nsIThread> mOwningThread;
-
     GLContextSymbols mSymbols;
 
 #ifdef DEBUG
@@ -1668,8 +1653,6 @@ protected:
 public:
     void ClearSafely();
 
-    bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
-
 protected:
 
     nsDataHashtable<nsPtrHashKey<void>, void*> mUserData;
@@ -1701,6 +1684,7 @@ protected:
         return biggerDimension <= maxAllowed;
     }
 
+protected:
     nsTArray<nsIntRect> mViewportStack;
     nsTArray<nsIntRect> mScissorStack;
 
@@ -1708,12 +1692,10 @@ protected:
     GLint mMaxCubeMapTextureSize;
     GLint mMaxTextureImageSize;
     GLint mMaxRenderbufferSize;
-    bool mWorkAroundDriverBugs;
 
     bool IsTextureSizeSafeToPassToDriver(GLenum target, GLsizei width, GLsizei height) const {
 #ifdef XP_MACOSX
-        if (mWorkAroundDriverBugs &&
-            mVendor == VendorIntel) {
+        if (mVendor == VendorIntel) {
             // see bug 737182 for 2D textures, bug 684822 for cube map textures.
             // some drivers handle incorrectly some large texture sizes that are below the
             // max texture size that they report. So we check ourselves against our own values
@@ -2914,51 +2896,6 @@ public:
          GLenum ret = mHasRobustness ? mSymbols.fGetGraphicsResetStatus() : 0;
          AFTER_GL_CALL;
          return ret;
-     }
-
-     GLsync GLAPIENTRY fFenceSync(GLenum condition, GLbitfield flags) {
-         BEFORE_GL_CALL;
-         GLsync ret = mSymbols.fFenceSync(condition, flags);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     realGLboolean GLAPIENTRY fIsSync(GLsync sync) {
-         BEFORE_GL_CALL;
-         realGLboolean ret = mSymbols.fIsSync(sync);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     void GLAPIENTRY fDeleteSync(GLsync sync) {
-         BEFORE_GL_CALL;
-         mSymbols.fDeleteSync(sync);
-         AFTER_GL_CALL;
-     }
-
-     GLenum GLAPIENTRY fClientWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
-         BEFORE_GL_CALL;
-         GLenum ret = mSymbols.fClientWaitSync(sync, flags, timeout);
-         AFTER_GL_CALL;
-         return ret;
-     }
-
-     void GLAPIENTRY fWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
-         BEFORE_GL_CALL;
-         mSymbols.fWaitSync(sync, flags, timeout);
-         AFTER_GL_CALL;
-     }
-
-     void GLAPIENTRY fGetInteger64v(GLenum pname, GLint64 *params) {
-         BEFORE_GL_CALL;
-         mSymbols.fGetInteger64v(pname, params);
-         AFTER_GL_CALL;
-     }
-
-     void GLAPIENTRY fGetSynciv(GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values) {
-         BEFORE_GL_CALL;
-         mSymbols.fGetSynciv(sync, pname, bufSize, length, values);
-         AFTER_GL_CALL;
      }
 
 #ifdef DEBUG

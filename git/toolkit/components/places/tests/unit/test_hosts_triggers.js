@@ -37,8 +37,7 @@ function isHostInMozHosts(aURI, aTyped)
   let stmt = DBConn().createStatement(
     "SELECT host, typed "
     + "FROM moz_hosts "
-    + "WHERE host = fixup_url(:host) "
-    + "AND frecency NOTNULL "
+    + "WHERE host = fixup_url(:host)"
   );
   let result = false;
   stmt.params.host = aURI.host;

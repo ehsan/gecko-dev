@@ -103,6 +103,22 @@ nsXULComboboxAccessible::NativeState()
   return states;
 }
 
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetValue(nsAString& aValue)
+{
+  aValue.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  // The value is the option or text shown entered in the combobox.
+  nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
+  if (menuList)
+    return menuList->GetLabel(aValue);
+
+  return NS_ERROR_FAILURE;
+}
+
 void
 nsXULComboboxAccessible::Description(nsString& aDescription)
 {
@@ -121,17 +137,6 @@ nsXULComboboxAccessible::Description(nsString& aDescription)
     if (focusedOptionAcc)
       focusedOptionAcc->Description(aDescription);
   }
-}
-
-void
-nsXULComboboxAccessible::Value(nsString& aValue)
-{
-  aValue.Truncate();
-
-  // The value is the option or text shown entered in the combobox.
-  nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
-  if (menuList)
-    menuList->GetLabel(aValue);
 }
 
 bool

@@ -109,10 +109,11 @@ nsXFormsTriggerAccessible::NativeRole()
   return roles::PUSHBUTTON;
 }
 
-void
-nsXFormsTriggerAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXFormsTriggerAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
+  return NS_OK;
 }
 
 PRUint8
@@ -294,10 +295,10 @@ nsXFormsSecretAccessible::NativeState()
   return nsXFormsInputAccessible::NativeState() | states::PROTECTED;
 }
 
-void
-nsXFormsSecretAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXFormsSecretAccessible::GetValue(nsAString& aValue)
 {
-  aValue.Truncate();
+  return NS_ERROR_FAILURE;
 }
 
 
@@ -437,10 +438,11 @@ nsXFormsChoicesAccessible::NativeRole()
   return roles::GROUPING;
 }
 
-void
-nsXFormsChoicesAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXFormsChoicesAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
+  return NS_OK;
 }
 
 void

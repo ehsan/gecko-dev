@@ -198,9 +198,8 @@ public:
     , mId(aId)
   {}
 
-  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
-    *aSnap = false;
     return mRect;
   }
 

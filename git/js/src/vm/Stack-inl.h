@@ -355,6 +355,9 @@ StackFrame::functionPrologue(JSContext *cx)
     JSFunction *fun = this->fun();
     JSScript *script = fun->script();
 
+    if (script->needsArgsObj() && !ArgumentsObject::create(cx, this))
+        return false;
+
     if (fun->isHeavyweight()) {
         if (!CallObject::createForFunction(cx, this))
             return false;

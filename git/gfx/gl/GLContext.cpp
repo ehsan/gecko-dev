@@ -107,7 +107,6 @@ static const char *sExtensionNames[] = {
     "GL_OES_rgb8_rgba8",
     "GL_ARB_robustness",
     "GL_EXT_robustness",
-    "GL_ARB_sync",
     NULL
 };
 
@@ -125,8 +124,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         reporter.SetSuccessful();
         return true;
     }
-
-    mWorkAroundDriverBugs = gfxPlatform::GetPlatform()->WorkAroundDriverBugs();
 
     SymLoadStruct symbols[] = {
         { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
@@ -453,32 +450,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 mSymbols.fRenderbufferStorageMultisample = nsnull;
             }
         }
-
-        if (IsExtensionSupported(ARB_sync)) {
-            SymLoadStruct syncSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fFenceSync,      { "FenceSync",      nsnull } },
-                { (PRFuncPtr*) &mSymbols.fIsSync,         { "IsSync",         nsnull } },
-                { (PRFuncPtr*) &mSymbols.fDeleteSync,     { "DeleteSync",     nsnull } },
-                { (PRFuncPtr*) &mSymbols.fClientWaitSync, { "ClientWaitSync", nsnull } },
-                { (PRFuncPtr*) &mSymbols.fWaitSync,       { "WaitSync",       nsnull } },
-                { (PRFuncPtr*) &mSymbols.fGetInteger64v,  { "GetInteger64v",  nsnull } },
-                { (PRFuncPtr*) &mSymbols.fGetSynciv,      { "GetSynciv",      nsnull } },
-                { nsnull, { nsnull } },
-            };
-
-            if (!LoadSymbols(&syncSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports ARB_sync without supplying its functions.");
-
-                MarkExtensionUnsupported(ARB_sync);
-                mSymbols.fFenceSync = nsnull;
-                mSymbols.fIsSync = nsnull;
-                mSymbols.fDeleteSync = nsnull;
-                mSymbols.fClientWaitSync = nsnull;
-                mSymbols.fWaitSync = nsnull;
-                mSymbols.fGetInteger64v = nsnull;
-                mSymbols.fGetSynciv = nsnull;
-            }
-        }
        
         // Load developer symbols, don't fail if we can't find them.
         SymLoadStruct auxSymbols[] = {
@@ -503,8 +474,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
 
 #ifdef XP_MACOSX
-        if (mWorkAroundDriverBugs &&
-            mVendor == VendorIntel) {
+        if (mVendor == VendorIntel) {
             // see bug 737182 for 2D textures, bug 684822 for cube map textures.
             mMaxTextureSize        = NS_MIN(mMaxTextureSize,        4096);
             mMaxCubeMapTextureSize = NS_MIN(mMaxCubeMapTextureSize, 512);
@@ -637,9 +607,6 @@ CopyAndPadTextureData(const GLvoid* srcBuffer,
 bool
 GLContext::CanUploadSubTextures()
 {
-    if (!mWorkAroundDriverBugs)
-        return true;
-
     // There are certain GPUs that we don't want to use glTexSubImage2D on
     // because that function can be very slow and/or buggy
     if (Renderer() == RendererAdreno200 || Renderer() == RendererAdreno205)
@@ -656,9 +623,6 @@ GLContext::CanUploadSubTextures()
 bool
 GLContext::CanUploadNonPowerOfTwo()
 {
-    if (!mWorkAroundDriverBugs)
-        return true;
-
     static bool sPowerOfTwoForced;
     static bool sPowerOfTwoPrefCached = false;
 
@@ -682,8 +646,7 @@ GLContext::WantsSmallTiles()
         return true;
 
     // We can't use small tiles on the SGX 540, because of races in texture upload.
-    if (mWorkAroundDriverBugs &&
-        Renderer() == RendererSGX540)
+    if (Renderer() == RendererSGX540)
         return false;
 
     // Don't use small tiles otherwise. (If we implement incremental texture upload,
@@ -766,7 +729,7 @@ void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
 BasicTextureImage::~BasicTextureImage()
 {
     GLContext *ctx = mGLContext;
-    if (ctx->IsDestroyed() || !ctx->IsOwningThreadCurrent()) {
+    if (ctx->IsDestroyed() || !NS_IsMainThread()) {
         ctx = ctx->GetSharedContext();
     }
 
@@ -2075,9 +2038,7 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     // only save/restore this stuff on Qualcomm Adreno, to work
     // around an apparent bug
     int savedFb = 0;
-    if (mWorkAroundDriverBugs &&
-        mVendor == VendorQualcomm)
-    {
+    if (mVendor == VendorQualcomm) {
         fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &savedFb);
     }
 
@@ -2212,8 +2173,7 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     // we enable scissor test while the current FBO is invalid
     // (which it will be, once we assign texture 0 to the color
     // attachment)
-    if (mWorkAroundDriverBugs &&
-        mVendor == VendorQualcomm) {
+    if (mVendor == VendorQualcomm) {
         fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, savedFb);
     }
 
@@ -2338,7 +2298,11 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
 
     PRInt32 stride = imageSurface->Stride();
 
-    internalformat = mIsGLES2 ? format : LOCAL_GL_RGBA;
+#ifndef USE_GLES2
+    internalformat = LOCAL_GL_RGBA;
+#else
+    internalformat = format;
+#endif
 
     nsIntRegionRectIterator iter(paintRegion);
     const nsIntRect *iterRect;
@@ -2406,94 +2370,52 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
                       GLint pixelsize, GLint border, GLenum format,
                       GLenum type, const GLvoid *pixels)
 {
-    if (mIsGLES2) {
+#ifdef USE_GLES2
 
-        NS_ASSERTION(format == internalformat,
-                    "format and internalformat not the same for glTexImage2D on GLES2");
+    NS_ASSERTION(format == internalformat,
+                 "format and internalformat not the same for glTexImage2D on GLES2");
 
-        if (!CanUploadNonPowerOfTwo()
-            && (stride != width * pixelsize
-            || !IsPowerOfTwo(width)
-            || !IsPowerOfTwo(height))) {
+    if (!CanUploadNonPowerOfTwo()
+        && (stride != width * pixelsize
+        || !IsPowerOfTwo(width)
+        || !IsPowerOfTwo(height))) {
 
-            // Pad out texture width and height to the next power of two
-            // as we don't support/want non power of two texture uploads
-            GLsizei paddedWidth = NextPowerOfTwo(width);
-            GLsizei paddedHeight = NextPowerOfTwo(height);
+        // Pad out texture width and height to the next power of two
+        // as we don't support/want non power of two texture uploads
+        GLsizei paddedWidth = NextPowerOfTwo(width);
+        GLsizei paddedHeight = NextPowerOfTwo(height);
 
-            GLvoid* paddedPixels = new unsigned char[paddedWidth * paddedHeight * pixelsize];
+        GLvoid* paddedPixels = new unsigned char[paddedWidth * paddedHeight * pixelsize];
 
-            // Pad out texture data to be in a POT sized buffer for uploading to
-            // a POT sized texture
-            CopyAndPadTextureData(pixels, paddedPixels, width, height,
-                                  paddedWidth, paddedHeight, stride, pixelsize);
-
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                    NS_MIN(GetAddressAlignment((ptrdiff_t)paddedPixels),
-                            GetAddressAlignment((ptrdiff_t)paddedWidth * pixelsize)));
-            fTexImage2D(target,
-                        border,
-                        internalformat,
-                        paddedWidth,
-                        paddedHeight,
-                        border,
-                        format,
-                        type,
-                        paddedPixels);
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-
-            delete[] static_cast<unsigned char*>(paddedPixels);
-            return;
-        }
-
-        if (stride == width * pixelsize) {
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                            GetAddressAlignment((ptrdiff_t)stride)));
-            fTexImage2D(target,
-                        border,
-                        internalformat,
-                        width,
-                        height,
-                        border,
-                        format,
-                        type,
-                        pixels);
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-        } else {
-            // Use GLES-specific workarounds for GL_UNPACK_ROW_LENGTH; these are
-            // implemented in TexSubImage2D.
-            fTexImage2D(target,
-                        border,
-                        internalformat,
-                        width,
-                        height,
-                        border,
-                        format,
-                        type,
-                        NULL);
-            TexSubImage2D(target,
-                          level,
-                          0,
-                          0,
-                          width,
-                          height,
-                          stride,
-                          pixelsize,
-                          format,
-                          type,
-                          pixels);
-        }
-    } else {
-        // desktop GL (non-ES) path
+        // Pad out texture data to be in a POT sized buffer for uploading to
+        // a POT sized texture
+        CopyAndPadTextureData(pixels, paddedPixels, width, height,
+                              paddedWidth, paddedHeight, stride, pixelsize);
 
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                            GetAddressAlignment((ptrdiff_t)stride)));
-        int rowLength = stride/pixelsize;
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)paddedPixels),
+                        GetAddressAlignment((ptrdiff_t)paddedWidth * pixelsize)));
         fTexImage2D(target,
-                    level,
+                    border,
+                    internalformat,
+                    paddedWidth,
+                    paddedHeight,
+                    border,
+                    format,
+                    type,
+                    paddedPixels);
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+
+        delete[] static_cast<unsigned char*>(paddedPixels);
+        return;
+    }
+
+    if (stride == width * pixelsize) {
+        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                        GetAddressAlignment((ptrdiff_t)stride)));
+        fTexImage2D(target,
+                    border,
                     internalformat,
                     width,
                     height,
@@ -2501,9 +2423,49 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
                     format,
                     type,
                     pixels);
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+    } else {
+        // Use GLES-specific workarounds for GL_UNPACK_ROW_LENGTH; these are
+        // implemented in TexSubImage2D.
+        fTexImage2D(target,
+                    border,
+                    internalformat,
+                    width,
+                    height,
+                    border,
+                    format,
+                    type,
+                    NULL);
+        TexSubImage2D(target,
+                      level,
+                      0,
+                      0,
+                      width,
+                      height,
+                      stride,
+                      pixelsize,
+                      format,
+                      type,
+                      pixels);
     }
+#else
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                        GetAddressAlignment((ptrdiff_t)stride)));
+    int rowLength = stride/pixelsize;
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+    fTexImage2D(target,
+                level,
+                internalformat,
+                width,
+                height,
+                border,
+                format,
+                type,
+                pixels);
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+#endif
 }
 
 void
@@ -2513,50 +2475,49 @@ GLContext::TexSubImage2D(GLenum target, GLint level,
                          GLint pixelsize, GLenum format,
                          GLenum type, const GLvoid* pixels)
 {
-    if (mIsGLES2) {
-        if (stride == width * pixelsize) {
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                            GetAddressAlignment((ptrdiff_t)stride)));
-            fTexSubImage2D(target,
-                          level,
-                          xoffset,
-                          yoffset,
-                          width,
-                          height,
-                          format,
-                          type,
-                          pixels);
-            fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-        } else if (IsExtensionSupported(EXT_unpack_subimage)) {
-            TexSubImage2DWithUnpackSubimageGLES(target, level, xoffset, yoffset,
-                                                width, height, stride,
-                                                pixelsize, format, type, pixels);
-
-        } else {
-            TexSubImage2DWithoutUnpackSubimage(target, level, xoffset, yoffset,
-                                              width, height, stride,
-                                              pixelsize, format, type, pixels);
-        }
-    } else {
-        // desktop GL (non-ES) path
+#ifdef USE_GLES2
+    if (stride == width * pixelsize) {
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                    NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                            GetAddressAlignment((ptrdiff_t)stride)));
-        int rowLength = stride/pixelsize;
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                        GetAddressAlignment((ptrdiff_t)stride)));
         fTexSubImage2D(target,
-                      level,
-                      xoffset,
-                      yoffset,
-                      width,
-                      height,
-                      format,
-                      type,
-                      pixels);
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+                       level,
+                       xoffset,
+                       yoffset,
+                       width,
+                       height,
+                       format,
+                       type,
+                       pixels);
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+    } else if (IsExtensionSupported(EXT_unpack_subimage)) {
+        TexSubImage2DWithUnpackSubimageGLES(target, level, xoffset, yoffset,
+                                            width, height, stride,
+                                            pixelsize, format, type, pixels);
+
+    } else {
+        TexSubImage2DWithoutUnpackSubimage(target, level, xoffset, yoffset,
+                                           width, height, stride,
+                                           pixelsize, format, type, pixels);
     }
+#else
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
+                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
+                        GetAddressAlignment((ptrdiff_t)stride)));
+    int rowLength = stride/pixelsize;
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+    fTexSubImage2D(target,
+                   level,
+                   xoffset,
+                   yoffset,
+                   width,
+                   height,
+                   format,
+                   type,
+                   pixels);
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+#endif
 }
 
 void

@@ -619,20 +619,23 @@ class HashTable : private AllocPolicy
 
     bool checkOverloaded()
     {
-        if (!overloaded())
-            return false;
+        if (overloaded()) {
+            /* Compress if a quarter or more of all entries are removed. */
+            int deltaLog2;
+            if (removedCount >= (capacity() >> 2)) {
+                METER(stats.compresses++);
+                deltaLog2 = 0;
+            } else {
+                METER(stats.grows++);
+                deltaLog2 = 1;
+            }
 
-        /* Compress if a quarter or more of all entries are removed. */
-        int deltaLog2;
-        if (removedCount >= (capacity() >> 2)) {
-            METER(stats.compresses++);
-            deltaLog2 = 0;
-        } else {
-            METER(stats.grows++);
-            deltaLog2 = 1;
+            (void) changeTableSize(deltaLog2);
+
+            return true;
         }
 
-        return changeTableSize(deltaLog2);
+        return false;
     }
 
     void remove(Entry &e)

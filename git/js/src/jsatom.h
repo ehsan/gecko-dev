@@ -408,19 +408,19 @@ js_FinishAtomState(JSRuntime *rt);
  * Atom tracing and garbage collection hooks.
  */
 
-namespace js {
+extern void
+js_TraceAtomState(JSTracer *trc);
 
 extern void
-MarkAtomState(JSTracer *trc, bool markAll);
-
-extern void
-SweepAtomState(JSRuntime *rt);
+js_SweepAtomState(JSRuntime *rt);
 
 extern bool
-InitCommonAtoms(JSContext *cx);
+js_InitCommonAtoms(JSContext *cx);
 
 extern void
-FinishCommonAtoms(JSRuntime *rt);
+js_FinishCommonAtoms(JSContext *cx);
+
+namespace js {
 
 /* N.B. must correspond to boolean tagging behavior. */
 enum InternBehavior
@@ -470,15 +470,15 @@ inline bool
 js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
                          jsid *idp, js::Value *vp);
 
-namespace js {
-
 /*
  * For all unmapped atoms recorded in al, add a mapping from the atom's index
  * to its address. map->length must already be set to the number of atoms in
  * the list and map->vector must point to pre-allocated memory.
  */
 extern void
-InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtrAtom *atoms);
+js_InitAtomMap(JSContext *cx, js::AtomIndexMap *indices, JSAtom **atoms);
+
+namespace js {
 
 template<XDRMode mode>
 bool

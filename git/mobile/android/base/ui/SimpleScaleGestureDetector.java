@@ -131,12 +131,11 @@ public class SimpleScaleGestureDetector {
     private void onTouchEnd(MotionEvent event) {
         mLastEventTime = event.getEventTime();
 
-        boolean isCancel = (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_CANCEL;
         int id = event.getPointerId(getActionIndex(event));
         ListIterator<PointerInfo> iterator = mPointerInfo.listIterator();
         while (iterator.hasNext()) {
             PointerInfo pointerInfo = iterator.next();
-            if (!(isCancel || pointerInfo.getId() == id)) {
+            if (pointerInfo.getId() != id) {
                 continue;
             }
 

@@ -406,23 +406,25 @@ nsHTMLTextFieldAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-void
-nsHTMLTextFieldAccessible::Value(nsString& aValue)
+NS_IMETHODIMP nsHTMLTextFieldAccessible::GetValue(nsAString& _retval)
 {
-  aValue.Truncate();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (NativeState() & states::PROTECTED)    // Don't return password text!
-    return;
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMHTMLTextAreaElement> textArea(do_QueryInterface(mContent));
   if (textArea) {
-    textArea->GetValue(aValue);
-    return;
+    return textArea->GetValue(_retval);
   }
   
   nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(mContent));
   if (inputElement) {
-    inputElement->GetValue(aValue);
+    return inputElement->GetValue(_retval);
   }
+
+  return NS_ERROR_FAILURE;
 }
 
 void
@@ -430,7 +432,7 @@ nsHTMLTextFieldAccessible::ApplyARIAState(PRUint64* aState)
 {
   nsHyperTextAccessibleWrap::ApplyARIAState(aState);
 
-  aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
+  nsStateMapEntry::MapToStates(mContent, aState, eARIAAutoComplete);
 }
 
 PRUint64

@@ -49,7 +49,7 @@
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 
-#include "AndroidLayerViewWrapper.h"
+#include "AndroidFlexViewWrapper.h"
 #include "AndroidJavaWrappers.h"
 
 #include "nsIMutableArray.h"
@@ -181,8 +181,6 @@ public:
 
     static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
-    static void RemovePluginView(void* surface);
-
     nsresult TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt32 srcY, PRInt32 srcW, PRInt32 srcH, PRInt32 dstW, PRInt32 dstH, PRInt32 tabId, float scale);
 
     void AcknowledgeEventSync();
@@ -264,7 +262,7 @@ public:
 
     void ShowInputMethodPicker();
 
-    void NotifyDefaultPrevented(bool aDefaultPrevented);
+    void SetPreventPanning(bool aPreventPanning);
 
     void HideProgressDialogOnce();
 
@@ -500,7 +498,7 @@ protected:
     jmethodID jGetDpi;
     jmethodID jSetFullScreen;
     jmethodID jShowInputMethodPicker;
-    jmethodID jNotifyDefaultPrevented;
+    jmethodID jSetPreventPanning;
     jmethodID jHideProgressDialog;
     jmethodID jPerformHapticFeedback;
     jmethodID jVibrate1;
@@ -528,7 +526,6 @@ protected:
     jmethodID jCheckUriVisited;
     jmethodID jMarkUriVisited;
     jmethodID jEmitGeckoAccessibilityEvent;
-    jmethodID jRemovePluginView;
 
     jmethodID jNumberOfMessages;
     jmethodID jSendMessage;
@@ -557,7 +554,7 @@ protected:
     jclass jEGLContextClass;
     jclass jEGL10Class;
 
-    jclass jLayerView;
+    jclass jFlexSurfaceView;
     jmethodID jRegisterCompositorMethod;
 
     // some convinient types to have around

@@ -100,9 +100,9 @@ protected:
     Mutex mQueueLock;
     Mutex mCondLock;
     CondVar mQueueCond;
-    mozilla::AndroidGeckoEvent *mQueuedDrawEvent;
-    mozilla::AndroidGeckoEvent *mQueuedViewportEvent;
-    bool mAllowCoalescingNextDraw;
+    int mNumDraws;
+    int mNumViewports;
+    mozilla::AndroidGeckoEvent *mLastDrawEvent;
     nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 

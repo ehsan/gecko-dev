@@ -1879,6 +1879,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
     NS_ENSURE_TRUE(prototype, NS_ERROR_OUT_OF_MEMORY);
 
     prototype->mNodeInfo = nodeInfo;
+    prototype->mScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
 
     nsCOMPtr<Element> result;
     nsresult rv =

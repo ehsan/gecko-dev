@@ -64,6 +64,7 @@ class nsHyperTextAccessible;
 class nsHTMLImageAccessible;
 class nsHTMLImageMapAccessible;
 class nsHTMLLIAccessible;
+struct nsRoleMapEntry;
 class Relation;
 namespace mozilla {
 namespace a11y {
@@ -131,14 +132,9 @@ public:
   // Public methods
 
   /**
-   * Get the description of this accessible.
+   * get the description of this accessible
    */
   virtual void Description(nsString& aDescription);
-
-  /**
-   * Get the value of this accessible.
-   */
-  virtual void Value(nsString& aValue);
 
   /**
    * Return DOM node associated with this accessible.
