@@ -108,10 +108,7 @@ public:
 
     virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
-    /** See gfxASurface.h. */
-    NS_OVERRIDE
-    virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft);
+    virtual PRBool SupportsSelfCopy() { return PR_FALSE; }
 
 protected:
     gfxImageSurface();

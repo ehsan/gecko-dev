@@ -190,11 +190,11 @@ CryptoWrapper.prototype = {
   _logName: "Record.CryptoWrapper",
 
   ciphertextHMAC: function ciphertextHMAC(keyBundle) {
-    let hasher = keyBundle.sha256HMACHasher;
-    if (!hasher)
-      throw "Cannot compute HMAC without an HMAC key.";
-
-    return Utils.bytesAsHex(Utils.digestUTF8(this.ciphertext, hasher));
+    let hmacKey = keyBundle.hmacKeyObject;
+    if (!hmacKey)
+      throw "Cannot compute HMAC with null key.";
+    
+    return Utils.sha256HMAC(this.ciphertext, hmacKey);
   },
 
   /*
@@ -207,6 +207,7 @@ CryptoWrapper.prototype = {
    * Optional key bundle overrides the collection key lookup.
    */
   encrypt: function encrypt(keyBundle) {
+
     keyBundle = keyBundle || CollectionKeys.keyForCollection(this.collection);
     if (!keyBundle)
       throw new Error("Key bundle is null for " + this.uri.spec);
@@ -220,6 +221,7 @@ CryptoWrapper.prototype = {
 
   // Optional key bundle.
   decrypt: function decrypt(keyBundle) {
+    
     if (!this.ciphertext) {
       throw "No ciphertext: nothing to decrypt?";
     }
@@ -236,14 +238,14 @@ CryptoWrapper.prototype = {
     }
 
     // Handle invalid data here. Elsewhere we assume that cleartext is an object.
-    let cleartext = Svc.Crypto.decrypt(this.ciphertext,
-                                       keyBundle.encryptionKey, this.IV);
-    let json_result = JSON.parse(cleartext);
+    let json_result = JSON.parse(Svc.Crypto.decrypt(this.ciphertext,
+                                                    keyBundle.encryptionKey, this.IV));
     
     if (json_result && (json_result instanceof Object)) {
       this.cleartext = json_result;
-      this.ciphertext = null;
-    } else {
+    this.ciphertext = null;
+    }
+    else {
       throw "Decryption failed: result is <" + json_result + ">, not an object.";
     }
 
@@ -534,14 +536,15 @@ function KeyBundle(realm, collectionName, keyStr) {
     throw "KeyBundle given non-string key.";
   
   Identity.call(this, realm, collectionName, keyStr);
+  this._hmac    = null;
+  this._encrypt = null;
+  
+  // Cache the key object.
+  this._hmacObj = null;
 }
+
 KeyBundle.prototype = {
   __proto__: Identity.prototype,
-
-  _encrypt: null,
-  _hmac: null,
-  _hmacObj: null,
-  _sha256HMACHasher: null,
   
   equals: function equals(bundle) {
     return bundle &&
@@ -567,18 +570,12 @@ KeyBundle.prototype = {
   set hmacKey(value) {
     this._hmac = value;
     this._hmacObj = value ? Utils.makeHMACKey(value) : null;
-    this._sha256HMACHasher = value ? Utils.makeHMACHasher(
-      Ci.nsICryptoHMAC.SHA256, this._hmacObj) : null;
   },
   
   get hmacKeyObject() {
     return this._hmacObj;
   },
-
-  get sha256HMACHasher() {
-    return this._sha256HMACHasher;
-  }
-};
+}
 
 function BulkKeyBundle(realm, collectionName) {
   let log = Log4Moz.repository.getLogger("BulkKeyBundle");
@@ -615,8 +612,8 @@ BulkKeyBundle.prototype = {
     }
     else {
       throw "Invalid keypair";
-    }
   }
+  },
 };
 
 function SyncKeyBundle(realm, collectionName, syncKey) {
@@ -643,7 +640,6 @@ SyncKeyBundle.prototype = {
     this._hmac    = null;
     this._hmacObj = null;
     this._encrypt = null;
-    this._sha256HMACHasher = null;
   },
   
   /*
@@ -670,13 +666,7 @@ SyncKeyBundle.prototype = {
       this.generateEntry();
     return this._hmacObj;
   },
-
-  get sha256HMACHasher() {
-    if (!this._sha256HMACHasher)
-      this.generateEntry();
-    return this._sha256HMACHasher;
-  },
-
+  
   /*
    * If we've got a string, hash it into keys and store them.
    */
@@ -697,8 +687,6 @@ SyncKeyBundle.prototype = {
     // Individual sets: cheaper than calling parent setter.
     this._hmac = hmac;
     this._hmacObj = Utils.makeHMACKey(hmac);
-    this._sha256HMACHasher = Utils.makeHMACHasher(
-      Ci.nsICryptoHMAC.SHA256, this._hmacObj);
   }
 };
 

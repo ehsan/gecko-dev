@@ -640,7 +640,6 @@ EscapeNakedForwardSlashes(JSContext *cx, JSString *unescaped)
     const jschar *oldChars = unescaped->getChars(cx);
     if (!oldChars)
         return NULL;
-    JS::Anchor<JSString *> anchor(unescaped);
 
     js::Vector<jschar, 128> newChars(cx);
     for (const jschar *it = oldChars; it < oldChars + oldLen; ++it) {
@@ -648,14 +647,13 @@ EscapeNakedForwardSlashes(JSContext *cx, JSString *unescaped)
             if (!newChars.length()) {
                 if (!newChars.reserve(oldLen + 1))
                     return NULL;
-                JS_ALWAYS_TRUE(newChars.append(oldChars, size_t(it - oldChars)));
+                newChars.append(oldChars, size_t(it - oldChars));
             }
-            if (!newChars.append('\\'))
-                return NULL;
+            newChars.append('\\');
         }
 
-        if (!newChars.empty() && !newChars.append(*it))
-            return NULL;
+        if (newChars.length())
+            newChars.append(*it);
     }
 
     if (newChars.length()) {

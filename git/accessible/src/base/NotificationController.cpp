@@ -219,7 +219,7 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
 #endif
 
     mTreeConstructedState = eTreeConstructed;
-    mDocument->NotifyOfInitialUpdate();
+    mDocument->CacheChildrenInSubtree(mDocument);
 
     NS_ASSERTION(mContentInsertions.Length() == 0,
                  "Pending content insertions while initial accessible tree isn't created!");

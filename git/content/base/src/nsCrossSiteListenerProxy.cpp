@@ -251,7 +251,8 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
     rv = nsContentUtils::GetASCIIOrigin(mRequestingPrincipal, origin);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!allowedOriginHeader.Equals(origin)) {
+    if (!allowedOriginHeader.Equals(origin) ||
+        origin.EqualsLiteral("null")) {
       return NS_ERROR_DOM_BAD_URI;
     }
   }

@@ -405,9 +405,6 @@ public:
   {
     mObjectFrame = aOwner;
   }
-  nsObjectFrame* GetOwner() {
-    return mObjectFrame;
-  }
 
   PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
@@ -1975,18 +1972,9 @@ nsPluginInstanceOwner::NotifyPaintWaiter(nsDisplayListBuilder* aBuilder)
   }
 }
 
-static void DrawPlugin(ImageContainer* aContainer, void* aPluginInstanceOwner)
+static void DrawPlugin(ImageContainer* aContainer, void* aObjectFrame)
 {
-  nsObjectFrame* frame = static_cast<nsPluginInstanceOwner*>(aPluginInstanceOwner)->GetOwner();
-  if (frame) {
-    frame->UpdateImageLayer(aContainer, gfxRect(0,0,0,0));
-  }
-}
-
-static void OnDestroyImage(void* aPluginInstanceOwner)
-{
-  nsPluginInstanceOwner* owner = static_cast<nsPluginInstanceOwner*>(aPluginInstanceOwner);
-  NS_IF_RELEASE(owner);
+  static_cast<nsObjectFrame*>(aObjectFrame)->UpdateImageLayer(aContainer, gfxRect(0,0,0,0));
 }
 
 void
@@ -2009,16 +1997,12 @@ nsPluginInstanceOwner::SetCurrentImage(ImageContainer* aContainer)
   nsCOMPtr<nsIPluginInstance_MOZILLA_2_0_BRANCH> inst = do_QueryInterface(mInstance);
   if (inst) {
     nsRefPtr<Image> image;
-    // Every call to nsIPluginInstance_MOZILLA_2_0_BRANCH::GetImage() creates
-    // a new image.  See nsIPluginInstance.idl.
     inst->GetImage(aContainer, getter_AddRefs(image));
     if (image) {
 #ifdef XP_MACOSX
       if (image->GetFormat() == Image::MAC_IO_SURFACE && mObjectFrame) {
         MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
-        NS_ADDREF_THIS();
-        oglImage->SetUpdateCallback(&DrawPlugin, this);
-        oglImage->SetDestroyCallback(&OnDestroyImage);
+        oglImage->SetCallback(&DrawPlugin, mObjectFrame);
       }
 #endif
       aContainer->SetCurrentImage(image);
@@ -5811,19 +5795,6 @@ nsPluginInstanceOwner::PrepareToStop(PRBool aDelayedStop)
   // Drop image reference because the child may destroy the surface after we return.
   nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
   if (container) {
-#ifdef XP_MACOSX
-    nsRefPtr<Image> image = container->GetCurrentImage();
-    if (image && (image->GetFormat() == Image::MAC_IO_SURFACE) && mObjectFrame) {
-      // Undo what we did to the current image in SetCurrentImage().
-      MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
-      oglImage->SetUpdateCallback(nsnull, nsnull);
-      oglImage->SetDestroyCallback(nsnull);
-      // If we have a current image here, its destructor hasn't yet been
-      // called, so OnDestroyImage() can't yet have been called.  So we need
-      // to do ourselves what OnDestroyImage() would have done.
-      NS_RELEASE_THIS();
-    }
-#endif
     container->SetCurrentImage(nsnull);
   }
 
@@ -5886,9 +5857,6 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect, CGContextRef cgCont
 
 void nsPluginInstanceOwner::DoCocoaEventDrawRect(const gfxRect& aDrawRect, CGContextRef cgContext)
 {
-  if (!mInstance || !mObjectFrame)
-    return;
- 
   // The context given here is only valid during the HandleEvent call.
   NPCocoaEvent updateEvent;
   InitializeNPCocoaEvent(&updateEvent);

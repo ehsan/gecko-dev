@@ -776,13 +776,6 @@ nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
       }
       return 0;
     }
-    case WM_NCHITTEST:
-    {
-      LRESULT lRet = ::DefWindowProc(hWnd, msg, wParam, lParam);
-      if (HTCLIENT == lRet)
-        lRet = HTTRANSPARENT;
-      return lRet;
-    }
   }
 
   return ::DefWindowProcW(hWnd, msg, wParam, lParam);

@@ -1898,19 +1898,6 @@ private:
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS nsAutoRemovableScriptBlocker {
-public:
-  nsAutoRemovableScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    nsContentUtils::AddRemovableScriptBlocker();
-  }
-  ~nsAutoRemovableScriptBlocker() {
-    nsContentUtils::RemoveRemovableScriptBlocker();
-  }
-private:
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 class NS_STACK_CLASS mozAutoRemovableBlockerRemover
 {
 public:

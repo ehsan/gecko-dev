@@ -108,22 +108,6 @@ static void DestroyRegion(void* aPropertyValue)
  */
 NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRegion)
 
-static void DestroyPoint(void* aPropertyValue)
-{
-  delete static_cast<nsPoint*>(aPropertyValue);
-}
-
-/**
- * The valid content in our child ThebesLayers is defined relative to
- * the offset from this frame to its active scroll root, mapped back
- * by the ThebesLayer's inverse transform.  Since we accumulate the
- * region invalidated between last-paint and next-paint, and because
- * the offset of this frame to its active root may change during that
- * period, we save the offset at last-paint in this property and use
- * it to invalidate at next-paint.
- */
-NS_DECLARE_FRAME_PROPERTY(ThebesLayerLastPaintOffsetProperty, DestroyPoint)
-
 /**
  * This is a helper object used to build up the layer children for
  * a ContainerLayer.
@@ -549,35 +533,6 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
                "Some frame must have a layer!");
 }
 
-static void
-SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot)
-{
-  aFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
-  for (nsIFrame* f = aFrame;
-       f && !(f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
-       f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
-    f->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
-  }
-
-  FrameProperties props = aFrame->Properties();
-  nsPoint* lastPaintOffset = static_cast<nsPoint*>
-    (props.Get(ThebesLayerLastPaintOffsetProperty()));
-  if (lastPaintOffset) {
-    *lastPaintOffset = aOffsetToRoot;
-  } else {
-    props.Set(ThebesLayerLastPaintOffsetProperty(), new nsPoint(aOffsetToRoot));
-  }
-}
-
-static void
-SetNoContainerLayer(nsIFrame* aFrame)
-{
-  FrameProperties props = aFrame->Properties();
-  props.Delete(ThebesLayerInvalidRegionProperty());
-  props.Delete(ThebesLayerLastPaintOffsetProperty());
-  aFrame->RemoveStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
-}
-
 /* static */ PLDHashOperator
 FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
                                                  void* aUserArg)
@@ -600,7 +555,8 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
     // is DidEndTransaction, which would recreate the user data
     // anyway.
     InternalDestroyDisplayItemData(f, prop, PR_FALSE);
-    SetNoContainerLayer(f);
+    props.Delete(ThebesLayerInvalidRegionProperty());
+    f->RemoveStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
     return PL_DHASH_REMOVE;
   }
 
@@ -617,7 +573,8 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
       props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
     }
   } else {
-    SetNoContainerLayer(f);
+    props.Delete(ThebesLayerInvalidRegionProperty());
+    f->RemoveStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
   }
 
   // We need to remove and re-add the DisplayItemDataProperty in
@@ -1295,8 +1252,7 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       item->GetLayerState(mBuilder, mManager);
 
     // Assign the item to a layer
-    if (layerState == LAYER_ACTIVE_FORCE ||
-        layerState == LAYER_ACTIVE && (aClip.mRoundedClipRects.IsEmpty() ||
+    if (layerState == LAYER_ACTIVE && (aClip.mRoundedClipRects.IsEmpty() ||
         // We can use the visible rect here only because the item has its own
         // layer, like the comment below.
         !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect()))) {
@@ -1549,6 +1505,17 @@ ContainerState::Finish(PRUint32* aTextContentFlags)
   *aTextContentFlags = textContentFlags;
 }
 
+static void
+SetHasContainerLayer(nsIFrame* aFrame)
+{
+  aFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
+  for (nsIFrame* f = aFrame;
+       f && !(f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
+       f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+    f->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT);
+  }
+}
+
 already_AddRefed<ContainerLayer>
 FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
                                           LayerManager* aManager,
@@ -1599,14 +1566,10 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
           DisplayItemData(containerLayer, containerDisplayItemKey));
     }
 
-    nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
-      (props.Get(ThebesLayerLastPaintOffsetProperty()));
-    nsPoint currentOffset = aBuilder->ToReferenceFrame(aContainerFrame);
-
     nsRegion* invalidThebesContent(static_cast<nsRegion*>
       (props.Get(ThebesLayerInvalidRegionProperty())));
     if (invalidThebesContent) {
-      nsPoint offset = offsetAtLastPaint ? *offsetAtLastPaint : currentOffset;
+      nsPoint offset = aBuilder->ToReferenceFrame(aContainerFrame);
       invalidThebesContent->MoveBy(offset);
       state.SetInvalidThebesContent(invalidThebesContent->
         ToOutsidePixels(appUnitsPerDevPixel));
@@ -1620,7 +1583,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
       // invalidated.
       state.SetInvalidateAllThebesContent();
     }
-    SetHasContainerLayer(aContainerFrame, currentOffset);
+    SetHasContainerLayer(aContainerFrame);
   }
 
   Clip clip;
