@@ -10,7 +10,6 @@
 #include "certdb.h"
 #include "base64.h"
 #include "pkix/nullptr.h"
-#include "pkix/pkixtypes.h"
 #include "pk11pub.h"
 #include "secerr.h"
 #include "prerror.h"
@@ -881,21 +880,19 @@ GetRootsForOid(SECOidTag oid_tag)
 
 bool
 CertIsAuthoritativeForEVPolicy(const CERTCertificate* cert,
-                               const mozilla::pkix::CertPolicyId& policy)
+                               SECOidTag policyOidTag)
 {
   PR_ASSERT(cert);
-  if (!cert) {
+  PR_ASSERT(policyOidTag != SEC_OID_UNKNOWN);
+  if (!cert || !policyOidTag) {
     return false;
   }
 
   for (size_t iEV = 0; iEV < PR_ARRAY_SIZE(myTrustedEVInfos); ++iEV) {
     nsMyTrustedEVInfo& entry = myTrustedEVInfos[iEV];
-    if (entry.cert && CERT_CompareCerts(cert, entry.cert)) {
-      const SECOidData* oidData = SECOID_FindOIDByTag(entry.oid_tag);
-      if (oidData && oidData->oid.len == policy.numBytes &&
-          !memcmp(oidData->oid.data, policy.bytes, policy.numBytes)) {
-        return true;
-      }
+    if (entry.oid_tag == policyOidTag && entry.cert &&
+        CERT_CompareCerts(cert, entry.cert)) {
+      return true;
     }
   }
 
@@ -948,8 +945,7 @@ IdentityInfoInit()
 
     unsigned char certFingerprint[20];
     rv = PK11_HashBuf(SEC_OID_SHA1, certFingerprint,
-                      entry.cert->derCert.data,
-                      static_cast<int32_t>(entry.cert->derCert.len));
+                      entry.cert->derCert.data, entry.cert->derCert.len);
     PR_ASSERT(rv == SECSuccess);
     if (rv == SECSuccess) {
       bool same = !memcmp(certFingerprint, entry.ev_root_sha1_fingerprint, 20);
@@ -1009,14 +1005,10 @@ CleanupIdentityInfo()
 
 // Find the first policy OID that is known to be an EV policy OID.
 SECStatus
-GetFirstEVPolicy(CERTCertificate* cert,
-                 /*out*/ mozilla::pkix::CertPolicyId& policy,
-                 /*out*/ SECOidTag& policyOidTag)
+GetFirstEVPolicy(CERTCertificate* cert, SECOidTag& outOidTag)
 {
-  if (!cert) {
-    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
+  if (!cert)
     return SECFailure;
-  }
 
   if (cert->extensions) {
     for (int i=0; cert->extensions[i]; i++) {
@@ -1043,29 +1035,18 @@ GetFirstEVPolicy(CERTCertificate* cert,
 
         SECOidTag oid_tag = policyInfo->oid;
         if (oid_tag != SEC_OID_UNKNOWN && isEVPolicy(oid_tag)) {
-          const SECOidData* oidData = SECOID_FindOIDByTag(oid_tag);
-          PR_ASSERT(oidData);
-          PR_ASSERT(oidData->oid.data);
-          PR_ASSERT(oidData->oid.len > 0);
-          PR_ASSERT(oidData->oid.len <= mozilla::pkix::CertPolicyId::MAX_BYTES);
-          if (oidData && oidData->oid.data && oidData->oid.len > 0 &&
-              oidData->oid.len <= mozilla::pkix::CertPolicyId::MAX_BYTES) {
-            policy.numBytes = static_cast<uint16_t>(oidData->oid.len);
-            memcpy(policy.bytes, oidData->oid.data, policy.numBytes);
-            policyOidTag = oid_tag;
-            found = true;
-          }
+          // in our list of OIDs accepted for EV
+          outOidTag = oid_tag;
+          found = true;
           break;
         }
       }
       CERT_DestroyCertificatePoliciesExtension(policies);
-      if (found) {
+      if (found)
         return SECSuccess;
-      }
     }
   }
 
-  PR_SetError(SEC_ERROR_POLICY_VALIDATION_FAILED, 0);
   return SECFailure;
 }
 

@@ -277,12 +277,12 @@ struct AutoPaintSetup {
       mPaint.setXfermodeMode(SkXfermode::kSrcOver_Mode);
       SkPaint temp;
       temp.setXfermodeMode(GfxOpToSkiaOp(aOptions.mCompositionOp));
-      temp.setAlpha(U8CPU(aOptions.mAlpha*255+0.5));
+      temp.setAlpha(U8CPU(aOptions.mAlpha*255));
       //TODO: Get a rect here
       mCanvas->saveLayer(nullptr, &temp);
       mNeedsRestore = true;
     } else {
-      mPaint.setAlpha(U8CPU(aOptions.mAlpha*255.0+0.5));
+      mPaint.setAlpha(U8CPU(aOptions.mAlpha*255.0));
       mAlpha = aOptions.mAlpha;
     }
     mPaint.setFilterLevel(SkPaint::kLow_FilterLevel);

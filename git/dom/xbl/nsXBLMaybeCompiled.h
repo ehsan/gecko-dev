@@ -82,16 +82,11 @@ private:
 namespace js {
 
 template <class UncompiledT>
-struct GCMethods<nsXBLMaybeCompiled<UncompiledT> >
+struct GCMethods<nsXBLMaybeCompiled<UncompiledT> > : public GCMethods<JSObject *>
 {
   typedef struct GCMethods<JSObject *> Base;
 
   static nsXBLMaybeCompiled<UncompiledT> initial() { return nsXBLMaybeCompiled<UncompiledT>(); }
-
-  /*
-   * No implementation of kind() is provided to prevent
-   * Root<nsXBLMaybeCompiled<UncompiledT>> from being used.
-   */
 
   static bool poisoned(nsXBLMaybeCompiled<UncompiledT> function)
   {

@@ -71,11 +71,7 @@ SpecialPowersObserverAPI.prototype = {
 
   _observe: function(aSubject, aTopic, aData) {
     function addDumpIDToMessage(propertyName) {
-      try {
-        var id = aSubject.getPropertyAsAString(propertyName);
-      } catch(ex) {
-        var id = null;
-      }
+      var id = aSubject.getPropertyAsAString(propertyName);
       if (id) {
         message.dumpIDs.push({id: id, extension: "dmp"});
         message.dumpIDs.push({id: id, extension: "extra"});

@@ -34,8 +34,6 @@ Fail(PRErrorCode errorCode)
   return Failure;
 }
 
-namespace internal {
-
 // Too complicated to be inline
 Result
 ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
@@ -87,7 +85,5 @@ ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
   // Ensure the input is long enough for the length it says it has.
   return input.EnsureLength(length);
 }
-
-} // namespace internal
 
 } } } // namespace mozilla::pkix::der

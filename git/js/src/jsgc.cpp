@@ -2972,8 +2972,8 @@ GCRuntime::beginMarkPhase()
     }
 
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        /* Unmark all weak maps in the compartments being collected. */
-        WeakMapBase::unmarkCompartment(c);
+        /* Reset weak map list for the compartments being collected. */
+        WeakMapBase::resetCompartmentWeakMapList(c);
     }
 
     if (isFull)
@@ -3173,17 +3173,14 @@ js::gc::MarkingValidator::nonIncrementalMark()
     }
 
     /*
-     * Temporarily clear the weakmaps' mark flags and the lists of live array
-     * buffers for the compartments we are collecting.
+     * Temporarily clear the lists of live weakmaps and array buffers for the
+     * compartments we are collecting.
      */
 
-    WeakMapSet markedWeakMaps;
-    if (!markedWeakMaps.init())
-        return;
-
+    WeakMapVector weakmaps;
     ArrayBufferVector arrayBuffers;
     for (GCCompartmentsIter c(runtime); !c.done(); c.next()) {
-        if (!WeakMapBase::saveCompartmentMarkedWeakMaps(c, markedWeakMaps) ||
+        if (!WeakMapBase::saveCompartmentWeakMapList(c, weakmaps) ||
             !ArrayBufferObject::saveArrayBufferList(c, arrayBuffers))
         {
             return;
@@ -3197,7 +3194,7 @@ js::gc::MarkingValidator::nonIncrementalMark()
     initialized = true;
 
     for (GCCompartmentsIter c(runtime); !c.done(); c.next()) {
-        WeakMapBase::unmarkCompartment(c);
+        WeakMapBase::resetCompartmentWeakMapList(c);
         ArrayBufferObject::resetArrayBufferList(c);
     }
 
@@ -3253,10 +3250,10 @@ js::gc::MarkingValidator::nonIncrementalMark()
     }
 
     for (GCCompartmentsIter c(runtime); !c.done(); c.next()) {
-        WeakMapBase::unmarkCompartment(c);
+        WeakMapBase::resetCompartmentWeakMapList(c);
         ArrayBufferObject::resetArrayBufferList(c);
     }
-    WeakMapBase::restoreCompartmentMarkedWeakMaps(markedWeakMaps);
+    WeakMapBase::restoreCompartmentWeakMapLists(weakmaps);
     ArrayBufferObject::restoreArrayBufferLists(arrayBuffers);
 
     gc->incrementalState = state;
@@ -3442,38 +3439,13 @@ Zone::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
 
     for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next())
         comp->findOutgoingEdges(finder);
-
-    for (ZoneSet::Range r = gcZoneGroupEdges.all(); !r.empty(); r.popFront())
-        finder.addEdgeTo(r.front());
-    gcZoneGroupEdges.clear();
-}
-
-bool
-GCRuntime::findZoneEdgesForWeakMaps()
-{
-    /*
-     * Weakmaps which have keys with delegates in a different zone introduce the
-     * need for zone edges from the delegate's zone to the weakmap zone.
-     *
-     * Since the edges point into and not away from the zone the weakmap is in
-     * we must find these edges in advance and store them in a set on the Zone.
-     * If we run out of memory, we fall back to sweeping everything in one
-     * group.
-     */
-
-    for (GCCompartmentsIter comp(rt); !comp.done(); comp.next()) {
-        if (!WeakMapBase::findZoneEdgesForCompartment(comp))
-            return false;
-    }
-
-    return true;
 }
 
 void
 GCRuntime::findZoneGroups()
 {
     ComponentFinder<Zone> finder(rt->mainThread.nativeStackLimit[StackForSystemCode]);
-    if (!isIncremental || !findZoneEdgesForWeakMaps())
+    if (!isIncremental)
         finder.useOneComponent();
 
     for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
@@ -3815,8 +3787,6 @@ GCRuntime::beginSweepingZoneGroup()
 
         if (rt->sweepZoneCallback)
             rt->sweepZoneCallback(zone);
-
-        zone->gcLastZoneGroupIndex = zoneGroupIndex;
     }
 
     validateIncrementalMarking();
@@ -5048,9 +5018,6 @@ js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals,
             return nullptr;
 
         zoneHolder.reset(zone);
-
-        if (!zone->init())
-            return nullptr;
 
         zone->setGCLastBytes(8192, GC_NORMAL);
 
