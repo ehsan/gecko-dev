@@ -1127,22 +1127,14 @@ statusbarpanel#statusbar-display {
   -moz-box-shadow: ThreeDShadow 0 -1px inset;
 }
 
-#TabsToolbar > toolbarbutton,
-#TabsToolbar > toolbarpaletteitem > toolbarbutton {
-  margin-bottom: 1px;
-}
-
 .tabbrowser-tab {
-  padding: 0 2px 2px;
+  border: none !important;
+  padding: 0 2px;
   margin-bottom: 1px;
-  min-height: 25px; /* reserve space for the sometimes hidden close button */
 }
 
 .tabbrowser-tab[selected="true"] {
-  margin-bottom: 0;
-  padding-top: 2px; /* compensates the top margin of background tabs */
-  padding-bottom: 3px; /* compensates the bottom margin of background tabs */
-  min-height: 28px;
+  margin-bottom: 0px;
 }
 
 .tab-icon-image {
@@ -1224,11 +1216,12 @@ statusbarpanel#statusbar-display {
 .tab-close-button > .toolbarbutton-icon {
   /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
      use evil CSS to give the impression of smaller content */
-  margin: -4px;
+  margin: -3px !important;
 }
 
 .tab-close-button {
-  padding: 0;
+  padding: 0px;
+  border: none;
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
@@ -1243,21 +1236,17 @@ statusbarpanel#statusbar-display {
 }
 
 /* Tabstrip new tab button */
-.tabs-newtab-button,
-#TabsToolbar > #new-tab-button ,
-#TabsToolbar > #wrapper-new-tab-button > #new-tab-button {
+.tabs-newtab-button {
   list-style-image: url("moz-icon://stock/gtk-add?size=menu");
-  -moz-image-region: auto;
+  border: none;
   margin-bottom: 1px;
 }
 
-.tabs-newtab-button {
+.tabbrowser-arrowscrollbox > .tabs-newtab-button {
   width: 32px;
 }
 
-.tabs-newtab-button > .toolbarbutton-icon,
-#TabsToolbar > #new-tab-button > .toolbarbutton-icon,
-#TabsToolbar > #wrapper-new-tab-button > #new-tab-button > .toolbarbutton-icon {
+.tabs-newtab-button > .toolbarbutton-icon {
   margin-top: -2px;
   margin-bottom: -2px;
 }
@@ -1265,6 +1254,8 @@ statusbarpanel#statusbar-display {
 /* Tabstrip close button */
 .tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  border: none;
+  margin-bottom: 1px;
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
@@ -1291,16 +1282,20 @@ statusbarpanel#statusbar-display {
   -moz-transition: none;
 }
 
-#alltabs-button > .toolbarbutton-icon {
+.tabs-alltabs-button {
+  margin-bottom: 1px;
+}
+
+.tabs-alltabs-button > .toolbarbutton-icon {
   list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
   margin: 2px 0 1px;
 }
 
-#alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
+.tabs-alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
   margin-bottom: -2px;
 }
 
-#alltabs-button[type="menu"] > .toolbarbutton-icon {
+.tabs-alltabs-button[type="menu"] > .toolbarbutton-icon {
   display: none;
 }
 
@@ -1319,7 +1314,7 @@ statusbarpanel#statusbar-display {
 }
 
 /* Sidebar */
-#sidebar-header > .tabs-closebutton {
+#sidebar-box .tabs-closebutton {
   margin-bottom: 0px !important;
   padding: 0px 2px 0px 2px !important;
 }

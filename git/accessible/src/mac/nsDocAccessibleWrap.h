@@ -41,18 +41,7 @@
 
 #include "nsDocAccessible.h"
 
-class nsDocAccessibleWrap: public nsDocAccessible
-{
-public:
-    nsDocAccessibleWrap(nsIDOMNode *aNode, nsIWeakReference *aShell);
-    virtual ~nsDocAccessibleWrap();
-
-    // nsIAccessNode
-
-    /**
-     * Creates the native accessible connected to this one.
-     */
-    virtual nsresult Init ();
-};
+typedef nsDocAccessible nsDocAccessibleWrap;
 
 #endif
+

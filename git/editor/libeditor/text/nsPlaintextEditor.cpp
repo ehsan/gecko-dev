@@ -166,46 +166,30 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
   return res;
 }
 
-static PRInt32 sNewlineHandlingPref = -1,
-               sCaretStylePref = -1;
-
-static int
-EditorPrefsChangedCallback(const char *aPrefName, void *)
-{
-  if (nsCRT::strcmp(aPrefName, "editor.singleLine.pasteNewlines") == 0) {
-    sNewlineHandlingPref = nsContentUtils::GetIntPref("editor.singleLine.pasteNewlines",
-                                                      nsIPlaintextEditor::eNewlinesPasteToFirst);
-  } else if (nsCRT::strcmp(aPrefName, "layout.selection.caret_style") == 0) {
-    sCaretStylePref = nsContentUtils::GetIntPref("layout.selection.caret_style",
-#ifdef XP_WIN
-                                                 1);
-    if (sCaretStylePref == 0)
-      sCaretStylePref = 1;
-#else
-                                                 0);
-#endif
-  }
-  return 0;
-}
-
 // static
 void
 nsPlaintextEditor::GetDefaultEditorPrefs(PRInt32 &aNewlineHandling,
                                          PRInt32 &aCaretStyle)
 {
-  if (sNewlineHandlingPref == -1) {
-    nsContentUtils::RegisterPrefCallback("editor.singleLine.pasteNewlines",
-                                         EditorPrefsChangedCallback,
-                                         nsnull);
-    EditorPrefsChangedCallback("editor.singleLine.pasteNewlines", nsnull);
-    nsContentUtils::RegisterPrefCallback("layout.selection.caret_style",
-                                         EditorPrefsChangedCallback,
-                                         nsnull);
-    EditorPrefsChangedCallback("layout.selection.caret_style", nsnull);
-  }
+  // set default values
+  aNewlineHandling = nsIPlaintextEditor::eNewlinesPasteToFirst;
+#ifdef XP_WIN
+  aCaretStyle = 1;
+#else
+  aCaretStyle = 0;
+#endif
 
-  aNewlineHandling = sNewlineHandlingPref;
-  aCaretStyle = sCaretStylePref;
+  nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefBranch)
+  {
+    prefBranch->GetIntPref("editor.singleLine.pasteNewlines",
+                           &aNewlineHandling);
+    prefBranch->GetIntPref("layout.selection.caret_style", &aCaretStyle);
+#ifdef XP_WIN
+    if (aCaretStyle == 0)
+      aCaretStyle = 1;
+#endif
+  }
 }
 
 void 
@@ -321,6 +305,21 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet)
   return result; 
 } 
 
+NS_IMETHODIMP 
+nsPlaintextEditor::GetFlags(PRUint32 *aFlags)
+{
+  if (!mRules || !aFlags) { return NS_ERROR_NULL_POINTER; }
+  return mRules->GetFlags(aFlags);
+}
+
+
+NS_IMETHODIMP 
+nsPlaintextEditor::SetFlags(PRUint32 aFlags)
+{
+  if (!mRules) { return NS_ERROR_NULL_POINTER; }
+  return mRules->SetFlags(aFlags);
+}
+
 
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
@@ -328,7 +327,7 @@ NS_IMETHODIMP nsPlaintextEditor::InitRules()
   nsresult res = NS_NewTextEditRules(getter_AddRefs(mRules));
   if (NS_FAILED(res)) return res;
   if (!mRules) return NS_ERROR_UNEXPECTED;
-  return mRules->Init(this);
+  return mRules->Init(this, mFlags);
 }
 
 
@@ -346,7 +345,11 @@ nsPlaintextEditor::GetIsDocumentEditable(PRBool *aIsDocumentEditable)
 
 PRBool nsPlaintextEditor::IsModifiable()
 {
-  return !IsReadonly();
+  PRUint32 flags;
+  if (NS_SUCCEEDED(GetFlags(&flags)))
+    return ((flags & eEditorReadonlyMask) == 0);
+
+  return PR_FALSE;
 }
 
 
@@ -864,11 +867,11 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
 }
 
 NS_IMETHODIMP
-nsPlaintextEditor::BeginComposition()
+nsPlaintextEditor::BeginComposition(nsTextEventReply* aReply)
 {
   NS_ENSURE_TRUE(!mInIMEMode, NS_OK);
 
-  if (IsPasswordEditor())  {
+  if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)  {
     if (mRules) {
       nsIEditRules *p = mRules.get();
       nsTextEditRules *textEditRules = static_cast<nsTextEditRules *>(p);
@@ -879,7 +882,7 @@ nsPlaintextEditor::BeginComposition()
     }
   }
 
-  return nsEditor::BeginComposition();
+  return nsEditor::BeginComposition(aReply);
 }
 
 NS_IMETHODIMP
@@ -990,7 +993,9 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
 
   // Make sure we're a plaintext editor, otherwise we shouldn't
   // do the rest of this.
-  if (!IsPlaintextEditor())
+  PRUint32 flags = 0;
+  GetFlags(&flags);
+  if (!(flags & eEditorPlaintextMask))
     return NS_OK;
 
   // Ought to set a style sheet here ...
@@ -1021,14 +1026,14 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   // Make sure we have fixed-width font.  This should be done for us,
   // but it isn't, see bug 22502, so we have to add "font: -moz-fixed;".
   // Only do this if we're wrapping.
-  if (IsWrapHackEnabled() && aWrapColumn >= 0)
+  if ((flags & eEditorEnableWrapHackMask) && aWrapColumn >= 0)
     styleValue.AppendLiteral("font-family: -moz-fixed; ");
 
   // If "mail.compose.wrap_to_window_width" is set, and we're a mail editor,
   // then remember our wrap width (for output purposes) but set the visual
   // wrapping to window width.
   // We may reset mWrapToWindow here, based on the pref's current value.
-  if (IsMailEditor())
+  if (flags & eEditorMailMask)
   {
     nsresult rv;
     nsCOMPtr<nsIPrefBranch> prefBranch =
@@ -1555,8 +1560,7 @@ nsPlaintextEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 #endif
 
 NS_IMETHODIMP
-nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString,
-                                        nsIPrivateTextRangeList* aTextRangeList)
+nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsIPrivateTextRangeList* aTextRangeList,nsTextEventReply* aReply)
 {
   if (!aTextRangeList && !aCompositionString.IsEmpty())
   {
@@ -1593,20 +1597,72 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString,
   {
     mIMETextRangeList = aTextRangeList;
 
-    SetIsIMEComposing(); // We set mIsIMEComposing properly.
+    // XXX_kin: BEGIN HACK! HACK! HACK!
+    // XXX_kin:
+    // XXX_kin: This is lame! The IME stuff needs caret coordinates
+    // XXX_kin: synchronously, but the editor could be using async
+    // XXX_kin: updates (reflows and paints) for performance reasons.
+    // XXX_kin: In order to give IME what it needs, we have to temporarily
+    // XXX_kin: switch to sync updating during this call so that the
+    // XXX_kin: nsAutoPlaceHolderBatch can force sync reflows, paints,
+    // XXX_kin: and selection scrolling, so that we get back accurate
+    // XXX_kin: caret coordinates.
 
-    result = InsertText(aCompositionString);
+    PRUint32 flags = 0;
+    PRBool restoreFlags = PR_FALSE;
 
-    mIMEBufferLength = aCompositionString.Length();
+    if (NS_SUCCEEDED(GetFlags(&flags)) &&
+        (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))
+    {
+      if (NS_SUCCEEDED(SetFlags(
+          flags & (~nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))))
+        restoreFlags = PR_TRUE;
+    }
 
-    if (caretP)
-      caretP->SetCaretDOMSelection(selection);
+    // XXX_kin: END HACK! HACK! HACK!
 
-    // second part of 23558 fix:
-    if (aCompositionString.IsEmpty())
-      mIMETextNode = nsnull;
+    // we need the nsAutoPlaceHolderBatch destructor called before hitting
+    // GetCaretCoordinates so the states in Frame system sync with content
+    // therefore, we put the nsAutoPlaceHolderBatch into a inner block
+    {
+      nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
+
+      SetIsIMEComposing(); // We set mIsIMEComposing properly.
+
+      result = InsertText(aCompositionString);
+
+      mIMEBufferLength = aCompositionString.Length();
+
+      if (caretP)
+        caretP->SetCaretDOMSelection(selection);
+
+      // second part of 23558 fix:
+      if (aCompositionString.IsEmpty())
+        mIMETextNode = nsnull;
+    }
+
+    // XXX_kin: BEGIN HACK! HACK! HACK!
+    // XXX_kin:
+    // XXX_kin: Restore the previous set of flags!
+
+    if (restoreFlags)
+      SetFlags(flags);
+
+    // XXX_kin: END HACK! HACK! HACK!
   }
 
+  if (caretP)
+  {
+    nsRect rect;
+    nsIFrame* frame = caretP->GetGeometry(selection, &rect);
+    if (!frame)
+      return NS_ERROR_FAILURE;
+    nsPoint nearestWidgetOffset;
+    aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
+    rect.MoveBy(nearestWidgetOffset);
+    aReply->mCursorPosition =
+       rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+  }
 
   return result;
 }

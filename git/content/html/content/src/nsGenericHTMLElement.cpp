@@ -266,6 +266,23 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  // Copy the baseuri and basetarget
+  void* prop;
+  if ((prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
+    rv = aDst->SetProperty(nsGkAtoms::htmlBaseHref, prop,
+                           nsPropertyTable::SupportsDtorFunc, PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      NS_ADDREF(static_cast<nsIURI*>(prop));
+    }
+  }
+  if ((prop = GetProperty(nsGkAtoms::htmlBaseTarget))) {
+    rv = aDst->SetProperty(nsGkAtoms::htmlBaseTarget, prop,
+                           nsPropertyTable::SupportsDtorFunc, PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      NS_ADDREF(static_cast<nsIAtom*>(prop));
+    }
+  }
+
   return NS_OK;
 }
 
@@ -452,7 +469,7 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
     parent = parent->GetParent();
   }
 
-  Element* docElement = GetCurrentDoc()->GetRootElement();
+  nsIContent* docElement = GetCurrentDoc()->GetRootContent();
   nsIContent* content = frame->GetContent();
 
   if (content && (IsBody(content) || content == docElement)) {
@@ -681,12 +698,14 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
     loader->SetEnabled(PR_FALSE);
   }
 
-  nsresult rv = nsContentUtils::CreateContextualFragment(this, aInnerHTML,
+  nsCOMPtr<nsIDOMNode> thisNode(do_QueryInterface(static_cast<nsIContent *>
+                                                             (this)));
+  nsresult rv = nsContentUtils::CreateContextualFragment(thisNode, aInnerHTML,
                                                          PR_FALSE,
                                                          getter_AddRefs(df));
-  nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
   if (NS_SUCCEEDED(rv)) {
-    static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
+    nsCOMPtr<nsIDOMNode> tmpNode;
+    rv = thisNode->AppendChild(df, getter_AddRefs(tmpNode));
   }
 
   if (scripts_enabled) {
@@ -1134,15 +1153,42 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   return NS_OK;
 }
 
+already_AddRefed<nsIURI>
+nsGenericHTMLElement::GetBaseURI() const
+{
+  void* prop;
+  if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
+    nsIURI* uri = static_cast<nsIURI*>(prop);
+    NS_ADDREF(uri);
+    
+    return uri;
+  }
+
+  return nsGenericHTMLElementBase::GetBaseURI();
+}
+
 void
 nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 {
+  void* prop;
+  if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseTarget))) {
+    static_cast<nsIAtom*>(prop)->ToString(aBaseTarget);
+    
+    return;
+  }
+
   nsIDocument* ownerDoc = GetOwnerDoc();
   if (ownerDoc) {
     ownerDoc->GetBaseTarget(aBaseTarget);
   } else {
     aBaseTarget.Truncate();
   }
+}
+
+PRBool
+nsGenericHTMLElement::IsNodeOfType(PRUint32 aFlags) const
+{
+  return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 //----------------------------------------------------------------------
@@ -1156,7 +1202,7 @@ nsGenericHTMLElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::dir) {
-      return aResult.ParseEnumValue(aValue, kDirTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kDirTable);
     }
   
     if (aAttribute == nsGkAtoms::tabindex) {
@@ -1405,7 +1451,7 @@ PRBool
 nsGenericHTMLElement::ParseAlignValue(const nsAString& aString,
                                       nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kAlignTable);
 }
 
 //----------------------------------------
@@ -1438,9 +1484,9 @@ nsGenericHTMLElement::ParseTableHAlignValue(const nsAString& aString,
                                             nsAttrValue& aResult) const
 {
   if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableHAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aString, kCompatTableHAlignTable);
   }
-  return aResult.ParseEnumValue(aString, kTableHAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableHAlignTable);
 }
 
 //----------------------------------------
@@ -1476,9 +1522,9 @@ nsGenericHTMLElement::ParseTableCellHAlignValue(const nsAString& aString,
                                                 nsAttrValue& aResult) const
 {
   if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable);
   }
-  return aResult.ParseEnumValue(aString, kTableCellHAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableCellHAlignTable);
 }
 
 //----------------------------------------
@@ -1487,14 +1533,14 @@ PRBool
 nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
                                             nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableVAlignTable);
 }
 
-PRBool 
+PRBool
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
                                          nsAttrValue& aResult) const
 {
-  return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kDivAlignTable);
 }
 
 PRBool
@@ -1518,14 +1564,14 @@ PRBool
 nsGenericHTMLElement::ParseFrameborderValue(const nsAString& aString,
                                             nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kFrameborderTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kFrameborderTable);
 }
 
 PRBool
 nsGenericHTMLElement::ParseScrollingValue(const nsAString& aString,
                                           nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kScrollingTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kScrollingTable);
 }
 
 /**
@@ -1565,9 +1611,6 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
 void
 nsGenericHTMLFormElement::UpdateEditableFormControlState()
 {
-  // nsCSSFrameConstructor::MaybeConstructLazily is based on the logic of this
-  // function, so should be kept in sync with that.
-
   ContentEditableTristate value = GetContentEditableValue();
   if (value != eInherit) {
     SetEditableFlag(!!value);
@@ -2136,24 +2179,6 @@ nsGenericHTMLElement::GetURIListAttr(nsIAtom* aAttr, nsAString& aResult)
 }
 
 nsresult
-nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
-                                  const char* aDefault,
-                                  nsAString& aResult)
-{
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-
-  aResult.Truncate();
-
-  if (attrVal && attrVal->Type() == nsAttrValue::eEnum) {
-    attrVal->GetEnumString(aResult, PR_TRUE);
-  } else {
-    AppendASCIItoUTF16(nsDependentCString(aDefault), aResult);
-  }
-
-  return NS_OK;
-}
-
-nsresult
 nsGenericHTMLElement::GetContentEditable(nsAString& aContentEditable)
 {
   ContentEditableTristate value = GetContentEditableValue();
@@ -2237,7 +2262,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
 PRBool
 nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eHTML_FORM_CONTROL));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML_FORM_CONTROL));
 }
 
 void
@@ -2567,8 +2592,7 @@ nsGenericHTMLFormElement::CanBeDisabled() const
     type != NS_FORM_LABEL &&
     type != NS_FORM_LEGEND &&
     type != NS_FORM_FIELDSET &&
-    type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT;
+    type != NS_FORM_OBJECT;
 }
 
 PRBool
@@ -2981,7 +3005,6 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
     // Click on it if the users prefs indicate to do so.
     nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
                        nsnull, nsMouseEvent::eReal);
-    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
                                             openAllowed : openAbused);

@@ -118,8 +118,6 @@ CSSRuleListImpl::~CSSRuleListImpl()
 {
 }
 
-DOMCI_DATA(CSSRuleList, CSSRuleListImpl)
-
 // QueryInterface implementation for CSSRuleList
 NS_INTERFACE_MAP_BEGIN(CSSRuleListImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSRuleList)
@@ -507,8 +505,6 @@ nsMediaQuery::Matches(nsPresContext* aPresContext,
 
   return match == !mNegated;
 }
-
-DOMCI_DATA(MediaList, nsMediaList)
 
 NS_INTERFACE_MAP_BEGIN(nsMediaList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMediaList)
@@ -1061,8 +1057,6 @@ nsCSSStyleSheet::~nsCSSStyleSheet()
   }
 }
 
-
-DOMCI_DATA(CSSStyleSheet, nsCSSStyleSheet)
 
 // QueryInterface implementation for nsCSSStyleSheet
 NS_INTERFACE_MAP_BEGIN(nsCSSStyleSheet)

@@ -42,7 +42,6 @@
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpHandler.h"
-#include "nsIOService.h"
 #include "nsISocketTransportService.h"
 #include "nsISocketTransport.h"
 #include "nsIServiceManager.h"
@@ -568,12 +567,11 @@ nsHttpConnection::OnSocketWritable()
         if (mSSLProxyConnectStream) {
             LOG(("  writing CONNECT request stream\n"));
             rv = mSSLProxyConnectStream->ReadSegments(ReadFromStream, this,
-                                                      nsIOService::gDefaultSegmentSize,
-                                                      &n);
+                                                      NS_HTTP_SEGMENT_SIZE, &n);
         }
         else {
             LOG(("  writing transaction request stream\n"));
-            rv = mTransaction->ReadSegments(this, nsIOService::gDefaultSegmentSize, &n);
+            rv = mTransaction->ReadSegments(this, NS_HTTP_SEGMENT_SIZE, &n);
         }
 
         LOG(("  ReadSegments returned [rv=%x read=%u sock-cond=%x]\n",
@@ -663,7 +661,7 @@ nsHttpConnection::OnSocketReadable()
     PRBool again = PR_TRUE;
 
     do {
-        rv = mTransaction->WriteSegments(this, nsIOService::gDefaultSegmentSize, &n);
+        rv = mTransaction->WriteSegments(this, NS_HTTP_SEGMENT_SIZE, &n);
         if (NS_FAILED(rv)) {
             // if the transaction didn't want to take any more data, then
             // wait for the transaction to call ResumeRecv.

@@ -78,8 +78,6 @@
 #include "nsIPrefLocalizedString.h"
 #include "nsCRT.h"
 
-#include "mozilla/FunctionTimer.h"
-
 gfxPlatform *gPlatform = nsnull;
 
 PRInt32 gfxPlatform::sDPI = -1;
@@ -813,7 +811,6 @@ qcms_profile *
 gfxPlatform::GetCMSOutputProfile()
 {
     if (!gCMSOutputProfile) {
-        NS_TIME_FUNCTION;
 
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {

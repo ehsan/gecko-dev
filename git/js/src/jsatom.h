@@ -152,16 +152,16 @@ struct JSAtomList : public JSAtomSet
 
     enum AddHow { UNIQUE, SHADOW, HOIST };
 
-    JSAtomListElement *add(js::Parser *parser, JSAtom *atom, AddHow how = UNIQUE);
+    JSAtomListElement *add(JSCompiler *jsc, JSAtom *atom, AddHow how = UNIQUE);
 
-    void remove(js::Parser *parser, JSAtom *atom) {
+    void remove(JSCompiler *jsc, JSAtom *atom) {
         JSHashEntry **hep;
         JSAtomListElement *ale = rawLookup(atom, hep);
         if (ale)
-            rawRemove(parser, ale, hep);
+            rawRemove(jsc, ale, hep);
     }
 
-    void rawRemove(js::Parser *parser, JSAtomListElement *ale, JSHashEntry **hep);
+    void rawRemove(JSCompiler *jsc, JSAtomListElement *ale, JSHashEntry **hep);
 };
 
 /*
@@ -170,10 +170,10 @@ struct JSAtomList : public JSAtomSet
  */
 struct JSAutoAtomList: public JSAtomList
 {
-    JSAutoAtomList(js::Parser *p): parser(p) {}
+    JSAutoAtomList(JSCompiler *c): compiler(c) {}
     ~JSAutoAtomList();
   private:
-    js::Parser *parser;         /* For freeing list entries. */
+    JSCompiler *compiler;       /* For freeing list entries. */
 };
 
 /*
@@ -250,6 +250,7 @@ struct JSAtomState {
     JSAtom              *evalAtom;
     JSAtom              *fileNameAtom;
     JSAtom              *getAtom;
+    JSAtom              *getterAtom;
     JSAtom              *indexAtom;
     JSAtom              *inputAtom;
     JSAtom              *iteratorAtom;
@@ -259,8 +260,10 @@ struct JSAtomState {
     JSAtom              *nameAtom;
     JSAtom              *nextAtom;
     JSAtom              *noSuchMethodAtom;
+    JSAtom              *parentAtom;
     JSAtom              *protoAtom;
     JSAtom              *setAtom;
+    JSAtom              *setterAtom;
     JSAtom              *stackAtom;
     JSAtom              *toLocaleStringAtom;
     JSAtom              *toSourceAtom;
@@ -387,6 +390,7 @@ extern const char   js_namespace_str[];
 extern const char   js_next_str[];
 extern const char   js_noSuchMethod_str[];
 extern const char   js_object_str[];
+extern const char   js_parent_str[];
 extern const char   js_proto_str[];
 extern const char   js_ptagc_str[];
 extern const char   js_qualifier_str[];
@@ -439,7 +443,7 @@ js_FinishAtomState(JSRuntime *rt);
  */
 
 extern void
-js_TraceAtomState(JSTracer *trc);
+js_TraceAtomState(JSTracer *trc, JSBool allAtoms);
 
 extern void
 js_SweepAtomState(JSContext *cx);

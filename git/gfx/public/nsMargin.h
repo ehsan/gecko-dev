@@ -64,15 +64,19 @@ struct nsMargin {
 
   nsPoint TopLeft() const { return nsPoint(left, top); }
 
-  nscoord& side(mozilla::css::Side aSide) {
+#if (NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3)
+  nscoord& side(PRUint8 aSide) {
     NS_PRECONDITION(aSide <= NS_SIDE_LEFT, "Out of range side");
     return *(&top + aSide);
-  }
+  }    
 
-  nscoord side(mozilla::css::Side aSide) const {
+  nscoord side(PRUint8 aSide) const {
     NS_PRECONDITION(aSide <= NS_SIDE_LEFT, "Out of range side");
     return *(&top + aSide);
-  }
+  }    
+#else
+#error "Somebody changed the side constants."
+#endif
 
   // Overloaded operators. Note that '=' isn't defined so we'll get the
   // compiler generated default assignment operator
@@ -124,12 +128,12 @@ struct nsIntMargin {
 
   nsPoint TopLeft() const { return nsPoint(left, top); }
 
-  PRInt32& side(mozilla::css::Side aSide) {
+  PRInt32& side(PRUint8 aSide) {
     NS_PRECONDITION(aSide <= NS_SIDE_LEFT, "Out of range side");
     return *(&top + aSide);
   }
 
-  PRInt32 side(mozilla::css::Side aSide) const {
+  PRInt32 side(PRUint8 aSide) const {
     NS_PRECONDITION(aSide <= NS_SIDE_LEFT, "Out of range side");
     return *(&top + aSide);
   }

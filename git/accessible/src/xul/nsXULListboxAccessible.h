@@ -134,10 +134,7 @@ public:
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
-  /**
-   * Return listbox accessible for the listitem.
-   */
-  already_AddRefed<nsAccessible> GetListAccessible();
+  already_AddRefed<nsIAccessible> GetListAccessible();
 
 private:
   PRBool mIsCheckbox;

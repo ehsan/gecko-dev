@@ -194,8 +194,9 @@ public:
     nsresult rv = CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager,
                                 aCx, aOldScope, aNewScope, aNodesWithProperties,
                                 nsnull);
-
-    nsMutationGuard::DidMutate();
+    if (NS_SUCCEEDED(rv)) {
+      nsMutationGuard::DidMutate();
+    }
 
     return rv;
   }

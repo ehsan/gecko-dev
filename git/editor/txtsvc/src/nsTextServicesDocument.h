@@ -39,6 +39,7 @@
 #define nsTextServicesDocument_h__
 
 #include "nsCOMPtr.h"
+#include "nsIPresShell.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
 #include "nsIContent.h"

@@ -40,8 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessibleWrap.h"
-
-#include "nsAccUtils.h"
 #include "nsApplicationAccessibleWrap.h"
 #include "nsRootAccessible.h"
 #include "nsDocAccessibleWrap.h"
@@ -50,7 +48,6 @@
 #include "nsAutoPtr.h"
 #include "prprf.h"
 #include "nsRoleMap.h"
-#include "nsRelUtils.h"
 #include "nsStateMap.h"
 
 #include "nsMaiInterfaceComponent.h"
@@ -1158,7 +1155,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
         if (rootAccWrap && rootAccWrap->mActivated) {
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
-            nsRefPtr<nsAccEvent> stateChangeEvent =
+            nsCOMPtr<nsIAccessibleEvent> stateChangeEvent =
               new nsAccStateChangeEvent(accessible,
                                         nsIAccessibleStates::STATE_FOCUSED,
                                         PR_FALSE, PR_TRUE);
@@ -1386,7 +1383,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FireAtkStateChangeEvent(nsAccEvent *aEvent,
+nsAccessibleWrap::FireAtkStateChangeEvent(nsIAccessibleEvent *aEvent,
                                           AtkObject *aObject)
 {
     MAI_LOG_DEBUG(("\n\nReceived: EVENT_STATE_CHANGE\n"));
@@ -1428,7 +1425,7 @@ nsAccessibleWrap::FireAtkStateChangeEvent(nsAccEvent *aEvent,
 }
 
 nsresult
-nsAccessibleWrap::FireAtkTextChangedEvent(nsAccEvent *aEvent,
+nsAccessibleWrap::FireAtkTextChangedEvent(nsIAccessibleEvent *aEvent,
                                           AtkObject *aObject)
 {
     MAI_LOG_DEBUG(("\n\nReceived: EVENT_TEXT_REMOVED/INSERTED\n"));
@@ -1446,7 +1443,8 @@ nsAccessibleWrap::FireAtkTextChangedEvent(nsAccEvent *aEvent,
     PRBool isInserted;
     event->IsInserted(&isInserted);
 
-    PRBool isFromUserInput = aEvent->IsFromUserInput();
+    PRBool isFromUserInput;
+    aEvent->GetIsFromUserInput(&isFromUserInput);
 
     char *signal_name = g_strconcat(isInserted ? "text_changed::insert" : "text_changed::delete",
                                     isFromUserInput ? "" : kNonUserInputEvent, NULL);
@@ -1457,7 +1455,7 @@ nsAccessibleWrap::FireAtkTextChangedEvent(nsAccEvent *aEvent,
 }
 
 nsresult
-nsAccessibleWrap::FireAtkShowHideEvent(nsAccEvent *aEvent,
+nsAccessibleWrap::FireAtkShowHideEvent(nsIAccessibleEvent *aEvent,
                                        AtkObject *aObject, PRBool aIsAdded)
 {
     if (aIsAdded)
@@ -1469,7 +1467,8 @@ nsAccessibleWrap::FireAtkShowHideEvent(nsAccEvent *aEvent,
     AtkObject *parentObject = getParentCB(aObject);
     NS_ENSURE_STATE(parentObject);
 
-    PRBool isFromUserInput = aEvent->IsFromUserInput();
+    PRBool isFromUserInput;
+    aEvent->GetIsFromUserInput(&isFromUserInput);
     char *signal_name = g_strconcat(aIsAdded ? "children_changed::add" :  "children_changed::remove",
                                     isFromUserInput ? "" : kNonUserInputEvent, NULL);
     g_signal_emit_by_name(parentObject, signal_name, indexInParent, aObject, NULL);

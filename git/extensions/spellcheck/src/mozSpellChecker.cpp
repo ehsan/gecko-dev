@@ -473,6 +473,7 @@ mozSpellChecker::InitSpellCheckDictionaryMap()
 {
   nsresult rv;
   PRBool hasMoreEngines;
+  PRInt32 i;
   nsTArray<nsCString> contractIds;
 
   nsCOMPtr<nsICategoryManager> catMgr = do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
@@ -508,7 +509,7 @@ mozSpellChecker::InitSpellCheckDictionaryMap()
   // Retrieve dictionaries from all available spellcheckers and
   // fill mDictionariesMap hash (only the first dictionary with the
   // each name is used).
-  for (PRUint32 i=0;i < contractIds.Length();i++){
+  for (i=0;i < PRInt32(contractIds.Length());i++){
     PRUint32 count,k;
     PRUnichar **words;
 

@@ -184,13 +184,13 @@ private:
     nsCOMPtr<nsIRunnable> event;
     switch (GetNextFrameStatus()) {
       case nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE_BUFFERING:
-        event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::NextFrameUnavailableBuffering);
+        event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, NextFrameUnavailableBuffering);
         break;
       case nsHTMLMediaElement::NEXT_FRAME_AVAILABLE:
-        event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::NextFrameAvailable);
+        event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, NextFrameAvailable);
         break;
       case nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE:
-        event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::NextFrameUnavailable);
+        event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, NextFrameUnavailable);
         break;
       default:
         PR_NOT_REACHED("unhandled frame state");
@@ -529,7 +529,7 @@ nsWaveStateMachine::Run()
         if (mState == STATE_LOADING_METADATA) {
           mMetadataValid = PR_TRUE;
           if (mNextState != STATE_SEEKING) {
-            nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::MetadataLoaded);
+            nsCOMPtr<nsIRunnable> event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, MetadataLoaded);
             NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
           }
           ChangeState(mNextState);
@@ -671,7 +671,7 @@ nsWaveStateMachine::Run()
 
         monitor.Exit();
         nsCOMPtr<nsIRunnable> startEvent =
-          NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStarted);
+          NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, SeekingStarted);
         NS_DispatchToMainThread(startEvent, NS_DISPATCH_SYNC);
         monitor.Enter();
 
@@ -728,7 +728,7 @@ nsWaveStateMachine::Run()
 
         monitor.Exit();
         nsCOMPtr<nsIRunnable> stopEvent =
-          NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
+          NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, SeekingStopped);
         NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);
         monitor.Enter();
       }
@@ -753,7 +753,7 @@ nsWaveStateMachine::Run()
 
       if (mState == STATE_ENDED) {
         nsCOMPtr<nsIRunnable> event =
-          NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::PlaybackEnded);
+          NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, PlaybackEnded);
         NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
         do {
@@ -764,7 +764,7 @@ nsWaveStateMachine::Run()
 
     case STATE_ERROR:
       {
-        nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::DecodeError);
+        nsCOMPtr<nsIRunnable> event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, DecodeError);
         NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
         monitor.Wait();
@@ -1171,7 +1171,7 @@ nsWaveStateMachine::FirePositionChanged(PRBool aCoalesce)
   }
 
   mPositionChangeQueued = PR_TRUE;
-  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::PlaybackPositionChanged);
+  nsCOMPtr<nsIRunnable> event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, PlaybackPositionChanged);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
@@ -1489,7 +1489,7 @@ nsWaveDecoder::Shutdown()
   // this event is posted asynchronously to the main thread to perform the
   // shutdown.
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &nsWaveDecoder::Stop);
+    NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, this, Stop);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 

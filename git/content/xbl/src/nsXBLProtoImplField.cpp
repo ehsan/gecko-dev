@@ -43,7 +43,6 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsXBLProtoImplField.h"
 #include "nsIScriptContext.h"
 #include "nsContentUtils.h"
@@ -99,7 +98,6 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   nsIURI* aBindingDocURI,
                                   PRBool* aDidInstall) const
 {
-  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(aBoundNode,
                   "uh-oh, bound node should NOT be null or bad things will "
                   "happen");

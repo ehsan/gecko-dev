@@ -44,6 +44,7 @@
 
 #include "nsStackFrame.h"
 #include "nsStyleContext.h"
+#include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsHTMLParts.h"

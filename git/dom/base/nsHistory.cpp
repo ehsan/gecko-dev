@@ -77,8 +77,6 @@ nsHistory::~nsHistory()
 }
 
 
-DOMCI_DATA(History, nsHistory)
-
 // QueryInterface implementation for nsHistory
 NS_INTERFACE_MAP_BEGIN(nsHistory)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMHistory)

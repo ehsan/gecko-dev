@@ -42,8 +42,6 @@
 
 #include "nsPresContext.h"
 
-DOMCI_DATA(ClientRect, nsClientRect)
-
 NS_INTERFACE_TABLE_HEAD(nsClientRect)
   NS_INTERFACE_TABLE1(nsClientRect, nsIDOMClientRect)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
@@ -99,8 +97,6 @@ nsClientRect::GetHeight(float* aResult)
   *aResult = mHeight;
   return NS_OK;
 }
-
-DOMCI_DATA(ClientRectList, nsClientRectList)
 
 NS_INTERFACE_TABLE_HEAD(nsClientRectList)
   NS_INTERFACE_TABLE1(nsClientRectList, nsIDOMClientRectList)

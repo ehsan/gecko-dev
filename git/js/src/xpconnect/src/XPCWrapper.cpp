@@ -79,7 +79,7 @@ Unwrap(JSContext *cx, JSObject *wrapper)
     JSObject *wrappedObj =
       XPCSafeJSObjectWrapper::GetUnsafeObject(cx, wrapper);
 
-    if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, nsnull, wrappedObj, nsnull))) {
+    if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, wrappedObj, nsnull))) {
       JS_ClearPendingException(cx);
 
       return nsnull;
@@ -429,7 +429,7 @@ AddProperty(JSContext *cx, JSObject *wrapperObj, JSBool wantGetterSetter,
   NS_ASSERTION(desc.obj == wrapperObj,
                "What weird wrapper are we using?");
 
-  return JS_DefinePropertyById(cx, innerObj, interned_id, *vp,
+  return JS_DefinePropertyById(cx, innerObj, interned_id, desc.value,
                                desc.getter, desc.setter, desc.attrs);
 }
 
@@ -618,9 +618,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
     // A non-string id is being resolved. Won't be found here, return
     // early.
 
-    MaybePreserveWrapper(cx, wn, flags);
-
-    return JS_TRUE;
+    return MaybePreserveWrapper(cx, wn, flags);
   }
 
   // Verify that our jsobject really is a wrapped native.
@@ -636,9 +634,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
   if (!iface) {
     // No interface, nothing to resolve.
 
-    MaybePreserveWrapper(cx, wn, flags);
-
-    return JS_TRUE;
+    return MaybePreserveWrapper(cx, wn, flags);
   }
 
   // did we find a method/attribute by that name?
@@ -646,9 +642,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
   if (!member) {
     // No member, nothing to resolve.
 
-    MaybePreserveWrapper(cx, wn, flags);
-
-    return JS_TRUE;
+    return MaybePreserveWrapper(cx, wn, flags);
   }
 
   JSString *str = JSVAL_TO_STRING(id);

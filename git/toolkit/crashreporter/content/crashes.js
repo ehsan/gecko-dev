@@ -40,7 +40,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 var reportsDir, pendingDir;
-var reportURL;
 
 Components.utils.import("resource://gre/modules/CrashSubmit.jsm");
 

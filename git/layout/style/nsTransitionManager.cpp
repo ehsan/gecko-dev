@@ -144,7 +144,8 @@ public:
   NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  void CoverValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
+  NS_HIDDEN_(void) CoverValue(nsCSSProperty aProperty,
+                              nsStyleAnimation::Value &aStartValue)
   {
     CoveredValue v = { aProperty, aStartValue };
     mCoveredValues.AppendElement(v);
@@ -816,8 +817,12 @@ nsresult
 nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
                                         nsCSSPseudoElements::Type aPseudoType)
 {
+  if (!aData->mContent) {
+    return NS_OK;
+  }
+
   ElementTransitions *et =
-    GetElementTransitions(aData->mElement, aPseudoType, PR_FALSE);
+    GetElementTransitions(aData->mContent, aPseudoType, PR_FALSE);
   if (!et) {
     return NS_OK;
   }
@@ -831,7 +836,7 @@ nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
     // We need to immediately restyle with animation
     // after doing this.
     if (et) {
-      mPresContext->PresShell()->RestyleForAnimation(aData->mElement);
+      mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
     }
     return NS_OK;
   }

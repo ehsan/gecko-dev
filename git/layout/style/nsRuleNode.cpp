@@ -78,9 +78,6 @@
 #include "nsCSSProps.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 #define NS_SET_IMAGE_REQUEST(method_, context_, request_)                   \
   if ((context_)->PresContext()->IsDynamic()) {                               \
@@ -230,7 +227,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         // than font size, so rem is relative to the root element's font size.
         nsRefPtr<nsStyleContext> rootStyle;
         const nsStyleFont *rootStyleFont = aStyleFont;
-        Element* docElement = aPresContext->Document()->GetRootElement();
+        nsIContent* docElement = aPresContext->Document()->GetRootContent();
 
         rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
                                                               nsnull);
@@ -687,12 +684,7 @@ static void SetStyleImage(nsStyleContext* aStyleContext,
     case eCSSUnit_None:
       break;
     default:
-      // We might have eCSSUnit_URL values for if-visited style
-      // contexts, which we can safely treat like 'none'.  Otherwise
-      // this is an unexpected unit.
-      NS_ASSERTION(aStyleContext->IsStyleIfVisited() &&
-                   aValue.GetUnit() == eCSSUnit_URL,
-                   "unexpected unit; maybe nsCSSValue::Image::Image() failed?");
+      NS_NOTREACHED("unexpected unit; maybe nsCSSValue::Image::Image() failed?");
       break;
   }
 }
@@ -2312,7 +2304,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                                  const nsCSSValue& aRTLSource,
                                  const nsCSSValue& aLTRLogicalValue,
                                  const nsCSSValue& aRTLLogicalValue,
-                                 mozilla::css::Side aSide,
+                                 PRUint8 aSide,
                                  nsCSSRect& aValueRect,
                                  PRBool& aCanStoreInRuleTree)
 {

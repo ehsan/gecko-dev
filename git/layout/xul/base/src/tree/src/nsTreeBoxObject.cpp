@@ -104,7 +104,7 @@ static void FindBodyElement(nsIContent* aParent, nsIContent** aResult)
       // There are nesting tree elements. Only the innermost should
       // find the treechilren.
       break;
-    } else if (content->IsElement() &&
+    } else if (content->IsNodeOfType(nsINode::eELEMENT) &&
                !ni->Equals(nsGkAtoms::_template, kNameSpaceID_XUL)) {
       FindBodyElement(content, aResult);
       if (*aResult)

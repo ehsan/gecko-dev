@@ -45,7 +45,6 @@
 #include "StreamNotifyParent.h"
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
-#include "mozilla/unused.h"
 
 #if defined(OS_WIN)
 #include <windowsx.h>
@@ -62,13 +61,13 @@ UINT gOOPPStopNativeLoopEvent =
 #include <gdk/gdk.h>
 #elif defined(XP_MACOSX)
 #include <ApplicationServices/ApplicationServices.h>
+#include "nsPluginUtilsOSX.h"
 #endif // defined(XP_MACOSX)
 
 using namespace mozilla::plugins;
 
 PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
                                            NPP npp,
-                                           const nsCString& aMimeType,
                                            const NPNetscapeFuncs* npniface)
   : mParent(parent)
     , mNPP(npp)
@@ -79,29 +78,12 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mPluginWndProc(NULL)
     , mNestedEventState(false)
 #endif // defined(XP_WIN)
-    , mQuirks(0)
 #if defined(XP_MACOSX)
     , mShWidth(0)
     , mShHeight(0)
-    , mShColorSpace(nsnull)
-    , mDrawingModel(NPDrawingModelCoreGraphics)
-    , mIOSurface(nsnull)
+    , mShColorSpace(NULL)
 #endif
 {
-    InitQuirksModes(aMimeType);
-}
-
-void
-PluginInstanceParent::InitQuirksModes(const nsCString& aMimeType)
-{
-#ifdef OS_MACOSX
-    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
-    // Flash sends us Invalidate events so we will use those
-    // instead of the refresh timer.
-    if (!FindInReadable(flash, aMimeType)) {
-        mQuirks |= COREANIMATION_REFRESH_TIMER;
-    }
-#endif
 }
 
 PluginInstanceParent::~PluginInstanceParent()
@@ -114,13 +96,7 @@ PluginInstanceParent::~PluginInstanceParent()
         "Subclass was not reset correctly before the dtor was reached!");
 #endif
 #if defined(OS_MACOSX)
-    if (mShColorSpace)
-        ::CGColorSpaceRelease(mShColorSpace);
-    if (mIOSurface)
-        delete mIOSurface;
-    if (mDrawingModel == NPDrawingModelCoreAnimation) {
-        mParent->RemoveFromRefreshTimer(this);
-    }
+    ::CGColorSpaceRelease(mShColorSpace);
 #endif
 }
 
@@ -153,6 +129,14 @@ PluginInstanceParent::ActorDestroy(ActorDestroyReason why)
         // chance we get to destroy resources.
         SharedSurfaceRelease();
         UnsubclassPluginWindow();
+        // If we crashed in a modal loop in the child, reset
+        // the rpc event spin loop state.
+        if (mNestedEventState) {
+            mNestedEventState = false;
+            PostThreadMessage(GetCurrentThreadId(),
+                              gOOPPStopNativeLoopEvent,
+                              0, 0);
+        }
     }
 #endif
 }
@@ -167,6 +151,12 @@ PluginInstanceParent::Destroy()
 #if defined(OS_WIN)
     SharedSurfaceRelease();
     UnsubclassPluginWindow();
+    if (mNestedEventState) {
+        mNestedEventState = false;
+        PostThreadMessage(GetCurrentThreadId(),
+                          gOOPPStopNativeLoopEvent,
+                          0, 0);
+    }
 #endif
 
     return retval;
@@ -339,21 +329,8 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
     const int& drawingModel, NPError* result)
 {
 #ifdef XP_MACOSX
-    if (drawingModel == NPDrawingModelCoreAnimation) {
-        // We need to request CoreGraphics otherwise
-        // the nsObjectFrame will try to draw a CALayer
-        // that can not be shared across process.
-        mDrawingModel = NPDrawingModelCoreAnimation;
-        *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
-                                  (void*)NPDrawingModelCoreGraphics);
-        if (mQuirks & COREANIMATION_REFRESH_TIMER) {
-            mParent->AddToRefreshTimer(this);
-        }
-    } else {
-        mDrawingModel = drawingModel;
-        *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
+    *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
                                   (void*)drawingModel);
-    }
     return true;
 #else
     *result = NPERR_GENERIC_ERROR;
@@ -440,8 +417,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
     if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
-            return PStreamNotifyParent::Send__delete__(actor,
-                                                       NPERR_GENERIC_ERROR);
+            PStreamNotifyParent::Send__delete__(actor, NPERR_GENERIC_ERROR);
     }
 
     return true;
@@ -500,24 +476,13 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
 #endif
 
 #if defined(XP_MACOSX)
-    if (mShWidth != window.width || mShHeight != window.height) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation) {
-            if (mIOSurface) {
-                delete mIOSurface;
-            }
-            mIOSurface = nsIOSurface::CreateIOSurface(window.width, window.height);
-        } else if (mShWidth * mShHeight != window.width * window.height) {
-            // Uncomment me when DeallocShmem lands.
-            //if (mShWidth != 0 && mShHeight != 0) {
-            //    DeallocShmem(&mShSurface);
-            //}
-            if (window.width != 0 && window.height != 0) {
-                if (!AllocShmem(window.width * window.height*4, 
-                                SharedMemory::TYPE_BASIC, &mShSurface)) {
-                    PLUGIN_LOG_DEBUG(("Shared memory could not be allocated."));
-                    return NPERR_GENERIC_ERROR;
-                } 
-            }
+    if (mShWidth * mShHeight != window.width * window.height) {
+        // XXX: benwa: OMG MEMORY LEAK! 
+        //      There is currently no way dealloc the shmem
+        //      so for now we will leak the memory and will fix this ASAP!
+        if (!AllocShmem(window.width * window.height * 4, &mShSurface)) {
+            PLUGIN_LOG_DEBUG(("Shared memory could not be allocated."));
+            return NPERR_GENERIC_ERROR;
         }
         mShWidth = window.width;
         mShHeight = window.height;
@@ -692,9 +657,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
         XSync(GetXDisplay(), False);
-
-        return CallPaint(npremoteevent, &handled) ? handled : 0;
-
+        break;
     case ButtonPress:
         // Release any active pointer grab so that the plugin X client can
         // grab the pointer if it wishes.
@@ -709,90 +672,55 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // Wait for the ungrab to complete.
         XSync(dpy, False);
         break;
+
+        return CallPaint(npremoteevent, &handled) ? handled : 0;
     }
 #endif
 
 #ifdef XP_MACOSX
     if (npevent->type == NPCocoaEventDrawRect) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation) {
-            if (!mIOSurface) {
-                NS_ERROR("No IOSurface allocated.");
-                return false;
-            }
-            if (!CallNPP_HandleEvent_IOSurface(npremoteevent, 
-                                               mIOSurface->GetIOSurfaceID(), 
-                                               &handled)) 
-                return false; // no good way to handle errors here...
-
-            CGContextRef cgContext = npevent->data.draw.context;
-            if (!mShColorSpace) {
-                mShColorSpace = CreateSystemColorSpace();
-            }
-            if (!mShColorSpace) {
-                PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
-                return false;
-            } 
-            nsCARenderer::DrawSurfaceToCGContext(cgContext, mIOSurface, 
-                                                 mShColorSpace,
-                                                 npevent->data.draw.x,
-                                                 npevent->data.draw.y,
-                                                 npevent->data.draw.width,
-                                                 npevent->data.draw.height);
+        if (mShWidth == 0 && mShHeight == 0) {
+            PLUGIN_LOG_DEBUG(("NPCocoaEventDrawRect on window of size 0."));
             return false;
-        } else {
-            if (mShWidth == 0 && mShHeight == 0) {
-                PLUGIN_LOG_DEBUG(("NPCocoaEventDrawRect on window of size 0."));
-                return false;
-            }
-            if (!mShSurface.IsReadable()) {
-                PLUGIN_LOG_DEBUG(("Shmem is not readable."));
-                return false;
-            }
+        }
+        if (!mShSurface.IsReadable()) {
+            PLUGIN_LOG_DEBUG(("Shmem is not readable."));
+            return false;
+        }
 
-            if (!CallNPP_HandleEvent_Shmem(npremoteevent, mShSurface, 
-                                           &handled, &mShSurface)) 
-                return false; // no good way to handle errors here...
+        if (!CallNPP_HandleEvent_Shmem(npremoteevent, mShSurface, &handled, &mShSurface)) 
+            return false; // no good way to handle errors here...
 
-            if (!mShSurface.IsReadable()) {
-                PLUGIN_LOG_DEBUG(("Shmem not returned. Either the plugin crashed "
-                                  "or we have a bug."));
-                return false;
-            }
+        if (!mShSurface.IsReadable()) {
+            PLUGIN_LOG_DEBUG(("Shmem not returned. Either the plugin crashed or we have a bug."));
+            return false;
+        }
 
-            char* shContextByte = mShSurface.get<char>();
+        char* shContextByte = mShSurface.get<char>();
 
-            if (!mShColorSpace) {
-                mShColorSpace = CreateSystemColorSpace();
-            }
-            if (!mShColorSpace) {
-                PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
-                return false;
-            } 
-            CGContextRef shContext = ::CGBitmapContextCreate(shContextByte, 
-                                    mShWidth, mShHeight, 8, 
-                                    mShWidth*4, mShColorSpace, 
-                                    kCGImageAlphaPremultipliedFirst | 
-                                    kCGBitmapByteOrder32Host);
-            if (!shContext) {
-                PLUGIN_LOG_DEBUG(("Could not allocate CGBitmapContext."));
-                return false;
-            }
-
-            CGImageRef shImage = ::CGBitmapContextCreateImage(shContext);
-            if (shImage) {
-                CGContextRef cgContext = npevent->data.draw.context;
-     
-                ::CGContextDrawImage(cgContext, 
-                                     CGRectMake(0,0,mShWidth,mShHeight), 
-                                     shImage);
-                ::CGImageRelease(shImage);
-            } else {
-                ::CGContextRelease(shContext);
-                return false;
-            }
-            ::CGContextRelease(shContext);
+        if (!mShColorSpace) {
+            mShColorSpace = CreateSystemColorSpace();
+        }
+        if (!mShColorSpace) {
+            PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
+            return true;
+        } 
+        CGContextRef shContext = ::CGBitmapContextCreate(shContextByte, 
+                                mShWidth, mShHeight, 8, mShWidth*4, mShColorSpace, 
+                                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+        if (!shContext) {
+            PLUGIN_LOG_DEBUG(("Could not allocate CGBitmapContext."));
             return true;
         }
+
+        CGImageRef shImage = ::CGBitmapContextCreateImage(shContext);
+        if (shImage) {
+            CGContextRef cgContext = npevent->data.draw.context;
+            ::CGContextDrawImage(cgContext, CGRectMake(0,0,mShWidth,mShHeight), shImage);
+            ::CGImageRelease(shImage);
+        }
+        ::CGContextRelease(shContext);
+        return handled;
     }
 #endif
 
@@ -823,7 +751,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
 
     if (NPERR_NO_ERROR != err)
-        unused << PBrowserStreamParent::Send__delete__(bs);
+        PBrowserStreamParent::Send__delete__(bs);
 
     return err;
 }
@@ -850,8 +778,8 @@ PluginInstanceParent::NPP_DestroyStream(NPStream* stream, NPReason reason)
         if (sp->mInstance != this)
             NS_RUNTIMEABORT("Mismatched plugin data");
 
-        return PPluginStreamParent::Call__delete__(sp, reason, false) ?
-            NPERR_NO_ERROR : NPERR_GENERIC_ERROR;
+        PPluginStreamParent::Call__delete__(sp, reason, false);
+        return NPERR_NO_ERROR;
     }
 }
 
@@ -944,7 +872,7 @@ PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 
     PStreamNotifyParent* streamNotify =
         static_cast<PStreamNotifyParent*>(notifyData);
-    unused << PStreamNotifyParent::Send__delete__(streamNotify, reason);
+    PStreamNotifyParent::Send__delete__(streamNotify, reason);
 }
 
 bool
@@ -1313,11 +1241,18 @@ PluginInstanceParent::AnswerPluginGotFocus()
 #endif
 }
 
-#ifdef OS_MACOSX
-void
-PluginInstanceParent::Invalidate()
+bool
+PluginInstanceParent::RecvSetNestedEventState(const bool& aState)
 {
-    NPRect windowRect = {0, 0, mShWidth, mShHeight};
-    RecvNPN_InvalidateRect(windowRect);
-}
+    PLUGIN_LOG_DEBUG(("%s state=%i", FULLFUNCTION, (int)aState));
+#if defined(OS_WIN)
+    PostThreadMessage(GetCurrentThreadId(), aState ?
+        gOOPPSpinNativeLoopEvent : gOOPPStopNativeLoopEvent, 0, 0);
+    mNestedEventState = aState;
+    return true;
+#else
+    NS_NOTREACHED(
+        "PluginInstanceParent::AnswerSetNestedEventState not implemented!");
+    return false;
 #endif
+}

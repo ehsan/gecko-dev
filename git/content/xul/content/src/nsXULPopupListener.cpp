@@ -164,7 +164,7 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
 
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
     if (doc)
-      targetNode = do_QueryInterface(doc->GetRootElement());
+      targetNode = do_QueryInterface(doc->GetRootContent());
     if (!targetNode) {
       return NS_ERROR_FAILURE;
     }

@@ -51,9 +51,7 @@ var counter = 0;
 function prepare_xml()
 {
   delete XML.prototype.function::toString;
-  Object.defineProperty(Object.prototype, "toString",
-                        { get: toSource_getter, enumerable: true,
-                          configurable: true });
+  Object.prototype.toString getter = toSource_getter;
   return new XML("<a>xml_text</a>");
 }
 
@@ -80,12 +78,7 @@ function toSource_getter()
 }
 
 var obj = { };
-Object.defineProperty(obj, "length",
-{
-  get: prepare_xml,
-  enumerable: true,
-  configurable: true
-});
+obj.length getter = prepare_xml;
 Array.reverse(obj);
 
 TEST(1, expect, actual);

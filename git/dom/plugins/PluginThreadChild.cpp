@@ -79,7 +79,7 @@ PluginThreadChild::Init()
     std::vector<std::string> values = CommandLine::ForCurrentProcess()->argv();
     NS_ABORT_IF_FALSE(values.size() >= 2, "not enough args");
 
-    pluginFilename = UnmungePluginDsoPath(values[1]);
+    pluginFilename = values[1];
 
 #elif defined(OS_WIN)
     std::vector<std::wstring> values =

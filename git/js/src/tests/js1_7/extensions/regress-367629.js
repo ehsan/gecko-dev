@@ -54,18 +54,13 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  var a =
-    Object.defineProperty({}, "h",
-    {
-      get: encodeURI,
-      enumerable: true,
-      configurable: true
-    });
+  var a = {}; 
+  a.h getter = encodeURI; 
 
-  expect = '({get h() {[native code]}})';
+  expect = '({get h encodeURI() {[native code]}})';
   actual = uneval(a);      
 
-  compareSource(expect, actual, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

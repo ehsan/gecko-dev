@@ -621,9 +621,8 @@ var allTabs = {
 
   prefName: "browser.allTabs.previews",
   readPref: function allTabs_readPref() {
-    var allTabsButton = document.getElementById("alltabs-button");
-    if (!allTabsButton)
-      return;
+    var allTabsButton = document.getAnonymousElementByAttribute(
+                          gBrowser.tabContainer, "anonid", "alltabs-button");
     if (gPrefService.getBoolPref(this.prefName)) {
       allTabsButton.removeAttribute("type");
       allTabsButton.setAttribute("command", "Browser:ShowAllTabs");

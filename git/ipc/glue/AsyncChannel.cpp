@@ -54,25 +54,6 @@ struct RunnableMethodTraits<mozilla::ipc::AsyncChannel>
     static void ReleaseCallee(mozilla::ipc::AsyncChannel* obj) { }
 };
 
-// We rely on invariants about the lifetime of the transport:
-//
-//  - outlives this AsyncChannel
-//  - deleted on the IO thread
-//
-// These invariants allow us to send messages directly through the
-// transport without having to worry about orphaned Send() tasks on
-// the IO thread touching AsyncChannel memory after it's been deleted
-// on the worker thread.  We also don't need to refcount the
-// Transport, because whatever task triggers its deletion only runs on
-// the IO thread, and only runs after this AsyncChannel is done with
-// the Transport.
-template<>
-struct RunnableMethodTraits<mozilla::ipc::AsyncChannel::Transport>
-{
-    static void RetainCallee(mozilla::ipc::AsyncChannel::Transport* obj) { }
-    static void ReleaseCallee(mozilla::ipc::AsyncChannel::Transport* obj) { }
-};
-
 namespace {
 
 // This is an async message
@@ -139,7 +120,8 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
     if(!aIOLoop) {
         // parent
         needOpen = false;
-        aIOLoop = XRE_GetIOMessageLoop();
+        aIOLoop = BrowserProcessSubThread
+                  ::GetMessageLoop(BrowserProcessSubThread::IO);
         // FIXME assuming that the parent waits for the OnConnected event.
         // FIXME see GeckoChildProcessHost.cpp.  bad assumption!
         mChannelState = ChannelConnected;
@@ -235,7 +217,8 @@ AsyncChannel::Send(Message* msg)
             return false;
         }
 
-        SendThroughTransport(msg);
+        mIOLoop->PostTask(FROM_HERE,
+                          NewRunnableMethod(this, &AsyncChannel::OnSend, msg));
     }
 
     return true;
@@ -268,20 +251,13 @@ AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
 }
 
 void
-AsyncChannel::SendSpecialMessage(Message* msg) const
-{
-    AssertWorkerThread();
-    SendThroughTransport(msg);
-}
-
-void
-AsyncChannel::SendThroughTransport(Message* msg) const
+AsyncChannel::SendSpecialMessage(Message* msg)
 {
     AssertWorkerThread();
 
     mIOLoop->PostTask(
         FROM_HERE,
-        NewRunnableMethod(mTransport, &Transport::Send, msg));
+        NewRunnableMethod(this, &AsyncChannel::OnSend, msg));
 }
 
 void
@@ -401,7 +377,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
 }
 
 void
-AsyncChannel::ReportConnectionError(const char* channelName) const
+AsyncChannel::ReportConnectionError(const char* channelName)
 {
     const char* errorMsg;
     switch (mChannelState) {
@@ -486,6 +462,14 @@ AsyncChannel::PostErrorNotifyTask()
     mChannelErrorTask =
         NewRunnableMethod(this, &AsyncChannel::OnNotifyMaybeChannelError);
     mWorkerLoop->PostTask(FROM_HERE, mChannelErrorTask);
+}
+
+void
+AsyncChannel::OnSend(Message* aMsg)
+{
+    AssertIOThread();
+    mTransport->Send(aMsg);
+    // mTransport assumes ownership of aMsg
 }
 
 void

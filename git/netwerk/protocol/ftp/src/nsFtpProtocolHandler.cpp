@@ -123,8 +123,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS4(nsFtpProtocolHandler,
 nsresult
 nsFtpProtocolHandler::Init()
 {
+    nsresult rv;
+
     if (mIdleTimeout == -1) {
-        nsresult rv;
         nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
         if (NS_FAILED(rv)) return rv;
 
@@ -137,7 +138,7 @@ nsFtpProtocolHandler::Init()
     }
 
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (observerService) {
         observerService->AddObserver(this,
                                      "network:offline-about-to-go-offline",

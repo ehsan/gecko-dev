@@ -53,11 +53,9 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  (function() {
-    Object.defineProperty(this, "x", { get: function(){}, enumerable: true, configurable: true });
-  })();
+  (function() { this.x getter= function(){} })();
   this.watch('x', print);
-  Object.defineProperty(this, "x", { get: function(){}, enumerable: true, configurable: true });
+  this.x getter= function(){};
   gc();
   this.unwatch('x');
   x;

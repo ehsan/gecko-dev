@@ -193,13 +193,7 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv);
 static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    int res;
-    JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
-
-    res = compare_and_swaplp((atomic_l)w, &ov, nv);
-    if (res)
-        __asm__("isync");
-    return res;
+    return !_check_lock((atomic_p)w, ov, nv);
 }
 
 #elif defined(USE_ARM_KUSER)
@@ -842,7 +836,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
 static JSFatLock *
 NewFatlock()
 {
-    JSFatLock *fl = (JSFatLock *)js_malloc(sizeof(JSFatLock)); /* for now */
+    JSFatLock *fl = (JSFatLock *)malloc(sizeof(JSFatLock)); /* for now */
     if (!fl) return NULL;
     fl->susp = 0;
     fl->next = NULL;
@@ -1413,14 +1407,13 @@ js_IsTitleLocked(JSContext *cx, JSTitle *title)
         return JS_TRUE;
 
     /*
-     * General case: the title is either exclusively owned by some context, or
-     * it has a thin or fat lock to cope with shared (concurrent) ownership.
-     *
-     * js_LockTitle(cx, title) must set ownercx to cx when claiming the title
-     * from another context on the same thread.
+     * General case: the title is either exclusively owned (by cx), or it has
+     * a thin or fat lock to cope with shared (concurrent) ownership.
      */
-    if (title->ownercx)
-        return title->ownercx == cx;
+    if (title->ownercx) {
+        JS_ASSERT(title->ownercx == cx || title->ownercx->thread == cx->thread);
+        return JS_TRUE;
+    }
     return js_CurrentThreadId() ==
            ((JSThread *)Thin_RemoveWait(ReadWord(title->lock.owner)))->id;
 }

@@ -38,10 +38,6 @@
 
 #include "nsXFormsAccessible.h"
 
-#include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-#include "nsTextEquivUtils.h"
-
 #include "nscore.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMElement.h"
@@ -109,6 +105,10 @@ nsXFormsAccessible::GetBoundChildElementValue(const nsAString& aTagName,
 void
 nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
 {
+  nsIAccessibilityService *accService = GetAccService();
+  if (!accService)
+    return;
+
   nsCOMPtr<nsIDOMNode> container(aContainerNode);
   if (!container)
     container = mDOMNode;
@@ -131,8 +131,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
     if (!child)
       continue;
 
-    GetAccService()->GetAttachedAccessibleFor(child,
-                                              getter_AddRefs(accessible));
+    accService->GetAttachedAccessibleFor(child, getter_AddRefs(accessible));
     if (!accessible)
       continue;
 
@@ -338,6 +337,9 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_TRUE(accessibles, NS_ERROR_OUT_OF_MEMORY);
 
+  nsIAccessibilityService* accService = GetAccService();
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
+
   nsresult rv;
 
   if (mIsSelect1Element) {
@@ -350,7 +352,7 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
       return NS_OK;
 
     nsCOMPtr<nsIAccessible> accessible;
-    GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
+    accService->GetAccessibleFor(item, getter_AddRefs(accessible));
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
 
     accessibles->AppendElement(accessible, PR_FALSE);
@@ -377,7 +379,7 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
     NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIAccessible> accessible;
-    GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
+    accService->GetAccessibleFor(item, getter_AddRefs(accessible));
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
 
     accessibles->AppendElement(accessible, PR_FALSE);
@@ -465,6 +467,9 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   NS_ENSURE_ARG_POINTER(aAccessible);
   *aAccessible = nsnull;
 
+  nsIAccessibilityService* accService = GetAccService();
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
+
   nsresult rv;
   if (mIsSelect1Element) {
     if (aIndex != 0)
@@ -476,7 +481,7 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (item)
-      return GetAccService()->GetAccessibleFor(item, aAccessible);
+      return accService->GetAccessibleFor(item, aAccessible);
     return NS_OK;
   }
 
@@ -497,7 +502,7 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   items->Item(aIndex, getter_AddRefs(item));
 
   nsCOMPtr<nsIAccessible> accessible;
-  return GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
+  return accService->GetAccessibleFor(item, getter_AddRefs(accessible));
 }
 
 NS_IMETHODIMP

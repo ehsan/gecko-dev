@@ -81,6 +81,8 @@
 #include "nsGfxCIID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -120,8 +122,7 @@ static inline bool
 DoubleIsFinite(double d)
 {
 #ifdef WIN32
-    // NOTE: '!!' casts an int to bool without spamming MSVC warning C4800.
-    return !!_finite(d);
+    return _finite(d);
 #else
     return finite(d);
 #endif
@@ -219,8 +220,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasGradient, NS_CANVASGRADIENT_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasGradient)
 NS_IMPL_RELEASE(nsCanvasGradient)
 
-DOMCI_DATA(CanvasGradient, nsCanvasGradient)
-
 NS_INTERFACE_MAP_BEGIN(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasGradient)
@@ -267,8 +266,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasPattern, NS_CANVASPATTERN_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasPattern)
 NS_IMPL_RELEASE(nsCanvasPattern)
 
-DOMCI_DATA(CanvasPattern, nsCanvasPattern)
-
 NS_INTERFACE_MAP_BEGIN(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasPattern)
@@ -305,8 +302,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsTextMetrics, NS_TEXTMETRICS_PRIVATE_IID)
 
 NS_IMPL_ADDREF(nsTextMetrics)
 NS_IMPL_RELEASE(nsTextMetrics)
-
-DOMCI_DATA(TextMetrics, nsTextMetrics)
 
 NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsTextMetrics)
@@ -669,8 +664,6 @@ protected:
 NS_IMPL_ADDREF(nsCanvasRenderingContext2D)
 NS_IMPL_RELEASE(nsCanvasRenderingContext2D)
 
-DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
-
 NS_INTERFACE_MAP_BEGIN(nsCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
@@ -713,8 +706,8 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 
     sNumLivingContexts--;
     if (!sNumLivingContexts) {
-        delete[] sUnpremultiplyTable;
-        delete[] sPremultiplyTable;
+        delete sUnpremultiplyTable;
+        delete sPremultiplyTable;
         sUnpremultiplyTable = nsnull;
         sPremultiplyTable = nsnull;
     }
@@ -1587,7 +1580,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull, nsnull);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -2021,8 +2014,8 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     if (content && content->IsInDoc()) {
         // inherit from the canvas element
-        parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-                content->AsElement(),
+        parentContext = nsComputedDOMStyle::GetStyleContextForContent(
+                content,
                 nsnull,
                 presShell);
     } else {
@@ -2065,7 +2058,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
                        fontStyle->mFont.stretch,
-                       NSAppUnitsToFloatPixels(fontSize, float(aupcp)),
+                       NSAppUnitsToFloatPixels(fontSize, aupcp),
                        language,
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
@@ -2372,7 +2365,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (content && content->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
-            nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
+            nsComputedDOMStyle::GetStyleContextForContent(content,
                                                           nsnull,
                                                           presShell);
         if (!canvasStyle)
@@ -3328,8 +3321,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 
     // protect against too-large surfaces that will cause allocation
     // or overflow issues
-    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(PRInt32(aW), PRInt32(aH)),
-                                       0xffff))
+    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(aW, aH), 0xffff))
         return NS_ERROR_FAILURE;
 
     // We can't allow web apps to call this until we fix at least the

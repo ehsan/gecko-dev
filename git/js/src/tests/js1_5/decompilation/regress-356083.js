@@ -38,7 +38,7 @@
 var gTestfile = 'regress-356083.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 356083;
-var summary = 'decompilation for (function () {return {set this(v) {}};}) ';
+var summary = 'decompilation for ({this setter: function () { } }) ';
 var actual = '';
 var expect = '';
 
@@ -53,14 +53,14 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  var f = function() { return { set this() { } }; } ;
+  var f = function() { return {this setter: function () { } }; } ;
   expect = 'function() { return { set this() { } }; }';
   actual = f + '';
 
   compareSource(expect, actual, summary);
 
-  expect = "({ set ''() {} })";
+  expect = "({'' setter:(function () {})})";
   actual = uneval({ set ''() {} });
-  compareSource(expect, actual, expect);
+  reportCompare(expect, actual, expect);
   exitFunc ('test');
 }

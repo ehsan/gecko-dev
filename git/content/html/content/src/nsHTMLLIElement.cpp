@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -91,8 +92,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLIElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLIElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLLIElement, nsHTMLLIElement)
-
 // QueryInterface implementation for nsHTMLLIElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLIElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLIElement, nsIDOMHTMLLIElement)
@@ -135,7 +134,7 @@ nsHTMLLIElement::ParseAttribute(PRInt32 aNamespaceID,
     if (aAttribute == nsGkAtoms::type) {
       return aResult.ParseEnumValue(aValue, kOrderedListItemTypeTable,
                                     PR_TRUE) ||
-             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable, PR_FALSE);
+             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable);
     }
     if (aAttribute == nsGkAtoms::value) {
       return aResult.ParseIntWithBounds(aValue, 0);

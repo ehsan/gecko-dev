@@ -88,7 +88,6 @@ private:
 
   nsSVGEnumMapping *GetMapping(nsSVGElement *aSVGElement);
 
-public:
   struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -545,13 +545,13 @@ JSBool
 XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
                                            char* name,
                                            JSBool isGlobal,
-                                           PRUint32 interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");
     NS_PRECONDITION(si,"bad param");
 
-    XPCNativeScriptableShared key(flags, name, interfacesBitmap);
+    XPCNativeScriptableShared key(flags, name);
+
     Entry* entry = (Entry*)
         JS_DHashTableOperate(mTable, &key, JS_DHASH_ADD);
     if(!entry)
@@ -562,8 +562,7 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
     if(!shared)
     {
         entry->key = shared =
-            new XPCNativeScriptableShared(flags, key.TransferNameOwnership(),
-                                          interfacesBitmap);
+            new XPCNativeScriptableShared(flags, key.TransferNameOwnership());
         if(!shared)
             return JS_FALSE;
         shared->PopulateJSClass(isGlobal);

@@ -94,16 +94,8 @@
 #include "nsSMILMappedAttribute.h"
 #include "nsSVGTransformSMILAttr.h"
 #include "nsSVGAnimatedTransformList.h"
-#include "SVGMotionSMILAttr.h"
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
-
-// This is needed to ensure correct handling of calls to the
-// vararg-list methods in this file:
-//   nsSVGElement::GetAnimated{Length,Number,Integer}Values
-// See bug 547964 for details:
-PR_STATIC_ASSERT(sizeof(void*) == sizeof(nsnull));
-
 
 nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE},
@@ -708,7 +700,7 @@ nsSVGElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 PRBool
 nsSVGElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eSVG));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eSVG));
 }
 
 already_AddRefed<nsIURI>
@@ -1251,8 +1243,9 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
 
   MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
                                     GetBaseURI(), NodePrincipal());
-  doc->PropertyTable(SMIL_MAPPED_ATTR_ANIMVAL)->
-    Enumerate(this, ParseMappedAttrAnimValueCallback, &mappedAttrParser);
+  doc->PropertyTable()->Enumerate(this, SMIL_MAPPED_ATTR_ANIMVAL,
+                                  ParseMappedAttrAnimValueCallback,
+                                  &mappedAttrParser);
  
   nsRefPtr<nsICSSStyleRule>
     animContentStyleRule(mappedAttrParser.CreateStyleRule());
@@ -1953,11 +1946,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
     NS_ENSURE_TRUE(list, nsnull);
 
     return new nsSVGTransformSMILAttr(list, this);
-  }
-
-  // Motion (fake 'attribute' for animateMotion)
-  if (aName == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    return new mozilla::SVGMotionSMILAttr(this);
   }
 
   // Lengths:

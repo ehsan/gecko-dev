@@ -479,7 +479,7 @@ protected:
 public:
     static nsresult
     Create(nsXULPrototypeElement* aPrototype, nsIDocument* aDocument,
-           PRBool aIsScriptable, mozilla::dom::Element** aResult);
+           PRBool aIsScriptable, nsIContent** aResult);
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -523,11 +523,10 @@ public:
 
     virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                   PRBool aIsTrustedEvent);
-    nsresult ClickWithInputSource(PRUint16 aInputSource);
 
     virtual nsIContent *GetBindingParent() const;
     virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-    virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
+    virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
     virtual nsIAtom* GetID() const;
     virtual const nsAttrValue* DoGetClasses() const;
 

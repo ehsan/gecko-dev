@@ -106,10 +106,10 @@ reportCompare('[-1, -2]',
 reportCompare(false, flag, 'uneval(iteratorToArray(Iterator(obji))) flag');
 
 flag = -1;
-reportCompare('[-1, -2]',
+reportCompare('[["__iterator__", (function (b) {flag = b;yield -1;yield -2;})], ["a", 1], ["b", 2]]',
               uneval(iteratorToArray(new Iterator(obji))),
               'uneval(iteratorToArray(new Iterator(obji)))');
-reportCompare(false, flag, 'uneval(iteratorToArray(new Iterator(obji))) flag');
+reportCompare(-1, flag, 'uneval(iteratorToArray(new Iterator(obji))) flag');
 
 flag = -1;
 reportCompare('[-1, -2]',
@@ -118,10 +118,10 @@ reportCompare('[-1, -2]',
 reportCompare(false, flag, 'uneval(iteratorToArray(Iterator(obji,false))) flag');
 
 flag = -1;
-reportCompare('[-1, -2]',
+reportCompare('[["__iterator__", (function (b) {flag = b;yield -1;yield -2;})], ["a", 1], ["b", 2]]',
               uneval(iteratorToArray(new Iterator(obji,false))),
               'uneval(iteratorToArray(new Iterator(obji,false)))');
-reportCompare(false, flag, 'uneval(iteratorToArray(new Iterator(obji,false))) flag');
+reportCompare(-1, flag, 'uneval(iteratorToArray(new Iterator(obji,false))) flag');
 
 flag = -1;
 reportCompare('[-1, -2]',
@@ -130,7 +130,7 @@ reportCompare('[-1, -2]',
 reportCompare(true, flag, 'uneval(iteratorToArray(Iterator(obji,true))) flag');
 
 flag = -1;
-reportCompare('[-1, -2]',
+reportCompare('["__iterator__", "a", "b"]',
               uneval(iteratorToArray(new Iterator(obji,true))),
               'uneval(iteratorToArray(new Iterator(obji,true)))');
-reportCompare(true, flag, 'uneval(iteratorToArray(new Iterator(obji,true))) flag');
+reportCompare(-1, flag, 'uneval(iteratorToArray(new Iterator(obji,true))) flag');

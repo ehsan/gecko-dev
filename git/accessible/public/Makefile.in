@@ -52,6 +52,7 @@ GRE_MODULE	= 1
 
 XPIDLSRCS = \
       nsIAccessibleTypes.idl \
+      nsIAccessibilityService.idl \
       nsIAccessibleRetrieval.idl \
       nsIAccessible.idl \
       nsIAccessibleApplication.idl \
@@ -71,10 +72,6 @@ XPIDLSRCS = \
       nsIAccessibleValue.idl \
       nsIAccessibleImage.idl \
       nsIXBLAccessible.idl \
-      $(NULL)
-
-EXPORTS		= \
-      nsIAccessibilityService.h \
       $(NULL)
 
 include $(topsrcdir)/config/rules.mk

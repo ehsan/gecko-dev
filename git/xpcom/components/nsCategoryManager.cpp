@@ -60,7 +60,6 @@
 #include "nsEnumeratorUtils.h"
 #include "nsIProxyObjectManager.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Services.h"
 
 using namespace mozilla;
 class nsIComponentLoaderManager;
@@ -520,8 +519,8 @@ nsCategoryManager::NotifyObservers( const char *aTopic,
   if (mSuppressNotifications)
     return;
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> observerService
+    (do_GetService("@mozilla.org/observer-service;1"));
   if (!observerService)
     return;
 

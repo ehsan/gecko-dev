@@ -38,18 +38,27 @@
 #ifndef nsNetSegmentUtils_h__
 #define nsNetSegmentUtils_h__
 
+#include "necko-config.h"
 #include "nsIOService.h"
+
+#ifdef NECKO_SMALL_BUFFERS
+#define NET_DEFAULT_SEGMENT_SIZE  2048
+#define NET_DEFAULT_SEGMENT_COUNT 4
+#else
+#define NET_DEFAULT_SEGMENT_SIZE  4096
+#define NET_DEFAULT_SEGMENT_COUNT 16
+#endif
 
 /**
  * returns preferred allocator for given segment size.  NULL implies
  * system allocator.  this result can be used when allocating a pipe.
  */
-
 static inline nsIMemory *
 net_GetSegmentAlloc(PRUint32 segsize)
 {
-    return (segsize == nsIOService::gDefaultSegmentSize)
-                     ? nsIOService::gBufferCache : nsnull;
+    return (segsize == NET_DEFAULT_SEGMENT_SIZE)
+                     ? nsIOService::gBufferCache
+                     : nsnull;
 }
 
 /**
@@ -59,10 +68,9 @@ static inline void
 net_ResolveSegmentParams(PRUint32 &segsize, PRUint32 &segcount)
 {
     if (!segsize)
-        segsize = nsIOService::gDefaultSegmentSize;
-
+        segsize = NET_DEFAULT_SEGMENT_SIZE;
     if (!segcount)
-        segcount = nsIOService::gDefaultSegmentCount;
+        segcount = NET_DEFAULT_SEGMENT_COUNT;
 }
 
 #endif // !nsNetSegmentUtils_h__

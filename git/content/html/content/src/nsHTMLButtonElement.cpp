@@ -66,16 +66,6 @@
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
 
-static const nsAttrValue::EnumTable kButtonTypeTable[] = {
-  { "button", NS_FORM_BUTTON_BUTTON },
-  { "reset", NS_FORM_BUTTON_RESET },
-  { "submit", NS_FORM_BUTTON_SUBMIT },
-  { 0 }
-};
-
-// Default type is 'submit'.
-static const nsAttrValue::EnumTable* kButtonDefaultType = &kButtonTypeTable[2];
-
 class nsHTMLButtonElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLButtonElement,
                             public nsIDOMNSHTMLButtonElement
@@ -120,11 +110,6 @@ public:
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
-  /**
-   * Called when an attribute has just been changed
-   */
-  nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                        const nsAString* aValue, PRBool aNotify);
   
   // nsIContent overrides...
   virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
@@ -159,7 +144,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Button)
 
 nsHTMLButtonElement::nsHTMLButtonElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo),
-    mType(kButtonDefaultType->value),
+    mType(NS_FORM_BUTTON_SUBMIT),  // default
     mHandlingClick(PR_FALSE),
     mDisabledChanged(PR_FALSE),
     mInInternalActivate(PR_FALSE)
@@ -175,8 +160,6 @@ nsHTMLButtonElement::~nsHTMLButtonElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLButtonElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
-
-DOMCI_DATA(HTMLButtonElement, nsHTMLButtonElement)
 
 // QueryInterface implementation for nsHTMLButtonElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
@@ -206,8 +189,7 @@ NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Disabled, disabled)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Value, value)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type,
-                                kButtonDefaultType->tag)
+NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type, "submit")
 
 NS_IMETHODIMP
 nsHTMLButtonElement::Blur()
@@ -243,7 +225,6 @@ nsHTMLButtonElement::Click()
         nsMouseEvent event(nsContentUtils::IsCallerChrome(),
                            NS_MOUSE_CLICK, nsnull,
                            nsMouseEvent::eReal);
-        event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
         nsEventStatus status = nsEventStatus_eIgnore;
         nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context,
                                     &event, nsnull, &status);
@@ -271,6 +252,13 @@ nsHTMLButtonElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   return PR_FALSE;
 }
 
+static const nsAttrValue::EnumTable kButtonTypeTable[] = {
+  { "button", NS_FORM_BUTTON_BUTTON },
+  { "reset", NS_FORM_BUTTON_RESET },
+  { "submit", NS_FORM_BUTTON_SUBMIT },
+  { 0 }
+};
+
 PRBool
 nsHTMLButtonElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
@@ -280,14 +268,11 @@ nsHTMLButtonElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aAttribute == nsGkAtoms::type && kNameSpaceID_None == aNamespaceID) {
     // XXX ARG!! This is major evilness. ParseAttribute
     // shouldn't set members. Override SetAttr instead
-    PRBool success = aResult.ParseEnumValue(aValue, kButtonTypeTable, PR_FALSE);
-    if (success) {
+    PRBool res = aResult.ParseEnumValue(aValue, kButtonTypeTable);
+    if (res) {
       mType = aResult.GetEnumValue();
-    } else {
-      mType = kButtonDefaultType->value;
     }
-
-    return success;
+    return res;
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -393,7 +378,6 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                                NS_MOUSE_CLICK, nsnull,
                                nsMouseEvent::eReal);
-            event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
             nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                         aVisitor.mPresContext, &event, nsnull,
                                         &status);
@@ -584,19 +568,6 @@ nsHTMLButtonElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   return nsGenericHTMLFormElement::BeforeSetAttr(aNameSpaceID, aName,
                                                  aValue, aNotify);
-}
-
-nsresult
-nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAString* aValue, PRBool aNotify)
-{
-  if (!aValue && aNameSpaceID == kNameSpaceID_None &&
-    aName == nsGkAtoms::type) {
-    mType = kButtonDefaultType->value;
-  }
-
-  return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName,
-                                                aValue, aNotify);
 }
 
 NS_IMETHODIMP

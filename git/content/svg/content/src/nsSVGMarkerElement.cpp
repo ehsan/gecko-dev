@@ -90,8 +90,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 
-DOMCI_DATA(SVGMarkerElement, nsSVGMarkerElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGMarkerElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGMarkerElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGFitToViewBox,

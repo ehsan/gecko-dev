@@ -66,8 +66,7 @@ function test01() {
   reloadUpdateManagerData();
 
   gPref.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
-  var queryString = "?showBillboard=1&showDetails=1&showPrompt=1" +
-                    getVersionParams();
+  var queryString = "?showBillboard=1&showDetails=1&showPrompt=1";
   setUpdateURLOverride(URL_UPDATE + queryString);
 
   gNextFunc = test02;

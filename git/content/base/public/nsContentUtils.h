@@ -57,7 +57,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentList.h"
 #include "nsDOMClassInfoID.h"
-#include "nsIXPCScriptable.h"
+#include "nsIClassInfo.h"
 #include "nsIDOM3Node.h"
 #include "nsDataHashtable.h"
 #include "nsIScriptRuntime.h"
@@ -67,7 +67,6 @@
 #include "nsTextFragment.h"
 #include "nsReadableUtils.h"
 #include "nsIPrefBranch2.h"
-#include "mozilla/AutoRestore.h"
 
 #include "jsapi.h"
 
@@ -128,7 +127,6 @@ class nsIBidiKeyboard;
 #endif
 class nsIMIMEHeaderParam;
 class nsIObserver;
-class nsPresContext;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -137,11 +135,7 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 
 namespace mozilla {
   class IHistory;
-
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
+}
 
 extern const char kLoadAsData[];
 
@@ -236,8 +230,8 @@ public:
    * This method fills the |aArray| with all ancestor nodes of |aNode|
    * including |aNode| at the zero index.
    */
-  static nsresult GetAncestors(nsINode* aNode,
-                               nsTArray<nsINode*>& aArray);
+  static nsresult GetAncestors(nsIDOMNode* aNode,
+                               nsTArray<nsIDOMNode*>* aArray);
 
   /*
    * This method fills |aAncestorNodes| with all ancestor nodes of |aNode|
@@ -587,10 +581,8 @@ public:
   static void UnregisterPrefCallback(const char *aPref,
                                      PrefChangedFunc aCallback,
                                      void * aClosure);
-  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable,
-                                  PRBool aDefault = PR_FALSE);
-  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable,
-                                 PRInt32 aDefault = 0);
+  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
+  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable);
   static nsIPrefBranch2 *GetPrefBranch()
   {
     return sPrefBranch;
@@ -1025,7 +1017,7 @@ public:
    *                         transferred to the caller.
    * @param aReturn [out] the created DocumentFragment
    */
-  static nsresult CreateContextualFragment(nsINode* aContextNode,
+  static nsresult CreateContextualFragment(nsIDOMNode* aContextNode,
                                            const nsAString& aFragment,
                                            PRBool aWillOwnFragment,
                                            nsIDOMDocumentFragment** aReturn);
@@ -1366,7 +1358,7 @@ public:
    * If aContent is an HTML element with a DOM level 0 'name', then
    * return the name. Otherwise return null.
    */
-  static nsIAtom* IsNamedItem(mozilla::dom::Element* aElement);
+  static nsIAtom* IsNamedItem(nsIContent* aContent);
 
   /**
    * Get the application manifest URI for this document.  The manifest URI
@@ -1590,27 +1582,6 @@ public:
   static nsresult ReparentClonedObjectToScope(JSContext* cx, JSObject* obj,
                                               JSObject* scope);
 
-  /**
-   * Strip all \n, \r and nulls from the given string
-   * @param aString the string to remove newlines from [in/out]
-   */
-  static void RemoveNewlines(nsString &aString);
-
-  /**
-   * Convert Windows and Mac platform linebreaks to \n.
-   * @param aString the string to convert the newlines inside [in/out]
-   */
-  static void PlatformToDOMLineBreaks(nsString &aString);
-
-  static PRBool IsHandlingKeyBoardEvent()
-  {
-    return sIsHandlingKeyBoardEvent;
-  }
-
-  static void SetIsHandlingKeyBoardEvent(PRBool aHandling)
-  {
-    sIsHandlingKeyBoardEvent = aHandling;
-  }
 private:
 
   static PRBool InitializeEventTable();
@@ -1686,8 +1657,6 @@ private:
   static PRUint32 sScriptBlockerCountWhereRunnersPrevented;
 
   static nsIInterfaceRequestor* sSameOriginChecker;
-
-  static PRBool sIsHandlingKeyBoardEvent;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
@@ -1731,32 +1700,26 @@ private:
 #endif
 };
 
-class NS_STACK_CLASS nsAutoGCRoot {
+class nsAutoGCRoot {
 public:
   // aPtr should be the pointer to the jsval we want to protect
-  nsAutoGCRoot(jsval* aPtr, nsresult* aResult
-               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+  nsAutoGCRoot(jsval* aPtr, nsresult* aResult) :
     mPtr(aPtr)
   {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
   }
 
   // aPtr should be the pointer to the JSObject* we want to protect
-  nsAutoGCRoot(JSObject** aPtr, nsresult* aResult
-               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+  nsAutoGCRoot(JSObject** aPtr, nsresult* aResult) :
     mPtr(aPtr)
   {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
   }
 
   // aPtr should be the pointer to the thing we want to protect
-  nsAutoGCRoot(void* aPtr, nsresult* aResult
-               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+  nsAutoGCRoot(void* aPtr, nsresult* aResult) :
     mPtr(aPtr)
   {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
   }
 
@@ -1777,34 +1740,28 @@ private:
 
   void* mPtr;
   nsresult mResult;
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS nsAutoScriptBlocker {
+class nsAutoScriptBlocker {
 public:
-  nsAutoScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+  nsAutoScriptBlocker() {
     nsContentUtils::AddScriptBlocker();
   }
   ~nsAutoScriptBlocker() {
     nsContentUtils::RemoveScriptBlocker();
   }
-private:
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS mozAutoRemovableBlockerRemover
+class mozAutoRemovableBlockerRemover
 {
 public:
-  mozAutoRemovableBlockerRemover(nsIDocument* aDocument
-                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM);
+  mozAutoRemovableBlockerRemover(nsIDocument* aDocument);
   ~mozAutoRemovableBlockerRemover();
 
 private:
   PRUint32 mNestingLevel;
   nsCOMPtr<nsIDocument> mDocument;
   nsCOMPtr<nsIDocumentObserver> mObserver;
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line

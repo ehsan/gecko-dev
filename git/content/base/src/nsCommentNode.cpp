@@ -106,7 +106,6 @@ nsCommentNode::~nsCommentNode()
 {
 }
 
-DOMCI_DATA(Comment, nsCommentNode)
 
 // QueryInterface implementation for nsCommentNode
 NS_INTERFACE_TABLE_HEAD(nsCommentNode)

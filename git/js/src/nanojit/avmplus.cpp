@@ -60,10 +60,9 @@ avmplus::AvmLog(char const *msg, ...) {
 }
 
 #ifdef _DEBUG
-namespace avmplus {
-    void AvmAssertFail(const char* /* msg */) {
-        abort();
-    }
+void NanoAssertFail()
+{
+    abort();
 }
 #endif
 

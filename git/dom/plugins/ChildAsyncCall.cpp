@@ -61,19 +61,12 @@ ChildAsyncCall::Cancel()
 }
 
 void
-ChildAsyncCall::RemoveFromAsyncList()
+ChildAsyncCall::Run()
 {
-  if (mInstance) {
+  if (mFunc) {
     MutexAutoLock lock(mInstance->mAsyncCallMutex);
     mInstance->mPendingAsyncCalls.RemoveElement(this);
   }
-}
-
-void
-ChildAsyncCall::Run()
-{
-  RemoveFromAsyncList();
-
   if (mFunc)
     mFunc(mData);
 }

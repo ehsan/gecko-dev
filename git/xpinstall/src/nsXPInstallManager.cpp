@@ -527,8 +527,7 @@ nsXPInstallManager::OpenProgressDialog(const PRUnichar **aPackageList, PRUint32 
         nsCOMPtr<nsIDOMWindowInternal> recentWindow;
         wm->GetMostRecentWindow(type.get(), getter_AddRefs(recentWindow));
         if (recentWindow) {
-            nsCOMPtr<nsIObserverService> os =
-              mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
             os->NotifyObservers(params, "xpinstall-download-started", nsnull);
 
             recentWindow->Focus();
@@ -575,8 +574,7 @@ NS_IMETHODIMP nsXPInstallManager::Observe( nsISupports *aSubject,
             mDialogOpen = PR_TRUE;
             rv = NS_OK;
 
-            nsCOMPtr<nsIObserverService> os =
-              mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
             if (os)
             {
                 os->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_TRUE);
@@ -1000,8 +998,7 @@ void nsXPInstallManager::Shutdown(PRInt32 status)
                 item->mFile->Remove(PR_FALSE);
         }
 
-        nsCOMPtr<nsIObserverService> os =
-          mozilla::services::GetObserverService();
+        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
         if (os)
         {
             os->RemoveObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC);

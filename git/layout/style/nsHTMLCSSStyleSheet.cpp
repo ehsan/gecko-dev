@@ -55,9 +55,6 @@
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
   : mRefCnt(0),
@@ -78,24 +75,24 @@ NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
 NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
-  Element* element = aData->mElement;
+  nsIContent* content = aData->mContent;
 
   // just get the one and only style rule from the content's STYLE attribute
-  nsICSSStyleRule* rule = element->GetInlineStyleRule();
+  nsICSSStyleRule* rule = content->GetInlineStyleRule();
   if (rule) {
     rule->RuleMatched();
     aData->mRuleWalker->Forward(rule);
   }
 
 #ifdef MOZ_SMIL
-  rule = element->GetSMILOverrideStyleRule();
+  rule = content->GetSMILOverrideStyleRule();
   if (rule) {
     if (aData->mPresContext->IsProcessingRestyles() &&
         !aData->mPresContext->IsProcessingAnimationStyleChange()) {
       // Non-animation restyle -- don't process SMIL override style, because we
       // don't want SMIL animation to trigger new CSS transitions. Instead,
       // request an Animation restyle, so we still get noticed.
-      aData->mPresContext->PresShell()->RestyleForAnimation(element);
+      aData->mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
     } else {
       // Animation restyle (or non-restyle traversal of rules)
       // Now we can walk SMIL overrride style, without triggering transitions.

@@ -51,7 +51,6 @@
 
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
-#include "nsIdleService.h"
 #include "nsToolkit.h"
 #include "nsString.h"
 #include "nsTArray.h"
@@ -207,8 +206,7 @@ public:
   virtual PRBool          DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
                                              LPARAM lParam,
                                              PRBool aIsContextMenuKey = PR_FALSE,
-                                             PRInt16 aButton = nsMouseEvent::eLeftButton,
-                                             PRUint16 aInputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE);
+                                             PRInt16 aButton = nsMouseEvent::eLeftButton);
   virtual PRBool          DispatchWindowEvent(nsGUIEvent* event);
   virtual PRBool          DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus);
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
@@ -360,12 +358,6 @@ protected:
 #endif // !defined(WINCE)
 
   /**
-   * Function that registers when the user has been active (used for detecting
-   * when the user is idle).
-   */
-  void                    UserActivity();
-
-  /**
    * Methods for derived classes 
    */
   virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
@@ -420,7 +412,6 @@ protected:
                                            PAINTSTRUCT ps, HDC aDC);
 #if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
-  static PRUint16         GetMouseInputSource();
 #endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
@@ -468,8 +459,6 @@ protected:
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
 #endif
-
-  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook
@@ -548,8 +537,7 @@ public:
   ChildWindow() {}
   PRBool DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARAM lParam,
                             PRBool aIsContextMenuKey = PR_FALSE,
-                            PRInt16 aButton = nsMouseEvent::eLeftButton,
-                            PRUint16 aInputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE);
+                            PRInt16 aButton = nsMouseEvent::eLeftButton);
 
 protected:
   virtual DWORD WindowStyle();

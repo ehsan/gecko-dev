@@ -48,7 +48,6 @@
 #include "nsIServiceManager.h"
 #include "nsOS2Uni.h"
 #include "nsClipboard.h"
-#include "mozilla/Services.h"
 
 inline ULONG RegisterClipboardFormat(PCSZ pcszFormat)
 {
@@ -76,7 +75,7 @@ nsClipboard::nsClipboard() : nsBaseClipboard()
   // Register for a shutdown notification so that we can flush data
   // to the OS clipboard.
   nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   if (observerService)
     observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
 }

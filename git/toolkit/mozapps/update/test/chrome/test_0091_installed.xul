@@ -65,8 +65,7 @@ function test01() {
   gPref.setBoolPref(PREF_APP_UPDATE_SHOW_INSTALLED_UI, true);
   var patches = getLocalPatchString("complete", null, null, null, null, null,
                                     STATE_PENDING);
-  var updates = getLocalUpdateString(patches, null, null, null,
-                                     gApp.version, gApp.platformVersion);
+  var updates = getLocalUpdateString(patches);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   writeStatusFile(STATE_SUCCEEDED);

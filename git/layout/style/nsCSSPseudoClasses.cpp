@@ -85,12 +85,6 @@ nsCSSPseudoClasses::HasNthPairArg(nsIAtom* aAtom)
          aAtom == nsCSSPseudoClasses::nthLastOfType;
 }
 
-PRBool
-nsCSSPseudoClasses::HasSelectorListArg(nsIAtom* aAtom)
-{
-  return aAtom == nsCSSPseudoClasses::any;
-}
-
 nsCSSPseudoClasses::Type
 nsCSSPseudoClasses::GetPseudoType(nsIAtom* aAtom)
 {

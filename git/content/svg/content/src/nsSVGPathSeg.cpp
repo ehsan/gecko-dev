@@ -68,8 +68,6 @@ GetPathSegTypeAsLetter(nsAString & aPathSegTypeAsLetter) {    \
 NS_IMPL_ADDREF(ns##basename)                                  \
 NS_IMPL_RELEASE(ns##basename)                                 \
                                                               \
-DOMCI_DATA(basename, ns##basename)                            \
-                                                              \
 NS_INTERFACE_MAP_BEGIN(ns##basename)                          \
   NS_INTERFACE_MAP_ENTRY(nsIDOM##basename)                    \
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(basename)          \

@@ -40,7 +40,6 @@
 
 function test() {
   // initialization
-  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
   waitForExplicitFinish();
@@ -62,14 +61,14 @@ function test() {
               executeSoon(callback);
             }, true);
 
-            SimpleTest.waitForFocus(function() {
+            executeSoon(function() {
               let input = dialog.document.getElementById("dialog.input");
               is(input.value, autofilled, "The input field should be correctly auto-filled");
               input.focus();
               for (let i = 0; i < url.length; ++i)
                 EventUtils.synthesizeKey(url[i], {}, dialog);
               EventUtils.synthesizeKey("VK_RETURN", {}, dialog);
-            }, dialog);
+            });
           }, false);
           break;
 
@@ -101,7 +100,6 @@ function test() {
             gPrefService.clearUserPref("general.open_location.last_url");
             if (gPrefService.prefHasUserValue("general.open_location.last_window_choice"))
               gPrefService.clearUserPref("general.open_location.last_window_choice");
-            gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
             finish();
           });
         });

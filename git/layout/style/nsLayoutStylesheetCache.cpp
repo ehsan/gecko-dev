@@ -164,7 +164,7 @@ nsLayoutStylesheetCache::Shutdown()
 nsLayoutStylesheetCache::nsLayoutStylesheetCache()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   NS_ASSERTION(obsSvc, "No global observer service?");
 
   if (obsSvc) {

@@ -58,7 +58,7 @@ function test()
   try
   {
     (function() {
-      let b = parent(function(){});
+      let b = function(){}.__parent__;
       print(b[1] = throwError);
     })();
   }

@@ -712,7 +712,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'Z':
             if (++i == argc)
                 return usage();
-            JS_SetGCZeal(cx, !!(atoi(argv[i])));
+            JS_SetGCZeal(cx, atoi(argv[i]));
             break;
 #endif
 
@@ -1404,7 +1404,7 @@ ValueToScript(JSContext *cx, jsval v)
 
         if (clasp == &js_ScriptClass) {
             script = (JSScript *) JS_GetPrivate(cx, obj);
-        } else if (clasp == &js_GeneratorClass.base) {
+        } else if (clasp == &js_GeneratorClass) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
             fun = gen->getFloatingFrame()->fun;
             script = FUN_SCRIPT(fun);
@@ -1457,12 +1457,12 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
 
 static JSTrapStatus
 TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-            jsval closure)
+            void *closure)
 {
     JSString *str;
     JSStackFrame *caller;
 
-    str = JSVAL_TO_STRING(closure);
+    str = (JSString *) closure;
     caller = JS_GetScriptedCaller(cx, NULL);
     if (!JS_EvaluateUCInStackFrame(cx, caller,
                                    JS_GetStringChars(str), JS_GetStringLength(str),
@@ -1493,7 +1493,7 @@ Trap(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     argv[argc] = STRING_TO_JSVAL(str);
     if (!GetTrapArgs(cx, argc, argv, &script, &i))
         return JS_FALSE;
-    return JS_SetTrap(cx, script, script->code + i, TrapHandler, STRING_TO_JSVAL(str));
+    return JS_SetTrap(cx, script, script->code + i, TrapHandler, str);
 }
 
 static JSBool
@@ -3023,7 +3023,7 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         ok = JS_EvaluateUCScript(scx, sobj, src, srclen,
                                  fp->script->filename,
                                  JS_PCToLineNumber(cx, fp->script,
-                                                   fp->pc(cx)),
+                                                   fp->regs->pc),
                                  rval);
     }
 
@@ -3056,18 +3056,18 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     JSString *str = JSVAL_TO_STRING(argv[1]);
 
     bool saveCurrent = (argc >= 3 && JSVAL_IS_BOOLEAN(argv[2]))
-                        ? !!(JSVAL_TO_SPECIAL(argv[2]))
+                        ? (bool)JSVAL_TO_SPECIAL(argv[2])
                         : false;
 
     JS_ASSERT(cx->fp);
 
-    FrameRegsIter fi(cx);
-    for (uint32 i = 0; i < upCount; ++i, ++fi) {
-        if (!fi.fp()->down)
+    JSStackFrame *fp = cx->fp;
+    for (uint32 i = 0; i < upCount; ++i) {
+        if (!fp->down)
             break;
+        fp = fp->down;
     }
 
-    JSStackFrame *const fp = fi.fp();
     if (!fp->script) {
         JS_ReportError(cx, "cannot eval in non-script frame");
         return JS_FALSE;
@@ -3080,7 +3080,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, str->chars(), str->length(),
                                           fp->script->filename,
                                           JS_PCToLineNumber(cx, fp->script,
-                                                            fi.pc()),
+                                                            fp->regs->pc),
                                           vp);
 
     if (saveCurrent)
@@ -3658,34 +3658,6 @@ Elapsed(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
 }
 
-static JSBool
-Parent(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return JS_FALSE;
-    }
-
-    jsval v = JS_ARGV(cx, vp)[0];
-    if (JSVAL_IS_PRIMITIVE(v)) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return JS_FALSE;
-    }
-
-    JSObject *parent = JS_GetParent(cx, JSVAL_TO_OBJECT(v));
-    *vp = OBJECT_TO_JSVAL(parent);
-
-    /* Outerize if necessary.  Embrace the ugliness! */
-    JSClass *clasp = JS_GET_CLASS(cx, parent);
-    if (clasp->flags & JSCLASS_IS_EXTENDED) {
-        JSExtendedClass *xclasp = reinterpret_cast<JSExtendedClass *>(clasp);
-        if (JSObjectOp outerize = xclasp->outerObject)
-            *vp = OBJECT_TO_JSVAL(outerize(cx, parent));
-    }
-
-    return JS_TRUE;
-}
-
 #ifdef XP_UNIX
 
 #include <fcntl.h>
@@ -3754,31 +3726,6 @@ Compile(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
 
     JS_DestroyScript(cx, result);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return JS_TRUE;
-}
-
-static JSBool
-Parse(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
-                             "compile", "0", "s");
-        return JS_FALSE;
-    }
-    jsval arg0 = JS_ARGV(cx, vp)[0];
-    if (!JSVAL_IS_STRING(arg0)) {
-        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
-        JS_ReportError(cx, "expected string to parse, got %s", typeName);
-        return JS_FALSE;
-    }
-
-    JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    js::Parser parser(cx);
-    parser.init(JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                NULL, "<string>", 0);
-    if (!parser.parse(NULL))
-        return JS_FALSE;
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -3936,10 +3883,8 @@ static JSFunctionSpec shell_functions[] = {
 #endif
     JS_FS("snarf",          Snarf,        0,0,0),
     JS_FN("compile",        Compile,        1,0),
-    JS_FN("parse",          Parse,          1,0),
     JS_FN("timeout",        Timeout,        1,0),
     JS_FN("elapsed",        Elapsed,        0,0),
-    JS_FN("parent",         Parent,         1,0),
     JS_FS_END
 };
 
@@ -4042,13 +3987,11 @@ static const char *const shell_help_messages[] = {
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
 "snarf(filename)          Read filename into returned string",
-"compile(code)            Compiles a string to bytecode, potentially throwing",
-"parse(code)              Parses a string, potentially throwing",
+"compile(code)            Parses a string, potentially throwing",
 "timeout([seconds])\n"
 "  Get/Set the limit in seconds for the execution time for the current context.\n"
 "  A negative value (default) means that the execution time is unlimited.",
-"elapsed()                Execution time elapsed for the current context.",
-"parent(obj)              Returns the parent of obj.\n",
+"elapsed()                Execution time elapsed for the current context.\n",
 };
 
 /* Help messages must match shell functions. */
@@ -5009,13 +4952,6 @@ main(int argc, char **argv, char **envp)
 
     argc--;
     argv++;
-
-#ifdef XP_WIN
-    // Set the timer calibration delay count to 0 so we get high
-    // resolution right away, which we need for precise benchmarking.
-    extern int CALIBRATION_DELAY_COUNT;
-    CALIBRATION_DELAY_COUNT = 0;
-#endif
 
     rt = JS_NewRuntime(64L * 1024L * 1024L);
     if (!rt)

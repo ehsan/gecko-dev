@@ -62,8 +62,7 @@
           gComputedStyle = document.defaultView.getComputedStyle(node, "");
           var defAttrs = {
             "font-style": gComputedStyle.fontStyle,
-            // The pt font size of the input element can vary by Linux distro.
-            "font-size": (WIN ? "10pt" : (MAC ? "8pt" : function() { return true; })),
+            "font-size": (MAC) ? "8pt" : "10pt",
             "background-color": gComputedStyle.backgroundColor,
             "font-weight": equalsToNormal,
             "color": gComputedStyle.color,

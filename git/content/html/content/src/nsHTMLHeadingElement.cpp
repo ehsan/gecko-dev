@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 #include "mozAutoDocUpdate.h"
@@ -91,8 +92,6 @@ nsHTMLHeadingElement::~nsHTMLHeadingElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLHeadingElement, nsHTMLHeadingElement)
 
 // QueryInterface implementation for nsHTMLHeadingElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLHeadingElement)

@@ -228,12 +228,6 @@ public:
   // thread; ImageContainers can be used from any thread.
   ImageContainer* GetImageContainer() { return mImageContainer; }
 
-  // Set the video width, height, pixel aspect ratio, and current image.
-  // Ownership of the image is transferred to the decoder.
-  void SetVideoData(const gfxIntSize& aSize,
-                    float aAspectRatio,
-                    Image* aImage);
-
 protected:
 
   // Start timer to update download progress information.
@@ -241,6 +235,12 @@ protected:
 
   // Stop progress information timer.
   nsresult StopProgress();
+
+  // Set the video width, height, pixel aspect ratio, and current image.
+  // Ownership of the image is transferred to the decoder.
+  void SetVideoData(const gfxIntSize& aSize,
+                    float aAspectRatio,
+                    Image* aImage);
 
 protected:
   // Timer used for updating progress events

@@ -44,6 +44,7 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
@@ -61,7 +62,6 @@ struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
-class nsPresContext;
 
 class nsImageFrame;
 

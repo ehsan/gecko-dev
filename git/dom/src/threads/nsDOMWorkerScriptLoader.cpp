@@ -60,9 +60,6 @@
 #include "nsThreadUtils.h"
 #include "pratom.h"
 #include "nsDocShellCID.h"
-#include "nsIChannelPolicy.h"
-#include "nsChannelPolicy.h"
-#include "nsIContentSecurityPolicy.h"
 
 // DOMWorker includes
 #include "nsDOMWorkerPool.h"
@@ -510,24 +507,7 @@ nsDOMWorkerScriptLoader::RunInternal()
     rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // get Content Security Policy from parent document to pass into channel
-    nsCOMPtr<nsIChannelPolicy> channelPolicy;
-    nsCOMPtr<nsIContentSecurityPolicy> csp;
-    rv = parentDoc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (csp) {
-        channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
-        channelPolicy->SetContentSecurityPolicy(csp);
-        channelPolicy->SetLoadType(nsIContentPolicy::TYPE_SCRIPT);
-    }
-
-    rv = NS_NewChannel(getter_AddRefs(loadInfo.channel),
-                       uri,
-                       ios,
-                       loadGroup,
-                       nsnull,                            // callbacks
-                       nsIRequest::LOAD_NORMAL,           // loadFlags
-                       channelPolicy);                    // CSP info
+    rv = NS_NewChannel(getter_AddRefs(loadInfo.channel), uri, ios, loadGroup);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = loadInfo.channel->AsyncOpen(loader, indexSupports);

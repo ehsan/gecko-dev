@@ -1639,14 +1639,13 @@ SessionStoreService.prototype = {
     
     // get the domain for each URL
     function extractHosts(aEntry) {
-      var match;
-      if ((match = /^https?:\/\/(?:[^@\/\s]+@)?([\w.-]+)/.exec(aEntry.url)) != null) {
-        if (!hosts[match[1]] && _this._checkPrivacyLevel(_this._getURIFromString(aEntry.url).schemeIs("https"))) {
-          hosts[match[1]] = true;
+      if (/^https?:\/\/(?:[^@\/\s]+@)?([\w.-]+)/.test(aEntry.url)) {
+        if (!hosts[RegExp.$1] && _this._checkPrivacyLevel(_this._getURIFromString(aEntry.url).schemeIs("https"))) {
+          hosts[RegExp.$1] = true;
         }
       }
-      else if ((match = /^file:\/\/([^\/]*)/.exec(aEntry.url)) != null) {
-        hosts[match[1]] = true;
+      else if (/^file:\/\/([^\/]*)/.test(aEntry.url)) {
+        hosts[RegExp.$1] = true;
       }
       if (aEntry.children) {
         aEntry.children.forEach(extractHosts);
@@ -2375,9 +2374,8 @@ SessionStoreService.prototype = {
           }
         }, 0);
       }
-      var match;
-      if (aData.scroll && (match = /(\d+),(\d+)/.exec(aData.scroll)) != null) {
-        aContent.scrollTo(match[1], match[2]);
+      if (aData.scroll && /(\d+),(\d+)/.test(aData.scroll)) {
+        aContent.scrollTo(RegExp.$1, RegExp.$2);
       }
       Array.forEach(aContent.document.styleSheets, function(aSS) {
         aSS.disabled = aSS.title && aSS.title != selectedPageStyle;

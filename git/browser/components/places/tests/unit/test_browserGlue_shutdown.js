@@ -46,13 +46,18 @@ let bg = Cc["@mozilla.org/browser/browserglue;1"].
          getService(Ci.nsIBrowserGlue);
 
 // Initialize Places through Bookmarks Service.
-let bs = PlacesUtils.bookmarks;
+let bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+         getService(Ci.nsINavBookmarksService);
 
 // Get other services.
-let ps = Services.prefs;
-let os = Services.obs;
+let ps = Cc["@mozilla.org/preferences-service;1"].
+         getService(Ci.nsIPrefBranch);
+let os = Cc["@mozilla.org/observer-service;1"].
+         getService(Ci.nsIObserverService);
 
 const PREF_AUTO_EXPORT_HTML = "browser.bookmarks.autoExportHTML";
+
+const TOPIC_QUIT_APPLICATION_GRANTED = "quit-application-granted";
 
 let tests = [];
 
@@ -68,9 +73,14 @@ tests.push({
     ps.setBoolPref(PREF_AUTO_EXPORT_HTML, true);
 
     // Force nsBrowserGlue::_shutdownPlaces().
-    bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              PlacesUtils.TOPIC_SHUTDOWN,
-                                              null);
+    try {
+      bg.QueryInterface(Ci.nsIObserver).observe(null,
+                                                TOPIC_QUIT_APPLICATION_GRANTED,
+                                                null);
+    }
+    catch(ex) {
+      // This throws due to idle observer, we can ignore that.
+    }
 
     // Check bookmarks.html has been created.
     check_bookmarks_html();
@@ -104,9 +114,14 @@ tests.push({
     let fileSize = profileBookmarksHTMLFile.fileSize;
 
     // Force nsBrowserGlue::_shutdownPlaces().
-    bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              PlacesUtils.TOPIC_SHUTDOWN,
-                                              null);
+    try {
+      bg.QueryInterface(Ci.nsIObserver).observe(null,
+                                                TOPIC_QUIT_APPLICATION_GRANTED,
+                                                null);
+    }
+    catch(ex) {
+      // This throws due to idle observer, we can ignore that.
+    }
 
     // Check a new bookmarks.html has been created.
     let profileBookmarksHTMLFile = check_bookmarks_html();
@@ -138,9 +153,14 @@ tests.push({
     let fileSize = profileBookmarksJSONFile.fileSize;
 
     // Force nsBrowserGlue::_shutdownPlaces().
-    bg.QueryInterface(Ci.nsIObserver).observe(null,
-                                              PlacesUtils.TOPIC_SHUTDOWN,
-                                              null);
+    try {
+      bg.QueryInterface(Ci.nsIObserver).observe(null,
+                                                TOPIC_QUIT_APPLICATION_GRANTED,
+                                                null);
+    }
+    catch(ex) {
+      // This throws due to idle observer, we can ignore that.
+    }
 
     // Check a new JSON backup has not been created.
     do_check_true(profileBookmarksJSONFile.exists());

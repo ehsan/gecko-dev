@@ -600,7 +600,7 @@ nsAttrAndChildArray::SetMappedAttrStyleSheet(nsHTMLStyleSheet* aSheet)
 void
 nsAttrAndChildArray::WalkMappedAttributeStyleRules(nsRuleWalker* aRuleWalker)
 {
-  if (mImpl && mImpl->mMappedAttrs) {
+  if (mImpl && mImpl->mMappedAttrs && aRuleWalker) {
     aRuleWalker->Forward(mImpl->mMappedAttrs);
   }
 }

@@ -55,6 +55,7 @@
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIRegion.h"

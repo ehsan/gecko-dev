@@ -58,6 +58,7 @@
 #include "nsCSSProps.h"
 
 #include "nsCOMPtr.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsHTMLReflowState.h"
 #include "prenv.h"

@@ -50,6 +50,7 @@ class nsIAtom;
 class nsString;
 class nsIURI;
 class nsIStyleRule;
+class nsPresContext;
 class nsIContent;
 class nsIDocument;
 class nsIStyleRuleProcessor;

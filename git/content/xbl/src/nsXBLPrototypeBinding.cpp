@@ -65,6 +65,7 @@
 #include "nsFixedSizeAllocator.h"
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
+#include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
 #include "nsGkAtoms.h"
 #include "nsXBLProtoImpl.h"
@@ -711,7 +712,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         const nsIContent* aChild,
+                                         nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)

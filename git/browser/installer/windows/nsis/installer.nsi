@@ -263,6 +263,7 @@ Section "-Application" APP_IDX
   ; parent directories will be removed.
   ${LogUninstall} "File: \components\compreg.dat"
   ${LogUninstall} "File: \components\xpti.dat"
+  ${LogUninstall} "File: \.autoreg"
   ${LogUninstall} "File: \active-update.xml"
   ${LogUninstall} "File: \install.log"
   ${LogUninstall} "File: \install_status.log"

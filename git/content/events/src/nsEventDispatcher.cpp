@@ -43,7 +43,6 @@
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "nsDOMError.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsMutationEvent.h"
 #include NEW_H
 #include "nsFixedSizeAllocator.h"
@@ -54,8 +53,6 @@
 #define NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH  (1 << 0)
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
 #define NS_TARGET_CHAIN_MAY_HAVE_MANAGER        (1 << 2)
-
-static nsEventTargetChainItem* gCachedETCI = nsnull;
 
 // nsEventTargetChainItem represents a single item in the event target chain.
 class nsEventTargetChainItem
@@ -69,13 +66,7 @@ public:
                                         nsPIDOMEventTarget* aTarget,
                                         nsEventTargetChainItem* aChild = nsnull)
   {
-    void* place = nsnull;
-    if (gCachedETCI) {
-      place = gCachedETCI;
-      gCachedETCI = gCachedETCI->mNext;
-    } else {
-      place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
-    }
+    void* place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
     return place
       ? ::new (place) nsEventTargetChainItem(aTarget, aChild)
       : nsnull;
@@ -93,8 +84,7 @@ public:
     while (item) {
       nsEventTargetChainItem* parent = item->mParent;
       item->~nsEventTargetChainItem();
-      item->mNext = gCachedETCI;
-      gCachedETCI = item;
+      aAllocator->Free(item, sizeof(nsEventTargetChainItem));
       --sCurrentEtciCount;
       item = parent;
     }
@@ -199,8 +189,7 @@ public:
       if (!MayHaveListenerManager() && !aMayHaveNewListenerManagers) {
         return NS_OK;
       }
-      mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
+      mManager = mTarget->GetListenerManager(PR_FALSE);
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -231,18 +220,14 @@ public:
 
   nsCOMPtr<nsPIDOMEventTarget>      mTarget;
   nsEventTargetChainItem*           mChild;
-  union {
-    nsEventTargetChainItem*         mParent;
-     // This is used only when caching ETCI objects.
-    nsEventTargetChainItem*         mNext;
-  };
+  nsEventTargetChainItem*           mParent;
   PRUint16                          mFlags;
   PRUint16                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
   // Event retargeting must happen whenever mNewTarget is non-null.
   nsCOMPtr<nsPIDOMEventTarget>      mNewTarget;
   // Cache mTarget's event listener manager.
-  nsRefPtr<nsEventListenerManager>  mManager;
+  nsCOMPtr<nsIEventListenerManager> mManager;
 
   static PRUint32                   sMaxEtciCount;
   static PRUint32                   sCurrentEtciCount;
@@ -429,7 +414,6 @@ public:
     }
     if (!sEtciPoolUsers) {
       if (nsEventTargetChainItem::MaxEtciCount() > NS_CHAIN_POOL_SIZE) {
-        gCachedETCI = nsnull;
         delete sEtciPool;
         sEtciPool = nsnull;
         nsEventTargetChainItem::ResetMaxEtciCount();
@@ -440,7 +424,6 @@ public:
   static void Shutdown()
   {
     if (!sEtciPoolUsers) {
-      gCachedETCI = nsnull;
       delete sEtciPool;
       sEtciPool = nsnull;
       nsEventTargetChainItem::ResetMaxEtciCount();
@@ -471,13 +454,6 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
   NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
-
-#ifdef NS_FUNCTION_TIMER
-  const char* timer_event_name = nsDOMEvent::GetEventName(aEvent->message);
-  NS_TIME_FUNCTION_MIN_FMT(20, "Dispatching '%s' event",
-                           timer_event_name ? timer_event_name : "<other>");
-#endif
-
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 
   if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {

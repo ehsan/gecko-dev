@@ -1,4 +1,4 @@
-include protocol multiManaged;
+include protocol "multiManaged.ipdl";
 
 protocol multiManager1 {
     manages multiManaged;

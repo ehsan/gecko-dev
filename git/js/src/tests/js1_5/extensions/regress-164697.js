@@ -38,7 +38,7 @@
 var gTestfile = 'regress-164697.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 164697;
-var summary = '(parent(instance) == parent(constructor))';
+var summary = '(instance.__parent__ == constructor.__parent__)';
 var actual = '';
 var expect = '';
 
@@ -61,10 +61,13 @@ runtest('new Function(";")', 'Function');
 runtest('[]', 'Array');
 runtest('new Array()', 'Array');
 
+runtest('""', 'String');
 runtest('new String()', 'String');
 
+runtest('true', 'Boolean');
 runtest('new Boolean()', 'Boolean');
 
+runtest('1', 'Number');
 runtest('new Number("1")', 'Number');
 
 runtest('new Date()', 'Date');
@@ -79,23 +82,19 @@ function runtest(myinstance, myconstructor)
   var expr;
   var actual;
 
-  if (typeof parent === "function")
+  try
   {
-    try
-    {
-      expr =
-        'parent(' + myinstance + ') == ' +
-        'parent(' + myconstructor + ')';
-      printStatus(expr);
-      actual = eval(expr).toString();
-    }
-    catch(ex)
-    {
-      actual = ex + '';
-    }
-
-    reportCompare(expect, actual, expr);
+    expr =  '(' + myinstance + ').__parent__ == ' +
+      myconstructor + '.__parent__';
+    printStatus(expr);
+    actual = eval(expr).toString();
   }
+  catch(ex)
+  {
+    actual = ex + '';
+  }
+
+  reportCompare(expect, actual, expr);
 
   try
   {

@@ -579,11 +579,12 @@ nsGlyphTableList::Observe(nsISupports*     aSubject,
 nsresult
 nsGlyphTableList::Initialize()
 {
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (!obs)
-    return NS_ERROR_FAILURE;
+  nsresult rv;
+  nsCOMPtr<nsIObserverService> obs = 
+           do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
+  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -595,12 +596,11 @@ nsGlyphTableList::Finalize()
 {
   // Remove our observer from the observer service
   nsresult rv = NS_OK;
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs)
+  nsCOMPtr<nsIObserverService> obs = 
+           do_GetService("@mozilla.org/observer-service;1", &rv);
+  if (NS_SUCCEEDED(rv)) {
     rv = obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-  else
-    rv = NS_ERROR_FAILURE;
-
+  }
   gInitialized = PR_FALSE;
   // our oneself will be destroyed when our |Release| is called by the observer
   return rv;
@@ -2004,6 +2004,7 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   // for visual debug
   PRIntn skipSides = 0;
   nsPresContext* presContext = mFrame->PresContext();
+  const nsStyleBorder* border = mFrame->GetStyleBorder();
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,

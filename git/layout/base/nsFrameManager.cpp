@@ -378,9 +378,8 @@ nsFrameManager::SetUndisplayedContent(nsIContent* aContent,
   if (mUndisplayedMap) {
     nsIContent* parent = aContent->GetParent();
     NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
-                 mPresShell->GetDocument()->GetRootElement() == aContent),
-                 "undisplayed content must have a parent, unless it's the root "
-                 "element");
+                 mPresShell->GetDocument()->GetRootContent() == aContent),
+                 "undisplayed content must have a parent, unless it's the root content");
     mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
   }
 }
@@ -1095,7 +1094,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       if (pseudoTag == nsCSSPseudoElements::before ||
           pseudoTag == nsCSSPseudoElements::after) {
         // XXX what other pseudos do we need to treat like this?
-        newContext = styleSet->ProbePseudoElementStyle(pseudoContent->AsElement(),
+        newContext = styleSet->ProbePseudoElementStyle(pseudoContent,
                                                        pseudoType,
                                                        parentContext);
         if (!newContext) {
@@ -1121,7 +1120,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           nsBlockFrame* block = nsBlockFrame::GetNearestAncestorBlock(aFrame);
           pseudoContent = block->GetContent();
         }
-        newContext = styleSet->ResolvePseudoElementStyle(pseudoContent->AsElement(),
+        newContext = styleSet->ResolvePseudoElementStyle(pseudoContent,
                                                          pseudoType,
                                                          parentContext);
       }
@@ -1129,7 +1128,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     else {
       NS_ASSERTION(localContent,
                    "non pseudo-element frame without content node");
-      newContext = styleSet->ResolveStyleFor(content->AsElement(), parentContext);
+      newContext = styleSet->ResolveStyleFor(content, parentContext);
     }
     NS_ASSERTION(newContext, "failed to get new style context");
     if (newContext) {
@@ -1188,7 +1187,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           NS_ASSERTION(extraPseudoType <
                          nsCSSPseudoElements::ePseudo_PseudoElementCount,
                        "Unexpected type");
-          newExtraContext = styleSet->ResolvePseudoElementStyle(content->AsElement(),
+          newExtraContext = styleSet->ResolvePseudoElementStyle(content,
                                                                 extraPseudoType,
                                                                 newContext);
         }
@@ -1229,19 +1228,21 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
            undisplayed; undisplayed = undisplayed->mNext) {
         NS_ASSERTION(undisplayedParent ||
                      undisplayed->mContent ==
-                       mPresShell->GetDocument()->GetRootElement(),
+                       mPresShell->GetDocument()->GetRootContent(),
                      "undisplayed node child of null must be root");
         NS_ASSERTION(!undisplayed->mStyle->GetPseudo(),
                      "Shouldn't have random pseudo style contexts in the "
                      "undisplayed map");
         nsRefPtr<nsStyleContext> undisplayedContext =
-          styleSet->ResolveStyleFor(undisplayed->mContent->AsElement(), newContext);
+          styleSet->ResolveStyleFor(undisplayed->mContent, newContext);
         if (undisplayedContext) {
           const nsStyleDisplay* display = undisplayedContext->GetStyleDisplay();
           if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
-            NS_ASSERTION(undisplayed->mContent,
-                         "Must have undisplayed content");
-            aChangeList->AppendChange(nsnull, undisplayed->mContent, 
+            aChangeList->AppendChange(nsnull,
+                                      undisplayed->mContent
+                                      ? static_cast<nsIContent*>
+                                                   (undisplayed->mContent)
+                                      : localContent, 
                                       NS_STYLE_HINT_FRAMECHANGE);
             // The node should be removed from the undisplayed map when
             // we reframe it.
@@ -1256,7 +1257,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
       // Make sure not to do this for pseudo-frames -- those can't have :before
       // or :after content.  Neither can non-elements or leaf frames.
-      if (!pseudoTag && localContent && localContent->IsElement() &&
+      if (!pseudoTag && localContent &&
+          localContent->IsNodeOfType(nsINode::eELEMENT) &&
           !aFrame->IsLeaf()) {
         // Check for a new :before pseudo and an existing :before
         // frame, but only if the frame is the first continuation.
@@ -1281,7 +1283,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
       // Make sure not to do this for pseudo-frames -- those can't have :before
       // or :after content.  Neither can non-elements or leaf frames.
-      if (!pseudoTag && localContent && localContent->IsElement() &&
+      if (!pseudoTag && localContent &&
+          localContent->IsNodeOfType(nsINode::eELEMENT) &&
           !aFrame->IsLeaf()) {
         // Check for new :after content, but only if the frame is the
         // last continuation.

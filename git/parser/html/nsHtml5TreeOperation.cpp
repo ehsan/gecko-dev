@@ -286,7 +286,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* table = *(mThree.node);
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsElement()) {
+      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -477,7 +477,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsElement()) {
+      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -603,6 +603,11 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       aBuilder->UpdateStyleSheet(node);
       return rv;
     }
+    case eTreeOpProcessBase: {
+      nsIContent* node = *(mOne.node);
+      rv = aBuilder->ProcessBASETag(node);
+      return rv;
+    }
     case eTreeOpProcessMeta: {
       nsIContent* node = *(mOne.node);
       rv = aBuilder->ProcessMETATag(node);
@@ -632,7 +637,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->SetDocumentMode(mOne.mode);
+      aBuilder->DocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

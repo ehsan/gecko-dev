@@ -51,8 +51,6 @@ NS_NewXMLElement(nsIContent** aInstancePtrResult, nsINodeInfo *aNodeInfo)
   return NS_OK;
 }
 
-DOMCI_DATA(Element, nsXMLElement)
-
 // QueryInterface implementation for nsXMLElement
 NS_INTERFACE_TABLE_HEAD(nsXMLElement)
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXMLElement)

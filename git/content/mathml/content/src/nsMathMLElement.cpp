@@ -55,8 +55,6 @@
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-DOMCI_DATA(MathMLElement, nsMathMLElement)
-
 NS_INTERFACE_TABLE_HEAD(nsMathMLElement)
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsMathMLElement)
     NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMNode)
@@ -407,7 +405,7 @@ nsMathMLElement::IntrinsicState() const
 PRBool
 nsMathMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~eCONTENT);
+  return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 void

@@ -3948,7 +3948,7 @@ nsUrlClassifierDBService::Init()
 
   // Add an observer for shutdown
   nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
   if (!observerService)
     return NS_ERROR_FAILURE;
 

@@ -185,37 +185,21 @@ nsSVGGraphicElement::IsEventName(nsIAtom* aName)
 gfxMatrix
 nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
-  gfxMatrix result(aMatrix);
+  if (!mTransforms)
+    return aMatrix;
 
-  // animateMotion's resulting transform is supposed to apply *on top of*
-  // any transformations from the |transform| attribute. So since we're
-  // PRE-multiplying, we need to apply the animateMotion transform *first*.
-  if (mAnimateMotionTransform) {
-    result.PreMultiply(*mAnimateMotionTransform);
-  }
+  nsresult rv;
+  nsCOMPtr<nsIDOMSVGTransformList> transforms;
+  rv = mTransforms->GetAnimVal(getter_AddRefs(transforms));
+  NS_ENSURE_SUCCESS(rv, aMatrix);
+  PRUint32 count;
+  transforms->GetNumberOfItems(&count);
+  if (count == 0)
+    return aMatrix;
 
-  if (mTransforms) {
-    nsresult rv;
-    nsCOMPtr<nsIDOMSVGTransformList> transforms;
-    rv = mTransforms->GetAnimVal(getter_AddRefs(transforms));
-    NS_ENSURE_SUCCESS(rv, aMatrix);
-    PRUint32 count;
-    transforms->GetNumberOfItems(&count);
-    if (count > 0) {
-      nsCOMPtr<nsIDOMSVGMatrix> matrix =
-        nsSVGTransformList::GetConsolidationMatrix(transforms);
-      result.PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(matrix));
-    }
-  }
-
-  return result;
-}
-
-void
-nsSVGGraphicElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
-{
-  mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nsnull;
-  DidAnimateTransform();
+  nsCOMPtr<nsIDOMSVGMatrix> matrix =
+    nsSVGTransformList::GetConsolidationMatrix(transforms);
+  return gfxMatrix(aMatrix).PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(matrix));
 }
 
 nsresult

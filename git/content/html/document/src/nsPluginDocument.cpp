@@ -46,9 +46,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIPropertyBag2.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 class nsPluginDocument : public nsMediaDocument,
                          public nsIPluginDocument
@@ -277,7 +274,7 @@ nsPluginDocument::CreateSyntheticPluginDocument()
   NS_ENSURE_SUCCESS(rv, rv);
   // then attach our plugin
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on plugin document!");
     return NS_ERROR_FAILURE;

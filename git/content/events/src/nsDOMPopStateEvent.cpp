@@ -34,9 +34,6 @@
 
 #include "nsDOMPopStateEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDOMClassInfoID.h"
-#include "nsIClassInfo.h"
-#include "nsIXPCScriptable.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMPopStateEvent)
 
@@ -50,8 +47,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMPopStateEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mState)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-DOMCI_DATA(PopStateEvent, nsDOMPopStateEvent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMPopStateEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMPopStateEvent)

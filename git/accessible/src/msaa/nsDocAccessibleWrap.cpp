@@ -43,6 +43,7 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPresShell.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"

@@ -93,6 +93,7 @@
 #define JS_HAS_DEBUGGER_KEYWORD 0       /* has hook for debugger keyword */
 #define JS_HAS_CATCH_GUARD      0       /* has exception handling catch guard */
 #define JS_HAS_SPARSE_ARRAYS    0       /* array methods preserve empty elems */
+#define JS_HAS_GETTER_SETTER    0       /* has JS2 getter/setter functions */
 #define JS_HAS_UNEVAL           0       /* has uneval() top-level function */
 #define JS_HAS_CONST            0       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    0       /* has function expression statement */
@@ -122,6 +123,7 @@
 #define JS_HAS_DEBUGGER_KEYWORD 1       /* has hook for debugger keyword */
 #define JS_HAS_CATCH_GUARD      1       /* has exception handling catch guard */
 #define JS_HAS_SPARSE_ARRAYS    0       /* array methods preserve empty elems */
+#define JS_HAS_GETTER_SETTER    1       /* has JS2 getter/setter functions */
 #define JS_HAS_UNEVAL           1       /* has uneval() top-level function */
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
@@ -147,6 +149,7 @@
 #define JS_HAS_DEBUGGER_KEYWORD 1       /* has hook for debugger keyword */
 #define JS_HAS_CATCH_GUARD      1       /* has exception handling catch guard */
 #define JS_HAS_SPARSE_ARRAYS    0       /* array methods preserve empty elems */
+#define JS_HAS_GETTER_SETTER    1       /* has JS2 getter/setter functions */
 #define JS_HAS_UNEVAL           1       /* has uneval() top-level function */
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
@@ -172,6 +175,7 @@
 #define JS_HAS_DEBUGGER_KEYWORD 1       /* has hook for debugger keyword */
 #define JS_HAS_CATCH_GUARD      1       /* has exception handling catch guard */
 #define JS_HAS_SPARSE_ARRAYS    0       /* array methods preserve empty elems */
+#define JS_HAS_GETTER_SETTER    1       /* has JS2 getter/setter functions */
 #define JS_HAS_UNEVAL           1       /* has uneval() top-level function */
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
@@ -197,6 +201,7 @@
 #define JS_HAS_DEBUGGER_KEYWORD 1       /* has hook for debugger keyword */
 #define JS_HAS_CATCH_GUARD      1       /* has exception handling catch guard */
 #define JS_HAS_SPARSE_ARRAYS    0       /* array methods preserve empty elems */
+#define JS_HAS_GETTER_SETTER    1       /* has JS2 getter/setter functions */
 #define JS_HAS_UNEVAL           1       /* has uneval() top-level function */
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
@@ -221,9 +226,3 @@
 
 /* Feature-test macro for evolving destructuring support. */
 #define JS_HAS_DESTRUCTURING_SHORTHAND  (JS_HAS_DESTRUCTURING == 2)
-
-/*
- * Feature for Object.prototype.__{define,lookup}{G,S}etter__ legacy support;
- * support likely to be made opt-in at some future time.
- */
-#define OLD_GETTER_SETTER_METHODS       1

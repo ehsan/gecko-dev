@@ -68,9 +68,6 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessNode
-  NS_IMETHOD GetRootDocument(nsIAccessibleDocument **aRootDocument);
-
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetDescription(nsAString& aValue);

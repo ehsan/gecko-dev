@@ -279,7 +279,7 @@ var BookmarkPropertiesPanel = {
           // Load In Sidebar
           this._loadInSidebar = PlacesUtils.annotations
                                            .itemHasAnnotation(this._itemId,
-                                                              PlacesUIUtils.LOAD_IN_SIDEBAR_ANNO);
+                                                              LOAD_IN_SIDEBAR_ANNO);
           break;
 
         case "folder":
@@ -295,10 +295,10 @@ var BookmarkPropertiesPanel = {
 
       // Description
       if (PlacesUtils.annotations
-                     .itemHasAnnotation(this._itemId, PlacesUIUtils.DESCRIPTION_ANNO)) {
+                     .itemHasAnnotation(this._itemId, DESCRIPTION_ANNO)) {
         this._description = PlacesUtils.annotations
                                        .getItemAnnotation(this._itemId,
-                                                          PlacesUIUtils.DESCRIPTION_ANNO);
+                                                          DESCRIPTION_ANNO);
       }
     }
   },
