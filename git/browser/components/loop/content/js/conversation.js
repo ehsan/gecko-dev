@@ -12,12 +12,10 @@ loop.conversation = (function(mozL10n) {
   "use strict";
 
   var sharedViews = loop.shared.views;
-  var sharedMixins = loop.shared.mixins;
   var sharedModels = loop.shared.models;
   var OutgoingConversationView = loop.conversationViews.OutgoingConversationView;
 
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
-    mixins: [sharedMixins.DropdownMenuMixin],
 
     propTypes: {
       model: React.PropTypes.object.isRequired,
@@ -26,9 +24,23 @@ loop.conversation = (function(mozL10n) {
 
     getDefaultProps: function() {
       return {
-        showMenu: false,
+        showDeclineMenu: false,
         video: true
       };
+    },
+
+    getInitialState: function() {
+      return {showDeclineMenu: this.props.showDeclineMenu};
+    },
+
+    componentDidMount: function() {
+      window.addEventListener("click", this.clickHandler);
+      window.addEventListener("blur", this._hideDeclineMenu);
+    },
+
+    componentWillUnmount: function() {
+      window.removeEventListener("click", this.clickHandler);
+      window.removeEventListener("blur", this._hideDeclineMenu);
     },
 
     clickHandler: function(e) {
@@ -92,7 +104,7 @@ loop.conversation = (function(mozL10n) {
       var dropdownMenuClassesDecline = React.addons.classSet({
         "native-dropdown-menu": true,
         "conversation-window-dropdown": true,
-        "visually-hidden": !this.state.showMenu
+        "visually-hidden": !this.state.showDeclineMenu
       });
       return (
         React.DOM.div({className: "call-window"}, 
@@ -105,11 +117,13 @@ loop.conversation = (function(mozL10n) {
               React.DOM.div({className: "btn-group-chevron"}, 
                 React.DOM.div({className: "btn-group"}, 
 
-                  React.DOM.button({className: "btn btn-decline", 
+                  React.DOM.button({className: "btn btn-error btn-decline", 
                           onClick: this._handleDecline}, 
                     mozL10n.get("incoming_call_cancel_button")
                   ), 
-                  React.DOM.div({className: "btn-chevron", onClick: this.toggleDropdownMenu})
+                  React.DOM.div({className: "btn-chevron", 
+                       onClick: this._toggleDeclineMenu}
+                  )
                 ), 
 
                 React.DOM.ul({className: dropdownMenuClassesDecline}, 

@@ -2854,7 +2854,8 @@ ServerHandler.prototype =
         throw e;
       }
 
-      let writeMore = function () {
+      function writeMore()
+      {
         gThreadManager.currentThread
                       .dispatch(writeData, Ci.nsIThread.DISPATCH_NORMAL);
       }
