@@ -8,7 +8,9 @@
 #define mozilla_dom_bluetooth_BluetoothSocketObserver_h
 
 #include "BluetoothCommon.h"
-#include "mozilla/ipc/UnixSocket.h"
+#include <mozilla/ipc/UnixSocket.h>
+
+using namespace mozilla::ipc;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -17,9 +19,8 @@ class BluetoothSocket;
 class BluetoothSocketObserver
 {
 public:
-  virtual void ReceiveSocketData(
-    BluetoothSocket* aSocket,
-    nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage) = 0;
+  virtual void ReceiveSocketData(BluetoothSocket* aSocket,
+                                 nsAutoPtr<UnixSocketRawData>& aMessage) = 0;
 
    /**
     * A callback function which would be called when a socket connection

@@ -23,6 +23,7 @@
 #include "mozilla/dom/TabContext.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
+#include "mozilla/Util.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
@@ -105,7 +106,7 @@ END_INDEXEDDB_NAMESPACE
 
 namespace {
 
-mozilla::StaticRefPtr<IndexedDatabaseManager> gDBManager;
+mozilla::StaticRefPtr<IndexedDatabaseManager> gInstance;
 
 mozilla::Atomic<int32_t> gInitialized(0);
 mozilla::Atomic<int32_t> gClosed(0);
@@ -204,7 +205,7 @@ IndexedDatabaseManager::GetOrCreate()
     return nullptr;
   }
 
-  if (!gDBManager) {
+  if (!gInstance) {
     sIsMainProcess = XRE_GetProcessType() == GeckoProcessType_Default;
 
     if (sIsMainProcess) {
@@ -234,12 +235,12 @@ IndexedDatabaseManager::GetOrCreate()
       NS_ERROR("Initialized more than once?!");
     }
 
-    gDBManager = instance;
+    gInstance = instance;
 
-    ClearOnShutdown(&gDBManager);
+    ClearOnShutdown(&gInstance);
   }
 
-  return gDBManager;
+  return gInstance;
 }
 
 // static
@@ -247,7 +248,7 @@ IndexedDatabaseManager*
 IndexedDatabaseManager::Get()
 {
   // Does not return an owning reference.
-  return gDBManager;
+  return gInstance;
 }
 
 // static
@@ -458,7 +459,7 @@ IndexedDatabaseManager::IsClosed()
 bool
 IndexedDatabaseManager::IsMainProcess()
 {
-  NS_ASSERTION(gDBManager,
+  NS_ASSERTION(gInstance,
                "IsMainProcess() called before indexedDB has been initialized!");
   NS_ASSERTION((XRE_GetProcessType() == GeckoProcessType_Default) ==
                sIsMainProcess, "XRE_GetProcessType changed its tune!");
@@ -469,7 +470,7 @@ IndexedDatabaseManager::IsMainProcess()
 bool
 IndexedDatabaseManager::InLowDiskSpaceMode()
 {
-  NS_ASSERTION(gDBManager,
+  NS_ASSERTION(gInstance,
                "InLowDiskSpaceMode() called before indexedDB has been "
                "initialized!");
   return !!sLowDiskSpaceMode;

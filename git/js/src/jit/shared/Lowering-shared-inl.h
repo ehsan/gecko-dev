@@ -446,10 +446,8 @@ LIRGeneratorShared::add(T *ins, MInstruction *mir)
 {
     JS_ASSERT(!ins->isPhi());
     current->add(ins);
-    if (mir) {
-        JS_ASSERT(current == mir->block()->lir());
+    if (mir)
         ins->setMir(mir);
-    }
     annotate(ins);
     return true;
 }

@@ -12,7 +12,7 @@
 
 #include <dlfcn.h>
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 namespace mozilla {
 

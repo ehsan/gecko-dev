@@ -37,7 +37,7 @@
 #include "updater/progressui.h"
 #include "common/readstrings.h"
 #include "common/errors.h"
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #ifndef MAXPATHLEN
 # ifdef PATH_MAX

@@ -5,7 +5,7 @@
 
 #include <locale.h>
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsIPlatformCharset.h"
 #include "nsUConvPropertySearch.h"

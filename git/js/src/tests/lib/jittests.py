@@ -661,7 +661,8 @@ def run_tests_remote(tests, prefix, options):
     Test.CacheDir = posixpath.join(options.remote_test_root, '.js-cache')
     dm.mkDir(Test.CacheDir)
 
-    dm.pushDir(JS_TESTS_DIR, posixpath.join(jit_tests_dir, 'tests'), timeout=600)
+    for path in os.listdir(JS_TESTS_DIR):
+        dm.pushDir(os.path.join(JS_TESTS_DIR, path), posixpath.join(jit_tests_dir, 'tests', path))
 
     dm.pushDir(os.path.dirname(TEST_DIR), options.remote_test_root, timeout=600)
     prefix[0] = os.path.join(options.remote_test_root, 'js')

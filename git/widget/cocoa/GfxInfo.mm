@@ -6,7 +6,7 @@
 #include <OpenGL/OpenGL.h>
 #include <OpenGL/CGLRenderers.h>
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"

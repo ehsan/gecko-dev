@@ -177,12 +177,11 @@ class CodeGeneratorARM : public CodeGeneratorShared
   protected:
     void postAsmJSCall(LAsmJSCall *lir) {
 #if  !defined(JS_CPU_ARM_HARDFP)
-        if (lir->mir()->callee().which() == MAsmJSCall::Callee::Builtin) {
-            if (lir->mir()->type() == MIRType_Double)
-                masm.ma_vxfer(r0, r1, d0);
+        if (lir->mir()->type() == MIRType_Double) {
+            masm.ma_vxfer(r0, r1, d0);
         }
 #endif
-    }
+}
 
     bool visitEffectiveAddress(LEffectiveAddress *ins);
     bool visitUDiv(LUDiv *ins);

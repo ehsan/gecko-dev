@@ -11,7 +11,7 @@
 #include <QImageWriter>
 #include <QBuffer>
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsClipboard.h"
 #include "nsISupportsPrimitives.h"

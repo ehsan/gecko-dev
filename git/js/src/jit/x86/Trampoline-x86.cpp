@@ -687,7 +687,7 @@ JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         if (cx->runtime()->jitSupportsFloatingPoint)
             masm.Pop(ReturnFloatReg);
         else
-            masm.assumeUnreachable("Unable to pop to float reg, with no FP support.");
+            masm.assume_unreachable("Unable to pop to float reg, with no FP support.");
         break;
 
       default:

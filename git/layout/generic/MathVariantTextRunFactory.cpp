@@ -4,12 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MathVariantTextRunFactory.h"
-
-#include "mozilla/ArrayUtils.h"
- 
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsTextFrameUtils.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla;
 
