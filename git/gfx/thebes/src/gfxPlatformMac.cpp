@@ -129,9 +129,9 @@ gfxPlatformMac::LookupLocalFont(const nsAString& aFontName)
 }
 
 gfxFontEntry* 
-gfxPlatformMac::MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength)
+gfxPlatformMac::MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData)
 {
-    return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData, aLength);
+    return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData);
 }
 
 PRBool
