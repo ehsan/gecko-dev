@@ -3914,13 +3914,11 @@ var XULBrowserWindow = {
   onProgressChange: function (aWebProgress, aRequest,
                               aCurSelfProgress, aMaxSelfProgress,
                               aCurTotalProgress, aMaxTotalProgress) {
-    // Check this._busyUI to be safe, because we don't want to update
-    // the progress meter when restoring a page from bfcache.
-    if (aMaxTotalProgress > 0 && this._busyUI) {
+    if (aMaxTotalProgress > 0) {
       // This is highly optimized.  Don't touch this code unless
       // you are intimately familiar with the cost of setting
       // attrs on XUL elements. -- hyatt
-      let percentage = (aCurTotalProgress * 100) / aMaxTotalProgress;
+      var percentage = (aCurTotalProgress * 100) / aMaxTotalProgress;
       this.statusMeter.value = percentage;
     }
   },
@@ -3934,8 +3932,8 @@ var XULBrowserWindow = {
   },
 
   onStateChange: function (aWebProgress, aRequest, aStateFlags, aStatus) {
-    const nsIWebProgressListener = Ci.nsIWebProgressListener;
-    const nsIChannel = Ci.nsIChannel;
+    const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
+    const nsIChannel = Components.interfaces.nsIChannel;
     if (aStateFlags & nsIWebProgressListener.STATE_START) {
       // This (thanks to the filter) is a network start or the first
       // stray request (the first request outside of the document load),
@@ -3948,25 +3946,22 @@ var XULBrowserWindow = {
 
       this.isBusy = true;
 
-      if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
-        this._busyUI = true;
-
+      if (this.throbberElement) {
         // Turn the throbber on.
-        if (this.throbberElement)
-          this.throbberElement.setAttribute("busy", "true");
-
-        // Turn the status meter on.
-        this.statusMeter.value = 0;  // be sure to clear the progress bar
-        if (gProgressCollapseTimer) {
-          window.clearTimeout(gProgressCollapseTimer);
-          gProgressCollapseTimer = null;
-        }
-        else
-          this.statusMeter.parentNode.collapsed = false;
-
-        // XXX: This needs to be based on window activity...
-        this.stopCommand.removeAttribute("disabled");
+        this.throbberElement.setAttribute("busy", "true");
       }
+
+      // Turn the status meter on.
+      this.statusMeter.value = 0;  // be sure to clear the progress bar
+      if (gProgressCollapseTimer) {
+        window.clearTimeout(gProgressCollapseTimer);
+        gProgressCollapseTimer = null;
+      }
+      else
+        this.statusMeter.parentNode.collapsed = false;
+
+      // XXX: This needs to be based on window activity...
+      this.stopCommand.removeAttribute("disabled");
     }
     else if (aStateFlags & nsIWebProgressListener.STATE_STOP) {
       if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
@@ -4020,20 +4015,16 @@ var XULBrowserWindow = {
 
       this.isBusy = false;
 
-      if (this._busyUI) {
-        this._busyUI = false;
+      // Turn the progress meter and throbber off.
+      gProgressCollapseTimer = window.setTimeout(function () {
+        gProgressMeterPanel.collapsed = true;
+        gProgressCollapseTimer = null;
+      }, 100);
 
-        // Turn the progress meter and throbber off.
-        gProgressCollapseTimer = window.setTimeout(function () {
-          gProgressMeterPanel.collapsed = true;
-          gProgressCollapseTimer = null;
-        }, 100);
+      if (this.throbberElement)
+        this.throbberElement.removeAttribute("busy");
 
-        if (this.throbberElement)
-          this.throbberElement.removeAttribute("busy");
-
-        this.stopCommand.setAttribute("disabled", "true");
-      }
+      this.stopCommand.setAttribute("disabled", "true");
     }
   },
 
