@@ -5,7 +5,6 @@
 package org.mozilla.gecko.fxa.tasks;
 
 import java.io.UnsupportedEncodingException;
-import java.util.Map;
 
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.fxa.FxAccountClient;
@@ -21,8 +20,8 @@ public class FxAccountSignInTask extends FxAccountSetupTask<LoginResponse> {
   protected final byte[] emailUTF8;
   protected final PasswordStretcher passwordStretcher;
 
-  public FxAccountSignInTask(Context context, ProgressDisplay progressDisplay, String email, PasswordStretcher passwordStretcher, FxAccountClient client, Map<String, String> queryParameters, RequestDelegate<LoginResponse> delegate) throws UnsupportedEncodingException {
-    super(context, progressDisplay, client, queryParameters, delegate);
+  public FxAccountSignInTask(Context context, ProgressDisplay progressDisplay, String email, PasswordStretcher passwordStretcher, FxAccountClient client, RequestDelegate<LoginResponse> delegate) throws UnsupportedEncodingException {
+    super(context, progressDisplay, client, delegate);
     this.emailUTF8 = email.getBytes("UTF-8");
     this.passwordStretcher = passwordStretcher;
   }
@@ -30,7 +29,7 @@ public class FxAccountSignInTask extends FxAccountSetupTask<LoginResponse> {
   @Override
   protected InnerRequestDelegate<LoginResponse> doInBackground(Void... arg0) {
     try {
-      client.loginAndGetKeys(emailUTF8, passwordStretcher, queryParameters, innerDelegate);
+      client.loginAndGetKeys(emailUTF8, passwordStretcher, innerDelegate);
       latch.await();
       return innerDelegate;
     } catch (Exception e) {

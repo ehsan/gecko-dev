@@ -4,8 +4,10 @@
 
 package org.mozilla.gecko.background.fxa;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.util.concurrent.Executor;
 
 import org.json.simple.JSONObject;
@@ -51,20 +53,12 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
 
   // Public for testing only; prefer login and loginAndGetKeys (without boolean parameter).
   public void login(final byte[] emailUTF8, final byte[] quickStretchedPW, final boolean getKeys,
-      final Map<String, String> queryParameters,
       final RequestDelegate<LoginResponse> delegate) {
-    final BaseResource resource;
-    final JSONObject body;
+    BaseResource resource;
+    JSONObject body;
+    final String path = getKeys ? "account/login?keys=true" : "account/login";
     try {
-      final String path = "account/login";
-      final Map<String, String> modifiedParameters = new HashMap<>();
-      if (queryParameters != null) {
-        modifiedParameters.putAll(queryParameters);
-      }
-      if (getKeys) {
-        modifiedParameters.put("keys", "true");
-      }
-      resource = getBaseResource(path, modifiedParameters);
+      resource = new BaseResource(new URI(serverURI + path));
       body = new FxAccount20LoginDelegate(emailUTF8, quickStretchedPW).getCreateBody();
     } catch (Exception e) {
       invokeHandleError(delegate, e);
@@ -102,23 +96,35 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
     post(resource, body, delegate);
   }
 
+  /**
+   * Create account/create URI, encoding query parameters carefully.
+   * <p>
+   * This is equivalent to <code>android.net.Uri.Builder</code>, which is not
+   * present in our JUnit 4 tests.
+   */
+  protected URI getCreateAccountURI(final boolean getKeys, final String service) throws UnsupportedEncodingException, URISyntaxException {
+    if (service == null) {
+      throw new IllegalArgumentException("service must not be null");
+    }
+    final StringBuilder sb = new StringBuilder(serverURI); // serverURI always has a trailing slash.
+    sb.append("account/create?service=");
+    // Be very careful that query parameters are encoded correctly!
+    sb.append(URLEncoder.encode(service, "UTF-8"));
+    if (getKeys) {
+      sb.append("&keys=true");
+    }
+    return new URI(sb.toString());
+  }
+
   public void createAccount(final byte[] emailUTF8, final byte[] quickStretchedPW,
       final boolean getKeys,
       final boolean preVerified,
-      final Map<String, String> queryParameters,
+      final String service,
       final RequestDelegate<LoginResponse> delegate) {
     final BaseResource resource;
     final JSONObject body;
     try {
-      final String path = "account/create";
-      final Map<String, String> modifiedParameters = new HashMap<>();
-      if (queryParameters != null) {
-        modifiedParameters.putAll(queryParameters);
-      }
-      if (getKeys) {
-        modifiedParameters.put("keys", "true");
-      }
-      resource = getBaseResource(path, modifiedParameters);
+      resource = new BaseResource(getCreateAccountURI(getKeys, service));
       body = new FxAccount20CreateDelegate(emailUTF8, quickStretchedPW, preVerified).getCreateBody();
     } catch (Exception e) {
       invokeHandleError(delegate, e);
@@ -157,18 +163,18 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
   }
 
   @Override
-  public void createAccountAndGetKeys(byte[] emailUTF8, PasswordStretcher passwordStretcher, final Map<String, String> queryParameters, RequestDelegate<LoginResponse> delegate) {
+  public void createAccountAndGetKeys(byte[] emailUTF8, PasswordStretcher passwordStretcher, RequestDelegate<LoginResponse> delegate) {
     try {
       byte[] quickStretchedPW = passwordStretcher.getQuickStretchedPW(emailUTF8);
-      createAccount(emailUTF8, quickStretchedPW, true, false, queryParameters, delegate);
+      createAccount(emailUTF8, quickStretchedPW, true, false, "sync", delegate);
     } catch (Exception e) {
       invokeHandleError(delegate, e);
     }
   }
 
   @Override
-  public void loginAndGetKeys(byte[] emailUTF8, PasswordStretcher passwordStretcher, final Map<String, String> queryParameters, RequestDelegate<LoginResponse> delegate) {
-    login(emailUTF8, passwordStretcher, true, queryParameters, delegate);
+  public void loginAndGetKeys(byte[] emailUTF8, PasswordStretcher passwordStretcher, RequestDelegate<LoginResponse> delegate) {
+    login(emailUTF8, passwordStretcher, true, delegate);
   }
 
   /**
@@ -192,12 +198,10 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
    * @param getKeys
    *          true if a <code>keyFetchToken</code> should be returned (in
    *          addition to the standard <code>sessionToken</code>).
-   * @param queryParameters
    * @param delegate
    *          to invoke callbacks.
    */
   public void login(final byte[] emailUTF8, final PasswordStretcher stretcher, final boolean getKeys,
-      final Map<String, String> queryParameters,
       final RequestDelegate<LoginResponse> delegate) {
     byte[] quickStretchedPW;
     try {
@@ -208,7 +212,7 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
       return;
     }
 
-    this.login(emailUTF8, quickStretchedPW, getKeys, queryParameters, new RequestDelegate<LoginResponse>() {
+    this.login(emailUTF8, quickStretchedPW, getKeys, new RequestDelegate<LoginResponse>() {
       @Override
       public void handleSuccess(LoginResponse result) {
         delegate.handleSuccess(result);
@@ -235,7 +239,7 @@ public class FxAccountClient20 extends FxAccountClient10 implements FxAccountCli
           // signature here, which invokes a non-retrying version.
           byte[] alternateEmailUTF8 = alternateEmail.getBytes("UTF-8");
           byte[] alternateQuickStretchedPW = stretcher.getQuickStretchedPW(alternateEmailUTF8);
-          login(alternateEmailUTF8, alternateQuickStretchedPW, getKeys, queryParameters, delegate);
+          login(alternateEmailUTF8, alternateQuickStretchedPW, getKeys, delegate);
         } catch (Exception innerException) {
           delegate.handleError(innerException);
           return;
