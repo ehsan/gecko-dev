@@ -164,6 +164,8 @@ private:
     nsAHttpTransaction             *mTransaction; // hard ref
     nsHttpConnectionInfo           *mConnInfo;    // hard ref
 
+    PRLock                         *mLock;
+
     PRUint32                        mLastReadTime;
     PRUint16                        mMaxHangTime;    // max download time before dropping keep-alive status
     PRUint16                        mIdleTimeout;    // value of keep-alive: timeout=

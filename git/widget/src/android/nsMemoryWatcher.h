@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: c++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 4; -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,16 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ *   Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Benjamin Smedberg <benjamin@smedbergs.us>
- *   Taras Glek <tglek@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,64 +35,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_FileUtils_h
-#define mozilla_FileUtils_h
+#ifndef nsMemoryWatcher_h__
+#define nsMemoryWatcher_h__
 
-#if defined(XP_UNIX)
-# include <unistd.h>
-#elif defined(XP_WIN)
-# include <io.h>
-#endif
-#include "prio.h"
+#include <stdio.h>
+#include <prtime.h>
+#include <prinrval.h>
+#include <nsCOMPtr.h>
+#include <nsITimer.h>
 
-namespace mozilla {
-
-/**
- * AutoFDClose is a RAII wrapper for PRFileDesc.
- **/
-class AutoFDClose
+class nsMemoryWatcher : public nsITimerCallback
 {
 public:
-  AutoFDClose(PRFileDesc* fd = nsnull) : mFD(fd) { }
-  ~AutoFDClose() { if (mFD) PR_Close(mFD); }
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSITIMERCALLBACK
 
-  PRFileDesc* operator= (PRFileDesc *fd) {
-    if (mFD) PR_Close(mFD);
-    mFD = fd;
-    return fd;
-  }
+    nsMemoryWatcher();
+    virtual ~nsMemoryWatcher();
 
-  operator PRFileDesc* () { return mFD; }
-  PRFileDesc** operator &() { *this = nsnull; return &mFD; }
+    void StartWatching();
+    void StopWatching();
 
 private:
-  PRFileDesc *mFD;
+    long mTimerInterval;
+    long mLowWaterMark;
+    long mHighWaterMark;
+    PRIntervalTime mLastLowNotification;
+    PRIntervalTime mLastHighNotification;
+    nsCOMPtr<nsITimer> mTimer;
+    FILE* mMemInfoFile;
 };
 
-/**
- * Instances close() their fds when they go out of scope.
- */
-struct ScopedClose
-{
-  ScopedClose(int aFd=-1) : mFd(aFd) {}
-  ~ScopedClose() {
-    if (0 <= mFd) {
-      close(mFd);
-    }
-  }
-  int mFd;
-};
-
-/**
- * Fallocate efficiently and continuously allocates files via fallocate-type APIs.
- * This is useful for avoiding fragmentation.
- * On sucess the file be padded with zeros to grow to aLength.
- *
- * @param aFD file descriptor.
- * @param aLength length of file to grow to.
- * @return true on success.
- */
-NS_COM_GLUE bool fallocate(PRFileDesc *aFD, PRInt64 aLength);
-
-} // namespace mozilla
-#endif
+#endif /* nsMemoryWatcher_h__ */
