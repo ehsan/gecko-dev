@@ -100,7 +100,8 @@ class nsIDOMNSEvent;
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIPhonetic
+                 public nsIPhonetic,
+                 public nsIEditor_MOZILLA_2_0_BRANCH
 {
 public:
 
@@ -155,6 +156,9 @@ public:
   
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
+
+  // nsIEditor_MOZILLA_2_0_BRANCH
+  NS_DECL_NSIEDITOR_MOZILLA_2_0_BRANCH
 
 public:
 
