@@ -92,7 +92,7 @@ ModifierKeyState::Update()
     mModifiers |= MODIFIER_ALT;
   }
   if (IS_VK_DOWN(VK_LWIN) || IS_VK_DOWN(VK_RWIN)) {
-    mModifiers |= MODIFIER_OS;
+    mModifiers |= MODIFIER_WIN;
   }
   if (::GetKeyState(VK_CAPITAL) & 1) {
     mModifiers |= MODIFIER_CAPSLOCK;
@@ -101,7 +101,7 @@ ModifierKeyState::Update()
     mModifiers |= MODIFIER_NUMLOCK;
   }
   if (::GetKeyState(VK_SCROLL) & 1) {
-    mModifiers |= MODIFIER_SCROLLLOCK;
+    mModifiers |= MODIFIER_SCROLL;
   }
 
   EnsureAltGr();

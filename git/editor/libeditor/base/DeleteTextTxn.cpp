@@ -40,7 +40,7 @@ DeleteTextTxn::Init(nsEditor* aEditor,
                     PRUint32 aNumCharsToDelete,
                     nsRangeUpdater* aRangeUpdater)
 {
-  MOZ_ASSERT(aEditor && aCharData);
+  MOZ_ASSERT(aEditor && aCharData && aNumCharsToDelete);
 
   mEditor = aEditor;
   mCharData = aCharData;

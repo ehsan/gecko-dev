@@ -1190,7 +1190,7 @@ StackIter::popFrame()
 void
 StackIter::popCall()
 {
-    DebugOnly<CallArgsList*> oldCall = calls_;
+    CallArgsList *oldCall = calls_;
     JS_ASSERT(seg_->contains(oldCall));
     calls_ = calls_->prev();
     if (!seg_->contains(fp_))

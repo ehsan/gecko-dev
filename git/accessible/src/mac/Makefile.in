@@ -48,7 +48,5 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../xul \
   -I$(topsrcdir)/widget/cocoa \
   -I$(topsrcdir)/widget/xpwidgets \
-  -I$(topsrcdir)/layout/xul/base/src \
-  -I$(topsrcdir)/layout/generic \
   $(NULL)
 

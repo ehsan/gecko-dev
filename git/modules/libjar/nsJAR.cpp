@@ -806,7 +806,7 @@ void nsJAR::ReportError(const nsACString &aFilename, PRInt16 errorCode)
   nsAutoString message; 
   message.AssignLiteral("Signature Verification Error: the signature on ");
   if (!aFilename.IsEmpty())
-    AppendASCIItoUTF16(aFilename, message);
+    message.AppendWithConversion(aFilename);
   else
     message.AppendLiteral("this .jar archive");
   message.AppendLiteral(" is invalid because ");

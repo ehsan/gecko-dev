@@ -1234,7 +1234,7 @@ JSObject::global() const
     JSObject *obj = const_cast<JSObject *>(this);
     while (JSObject *parent = obj->getParent())
         obj = parent;
-    JS_ASSERT(&obj->asGlobal() == compartment()->maybeGlobal());
+    JS_ASSERT(obj->asGlobal() == compartment()->global());
     return obj->asGlobal();
 }
 

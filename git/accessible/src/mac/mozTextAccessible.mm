@@ -5,7 +5,6 @@
 
 
 #include "AccessibleWrap.h"
-#include "TextLeafAccessible.h"
 
 #include "nsCocoaUtils.h"
 #include "nsObjCExceptions.h"
@@ -68,7 +67,7 @@ ToNSString(id aValue)
 
 - (BOOL)accessibilityIsIgnored
 {
-  return !mGeckoAccessible;
+  return mIsExpired;
 }
 
 - (NSArray*)accessibilityAttributeNames
@@ -111,18 +110,13 @@ ToNSString(id aValue)
   if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute])
     return [self selectedText];
 
-  if ([attribute isEqualToString:NSAccessibilityTitleAttribute])
-    return @"";
-
   if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
     // Apple's SpeechSynthesisServer expects AXValue to return an AXStaticText
     // object's AXSelectedText attribute. See bug 674612 for details.
     // Also if there is no selected text, we return the full text. 
     // See bug 369710 for details.
-    if ([[self role] isEqualToString:NSAccessibilityStaticTextRole]) {
-      NSString* selectedText = [self selectedText];
-      return (selectedText && [selectedText length]) ? selectedText : [self text];
-    }
+    if ([[self role] isEqualToString:NSAccessibilityStaticTextRole])
+      return [self selectedText] ? : [self text];
 
     return [self text];
   }
@@ -232,7 +226,7 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if ([attribute isEqualToString:NSAccessibilityValueAttribute])
-    return ![self isReadOnly];
+    return [self isReadOnly];
   
   if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute] ||
       [attribute isEqualToString:NSAccessibilitySelectedTextRangeAttribute] ||
@@ -365,7 +359,7 @@ ToNSString(id aValue)
 
 - (NSString*)text
 {
-  if (!mGeckoAccessible || !mGeckoTextAccessible)
+  if (!mGeckoTextAccessible)
     return nil;
 
   // A password text field returns an empty value
@@ -383,9 +377,6 @@ ToNSString(id aValue)
 - (long)textLength
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (!mGeckoAccessible || !mGeckoTextAccessible)
-    return 0;
 
   return mGeckoTextAccessible ? mGeckoTextAccessible->CharacterCount() : 0;
 
@@ -490,48 +481,6 @@ ToNSString(id aValue)
   mGeckoTextAccessible->GetText(range->location, 
                                 range->location + range->length, text);
   return nsCocoaUtils::ToNSString(text);
-}
-
-@end
-
-@implementation mozTextLeafAccessible
-
-- (NSArray*)accessibilityAttributeNames
-{
-  static NSMutableArray* supportedAttributes = nil;
-  if (!supportedAttributes) {
-    supportedAttributes = [[super accessibilityAttributeNames] mutableCopy];
-    [supportedAttributes removeObject:NSAccessibilityChildrenAttribute];
-  }
-
-  return supportedAttributes;
-}
-
-- (id)accessibilityAttributeValue:(NSString*)attribute
-{
-  if ([attribute isEqualToString:NSAccessibilityTitleAttribute])
-    return @"";
-
-  if ([attribute isEqualToString:NSAccessibilityValueAttribute])
-    return [self text];
-
-  return [super accessibilityAttributeValue:attribute];
-}
-
-- (NSString*)text
-{
-  if (!mGeckoAccessible)
-    return nil;
-
-  return nsCocoaUtils::ToNSString(mGeckoAccessible->AsTextLeaf()->Text());
-}
-
-- (long)textLength
-{
-  if (!mGeckoAccessible)
-    return 0;
-
-  return mGeckoAccessible->AsTextLeaf()->Text().Length();
 }
 
 @end

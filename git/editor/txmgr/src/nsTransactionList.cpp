@@ -104,9 +104,7 @@ NS_IMETHODIMP nsTransactionList::GetItem(PRInt32 aIndex, nsITransaction **aItem)
 
   NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
 
-  *aItem = item->GetTransaction().get();
-
-  return NS_OK;
+  return item->GetTransaction(aItem);
 }
 
 /* long getNumChildrenForItem (in long aIndex); */

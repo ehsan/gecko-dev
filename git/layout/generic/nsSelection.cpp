@@ -3981,12 +3981,12 @@ Selection::SelectAllFramesForContent(nsIContentIterator* aInnerIter,
 }
 
 /**
- * The idea of this helper method is to select or deselect "top to bottom",
+ * The idea of this helper method is to select, deselect "top to bottom"
  * traversing through the frames
  */
 nsresult
 Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
-                        bool aSelect)
+                        bool aFlags)
 {
   if (!mFrameSelection || !aPresContext || !aPresContext->GetPresShell()) {
     // nothing to do
@@ -4025,7 +4025,7 @@ Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
       } else {
         endOffset = content->Length();
       }
-      textFrame->SetSelectedRange(startOffset, endOffset, aSelect, mType);
+      textFrame->SetSelectedRange(startOffset, endOffset, aFlags, mType);
     }
   }
 
@@ -4033,7 +4033,7 @@ Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
   nsCOMPtr<nsIContentIterator> inneriter = NS_NewContentIterator();
   for (iter->First(); !iter->IsDone(); iter->Next()) {
     content = do_QueryInterface(iter->GetCurrentNode());
-    SelectAllFramesForContent(inneriter, content, aSelect);
+    SelectAllFramesForContent(inneriter, content, aFlags);
   }
 
   // We must now do the last one if it is not the same as the first
@@ -4048,7 +4048,7 @@ Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
       // The frame could be an SVG text frame, in which case we'll ignore it.
       if (frame && frame->GetType() == nsGkAtoms::textFrame) {
         nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-        textFrame->SetSelectedRange(0, aRange->EndOffset(), aSelect, mType);
+        textFrame->SetSelectedRange(0, aRange->EndOffset(), aFlags, mType);
       }
     }
   }
@@ -4703,7 +4703,6 @@ Selection::SetAnchorFocusToRange(nsRange* aRange)
 void
 Selection::ReplaceAnchorFocusRange(nsRange* aRange)
 {
-  NS_ENSURE_TRUE(mAnchorFocusRange, );
   nsRefPtr<nsPresContext> presContext;
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {

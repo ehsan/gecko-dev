@@ -769,6 +769,7 @@ protected:
   nsresult ScheduleNextIdleObserverCallback();
   PRUint32 GetFuzzTimeMS();
   nsresult ScheduleActiveTimerCallback();
+  nsresult ScheduleIdleTimerCallback();
   PRUint32 FindInsertionIndex(IdleObserverHolder* aIdleObserver);
   virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserverPtr);
   nsresult FindIndexOfElementToRemove(nsIIdleObserver* aIdleObserver,

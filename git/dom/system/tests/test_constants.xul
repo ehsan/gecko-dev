@@ -46,26 +46,23 @@ function test() {
   worker = new ChromeWorker("worker_constants.js");
   SimpleTest.waitForExplicitFinish();
   ok(true, "test_constants.xul: Chrome worker created");
-  worker.onerror = function onerror(error) {
+  worker.onerror = function(error) {
     error.preventDefault();
-    ok(false, "error " + error);
+    ok(false, "error "+error);
   }
-  worker.onmessage = function onmessage(msg) {
+  worker.onmessage = function(msg) {
     switch (msg.data.kind) {
     case "is":
-      SimpleTest.is(msg.data.a, msg.data.b, msg.data.description);
-      return;
+      return SimpleTest.is(msg.data.a, msg.data.b, msg.data.description);
     case "isnot":
-      SimpleTest.isnot(msg.data.a, msg.data.b, msg.data.description);
-      return;
+      return SimpleTest.isnot(msg.data.a, msg.data.b, msg.data.description);
     case "ok":
-      SimpleTest.ok(msg.data.condition, msg.data.description);
-      return;
+      return SimpleTest.ok(msg.data.condition, msg.data.description);
     case "finish":
       SimpleTest.finish();
       return;
     default:
-      SimpleTest.ok(false, "test_constants.xul: wrong message " + JSON.stringify(msg.data));
+      SimpleTest.ok(false, "test_constants.xul: wrong message "+JSON.stringify(msg.data));
       return;
     }
   };

@@ -1274,7 +1274,12 @@ PluginModuleParent::OnCrash(DWORD processID, const nsAString& aDumpID)
         NS_ERROR("Got minidump for Flash process neither broker nor sandbox.");
     }
 
-    GetIPCChannel()->CloseWithError();
+    CrashReporter::AppendExtraData(aDumpID, notes);
+    MessageLoop::current()->PostTask(
+        FROM_HERE,
+        mTaskFactory.NewRunnableMethod(
+            &PluginModuleParent::CleanupFromTimeout));
+
     KillProcess(OtherProcess(), 1, false);
 }
 
