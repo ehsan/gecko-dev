@@ -828,7 +828,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
         if (source) {
             /*
              * Save eval program source in script->atomMap.vector[0] for the
-             * eval cache (see obj_eval in jsobj.cpp).
+             * eval cache (see EvalCacheLookup in jsobj.cpp).
              */
             JSAtom *atom = js_AtomizeString(cx, source, 0);
             if (!atom || !cg.atomList.add(&parser, atom))
@@ -864,11 +864,6 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     bool onlyXML;
     onlyXML = true;
 #endif
-
-    CG_SWITCH_TO_PROLOG(&cg);
-    if (js_Emit1(cx, &cg, JSOP_TRACE) < 0)
-        goto out;
-    CG_SWITCH_TO_MAIN(&cg);
 
     inDirectivePrologue = true;
     for (;;) {
@@ -5766,6 +5761,7 @@ Parser::statement()
                                     (tc->maxScopeDepth = tc->scopeDepth));
 
             obj->setParent(tc->blockChain());
+            blockbox->parent = tc->blockChainBox;
             tc->blockChainBox = blockbox;
             stmt->blockBox = blockbox;
 

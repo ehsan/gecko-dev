@@ -1219,7 +1219,7 @@ NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
 NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size,
                                         GetDefaultSize())
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, TabIndex, tabindex, 0)
+NS_IMPL_INT_ATTR(nsHTMLSelectElement, TabIndex, tabindex)
 
 NS_IMETHODIMP
 nsHTMLSelectElement::Blur()
@@ -1490,10 +1490,10 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
 }
 
-PRInt32
+nsEventStates
 nsHTMLSelectElement::IntrinsicState() const
 {
-  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLFormElement::IntrinsicState();
 
   if (IsCandidateForConstraintValidation()) {
     state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
@@ -2098,7 +2098,7 @@ nsHTMLSelectElement::UpdateBarredFromConstraintValidation()
 }
 
 void
-nsHTMLSelectElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+nsHTMLSelectElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify)
 {
   UpdateBarredFromConstraintValidation();
 

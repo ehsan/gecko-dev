@@ -974,14 +974,21 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
         cursor += sizeof(JSTryNoteArray);
     }
     if (nglobals != 0) {
-        JS_ASSERT((cursor - (uint8*)script) <= 0xFF);
         script->globalsOffset = (uint8)(cursor - (uint8 *)script);
         cursor += sizeof(GlobalSlotArray);
     }
+    JS_ASSERT((cursor - (uint8 *)script) <= 0xFF);
     if (nconsts != 0) {
         script->constOffset = (uint8)(cursor - (uint8 *)script);
         cursor += sizeof(JSConstArray);
     }
+
+    JS_STATIC_ASSERT(sizeof(JSScript) +
+                     sizeof(JSObjectArray) +
+                     sizeof(JSUpvarArray) +
+                     sizeof(JSObjectArray) +
+                     sizeof(JSTryNoteArray) +
+                     sizeof(GlobalSlotArray) <= 0xFF);
 
     if (natoms != 0) {
         script->atomMap.length = natoms;
@@ -1090,7 +1097,8 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     mainLength = CG_OFFSET(cg);
     prologLength = CG_PROLOG_OFFSET(cg);
 
-    if (prologLength + mainLength <= 3) {
+    if (prologLength + mainLength <= 3 &&
+        !(cg->flags & TCF_IN_FUNCTION)) {
         /*
          * Check very short scripts to see whether they are "empty" and return
          * the const empty-script singleton if so.

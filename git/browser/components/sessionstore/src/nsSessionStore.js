@@ -2620,17 +2620,14 @@ SessionStoreService.prototype = {
       browser.__SS_restore_pageStyle = tabData.pageStyle || "";
       browser.__SS_restore_tab = aTab;
 
+      didStartLoad = true;
       try {
-        didStartLoad = true;
-        // Get the tab title (set in restoreHistoryPrecursor) for later
-        let label = aTab.label;
         browser.webNavigation.gotoIndex(activeIndex);
-        // gotoIndex will force the "loading" string, so set the title
-        aTab.label = label;
       }
       catch (ex) {
         // ignore page load errors
         aTab.removeAttribute("busy");
+        didStartLoad = false;
       }
     }
 

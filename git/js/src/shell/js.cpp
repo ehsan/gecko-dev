@@ -151,6 +151,8 @@ static volatile bool gCanceled = false;
 static bool enableTraceJit = false;
 static bool enableMethodJit = false;
 
+static bool printTiming = false;
+
 static JSBool
 SetTimeoutValue(JSContext *cx, jsdouble t);
 
@@ -436,13 +438,18 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
         }
         ungetc(ch, file);
 
+        int64 t1 = PRMJ_Now();
         oldopts = JS_GetOptions(cx);
         JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
         script = JS_CompileFileHandle(cx, obj, filename, file);
         JS_SetOptions(cx, oldopts);
         if (script) {
-            if (!compileOnly)
+            if (!compileOnly) {
                 (void)JS_ExecuteScript(cx, obj, script, NULL);
+                int64 t2 = PRMJ_Now() - t1;
+                if (printTiming)
+                    printf("runtime = %.3f ms\n", double(t2) / PRMJ_USEC_PER_MSEC);
+            }
             JS_DestroyScript(cx, script);
         }
 
@@ -560,7 +567,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: js [-zKPswWxCijmd] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] [-g sleep-seconds-on-startup]"
+    fprintf(gErrFile, "usage: js [-zKPswWxCijmdb] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] [-g sleep-seconds-on-startup]"
 #ifdef JS_GC_ZEAL
 "[-Z gczeal] "
 #endif
@@ -734,6 +741,10 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             JS_ToggleOptions(cx, JSOPTION_XML);
             break;
 
+        case 'b':
+            printTiming = true;
+            break;
+            
         case 'j':
             enableTraceJit = !enableTraceJit;
             JS_ToggleOptions(cx, JSOPTION_JIT);
@@ -4072,38 +4083,6 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
-static JSBool
-Snarl(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
-                             "compile", "0", "s");
-    }
-
-    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
-    if (!thisobj)
-        return JS_FALSE;
-
-    jsval arg0 = JS_ARGV(cx, vp)[0];
-    if (!JSVAL_IS_STRING(arg0)) {
-        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
-        JS_ReportError(cx, "expected string to compile, got %s", typeName);
-        return JS_FALSE;
-    }
-
-    JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    JSScript *script = JS_CompileUCScript(cx, NULL, JS_GetStringCharsZ(cx, scriptContents),
-                                          JS_GetStringLength(scriptContents), "<string>", 0);
-    if (!script)
-        return JS_FALSE;
-
-    JS_ExecuteScript(cx, thisobj, script, NULL);
-    JS_DestroyScript(cx, script);
-
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return JS_TRUE;
-}
-
 JSBool
 Wrap(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -4254,7 +4233,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("scatter",        Scatter,        1,0),
 #endif
     JS_FN("snarf",          Snarf,          0,0),
-    JS_FN("snarl",          Snarl,          0,0),
     JS_FN("read",           Snarf,          0,0),
     JS_FN("compile",        Compile,        1,0),
     JS_FN("parse",          Parse,          1,0),
@@ -4380,7 +4358,6 @@ static const char *const shell_help_messages[] = {
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
 "snarf(filename)          Read filename into returned string",
-"snarl(codestring)        Eval code, without being eval.",
 "read(filename)           Synonym for snarf",
 "compile(code)            Compiles a string to bytecode, potentially throwing",
 "parse(code)              Parses a string, potentially throwing",

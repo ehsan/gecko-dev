@@ -404,20 +404,6 @@ js_ConcatStrings(JSContext *cx, JSString *left, JSString *right)
     return FinishConcat(cx, leftRopeTop, rightRopeTop, left, right, length, buf);
 }
 
-JSString * JS_FASTCALL
-js_ConcatStringsZ(JSContext *cx, const char *left, JSString *right)
-{
-    const size_t leftLength = strlen(left);
-    const size_t newLength = leftLength + right->length();
-    const size_t newSize = (newLength + 1) * sizeof(jschar);
-    jschar *chars = static_cast<jschar *>(cx->malloc(newSize));
-    for (size_t i = 0; i < leftLength; ++i)
-        chars[i] = left[i];
-    js_strncpy(chars + leftLength, right->chars(), right->length());
-    JSString *str = js_NewString(cx, chars, newLength);
-    return str;
-}
-
 const jschar *
 JSString::undepend(JSContext *cx)
 {
@@ -3945,6 +3931,9 @@ js_GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars, size_t nchars
         if (0xD800 <= c && c <= 0xDFFF) {
             /* Surrogate pair. */
             chars++;
+
+            /* nbytes sets 1 length since this is surrogate pair. */
+            nbytes--;
             if (c >= 0xDC00 || chars == end)
                 goto bad_surrogate;
             c2 = *chars;
