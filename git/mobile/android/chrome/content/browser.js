@@ -543,18 +543,6 @@ var BrowserApp = {
         aTarget.mozRequestFullScreen();
       });
 
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.mute"),
-      NativeWindow.contextmenus.mediaContext("media-unmuted"),
-      function(aTarget) {
-        aTarget.muted = true;
-      });
-  
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.unmute"),
-      NativeWindow.contextmenus.mediaContext("media-muted"),
-      function(aTarget) {
-        aTarget.muted = false;
-      });
-
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyImageLocation"),
       NativeWindow.contextmenus.imageLocationCopyableContext,
       function(aTarget) {
@@ -1953,12 +1941,6 @@ var NativeWindow = {
               return true;
             let controls = aElt.controls;
             if (!controls && aMode == "media-hidingcontrols")
-              return true;
-
-            let muted = aElt.muted;
-            if (muted && aMode == "media-muted")
-              return true;
-            else if (!muted && aMode == "media-unmuted")
               return true;
           }
           return false;

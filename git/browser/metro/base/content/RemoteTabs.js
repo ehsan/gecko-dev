@@ -131,8 +131,9 @@ let RemoteTabsPanelView = {
 
   init: function init() {
     //decks are fragile, don't hide the tab panel(bad things happen), hide link in menu.
+    let menuEntry = document.getElementById("menuitem-remotetabs");
     let snappedEntry = document.getElementById("snappedRemoteTabsLabel");
-    let uiList = [snappedEntry];
+    let uiList = [menuEntry, snappedEntry];
     this._view = new RemoteTabsView(this._grid, uiList);
   },
 

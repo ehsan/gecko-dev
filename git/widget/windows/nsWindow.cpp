@@ -141,11 +141,6 @@
 #include <richedit.h>
 
 #if defined(ACCESSIBILITY)
-
-#ifdef DEBUG
-#include "mozilla/a11y/Logging.h"
-#endif
-
 #include "oleidl.h"
 #include <winuser.h>
 #include "nsAccessibilityService.h"
@@ -6644,19 +6639,20 @@ nsWindow::GetIMEUpdatePreference()
 }
 
 #ifdef ACCESSIBILITY
-#ifdef DEBUG
+
+#ifdef DEBUG_WMGETOBJECT
 #define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)                                  \
-  if (a11y::logging::IsEnabled(a11y::logging::ePlatforms)) {                   \
-    printf("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
-           aHwnd, ::GetParent(aHwnd), aWnd);                                   \
-    printf("     acc: %p", aAcc);                                              \
-    if (aAcc) {                                                                \
-      nsAutoString name;                                                       \
-      aAcc->Name(name);                                                        \
-      printf(", accname: %s", NS_ConvertUTF16toUTF8(name).get());              \
-    }                                                                          \
-    printf("\n }\n");                                                          \
-  }
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
+         ("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
+           aHwnd, ::GetParent(aHwnd), aWnd));                                  \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("     acc: %p", aAcc));                  \
+  if (aAcc) {                                                                  \
+    nsAutoString name;                                                         \
+    aAcc->Name(name);                                                          \
+    PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                         \
+           (", accname: %s", NS_ConvertUTF16toUTF8(name).get()));              \
+  }                                                                            \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n }\n"));
 
 #else
 #define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)
@@ -6685,8 +6681,8 @@ nsWindow::GetAccessible()
           GetAccService()->GetDocAccessible(frame->PresContext()->PresShell());
         if (docAcc) {
           NS_LOG_WMGETOBJECT(this, mWnd,
-                             docAcc->GetAccessibleOrDescendant(frame->GetContent()));
-          return docAcc->GetAccessibleOrDescendant(frame->GetContent());
+                             docAcc->GetAccessible(frame->GetContent()));
+          return docAcc->GetAccessible(frame->GetContent());
         }
       }
     }

@@ -32,7 +32,7 @@ static const char *sExtensionNames[] = {
 
 static PRLibrary* LoadApitraceLibrary()
 {
-    static PRLibrary* sApitraceLibrary = nullptr;
+    static PRLibrary* sApitraceLibrary = NULL;
 
     if (sApitraceLibrary)
         return sApitraceLibrary;
@@ -145,7 +145,7 @@ GLLibraryEGL::EnsureInitialized()
 #endif // !Windows
 
 #define SYMBOL(name) \
-{ (PRFuncPtr*) &mSymbols.f##name, { "egl" #name, nullptr } }
+{ (PRFuncPtr*) &mSymbols.f##name, { "egl" #name, NULL } }
 
     GLLibraryLoader::SymLoadStruct earlySymbols[] = {
         SYMBOL(GetDisplay),
@@ -173,7 +173,7 @@ GLLibraryEGL::EnsureInitialized()
         SYMBOL(BindTexImage),
         SYMBOL(ReleaseTexImage),
         SYMBOL(QuerySurface),
-        { nullptr, { nullptr } }
+        { NULL, { NULL } }
     };
 
     if (!GLLibraryLoader::LoadSymbols(mEGLLibrary, &earlySymbols[0])) {
@@ -182,7 +182,7 @@ GLLibraryEGL::EnsureInitialized()
     }
 
     mEGLDisplay = fGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (!fInitialize(mEGLDisplay, nullptr, nullptr))
+    if (!fInitialize(mEGLDisplay, NULL, NULL))
         return false;
 
     const char *vendor = (const char*) fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
@@ -372,7 +372,7 @@ void
 GLLibraryEGL::DumpEGLConfigs()
 {
     int nc = 0;
-    fGetConfigs(mEGLDisplay, nullptr, 0, &nc);
+    fGetConfigs(mEGLDisplay, NULL, 0, &nc);
     EGLConfig *ec = new EGLConfig[nc];
     fGetConfigs(mEGLDisplay, ec, nc, &nc);
 

@@ -35,7 +35,7 @@ public:
     return gl::GLContextProvider::GetSharedHandleAsSurface(mData.mShareType, mData.mHandle);
   }
 
-  SharedTextureImage() : Image(nullptr, SHARED_TEXTURE) {}
+  SharedTextureImage() : Image(NULL, SHARED_TEXTURE) {}
 
 private:
   Data mData;

@@ -228,17 +228,17 @@ public:
   void SetRoot(ShadowableLayer* aRoot);
   /**
    * Insert |aChild| after |aAfter| in |aContainer|.  |aAfter| can be
-   * nullptr to indicated that |aChild| should be appended to the end of
+   * NULL to indicated that |aChild| should be appended to the end of
    * |aContainer|'s child list.
    */
   void InsertAfter(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild,
-                   ShadowableLayer* aAfter = nullptr);
+                   ShadowableLayer* aAfter=NULL);
   void RemoveChild(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild);
   void RepositionChild(ShadowableLayer* aContainer,
                        ShadowableLayer* aChild,
-                       ShadowableLayer* aAfter = nullptr);
+                       ShadowableLayer* aAfter=NULL);
 
   /**
    * Set aMaskLayer as the mask on aLayer.
@@ -472,13 +472,13 @@ public:
 
   /**
    * Return the IPC handle to a Shadow*Layer referring to this if one
-   * exists, nullptr if not.
+   * exists, NULL if not.
    */
   PLayerChild* GetShadow() { return mShadow; }
 
   virtual CompositableClient* GetCompositableClient() { return nullptr; }
 protected:
-  ShadowableLayer() : mShadow(nullptr) {}
+  ShadowableLayer() : mShadow(NULL) {}
 
   PLayerChild* mShadow;
 };

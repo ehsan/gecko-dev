@@ -347,7 +347,7 @@ ContainerRender(Container* aContainer,
 }
 
 ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
-  : ContainerLayer(aManager, nullptr)
+  : ContainerLayer(aManager, NULL)
   , LayerOGL(aManager)
 {
   mImplData = static_cast<LayerOGL*>(this);
