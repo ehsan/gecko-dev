@@ -35,10 +35,6 @@ AssertAppProcess(mozilla::dom::PBrowserParent* aActor,
                  AssertAppProcessType aType,
                  const char* aCapability);
 
-bool
-AssertAppStatus(mozilla::dom::PBrowserParent* aActor,
-                unsigned short aStatus);
-
 /**
  * Return true iff any of the PBrowsers loaded in this content process
  * has the specified capability.  If this returns false, the process
@@ -48,10 +44,6 @@ bool
 AssertAppProcess(mozilla::dom::PContentParent* aActor,
                  AssertAppProcessType aType,
                  const char* aCapability);
-
-bool
-AssertAppStatus(mozilla::dom::PContentParent* aActor,
-                unsigned short aStatus);
 
 bool
 AssertAppProcess(mozilla::hal_sandbox::PHalParent* aActor,
@@ -100,13 +92,6 @@ AssertAppHasPermission(T* aActor,
   return AssertAppProcess(aActor,
                           ASSERT_APP_HAS_PERMISSION,
                           aPermission);
-}
-
-template<typename T>
-inline bool
-AssertAppHasStatus(T* aActor,
-                   unsigned short aStatus) {
-  return AssertAppStatus(aActor, aStatus);
 }
 
 } // namespace mozilla

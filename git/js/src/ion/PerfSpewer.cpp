@@ -9,13 +9,13 @@
 # include <unistd.h>
 #endif
 
-#include "ion/PerfSpewer.h"
-#include "ion/IonSpewer.h"
-#include "ion/LIR.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/LinearScan.h"
-#include "ion/RangeAnalysis.h"
+#include "PerfSpewer.h"
+#include "IonSpewer.h"
+#include "LIR.h"
+#include "MIR.h"
+#include "MIRGraph.h"
+#include "LinearScan.h"
+#include "RangeAnalysis.h"
 
 using namespace js;
 using namespace js::ion;
@@ -42,7 +42,7 @@ js::ion::CheckPerf() {
         } else if (!strcmp(env, "func")) {
             PerfMode = PERF_MODE_FUNC;
         } else {
-            fprintf(stderr, "Use IONPERF=func to record at function granularity\n");
+            fprintf(stderr, "Use IONPERF=func to record at basic block granularity\n");
             fprintf(stderr, "Use IONPERF=block to record at basic block granularity\n");
             fprintf(stderr, "\n");
             fprintf(stderr, "Be advised that using IONPERF will cause all scripts\n");

@@ -127,7 +127,7 @@ let healthReportWrapper = {
     console.log("AboutHealthReport: showing settings.");
     sendMessageToJava({
       type: "Settings:Show",
-      resource: "preferences_vendor",
+      resource: "preferences_datareporting",
     });
   },
 

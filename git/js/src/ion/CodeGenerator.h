@@ -8,11 +8,11 @@
 #define ion_CodeGenerator_h
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/CodeGenerator-x86.h"
+# include "x86/CodeGenerator-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/CodeGenerator-x64.h"
+# include "x64/CodeGenerator-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/CodeGenerator-arm.h"
+# include "arm/CodeGenerator-arm.h"
 #else
 #error "CPU Not Supported"
 #endif
@@ -65,7 +65,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitOsrScopeChain(LOsrScopeChain *lir);
     bool visitStackArgT(LStackArgT *lir);
     bool visitStackArgV(LStackArgV *lir);
-    bool visitMoveGroup(LMoveGroup *group);
     bool visitValueToInt32(LValueToInt32 *lir);
     bool visitValueToDouble(LValueToDouble *lir);
     bool visitInt32ToDouble(LInt32ToDouble *lir);
@@ -76,7 +75,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitTypeObjectDispatch(LTypeObjectDispatch *lir);
     bool visitPolyInlineDispatch(LPolyInlineDispatch *lir);
     bool visitIntToString(LIntToString *lir);
-    bool visitDoubleToString(LDoubleToString *lir);
     bool visitInteger(LInteger *lir);
     bool visitRegExp(LRegExp *lir);
     bool visitRegExpTest(LRegExpTest *lir);
@@ -174,7 +172,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitEmulatesUndefined(LEmulatesUndefined *lir);
     bool visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir);
     bool visitConcat(LConcat *lir);
-    bool visitParConcat(LParConcat *lir);
     bool visitCharCodeAt(LCharCodeAt *lir);
     bool visitFromCharCode(LFromCharCode *lir);
     bool visitFunctionEnvironment(LFunctionEnvironment *lir);

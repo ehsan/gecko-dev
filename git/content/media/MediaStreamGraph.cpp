@@ -1837,7 +1837,8 @@ MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment)
     break;
   }
   default:
-    MOZ_CRASH("Unknown track type");
+    MOZ_NOT_REACHED("Unknown track type");
+    break;
   }
 }
 

@@ -338,7 +338,8 @@ SmsParent::RecvPSmsRequestConstructor(PSmsRequestParent* aActor,
     case IPCSmsRequest::TMarkMessageReadRequest:
       return actor->DoRequest(aRequest.get_MarkMessageReadRequest());
     default:
-      MOZ_CRASH("Unknown type!");
+      MOZ_NOT_REACHED("Unknown type!");
+      break;
   }
 
   return false;
@@ -376,7 +377,8 @@ SmsParent::RecvPMobileMessageCursorConstructor(PMobileMessageCursorParent* aActo
     case IPCMobileMessageCursor::TCreateThreadCursorRequest:
       return actor->DoRequest(aRequest.get_CreateThreadCursorRequest());
     default:
-      MOZ_CRASH("Unknown type!");
+      MOZ_NOT_REACHED("Unknown type!");
+      break;
   }
 
   return false;
@@ -442,7 +444,8 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
     }
     break;
   default:
-    MOZ_CRASH("Unknown type of SendMessageRequest!");
+    MOZ_NOT_REACHED("Unknown type of SendMessageRequest!");
+    return false;
   }
   return true;
 }
@@ -737,7 +740,8 @@ MobileMessageCursorParent::NotifyCursorResult(nsISupports* aResult)
       ? NS_OK : NS_ERROR_FAILURE;
   }
 
-  MOZ_CRASH("Received invalid response parameters!");
+  MOZ_NOT_REACHED("Received invalid response parameters!");
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

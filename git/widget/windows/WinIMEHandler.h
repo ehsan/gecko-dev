@@ -115,7 +115,7 @@ public:
 
 private:
 #ifdef NS_ENABLE_TSF
-  typedef HRESULT (WINAPI *SetInputScopesFunc)(HWND windowHandle,
+  typedef HRESULT (WINAPI *SetInputScopesFunc)(HWND aindowHandle,
                                                const InputScope *inputScopes,
                                                UINT numInputScopes,
                                                wchar_t **phrase_list,

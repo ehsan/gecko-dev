@@ -10,8 +10,8 @@
 #ifdef JS_ION
 
 #include "jstypes.h"
-#include "ion/IonCode.h"
-#include "ion/SnapshotReader.h"
+#include "IonCode.h"
+#include "SnapshotReader.h"
 
 class JSFunction;
 class JSScript;

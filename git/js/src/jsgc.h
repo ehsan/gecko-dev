@@ -1203,8 +1203,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
 namespace js {
 
 JSCompartment *
-NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals,
-               const JS::CompartmentOptions &options);
+NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals);
 
 namespace gc {
 

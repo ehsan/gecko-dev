@@ -48,7 +48,8 @@ SpeechSynthesisChild::AllocPSpeechSynthesisRequest(const nsString& aText,
                                                    const float& aRate,
                                                    const float& aPitch)
 {
-  MOZ_CRASH("Caller is supposed to manually construct a request!");
+  MOZ_NOT_REACHED("Caller is supposed to manually construct a request!");
+  return nullptr;
 }
 
 bool
@@ -148,14 +149,16 @@ NS_IMETHODIMP
 SpeechTaskChild::Setup(nsISpeechTaskCallback* aCallback,
                        uint32_t aChannels, uint32_t aRate, uint8_t argc)
 {
-  MOZ_CRASH("Should never be called from child");
+  MOZ_NOT_REACHED("Should never be called from child");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 SpeechTaskChild::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
                            JSContext* aCx)
 {
-  MOZ_CRASH("Should never be called from child");
+  MOZ_NOT_REACHED("Should never be called from child");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 void

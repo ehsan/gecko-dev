@@ -25,11 +25,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "yarr/YarrJIT.h"
+#include "YarrJIT.h"
 
 #include "assembler/assembler/LinkBuffer.h"
-#include "yarr/Yarr.h"
-#include "yarr/YarrCanonicalizeUCS2.h"
+#include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
 
 #if ENABLE_YARR_JIT
 

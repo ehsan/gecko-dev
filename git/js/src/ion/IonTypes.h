@@ -8,7 +8,7 @@
 #define ion_IonTypes_h
 
 #include "js/Value.h"
-#include "jstypes.h"
+#include <jstypes.h>
 
 namespace js {
 namespace ion {
@@ -67,8 +67,9 @@ BailoutKindString(BailoutKind kind)
       case Bailout_CachedShapeGuard:
         return "Bailout_CachedShapeGuard";
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid BailoutKind");
+        JS_NOT_REACHED("Invalid BailoutKind");
     }
+    return "INVALID_BAILOUT_KIND";
 }
 #endif
 
@@ -117,7 +118,8 @@ MIRTypeFromValueType(JSValueType type)
       case JSVAL_TYPE_UNKNOWN:
         return MIRType_Value;
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected jsval type");
+        JS_NOT_REACHED("unexpected jsval type");
+        return MIRType_None;
     }
 }
 
@@ -184,7 +186,8 @@ StringFromMIRType(MIRType type)
     case MIRType_ForkJoinSlice:
       return "ForkJoinSlice";
     default:
-      MOZ_ASSUME_UNREACHABLE("Unknown MIRType.");
+      JS_NOT_REACHED("Unknown MIRType.");
+      return "";
   }
 }
 

@@ -4,9 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/BaselineFrameInfo.h"
-#include "ion/IonSpewer.h"
-#include "ion/shared/BaselineCompiler-shared.h"
+#include "BaselineFrameInfo.h"
+#include "IonSpewer.h"
+#include "shared/BaselineCompiler-shared.h"
 
 #include "jsanalyze.h"
 #include "jsinferinlines.h"
@@ -48,7 +48,8 @@ FrameInfo::sync(StackValue *val)
         masm.pushValue(val->constant());
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid kind");
+        JS_NOT_REACHED("Invalid kind");
+        break;
     }
 
     val->setStack();
@@ -104,7 +105,7 @@ FrameInfo::popValue(ValueOperand dest)
         masm.moveValue(val->reg(), dest);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid kind");
+        JS_NOT_REACHED("Invalid kind");
     }
 
     // masm.popValue already adjusted the stack pointer, don't do it twice.
@@ -140,7 +141,7 @@ FrameInfo::popRegsAndSync(uint32_t uses)
         break;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid uses");
+        JS_NOT_REACHED("Invalid uses");
     }
 }
 
@@ -177,7 +178,7 @@ FrameInfo::assertValidState(const BytecodeInfo &info)
                 JS_ASSERT(!usedR1);
                 usedR1 = true;
             } else {
-                MOZ_ASSUME_UNREACHABLE("Invalid register");
+                JS_NOT_REACHED("Invalid register");
             }
         }
     }

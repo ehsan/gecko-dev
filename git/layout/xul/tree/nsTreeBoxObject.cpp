@@ -9,7 +9,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsTreeContentView.h"
 #include "nsITreeSelection.h"
-#include "ChildIterator.h"
+#include "nsChildIterator.h"
 #include "nsContentUtils.h"
 #include "nsError.h"
 #include "nsTreeBodyFrame.h"
@@ -52,26 +52,30 @@ nsTreeBoxObject::~nsTreeBoxObject()
   /* destructor code */
 }
 
-static nsIContent* FindBodyElement(nsIContent* aParent)
+
+static void FindBodyElement(nsIContent* aParent, nsIContent** aResult)
 {
-  mozilla::dom::FlattenedChildIterator iter(aParent);
-  for (nsIContent* content = iter.GetNextChild(); content; content = iter.GetNextChild()) {
+  *aResult = nullptr;
+  ChildIterator iter, last;
+  for (ChildIterator::Init(aParent, &iter, &last); iter != last; ++iter) {
+    nsCOMPtr<nsIContent> content = *iter;
+
     nsINodeInfo *ni = content->NodeInfo();
     if (ni->Equals(nsGkAtoms::treechildren, kNameSpaceID_XUL)) {
-      return content;
+      *aResult = content;
+      NS_ADDREF(*aResult);
+      break;
     } else if (ni->Equals(nsGkAtoms::tree, kNameSpaceID_XUL)) {
       // There are nesting tree elements. Only the innermost should
       // find the treechilren.
-      return nullptr;
+      break;
     } else if (content->IsElement() &&
                !ni->Equals(nsGkAtoms::_template, kNameSpaceID_XUL)) {
-      nsIContent* result = FindBodyElement(content);
-      if (result)
-        return result;
+      FindBodyElement(content, aResult);
+      if (*aResult)
+        break;
     }
   }
-
-  return nullptr;
 }
 
 nsTreeBodyFrame*
@@ -102,7 +106,8 @@ nsTreeBoxObject::GetTreeBody(bool aFlushLayout)
   }
 
   // Iterate over our content model children looking for the body.
-  nsCOMPtr<nsIContent> content = FindBodyElement(frame->GetContent());
+  nsCOMPtr<nsIContent> content;
+  FindBodyElement(frame->GetContent(), getter_AddRefs(content));
   if (!content)
     return nullptr;
 

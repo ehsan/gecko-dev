@@ -1992,7 +1992,8 @@ ContentParent::AllocPBluetooth()
     }
     return new mozilla::dom::bluetooth::BluetoothParent();
 #else
-    MOZ_CRASH("No support for bluetooth on this platform!");
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return nullptr;
 #endif
 }
 
@@ -2003,7 +2004,8 @@ ContentParent::DeallocPBluetooth(PBluetoothParent* aActor)
     delete aActor;
     return true;
 #else
-    MOZ_CRASH("No support for bluetooth on this platform!");
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return false;
 #endif
 }
 
@@ -2016,7 +2018,8 @@ ContentParent::RecvPBluetoothConstructor(PBluetoothParent* aActor)
 
     return static_cast<BluetoothParent*>(aActor)->InitWithService(btService);
 #else
-    MOZ_CRASH("No support for bluetooth on this platform!");
+    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
+    return false;
 #endif
 }
 
@@ -2571,12 +2574,6 @@ bool
 ContentParent::CheckAppHasPermission(const nsAString& aPermission)
 {
   return AssertAppHasPermission(this, NS_ConvertUTF16toUTF8(aPermission).get());
-}
-
-bool
-ContentParent::CheckAppHasStatus(unsigned short aStatus)
-{
-  return AssertAppHasStatus(this, aStatus);
 }
 
 bool

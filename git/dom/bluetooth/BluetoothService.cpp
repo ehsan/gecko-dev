@@ -681,7 +681,7 @@ BluetoothService::HandleShutdown()
         }
 
         if (NS_FAILED(timer->Cancel())) {
-          MOZ_CRASH("Failed to cancel shutdown timer, this will crash!");
+          MOZ_NOT_REACHED("Failed to cancel shutdown timer, this will crash!");
         }
       }
       else {

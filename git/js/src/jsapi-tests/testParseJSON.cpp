@@ -9,7 +9,7 @@
 #include <limits>
 #include <math.h>
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 #include "jsstr.h"
 #include "vm/String.h"
 

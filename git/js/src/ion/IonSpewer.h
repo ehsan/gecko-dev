@@ -11,8 +11,8 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "ion/C1Spewer.h"
-#include "ion/JSONSpewer.h"
+#include "C1Spewer.h"
+#include "JSONSpewer.h"
 
 namespace js {
 namespace ion {

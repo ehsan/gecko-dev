@@ -549,9 +549,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
         return activation_;
     }
 
-    /* State used by jsdtoa.cpp. */
-    DtoaState           *dtoaState;
-
     /*
      * When this flag is non-zero, any attempt to GC will be skipped. It is used
      * to suppress GC when reporting an OOM (see js_ReportOutOfMemory) and in
@@ -563,9 +560,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
     int32_t             suppressGC;
 
     PerThreadData(JSRuntime *runtime);
-    ~PerThreadData();
-
-    bool init();
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
 };
@@ -740,9 +734,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Default locale for Internationalization API */
     char *defaultLocale;
 
-    /* Default JSVersion. */
-    JSVersion defaultVersion_;
-
     /* See comment for JS_AbortIfWrongThread in jsapi.h. */
 #ifdef JS_THREADSAFE
   public:
@@ -854,9 +845,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     /* Gets current default locale. String remains owned by context. */
     const char *getDefaultLocale();
-
-    JSVersion defaultVersion() { return defaultVersion_; }
-    void setDefaultVersion(JSVersion v) { defaultVersion_ = v; }
 
     /* Base address of the native stack for the current thread. */
     uintptr_t           nativeStackBase;
@@ -1303,6 +1291,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::EvalCache       evalCache;
     js::LazyScriptCache lazyScriptCache;
 
+    /* State used by jsdtoa.cpp. */
+    DtoaState           *dtoaState;
+
     js::DateTimeInfo    dateTimeInfo;
 
     js::ConservativeGCData conservativeGC;
@@ -1602,9 +1593,6 @@ struct ThreadSafeContext : js::ContextFriendFields,
     }
 #endif
 
-    /* Cut outs for string operations. */
-    StaticStrings &staticStrings() { return runtime_->staticStrings; }
-
     /*
      * Allocator used when allocating GCThings on this context. If we are a
      * JSContext, this is the Zone allocator of the JSContext's zone. If we
@@ -1661,6 +1649,11 @@ struct JSContext : js::ThreadSafeContext,
     js::PerThreadData &mainThread() const { return runtime()->mainThread; }
 
   private:
+    /* See JSContext::findVersion. */
+    JSVersion           defaultVersion;      /* script compilation version */
+    JSVersion           versionOverride;     /* supercedes defaultVersion when valid */
+    bool                hasVersionOverride;
+
     /* Exception state -- the exception member is a GC root by definition. */
     bool                throwing;            /* is there a pending exception? */
     js::Value           exception;           /* most-recently-thrown exception */
@@ -1759,11 +1752,50 @@ struct JSContext : js::ThreadSafeContext,
     inline js::RegExpStatics *regExpStatics();
 
   public:
+    /*
+     * The default script compilation version can be set iff there is no code running.
+     * This typically occurs via the JSAPI right after a context is constructed.
+     */
+    inline bool canSetDefaultVersion() const;
+
+    /* Force a version for future script compilation. */
+    inline void overrideVersion(JSVersion newVersion);
+
+    /* Set the default script compilation version. */
+    void setDefaultVersion(JSVersion version) {
+        defaultVersion = version;
+    }
+
+    void clearVersionOverride() { hasVersionOverride = false; }
+    JSVersion getDefaultVersion() const { return defaultVersion; }
+    bool isVersionOverridden() const { return hasVersionOverride; }
+
+    JSVersion getVersionOverride() const {
+        JS_ASSERT(isVersionOverridden());
+        return versionOverride;
+    }
+
+    /*
+     * Set the default version if possible; otherwise, force the version.
+     * Return whether an override occurred.
+     */
+    inline bool maybeOverrideVersion(JSVersion newVersion);
+
+    /*
+     * If there is no code on the stack, turn the override version into the
+     * default version.
+     */
+    void maybeMigrateVersionOverride() {
+        if (JS_UNLIKELY(isVersionOverridden()) && !currentlyRunning()) {
+            defaultVersion = versionOverride;
+            clearVersionOverride();
+        }
+    }
 
     /*
      * Return:
+     * - The override version, if there is an override version.
      * - The newest scripted frame's version, if there is such a frame.
-     * - The version from the compartment.
      * - The default version.
      *
      * Note: if this ever shows up in a profile, just add caching!

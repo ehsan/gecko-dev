@@ -1626,7 +1626,9 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
   // fonts in SVG to respond to the browser's "TextZoom"
   // (Ctrl++,Ctrl+-)
   nsPresContext *presContext = PresContext();
-  double size = presContext->AppUnitsToFloatCSSPixels(fontData->mSize);
+  float textZoom = presContext->TextZoom();
+  double size =
+    presContext->AppUnitsToFloatCSSPixels(fontData->mSize) / textZoom;
 
   double textRunSize;
   if (mTextRun) {

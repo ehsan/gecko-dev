@@ -8,7 +8,7 @@
 #include "nsIBoxObject.h"
 #include "nsTreeUtils.h"
 #include "nsTreeContentView.h"
-#include "ChildIterator.h"
+#include "nsChildIterator.h"
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 #include "nsEventStates.h"
@@ -1046,8 +1046,9 @@ nsTreeContentView::Serialize(nsIContent* aContent, int32_t aParentIndex,
   if (!aContent->IsXUL())
     return;
 
-  dom::FlattenedChildIterator iter(aContent);
-  for (nsIContent* content = iter.GetNextChild(); content; content = iter.GetNextChild()) {
+  ChildIterator iter, last;
+  for (ChildIterator::Init(aContent, &iter, &last); iter != last; ++iter) {
+    nsIContent* content = *iter;
     nsIAtom *tag = content->Tag();
     int32_t count = aRows.Length();
 
@@ -1366,8 +1367,10 @@ nsTreeContentView::GetCell(nsIContent* aContainer, nsITreeColumn* aCol)
   // index in a row. "ref" attribute has higher priority.
   nsIContent* result = nullptr;
   int32_t j = 0;
-  dom::FlattenedChildIterator iter(aContainer);
-  for (nsIContent* cell = iter.GetNextChild(); cell; cell = iter.GetNextChild()) {
+  ChildIterator iter, last;
+  for (ChildIterator::Init(aContainer, &iter, &last); iter != last; ++iter) {
+    nsIContent* cell = *iter;
+
     if (cell->Tag() == nsGkAtoms::treecell) {
       if (colAtom && cell->AttrValueIs(kNameSpaceID_None, nsGkAtoms::ref,
                                        colAtom, eCaseMatters)) {

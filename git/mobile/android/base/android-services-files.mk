@@ -197,7 +197,6 @@ SYNC_JAVA_FILES := \
   sync/repositories/domain/HistoryRecordFactory.java \
   sync/repositories/domain/PasswordRecord.java \
   sync/repositories/domain/Record.java \
-  sync/repositories/domain/RecordParseException.java \
   sync/repositories/domain/TabsRecord.java \
   sync/repositories/domain/VersionConstants.java \
   sync/repositories/FetchFailedException.java \

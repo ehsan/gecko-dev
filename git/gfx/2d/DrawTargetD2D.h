@@ -147,8 +147,8 @@ public:
 
 private:
   TemporaryRef<ID2D1Bitmap>
-  GetBitmapForSurface(SourceSurface *aSurface,
-                      Rect &aSource);
+  DrawTargetD2D::GetBitmapForSurface(SourceSurface *aSurface,
+                                     Rect &aSource);
   friend class AutoSaveRestoreClippedOut;
   friend class SourceSurfaceD2DTarget;
 

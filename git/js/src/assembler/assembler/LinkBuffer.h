@@ -34,7 +34,7 @@
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/MacroAssembler.h"
+#include <assembler/MacroAssembler.h>
 
 namespace JSC {
 

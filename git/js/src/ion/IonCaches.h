@@ -7,8 +7,8 @@
 #ifndef ion_IonCaches_h
 #define ion_IonCaches_h
 
-#include "ion/IonCode.h"
-#include "ion/Registers.h"
+#include "IonCode.h"
+#include "Registers.h"
 
 #include "vm/ForkJoin.h"
 
@@ -38,7 +38,8 @@ class IonCacheVisitor
   public:
 #define VISIT_INS(op)                                               \
     virtual bool visit##op##IC(CodeGenerator *codegen, op##IC *) {  \
-        MOZ_ASSUME_UNREACHABLE("NYI: " #op "IC");                   \
+        JS_NOT_REACHED("NYI: " #op "IC");                           \
+        return false;                                               \
     }
 
     IONCACHE_KIND_LIST(VISIT_INS)

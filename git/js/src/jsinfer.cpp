@@ -190,7 +190,8 @@ types::TypeString(Type type)
           case JSVAL_TYPE_MAGIC:
             return "lazyargs";
           default:
-            MOZ_ASSUME_UNREACHABLE("Bad type");
+            JS_NOT_REACHED("Bad type");
+            return "";
         }
     }
     if (type.isUnknown())

@@ -1581,6 +1581,7 @@ MmsService.prototype = {
                 }
               }
             },
+            "content-length": smil.length,
             "content-location": "smil.xml",
             "content-id": "<smil>"
           },
@@ -1687,9 +1688,6 @@ MmsService.prototype = {
                           function notifySendingResult(aRv, aDomMessage) {
       if (DEBUG) debug("Saving sending message is done. Start to send.");
 
-      // TODO bug 832140 handle !Components.isSuccessCode(aRv)
-      Services.obs.notifyObservers(aDomMessage, kSmsSendingObserverTopic, null);
-
       // For radio disabled error.
       if (gMmsConnection.radioDisabled) {
         if (DEBUG) debug("Error! Radio is disabled when sending MMS.");
@@ -1706,6 +1704,8 @@ MmsService.prototype = {
         return;
       }
 
+      // TODO bug 832140 handle !Components.isSuccessCode(aRv)
+      Services.obs.notifyObservers(aDomMessage, kSmsSendingObserverTopic, null);
       let sendTransaction;
       try {
         sendTransaction = new SendTransaction(aDomMessage.id, savableMessage);

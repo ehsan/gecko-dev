@@ -6,10 +6,10 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "ion/LiveRangeAllocator.h"
+#include "LiveRangeAllocator.h"
 
-#include "ion/BacktrackingAllocator.h"
-#include "ion/LinearScan.h"
+#include "BacktrackingAllocator.h"
+#include "LinearScan.h"
 
 using namespace js;
 using namespace js::ion;
@@ -30,7 +30,8 @@ Requirement::priority() const
         return 2;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Unknown requirement kind.");
+        JS_NOT_REACHED("Unknown requirement kind.");
+        return -1;
     }
 }
 

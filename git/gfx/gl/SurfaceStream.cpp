@@ -43,7 +43,8 @@ SurfaceStream::CreateForType(SurfaceStreamType type, SurfaceStream* prevStream)
         case SurfaceStreamType::TripleBuffer:
             return new SurfaceStream_TripleBuffer(prevStream);
         default:
-            MOZ_CRASH("Invalid Type.");
+            MOZ_NOT_REACHED("Invalid Type.");
+            return nullptr;
     }
 }
 

@@ -39,7 +39,7 @@
 #include "jstypedarrayinlines.h"
 #include "jsworkers.h"
 #include "jswrapper.h"
-#include "perf/jsperf.h"
+#include "jsperf.h"
 
 #include "builtin/TestingFunctions.h"
 #include "frontend/BytecodeEmitter.h"
@@ -48,8 +48,8 @@
 
 #include "prmjtime.h"
 
-#include "shell/jsoptparse.h"
-#include "shell/jsheaptools.h"
+#include "jsoptparse.h"
+#include "jsheaptools.h"
 
 #include "jsinferinlines.h"
 #include "jsscriptinlines.h"
@@ -625,10 +625,9 @@ static JSBool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSVersion origVersion = JS_GetVersion(cx);
     if (args.length() == 0 || JSVAL_IS_VOID(args[0])) {
         /* Get version. */
-        args.rval().setInt32(origVersion);
+        args.rval().setInt32(JS_GetVersion(cx));
     } else {
         /* Set version. */
         int32_t v = -1;
@@ -643,9 +642,17 @@ Version(JSContext *cx, unsigned argc, jsval *vp)
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "version");
             return false;
         }
-        JS_SetVersionForCompartment(js::GetContextCompartment(cx), JSVersion(v));
-        args.rval().setInt32(origVersion);
+        args.rval().setInt32(JS_SetVersion(cx, JSVersion(v)));
     }
+    return true;
+}
+
+static JSBool
+RevertVersion(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    js_RevertVersion(cx);
+    args.rval().setUndefined();
     return true;
 }
 
@@ -3566,6 +3573,10 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "version([number])",
 "  Get or force a script compilation version number."),
 
+    JS_FN_HELP("revertVersion", RevertVersion, 0, 0,
+"revertVersion()",
+"  Revert previously set version number."),
+
     JS_FN_HELP("options", Options, 0, 0,
 "options([option ...])",
 "  Get or toggle JavaScript options."),
@@ -4771,6 +4782,7 @@ NewContext(JSRuntime *rt)
 
     JS_SetContextPrivate(cx, data);
     JS_SetErrorReporter(cx, my_ErrorReporter);
+    JS_SetVersion(cx, JSVERSION_LATEST);
     SetContextOptions(cx);
     if (enableTypeInference)
         JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
@@ -4795,10 +4807,8 @@ DestroyContext(JSContext *cx, bool withGC)
 static JSObject *
 NewGlobalObject(JSContext *cx, JSObject *sameZoneAs)
 {
-    JS::CompartmentOptions options;
-    options.setZone(sameZoneAs ? JS::SameZoneAs(sameZoneAs) : JS::FreshZone)
-           .setVersion(JSVERSION_LATEST);
-    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL, options));
+    JS::ZoneSpecifier spec = sameZoneAs ? JS::SameZoneAs(sameZoneAs) : JS::FreshZone;
+    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL, spec));
     if (!glob)
         return NULL;
 

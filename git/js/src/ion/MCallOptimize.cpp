@@ -9,9 +9,9 @@
 #include "builtin/ParallelArray.h"
 #include "builtin/TestingFunctions.h"
 
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/IonBuilder.h"
+#include "MIR.h"
+#include "MIRGraph.h"
+#include "IonBuilder.h"
 
 #include "jsscriptinlines.h"
 
@@ -112,6 +112,8 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
         return inlineParallelArray(callInfo);
 
     // Utility intrinsics.
+    if (native == intrinsic_ThrowError)
+        return inlineThrowError(callInfo);
     if (native == intrinsic_IsCallable)
         return inlineIsCallable(callInfo);
     if (native == intrinsic_NewObjectWithClassPrototype)
@@ -1017,7 +1019,7 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
             continue;
         }
 
-        MOZ_ASSUME_UNREACHABLE("Element access not dense array nor typed array");
+        JS_NOT_REACHED("Element access not dense array nor typed array");
     }
 
     return InliningStatus_Inlined;
@@ -1088,7 +1090,7 @@ IonBuilder::inlineForceSequentialOrInParallelSection(CallInfo &callInfo)
         return InliningStatus_Inlined;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Invalid execution mode");
+    JS_NOT_REACHED("Invalid execution mode");
 }
 
 IonBuilder::InliningStatus
@@ -1262,7 +1264,7 @@ IonBuilder::inlineNewDenseArray(CallInfo &callInfo)
         return inlineNewDenseArrayForParallelExecution(callInfo);
     }
 
-    MOZ_ASSUME_UNREACHABLE("unknown ExecutionMode");
+    JS_NOT_REACHED("unknown ExecutionMode");
 }
 
 IonBuilder::InliningStatus
@@ -1410,6 +1412,40 @@ IonBuilder::inlineHaveSameClass(CallInfo &callInfo)
     MHaveSameClass *sameClass = MHaveSameClass::New(callInfo.getArg(0), callInfo.getArg(1));
     current->add(sameClass);
     current->push(sameClass);
+
+    return InliningStatus_Inlined;
+}
+
+IonBuilder::InliningStatus
+IonBuilder::inlineThrowError(CallInfo &callInfo)
+{
+    // In Parallel Execution, convert %ThrowError() into a bailout.
+
+    if (callInfo.constructing())
+        return InliningStatus_NotInlined;
+
+    ExecutionMode executionMode = info().executionMode();
+    switch (executionMode) {
+      case SequentialExecution:
+        return InliningStatus_NotInlined;
+      case ParallelExecution:
+        break;
+    }
+
+    callInfo.unwrapArgs();
+
+    MParBailout *bailout = new MParBailout();
+    if (!bailout)
+        return InliningStatus_Error;
+    current->end(bailout);
+
+    setCurrentAndSpecializePhis(newBlock(pc));
+    if (!current)
+        return InliningStatus_Error;
+
+    MConstant *udef = MConstant::New(UndefinedValue());
+    current->add(udef);
+    current->push(udef);
 
     return InliningStatus_Inlined;
 }

@@ -30,7 +30,7 @@
 #ifndef yarr_BumpPointerAllocator_h
 #define yarr_BumpPointerAllocator_h
 
-#include "yarr/PageAllocation.h"
+#include "PageAllocation.h"
 
 namespace WTF {
 

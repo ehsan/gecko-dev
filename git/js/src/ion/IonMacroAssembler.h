@@ -189,7 +189,7 @@ class MacroAssembler : public MacroAssemblerSpecific
           case MIRType_Object:      return testObject(cond, val);
           case MIRType_Double:      return testDouble(cond, val);
           default:
-            MOZ_ASSUME_UNREACHABLE("Bad MIRType");
+            JS_NOT_REACHED("Bad MIRType");
         }
     }
 
@@ -546,7 +546,8 @@ class MacroAssembler : public MacroAssemblerSpecific
             store32(value, dest);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Invalid typed array type");
+            JS_NOT_REACHED("Invalid typed array type");
+            break;
         }
     }
 
@@ -561,7 +562,8 @@ class MacroAssembler : public MacroAssemblerSpecific
             storeDouble(value, dest);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Invalid typed array type");
+            JS_NOT_REACHED("Invalid typed array type");
+            break;
         }
     }
 
@@ -602,24 +604,8 @@ class MacroAssembler : public MacroAssemblerSpecific
                        const Register &threadContextReg,
                        const Register &tempReg1,
                        const Register &tempReg2,
-                       gc::AllocKind allocKind,
-                       Label *fail);
-    void parNewGCThing(const Register &result,
-                       const Register &threadContextReg,
-                       const Register &tempReg1,
-                       const Register &tempReg2,
                        JSObject *templateObject,
                        Label *fail);
-    void parNewGCString(const Register &result,
-                        const Register &threadContextReg,
-                        const Register &tempReg1,
-                        const Register &tempReg2,
-                        Label *fail);
-    void parNewGCShortString(const Register &result,
-                             const Register &threadContextReg,
-                             const Register &tempReg1,
-                             const Register &tempReg2,
-                             Label *fail);
     void initGCThing(const Register &obj, JSObject *templateObject);
 
     // Compares two strings for equality based on the JSOP.
@@ -944,7 +930,8 @@ JSOpToDoubleCondition(JSOp op)
       case JSOP_GE:
         return Assembler::DoubleGreaterThanOrEqual;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected comparison operation");
+        JS_NOT_REACHED("Unexpected comparison operation");
+        return Assembler::DoubleEqual;
     }
 }
 
@@ -971,7 +958,8 @@ JSOpToCondition(JSOp op, bool isSigned)
           case JSOP_GE:
             return Assembler::GreaterThanOrEqual;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unrecognized comparison operation");
+            JS_NOT_REACHED("Unrecognized comparison operation");
+            return Assembler::Equal;
         }
     } else {
         switch (op) {
@@ -990,7 +978,8 @@ JSOpToCondition(JSOp op, bool isSigned)
           case JSOP_GE:
             return Assembler::AboveOrEqual;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unrecognized comparison operation");
+            JS_NOT_REACHED("Unrecognized comparison operation");
+            return Assembler::Equal;
         }
     }
 }

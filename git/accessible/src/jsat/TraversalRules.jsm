@@ -9,10 +9,6 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-const FILTER_IGNORE = Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
-const FILTER_MATCH = Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
-const FILTER_IGNORE_SUBTREE = Ci.nsIAccessibleTraversalRule.FILTER_IGNORE_SUBTREE;
-
 this.EXPORTED_SYMBOLS = ['TraversalRules'];
 
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
@@ -39,13 +35,14 @@ BaseTraversalRule.prototype = {
     {
       if (aAccessible.role == Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME) {
         return (Utils.getMessageManager(aAccessible.DOMNode)) ?
-          FILTER_MATCH  | FILTER_IGNORE_SUBTREE : FILTER_IGNORE;
+          Ci.nsIAccessibleTraversalRule.FILTER_MATCH :
+          Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
       }
 
       if (this._matchFunc)
         return this._matchFunc(aAccessible);
 
-      return FILTER_MATCH;
+      return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
     },
 
     QueryInterface: XPCOMUtils.generateQI([Ci.nsIAccessibleTraversalRule])
@@ -81,40 +78,40 @@ this.TraversalRules = {
       case Ci.nsIAccessibleRole.ROLE_COMBOBOX:
         // We don't want to ignore the subtree because this is often
         // where the list box hangs out.
-        return FILTER_MATCH;
+        return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
       case Ci.nsIAccessibleRole.ROLE_TEXT_LEAF:
         {
           // Nameless text leaves are boring, skip them.
           let name = aAccessible.name;
           if (name && name.trim())
-            return FILTER_MATCH;
+            return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
           else
-            return FILTER_IGNORE;
+            return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
         }
       case Ci.nsIAccessibleRole.ROLE_LINK:
         // If the link has children we should land on them instead.
         // Image map links don't have children so we need to match those.
         if (aAccessible.childCount == 0)
-          return FILTER_MATCH;
+          return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
         else
-          return FILTER_IGNORE;
+          return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
       case Ci.nsIAccessibleRole.ROLE_STATICTEXT:
         {
           let parent = aAccessible.parent;
           // Ignore prefix static text in list items. They are typically bullets or numbers.
           if (parent.childCount > 1 && aAccessible.indexInParent == 0 &&
               parent.role == Ci.nsIAccessibleRole.ROLE_LISTITEM)
-            return FILTER_IGNORE;
+            return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
 
-          return FILTER_MATCH;
+          return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
         }
       case Ci.nsIAccessibleRole.ROLE_GRAPHIC:
         return TraversalRules._shouldSkipImage(aAccessible);
       default:
         // Ignore the subtree, if there is one. So that we don't land on
         // the same content that was already presented by its parent.
-        return FILTER_MATCH |
-          FILTER_IGNORE_SUBTREE;
+        return Ci.nsIAccessibleTraversalRule.FILTER_MATCH |
+          Ci.nsIAccessibleTraversalRule.FILTER_IGNORE_SUBTREE;
       }
     }
   ),
@@ -122,8 +119,8 @@ this.TraversalRules = {
   SimpleTouch: new BaseTraversalRule(
     gSimpleTraversalRoles,
     function Simple_match(aAccessible) {
-      return FILTER_MATCH |
-        FILTER_IGNORE_SUBTREE;
+      return Ci.nsIAccessibleTraversalRule.FILTER_MATCH |
+        Ci.nsIAccessibleTraversalRule.FILTER_IGNORE_SUBTREE;
     }
   ),
 
@@ -136,9 +133,9 @@ this.TraversalRules = {
       let extraState = {};
       aAccessible.getState(state, extraState);
       if (state.value & Ci.nsIAccessibleStates.STATE_LINKED) {
-        return FILTER_IGNORE;
+        return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
       } else {
-        return FILTER_MATCH;
+        return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
       }
     }),
 
@@ -196,9 +193,9 @@ this.TraversalRules = {
       let extraState = {};
       aAccessible.getState(state, extraState);
       if (state.value & Ci.nsIAccessibleStates.STATE_LINKED) {
-        return FILTER_MATCH;
+        return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
       } else {
-        return FILTER_IGNORE;
+        return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
       }
     }),
 
@@ -225,8 +222,8 @@ this.TraversalRules = {
 
   _shouldSkipImage: function _shouldSkipImage(aAccessible) {
     if (gSkipEmptyImages.value && aAccessible.name === '') {
-      return FILTER_IGNORE;
+      return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
     }
-    return FILTER_MATCH;
+    return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
   }
 };

@@ -72,7 +72,8 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
     result = new ContentHostIncremental(aTextureInfo);
     return result;
   default:
-    MOZ_CRASH("Unknown CompositableType");
+    MOZ_NOT_REACHED("Unknown CompositableType");
+    return nullptr;
   }
 }
 

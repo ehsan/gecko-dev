@@ -58,7 +58,6 @@ function getMigratedData() {
 
   // From migration.properties
   const MIGRATED_TYPES = [
-    128,// Windows/Tabs
     4,  // History and Bookmarks
     16, // Passwords
     8,  // Form History

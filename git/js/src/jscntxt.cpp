@@ -103,14 +103,8 @@ void
 NewObjectCache::clearNurseryObjects(JSRuntime *rt)
 {
     for (unsigned i = 0; i < mozilla::ArrayLength(entries); ++i) {
-        Entry &e = entries[i];
-        JSObject *obj = reinterpret_cast<JSObject *>(&e.templateObject);
-        if (IsInsideNursery(rt, e.key) ||
-            IsInsideNursery(rt, obj->slots) ||
-            IsInsideNursery(rt, obj->elements))
-        {
-            mozilla::PodZero(&e);
-        }
+        if (IsInsideNursery(rt, entries[i].key))
+            mozilla::PodZero(&entries[i]);
     }
 }
 
@@ -125,7 +119,7 @@ JSRuntime::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSi
     for (ContextIter acx(this); !acx.done(); acx.next())
         rtSizes->contexts += acx->sizeOfIncludingThis(mallocSizeOf);
 
-    rtSizes->dtoa = mallocSizeOf(mainThread.dtoaState);
+    rtSizes->dtoa = mallocSizeOf(dtoaState);
 
     rtSizes->temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
@@ -295,6 +289,8 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
     JSContext *cx = js_new<JSContext>(rt);
     if (!cx)
         return NULL;
+
+    JS_ASSERT(cx->findVersion() == JSVERSION_DEFAULT);
 
     if (!cx->cycleDetectorSet.init()) {
         js_delete(cx);
@@ -1175,6 +1171,8 @@ ThreadSafeContext::asForkJoinSlice()
 
 JSContext::JSContext(JSRuntime *rt)
   : ThreadSafeContext(rt, &rt->mainThread, Context_JS),
+    defaultVersion(JSVERSION_DEFAULT),
+    hasVersionOverride(false),
     throwing(false),
     exception(UndefinedValue()),
     options_(0),
@@ -1526,13 +1524,13 @@ JSContext::mark(JSTracer *trc)
 JSVersion
 JSContext::findVersion() const
 {
+    if (hasVersionOverride)
+        return versionOverride;
+
     if (JSScript *script = currentScript(NULL, ALLOW_CROSS_COMPARTMENT))
         return script->getVersion();
 
-    if (compartment() && compartment()->options().hasVersion)
-        return compartment()->options().version;
-
-    return runtime()->defaultVersion();
+    return defaultVersion;
 }
 
 #if defined JS_THREADSAFE && defined DEBUG

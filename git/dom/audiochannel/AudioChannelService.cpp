@@ -568,5 +568,6 @@ AudioChannelService::GetInternalType(AudioChannelType aType,
       break;
   }
 
-  MOZ_CRASH("unexpected audio channel type");
+  MOZ_NOT_REACHED("unexpected audio channel type");
+  return AUDIO_CHANNEL_INT_LAST;
 }

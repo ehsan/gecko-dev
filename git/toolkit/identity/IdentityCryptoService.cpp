@@ -357,9 +357,11 @@ GenerateKeyPair(PK11SlotInfo * slot,
     return PRErrorCode_to_nsresult(PR_GetError());
   }
   if (!*publicKey) {
-	  SECKEY_DestroyPrivateKey(*privateKey);
-	  *privateKey = NULL;
-    MOZ_CRASH("PK11_GnerateKeyPair returned private key without public key");
+	SECKEY_DestroyPrivateKey(*privateKey);
+	*privateKey = NULL;
+    MOZ_NOT_REACHED("PK11_GnerateKeyPair returned private key without public "
+                    "key");
+    return NS_ERROR_UNEXPECTED;
   }
 
   return NS_OK;
@@ -466,7 +468,8 @@ KeyGenRunnable::Run()
           mRv = GenerateDSAKeyPair(slot, &privk, &pubk);
           break;
         default:
-          MOZ_CRASH("unknown key type");
+          MOZ_NOT_REACHED("unknown key type");
+          mRv = NS_ERROR_UNEXPECTED;
         }
 
         PK11_FreeSlot(slot);

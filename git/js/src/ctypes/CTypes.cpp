@@ -790,7 +790,7 @@ GetABICode(JSObject* obj)
 JSErrorFormatString ErrorFormatString[CTYPESERR_LIMIT] = {
 #define MSG_DEF(name, number, count, exception, format) \
   { format, count, exception } ,
-#include "ctypes/ctypes.msg"
+#include "ctypes.msg"
 #undef MSG_DEF
 };
 
@@ -1205,7 +1205,7 @@ InitTypeClasses(JSContext* cx, HandleObject parent)
       INT_TO_JSVAL(ffiType.alignment), &ffiType));                             \
   if (!typeObj_##name)                                                         \
     return false;
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
 
   // Alias 'ctypes.unsigned' as 'ctypes.unsigned_int', since they represent
   // the same type in C.
@@ -1592,7 +1592,7 @@ jsvalToInteger(JSContext* cx, jsval val, IntegerType* result)
         *result = IntegerType(*static_cast<fromType*>(data));                  \
         return true;
 #define DEFINE_WRAPPED_INT_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
       case TYPE_void_t:
       case TYPE_bool:
       case TYPE_float:
@@ -1682,7 +1682,7 @@ jsvalToFloat(JSContext *cx, jsval val, FloatType* result)
         return true;
 #define DEFINE_INT_TYPE(x, y, z) DEFINE_FLOAT_TYPE(x, y, z)
 #define DEFINE_WRAPPED_INT_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
       case TYPE_void_t:
       case TYPE_bool:
       case TYPE_char:
@@ -2101,7 +2101,7 @@ ConvertToJS(JSContext* cx,
     /* use, if any. */                                                         \
     *result = INT_TO_JSVAL(*static_cast<type*>(data));                         \
     break;
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   case TYPE_jschar: {
     // Convert the jschar to a 1-character string.
     JSString* str = JS_NewUCStringCopyN(cx, static_cast<jschar*>(data), 1);
@@ -2129,7 +2129,7 @@ ConvertToJS(JSContext* cx,
     break;
   }
   case TYPE_function:
-    MOZ_ASSUME_UNREACHABLE("cannot return a FunctionType");
+    JS_NOT_REACHED("cannot return a FunctionType");
   }
 
   return true;
@@ -2287,7 +2287,7 @@ ImplicitConvert(JSContext* cx,
     *static_cast<type*>(buffer) = result;                                      \
     break;                                                                     \
   }
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   case TYPE_pointer: {
     if (JSVAL_IS_NULL(val)) {
       // Convert to a null pointer.
@@ -2569,7 +2569,8 @@ ImplicitConvert(JSContext* cx,
   }
   case TYPE_void_t:
   case TYPE_function:
-    MOZ_ASSUME_UNREACHABLE("invalid type");
+    JS_NOT_REACHED("invalid type");
+    return false;
   }
 
   return true;
@@ -2621,7 +2622,7 @@ ExplicitConvert(JSContext* cx, HandleValue val, HandleObject targetType, void* b
 #define DEFINE_WRAPPED_INT_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_CHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_JSCHAR_TYPE(x, y, z) DEFINE_CHAR_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   case TYPE_pointer: {
     // Convert a number, Int64 object, or UInt64 object to a pointer.
     uintptr_t result;
@@ -2641,7 +2642,8 @@ ExplicitConvert(JSContext* cx, HandleValue val, HandleObject targetType, void* b
     return false;
   case TYPE_void_t:
   case TYPE_function:
-    MOZ_ASSUME_UNREACHABLE("invalid type");
+    JS_NOT_REACHED("invalid type");
+    return false;
   }
   return true;
 }
@@ -2776,7 +2778,7 @@ BuildTypeSource(JSContext* cx,
   case TYPE_void_t:
 #define DEFINE_TYPE(name, type, ffiType)  \
   case TYPE_##name:
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   {
     AppendString(result, "ctypes.");
     JSString* nameStr = CType::GetName(cx, typeObj);
@@ -2813,7 +2815,8 @@ BuildTypeSource(JSContext* cx,
       AppendString(result, "ctypes.winapi_abi, ");
       break;
     case INVALID_ABI:
-      MOZ_ASSUME_UNREACHABLE("invalid abi");
+      JS_NOT_REACHED("invalid abi");
+      break;
     }
 
     // Recursively build the source string describing the function return and
@@ -2960,7 +2963,7 @@ BuildDataSource(JSContext* cx,
     /* Serialize as an integer. */                                             \
     IntegerToString(*static_cast<type*>(data), 10, result);                    \
     break;
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   case TYPE_jschar: {
     // Serialize as a 1-character JS string.
     JSString* str = JS_NewUCStringCopyN(cx, static_cast<jschar*>(data), 1);
@@ -3057,7 +3060,8 @@ BuildDataSource(JSContext* cx,
     break;
   }
   case TYPE_void_t:
-    MOZ_ASSUME_UNREACHABLE("invalid type");
+    JS_NOT_REACHED("invalid type");
+    break;
   }
 
   return true;
@@ -3530,7 +3534,7 @@ CType::GetFFIType(JSContext* cx, JSObject* obj)
     break;
 
   default:
-    MOZ_ASSUME_UNREACHABLE("simple types must have an ffi_type");
+    JS_NOT_REACHED("simple types must have an ffi_type");
   }
 
   if (!result)
@@ -5459,7 +5463,8 @@ FunctionType::BuildSymbolName(JSString* name,
   }
 
   case INVALID_ABI:
-    MOZ_ASSUME_UNREACHABLE("invalid abi");
+    JS_NOT_REACHED("invalid abi");
+    break;
   }
 }
 
@@ -5853,7 +5858,7 @@ FunctionType::Call(JSContext* cx,
 #define DEFINE_BOOL_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_CHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_JSCHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   default:
     break;
   }
@@ -6145,7 +6150,7 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
 #define DEFINE_BOOL_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_CHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_JSCHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
       rvSize = Align(rvSize, sizeof(ffi_arg));
       break;
     default:
@@ -6233,7 +6238,7 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
 #define DEFINE_BOOL_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_CHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_JSCHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
-#include "ctypes/typedefs.h"
+#include "typedefs.h"
   default:
     break;
   }
@@ -6795,7 +6800,7 @@ CDataFinalizer::Methods::ToString(JSContext *cx, unsigned argc, jsval *vp)
       return JS_FALSE;
     }
   } else if (!CDataFinalizer::GetValue(cx, objThis, value.address())) {
-    MOZ_ASSUME_UNREACHABLE("Could not convert an empty CDataFinalizer");
+    JS_NOT_REACHED("Could not convert an empty CDataFinalizer");
   } else {
     strMessage = JS_ValueToString(cx, value);
     if (!strMessage) {
@@ -7003,7 +7008,7 @@ CDataFinalizer::Construct(JSContext* cx, unsigned argc, jsval *vp)
       objBestArgType = CData::GetCType(objData);
       size_t sizeBestArg;
       if (!CType::GetSafeSize(objBestArgType, &sizeBestArg)) {
-        MOZ_ASSUME_UNREACHABLE("object with unknown size");
+        JS_NOT_REACHED("object with unknown size");
       }
       if (sizeBestArg != sizeArg) {
         return TypeError(cx, "(an object with the same size as that expected by the C finalization function)", valData);

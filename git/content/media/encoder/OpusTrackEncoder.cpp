@@ -220,7 +220,8 @@ OpusTrackEncoder::GetHeader(nsTArray<uint8_t>* aOutput)
     // No more headers.
     break;
   default:
-    MOZ_CRASH("Invalid state");
+    MOZ_NOT_REACHED("Invalid state");
+    break;
   }
   return NS_OK;
 }

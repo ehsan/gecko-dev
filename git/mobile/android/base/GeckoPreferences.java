@@ -92,23 +92,13 @@ public class GeckoPreferences
         // Use setResourceToOpen to specify these extras.
         Bundle intentExtras = getIntent().getExtras();
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-            int res = 0;
             if (intentExtras != null && intentExtras.containsKey(INTENT_EXTRA_RESOURCES)) {
-                // Fetch resource id from intent.
                 String resourceName = intentExtras.getString(INTENT_EXTRA_RESOURCES);
-                if (resourceName != null) {
-                    res = getResources().getIdentifier(resourceName, "xml", getPackageName());
-                    if (res == 0) {
-                        Log.e(LOGTAG, "No resource found named " + resourceName);
-                    }
-                }
+                int resource = getResources().getIdentifier(resourceName, "xml", getPackageName());
+                addPreferencesFromResource(resource);
+            } else {
+                addPreferencesFromResource(R.xml.preferences);
             }
-            if (res == 0) {
-                // No resource specified, or the resource was invalid; use the default preferences screen.
-                Log.e(LOGTAG, "Displaying default settings.");
-                res = R.xml.preferences;
-            }
-            addPreferencesFromResource(res);
         }
 
         registerEventListener("Sanitize:Finished");
@@ -133,8 +123,8 @@ public class GeckoPreferences
         Bundle fragmentArgs = new Bundle();
         // Add resource argument to fragment if it exists.
         if (intentExtras != null && intentExtras.containsKey(INTENT_EXTRA_RESOURCES)) {
-            String resourceName = intentExtras.getString(INTENT_EXTRA_RESOURCES);
-            fragmentArgs.putString(INTENT_EXTRA_RESOURCES, resourceName);
+            String resource = intentExtras.getString(INTENT_EXTRA_RESOURCES);
+            fragmentArgs.putString(INTENT_EXTRA_RESOURCES, resource);
         } else {
             // Use top-level settings screen.
             if (!onIsMultiPane()) {

@@ -9,10 +9,10 @@
 #include "jscompartment.h"
 #include "jsiter.h"
 
-#include "vm/GlobalObject.h"
-#include "vm/ScopeObject.h"
-#include "vm/Shape.h"
-#include "vm/Xdr.h"
+#include "GlobalObject.h"
+#include "ScopeObject.h"
+#include "Shape.h"
+#include "Xdr.h"
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
@@ -2114,7 +2114,7 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
       }
       case ScopeIter::With:
       case ScopeIter::StrictEvalScope:
-        MOZ_ASSUME_UNREACHABLE("should already have a scope");
+        JS_NOT_REACHED("should already have a scope");
     }
     if (!debugScope)
         return NULL;

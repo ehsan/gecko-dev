@@ -136,7 +136,7 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
       case mozilla::gfx::BACKEND_NONE:
         return "none";
   }
-  MOZ_CRASH("Incomplete switch");
+  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 class gfxPlatform {

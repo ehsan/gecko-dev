@@ -405,14 +405,12 @@ public:
   // Find out state
   uint16_t GetReadyState()
     {
-      if (mConnection) {
-        MutexAutoLock lock(mConnection->mLock);
-        if (mState == WAITING_TO_OPEN)
-          return CONNECTING;
-        return mState;
-      }
-      return CLOSED;
+      if (mState == WAITING_TO_OPEN)
+        return CONNECTING;
+      return mState;
     }
+
+  void SetReadyState(uint16_t aState) { mState = aState; }
 
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
   void GetProtocol(nsAString& aProtocol) { CopyUTF8toUTF16(mProtocol, aProtocol); }

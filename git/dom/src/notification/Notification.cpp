@@ -254,7 +254,7 @@ NotificationTask::Run()
   case eClose:
     return mNotification->CloseInternal();
   default:
-    MOZ_CRASH("Unexpected action for NotificationTask.");
+    MOZ_NOT_REACHED("Unexpected action for NotificationTask.");
   }
 }
 

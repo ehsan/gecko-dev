@@ -4,11 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/IonBuilder.h"
-#include "ion/MIRGraph.h"
-#include "ion/Ion.h"
-#include "ion/IonAnalysis.h"
-#include "ion/LIR.h"
+#include "IonBuilder.h"
+#include "MIRGraph.h"
+#include "Ion.h"
+#include "IonAnalysis.h"
+#include "LIR.h"
 
 using namespace js;
 using namespace js::ion;
@@ -570,7 +570,8 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
         v = MagicValue(JS_OPTIMIZED_ARGUMENTS);
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected type");
+        JS_NOT_REACHED("unexpected type");
+        return;
     }
     MConstant *c = MConstant::New(v);
     // The instruction pass will insert the box

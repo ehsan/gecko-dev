@@ -143,7 +143,6 @@ let gInitialPages = [
   "about:newtab",
   "about:home",
   "about:privatebrowsing",
-  "about:welcomeback",
   "about:sessionrestore"
 ];
 
@@ -6404,11 +6403,6 @@ var gIdentityHandler = {
     return this._identityPopupContentBox =
       document.getElementById("identity-popup-content-box");
   },
-  get _identityPopupChromeLabel () {
-    delete this._identityPopupChromeLabel;
-    return this._identityPopupChromeLabel =
-      document.getElementById("identity-popup-chromeLabel");
-  },
   get _identityPopupContentHost () {
     delete this._identityPopupContentHost;
     return this._identityPopupContentHost =
@@ -6679,8 +6673,6 @@ var gIdentityHandler = {
                         "rtl" : "ltr";
       break; }
     case this.IDENTITY_MODE_CHROMEUI:
-      let brandBundle = document.getElementById("bundle_brand");
-      icon_label = brandBundle.getString("brandShortName");
       break;
     default:
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
@@ -6742,12 +6734,6 @@ var gIdentityHandler = {
       else if (iData.country) // Country only
         supplemental += iData.country;
       break; }
-    case this.IDENTITY_MODE_CHROMEUI: {
-      let brandBundle = document.getElementById("bundle_brand");
-      let brandShortName = brandBundle.getString("brandShortName");
-      this._identityPopupChromeLabel.textContent = gNavigatorBundle.getFormattedString("identity.chrome",
-                                                                                       [brandShortName]);
-      break; }
     }
 
     // Push the appropriate strings out to the UI
@@ -6775,8 +6761,10 @@ var gIdentityHandler = {
       return; // Left click, space or enter only
     }
 
-    // Don't allow left click, space or enter if the location has been modified.
-    if (gURLBar.getAttribute("pageproxystate") != "valid") {
+    // Don't allow left click, space or enter if the location
+    // is chrome UI or the location has been modified.
+    if (this._mode == this.IDENTITY_MODE_CHROMEUI ||
+        gURLBar.getAttribute("pageproxystate") != "valid") {
       TelemetryStopwatch.cancel("FX_IDENTITY_POPUP_OPEN_MS");
       return;
     }

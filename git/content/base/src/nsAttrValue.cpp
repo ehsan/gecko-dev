@@ -308,7 +308,8 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
     }
     case eCSSStyleRule:
     {
-      MOZ_CRASH("These should be refcounted!");
+      MOZ_NOT_REACHED("These should be refcounted!");
+      break;
     }
     case eURL:
     {

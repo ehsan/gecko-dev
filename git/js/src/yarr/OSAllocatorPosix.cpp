@@ -31,11 +31,11 @@
 
 #if WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
-#include "yarr/OSAllocator.h"
+#include "OSAllocator.h"
 
 #include <errno.h>
 #include <sys/mman.h>
-#include "assembler/wtf/Assertions.h"
+#include "wtf/Assertions.h"
 
 namespace WTF {
 

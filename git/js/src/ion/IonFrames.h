@@ -14,9 +14,9 @@
 #include "jsfun.h"
 #include "jstypes.h"
 #include "jsutil.h"
-#include "ion/Registers.h"
-#include "ion/IonCode.h"
-#include "ion/IonFrameIterator.h"
+#include "Registers.h"
+#include "IonCode.h"
+#include "IonFrameIterator.h"
 
 class JSFunction;
 class JSScript;
@@ -90,7 +90,8 @@ ScriptFromCalleeToken(CalleeToken token)
       case CalleeToken_ParallelFunction:
         return CalleeTokenToParallelFunction(token)->nonLazyScript();
     }
-    MOZ_ASSUME_UNREACHABLE("invalid callee token tag");
+    JS_NOT_REACHED("invalid callee token tag");
+    return NULL;
 }
 
 // In between every two frames lies a small header describing both frames. This

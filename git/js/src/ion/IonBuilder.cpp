@@ -27,6 +27,10 @@
 #include "ion/ExecutionModeInlines.h"
 #include "vm/ScopeObject-inl.h"
 
+#ifdef JS_THREADSAFE
+# include "prthread.h"
+#endif
+
 using namespace js;
 using namespace js::ion;
 
@@ -1104,7 +1108,8 @@ IonBuilder::snoopControlFlow(JSOp op)
 
           default:
             // Hard assert for now - make an error later.
-            MOZ_ASSUME_UNREACHABLE("unknown goto case");
+            JS_NOT_REACHED("unknown goto case");
+            break;
         }
         break;
       }
@@ -1115,7 +1120,8 @@ IonBuilder::snoopControlFlow(JSOp op)
       case JSOP_IFNE:
         // We should never reach an IFNE, it's a stopAt point, which will
         // trigger closing the loop.
-        MOZ_ASSUME_UNREACHABLE("we should never reach an ifne!");
+        JS_NOT_REACHED("we should never reach an ifne!");
+        return ControlStatus_Error;
 
       default:
         break;
@@ -1403,7 +1409,8 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_LOOPHEAD:
         // JSOP_LOOPHEAD is handled when processing the loop header.
-        MOZ_ASSUME_UNREACHABLE("JSOP_LOOPHEAD outside loop");
+        JS_NOT_REACHED("JSOP_LOOPHEAD outside loop");
+        return true;
 
       case JSOP_GETELEM:
       case JSOP_CALLELEM:
@@ -1603,8 +1610,9 @@ IonBuilder::processCfgEntry(CFGState &state)
         return processLabelEnd(state);
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unknown cfgstate");
+        JS_NOT_REACHED("unknown cfgstate");
     }
+    return ControlStatus_Error;
 }
 
 IonBuilder::ControlStatus
@@ -2251,7 +2259,8 @@ IonBuilder::processSwitchBreak(JSOp op)
         breaks = &state.condswitch.breaks;
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unexpected switch state.");
+        JS_NOT_REACHED("Unexpected switch state.");
+        return ControlStatus_Error;
     }
 
     *breaks = new DeferredEdge(current, *breaks);
@@ -2327,7 +2336,8 @@ IonBuilder::maybeLoop(JSOp op, jssrcnote *sn)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
+        JS_NOT_REACHED("unexpected opcode");
+        return ControlStatus_Error;
     }
 
     return ControlStatus_None;
@@ -2357,7 +2367,8 @@ IonBuilder::assertValidLoopHeadOp(jsbytecode *pc)
             break;
 
           default:
-            MOZ_ASSUME_UNREACHABLE("JSOP_LOOPHEAD unexpected source note");
+            JS_NOT_REACHED("JSOP_LOOPHEAD unexpected source note");
+            return;
         }
 
         // Make sure this loop goes to the same ifne as the loop header's
@@ -3139,7 +3150,8 @@ IonBuilder::jsop_ifeq(JSOp op)
       }
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected source note type");
+        JS_NOT_REACHED("unexpected source note type");
+        break;
     }
 
     // Switch to parsing the true branch. Note that no PC update is needed,
@@ -3168,7 +3180,8 @@ IonBuilder::processReturn(JSOp op)
 
       default:
         def = NULL;
-        MOZ_ASSUME_UNREACHABLE("unknown return op");
+        JS_NOT_REACHED("unknown return op");
+        break;
     }
 
     if (instrumentedProfiling())
@@ -3257,7 +3270,8 @@ IonBuilder::jsop_bitop(JSOp op)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected bitop");
+        JS_NOT_REACHED("unexpected bitop");
+        return false;
     }
 
     current->add(ins);
@@ -3276,14 +3290,9 @@ IonBuilder::jsop_binary(JSOp op, MDefinition *left, MDefinition *right)
     // Do a string concatenation if adding two inputs that are int or string
     // and at least one is a string.
     if (op == JSOP_ADD &&
-        ((left->type() == MIRType_String &&
-          (right->type() == MIRType_String ||
-           right->type() == MIRType_Int32 ||
-           right->type() == MIRType_Double)) ||
-         (left->type() == MIRType_Int32 &&
-          right->type() == MIRType_String) ||
-         (left->type() == MIRType_Double &&
-          right->type() == MIRType_String)))
+        (left->type() == MIRType_String || right->type() == MIRType_String) &&
+        (left->type() == MIRType_String || left->type() == MIRType_Int32) &&
+        (right->type() == MIRType_String || right->type() == MIRType_Int32))
     {
         MConcat *ins = MConcat::New(left, right);
         current->add(ins);
@@ -3314,7 +3323,8 @@ IonBuilder::jsop_binary(JSOp op, MDefinition *left, MDefinition *right)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected binary opcode");
+        JS_NOT_REACHED("unexpected binary opcode");
+        return false;
     }
 
     bool overflowed = types::HasOperationOverflowed(script(), pc);
@@ -3711,7 +3721,7 @@ IonBuilder::getInlineableGetPropertyCache(CallInfo &callInfo)
     // MGetPropertyCache with no uses may be optimized away.
     if (funcDef->isGetPropertyCache()) {
         MGetPropertyCache *cache = funcDef->toGetPropertyCache();
-        if (cache->hasUses())
+        if (cache->useCount() > 0)
             return NULL;
         if (!CanInlineGetPropertyCache(cache, thisDef))
             return NULL;
@@ -3724,7 +3734,7 @@ IonBuilder::getInlineableGetPropertyCache(CallInfo &callInfo)
         MUnbox *unbox = funcDef->toUnbox();
         if (unbox->mode() != MUnbox::Infallible)
             return NULL;
-        if (unbox->hasUses())
+        if (unbox->useCount() > 0)
             return NULL;
         if (!unbox->input()->isTypeBarrier())
             return NULL;
@@ -3967,7 +3977,7 @@ IonBuilder::inlineTypeObjectFallback(CallInfo &callInfo, MBasicBlock *dispatchBl
 
     // 3. The MGetPropertyCache (and, if applicable, MTypeBarrier and MUnbox) only
     //    have at most a single use.
-    JS_ASSERT_IF(callInfo.fun()->isGetPropertyCache(), !cache->hasUses());
+    JS_ASSERT_IF(callInfo.fun()->isGetPropertyCache(), cache->useCount() == 0);
     JS_ASSERT_IF(callInfo.fun()->isUnbox(), cache->useCount() == 1);
 
     // This means that no resume points yet capture the MGetPropertyCache,
@@ -6076,7 +6086,8 @@ ion::TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *input
         return types->unknown() || (inputTypes && inputTypes->isSubset(types));
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Bad input type");
+        JS_NOT_REACHED("Bad input type");
+        return false;
     }
 }
 
@@ -6584,7 +6595,8 @@ IonBuilder::jsop_getelem_typed(int arrayType)
             knownType = MIRType_Double;
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unknown typed array type");
+            JS_NOT_REACHED("Unknown typed array type");
+            return false;
         }
 
         // Get the length.
@@ -6630,7 +6642,8 @@ IonBuilder::jsop_getelem_typed(int arrayType)
                 needsBarrier = false;
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unknown typed array type");
+            JS_NOT_REACHED("Unknown typed array type");
+            return false;
         }
 
         // Assume we will read out-of-bound values. In this case the

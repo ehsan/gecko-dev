@@ -392,7 +392,7 @@ abstract public class BrowserApp extends GeckoApp
 
         super.onCreate(savedInstanceState);
 
-        mBrowserToolbar = (BrowserToolbar) findViewById(R.id.browser_toolbar);
+        RelativeLayout actionBar = (RelativeLayout) findViewById(R.id.browser_toolbar);
 
         mToast = new ButtonToast(findViewById(R.id.toast), new ButtonToast.ToastListener() {
             @Override
@@ -433,8 +433,11 @@ abstract public class BrowserApp extends GeckoApp
             mAboutHome.setUserVisibleHint(false);
         }
 
+        mBrowserToolbar = new BrowserToolbar(this);
+        mBrowserToolbar.from(actionBar);
+
         // Intercept key events for gamepad shortcuts
-        mBrowserToolbar.setOnKeyListener(this);
+        actionBar.setOnKeyListener(this);
 
         if (mTabsPanel != null) {
             mTabsPanel.setTabsLayoutChangeListener(this);
@@ -551,7 +554,7 @@ abstract public class BrowserApp extends GeckoApp
                 mLayerView.getLayerClient().setOnMetricsChangedListener(this);
             }
             setToolbarMargin(0);
-            mAboutHome.setTopPadding(mBrowserToolbar.getHeight());
+            mAboutHome.setTopPadding(mBrowserToolbar.getLayout().getHeight());
         } else {
             // Immediately show the toolbar when disabling the dynamic
             // toolbar.
@@ -560,7 +563,7 @@ abstract public class BrowserApp extends GeckoApp
             }
             mAboutHome.setTopPadding(0);
             if (mBrowserToolbar != null) {
-                mBrowserToolbar.scrollTo(0, 0);
+                mBrowserToolbar.getLayout().scrollTo(0, 0);
             }
         }
 
@@ -821,7 +824,7 @@ abstract public class BrowserApp extends GeckoApp
             mDynamicToolbarCanScroll = true;
         }
 
-        final View toolbarLayout = mBrowserToolbar;
+        final View toolbarLayout = mBrowserToolbar.getLayout();
         final int marginTop = Math.round(aMetrics.marginTop);
         ThreadUtils.postToUiThread(new Runnable() {
             public void run() {
@@ -854,7 +857,7 @@ abstract public class BrowserApp extends GeckoApp
     public void refreshToolbarHeight() {
         int height = 0;
         if (mBrowserToolbar != null) {
-            height = mBrowserToolbar.getHeight();
+            height = mBrowserToolbar.getLayout().getHeight();
         }
 
         if (!isDynamicToolbarEnabled()) {

@@ -2183,31 +2183,28 @@ let RIL = {
     let mmiString = options.mmi;
     let mmi = this._parseMMI(mmiString);
 
-    let _sendMMIError = (function _sendMMIError(errorMsg, mmiServiceCode) {
+    let _sendMMIError = (function _sendMMIError(errorMsg) {
       options.rilMessageType = "sendMMI";
       options.errorMsg = errorMsg;
-      if (mmiServiceCode) {
-        options.mmiServiceCode = mmiServiceCode;
-      }
       this.sendDOMMessage(options);
     }).bind(this);
 
-    function _isValidPINPUKRequest(mmiServiceCode) {
+    function _isValidPINPUKRequest() {
       // The only allowed MMI procedure for ICC PIN, PIN2, PUK and PUK2 handling
       // is "Registration" (**).
       if (!mmi.procedure || mmi.procedure != MMI_PROCEDURE_REGISTRATION ) {
-        _sendMMIError(MMI_ERROR_KS_INVALID_ACTION, mmiServiceCode);
+        _sendMMIError("WRONG_MMI_PROCEDURE");
         return;
       }
 
       if (!mmi.sia || !mmi.sia.length || !mmi.sib || !mmi.sib.length ||
           !mmi.sic || !mmi.sic.length) {
-        _sendMMIError(MMI_ERROR_KS_ERROR, mmiServiceCode);
+        _sendMMIError("MISSING_SUPPLEMENTARY_INFORMATION");
         return;
       }
 
       if (mmi.sib != mmi.sic) {
-        _sendMMIError(MMI_ERROR_KS_MISMATCH_PIN, mmiServiceCode);
+        _sendMMIError("NEW_PIN_MISMATCH");
         return;
       }
 
@@ -2220,7 +2217,7 @@ let RIL = {
         this.sendUSSD(options);
         return;
       }
-      _sendMMIError(MMI_ERROR_KS_ERROR);
+      _sendMMIError("NO_VALID_MMI_STRING");
       return;
     }
 
@@ -2244,7 +2241,6 @@ let RIL = {
         // procedure, and a reason, given by the MMI service code, but there
         // is no way that we get this far without a valid procedure or service
         // code.
-        options.mmiServiceCode = MMI_KS_SC_CALL_FORWARDING;
         options.action = MMI_PROC_TO_CF_ACTION[mmi.procedure];
         options.rilMessageType = "sendMMI";
         options.reason = MMI_SC_TO_CF_REASON[sc];
@@ -2267,11 +2263,10 @@ let RIL = {
         // an MMI code of the form **04*OLD_PIN*NEW_PIN*NEW_PIN#, where old PIN
         // should be entered as the SIA parameter and the new PIN as SIB and
         // SIC.
-        if (!_isValidPINPUKRequest(MMI_KS_SC_PIN)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PIN;
         options.rilRequestType = "sendMMI";
         options.pin = mmi.sia;
         options.newPin = mmi.sib;
@@ -2284,11 +2279,10 @@ let RIL = {
         // enter and MMI code of the form **042*OLD_PIN2*NEW_PIN2*NEW_PIN2#,
         // where the old PIN2 should be entered as the SIA parameter and the
         // new PIN2 as SIB and SIC.
-        if (!_isValidPINPUKRequest(MMI_KS_SC_PIN2)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PIN2;
         options.rilRequestType = "sendMMI";
         options.pin = mmi.sia;
         options.newPin = mmi.sib;
@@ -2301,11 +2295,10 @@ let RIL = {
         // enter an MMI code of the form **05*PUK*NEW_PIN*NEW_PIN#, where PUK
         // should be entered as the SIA parameter and the new PIN as SIB and
         // SIC.
-        if (!_isValidPINPUKRequest(MMI_KS_SC_PUK)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PUK;
         options.rilRequestType = "sendMMI";
         options.puk = mmi.sia;
         options.newPin = mmi.sib;
@@ -2318,11 +2311,10 @@ let RIL = {
         // enter an MMI code of the form **052*PUK2*NEW_PIN2*NEW_PIN2#, where
         // PUK2 should be entered as the SIA parameter and the new PIN2 as SIB
         // and SIC.
-        if (!_isValidPINPUKRequest(MMI_KS_SC_PUK2)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PUK2;
         options.rilRequestType = "sendMMI";
         options.puk = mmi.sia;
         options.newPin = mmi.sib;
@@ -2337,7 +2329,6 @@ let RIL = {
           return;
         }
         // If we already had the device's IMEI, we just send it to the DOM.
-        options.mmiServiceCode = MMI_KS_SC_IMEI;
         options.rilMessageType = "sendMMI";
         options.success = true;
         options.result = this.IMEI;
@@ -2353,13 +2344,12 @@ let RIL = {
       case MMI_SC_BA_ALL:
       case MMI_SC_BA_MO:
       case MMI_SC_BA_MT:
+        _sendMMIError("CALL_BARRING_NOT_SUPPORTED_VIA_MMI");
+        return;
+
       // Call waiting
       case MMI_SC_CALL_WAITING:
-      // CLIP
-      case MMI_SC_CLIP:
-      // CLIR
-      case MMI_SC_CLIR:
-        _sendMMIError(MMI_ERROR_KS_NOT_SUPPORTED);
+        _sendMMIError("CALL_WAITING_NOT_SUPPORTED_VIA_MMI");
         return;
     }
 
@@ -2368,14 +2358,13 @@ let RIL = {
     if (mmi.fullMMI &&
         (mmiString.charAt(mmiString.length - 1) == MMI_END_OF_USSD)) {
       options.ussd = mmi.fullMMI;
-      options.mmiServiceCode = MMI_KS_SC_USSD;
       this.sendUSSD(options);
       return;
     }
 
     // At this point, the MMI string is considered as not valid MMI code and
     // not valid USSD code.
-    _sendMMIError(MMI_ERROR_KS_ERROR);
+    _sendMMIError("NOT_VALID_MMI_STRING");
   },
 
   /**
@@ -2395,7 +2384,6 @@ let RIL = {
    * Cancel pending USSD.
    */
    cancelUSSD: function cancelUSSD(options) {
-     options.mmiServiceCode = MMI_KS_SC_USSD;
      Buf.simpleRequest(REQUEST_CANCEL_USSD, options);
    },
 
@@ -4859,7 +4847,6 @@ RIL[REQUEST_GET_IMEI] = function REQUEST_GET_IMEI(length, options) {
     return;
   }
 
-  options.mmiServiceCode = MMI_KS_SC_IMEI;
   options.rilMessageType = "sendMMI";
   options.success = (options.rilRequestError === 0);
   options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
@@ -6477,17 +6464,14 @@ let GsmPDUHelper = {
    */
   readDiallingNumber: function readDiallingNumber(len) {
     if (DEBUG) debug("PDU: Going to read Dialling number: " + len);
-    if (len === 0) {
-      return "";
-    }
 
     // TOA = TON + NPI
     let toa = this.readHexOctet();
 
-    let number = this.readSwappedNibbleBcdString(len - 1);
+    let number = this.readSwappedNibbleBcdString(len - 1).toString();
     if (number.length <= 0) {
-      if (DEBUG) debug("No number provided");
-      return "";
+      if (DEBUG) debug("PDU error: no number provided");
+      return null;
     }
     if ((toa >> 4) == (PDU_TOA_INTERNATIONAL >> 4)) {
       number = '+' + number;
@@ -11470,9 +11454,9 @@ let ICCUtilsHelper = {
       bitmask = 1 << ((usimService % 8) << 0);
     }
 
-    return (serviceTable !== null) &&
+    return (serviceTable &&
            (index < serviceTable.length) &&
-           ((serviceTable[index] & bitmask) !== 0);
+           (serviceTable[index] & bitmask)) !== 0;
   },
 
   /**

@@ -250,7 +250,7 @@ public:
     virtual GLLibraryEGL* GetLibraryEGL() { return nullptr; }
 
     virtual void MakeCurrent_EGLSurface(void* surf) {
-        MOZ_CRASH("Must be called against a GLContextEGL.");
+        MOZ_NOT_REACHED("Must be called against a GLContextEGL.");
     }
 
     /**
@@ -1026,7 +1026,6 @@ public:
         OES_element_index_uint,
         OES_vertex_array_object,
         ARB_vertex_array_object,
-        APPLE_vertex_array_object,
         ARB_draw_buffers,
         EXT_draw_buffers,
         Extensions_Max

@@ -28,7 +28,7 @@
         <![CDATA[
           window.addEventListener('MozContextUIShow', this);
           window.addEventListener('MozContextUIDismiss', this);
-          window.addEventListener('MozAppbarDismissing', this);
+          window.addEventListener('MozAppbarDismiss', this);
         ]]>
       </constructor>
 
@@ -36,7 +36,7 @@
         <![CDATA[
           window.removeEventListener('MozContextUIShow', this);
           window.removeEventListener('MozContextUIDismiss', this);
-          window.removeEventListener('MozAppbarDismissing', this);
+          window.removeEventListener('MozAppbarDismiss', this);
         ]]>
       </destructor>
 
@@ -92,7 +92,7 @@
           <![CDATA[
             switch (aEvent.type) {
               case 'MozContextUIShow':
-              case 'MozAppbarDismissing':
+              case 'MozAppbarDismiss':
               case 'MozContextUIDismiss':
                 this.hide();
                 break;

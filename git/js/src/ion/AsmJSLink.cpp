@@ -7,11 +7,15 @@
 #include "jsmath.h"
 #include "jscntxt.h"
 
-#include "ion/AsmJS.h"
-#include "ion/AsmJSModule.h"
+#include "AsmJS.h"
+#include "AsmJSModule.h"
 #include "frontend/BytecodeCompiler.h"
 
-#include "ion/Ion.h"
+#include "Ion.h"
+
+#ifdef MOZ_VTUNE
+# include "jitprofiling.h"
+#endif
 
 #include "jsfuninlines.h"
 #include "jstypedarrayinlines.h"

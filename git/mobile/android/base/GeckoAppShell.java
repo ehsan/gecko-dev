@@ -632,26 +632,26 @@ public class GeckoAppShell
         gRestartScheduled = true;
     }
 
-    public static File preInstallWebApp(String aTitle, String aURI, String aOrigin) {
-        int index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aOrigin, aTitle, (String) null);
+    public static File preInstallWebApp(String aTitle, String aURI, String aUniqueURI) {
+        int index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, (String) null);
         GeckoProfile profile = GeckoProfile.get(getContext(), "webapp" + index);
         return profile.getDir();
     }
 
-    public static void postInstallWebApp(String aTitle, String aURI, String aOrigin, String aIconURL, String aOriginalOrigin) {
+    public static void postInstallWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
     	WebAppAllocator allocator = WebAppAllocator.getInstance(getContext());
-		int index = allocator.getIndexForApp(aOriginalOrigin);
+		int index = allocator.getIndexForApp(aUniqueURI);
     	assert index != -1 && aIconURL != null;
-    	allocator.updateAppAllocation(aOrigin, index, BitmapUtils.getBitmapFromDataURI(aIconURL));
-    	createShortcut(aTitle, aURI, aOrigin, aIconURL, "webapp");
+    	allocator.updateAppAllocation(aUniqueURI, index, BitmapUtils.getBitmapFromDataURI(aIconURL));
+    	createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
     }
 
-    public static Intent getWebAppIntent(String aURI, String aOrigin, String aTitle, Bitmap aIcon) {
+    public static Intent getWebAppIntent(String aURI, String aUniqueURI, String aTitle, Bitmap aIcon) {
         int index;
         if (aIcon != null && !TextUtils.isEmpty(aTitle))
-            index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aOrigin, aTitle, aIcon);
+            index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, aIcon);
         else
-            index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aOrigin);
+            index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aUniqueURI);
 
         if (index == -1)
             return null;

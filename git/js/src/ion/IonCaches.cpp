@@ -6,17 +6,17 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "ion/PerfSpewer.h"
-#include "ion/CodeGenerator.h"
-#include "ion/Ion.h"
-#include "ion/IonCaches.h"
-#include "ion/IonLinker.h"
-#include "ion/IonSpewer.h"
-#include "ion/VMFunctions.h"
+#include "PerfSpewer.h"
+#include "CodeGenerator.h"
+#include "Ion.h"
+#include "IonCaches.h"
+#include "IonLinker.h"
+#include "IonSpewer.h"
+#include "VMFunctions.h"
 
 #include "vm/Shape.h"
 
-#include "ion/IonFrames-inl.h"
+#include "IonFrames-inl.h"
 
 #include "vm/Interpreter-inl.h"
 
@@ -2834,7 +2834,8 @@ IsCacheableScopeChain(JSObject *scopeChain, JSObject *holder)
         }
     }
 
-    MOZ_ASSUME_UNREACHABLE();
+    JS_NOT_REACHED("Shouldn't get here");
+    return false;
 }
 
 JSObject *

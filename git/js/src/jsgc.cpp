@@ -100,12 +100,6 @@ static const uint64_t GC_IDLE_FULL_SPAN = 20 * 1000 * 1000;
 /* Increase the IGC marking slice time if we are in highFrequencyGC mode. */
 static const int IGC_MARK_SLICE_MULTIPLIER = 2;
 
-#if defined(ANDROID) || defined(MOZ_B2G)
-static const int MAX_EMPTY_CHUNK_COUNT = 2;
-#else
-static const int MAX_EMPTY_CHUNK_COUNT = 30;
-#endif
-
 /* This array should be const, but that doesn't link right under GCC. */
 const AllocKind gc::slotsToThingKind[] = {
     /* 0 */  FINALIZE_OBJECT0,  FINALIZE_OBJECT2,  FINALIZE_OBJECT2,  FINALIZE_OBJECT4,
@@ -459,7 +453,8 @@ FinalizeArenas(FreeOp *fop,
         return FinalizeTypedArenas<ion::IonCode>(fop, src, dest, thingKind, budget);
 #endif
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid alloc kind");
+        JS_NOT_REACHED("Invalid alloc kind");
+        return true;
     }
 }
 
@@ -539,16 +534,13 @@ ChunkPool::expire(JSRuntime *rt, bool releaseAll)
      * and are more likely to reach the max age.
      */
     Chunk *freeList = NULL;
-    int freeChunkCount = 0;
     for (Chunk **chunkp = &emptyChunkListHead; *chunkp; ) {
         JS_ASSERT(emptyCount);
         Chunk *chunk = *chunkp;
         JS_ASSERT(chunk->unused());
         JS_ASSERT(!rt->gcChunkSet.has(chunk));
         JS_ASSERT(chunk->info.age <= MAX_EMPTY_CHUNK_AGE);
-        if (releaseAll || chunk->info.age == MAX_EMPTY_CHUNK_AGE ||
-            freeChunkCount++ > MAX_EMPTY_CHUNK_COUNT)
-        {
+        if (releaseAll || chunk->info.age == MAX_EMPTY_CHUNK_AGE) {
             *chunkp = chunk->info.next;
             --emptyCount;
             chunk->prepareToBeFreed(rt);
@@ -724,7 +716,8 @@ Chunk::findDecommittedArenaOffset()
     for (unsigned i = 0; i < info.lastDecommittedArenaOffset; i++)
         if (decommittedArenas.get(i))
             return i;
-    MOZ_ASSUME_UNREACHABLE("No decommitted arenas found.");
+    JS_NOT_REACHED("No decommitted arenas found.");
+    return -1;
 }
 
 ArenaHeader *
@@ -2348,7 +2341,7 @@ GCHelperThread::startBackgroundShrink()
          */
         break;
       case SHUTDOWN:
-        MOZ_ASSUME_UNREACHABLE("No shrink on shutdown");
+        JS_NOT_REACHED("No shrink on shutdown");
     }
 #endif /* JS_THREADSAFE */
 }
@@ -3508,7 +3501,8 @@ RemoveFromGrayList(JSObject *wrapper)
         obj = next;
     }
 
-    MOZ_ASSUME_UNREACHABLE("object not found in gray link list");
+    JS_NOT_REACHED("object not found in gray link list");
+    return false;
 }
 
 static void
@@ -4110,7 +4104,7 @@ ResetIncrementalGC(JSRuntime *rt, const char *reason)
         break;
 
       default:
-        MOZ_ASSUME_UNREACHABLE("Invalid incremental GC state");
+        JS_NOT_REACHED("Invalid incremental GC state");
     }
 
     rt->gcStats.reset(reason);
@@ -4678,8 +4672,7 @@ AutoPrepareForTracing::AutoPrepareForTracing(JSRuntime *rt)
 }
 
 JSCompartment *
-js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals,
-                   const JS::CompartmentOptions &options)
+js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime();
     JS_AbortIfWrongThread(rt);
@@ -4701,7 +4694,7 @@ js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals,
         zone->isSystem = principals && principals == trusted;
     }
 
-    ScopedJSDeletePtr<JSCompartment> compartment(cx->new_<JSCompartment>(zone, options));
+    ScopedJSDeletePtr<JSCompartment> compartment(cx->new_<JSCompartment>(zone));
     if (!compartment || !compartment->init(cx))
         return NULL;
 

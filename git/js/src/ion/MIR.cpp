@@ -4,17 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/MIR.h"
+#include "MIR.h"
 
 #include "mozilla/Casting.h"
 
-#include "ion/BaselineInspector.h"
-#include "ion/IonBuilder.h"
-#include "ion/LICM.h" // For LinearSum
-#include "ion/MIRGraph.h"
-#include "ion/EdgeCaseAnalysis.h"
-#include "ion/RangeAnalysis.h"
-#include "ion/IonSpewer.h"
+#include "BaselineInspector.h"
+#include "IonBuilder.h"
+#include "LICM.h" // For LinearSum
+#include "MIRGraph.h"
+#include "EdgeCaseAnalysis.h"
+#include "RangeAnalysis.h"
+#include "IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
 #include "jsatominlines.h"
@@ -116,7 +116,8 @@ EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
         ret.setNumber(NumberMod(lhs.toNumber(), rhs.toNumber()));
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("NYI");
+        JS_NOT_REACHED("NYI");
+        return NULL;
     }
 
     if (ins->type() != MIRTypeFromValue(ret)) {
@@ -436,7 +437,8 @@ MConstant::printOpcode(FILE *fp)
         fprintf(fp, "magic");
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("unexpected type");
+        JS_NOT_REACHED("unexpected type");
+        break;
     }
 }
 
@@ -1273,9 +1275,6 @@ MMul::updateForReplacement(MDefinition *ins_)
     MMul *ins = ins_->toMul();
     bool negativeZero = canBeNegativeZero() || ins->canBeNegativeZero();
     setCanBeNegativeZero(negativeZero);
-    // Remove the imul annotation when merging imul and normal multiplication.
-    if (mode_ == Integer && ins->mode() != Integer)
-        mode_ = Normal;
     return true;
 }
 
@@ -1484,7 +1483,8 @@ MCompare::inputType()
       case Compare_Value:
         return MIRType_Value;
       default:
-        MOZ_ASSUME_UNREACHABLE("No known conversion");
+        JS_NOT_REACHED("No known conversion");
+        return MIRType_None;
     }
 }
 
@@ -1934,7 +1934,8 @@ MCompare::tryFold(bool *result)
             *result = (op == JSOP_NE || op == JSOP_STRICTNE);
             return true;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -1955,9 +1956,11 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_Boolean:
             // Int32 specialization should handle this.
-            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
+            JS_NOT_REACHED("Wrong specialization");
+            return false;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -1978,9 +1981,11 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_String:
             // Compare_String specialization should handle this.
-            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
+            JS_NOT_REACHED("Wrong specialization");
+            return false;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected type");
+            JS_NOT_REACHED("Unexpected type");
+            return false;
         }
     }
 
@@ -2032,7 +2037,8 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (comp != 0);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
+            JS_NOT_REACHED("Unexpected op.");
+            return false;
         }
 
         return true;
@@ -2064,7 +2070,8 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (lhsUint != rhsUint);
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
+            JS_NOT_REACHED("Unexpected op.");
+            return false;
         }
 
         return true;

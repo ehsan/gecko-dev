@@ -151,7 +151,6 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 - (void)clearCorners;
 
 // Overlay drawing functions for traditional CGContext drawing
-- (void)drawTitleString;
 - (void)drawTitlebarHighlight;
 - (void)maskTopCornersInContext:(CGContextRef)aContext;
 
@@ -2085,6 +2084,7 @@ nsChildView::UpdateTitlebarImageBuffer()
   double scale = BackingScaleFactor();
   CGContextScaleCTM(ctx, scale, scale);
   NSGraphicsContext* oldContext = [NSGraphicsContext currentContext];
+  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
 
   CGContextSaveGState(ctx);
 
@@ -2093,13 +2093,6 @@ nsChildView::UpdateTitlebarImageBuffer()
   if (![frameView isFlipped]) {
     CGContextTranslateCTM(ctx, 0, [frameView bounds].size.height);
     CGContextScaleCTM(ctx, 1, -1);
-  }
-  NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[frameView isFlipped]];
-  [NSGraphicsContext setCurrentContext:context];
-
-  // Draw the title string.
-  if ([frameView respondsToSelector:@selector(_drawTitleBar:)]) {
-    [frameView _drawTitleBar:[frameView bounds]];
   }
 
   // Draw the titlebar controls into the titlebar image.
@@ -2126,17 +2119,14 @@ nsChildView::UpdateTitlebarImageBuffer()
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, viewFrame.origin.x, viewFrame.origin.y);
 
-    if ([context isFlipped] != [view isFlipped]) {
+    if ([view isFlipped]) {
       CGContextTranslateCTM(ctx, 0, viewFrame.size.height);
       CGContextScaleCTM(ctx, 1, -1);
     }
 
-    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[view isFlipped]]];
-
     NSRect intersectRect = DevPixelsToCocoaPoints(intersection.GetBounds());
     [cell drawWithFrame:[view convertRect:intersectRect fromView:mView] inView:button];
 
-    [NSGraphicsContext setCurrentContext:context];
     CGContextRestoreGState(ctx);
   }
 
@@ -2392,7 +2382,7 @@ nsChildView::GetDocumentAccessible()
 
   // need to fetch the accessible anew, because it has gone away.
   // cache the accessible in our weak ptr
-  nsRefPtr<a11y::Accessible> acc = GetRootAccessible();
+  nsRefPtr<a11y::Accessible> acc = GetAccessible();
   mAccessible = do_GetWeakReference(static_cast<nsIAccessible *>(acc.get()));
 
   return acc.forget();
@@ -2962,7 +2952,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsIntRect boundingRect = mGeckoChild->CocoaPointsToDevPixels(aRect);
   const NSRect *rects;
   NSInteger count;
-  [self getRectsBeingDrawn:&rects count:&count];
+  [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
 
   if (count > MAX_RECTS_IN_REGION) {
     return boundingRect;
@@ -2970,7 +2960,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsIntRegion region;
   for (NSInteger i = 0; i < count; ++i) {
-    region.Or(region, mGeckoChild->CocoaPointsToDevPixels(rects[i]));
+    // Add the rect to the region.
+    NSRect r = [self convertRect:rects[i] fromView:[NSView focusView]];
+    region.Or(region, mGeckoChild->CocoaPointsToDevPixels(r));
   }
   region.And(region, boundingRect);
   return region;
@@ -3033,6 +3025,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   PROFILER_LABEL("widget", "ChildView::drawRect");
+
+  // Clip to the dirty region.
+  const NSRect *rects;
+  NSInteger count;
+  [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
+  CGContextClipToRects(aContext, (CGRect*)rects, count);
 
   // The CGContext that drawRect supplies us with comes with a transform that
   // scales one user space unit to one Cocoa point, which can consist of
@@ -3099,7 +3097,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   if ([self isCoveringTitlebar]) {
-    [self drawTitleString];
     [self drawTitlebarHighlight];
     [self maskTopCornersInContext:aContext];
   }
@@ -3269,26 +3266,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   CGContextRestoreGState(aContext);
 }
 
-- (void)drawTitleString
-{
-  NSView* frameView = [[[self window] contentView] superview];
-  if (![frameView respondsToSelector:@selector(_drawTitleBar:)]) {
-    return;
-  }
-
-  NSGraphicsContext* oldContext = [NSGraphicsContext currentContext];
-  CGContextRef ctx = (CGContextRef)[oldContext graphicsPort];
-  CGContextSaveGState(ctx);
-  if ([oldContext isFlipped] != [frameView isFlipped]) {
-    CGContextTranslateCTM(ctx, 0, [self bounds].size.height);
-    CGContextScaleCTM(ctx, 1, -1);
-  }
-  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[frameView isFlipped]]];
-  [frameView _drawTitleBar:[frameView bounds]];
-  CGContextRestoreGState(ctx);
-  [NSGraphicsContext setCurrentContext:oldContext];
-}
-
 - (void)drawTitlebarHighlight
 {
   DrawTitlebarHighlight([self bounds].size, [self cornerRadius],
@@ -3351,6 +3328,13 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mGeckoChild->WillPaintWindow();
   }
   [super viewWillDraw];
+}
+
+// Allows us to turn off setting up the clip region
+// before each drawRect. We already clip within gecko.
+- (BOOL)wantsDefaultClipping
+{
+  return NO;
 }
 
 #if USE_CLICK_HOLD_CONTEXTMENU
@@ -4844,7 +4828,7 @@ static int32_t RoundUp(double aDouble)
   if (mGeckoChild &&
       mGeckoChild->GetInputContext().IsPasswordEditor() !=
         TextInputHandler::IsSecureEventInputEnabled()) {
-    MOZ_CRASH("in wrong secure input mode");
+    MOZ_NOT_REACHED("in wrong secure input mode");
   }
 #endif // #if !defined(RELEASE_BUILD) || defined(DEBUG)
 

@@ -238,9 +238,6 @@ class MacroAssemblerARM : public Assembler
     // implicitly assumes that we can overwrite dest at the beginning of the sequence
     void ma_mod_mask(Register src, Register dest, Register hold, int32_t shift);
 
-    // division
-    void ma_sdiv(Register num, Register div, Register dest, Condition cond = Always);
-
     // memory
     // shortcut for when we know we're transferring 32 bits of data
     void ma_dtr(LoadStore ls, Register rn, Imm32 offset, Register rt,
@@ -360,9 +357,9 @@ class MacroAssemblerARM : public Assembler
         }
         if (mode == DB) {
             return transferMultipleByRunsImpl
-                <FloatRegisterBackwardIterator>(set, ls, rm, mode, -1);
+                <FloatRegisterIterator>(set, ls, rm, mode, -1);
         }
-        MOZ_ASSUME_UNREACHABLE("Invalid data transfer addressing mode");
+        JS_NOT_REACHED("Invalid data transfer addressing mode");
     }
 
 private:
@@ -483,10 +480,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_mov(Imm32(imm.value), dest);
     }
     void mov(Register src, Address dest) {
-        MOZ_ASSUME_UNREACHABLE("NYI-IC");
+        JS_NOT_REACHED("NYI-IC");
     }
     void mov(Address src, Register dest) {
-        MOZ_ASSUME_UNREACHABLE("NYI-IC");
+        JS_NOT_REACHED("NYI-IC");
     }
 
     void call(const Register reg) {

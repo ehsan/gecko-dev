@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/BaselineCompiler.h"
-#include "ion/BaselineIC.h"
-#include "ion/BaselineJIT.h"
-#include "ion/CompileInfo.h"
-#include "ion/IonSpewer.h"
-#include "ion/IonFrames-inl.h"
+#include "BaselineCompiler.h"
+#include "BaselineIC.h"
+#include "BaselineJIT.h"
+#include "CompileInfo.h"
+#include "IonSpewer.h"
+#include "IonFrames-inl.h"
 
 #include "vm/Stack-inl.h"
 
@@ -1328,7 +1328,7 @@ ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
             return false;
         break;
       default:
-        MOZ_ASSUME_UNREACHABLE("Unknown bailout kind!");
+        JS_NOT_REACHED("Unknown bailout kind!");
     }
 
     if (!CheckFrequentBailouts(cx, outerScript))

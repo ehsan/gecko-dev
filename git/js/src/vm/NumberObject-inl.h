@@ -7,7 +7,7 @@
 #ifndef vm_NumberObject_inl_h
 #define vm_NumberObject_inl_h
 
-#include "vm/NumberObject.h"
+#include "NumberObject.h"
 
 #include "jsobjinlines.h"
 

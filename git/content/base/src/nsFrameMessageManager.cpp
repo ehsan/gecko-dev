@@ -582,24 +582,6 @@ nsFrameMessageManager::AssertAppHasPermission(const nsAString& aPermission,
                                aHasPermission);
 }
 
-NS_IMETHODIMP
-nsFrameMessageManager::CheckAppHasStatus(unsigned short aStatus,
-                                         bool* aHasStatus)
-{
-  *aHasStatus = false;
-
-  // This API is only supported for message senders in the chrome process.
-  if (!mChrome || mIsBroadcaster) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-  if (!mCallback) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  *aHasStatus = mCallback->CheckAppHasStatus(aStatus);
-
-  return NS_OK;
-}
-
 class MMListenerRemover
 {
 public:
@@ -1114,6 +1096,7 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_PRIVATE_IS_NSISUPPORTS);
+  JS_SetVersion(cx, JSVERSION_LATEST);
   JS_SetErrorReporter(cx, ContentScriptErrorReporter);
 
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
@@ -1122,12 +1105,9 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
 
   JS_SetContextPrivate(cx, aScope);
 
-  JS::CompartmentOptions options;
-  options.setZone(JS::SystemZone)
-         .setVersion(JSVERSION_LATEST);
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, aScope, mPrincipal,
-                                         flags, options, getter_AddRefs(mGlobal));
+                                         flags, JS::SystemZone, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
 

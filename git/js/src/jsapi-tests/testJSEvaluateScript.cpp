@@ -2,7 +2,7 @@
  * vim: set ts=8 sts=4 et sw=4 tw=99:
  */
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 BEGIN_TEST(testJSEvaluateScript)
 {

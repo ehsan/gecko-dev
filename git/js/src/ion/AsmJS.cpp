@@ -16,6 +16,10 @@
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
 
+#ifdef MOZ_VTUNE
+# include "jitprofiling.h"
+#endif
+
 #include "jsfuninlines.h"
 
 #include "frontend/ParseNode-inl.h"
@@ -412,7 +416,8 @@ class Type
           case Unknown:
             return MIRType_None;
         }
-        MOZ_ASSUME_UNREACHABLE("Invalid Type");
+        JS_NOT_REACHED("Invalid Type");
+        return MIRType_None;
     }
 
     const char *toChars() const {
@@ -427,7 +432,8 @@ class Type
           case Void:      return "void";
           case Unknown:   return "unknown";
         }
-        MOZ_ASSUME_UNREACHABLE("Invalid Type");
+        JS_NOT_REACHED("Invalid Type");
+        return "";
     }
 };
 
@@ -466,7 +472,8 @@ class RetType
           case Signed: return AsmJSModule::Return_Int32;
           case Double: return AsmJSModule::Return_Double;
         }
-        MOZ_ASSUME_UNREACHABLE("Unexpected return type");
+        JS_NOT_REACHED("Unexpected return type");
+        return AsmJSModule::Return_Void;
     }
     MIRType toMIRType() const {
         switch (which_) {
@@ -474,7 +481,8 @@ class RetType
           case Signed: return MIRType_Int32;
           case Double: return MIRType_Double;
         }
-        MOZ_ASSUME_UNREACHABLE("Unexpected return type");
+        JS_NOT_REACHED("Unexpected return type");
+        return MIRType_None;
     }
     bool operator==(RetType rhs) const { return which_ == rhs.which_; }
     bool operator!=(RetType rhs) const { return which_ != rhs.which_; }
@@ -489,7 +497,8 @@ operator<=(Type lhs, RetType rhs)
       case RetType::Double: return lhs == Type::Double;
       case RetType::Void:   return lhs == Type::Void;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected rhs type");
+    JS_NOT_REACHED("Unexpected rhs type");
+    return false;
 }
 
 // Represents the subset of Type that can be used as a variable or
@@ -562,7 +571,8 @@ operator<=(Type lhs, VarType rhs)
       case VarType::Int:    return lhs.isInt();
       case VarType::Double: return lhs.isDouble();
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected rhs type");
+    JS_NOT_REACHED("Unexpected rhs type");
+    return false;
 }
 
 // Passed from parent expressions to child expressions to indicate if and how
@@ -723,7 +733,7 @@ IsLiteralUint32(ParseNode *pn, uint32_t *u32)
         return false;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Bad literal type");
+    JS_NOT_REACHED("Bad literal type");
 }
 
 static inline bool
@@ -743,7 +753,7 @@ IsBits32(ParseNode *pn, int32_t i)
         return false;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Bad literal type");
+    JS_NOT_REACHED("Bad literal type");
 }
 
 /*****************************************************************************/
@@ -765,7 +775,8 @@ TypedArrayLoadType(ArrayBufferView::ViewType viewType)
         return Type::Doublish;
       default:;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected array type");
+    JS_NOT_REACHED("Unexpected array type");
+    return Type();
 }
 
 enum ArrayStoreEnum {
@@ -789,7 +800,8 @@ TypedArrayStoreType(ArrayBufferView::ViewType viewType)
         return ArrayStore_Doublish;
       default:;
     }
-    MOZ_ASSUME_UNREACHABLE("Unexpected array type");
+    JS_NOT_REACHED("Unexpected array type");
+    return ArrayStore_Doublish;
 }
 
 /*****************************************************************************/
@@ -3855,7 +3867,8 @@ IsValidIntMultiplyConstant(ParseNode *expr)
         return false;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Bad literal");
+    JS_NOT_REACHED("Bad literal");
+    return false;
 }
 
 static bool
@@ -4033,7 +4046,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
       case PNK_LSH:    identityElement = 0;  onlyOnRight = true;  *type = Type::Signed;   break;
       case PNK_RSH:    identityElement = 0;  onlyOnRight = true;  *type = Type::Signed;   break;
       case PNK_URSH:   identityElement = 0;  onlyOnRight = true;  *type = Type::Unsigned; break;
-      default: MOZ_ASSUME_UNREACHABLE("not a bitwise op");
+      default: JS_NOT_REACHED("not a bitwise op");
     }
 
     if (!onlyOnRight && IsBits32(lhs, identityElement)) {
@@ -4079,7 +4092,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
       case PNK_LSH:    *def = f.bitwise<MLsh>(lhsDef, rhsDef); break;
       case PNK_RSH:    *def = f.bitwise<MRsh>(lhsDef, rhsDef); break;
       case PNK_URSH:   *def = f.bitwise<MUrsh>(lhsDef, rhsDef); break;
-      default: MOZ_ASSUME_UNREACHABLE("not a bitwise op");
+      default: JS_NOT_REACHED("not a bitwise op");
     }
 
     return true;
@@ -5627,7 +5640,7 @@ GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
 #endif
           break;
       default:
-          MOZ_ASSUME_UNREACHABLE("Unsupported convert type");
+          JS_NOT_REACHED("Unsupported convert type");
     }
 
     masm.freeStack(stackDec);
