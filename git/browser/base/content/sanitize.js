@@ -53,7 +53,7 @@ Sanitizer.prototype = {
     return this.items[aItemName].canClear;
   },
   
-  prefDomain: "",
+  prefDomain: "privacy.item.",
   
   getNameFromPreference: function (aPreferenceName)
   {
@@ -488,9 +488,7 @@ Sanitizer._checkAndSanitize = function()
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
       !prefs.prefHasUserValue(Sanitizer.prefDidShutdown)) {
     // this is a shutdown or a startup after an unclean exit
-    var s = new Sanitizer();
-    s.prefDomain = "privacy.clearOnShutdown.";
-    s.sanitize() || // sanitize() returns null on full success
+    new Sanitizer().sanitize() || // sanitize() returns null on full success
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
   }
 };
