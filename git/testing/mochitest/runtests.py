@@ -434,16 +434,13 @@ class MochitestUtilsMixin(object):
 
     testRoot = self.getTestRoot(options)
     testRootAbs = os.path.abspath(testRoot)
-    if isinstance(options.manifestFile, TestManifest):
-        manifest = options.manifestFile
-    elif options.manifestFile and os.path.isfile(options.manifestFile):
+    if options.manifestFile and os.path.isfile(options.manifestFile):
       manifestFileAbs = os.path.abspath(options.manifestFile)
       assert manifestFileAbs.startswith(testRootAbs)
       manifest = TestManifest([options.manifestFile], strict=False)
     else:
       masterName = self.getTestFlavor(options) + '.ini'
       masterPath = os.path.join(testRoot, masterName)
-
       if os.path.exists(masterPath):
         manifest = TestManifest([masterPath], strict=False)
 
@@ -506,7 +503,6 @@ class MochitestUtilsMixin(object):
     if options.webServer != '127.0.0.1':
       return
 
-    log.info('Stopping web socket server')
     self.wsserver.stop()
 
   def startWebServer(self, options):
@@ -531,7 +527,6 @@ class MochitestUtilsMixin(object):
     if options.webServer != '127.0.0.1':
       return
 
-    log.info('Stopping web server')
     self.server.stop()
 
   def copyExtraFilesToProfile(self, options):
@@ -1094,98 +1089,83 @@ class Mochitest(MochitestUtilsMixin):
     self.httpPort = options.httpPort
     self.sslPort = options.sslPort
     self.webSocketPort = options.webSocketPort
+    self.startWebServer(options)
+    self.startWebSocketServer(options, debuggerInfo)
 
+    testURL = self.buildTestPath(options)
+    self.buildURLOptions(options, browserEnv)
+    if self.urlOpts:
+      testURL += "?" + "&".join(self.urlOpts)
+
+    if options.webapprtContent:
+      options.browserArgs.extend(('-test-mode', testURL))
+      testURL = None
+
+    if options.immersiveMode:
+      options.browserArgs.extend(('-firefoxpath', options.app))
+      options.app = self.immersiveHelperPath
+
+    if options.jsdebugger:
+      options.browserArgs.extend(['-jsdebugger'])
+
+    # Remove the leak detection file so it can't "leak" to the tests run.
+    # The file is not there if leak logging was not enabled in the application build.
+    if os.path.exists(self.leak_report_file):
+      os.remove(self.leak_report_file)
+
+    # then again to actually run mochitest
+    if options.timeout:
+      timeout = options.timeout + 30
+    elif options.debugger or not options.autorun:
+      timeout = None
+    else:
+      timeout = 330.0 # default JS harness timeout is 300 seconds
+
+    if options.vmwareRecording:
+      self.startVMwareRecording(options);
+
+    log.info("runtests.py | Running tests: start.\n")
     try:
-        self.startWebServer(options)
-        self.startWebSocketServer(options, debuggerInfo)
+      status = self.runApp(testURL,
+                           browserEnv,
+                           options.app,
+                           profile=self.profile,
+                           extraArgs=options.browserArgs,
+                           utilityPath=options.utilityPath,
+                           xrePath=options.xrePath,
+                           certPath=options.certPath,
+                           debuggerInfo=debuggerInfo,
+                           symbolsPath=options.symbolsPath,
+                           timeout=timeout,
+                           onLaunch=onLaunch,
+                           webapprtChrome=options.webapprtChrome,
+                           hide_subtests=options.hide_subtests
+                           )
+    except KeyboardInterrupt:
+      log.info("runtests.py | Received keyboard interrupt.\n");
+      status = -1
+    except:
+      traceback.print_exc()
+      log.error("Automation Error: Received unexpected exception while running application\n")
+      status = 1
 
-        testURL = self.buildTestPath(options)
-        self.buildURLOptions(options, browserEnv)
-        if self.urlOpts:
-          testURL += "?" + "&".join(self.urlOpts)
+    if options.vmwareRecording:
+      self.stopVMwareRecording();
 
-        if options.webapprtContent:
-          options.browserArgs.extend(('-test-mode', testURL))
-          testURL = None
+    self.stopWebServer(options)
+    self.stopWebSocketServer(options)
+    processLeakLog(self.leak_report_file, options.leakThreshold)
 
-        if options.immersiveMode:
-          options.browserArgs.extend(('-firefoxpath', options.app))
-          options.app = self.immersiveHelperPath
+    if self.nsprLogs:
+      with zipfile.ZipFile("%s/nsprlog.zip" % browserEnv["MOZ_UPLOAD_DIR"], "w", zipfile.ZIP_DEFLATED) as logzip:
+        for logfile in glob.glob("%s/nspr*.log*" % tempfile.gettempdir()):
+          logzip.write(logfile)
+          os.remove(logfile)
 
-        if options.jsdebugger:
-          options.browserArgs.extend(['-jsdebugger'])
+    log.info("runtests.py | Running tests: end.")
 
-        # Remove the leak detection file so it can't "leak" to the tests run.
-        # The file is not there if leak logging was not enabled in the application build.
-        if os.path.exists(self.leak_report_file):
-          os.remove(self.leak_report_file)
-
-        # then again to actually run mochitest
-        if options.timeout:
-          timeout = options.timeout + 30
-        elif options.debugger or not options.autorun:
-          timeout = None
-        else:
-          timeout = 330.0 # default JS harness timeout is 300 seconds
-
-        if options.vmwareRecording:
-          self.startVMwareRecording(options);
-
-        log.info("runtests.py | Running tests: start.\n")
-        try:
-          status = self.runApp(testURL,
-                               browserEnv,
-                               options.app,
-                               profile=self.profile,
-                               extraArgs=options.browserArgs,
-                               utilityPath=options.utilityPath,
-                               xrePath=options.xrePath,
-                               certPath=options.certPath,
-                               debuggerInfo=debuggerInfo,
-                               symbolsPath=options.symbolsPath,
-                               timeout=timeout,
-                               onLaunch=onLaunch,
-                               webapprtChrome=options.webapprtChrome,
-                               hide_subtests=options.hide_subtests
-                               )
-        except KeyboardInterrupt:
-          log.info("runtests.py | Received keyboard interrupt.\n");
-          status = -1
-        except:
-          traceback.print_exc()
-          log.error("Automation Error: Received unexpected exception while running application\n")
-          status = 1
-
-    finally:
-        if options.vmwareRecording:
-            try:
-              self.stopVMwareRecording();
-            except Exception:
-                log.exception('Error stopping VMWare recording')
-
-        try:
-            self.stopWebServer(options)
-        except Exception:
-            log.exception('Exception when stopping web server')
-
-        try:
-            self.stopWebSocketServer(options)
-        except Exception:
-            log.exception('Exception when stopping websocket server')
-
-        processLeakLog(self.leak_report_file, options.leakThreshold)
-
-        if self.nsprLogs:
-            with zipfile.ZipFile("%s/nsprlog.zip" % browserEnv["MOZ_UPLOAD_DIR"], "w", zipfile.ZIP_DEFLATED) as logzip:
-                for logfile in glob.glob("%s/nspr*.log*" % tempfile.gettempdir()):
-                    logzip.write(logfile)
-                    os.remove(logfile)
-
-        log.info("runtests.py | Running tests: end.")
-
-        if manifest is not None:
-            self.cleanup(manifest, options)
-
+    if manifest is not None:
+      self.cleanup(manifest, options)
     return status
 
   def handleTimeout(self, timeout, proc, utilityPath, debuggerInfo, browserProcessId):
@@ -1357,6 +1337,32 @@ class Mochitest(MochitestUtilsMixin):
 
   def makeTestConfig(self, options):
     "Creates a test configuration file for customizing test execution."
+    def jsonString(val):
+      if isinstance(val, bool):
+        if val:
+          return "true"
+        return "false"
+      elif val is None:
+        return '""'
+      elif isinstance(val, basestring):
+        return '"%s"' % (val.replace('\\', '\\\\'))
+      elif isinstance(val, int):
+        return '%s' % (val)
+      elif isinstance(val, list):
+        content = '['
+        first = True
+        for item in val:
+          if first:
+            first = False
+          else:
+            content += ", "
+          content += jsonString(item)
+        content += ']'
+        return content
+      else:
+        print "unknown type: %s: %s" % (opt, val)
+        sys.exit(1)
+
     options.logFile = options.logFile.replace("\\", "\\\\")
     options.testPath = options.testPath.replace("\\", "\\\\")
     testRoot = self.getTestRoot(options)
@@ -1364,9 +1370,20 @@ class Mochitest(MochitestUtilsMixin):
     if "MOZ_HIDE_RESULTS_TABLE" in os.environ and os.environ["MOZ_HIDE_RESULTS_TABLE"] == "1":
       options.hideResultsTable = True
 
-    d = dict(options.__dict__)
-    d['testRoot'] = testRoot
-    content = json.dumps(d)
+    #TODO: when we upgrade to python 2.6, just use json.dumps(options.__dict__)
+    content = "{"
+    content += '"testRoot": "%s", ' % (testRoot)
+    first = True
+    for opt in options.__dict__.keys():
+      val = options.__dict__[opt]
+      if first:
+        first = False
+      else:
+        content += ", "
+
+      content += '"' + opt + '": '
+      content += jsonString(val)
+    content += "}"
 
     with open(os.path.join(options.profilePath, "testConfig.js"), "w") as config:
       config.write(content)

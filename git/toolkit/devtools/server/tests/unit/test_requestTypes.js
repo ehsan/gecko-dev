@@ -3,6 +3,8 @@
 
 "use strict";
 
+let promise = devtools.require("sdk/core/promise");
+
 function test_requestTypes_request(aClient, anActor)
 {
   var calls = [];

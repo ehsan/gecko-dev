@@ -71,17 +71,7 @@ this.UITour = {
       widgetName: "PanelUI-fxa-status",
     }],
     ["addons",      {query: "#add-ons-button"}],
-    ["appMenu",     {
-      addTargetListener: (aDocument, aCallback) => {
-        let panelPopup = aDocument.getElementById("PanelUI-popup");
-        panelPopup.addEventListener("popupshown", aCallback);
-      },
-      query: "#PanelUI-button",
-      removeTargetListener: (aDocument, aCallback) => {
-        let panelPopup = aDocument.getElementById("PanelUI-popup");
-        panelPopup.removeEventListener("popupshown", aCallback);
-      },
-    }],
+    ["appMenu",     {query: "#PanelUI-button"}],
     ["backForward", {
       query: "#back-button",
       widgetName: "urlbar-container",
@@ -339,8 +329,6 @@ this.UITour = {
 
           if (typeof data.closeButtonCallbackID == "string")
             infoOptions.closeButtonCallbackID = data.closeButtonCallbackID;
-          if (typeof data.targetCallbackID == "string")
-            infoOptions.targetCallbackID = data.targetCallbackID;
 
           this.showInfo(contentDocument, target, data.title, data.text, iconURL, buttons, infoOptions);
         }).then(null, Cu.reportError);
@@ -685,20 +673,16 @@ this.UITour = {
     aWindow.PanelUI.ensureReady().then(() => {
       if (typeof targetQuery == "function") {
         deferred.resolve({
-          addTargetListener: targetObject.addTargetListener,
-          node: targetQuery(aWindow.document),
-          removeTargetListener: targetObject.removeTargetListener,
           targetName: aTargetName,
+          node: targetQuery(aWindow.document),
           widgetName: targetObject.widgetName,
         });
         return;
       }
 
       deferred.resolve({
-        addTargetListener: targetObject.addTargetListener,
-        node: aWindow.document.querySelector(targetQuery),
-        removeTargetListener: targetObject.removeTargetListener,
         targetName: aTargetName,
+        node: aWindow.document.querySelector(targetQuery),
         widgetName: targetObject.widgetName,
       });
     }).then(null, Cu.reportError);
@@ -817,9 +801,6 @@ this.UITour = {
           randomEffect--; // On the order of 1 in 2^62 chance of this happening.
         effect = this.highlightEffects[randomEffect];
       }
-      // Toggle the effect attribute to "none" and flush layout before setting it so the effect plays.
-      highlighter.setAttribute("active", "none");
-      aTargetEl.ownerDocument.defaultView.getComputedStyle(highlighter).animationName;
       highlighter.setAttribute("active", effect);
       highlighter.parentElement.setAttribute("targetName", aTarget.targetName);
       highlighter.parentElement.hidden = false;
@@ -952,24 +933,9 @@ this.UITour = {
           this.sendPageCallback(aContentDocument, aOptions.closeButtonCallbackID);
       };
       tooltipClose.addEventListener("command", closeButtonCallback);
-
-      let targetCallback = (event) => {
-        let details = {
-          target: aAnchor.targetName,
-          type: event.type,
-        };
-        this.sendPageCallback(aContentDocument, aOptions.targetCallbackID, details);
-      };
-      if (aOptions.targetCallbackID && aAnchor.addTargetListener) {
-        aAnchor.addTargetListener(document, targetCallback);
-      }
-
       tooltip.addEventListener("popuphiding", function tooltipHiding(event) {
         tooltip.removeEventListener("popuphiding", tooltipHiding);
         tooltipClose.removeEventListener("command", closeButtonCallback);
-        if (aOptions.targetCallbackID && aAnchor.removeTargetListener) {
-          aAnchor.removeTargetListener(document, targetCallback);
-        }
       });
 
       tooltip.setAttribute("targetName", aAnchor.targetName);

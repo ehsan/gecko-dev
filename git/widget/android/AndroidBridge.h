@@ -488,27 +488,29 @@ private:
 
 class AutoLocalJNIFrame {
 public:
-    AutoLocalJNIFrame(int nEntries = 15)
-        : mEntries(nEntries)
-        , mJNIEnv(AndroidBridge::GetJNIEnv())
-        , mHasFrameBeenPushed(false)
+    AutoLocalJNIFrame(int nEntries = 128)
+        : mEntries(nEntries), mHasFrameBeenPushed(false)
     {
-        MOZ_ASSERT(mJNIEnv);
+        mJNIEnv = AndroidBridge::GetJNIEnv();
         Push();
     }
 
-    AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 15)
-        : mEntries(nEntries)
-        , mJNIEnv(aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv())
-        , mHasFrameBeenPushed(false)
+    AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 128)
+        : mEntries(nEntries), mHasFrameBeenPushed(false)
     {
-        MOZ_ASSERT(mJNIEnv);
+        mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
+
         Push();
     }
 
-    ~AutoLocalJNIFrame() {
-        if (mHasFrameBeenPushed) {
-            Pop();
+    // Note! Calling Purge makes all previous local refs created in
+    // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
+    // any local refs that you need to keep around in global refs!
+    void Purge() {
+        if (mJNIEnv) {
+            if (mHasFrameBeenPushed)
+                mJNIEnv->PopLocalFrame(nullptr);
+            Push();
         }
     }
 
@@ -518,43 +520,42 @@ public:
 
     bool CheckForException() {
         if (mJNIEnv->ExceptionCheck()) {
-            AndroidBridge::HandleUncaughtException(mJNIEnv);
+            mJNIEnv->ExceptionDescribe();
+            mJNIEnv->ExceptionClear();
             return true;
         }
+
         return false;
     }
 
-    // Note! Calling Purge makes all previous local refs created in
-    // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
-    // any local refs that you need to keep around in global refs!
-    void Purge() {
-        Pop();
-        Push();
-    }
+    ~AutoLocalJNIFrame() {
+        if (!mJNIEnv)
+            return;
 
-    template <typename ReturnType = jobject>
-    ReturnType Pop(ReturnType aResult = nullptr) {
-        MOZ_ASSERT(mHasFrameBeenPushed);
-        mHasFrameBeenPushed = false;
-        return static_cast<ReturnType>(
-            mJNIEnv->PopLocalFrame(static_cast<jobject>(aResult)));
+        CheckForException();
+
+        if (mHasFrameBeenPushed)
+            mJNIEnv->PopLocalFrame(nullptr);
     }
 
 private:
     void Push() {
-        MOZ_ASSERT(!mHasFrameBeenPushed);
+        if (!mJNIEnv)
+            return;
+
         // Make sure there is enough space to store a local ref to the
         // exception.  I am not completely sure this is needed, but does
         // not hurt.
-        if (mJNIEnv->PushLocalFrame(mEntries + 1) != 0) {
+        jint ret = mJNIEnv->PushLocalFrame(mEntries + 1);
+        NS_ABORT_IF_FALSE(ret == 0, "Failed to push local JNI frame");
+        if (ret < 0)
             CheckForException();
-            return;
-        }
-        mHasFrameBeenPushed = true;
+        else
+            mHasFrameBeenPushed = true;
     }
 
-    const int mEntries;
-    JNIEnv* const mJNIEnv;
+    int mEntries;
+    JNIEnv* mJNIEnv;
     bool mHasFrameBeenPushed;
 };
 

@@ -5,6 +5,8 @@
  * Tests that automatically generated names for traces are unique.
  */
 
+let {defer} = devtools.require("sdk/core/promise");
+
 var gDebuggee;
 var gClient;
 var gTraceClient;
@@ -27,23 +29,23 @@ function run_test()
 
 function test_unique_generated_trace_names()
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   deferred.resolve([]);
 
-  let p = deferred.promise, traces = 50;
+  let promise = deferred.promise, traces = 50;
   for (let i = 0; i < traces; i++)
-    p = p.then(start_trace);
+    promise = promise.then(start_trace);
   for (let i = 0; i < traces; i++)
-    p = p.then(stop_trace);
+    promise = promise.then(stop_trace);
 
-  p = p.then(function() {
+  promise = promise.then(function() {
     finishClient(gClient);
   });
 }
 
 function start_trace(aTraceNames)
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.startTrace([], null, function(aResponse) {
     let hasDuplicates = aTraceNames.some(name => name === aResponse.name);
     do_check_true(!hasDuplicates, "Generated trace names should be unique");
@@ -55,7 +57,7 @@ function start_trace(aTraceNames)
 
 function stop_trace(aTraceNames)
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.stopTrace(null, function(aResponse) {
     do_check_eq(aTraceNames.pop(), aResponse.name,
                 "Stopped trace should be most recently started trace");

@@ -7,6 +7,7 @@
 /* General utilities used throughout devtools. */
 const { Ci, Cu } = require("chrome");
 
+let { Promise: promise } = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {});
 let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 
 /**

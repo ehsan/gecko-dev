@@ -47,16 +47,13 @@ let tests = [
         ok(UITour.originTabs && UITour.originTabs.has(aWindow), "Window should be known");
         ok(UITour.originTabs.get(aWindow).has(selectedTab), "Tab should be known");
         waitForElementToBeVisible(newWindowHighlight, function checkHighlightIsThere() {
-          let shownPromise = promisePanelShown(aWindow);
           gContentAPI.showMenu("appMenu");
-          shownPromise.then(() => {
-            isnot(aWindow.PanelUI.panel.state, "closed", "Panel should be open");
-            ok(aWindow.PanelUI.contents.children.length > 0, "Panel contents should have children");
-            gContentAPI.hideHighlight();
-            gContentAPI.hideMenu("appMenu");
-            gTestTab = null;
-            aWindow.close();
-          }).then(null, Components.utils.reportError);
+          isnot(aWindow.PanelUI.panel.state, "closed", "Panel should be open");
+          ok(aWindow.PanelUI.contents.children.length > 0, "Panel contents should have children");
+          gContentAPI.hideHighlight();
+          gContentAPI.hideMenu("appMenu");
+          gTestTab = null;
+          aWindow.close();
         }, "Highlight should be shown in new window.");
       } catch (ex) {
         Cu.reportError(ex);

@@ -56,14 +56,14 @@ function test()
 
     jsterm.clearOutput();
 
-    msg = yield execute("window.location");
+    msg = yield execute("window");
     ok(msg, "output message found");
 
     body = msg.querySelector(".body");
     ok(body, "message body");
     anchor = msg.querySelector("a");
     ok(anchor, "object anchor");
-    ok(body.textContent.contains("Location \u2192 http://example.com/browser/"),
+    ok(body.textContent.contains("Window \u2192 http://example.com/browser/"),
        "message text check");
 
     msg.scrollIntoView();
@@ -76,7 +76,7 @@ function test()
     ok(vview, "variables view object");
 
     yield findVariableViewProperties(vviewVar, [
-      { name: "host", value: "example.com" },
+      { name: "foo", value: "globalFooBug783499" },
     ], { webconsole: hud });
 
     vview.window.focus();

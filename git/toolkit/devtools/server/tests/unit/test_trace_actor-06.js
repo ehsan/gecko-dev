@@ -6,6 +6,8 @@
  * and exitedFrame packets.
  */
 
+let { defer } = devtools.require("sdk/core/promise");
+
 var gDebuggee;
 var gClient;
 var gTraceClient;
@@ -28,7 +30,7 @@ function run_test()
 
 function test_enter_exit_frame()
 {
-  const traceStopped = promise.defer();
+  const traceStopped = defer();
 
   gClient.addListener("traces", (aEvent, { traces }) => {
     for (let t of traces) {
@@ -50,7 +52,7 @@ function test_enter_exit_frame()
 
 function start_trace()
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.startTrace(["arguments", "return"], null, function() { deferred.resolve(); });
   return deferred.promise;
 }
@@ -106,7 +108,7 @@ function eval_code()
 
 function stop_trace()
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.stopTrace(null, function() { deferred.resolve(); });
   return deferred.promise;
 }

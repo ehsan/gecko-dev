@@ -213,7 +213,8 @@ add_task(function* test_getExperiments() {
   gTimerScheduleOffset = -1;
   defineNow(gPolicy, now);
 
-  yield experiments.notify();
+  experiments.notify();
+  yield experiments._pendingTasksDone();
   Assert.equal(observerFireCount, ++expectedObserverFireCount,
                "Experiments observer should have been called.");
 
@@ -238,7 +239,8 @@ add_task(function* test_getExperiments() {
   now = futureDate(startDate2, 10 * MS_IN_ONE_DAY + 1000);
   gTimerScheduleOffset = -1;
   defineNow(gPolicy, now);
-  yield experiments.notify();
+  experiments.notify();
+  yield experiments._pendingTasksDone();
   Assert.equal(observerFireCount, ++expectedObserverFireCount,
                "Experiments observer should have been called.");
 
@@ -345,7 +347,7 @@ add_task(function* test_disableExperiment() {
 
   now = futureDate(now, 1 * MS_IN_ONE_DAY);
   defineNow(gPolicy, now);
-  yield experiments.disableExperiment();
+  yield experiments.disableExperiment(EXPERIMENT1_ID);
 
   list = yield experiments.getExperiments();
   Assert.equal(list.length, 1, "Experiment list should have 1 entry.");
@@ -430,8 +432,7 @@ add_task(function* test_disableExperimentsFeature() {
 
   // Test disabling experiments.
 
-  experiments._toggleExperimentsEnabled(false);
-  yield experiments.notify();
+  yield experiments._toggleExperimentsEnabled(false);
   Assert.equal(experiments.enabled, false, "Experiments feature should be disabled now.");
 
   list = yield experiments.getExperiments();
@@ -670,7 +671,7 @@ add_task(function* test_userDisabledAndUpdated() {
 
   now = futureDate(now, 20 * MS_IN_ONE_DAY);
   defineNow(gPolicy, now);
-  yield experiments.disableExperiment();
+  yield experiments.disableExperiment(EXPERIMENT1_ID);
   Assert.equal(observerFireCount, ++expectedObserverFireCount,
                "Experiments observer should have been called.");
 
@@ -1263,8 +1264,6 @@ add_task(function* test_unexpectedUninstall() {
 
   let success = yield uninstallAddon(EXPERIMENT1_ID);
   Assert.ok(success, "Addon should have been uninstalled.");
-
-  yield experiments.notify();
 
   list = yield experiments.getExperiments();
   Assert.equal(list.length, 1, "Experiment list should have 1 entry now.");

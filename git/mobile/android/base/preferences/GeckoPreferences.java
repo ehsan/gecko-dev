@@ -636,6 +636,7 @@ public class GeckoPreferences
         inputtype |= InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         input.setInputType(inputtype);
 
+        String hint = getResources().getString(aHintText);
         input.setHint(aHintText);
         return input;
     }

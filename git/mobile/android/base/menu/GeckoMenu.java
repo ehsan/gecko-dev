@@ -8,7 +8,6 @@ import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.ThreadUtils.AssertBehavior;
-import org.mozilla.gecko.widget.GeckoActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -543,7 +542,7 @@ public class GeckoMenu extends ListView
             close();
         } else if (item.hasSubMenu()) {
             // Refresh the submenu for the provider.
-            GeckoActionProvider provider = item.getGeckoActionProvider();
+            ActionProvider provider = item.getActionProvider();
             if (provider != null) {
                 GeckoSubMenu subMenu = new GeckoSubMenu(getContext());
                 subMenu.setShowIcons(true);
@@ -739,7 +738,7 @@ public class GeckoMenu extends ListView
 
         @Override
         public int getItemViewType(int position) {
-            return getItem(position).getGeckoActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
+            return getItem(position).getActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
         }
 
         @Override

@@ -5,6 +5,8 @@
  * Test that self-hosted functions aren't traced and don't add depth.
  */
 
+let { defer } = devtools.require("sdk/core/promise");
+
 var gDebuggee;
 var gClient;
 var gTraceClient;
@@ -27,7 +29,7 @@ function run_test()
 
 function test_frame_depths()
 {
-  const tracesStopped = promise.defer();
+  const tracesStopped = defer();
   gClient.addListener("traces", (aEvent, { traces }) => {
     for (let t of traces) {
       check_trace(t);
@@ -48,7 +50,7 @@ function test_frame_depths()
 
 function start_trace()
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.startTrace(["depth", "name", "location"], null, function() { deferred.resolve(); });
   return deferred.promise;
 }
@@ -63,7 +65,7 @@ function eval_code()
 
 function stop_trace()
 {
-  let deferred = promise.defer();
+  let deferred = defer();
   gTraceClient.stopTrace(null, function() { deferred.resolve(); });
   return deferred.promise;
 }
