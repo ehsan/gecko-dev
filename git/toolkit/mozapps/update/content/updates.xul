@@ -79,17 +79,10 @@
     <progressmeter id="checkingProgress" mode="undetermined"/>
   </wizardpage>
   
-  <wizardpage id="noupdatesautoenabled" pageid="noupdatesautoenabled"
+  <wizardpage id="noupdatesfound" pageid="noupdatesfound"
               label="&noupdatesfound.title;" object="gNoUpdatesPage"
               onpageshow="gNoUpdatesPage.onPageShow();">
-    <label>&noupdatesautoenabled.intro;</label>
-  </wizardpage>
-  
-  <!-- if auto updates are disabled, show the following page instead -->
-  <wizardpage id="noupdatesautodisabled" pageid="noupdatesautodisabled"
-              label="&noupdatesfound.title;" object="gNoUpdatesPage"
-              onpageshow="gNoUpdatesPage.onPageShow();">
-    <label>&noupdatesautodisabled.intro;</label>
+    <label>&noupdatesfound.intro;</label>
   </wizardpage>
   
   <!-- next is "downloading" by default, but could change to "license"
@@ -173,7 +166,7 @@
       <image id="downloadThrobber"/>
       <description id="downloadStatus" flex="1">&connecting.label;</description>
       <button id="pauseButton" oncommand="gDownloadingPage.onPause();" 
-              label="&pause.label;" accesskey="&pause.accesskey;"/>
+              disabled="true" label="&pause.label;" accesskey="&pause.accesskey;"/>
     </hbox>
     <separator/>
     <hbox id="verificationFailed" align="start" hidden="true">

@@ -49,7 +49,7 @@
 static float sProgressVal;  // between 0 and 100
 static BOOL sQuit = FALSE;
 static StringTable sLabels;
-static const char *sUpdatePath;
+static const char *sProgramPath;
 
 @interface UpdaterUI : NSObject
 {
@@ -112,7 +112,7 @@ static const char *sUpdatePath;
 int
 InitProgressUI(int *pargc, char ***pargv)
 {
-  sUpdatePath = (*pargv)[1];
+  sProgramPath = (*pargv)[0];
   
   return 0;
 }
@@ -129,7 +129,7 @@ ShowProgressUI()
     return 0;
 
   char path[PATH_MAX];
-  snprintf(path, sizeof(path), "%s/updater.ini", sUpdatePath);
+  snprintf(path, sizeof(path), "%s.ini", sProgramPath);
   if (ReadStrings(path, &sLabels) != OK)
     return -1;
   

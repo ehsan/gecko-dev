@@ -606,10 +606,6 @@ var PlacesUtils = {
         var parts = blob.split("\n");
         for (var i = 0; i < parts.length; i++) {
           var uriString = parts[i];
-          // text/uri-list is converted to TYPE_UNICODE but it could contain
-          // comments line prepended by #, we should skip them
-          if (uriString.substr(0, 1) == '\x23')
-            continue;
           // note: this._uri() will throw if uriString is not a valid URI
           if (uriString != "" && this._uri(uriString))
             nodes.push({ uri: uriString,
@@ -768,6 +764,18 @@ var PlacesUtils = {
                                   expires);
       }
     });
+  },
+
+  /**
+   * Helper for getting a serialized Places query for a particular folder.
+   * @param aFolderId The folder id to get a query for.
+   * @return string serialized place URI
+   */
+  getQueryStringForFolder: function PU_getQueryStringForFolder(aFolderId) {
+    var options = this.history.getNewQueryOptions();
+    var query = this.history.getNewQuery();
+    query.setFolders([aFolderId], 1);
+    return this.history.queriesToQueryString([query], 1, options);
   },
 
   // identifier getters for special folders
@@ -1324,7 +1332,7 @@ var PlacesUtils = {
               // When copying a read-only node, remove the read-only annotation.
               return false;
             }
-            return true;
+            return anno.name != "placesInternal/GUID";
           });
         } catch(ex) {
           LOG(ex);
@@ -1445,17 +1453,8 @@ var PlacesUtils = {
 
       addGenericProperties(bNode, node);
 
-      if (self.nodeIsURI(bNode)) {
-        // Check for url validity, since we can't halt while writing a backup.
-        // This will throw if we try to serialize an invalid url and it does
-        // not make sense saving a wrong or corrupt uri node.
-        try {
-          self._uri(bNode.uri);
-        } catch (ex) {
-          return;
-        }
+      if (self.nodeIsURI(bNode))
         addURIProperties(bNode, node);
-      }
       else if (self.nodeIsContainer(bNode))
         addContainerProperties(bNode, node);
       else if (self.nodeIsSeparator(bNode))

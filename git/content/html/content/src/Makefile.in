@@ -78,7 +78,6 @@ REQUIRES	= xpcom \
 
 EXPORTS		= \
 		nsImageMapUtils.h \
-		nsClientRect.h \
 		$(NULL)
 
 CPPSRCS		= \
@@ -134,16 +133,6 @@ CPPSRCS		= \
 		nsHTMLTitleElement.cpp \
 		$(NULL)
 
-ifdef MOZ_MEDIA
-CPPSRCS		+= \
-		nsHTMLAudioElement.cpp \
-		nsHTMLMediaElement.cpp \
-		nsHTMLMediaError.cpp \
-		nsHTMLSourceElement.cpp \
-		nsHTMLVideoElement.cpp \
-		$(NULL)
-endif
-
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
@@ -154,7 +143,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../events/src \
 		-I$(srcdir)/../../../xbl/src \
 		-I$(srcdir)/../../../../layout/style \
-		-I$(srcdir)/../../../../layout/tables \
 		-I$(srcdir) \
 		$(NULL)
 

@@ -166,8 +166,6 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
 {
-  AddStateBits(NS_STATE_IS_OUTER_SVG);
-
   nsresult rv = nsSVGOuterSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
 
   nsIDocument* doc = mContent->GetCurrentDoc();
@@ -185,6 +183,8 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
   }
 
   SuspendRedraw();  // UnsuspendRedraw is in DidReflow
+
+  AddStateBits(NS_STATE_IS_OUTER_SVG);
 
   return rv;
 }
@@ -419,10 +419,7 @@ nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
     // Now that all viewport establishing descendants have their correct size,
     // tell our foreignObject descendants to reflow their children.
     if (mForeignObjectHash.IsInitialized()) {
-#ifdef DEBUG
-      PRUint32 count =
-#endif
-        mForeignObjectHash.EnumerateEntries(ReflowForeignObject, nsnull);
+      PRUint32 count = mForeignObjectHash.EnumerateEntries(ReflowForeignObject, nsnull);
       NS_ASSERTION(count == mForeignObjectHash.Count(),
                    "We didn't reflow all our nsSVGForeignObjectFrames!");
     }
@@ -514,12 +511,22 @@ nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
 nsIFrame*
 nsSVGOuterSVGFrame::GetFrameForPoint(const nsPoint& aPoint)
 {
+  // XXX This algorithm is really bad. Because we only have a
+  // singly-linked list we have to test each and every SVG element for
+  // a hit. What we really want is a double-linked list.
+
+  float x = PresContext()->AppUnitsToDevPixels(aPoint.x);
+  float y = PresContext()->AppUnitsToDevPixels(aPoint.y);
+
   nsRect thisRect(nsPoint(0,0), GetSize());
   if (!thisRect.Contains(aPoint)) {
     return nsnull;
   }
 
-  return nsSVGUtils::HitTestChildren(this, aPoint);
+  nsIFrame* hit;
+  nsSVGUtils::HitTestChildren(this, x, y, &hit);
+
+  return hit;
 }
 
 //----------------------------------------------------------------------
@@ -595,22 +602,13 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
     // odd document is probably no worse than printing horribly for all
     // documents. Better to fix things so we don't need fallback.
     nsIFrame* frame = this;
-    nsPresContext* presContext = PresContext();
-    PRUint32 flags = 0;
     while (PR_TRUE) {
       nsIFrame* next = nsLayoutUtils::GetCrossDocParentFrame(frame);
       if (!next)
         break;
-      if (frame->GetParent() != next) {
-        // We're crossing a document boundary. Logically, the invalidation is
-        // being triggered by a subdocument of the root document. This will
-        // prevent an untrusted root document being told about invalidation
-        // that happened because a child was using SVG...
-        flags |= INVALIDATE_CROSS_DOC;
-      }
       frame = next;
     }
-    frame->InvalidateWithFlags(nsRect(nsPoint(0, 0), frame->GetSize()), flags);
+    frame->Invalidate(nsRect(nsPoint(0, 0), frame->GetSize()));
   }
 #endif
 
@@ -645,27 +643,21 @@ nsSVGOuterSVGFrame::InvalidateCoveredRegion(nsIFrame *aFrame)
   if (!svgFrame)
     return;
 
-  nsRect rect = nsSVGUtils::FindFilterInvalidation(aFrame, svgFrame->GetCoveredRegion());
-  Invalidate(rect);
+  nsRect rect = nsSVGUtils::FindFilterInvalidation(aFrame);
+  if (rect.IsEmpty()) {
+    rect = svgFrame->GetCoveredRegion();
+  }
+
+  InvalidateRect(rect);
 }
 
-PRBool
-nsSVGOuterSVGFrame::UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame)
+void
+nsSVGOuterSVGFrame::InvalidateRect(nsRect aRect)
 {
-  nsISVGChildFrame *svgFrame = nsnull;
-  CallQueryInterface(aFrame, &svgFrame);
-  if (!svgFrame)
-    return PR_FALSE;
-
-  nsRect oldRegion = svgFrame->GetCoveredRegion();
-  Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, oldRegion));
-  svgFrame->UpdateCoveredRegion();
-  nsRect newRegion = svgFrame->GetCoveredRegion();
-  if (oldRegion == newRegion)
-    return PR_FALSE;
-
-  Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, newRegion));
-  return PR_TRUE;
+  if (!aRect.IsEmpty()) {
+    aRect.ScaleRoundOut(PresContext()->AppUnitsPerDevPixel());
+    Invalidate(aRect);
+  }
 }
 
 PRBool

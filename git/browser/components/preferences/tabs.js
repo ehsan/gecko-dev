@@ -71,11 +71,12 @@ var gTabsPane = {
   /**
    * Determines where a link which opens a new window will open.
    *
-   * @returns |true| if such links should be opened in new tabs
+   * @returns 2 if such links should be opened in new windows,
+   *          3 if such links should be opened in new tabs
    */
   readLinkTarget: function() {
     var openExternal = document.getElementById("browser.link.open_external");
-    return openExternal.value != 2;
+    return openExternal.value != 2 ? 3 : 2;
   },
 
   /**
@@ -88,8 +89,8 @@ var gTabsPane = {
    */
   writeLinkTarget: function() {
     var linkTargeting = document.getElementById("linkTargeting");
-    var linkTarget = linkTargeting.checked ? 3 : 2;
-    document.getElementById("browser.link.open_newwindow").value = linkTarget;
-    return linkTarget;
+    document.getElementById("browser.link.open_newwindow").value = linkTargeting.value;
+    return linkTargeting.value;
   }
 };
+

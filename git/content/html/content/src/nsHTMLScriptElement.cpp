@@ -337,8 +337,7 @@ public:
   virtual void GetScriptType(nsAString& type);
   virtual already_AddRefed<nsIURI> GetScriptURI();
   virtual void GetScriptText(nsAString& text);
-  virtual void GetScriptCharset(nsAString& charset);
-  virtual PRBool GetScriptDeferred();
+  virtual void GetScriptCharset(nsAString& charset); 
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -523,15 +522,6 @@ void
 nsHTMLScriptElement::GetScriptCharset(nsAString& charset)
 {
   GetCharset(charset);
-}
-
-PRBool
-nsHTMLScriptElement::GetScriptDeferred()
-{
-  PRBool defer;
-  GetDefer(&defer);
-
-  return defer;
 }
 
 PRBool

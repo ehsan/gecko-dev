@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: trustdomain.c,v $ $Revision: 1.59 $ $Date: 2008/08/09 01:26:05 $";
+static const char CVS_ID[] = "@(#) $RCSfile: trustdomain.c,v $ $Revision: 1.56 $ $Date: 2007/11/16 18:57:54 $";
 #endif /* DEBUG */
 
 #ifndef DEV_H
@@ -52,7 +52,7 @@ static const char CVS_ID[] = "@(#) $RCSfile: trustdomain.c,v $ $Revision: 1.59 $
 
 #include "cert.h"
 #include "pki3hack.h"
-#include "pk11pub.h"
+
 #include "nssrwlk.h"
 
 #define NSSTRUSTDOMAIN_DEFAULT_CACHE_SIZE 32
@@ -101,10 +101,8 @@ static void
 token_destructor(void *t)
 {
     NSSToken *tok = (NSSToken *)t;
-    /* The token holds the first/last reference to the slot.
-     * When the token is actually destroyed (ref count == 0), 
-     * the slot will also be destroyed.
-     */
+    /* in 3.4, also destroy the slot (managed separately) */
+    (void)nssSlot_Destroy(tok->slot);
     nssToken_Destroy(tok);
 }
 
@@ -169,18 +167,9 @@ nssTrustDomain_GetActiveSlots (
     NSSRWLock_UnlockRead(td->tokensLock);
     count = 0;
     for (tp = tokens; *tp; tp++) {
-        NSSSlot * slot = nssToken_GetSlot(*tp);
-        if (!PK11_IsDisabled(slot->pk11slot)) {
-            slots[count++] = slot;
-        } else {
-	    nssSlot_Destroy(slot);
-	}
+	slots[count++] = nssToken_GetSlot(*tp);
     }
     nss_ZFreeIf(tokens);
-    if (!count) {
-	nss_ZFreeIf(slots);
-    	slots = NULL;
-    }
     return slots;
 }
 
@@ -447,6 +436,8 @@ nssTrustDomain_FindCertificatesByNickname (
   NSSArena *arenaOpt
 )
 {
+    PRStatus status;
+    PRUint32 numRemaining;
     NSSToken *token = NULL;
     NSSSlot **slots = NULL;
     NSSSlot **slotp;
@@ -454,10 +445,6 @@ nssTrustDomain_FindCertificatesByNickname (
     nssPKIObjectCollection *collection = NULL;
     nssUpdateLevel updateLevel;
     nssList *nameList;
-    PRUint32 numRemaining = maximumOpt;
-    PRUint32 collectionCount = 0;
-    PRUint32 errors = 0;
-
     /* First, grab from the cache */
     nameList = nssList_Create(NULL, PR_FALSE);
     if (!nameList) {
@@ -480,47 +467,44 @@ nssTrustDomain_FindCertificatesByNickname (
 	goto loser;
     }
     /* iterate over the slots */
+    numRemaining = maximumOpt;
     for (slotp = slots; *slotp; slotp++) {
 	token = nssSlot_GetToken(*slotp);
 	if (token) {
 	    nssSession *session;
-	    nssCryptokiObject **instances = NULL;
+	    nssCryptokiObject **instances;
 	    nssTokenSearchType tokenOnly = nssTokenSearchType_TokenOnly;
-	    PRStatus status = PR_FAILURE;
-
 	    session = nssTrustDomain_GetSessionForToken(td, token);
-	    if (session) {
-		instances = nssToken_FindCertificatesByNickname(token,
-								session,
-								name,
-								tokenOnly,
-								numRemaining,
-								&status);
+	    if (!session) {
+		nssToken_Destroy(token);
+		goto loser;
 	    }
+	    instances = nssToken_FindCertificatesByNickname(token,
+	                                                    session,
+	                                                    name,
+	                                                    tokenOnly,
+	                                                    numRemaining,
+	                                                    &status);
 	    nssToken_Destroy(token);
 	    if (status != PR_SUCCESS) {
-		errors++;
-		continue;
+		goto loser;
 	    }
 	    if (instances) {
 		status = nssPKIObjectCollection_AddInstances(collection, 
 		                                             instances, 0);
 		nss_ZFreeIf(instances);
 		if (status != PR_SUCCESS) {
-		    errors++;
-		    continue;
+		    goto loser;
 		}
-		collectionCount = nssPKIObjectCollection_Count(collection);
 		if (maximumOpt > 0) {
-		    if (collectionCount >= maximumOpt)
-		    	break;
-		    numRemaining = maximumOpt - collectionCount;
+	            PRUint32 count;
+	            count = nssPKIObjectCollection_Count(collection);
+		    numRemaining = maximumOpt - count;
+		    if (numRemaining == 0) break;
 		}
 	    }
 	}
     }
-    if (!collectionCount && errors)
-    	goto loser;
     /* Grab the certs collected in the search. */
     rvCerts = nssPKIObjectCollection_GetCertificates(collection,
                                                      rvOpt, maximumOpt,
@@ -601,10 +585,12 @@ nssTrustDomain_FindCertificatesBySubject (
   NSSTrustDomain *td,
   NSSDER *subject,
   NSSCertificate *rvOpt[],
-  PRUint32 maximumOpt, /* 0 for no max */
+  PRUint32 maximumOpt,
   NSSArena *arenaOpt
 )
 {
+    PRStatus status;
+    PRUint32 numRemaining;
     NSSToken *token = NULL;
     NSSSlot **slots = NULL;
     NSSSlot **slotp;
@@ -612,10 +598,6 @@ nssTrustDomain_FindCertificatesBySubject (
     nssPKIObjectCollection *collection = NULL;
     nssUpdateLevel updateLevel;
     nssList *subjectList;
-    PRUint32 numRemaining = maximumOpt;
-    PRUint32 collectionCount = 0;
-    PRUint32 errors = 0;
-
     /* look in cache */
     subjectList = nssList_Create(NULL, PR_FALSE);
     if (!subjectList) {
@@ -633,47 +615,44 @@ nssTrustDomain_FindCertificatesBySubject (
     if (!slots) {
 	goto loser;
     }
+    numRemaining = maximumOpt;
     for (slotp = slots; *slotp; slotp++) {
 	token = nssSlot_GetToken(*slotp);
 	if (token) {
 	    nssSession *session;
-	    nssCryptokiObject **instances = NULL;
+	    nssCryptokiObject **instances;
 	    nssTokenSearchType tokenOnly = nssTokenSearchType_TokenOnly;
-	    PRStatus status = PR_FAILURE;
-
 	    session = nssTrustDomain_GetSessionForToken(td, token);
-	    if (session) {
-		instances = nssToken_FindCertificatesBySubject(token,
-							       session,
-							       subject,
-							       tokenOnly,
-							       numRemaining,
-							       &status);
+	    if (!session) {
+		nssToken_Destroy(token);
+		goto loser;
 	    }
+	    instances = nssToken_FindCertificatesBySubject(token,
+	                                                   session,
+	                                                   subject,
+	                                                   tokenOnly,
+	                                                   numRemaining,
+	                                                   &status);
 	    nssToken_Destroy(token);
 	    if (status != PR_SUCCESS) {
-		errors++;
-		continue;
+		goto loser;
 	    }
 	    if (instances) {
 		status = nssPKIObjectCollection_AddInstances(collection, 
 		                                             instances, 0);
 		nss_ZFreeIf(instances);
 		if (status != PR_SUCCESS) {
-		    errors++;
-		    continue;
+		    goto loser;
 		}
-		collectionCount = nssPKIObjectCollection_Count(collection);
 		if (maximumOpt > 0) {
-		    if (collectionCount >= maximumOpt)
-		    	break;
-		    numRemaining = maximumOpt - collectionCount;
+		    PRUint32 count;
+		    count = nssPKIObjectCollection_Count(collection);
+		    numRemaining = maximumOpt - count;
+		    if (numRemaining == 0) break;
 		}
 	    }
 	}
     }
-    if (!collectionCount && errors)
-    	goto loser;
     rvCerts = nssPKIObjectCollection_GetCertificates(collection,
                                                      rvOpt, maximumOpt,
                                                      arenaOpt);

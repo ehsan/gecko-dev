@@ -51,10 +51,6 @@ textbox {
   padding: 0;
 }
 
-textbox[nomatch="true"][highlightnonmatches="true"] {
-  color: red;
-}
-
 /* Used by autocomplete widgets that don't have an icon. Gross. -dwh */
 textbox.padded {
   padding: 1px 0px 1px 2px;

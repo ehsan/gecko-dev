@@ -8,7 +8,6 @@ function test() {
 }
 
 function delayedOpenUrl() {
-  ok(true, "Ran delayedOpenUrl");
   setTimeout(openPanelUrl, 100);
 }
 
@@ -27,7 +26,6 @@ function openPanelUrl(event) {
 }
 
 function delayedRunTest() {
-  ok(true, "Ran delayedRunTest");
   setTimeout(runTest, 100);
 }
 

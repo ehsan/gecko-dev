@@ -29,7 +29,6 @@
  *   Pete Collins           <petejc@mozdev.org>
  *   Paul Ashford           <arougthopher@lizardland.net>
  *   Fredrik Holmqvist      <thesuckiestemail@yahoo.se>
- *   Josh Aas               <josh@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -49,6 +48,7 @@
  * Implementation of nsIFile for ``Unixy'' systems.
  */
 
+// We're going to need some autoconf loving, I can just tell.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -99,10 +99,13 @@
     #define FILE_STRNCMP strncmp
 #endif
 
-#define ENSURE_STAT_CACHE()                     \
+#define VALIDATE_STAT_CACHE()                   \
     PR_BEGIN_MACRO                              \
-        if (!FillStatCache())                   \
-             return NSRESULT_FOR_ERRNO();       \
+        if (!mHaveCachedStat) {                 \
+            FillStatCache();                    \
+            if (!mHaveCachedStat)               \
+                 return NSRESULT_FOR_ERRNO();   \
+        }                                       \
     PR_END_MACRO
 
 #define CHECK_mPath()                           \
@@ -243,12 +246,14 @@ nsDirEnumeratorUnix::Close()
     return NS_OK;
 }
 
-nsLocalFile::nsLocalFile()
+nsLocalFile::nsLocalFile() :
+    mHaveCachedStat(PR_FALSE)
 {
 }
 
 nsLocalFile::nsLocalFile(const nsLocalFile& other)
   : mPath(other.mPath)
+  , mHaveCachedStat(PR_FALSE)
 {
 }
 
@@ -273,24 +278,16 @@ nsLocalFile::nsLocalFileConstructor(nsISupports *outer,
     return inst->QueryInterface(aIID, aInstancePtr);
 }
 
-PRBool 
+nsresult 
 nsLocalFile::FillStatCache() {
-#ifdef HAVE_STAT64
-    if (stat64(mPath.get(), &mCachedStat) == -1) {
-        // try lstat it may be a symlink
-        if (lstat64(mPath.get(), &mCachedStat) == -1) {
-            return PR_FALSE;
-        }
-    }
-#else
     if (stat(mPath.get(), &mCachedStat) == -1) {
         // try lstat it may be a symlink
         if (lstat(mPath.get(), &mCachedStat) == -1) {
-            return PR_FALSE;
+            return NSRESULT_FOR_ERRNO();
         }
     }
-#endif
-    return PR_TRUE;
+    mHaveCachedStat = PR_TRUE;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -331,6 +328,7 @@ nsLocalFile::InitWithNativePath(const nsACString &filePath)
         --len;
     mPath.SetLength(len);
 
+    InvalidateCache();
     return NS_OK;
 }
 
@@ -525,6 +523,7 @@ nsLocalFile::AppendRelativeNativePath(const nsACString &fragment)
     else
         mPath.Append(NS_LITERAL_CSTRING("/") + fragment);
 
+    InvalidateCache();
     return NS_OK;
 }
 
@@ -590,6 +589,7 @@ nsLocalFile::SetNativeLeafName(const nsACString &aLeafName)
     nsACString::const_iterator begin, end;
     LocateNativeLeafName(begin, end);
     mPath.Replace(begin.get() - mPath.get(), Distance(begin, end), aLeafName);
+    InvalidateCache();
     return NS_OK;
 }
 
@@ -924,18 +924,20 @@ NS_IMETHODIMP
 nsLocalFile::Remove(PRBool recursive)
 {
     CHECK_mPath();
-    ENSURE_STAT_CACHE();
 
-    PRBool isSymLink;
-
+    VALIDATE_STAT_CACHE();
+    PRBool isSymLink, isDir;
+    
     nsresult rv = IsSymlink(&isSymLink);
     if (NS_FAILED(rv))
         return rv;
 
     if (!recursive && isSymLink)
         return NSRESULT_FOR_RETURN(unlink(mPath.get()));
-
-    if (S_ISDIR(mCachedStat.st_mode)) {
+    
+    isDir = S_ISDIR(mCachedStat.st_mode);
+    InvalidateCache();
+    if (isDir) {
         if (recursive) {
             nsDirEnumeratorUnix *dir = new nsDirEnumeratorUnix();
             if (!dir)
@@ -997,7 +999,7 @@ nsLocalFile::SetLastModifiedTime(PRInt64 aLastModTime)
 
     int result;
     if (! LL_IS_ZERO(aLastModTime)) {
-        ENSURE_STAT_CACHE();
+        VALIDATE_STAT_CACHE();
         struct utimbuf ut;
         ut.actime = mCachedStat.st_atime;
 
@@ -1009,6 +1011,7 @@ nsLocalFile::SetLastModifiedTime(PRInt64 aLastModTime)
     } else {
         result = utime(mPath.get(), nsnull);
     }
+    InvalidateCache();
     return NSRESULT_FOR_RETURN(result);
 }
 
@@ -1051,7 +1054,7 @@ NS_IMETHODIMP
 nsLocalFile::GetPermissions(PRUint32 *aPermissions)
 {
     NS_ENSURE_ARG(aPermissions);
-    ENSURE_STAT_CACHE();
+    VALIDATE_STAT_CACHE();
     *aPermissions = NORMALIZE_PERMS(mCachedStat.st_mode);
     return NS_OK;
 }
@@ -1074,6 +1077,8 @@ nsLocalFile::SetPermissions(PRUint32 aPermissions)
 {
     CHECK_mPath();
 
+    InvalidateCache();
+
     /*
      * Race condition here: we should use fchmod instead, there's no way to 
      * guarantee the name still refers to the same file.
@@ -1094,7 +1099,7 @@ nsLocalFile::GetFileSize(PRInt64 *aFileSize)
 {
     NS_ENSURE_ARG_POINTER(aFileSize);
     *aFileSize = LL_ZERO;
-    ENSURE_STAT_CACHE();
+    VALIDATE_STAT_CACHE();
 
 #if defined(VMS)
     /* Only two record formats can report correct file content size */
@@ -1104,12 +1109,9 @@ nsLocalFile::GetFileSize(PRInt64 *aFileSize)
     }
 #endif
 
+    /* XXX autoconf for and use stat64 if available */
     if (!S_ISDIR(mCachedStat.st_mode)) {
-#ifdef HAVE_STAT64
-        *aFileSize = mCachedStat.st_size;
-#else
         LL_UI2L(*aFileSize, (PRUint32)mCachedStat.st_size);
-#endif
     }
     return NS_OK;
 }
@@ -1122,6 +1124,7 @@ nsLocalFile::SetFileSize(PRInt64 aFileSize)
     PRInt32 size;
     LL_L2I(size, aFileSize);
     /* XXX truncate64? */
+    InvalidateCache();
     if (truncate(mPath.get(), (off_t)size) == -1)
         return NSRESULT_FOR_ERRNO();
     return NS_OK;
@@ -1133,17 +1136,11 @@ nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSize)
     CHECK_mPath();
     NS_ENSURE_ARG(aFileSize);
 
-#ifdef HAVE_LSTAT64
-    struct stat64 sbuf;
-    if (lstat64(mPath.get(), &sbuf) == -1)
-        return NSRESULT_FOR_ERRNO();
-    *aFileSize = sbuf.st_size;
-#else
     struct stat sbuf;
     if (lstat(mPath.get(), &sbuf) == -1)
         return NSRESULT_FOR_ERRNO();
+    /* XXX autoconf for and use lstat64 if available */
     LL_UI2L(*aFileSize, (PRUint32)sbuf.st_size);
-#endif
     return NS_OK;
 }
 
@@ -1370,7 +1367,7 @@ nsLocalFile::IsDirectory(PRBool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
     *_retval = PR_FALSE;
-    ENSURE_STAT_CACHE();
+    VALIDATE_STAT_CACHE();
     *_retval = S_ISDIR(mCachedStat.st_mode);
     return NS_OK;
 }
@@ -1380,7 +1377,7 @@ nsLocalFile::IsFile(PRBool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
     *_retval = PR_FALSE;
-    ENSURE_STAT_CACHE();
+    VALIDATE_STAT_CACHE();
     *_retval = S_ISREG(mCachedStat.st_mode);
     return NS_OK;
 }
@@ -1411,7 +1408,7 @@ NS_IMETHODIMP
 nsLocalFile::IsSpecial(PRBool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
-    ENSURE_STAT_CACHE();
+    VALIDATE_STAT_CACHE();
     *_retval = S_ISCHR(mCachedStat.st_mode)      ||
                  S_ISBLK(mCachedStat.st_mode)    ||
 #ifdef S_ISSOCK

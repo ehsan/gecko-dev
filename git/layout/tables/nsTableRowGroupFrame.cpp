@@ -287,7 +287,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleInSelection(aBuilder))
     return NS_OK;
 
-  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext() || IsScrolled();
+  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
@@ -464,10 +464,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
           // Inform the row of its new height.
           ((nsTableRowFrame*)kidFrame)->DidResize();
           // the overflow area may have changed inflate the overflow area
-          const nsStylePosition *stylePos = GetStylePosition();
-          nsStyleUnit unit = stylePos->mHeight.GetUnit();
-          if (aReflowState.tableFrame->IsAutoHeight() &&
-              unit != eStyleUnit_Coord) {
+          if (aReflowState.tableFrame->IsAutoHeight()) {
             // Because other cells in the row may need to be aligned
             // differently, repaint the entire row
             nsRect kidRect(0, aReflowState.y,
@@ -927,11 +924,19 @@ nsTableRowGroupFrame::CollapseRowGroupIfNecessary(nscoord aYTotalOffset,
   return yGroupOffset;
 }
 
-// Move a child that was skipped during a reflow.
+// Move a child that was skipped during an incremental reflow.
+// This function is not used for paginated mode so we don't need to deal
+// with continuing frames, and it's only called if aKidFrame has no
+// cells that span into it and no cells that span across it. That way
+// we don't have to deal with rowspans
+// XXX Is it still true that it's not used for paginated mode?
 void
 nsTableRowGroupFrame::SlideChild(nsRowGroupReflowState& aReflowState,
                                  nsIFrame*              aKidFrame)
 {
+  NS_PRECONDITION(NS_UNCONSTRAINEDSIZE == aReflowState.reflowState.availableHeight,
+                  "we're not in galley mode");
+
   // Move the frame if we need to
   nsPoint oldPosition = aKidFrame->GetPosition();
   nsPoint newPosition = oldPosition;
@@ -1387,7 +1392,7 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aDesiredSize);
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
   
   FinishAndStoreOverflow(&aDesiredSize);
@@ -1408,9 +1413,6 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
     }
   }
@@ -1454,9 +1456,6 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
       if (!gotFirstRow) {
         ((nsTableRowFrame*)rowFrame)->SetFirstInserted(PR_TRUE);
@@ -1586,6 +1585,20 @@ nsIFrame*
 NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableRowGroupFrame(aContext);
+}
+
+NS_IMETHODIMP
+nsTableRowGroupFrame::Init(nsIContent*      aContent,
+                           nsIFrame*        aParent,
+                           nsIFrame*        aPrevInFlow)
+{
+  // Let the base class do its processing
+  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
 }
 
 #ifdef DEBUG

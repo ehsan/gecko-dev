@@ -514,11 +514,6 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
     if (availableType && [availableType isEqualToString:NSFilenamesPboardType])
       *_retval = PR_TRUE;
   }
-  else if (dataFlavor.EqualsLiteral(kURLMime)) {
-    NSString* availableType = [globalDragPboard availableTypeFromArray:[NSArray arrayWithObject:kCorePboardType_url]];
-    if (availableType && [availableType isEqualToString:kCorePboardType_url])
-      *_retval = PR_TRUE;
-  }
   else if (dataFlavor.EqualsLiteral(kUnicodeMime)) {
     NSString* availableType = [globalDragPboard availableTypeFromArray:[NSArray arrayWithObject:NSStringPboardType]];
     if (availableType && [availableType isEqualToString:NSStringPboardType])
@@ -576,9 +571,8 @@ nsDragService::EndDragSession(PRBool aDoneDrag)
     mNativeDragEvent = nil;
   }
 
-  nsresult rv = nsBaseDragService::EndDragSession(aDoneDrag);
   mDataItems = nsnull;
-  return rv;
+  return nsBaseDragService::EndDragSession(aDoneDrag);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

@@ -40,6 +40,7 @@
 #include "nsAccessibleEventData.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsIBaseWindow.h"
+#include "nsICaret.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
@@ -118,11 +119,8 @@ nsRootAccessible::~nsRootAccessible()
 
 // helpers
 /* readonly attribute AString name; */
-NS_IMETHODIMP
-nsRootAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsRootAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   if (!mDocument) {
     return NS_ERROR_FAILURE;
   }
@@ -1094,7 +1092,6 @@ NS_IMETHODIMP nsRootAccessible::FireDocLoadEvents(PRUint32 aEventType)
   return NS_OK;
 }
 
-#ifdef MOZ_XUL
 nsresult
 nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
                                                  nsIAccessibleTreeCache *aAccessible)
@@ -1158,5 +1155,4 @@ nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
 
   return aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }
-#endif
 

@@ -48,7 +48,7 @@
 #include "prlink.h"
 #include "prclist.h"
 #include "npapi.h"
-#include "nsNPAPIPluginInstance.h"
+#include "ns4xPluginInstance.h"
 
 #include "nsIPlugin.h"
 #include "nsIPluginTag.h"
@@ -73,7 +73,7 @@
 // XXX this file really doesn't think this is possible, but ...
 #include "nsIFactory.h"
 
-class nsNPAPIPlugin;
+class ns4xPlugin;
 class nsIComponentManager;
 class nsIFile;
 class nsIChannel;
@@ -104,7 +104,6 @@ public:
               const char* aDescription,
               const char* aFileName,
               const char* aFullPath,
-              const char* aVersion,
               const char* const* aMimeTypes,
               const char* const* aMimeDescriptions,
               const char* const* aExtensions,
@@ -167,7 +166,6 @@ public:
   PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
   nsCString     mFileName; // UTF-8
   nsCString     mFullPath; // UTF-8
-  nsCString     mVersion;  // UTF-8
   PRInt64       mLastModifiedTime;
 private:
   PRUint32      mFlags;
@@ -422,6 +420,10 @@ private:
   // in the plugin list but found in some different place
   PRBool IsDuplicatePlugin(nsPluginTag * aPluginTag);
 
+  // checks whether the given plugin is an unwanted Java plugin
+  // (e.g. no OJI support is compiled in)
+  PRBool IsUnwantedJavaPlugin(nsPluginTag * aPluginTag);
+
   nsresult EnsurePrivateDirServiceProvider();
 
   nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
@@ -472,7 +474,7 @@ private:
   static nsPluginHostImpl* sInst;
 };
 
-class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
+class PluginDestructionGuard : protected PRCList
 {
 public:
   PluginDestructionGuard(nsIPluginInstance *aInstance)
@@ -482,7 +484,7 @@ public:
   }
 
   PluginDestructionGuard(NPP npp)
-    : mInstance(npp ? static_cast<nsNPAPIPluginInstance*>(npp->ndata) : nsnull)
+    : mInstance(npp ? static_cast<ns4xPluginInstance*>(npp->ndata) : nsnull)
   {
     Init();
   }

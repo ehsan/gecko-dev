@@ -123,7 +123,6 @@ public:
 
   NS_IMETHOD  GetWindowDimensions(nscoord *width, nscoord *height);
   NS_IMETHOD  SetWindowDimensions(nscoord width, nscoord height);
-  NS_IMETHOD  FlushDelayedResize();
 
   NS_IMETHOD  Composite(void);
 
@@ -287,9 +286,8 @@ private:
   void UpdateWidgetsForView(nsView* aView);
 
   /**
-   * Transforms a rectangle from aView's coordinate system to the coordinate
-   * system of the widget attached to aWidgetView, which should be an ancestor
-   * of aView.
+   * Transforms a rectangle from specified view's coordinate system to
+   * the first parent that has an attached widget.
    */
   void ViewToWidget(nsView *aView, nsView* aWidgetView, nsRect &aRect) const;
 
@@ -318,8 +316,7 @@ private:
     nsRect oldDim;
     nsRect newDim(0, 0, aWidth, aHeight);
     mRootView->GetDimensions(oldDim);
-    // We care about resizes even when one dimension is already zero.
-    if (!oldDim.IsExactEqual(newDim)) {
+    if (oldDim != newDim) {
       // Don't resize the widget. It is already being set elsewhere.
       mRootView->SetDimensions(newDim, PR_TRUE, PR_FALSE);
       if (mObserver)
@@ -397,8 +394,7 @@ public: // NOT in nsIViewManager, so private to the view module
   nsresult WillBitBlit(nsView* aView, nsPoint aScrollAmount);
   
   /**
-   * Called to inform the view manager that a view has scrolled via a
-   * bitblit.
+   * Called to inform the view manager that a view has scrolled.
    * The view manager will invalidate any widgets which may need
    * to be rerendered.
    * @param aView view to paint. should be the nsScrollPortView that

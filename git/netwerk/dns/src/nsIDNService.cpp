@@ -139,6 +139,8 @@ void nsIDNService::prefsChanged(nsIPrefBranch *prefBranch, const PRUnichar *pref
 
 nsIDNService::nsIDNService()
 {
+  nsresult rv;
+
   // initialize to the official prefix (RFC 3490 "5. ACE prefix")
   const char kIDNSPrefix[] = "xn--";
   strcpy(mACEPrefix, kIDNSPrefix);
@@ -148,7 +150,9 @@ nsIDNService::nsIDNService()
   if (idn_success != idn_nameprep_create(NULL, &mNamePrepHandle))
     mNamePrepHandle = nsnull;
 
-  mNormalizer = do_GetService(NS_UNICODE_NORMALIZER_CONTRACTID);
+  mNormalizer = do_GetService(NS_UNICODE_NORMALIZER_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    mNormalizer = nsnull;
   /* member initializers and constructor code */
 }
 

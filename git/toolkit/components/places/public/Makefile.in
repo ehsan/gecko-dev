@@ -59,7 +59,6 @@ XPIDLSRCS += \
   nsILivemarkService.idl \
   nsIDynamicContainer.idl \
   nsITaggingService.idl  \
-  nsPIPlacesDatabase.idl \
   $(NULL)
 endif
 

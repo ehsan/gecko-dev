@@ -92,7 +92,6 @@ typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
 typedef struct JSGCThing            JSGCThing;
 typedef struct JSGenerator          JSGenerator;
-typedef struct JSNativeEnumerator   JSNativeEnumerator;
 typedef struct JSParseContext       JSParseContext;
 typedef struct JSParsedObjectBox    JSParsedObjectBox;
 typedef struct JSParseNode          JSParseNode;
@@ -125,6 +124,8 @@ typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSStringBuffer       JSStringBuffer;
 typedef struct JSSubString          JSSubString;
 typedef struct JSXML                JSXML;
+typedef struct JSXMLNamespace       JSXMLNamespace;
+typedef struct JSXMLQName           JSXMLQName;
 typedef struct JSXMLArray           JSXMLArray;
 typedef struct JSXMLArrayCursor     JSXMLArrayCursor;
 
@@ -138,31 +139,32 @@ typedef enum JSTrapStatus {
 } JSTrapStatus;
 
 typedef JSTrapStatus
-(* JSTrapHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                  void *closure);
+(* JS_DLL_CALLBACK JSTrapHandler)(JSContext *cx, JSScript *script,
+                                  jsbytecode *pc, jsval *rval, void *closure);
 
 typedef JSBool
-(* JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsval id, jsval old,
-                        jsval *newp, void *closure);
+(* JS_DLL_CALLBACK JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsval id,
+                                        jsval old, jsval *newp, void *closure);
 
 /* called just after script creation */
 typedef void
-(* JSNewScriptHook)(JSContext  *cx,
-                    const char *filename,  /* URL of script */
-                    uintN      lineno,     /* first line */
-                    JSScript   *script,
-                    JSFunction *fun,
-                    void       *callerdata);
+(* JS_DLL_CALLBACK JSNewScriptHook)(JSContext  *cx,
+                                    const char *filename,  /* URL of script */
+                                    uintN      lineno,     /* first line */
+                                    JSScript   *script,
+                                    JSFunction *fun,
+                                    void       *callerdata);
 
 /* called just before script destruction */
 typedef void
-(* JSDestroyScriptHook)(JSContext *cx,
-                        JSScript  *script,
-                        void      *callerdata);
+(* JS_DLL_CALLBACK JSDestroyScriptHook)(JSContext *cx,
+                                        JSScript  *script,
+                                        void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, uintN lineno, jschar *str,
-                    size_t length, void **listenerTSData, void *closure);
+(* JS_DLL_CALLBACK JSSourceHandler)(const char *filename, uintN lineno,
+                                    jschar *str, size_t length,
+                                    void **listenerTSData, void *closure);
 
 /*
  * This hook captures high level script execution and function calls (JS or
@@ -190,15 +192,16 @@ typedef void
  * be called.
  */
 typedef void *
-(* JSInterpreterHook)(JSContext *cx, JSStackFrame *fp, JSBool before,
-                      JSBool *ok, void *closure);
+(* JS_DLL_CALLBACK JSInterpreterHook)(JSContext *cx, JSStackFrame *fp, JSBool before,
+                                      JSBool *ok, void *closure);
 
 typedef void
-(* JSObjectHook)(JSContext *cx, JSObject *obj, JSBool isNew, void *closure);
+(* JS_DLL_CALLBACK JSObjectHook)(JSContext *cx, JSObject *obj, JSBool isNew,
+                                 void *closure);
 
 typedef JSBool
-(* JSDebugErrorHook)(JSContext *cx, const char *message, JSErrorReport *report,
-                     void *closure);
+(* JS_DLL_CALLBACK JSDebugErrorHook)(JSContext *cx, const char *message,
+                                     JSErrorReport *report, void *closure);
 
 typedef struct JSDebugHooks {
     JSTrapHandler       interruptHandler;
@@ -228,13 +231,15 @@ typedef struct JSDebugHooks {
  * variables. See jscntxt.h for details.
  */
 typedef void
-(* JSTempValueTrace)(JSTracer *trc, JSTempValueRooter *tvr);
+(* JS_DLL_CALLBACK JSTempValueTrace)(JSTracer *trc, JSTempValueRooter *tvr);
 
 typedef union JSTempValueUnion {
     jsval               value;
     JSObject            *object;
     JSString            *string;
     JSXML               *xml;
+    JSXMLQName          *qname;
+    JSXMLNamespace      *nspace;
     JSTempValueTrace    trace;
     JSScopeProperty     *sprop;
     JSWeakRoots         *weakRoots;

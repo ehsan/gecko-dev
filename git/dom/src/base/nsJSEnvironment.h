@@ -294,7 +294,7 @@ private:
 
   static int PR_CALLBACK JSOptionChangedCallback(const char *pref, void *data);
 
-  static JSBool DOMOperationCallback(JSContext *cx);
+  static JSBool JS_DLL_CALLBACK DOMOperationCallback(JSContext *cx);
 };
 
 class nsIJSRuntimeService;
@@ -309,6 +309,9 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS
 
+  // nsIScriptRuntime
+  virtual void ShutDown();
+
   virtual PRUint32 GetScriptTypeID() {
             return nsIProgrammingLanguage::JAVASCRIPT;
   }
@@ -320,8 +323,9 @@ public:
   virtual nsresult DropScriptObject(void *object);
   virtual nsresult HoldScriptObject(void *object);
   
+  // Private stuff.
+  // called by the nsDOMScriptObjectFactory to initialize statics
   static void Startup();
-  static void Shutdown();
   // Setup all the statics etc - safe to call multiple times after Startup()
   static nsresult Init();
   // Get the NameSpaceManager, creating if necessary
@@ -353,6 +357,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIJSArgArray, NS_IJSARGARRAY_IID)
 nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
 
 /* prototypes */
-void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
+void JS_DLL_CALLBACK NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
 
 #endif /* nsJSEnvironment_h___ */

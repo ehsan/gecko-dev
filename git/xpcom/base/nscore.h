@@ -52,7 +52,7 @@
 
 /* Core XPCOM declarations. */
 
-/** 
+/**
  * Macros defining the target platform...
  */
 #ifdef _WIN32
@@ -107,8 +107,6 @@
 
 #if defined(HAVE_VISIBILITY_ATTRIBUTE)
 #define NS_VISIBILITY_DEFAULT __attribute__ ((visibility ("default")))
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#define NS_VISIBILITY_DEFAULT __global
 #else
 #define NS_VISIBILITY_DEFAULT
 #endif
@@ -388,11 +386,17 @@ typedef PRUint32 nsrefcnt;
 
   /* under VC++ (Windows), we don't have autoconf yet */
 #if defined(_MSC_VER) && (_MSC_VER>=1100)
+  /* VC++ 5.0 and greater implement template specialization, 4.2 is unknown */
   #define HAVE_CPP_MODERN_SPECIALIZE_TEMPLATE_SYNTAX
 
   #define HAVE_CPP_EXPLICIT
   #define HAVE_CPP_TYPENAME
   #define HAVE_CPP_ACCESS_CHANGING_USING
+
+  #if (_MSC_VER==1100)
+      /* VC++5.0 has an internal compiler error (sometimes) without this */
+    #undef HAVE_CPP_ACCESS_CHANGING_USING
+  #endif
 
   #define HAVE_CPP_NAMESPACE_STD
   #define HAVE_CPP_UNAMBIGUOUS_STD_NOTEQUAL
@@ -486,13 +490,9 @@ typedef PRUint32 nsrefcnt;
  */
 #ifdef NS_STATIC_CHECKING
 #define NS_STACK_CLASS __attribute__((user("NS_stack")))
-#define NS_OKONHEAP    __attribute__((user("NS_okonheap")))
-#define NS_SUPPRESS_STACK_CHECK __attribute__((user("NS_suppress_stackcheck")))
 #define NS_FINAL_CLASS __attribute__((user("NS_final")))
 #else
 #define NS_STACK_CLASS
-#define NS_OKONHEAP
-#define NS_SUPPRESS_STACK_CHECK
 #define NS_FINAL_CLASS
 #endif
 

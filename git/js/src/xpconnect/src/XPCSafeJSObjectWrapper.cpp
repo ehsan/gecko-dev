@@ -42,36 +42,36 @@
 #include "jsscript.h" // for js_ScriptClass
 #include "XPCWrapper.h"
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Enumerate(JSContext *cx, JSObject *obj);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                     JSObject **objp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 XPC_SJOW_Finalize(JSContext *cx, JSObject *obj);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_CheckAccess(JSContext *cx, JSObject *obj, jsval id, JSAccessMode mode,
                      jsval *vp);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval);
 
@@ -79,13 +79,13 @@ JSBool
 XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                    jsval *rval);
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
-static JSObject *
+JS_STATIC_DLL_CALLBACK(JSObject *)
 XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly);
 
-static JSObject *
+JS_STATIC_DLL_CALLBACK(JSObject *)
 XPC_SJOW_WrappedObject(JSContext *cx, JSObject *obj);
 
 static inline
@@ -208,7 +208,7 @@ JSExtendedClass sXPC_SJOW_JSClass = {
   JSCLASS_NO_RESERVED_MEMBERS
 };
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                   jsval *rval);
 
@@ -462,7 +462,7 @@ GetScriptedFunction(JSContext *cx, JSObject *obj, JSObject *unsafeObj,
 }
 
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   // The constructor and toString properties needs to live on the safe
@@ -498,7 +498,7 @@ XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return XPCWrapper::AddProperty(cx, obj, unsafeObj, id, vp);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   JSObject *unsafeObj = GetUnsafeObject(obj);
@@ -519,7 +519,7 @@ XPC_SJOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 // objects in a scripted function (see XPC_SJOW_Call()). The first
 // argument passed to this method is the unsafe function to call, the
 // rest are the arguments to pass to the function we're calling.
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_CallWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval)
 {
@@ -536,8 +536,9 @@ static JSBool
 XPC_SJOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
                           JSBool aIsSet)
 {
-  // We resolve toString to a function in our resolve hook.
-  if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
+  // We don't deal with the following properties here.
+  if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_PROTOTYPE) ||
+      id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
     return JS_TRUE;
   }
 
@@ -587,19 +588,19 @@ XPC_SJOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   return ok && WrapJSValue(cx, obj, val, vp);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   return XPC_SJOW_GetOrSetProperty(cx, obj, id, vp, PR_FALSE);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   return XPC_SJOW_GetOrSetProperty(cx, obj, id, vp, PR_TRUE);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Enumerate(JSContext *cx, JSObject *obj)
 {
   obj = FindSafeObject(obj);
@@ -631,7 +632,7 @@ XPC_SJOW_Enumerate(JSContext *cx, JSObject *obj)
   return XPCWrapper::Enumerate(cx, obj, unsafeObj);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                     JSObject **objp)
 {
@@ -661,14 +662,14 @@ XPC_SJOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
   return XPCWrapper::NewResolve(cx, obj, unsafeObj, id, flags, objp);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 {
   NS_ASSERTION(type != JSTYPE_STRING, "toString failed us");
   return JS_TRUE;
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 XPC_SJOW_Finalize(JSContext *cx, JSObject *obj)
 {
   // Release the reference to the cached principal if we have one.
@@ -681,7 +682,7 @@ XPC_SJOW_Finalize(JSContext *cx, JSObject *obj)
   }
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_CheckAccess(JSContext *cx, JSObject *obj, jsval id,
                      JSAccessMode mode, jsval *vp)
 {
@@ -691,9 +692,8 @@ XPC_SJOW_CheckAccess(JSContext *cx, JSObject *obj, jsval id,
   }
 
   // Forward to the checkObjectAccess hook in the runtime, if any.
-  JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
-  if (callbacks && callbacks->checkObjectAccess &&
-      !callbacks->checkObjectAccess(cx, obj, id, mode, vp)) {
+  if (cx->runtime->checkObjectAccess &&
+      !cx->runtime->checkObjectAccess(cx, obj, id, mode, vp)) {
     return JS_FALSE;
   }
 
@@ -704,8 +704,8 @@ XPC_SJOW_CheckAccess(JSContext *cx, JSObject *obj, jsval id,
 
   // Forward the unsafe object to the checkObjectAccess hook in the
   // runtime too, if any.
-  if (callbacks && callbacks->checkObjectAccess &&
-      !callbacks->checkObjectAccess(cx, unsafeObj, id, mode, vp)) {
+  if (cx->runtime->checkObjectAccess &&
+      !cx->runtime->checkObjectAccess(cx, unsafeObj, id, mode, vp)) {
     return JS_FALSE;
   }
 
@@ -714,7 +714,7 @@ XPC_SJOW_CheckAccess(JSContext *cx, JSObject *obj, jsval id,
     clazz->checkAccess(cx, unsafeObj, id, mode, vp);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval)
 {
@@ -945,7 +945,7 @@ XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 {
   if (JSVAL_IS_PRIMITIVE(v)) {
@@ -976,7 +976,7 @@ XPC_SJOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
   return JS_TRUE;
 }
 
-static JSObject *
+JS_STATIC_DLL_CALLBACK(JSObject *)
 XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
 {
   obj = FindSafeObject(obj);
@@ -1015,13 +1015,13 @@ XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
                                        keysonly);
 }
 
-static JSObject *
+JS_STATIC_DLL_CALLBACK(JSObject *)
 XPC_SJOW_WrappedObject(JSContext *cx, JSObject *obj)
 {
   return GetUnsafeObject(obj);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 XPC_SJOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                   jsval *rval)
 {

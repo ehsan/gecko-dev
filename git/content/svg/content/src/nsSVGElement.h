@@ -87,9 +87,6 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
-  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              PRInt32 aModType) const;
-
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
@@ -313,21 +310,23 @@ protected:
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 
-private:
   /* read <number-optional-number> */
-  nsresult
-  ParseNumberOptionalNumber(const nsAString& aValue,
-                            PRUint32 aIndex1, PRUint32 aIndex2);
+  PRBool
+  ParseNumberOptionalNumber(nsIAtom* aAttribute, const nsAString& aValue,
+                            PRUint32 aIndex1, PRUint32 aIndex2,
+                            nsAttrValue& aResult);
 
   /* read <integer-optional-integer> */
-  nsresult
-  ParseIntegerOptionalInteger(const nsAString& aValue,
-                              PRUint32 aIndex1, PRUint32 aIndex2);
+  PRBool
+  ParseIntegerOptionalInteger(nsIAtom* aAttribute, const nsAString& aValue,
+                              PRUint32 aIndex1, PRUint32 aIndex2,
+                              nsAttrValue& aResult);
 
   static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);
 
+private:
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;

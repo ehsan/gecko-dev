@@ -80,8 +80,4 @@ typedef long ptrdiff_t;
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-# define __cplusplus_only(x)    x
-#else
-# define __cplusplus_only(x)    /* nothing */
-#endif
+

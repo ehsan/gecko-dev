@@ -59,7 +59,6 @@ SDK_XPIDLSRCS = \
     $(NULL)
 
 XPIDLSRCS = \
-    nsISSLCertErrorDialog.idl \
     nsIBadCertListener2.idl \
     nsISSLErrorListener.idl \
     nsIIdentityInfo.idl \

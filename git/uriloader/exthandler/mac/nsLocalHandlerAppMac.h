@@ -52,8 +52,8 @@ class nsLocalHandlerAppMac : public nsLocalHandlerApp {
       : nsLocalHandlerApp(aName, aExecutable) {}
     virtual ~nsLocalHandlerAppMac() { }
 
-    NS_IMETHOD LaunchWithURI(nsIURI* aURI, nsIInterfaceRequestor* aWindowContext);
-    NS_IMETHOD GetName(nsAString& aName);
+    NS_IMETHOD LaunchWithURI(nsIURI* aURI,
+                             nsIInterfaceRequestor* aWindowContext);
 };
 
 #endif /*NSLOCALHANDLERAPPMAC_H_*/

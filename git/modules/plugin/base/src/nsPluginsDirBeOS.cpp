@@ -163,7 +163,6 @@ typedef char* (*BeOS_Plugin_GetMIMEDescription)();
  */
 nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
-    info.fVersion = nsnull;
     nsCAutoString fpath;
     nsresult rv = mPlugin->GetNativePath(fpath);
     if (NS_OK != rv) {
@@ -280,9 +279,6 @@ nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
 
     if (info.fFileName)
         PL_strfree(info.fFileName);
-
-    if (info.fVersion)
-        PL_strfree(info.fVersion);
 
     return NS_OK;
 }

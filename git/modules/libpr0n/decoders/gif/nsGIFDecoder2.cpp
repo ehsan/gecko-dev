@@ -174,7 +174,7 @@ NS_IMETHODIMP nsGIFDecoder2::Close()
 /* void flush (); */
 NS_IMETHODIMP nsGIFDecoder2::Flush()
 {
-    return NS_OK;
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************
@@ -199,17 +199,14 @@ static NS_METHOD ReadDataOut(nsIInputStream* in,
 // Push any new rows according to mCurrentPass/mLastFlushedPass and
 // mCurrentRow/mLastFlushedRow.  Note: caller is responsible for
 // updating mlastFlushed{Row,Pass}.
-nsresult
+void
 nsGIFDecoder2::FlushImageData(PRUint32 fromRow, PRUint32 rows)
 {
   nsIntRect r(0, fromRow, mGIFStruct.screen_width, rows);
 
   // Update image  
   nsCOMPtr<nsIImage> img(do_GetInterface(mImageFrame));
-  nsresult rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
 
   // Offset to the frame position
   // Only notify observer(s) for first frame
@@ -217,29 +214,25 @@ nsGIFDecoder2::FlushImageData(PRUint32 fromRow, PRUint32 rows)
     r.y += mGIFStruct.y_offset;
     mObserver->OnDataAvailable(nsnull, mImageFrame, &r);
   }
-  return NS_OK;
 }
 
-nsresult
+void
 nsGIFDecoder2::FlushImageData()
 {
-  nsresult rv = NS_OK;
-
   switch (mCurrentPass - mLastFlushedPass) {
     case 0:  // same pass
       if (mCurrentRow - mLastFlushedRow)
-        rv = FlushImageData(mLastFlushedRow + 1, mCurrentRow - mLastFlushedRow);
+        FlushImageData(mLastFlushedRow + 1, mCurrentRow - mLastFlushedRow);
       break;
   
     case 1:  // one pass on - need to handle bottom & top rects
-      rv = FlushImageData(0, mCurrentRow + 1);
-      rv |= FlushImageData(mLastFlushedRow + 1, mGIFStruct.height - (mLastFlushedRow + 1));
+      FlushImageData(0, mCurrentRow + 1);
+      FlushImageData(mLastFlushedRow + 1, mGIFStruct.height - (mLastFlushedRow + 1));
       break;
 
     default:   // more than one pass on - push the whole frame
-      rv = FlushImageData(0, mGIFStruct.height);
+      FlushImageData(0, mGIFStruct.height);
   }
-  return rv;
 }
 
 //******************************************************************************
@@ -252,14 +245,14 @@ nsresult nsGIFDecoder2::ProcessData(unsigned char *data, PRUint32 count, PRUint3
 
   // Flushing is only needed for first frame
   if (!mGIFStruct.images_decoded && mImageFrame) {
-    rv = FlushImageData();
+    FlushImageData();
     mLastFlushedRow = mCurrentRow;
     mLastFlushedPass = mCurrentPass;
   }
 
   *_retval = count;
 
-  return rv;
+  return NS_OK;
 }
 
 //******************************************************************************
@@ -377,7 +370,7 @@ void nsGIFDecoder2::EndImageFrame()
   // First flush all pending image data 
   if (!mGIFStruct.images_decoded) {
     // Only need to flush first frame
-    (void) FlushImageData();
+    FlushImageData();
 
     // If the first frame is smaller in height than the entire image, send a
     // OnDataAvailable (Display Refresh) for the area it does not have data for.
@@ -680,7 +673,7 @@ nsGIFDecoder2::DoLzw(const PRUint8 *q)
 static void ConvertColormap(PRUint32 *aColormap, PRUint32 aColors)
 {
   // Apply CMS transformation if enabled and available
-  if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+  if (gfxPlatform::IsCMSEnabled()) {
     cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBTransform();
     if (transform)
       cmsDoTransform(transform, aColormap, aColormap, aColors);

@@ -179,8 +179,11 @@ ViewportFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 nsIFrame*
 ViewportFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::fixedList == aListName)
-    return mFixedContainer.GetFirstChild();
+  if (nsGkAtoms::fixedList == aListName) {
+    nsIFrame* result = nsnull;
+    mFixedContainer.FirstChild(this, aListName, &result);
+    return result;
+  }
 
   return nsContainerFrame::GetFirstChild(aListName);
 }
@@ -306,7 +309,8 @@ ViewportFrame::Reflow(nsPresContext*          aPresContext,
   nsPoint offset = AdjustReflowStateForScrollbars(&reflowState);
   
 #ifdef DEBUG
-  nsIFrame* f = mFixedContainer.GetFirstChild();
+  nsIFrame* f;
+  mFixedContainer.FirstChild(this, nsGkAtoms::fixedList, &f);
   NS_ASSERTION(!f || (offset.x == 0 && offset.y == 0),
                "We don't handle correct positioning of fixed frames with "
                "scrollbars in odd positions");
@@ -321,7 +325,7 @@ ViewportFrame::Reflow(nsPresContext*          aPresContext,
   // If we were dirty then do a repaint
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
     nsRect damageRect(0, 0, aDesiredSize.width, aDesiredSize.height);
-    Invalidate(damageRect);
+    Invalidate(damageRect, PR_FALSE);
   }
 
   // XXX Should we do something to clip our children to this?
@@ -348,19 +352,15 @@ ViewportFrame::IsContainingBlock() const
 void
 ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRUint32 aFlags)
+                                  PRBool aImmediate)
 {
-  nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
-
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
     nsPoint pt = GetOffsetTo(parent);
-    parent->InvalidateInternal(r, pt.x, pt.y, this,
-                               aFlags | INVALIDATE_CROSS_DOC);
+    parent->InvalidateInternal(aDamageRect, aX + pt.x, aY + pt.y, this, aImmediate);
     return;
   }
-  InvalidateRoot(r, aFlags);
+  InvalidateRoot(aDamageRect, aX, aY, aImmediate);
 }
 
 #ifdef DEBUG

@@ -363,9 +363,10 @@ GetNodeInfos(nsXULPrototypeElement* aPrototype,
         nsCOMPtr<nsINodeInfo> ni;
         nsAttrName* name = &aPrototype->mAttributes[i].mName;
         if (name->IsAtom()) {
-            ni = aPrototype->mNodeInfo->NodeInfoManager()->
-                GetNodeInfo(name->Atom(), nsnull, kNameSpaceID_None);
-            NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+            rv = aPrototype->mNodeInfo->NodeInfoManager()->
+                GetNodeInfo(name->Atom(), nsnull, kNameSpaceID_None,
+                            getter_AddRefs(ni));
+            NS_ENSURE_SUCCESS(rv, rv);
         }
         else {
             ni = name->NodeInfo();

@@ -37,7 +37,7 @@
 /*
  * Test program for SDR (Secret Decoder Ring) functions.
  *
- * $Id: shlibsign.c,v 1.16 2008/08/08 23:48:04 julien.pierre.boogz%sun.com Exp $
+ * $Id: shlibsign.c,v 1.15 2007/11/05 17:13:27 wtc%google.com Exp $
  */
 
 #ifdef XP_UNIX
@@ -69,9 +69,8 @@ usage (char *program_name)
     PRFileDesc *pr_stderr;
 
     pr_stderr = PR_STDERR;
-    PR_fprintf (pr_stderr,
-      "Usage:%s [-v] [-o outfile] [-d dbdir] [-f pwfile] [-p pwd]\n"
-      "      -i shared_library_name\n", program_name);
+    PR_fprintf (pr_stderr, "Usage:");
+    PR_fprintf (pr_stderr, "%s [-v] -i shared_library_name\n", program_name);
 }
 
 static char *
@@ -157,7 +156,6 @@ main (int argc, char **argv)
     PQGParams *pqgParams = NULL;
     PQGVerify *pqgVerify = NULL;
     const char *nssDir = NULL;
-    secuPWData  pwdata = { PW_NONE, 0 };
 #ifdef USES_LINKS
     int ret;
     struct stat stat_buf;
@@ -171,7 +169,7 @@ main (int argc, char **argv)
     program_name = PL_strrchr(argv[0], '/');
     program_name = program_name ? (program_name + 1) : argv[0];
 
-    optstate = PL_CreateOptState (argc, argv, "d:f:i:o:p:v");
+    optstate = PL_CreateOptState (argc, argv, "d:i:o:v");
     if (optstate == NULL) {
 	SECU_PrintError (program_name, "PL_CreateOptState failed");
 	return 1;
@@ -199,16 +197,6 @@ main (int argc, char **argv)
 
           case 'o':
             output_file = PORT_Strdup(optstate->value);
-            break;
-
-          case 'f':
-            pwdata.source = PW_FROMFILE;
-            pwdata.data = PORT_Strdup(optstate->value);
-            break;
-
-          case 'p':
-            pwdata.source = PW_PLAINTEXT;
-            pwdata.data = PORT_Strdup(optstate->value);
             break;
 
           case 'v':
@@ -242,7 +230,7 @@ main (int argc, char **argv)
     }
     
     /* Generate a DSA Key pair */
-    slot = PK11_GetBestSlot(CKM_DSA,&pwdata);
+    slot = PK11_GetBestSlot(CKM_DSA,NULL);
     if (slot == NULL) {
 	lperror("CKM_DSA");
 	goto loser;
@@ -256,7 +244,7 @@ main (int argc, char **argv)
 	goto loser;
     }
     privk = PK11_GenerateKeyPair(slot, CKM_DSA_KEY_PAIR_GEN, pqgParams, &pubk, 
-						PR_FALSE, PR_TRUE, &pwdata);
+						PR_FALSE, PR_TRUE, NULL);
     if (privk == NULL) {
 	lperror("Generating DSA Key");
 	goto loser;
@@ -436,9 +424,6 @@ loser:
     }
     if (slot) {
         PK11_FreeSlot(slot);
-    }
-    if (pwdata.data) {
-        PORT_Free(pwdata.data);
     }
     if (NSS_Shutdown() != SECSuccess) {
 	exit(1);

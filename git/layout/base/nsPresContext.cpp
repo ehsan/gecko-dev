@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -79,11 +78,8 @@
 #include "nsLayoutUtils.h"
 #include "nsIViewManager.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsCSSRuleProcessor.h"
 #include "nsStyleChangeList.h"
 #include "nsRuleNode.h"
-#include "nsEventDispatcher.h"
-#include "gfxUserFontSet.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -227,7 +223,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
     mNeverAnimate = PR_FALSE;
   }
   NS_ASSERTION(mDocument, "Null document");
-  mUserFontSet = nsnull;
 }
 
 nsPresContext::~nsPresContext()
@@ -285,8 +280,6 @@ nsPresContext::~nsPresContext()
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
   NS_IF_RELEASE(mLangGroup);
-  
-  SetUserFontSet(nsnull);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsPresContext)
@@ -573,11 +566,6 @@ nsPresContext::GetDocumentColorPreferences()
                            mBackgroundColor);
   }
 
-  // Wherever we got the default background color from, ensure it is
-  // opaque.
-  mBackgroundColor = NS_ComposeColors(NS_RGB(0xFF, 0xFF, 0xFF),
-                                      mBackgroundColor);
-
   mUseDocumentColors = !useAccessibilityTheme &&
     nsContentUtils::GetBoolPref("browser.display.use_document_colors",
                                 mUseDocumentColors);
@@ -740,7 +728,6 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       nscoord height = NSToCoordRound(oldHeightDevPixels*AppUnitsPerDevPixel());
       vm->SetWindowDimensions(width, height);
 
-      MediaFeatureValuesChanged(PR_TRUE);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
     return;
@@ -812,9 +799,6 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 
   if (!mImageLoaders.Init())
-    return NS_ERROR_OUT_OF_MEMORY;
-  
-  if (!mBorderImageLoaders.Init())
     return NS_ERROR_OUT_OF_MEMORY;
   
   // Get the look and feel service here; default colors will be initialized
@@ -1176,7 +1160,6 @@ nsPresContext::SetFullZoom(float aZoom)
   mFullZoom = aZoom;
   GetViewManager()->SetWindowDimensions(NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
                                         NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
-  MediaFeatureValuesChanged(PR_TRUE);
   RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
 
   mSupressResizeReflow = PR_FALSE;
@@ -1185,21 +1168,18 @@ nsPresContext::SetFullZoom(float aZoom)
 }
 
 imgIRequest*
-nsPresContext::DoLoadImage(nsPresContext::ImageLoaderTable& aTable,
-                           imgIRequest* aImage,
-                           nsIFrame* aTargetFrame,
-                           PRBool aReflowOnLoad)
+nsPresContext::LoadImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
 {
   // look and see if we have a loader for the target frame.
   nsCOMPtr<nsImageLoader> loader;
-  aTable.Get(aTargetFrame, getter_AddRefs(loader));
+  mImageLoaders.Get(aTargetFrame, getter_AddRefs(loader));
 
   if (!loader) {
     loader = new nsImageLoader();
     if (!loader)
       return nsnull;
 
-    loader->Init(aTargetFrame, this, aReflowOnLoad);
+    loader->Init(aTargetFrame, this);
     mImageLoaders.Put(aTargetFrame, loader);
   }
 
@@ -1210,40 +1190,21 @@ nsPresContext::DoLoadImage(nsPresContext::ImageLoaderTable& aTable,
   return request;
 }
 
-imgIRequest*
-nsPresContext::LoadImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
-{
-  return DoLoadImage(mImageLoaders, aImage, aTargetFrame, PR_FALSE);
-}
-
-imgIRequest*
-nsPresContext::LoadBorderImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
-{
-  return DoLoadImage(mBorderImageLoaders, aImage, aTargetFrame,
-                     aTargetFrame->GetStyleBorder()->ImageBorderDiffers());
-}
 
 void
 nsPresContext::StopImagesFor(nsIFrame* aTargetFrame)
 {
-  StopBackgroundImageFor(aTargetFrame);
-  StopBorderImageFor(aTargetFrame);
-}
-
-void
-nsPresContext::DoStopImageFor(nsPresContext::ImageLoaderTable& aTable,
-                              nsIFrame* aTargetFrame)
-{
   nsCOMPtr<nsImageLoader> loader;
-  aTable.Get(aTargetFrame, getter_AddRefs(loader));
+  mImageLoaders.Get(aTargetFrame, getter_AddRefs(loader));
 
   if (loader) {
     loader->Destroy();
 
-    aTable.Remove(aTargetFrame);
+    mImageLoaders.Remove(aTargetFrame);
   }
 }
-  
+
+
 void
 nsPresContext::SetContainer(nsISupports* aHandler)
 {
@@ -1397,9 +1358,6 @@ nsPresContext::ThemeChangedInternal()
     sLookAndFeelChanged = PR_FALSE;
   }
 
-  // This will force the system metrics to be generated the next time they're used
-  nsCSSRuleProcessor::FreeSystemMetrics();
-
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
@@ -1459,39 +1417,6 @@ nsPresContext::PostRebuildAllStyleDataEvent()
     return;
   }
   mShell->FrameConstructor()->PostRebuildAllStyleDataEvent();
-}
-
-void
-nsPresContext::MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData)
-{
-  mPendingMediaFeatureValuesChanged = PR_FALSE;
-  if (mShell->StyleSet()->MediumFeaturesChanged(this) &&
-      !aCallerWillRebuildStyleData) {
-    RebuildAllStyleData(nsChangeHint(0));
-  }
-}
-
-void
-nsPresContext::PostMediaFeatureValuesChangedEvent()
-{
-  if (!mPendingMediaFeatureValuesChanged) {
-    nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                         &nsPresContext::HandleMediaFeatureValuesChangedEvent);
-    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
-      mPendingMediaFeatureValuesChanged = PR_TRUE;
-    }
-  }
-}
-
-void
-nsPresContext::HandleMediaFeatureValuesChangedEvent()
-{
-  // Null-check mShell in case the shell has been destroyed (and the
-  // event is the only thing holding the pres context alive).
-  if (mPendingMediaFeatureValuesChanged && mShell) {
-    MediaFeatureValuesChanged(PR_FALSE);
-  }
 }
 
 void
@@ -1578,68 +1503,4 @@ nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) 
 {
   return nsRuleNode::
     HasAuthorSpecifiedRules(aFrame->GetStyleContext(), ruleTypeMask);
-}
-
-gfxUserFontSet* 
-nsPresContext::GetUserFontSet() {
-  return mUserFontSet;
-}
-
-void 
-nsPresContext::SetUserFontSet(gfxUserFontSet *aUserFontSet)
-{
-  NS_IF_RELEASE(mUserFontSet);
-  mUserFontSet = aUserFontSet;
-  NS_IF_ADDREF(mUserFontSet);
-}
-
-void
-nsPresContext::FireDOMPaintEvent()
-{
-  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
-  if (!docShell)
-    return;
-  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(docShell);
-  nsISupports* eventTarget = ourWindow;
-  if (mSameDocDirtyRegion.IsEmpty() && !IsChrome()) {
-    // Don't tell the window about this event, it should not know that
-    // something happened in a subdocument. Tell only the chrome event handler.
-    // (Events sent to the window get propagated to the chrome event handler
-    // automatically.)
-    eventTarget = ourWindow->GetChromeEventHandler();
-  }
-  // Events sent to the window get propagated to the chrome event handler
-  // automatically.
-
-  nsNotifyPaintEvent event(PR_TRUE, NS_AFTERPAINT, mSameDocDirtyRegion,
-                           mCrossDocDirtyRegion);
-  // Empty our regions now in case dispatching the event causes more damage
-  // (hopefully it won't, or we're likely to get an infinite loop! At least
-  // it won't be blocking app execution though).
-  mSameDocDirtyRegion.SetEmpty();
-  mCrossDocDirtyRegion.SetEmpty();
-  // Even if we're not telling the window about the event (so eventTarget is
-  // the chrome event handler, not the window), the window is still
-  // logically the event target.
-  event.target = do_QueryInterface(ourWindow);
-  nsEventDispatcher::Dispatch(eventTarget, this, &event);
-}
-
-void
-nsPresContext::NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc)
-{
-  if (aRect.IsEmpty())
-    return;
-
-  if (mSameDocDirtyRegion.IsEmpty() && mCrossDocDirtyRegion.IsEmpty()) {
-    // No event is pending. Dispatch one now.
-    nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::FireDOMPaintEvent);
-    NS_DispatchToCurrentThread(ev);
-  }
-
-  nsRegion* r = aIsCrossDoc ? &mCrossDocDirtyRegion : &mSameDocDirtyRegion;
-  r->Or(*r, aRect);
-  r->SimplifyOutward(10);
 }

@@ -61,7 +61,7 @@ class PropertyProvider;
 
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
-#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x02000000
 
 class nsTextFrame : public nsFrame {
 public:
@@ -153,8 +153,7 @@ public:
   NS_IMETHOD SetSelected(nsPresContext* aPresContext,
                          nsIDOMRange *aRange,
                          PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType);
+                         nsSpread aSpread);
   
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
@@ -264,7 +263,7 @@ public:
                             const gfxPoint& aTextBaselinePt,
                             nsTextPaintStyle& aTextStyle,
                             PropertyProvider& aProvider,
-                            const nscolor* aOverrideColor = nsnull);
+                            const nscolor& aOverrideColor = 0);
   // helper: paint text frame when we're impacted by at least one selection.
   // Return PR_FALSE if the text was not painted and we should continue with
   // the fast path.
@@ -374,11 +373,14 @@ protected:
   nscoord     mAscent;
   gfxTextRun* mTextRun;
 
-  // The caller of this method must call DestroySelectionDetails() on the
-  // return value, if that return value is not null.  Calling
-  // DestroySelectionDetails() on a null value is still OK, just not necessary.
   SelectionDetails* GetSelectionDetails();
   
+  void AdjustSelectionPointsForBidi(SelectionDetails *sdptr,
+                                    PRInt32 textLength,
+                                    PRBool isRTLChars,
+                                    PRBool isOddLevel,
+                                    PRBool isBidiSystem);
+
   void UnionTextDecorationOverflow(nsPresContext* aPresContext,
                                    PropertyProvider& aProvider,
                                    nsRect* aOverflowRect);
@@ -394,7 +396,7 @@ protected:
 
   void PaintOneShadow(PRUint32 aOffset,
                       PRUint32 aLength,
-                      nsCSSShadowItem* aShadowDetails,
+                      nsTextShadowItem* aShadowDetails,
                       PropertyProvider* aProvider,
                       const gfxRect& aDirtyRect,
                       const gfxPoint& aFramePt,

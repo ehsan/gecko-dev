@@ -77,7 +77,8 @@
 #include "nsISelectionController.h"
 #include "nsIEnumerator.h"
 #include "nsIAtom.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
+#include "nsIKBStateControl.h"
 #include "nsIWidget.h"
 #include "nsIPlaintextEditor.h"
 #include "nsGUIEvent.h"  // nsTextEventReply
@@ -440,7 +441,7 @@ nsEditor::GetDesiredSpellCheckState()
     return PR_FALSE;
   }
 
-  if (content->IsRootOfNativeAnonymousSubtree()) {
+  if (content->IsNativeAnonymous()) {
     content = content->GetParent();
   }
 
@@ -1939,7 +1940,7 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
-  nsRefPtr<nsCaret> caretP; 
+  nsCOMPtr<nsICaret> caretP; 
   result = ps->GetCaret(getter_AddRefs(caretP));
   
   if (NS_SUCCEEDED(result) && caretP) {
@@ -1982,15 +1983,8 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
 
       // XXX_kin: END HACK! HACK! HACK!
 
-      nsIView *view = nsnull;
-      result =
-        caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
-                                    selection,
-                                    &(aReply->mCursorPosition),
-                                    &(aReply->mCursorIsCollapsed),
-                                    &view);
-      if (NS_SUCCEEDED(result) && view)
-        aReply->mReferenceWidget = view->GetWidget();
+      result = caretP->GetCaretCoordinates(nsICaret::eIMECoordinates, selection,
+		                      &(aReply->mCursorPosition), &(aReply->mCursorIsCollapsed), nsnull);
     }
   }
   return result;
@@ -2088,11 +2082,11 @@ GetEditorContentWindow(nsIPresShell *aPresShell, nsIDOMElement *aRoot, nsIWidget
 }
 
 nsresult
-nsEditor::GetWidget(nsIWidget **aWidget)
+nsEditor::GetKBStateControl(nsIKBStateControl **aKBSC)
 {
-  if (!aWidget)
+  if (!aKBSC)
     return NS_ERROR_NULL_POINTER;
-  *aWidget = nsnull;
+  *aKBSC = nsnull;
   nsCOMPtr<nsIPresShell> shell;
   nsresult res = GetPresShell(getter_AddRefs(shell));
 
@@ -2106,10 +2100,12 @@ nsEditor::GetWidget(nsIWidget **aWidget)
   res = GetEditorContentWindow(shell, GetRoot(), getter_AddRefs(widget));
   if (NS_FAILED(res))
     return res;
-  if (!widget)
-    return NS_ERROR_NOT_AVAILABLE;
 
-  NS_ADDREF(*aWidget = widget);
+  nsCOMPtr<nsIKBStateControl> kb = do_QueryInterface(widget);
+  if (!kb)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  NS_ADDREF(*aKBSC = kb);
 
   return NS_OK;
 }
@@ -2133,17 +2129,29 @@ nsEditor::ForceCompositionEnd()
 	return NS_OK;
 #endif
 
-  nsCOMPtr<nsIWidget> widget;
-  nsresult res = GetWidget(getter_AddRefs(widget));
+  nsCOMPtr<nsIKBStateControl> kb;
+  nsresult res = GetKBStateControl(getter_AddRefs(kb));
   if (NS_FAILED(res))
     return res;
 
-  if (widget) {
-    res = widget->ResetInputState();
+  if (kb) {
+    res = kb->ResetInputState();
     if (NS_FAILED(res)) 
       return res;
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditor::NotifyIMEOnFocus()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditor::NotifyIMEOnBlur()
+{
   return NS_OK;
 }
 
@@ -2199,6 +2207,41 @@ nsEditor::GetComposing(PRBool* aResult)
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = IsIMEComposing();
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditor::GetReconversionString(nsReconversionEventReply* aReply)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsEditor::GetQueryCaretRect(nsQueryCaretRectEventReply* aReply)
+{
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(rv))
+    return rv;
+
+  if (!mPresShellWeak)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  if (!ps)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  nsCOMPtr<nsICaret> caretP;
+  rv = ps->GetCaret(getter_AddRefs(caretP));
+
+  if (NS_FAILED(rv) || !caretP)
+    return rv;
+
+  PRBool cursorIsCollapsed;
+  rv = caretP->GetCaretCoordinates(nsICaret::eIMECoordinates, selection,
+                                   &aReply->mCaretRect, &cursorIsCollapsed, nsnull);
+  if (NS_SUCCEEDED(rv))
+    aReply->mRectIsValid = PR_TRUE;
+  return rv;
 }
 
 #ifdef XP_MAC
@@ -4303,7 +4346,7 @@ nsresult nsEditor::EndUpdateViewBatch()
     // notifications should've happened so the caret should have enough info
     // to draw at the correct position.
 
-    nsRefPtr<nsCaret> caret;
+    nsCOMPtr<nsICaret> caret;
     nsCOMPtr<nsIPresShell> presShell;
     GetPresShell(getter_AddRefs(presShell));
 
@@ -5201,7 +5244,7 @@ nsEditor::GetPIDOMEventTarget()
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(rootElement);
 
-  if (content && content->IsRootOfNativeAnonymousSubtree())
+  if (content && content->IsNativeAnonymous())
   {
     mEventTarget = do_QueryInterface(content->GetParent());
     piTarget = mEventTarget;

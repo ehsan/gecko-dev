@@ -55,7 +55,7 @@ XPCWrapper::sNumSlots = 2;
 JSNative
 XPCWrapper::sEvalNative = nsnull;
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 IteratorFinalize(JSContext *cx, JSObject *obj)
 {
   jsval v;
@@ -67,7 +67,7 @@ IteratorFinalize(JSContext *cx, JSObject *obj)
   }
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 IteratorNext(JSContext *cx, uintN argc, jsval *vp)
 {
   JSObject *obj;

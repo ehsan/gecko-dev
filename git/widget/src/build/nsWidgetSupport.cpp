@@ -42,6 +42,7 @@
 #include "nsIAppShell.h"
 #include "nsIEventListener.h"
 #include "nsILookAndFeel.h"
+#include "nsIMouseListener.h"
 #include "nsIToolkit.h"
 #include "nsIWidget.h"
 

@@ -226,14 +226,12 @@ PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString&
         const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(storage);
         AppendCSSValueToString(aProperty, pair->mXValue, aResult);
         if (pair->mYValue != pair->mXValue ||
-            ((aProperty == eCSSProperty_background_position ||
-              aProperty == eCSSProperty__moz_transform_origin) &&
+            (aProperty == eCSSProperty_background_position &&
              pair->mXValue.GetUnit() != eCSSUnit_Inherit &&
              pair->mXValue.GetUnit() != eCSSUnit_Initial)) {
           // Only output a Y value if it's different from the X value
           // or if it's a background-position value other than 'initial'
-          // or 'inherit' or if it's a -moz-transform-origin value other
-          // than 'initial' or 'inherit'.
+          // or 'inherit'.
           aResult.Append(PRUnichar(' '));
           AppendCSSValueToString(aProperty, pair->mYValue, aResult);
         }
@@ -247,7 +245,6 @@ PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString&
           if (val) {
             if (aProperty == eCSSProperty_cursor
                 || aProperty == eCSSProperty_text_shadow
-                || aProperty == eCSSProperty_box_shadow
 #ifdef MOZ_SVG
                 || aProperty == eCSSProperty_stroke_dasharray
 #endif
@@ -257,22 +254,45 @@ PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString&
           }
         } while (val);
       } break;
-      case eCSSType_ValuePairList: {
-        const nsCSSValuePairList* item =
-            *static_cast<nsCSSValuePairList*const*>(storage);
+      case eCSSType_CounterData: {
+        const nsCSSCounterData* counter =
+            *static_cast<nsCSSCounterData*const*>(storage);
         do {
-          NS_ASSERTION(item->mXValue.GetUnit() != eCSSUnit_Null,
-                       "unexpected null unit");
-          AppendCSSValueToString(aProperty, item->mXValue, aResult);
-          if (item->mYValue.GetUnit() != eCSSUnit_Null) {
-            aResult.Append(PRUnichar(' '));
-            AppendCSSValueToString(aProperty, item->mYValue, aResult);
+          if (AppendCSSValueToString(aProperty, counter->mCounter, aResult)) {
+            if (counter->mValue.GetUnit() != eCSSUnit_Null) {
+              aResult.Append(PRUnichar(' '));
+              AppendCSSValueToString(aProperty, counter->mValue, aResult);
+            }
           }
-          item = item->mNext;
-          if (item) {
+          counter = counter->mNext;
+          if (counter) {
             aResult.Append(PRUnichar(' '));
           }
-        } while (item);
+        } while (counter);
+      } break;
+      case eCSSType_Quotes: {
+        const nsCSSQuotes* quotes = 
+            *static_cast<nsCSSQuotes*const*>(storage);
+        NS_ASSERTION((quotes->mOpen.GetUnit() == eCSSUnit_String) ||
+                     (quotes->mNext == nsnull),
+                     "non-strings must be alone");
+        do {
+          AppendCSSValueToString(aProperty, quotes->mOpen, aResult);
+          NS_ASSERTION((quotes->mOpen.GetUnit() == eCSSUnit_String) ==
+                       (quotes->mClose.GetUnit() == eCSSUnit_String),
+                       "strings must come in pairs");
+          NS_ASSERTION((quotes->mOpen.GetUnit() != eCSSUnit_String) ==
+                       (quotes->mClose.GetUnit() == eCSSUnit_Null),
+                       "non-strings must be alone");
+          if (quotes->mClose.GetUnit() != eCSSUnit_Null) {
+            aResult.Append(PRUnichar(' '));
+            AppendCSSValueToString(aProperty, quotes->mClose, aResult);
+          }
+          quotes = quotes->mNext;
+          if (quotes) {
+            aResult.Append(PRUnichar(' '));
+          }
+        } while (quotes);
       } break;
     }
   }
@@ -308,14 +328,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     nsCSSValue::Array *array = aValue.GetArrayValue();
     PRBool mark = PR_FALSE;
     for (PRUint16 i = 0, i_end = array->Count(); i < i_end; ++i) {
-      if (aProperty == eCSSProperty_border_image && i >= 5) {
-        if (array->Item(i).GetUnit() == eCSSUnit_Null) {
-          continue;
-        }
-        if (i == 5) {
-          aResult.AppendLiteral(" /");
-        }
-      }
       if (mark && array->Item(i).GetUnit() != eCSSUnit_Null) {
         if (unit == eCSSUnit_Array)
           aResult.AppendLiteral(" ");
@@ -330,29 +342,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
         mark = PR_TRUE;
       }
     }
-  }
-  /* Although Function is backed by an Array, we'll handle it separately
-   * because it's a bit quirky.
-   */
-  else if (eCSSUnit_Function == unit) {
-    const nsCSSValue::Array* array = aValue.GetArrayValue();
-    NS_ASSERTION(array->Count() >= 1, "Functions must have at least one element for the name.");
-
-    /* Append the function name. */
-    AppendCSSValueToString(aProperty, array->Item(0), aResult);
-    aResult.AppendLiteral("(");
-
-    /* Now, step through the function contents, writing each of them as we go. */
-    for (PRUint16 index = 1; index < array->Count(); ++index) {
-      AppendCSSValueToString(aProperty, array->Item(index), aResult);
-
-      /* If we're not at the final element, append a comma. */
-      if (index + 1 != array->Count())
-        aResult.AppendLiteral(", ");
-    }
-
-    /* Finally, append the closing parenthesis. */
-    aResult.AppendLiteral(")");
   }
   else if (eCSSUnit_Integer == unit) {
     nsAutoString tmpStr;
@@ -470,7 +459,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_None:         aResult.AppendLiteral("none");     break;
     case eCSSUnit_Normal:       aResult.AppendLiteral("normal");   break;
     case eCSSUnit_System_Font:  aResult.AppendLiteral("-moz-use-system-font"); break;
-    case eCSSUnit_Dummy:        break;
 
     case eCSSUnit_String:       break;
     case eCSSUnit_URL:          break;
@@ -479,9 +467,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_Attr:
     case eCSSUnit_Counter:
     case eCSSUnit_Counters:     aResult.Append(PRUnichar(')'));    break;
-    case eCSSUnit_Local_Font:   break;
-    case eCSSUnit_Font_Format:  break;
-    case eCSSUnit_Function:     break;
     case eCSSUnit_Integer:      break;
     case eCSSUnit_Enumerated:   break;
     case eCSSUnit_EnumColor:    break;
@@ -554,6 +539,8 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
     case eCSSProperty_padding: 
     case eCSSProperty_border_color: 
     case eCSSProperty_border_style: 
+    case eCSSProperty__moz_border_radius: 
+    case eCSSProperty__moz_outline_radius: 
     case eCSSProperty_border_width: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);
@@ -573,49 +560,6 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
       }
       break;
     }
-    case eCSSProperty__moz_border_radius: 
-    case eCSSProperty__moz_outline_radius: {
-      const nsCSSProperty* subprops =
-        nsCSSProps::SubpropertyEntryFor(aProperty);
-      NS_ASSERTION(nsCSSProps::kTypeTable[subprops[0]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[1]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[2]] == eCSSType_ValuePair &&
-                   nsCSSProps::kTypeTable[subprops[3]] == eCSSType_ValuePair,
-                   "type mismatch");
-      nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
-                                     ? mImportantData : mData;
-      const nsCSSValuePair* vals[4] = {
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[0])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[1])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[2])),
-        static_cast<const nsCSSValuePair*>(data->StorageFor(subprops[3]))
-      };
-
-      AppendCSSValueToString(aProperty, vals[0]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[1]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[2]->mXValue, aValue);
-      aValue.Append(PRUnichar(' '));
-      AppendCSSValueToString(aProperty, vals[3]->mXValue, aValue);
-        
-      // For compatibility, only write a slash and the y-values
-      // if they're not identical to the x-values.
-      if (vals[0]->mXValue != vals[0]->mYValue ||
-          vals[1]->mXValue != vals[1]->mYValue ||
-          vals[2]->mXValue != vals[2]->mYValue ||
-          vals[3]->mXValue != vals[3]->mYValue) {
-        aValue.AppendLiteral(" / ");
-        AppendCSSValueToString(aProperty, vals[0]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[1]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[2]->mYValue, aValue);
-        aValue.Append(PRUnichar(' '));
-        AppendCSSValueToString(aProperty, vals[3]->mYValue, aValue);
-      }
-      break;
-    }
     case eCSSProperty_border:
       // XXX More consistency checking needed before falling through.
       aProperty = eCSSProperty_border_top;
@@ -625,7 +569,6 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
     case eCSSProperty_border_left:
     case eCSSProperty_border_start:
     case eCSSProperty_border_end:
-    case eCSSProperty__moz_column_rule:
     case eCSSProperty_outline: {
       const nsCSSProperty* subprops =
         nsCSSProps::SubpropertyEntryFor(aProperty);
@@ -1171,7 +1114,6 @@ nsCSSDeclaration::ToString(nsAString& aString) const
   PRInt32 bgColor = 0, bgImage = 0, bgRepeat = 0, bgAttachment = 0;
   PRInt32 bgPosition = 0;
   PRInt32 overflowX = 0, overflowY = 0;
-  PRInt32 columnRuleWidth = 0, columnRuleStyle = 0, columnRuleColor = 0;
   PRUint32 borderPropertiesSet = 0, finalBorderPropertiesToSet = 0;
 #ifdef MOZ_SVG
   PRInt32 markerEnd = 0, markerMid = 0, markerStart = 0;
@@ -1256,10 +1198,6 @@ nsCSSDeclaration::ToString(nsAString& aString) const
       case eCSSProperty_overflow_x:            overflowX     = index+1; break;
       case eCSSProperty_overflow_y:            overflowY     = index+1; break;
 
-      case eCSSProperty__moz_column_rule_width: columnRuleWidth = index+1; break;
-      case eCSSProperty__moz_column_rule_style: columnRuleStyle = index+1; break;
-      case eCSSProperty__moz_column_rule_color: columnRuleColor = index+1; break;
-
 #ifdef MOZ_SVG
       case eCSSProperty_marker_end:            markerEnd     = index+1; break;
       case eCSSProperty_marker_mid:            markerMid     = index+1; break;
@@ -1338,13 +1276,6 @@ nsCSSDeclaration::ToString(nsAString& aString) const
 #ifdef MOZ_SVG
   TryMarkerShorthand(aString, markerEnd, markerMid, markerStart);
 #endif
-
-  if (columnRuleColor && columnRuleStyle && columnRuleWidth) {
-    TryBorderSideShorthand(aString, eCSSProperty__moz_column_rule,
-                           columnRuleWidth, columnRuleStyle, columnRuleColor);
-    columnRuleWidth = columnRuleStyle = columnRuleColor = 0;
-  }
-
   // FIXME The order of the declarations should depend on the *-source
   // properties.
   if (borderStartWidth && borderStartStyle && borderStartColor &&
@@ -1433,10 +1364,6 @@ nsCSSDeclaration::ToString(nsAString& aString) const
       NS_CASE_OUTPUT_PROPERTY_VALUE(eCSSProperty_marker_mid, markerMid)
       NS_CASE_OUTPUT_PROPERTY_VALUE(eCSSProperty_marker_start, markerStart)
 #endif
-
-      NS_CASE_OUTPUT_PROPERTY_VALUE(eCSSProperty__moz_column_rule_width, columnRuleWidth)
-      NS_CASE_OUTPUT_PROPERTY_VALUE(eCSSProperty__moz_column_rule_style, columnRuleStyle)
-      NS_CASE_OUTPUT_PROPERTY_VALUE(eCSSProperty__moz_column_rule_color, columnRuleColor)
 
       case eCSSProperty_margin_left_ltr_source:
       case eCSSProperty_margin_left_rtl_source:

@@ -355,15 +355,6 @@ nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   return GetCachedTreeitemAccessible(row, column, aAccessible);
 }
 
-// nsIAccessible::getDeepestChildAtPoint(in long x, in long y)
-NS_IMETHODIMP
-nsXULTreeAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                            nsIAccessible **aAccessible)
-{
-  // Call getChildAtPoint until tree doesn't support complex content.
-  return GetChildAtPoint(aX, aY, aAccessible);
-}
-
 // Ask treeselection to get all selected children
 NS_IMETHODIMP nsXULTreeAccessible::GetSelectedChildren(nsIArray **_retval)
 {
@@ -792,11 +783,8 @@ NS_IMETHODIMP nsXULTreeitemAccessible::Shutdown()
   return nsLeafAccessible::Shutdown();
 }
 
-NS_IMETHODIMP
-nsXULTreeitemAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsXULTreeitemAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 

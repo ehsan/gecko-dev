@@ -59,9 +59,22 @@ NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleCo
   return new (aPresShell) nsSVGClipPathFrame(aContext);
 }
 
+nsIContent *
+NS_GetSVGClipPathElement(nsIURI *aURI, nsIContent *aContent)
+{
+  nsIContent* content = nsContentUtils::GetReferencedElement(aURI, aContent);
+
+  nsCOMPtr<nsIDOMSVGClipPathElement> clipPath = do_QueryInterface(content);
+
+  if (clipPath)
+    return content;
+
+  return nsnull;
+}
+
 nsresult
 nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
-                              nsIFrame* aParent,
+                              nsISVGChildFrame* aParent,
                               nsIDOMSVGMatrix *aMatrix)
 {
   // If the flag is set when we get here, it means this clipPath frame
@@ -103,9 +116,9 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
 }
 
 PRBool
-nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
+nsSVGClipPathFrame::ClipHitTest(nsISVGChildFrame* aParent,
                                 nsIDOMSVGMatrix *aMatrix,
-                                const nsPoint &aPoint)
+                                float aX, float aY)
 {
   // If the flag is set when we get here, it means this clipPath frame
   // has already been used in hit testing against the current clip,
@@ -116,6 +129,7 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
   }
   AutoClipPathReferencer clipRef(this);
 
+  nsRect dirty;
   mClipParent = aParent,
   mClipParentMatrix = aMatrix;
 
@@ -129,7 +143,9 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
       // (used to shortcut hit testing).
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
 
-      if (SVGFrame->GetFrameForPoint(aPoint))
+      nsIFrame *temp = nsnull;
+      nsresult rv = SVGFrame->GetFrameForPointSVG(aX, aY, &temp);
+      if (NS_SUCCEEDED(rv) && temp)
         return PR_TRUE;
     }
   }

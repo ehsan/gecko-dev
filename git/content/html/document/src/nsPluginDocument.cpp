@@ -241,9 +241,10 @@ nsPluginDocument::CreateSyntheticPluginDocument()
 
   // make plugin content
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nsnull,
-                                           kNameSpaceID_None);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  rv = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nsnull,
+                                     kNameSpaceID_None,
+                                    getter_AddRefs(nodeInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
   rv = NS_NewHTMLElement(getter_AddRefs(mPluginContent), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 

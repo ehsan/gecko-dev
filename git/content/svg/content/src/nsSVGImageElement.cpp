@@ -81,9 +81,10 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGImageElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGImageElementBase::)
 
+  // nsSVGElement specializations:
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+
   // nsIContent interface
-  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -98,7 +99,7 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  nsresult LoadSVGImage(PRBool aForce, PRBool aNotify);
+  void GetSrc(nsAString& src);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual StringAttributesInfo GetStringInfo();
@@ -248,47 +249,49 @@ nsSVGImageElement::GetLengthInfo()
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-//----------------------------------------------------------------------
-
-nsresult
-nsSVGImageElement::LoadSVGImage(PRBool aForce, PRBool aNotify)
+void
+nsSVGImageElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {
-  // resolve href attribute
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsSVGImageElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
 
-  nsAutoString href(mStringAttributes[HREF].GetAnimValue());
-  href.Trim(" \t\n\r");
+  if (aAttrEnum == HREF) {
+    nsAutoString href;
+    GetSrc(href);
 
-  if (baseURI && !href.IsEmpty())
-    NS_MakeAbsoluteURI(href, href, baseURI);
+#ifdef DEBUG_tor
+    fprintf(stderr, "nsSVGImageElement - URI <%s>\n", ToNewCString(href));
+#endif
 
-  return LoadImage(href, aForce, aNotify);
-}
-
-//----------------------------------------------------------------------
-// nsIContent methods:
-
-nsresult
-nsSVGImageElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify)
-{
-  if (aNamespaceID == kNameSpaceID_XLink && aName == nsGkAtoms::href) {
     // If caller is not chrome and dom.disable_image_src_set is true,
     // prevent setting image.src by exiting early
     if (nsContentUtils::GetBoolPref("dom.disable_image_src_set") &&
         !nsContentUtils::IsCallerChrome()) {
-      return NS_OK;
+      return;
     }
 
-    if (aValue) {
-      LoadSVGImage(PR_TRUE, aNotify);
-    } else {
-      CancelImageRequests(aNotify);
-    }
+    LoadImage(href, PR_TRUE, PR_TRUE);
   }
-  return nsSVGImageElementBase::AfterSetAttr(aNamespaceID, aName,
-                                             aValue, aNotify);
 }
+
+//----------------------------------------------------------------------
+
+void nsSVGImageElement::GetSrc(nsAString& src)
+{
+  // resolve href attribute
+
+  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+  nsAutoString relURIStr(mStringAttributes[HREF].GetAnimValue());
+  relURIStr.Trim(" \t\n\r");
+
+  if (baseURI && !relURIStr.IsEmpty()) 
+    NS_MakeAbsoluteURI(src, relURIStr, baseURI);
+  else
+    src = relURIStr;
+}
+
+//----------------------------------------------------------------------
+// nsIContent methods:
 
 nsresult
 nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -300,12 +303,13 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
-    // Our base URI may have changed; claim that our URI changed, and the
-    // nsImageLoadingContent will decide whether a new image load is warranted.
+  // Our base URI may have changed; claim that our URI changed, and the
+  // nsImageLoadingContent will decide whether a new image load is warranted.
+  nsAutoString href;
+  if (GetAttr(kNameSpaceID_XLink, nsGkAtoms::href, href)) {
     // Note: no need to notify here; since we're just now being bound
     // we don't have any frames or anything yet.
-    LoadSVGImage(PR_FALSE, PR_FALSE);
+    LoadImage(href, PR_FALSE, PR_FALSE);
   }
 
   return rv;

@@ -45,7 +45,6 @@
 class nsString;
 class nsIDeviceContext;
 class nsIAtom;
-class gfxUserFontSet;
 
 // IID for the nsIFontMetrics interface
 #define NS_IFONT_METRICS_IID   \
@@ -88,7 +87,7 @@ public:
    * @see nsIDeviceContext#GetMetricsFor()
    */
   NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLangGroup,
-                   nsIDeviceContext *aContext, gfxUserFontSet *aUserFontSet = nsnull) = 0;
+                   nsIDeviceContext *aContext) = 0;
 
   /**
    * Destroy this font metrics. This breaks the association between

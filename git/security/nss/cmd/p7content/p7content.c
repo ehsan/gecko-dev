@@ -37,7 +37,7 @@
 /*
  * p7content -- A command to display pkcs7 content.
  *
- * $Id: p7content.c,v 1.12 2008/08/04 22:58:31 julien.pierre.boogz%sun.com Exp $
+ * $Id: p7content.c,v 1.11 2007/01/25 00:52:25 alexei.volkov.bugs%sun.com Exp $
  */
 
 #include "nspr.h"
@@ -80,7 +80,6 @@ Usage(char *progName)
 }
 
 static PRBool saw_content;
-static secuPWData  pwdata          = { PW_NONE, 0 };
 
 static void
 PrintBytes(void *arg, const char *buf, unsigned long len)
@@ -105,6 +104,19 @@ decryption_allowed(SECAlgorithmID *algid, PK11SymKey *key)
     return PR_TRUE;
 }
 
+char* KeyDbPassword = 0;
+
+
+char* MyPK11PasswordFunc (PK11SlotInfo *slot, PRBool retry, void* arg)
+{
+    char *ret=0;
+
+    if (retry == PR_TRUE)
+        return NULL;
+    ret = PL_strdup (KeyDbPassword);
+    return ret;
+}
+
 int
 DecodeAndPrintFile(FILE *out, PRFileDesc *in, char *progName)
 {
@@ -122,7 +134,7 @@ DecodeAndPrintFile(FILE *out, PRFileDesc *in, char *progName)
     fprintf(out, "\n---------------------------------------------\n");
 
     saw_content = PR_FALSE;
-    dcx = SEC_PKCS7DecoderStart(PrintBytes, out, NULL, &pwdata,
+    dcx = SEC_PKCS7DecoderStart(PrintBytes, out, NULL, NULL,
 				NULL, NULL, decryption_allowed);
     if (dcx != NULL) {
 #if 0	/* Test that decoder works when data is really streaming in. */
@@ -195,6 +207,7 @@ DecodeAndPrintFile(FILE *out, PRFileDesc *in, char *progName)
     return 0;
 }
 
+
 /*
  * Print the contents of a PKCS7 message, indicating signatures, etc.
  */
@@ -218,7 +231,7 @@ main(int argc, char **argv)
     /*
      * Parse command line arguments
      */
-    optstate = PL_CreateOptState(argc, argv, "d:i:o:p:f:");
+    optstate = PL_CreateOptState(argc, argv, "d:i:o:p:");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch (optstate->option) {
 	  case 'd':
@@ -244,13 +257,7 @@ main(int argc, char **argv)
 	    break;
 
 	  case 'p':
-            pwdata.source = PW_PLAINTEXT;
-            pwdata.data = PORT_Strdup (optstate->value);
-            break;
-
-          case 'f':
-            pwdata.source = PW_FROMFILE;
-            pwdata.data = PORT_Strdup (optstate->value);
+            KeyDbPassword = strdup (optstate->value);
             break;
 
 	  default:
@@ -272,7 +279,7 @@ main(int argc, char **argv)
 	return -1;
     }
 
-    PK11_SetPasswordFunc(SECU_GetModulePassword);
+    PK11_SetPasswordFunc (MyPK11PasswordFunc);
 
     if (DecodeAndPrintFile(outFile, inFile, progName)) {
 	SECU_PrintError(progName, "problem decoding data");

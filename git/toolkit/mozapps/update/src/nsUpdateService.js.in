@@ -1,53 +1,46 @@
+#if 0
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/*
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Update Service.
-#
-# The Initial Developer of the Original Code is Ben Goodger.
-# Portions created by the Initial Developer are Copyright (C) 2004
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#  Ben Goodger <ben@mozilla.org> (Original Author)
-#  Darin Fisher <darin@meer.net>
-#  Ben Turner <bent.mozilla@gmail.com>
-#  Jeff Walden <jwalden+code@mit.edu>
-#  Alexander J. Vincent <ajvincent@gmail.com>
-#  Dão Gottwald <dao@mozilla.com>
-#  Robert Strong <robert.bugzilla@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK ***** */
-*/
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Update Service.
+ *
+ * The Initial Developer of the Original Code is Ben Goodger.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Ben Goodger <ben@mozilla.org> (Original Author)
+ *  Darin Fisher <darin@meer.net>
+ *  Ben Turner <bent.mozilla@gmail.com>
+ *  Jeff Walden <jwalden+code@mit.edu>
+ *  Alexander J. Vincent <ajvincent@gmail.com>
+ *  Dão Gottwald <dao@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+#endif
 
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
@@ -64,6 +57,7 @@ const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_LASTUPDATETIME_FMT  = "app.update.lastUpdateTime.%ID%";
+const PREF_GENERAL_USERAGENT_LOCALE       = "general.useragent.locale";
 const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
 const PREF_UPDATE_NEVER_BRANCH            = "app.update.never.";
 const PREF_PARTNER_BRANCH                 = "app.partner.";
@@ -90,7 +84,6 @@ const FILE_UPDATES_DB     = "updates.xml";
 const FILE_UPDATE_ACTIVE  = "active-update.xml";
 const FILE_PERMS_TEST     = "update.test";
 const FILE_LAST_LOG       = "last-update.log";
-const FILE_UPDATER_INI    = "updater.ini";
 
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
@@ -120,11 +113,22 @@ const TOOLKIT_ID              = "toolkit@mozilla.org";
 
 const POST_UPDATE_CONTRACTID = "@mozilla.org/updates/post-update;1";
 
+const nsIExtensionManager     = Components.interfaces.nsIExtensionManager;
+const nsILocalFile            = Components.interfaces.nsILocalFile;
+const nsIUpdateService        = Components.interfaces.nsIUpdateService;
+const nsIUpdateItem           = Components.interfaces.nsIUpdateItem;
+const nsIPrefLocalizedString  = Components.interfaces.nsIPrefLocalizedString;
+const nsIIncrementalDownload  = Components.interfaces.nsIIncrementalDownload;
+const nsIFileInputStream      = Components.interfaces.nsIFileInputStream;
+const nsIFileOutputStream     = Components.interfaces.nsIFileOutputStream;
+const nsICryptoHash           = Components.interfaces.nsICryptoHash;
+
+const Node = Components.interfaces.nsIDOMNode;
+
 var gApp        = null;
 var gPref       = null;
 var gABI        = null;
 var gOSVersion  = null;
-var gLocale     = null;
 var gConsole    = null;
 var gLogEnabled = { };
 
@@ -164,10 +168,10 @@ function binaryToHex(input) {
  * @returns The file URL spec to the file
  */
 function getURLSpecFromFile(file) {
-  var ioServ = Cc["@mozilla.org/network/io-service;1"].
-               getService(Ci.nsIIOService);
-  var fph = ioServ.getProtocolHandler("file").
-            QueryInterface(Ci.nsIFileProtocolHandler);
+  var ioServ = Components.classes["@mozilla.org/network/io-service;1"]
+                         .getService(Components.interfaces.nsIIOService);
+  var fph = ioServ.getProtocolHandler("file")
+                  .QueryInterface(Components.interfaces.nsIFileProtocolHandler);
   return fph.getURLSpecFromFile(file);
 }
 
@@ -234,13 +238,13 @@ function getUpdateDir(pathArray) {
  * @return  nsIFile object for the location specified.
  */
 function getDirInternal(key, pathArray, shouldCreate, update) {
-  var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
-                    getService(Ci.nsIProperties);
-  var dir = fileLocator.get(key, Ci.nsIFile);
+  var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
+                              .getService(Components.interfaces.nsIProperties);
+  var dir = fileLocator.get(key, Components.interfaces.nsIFile);
 #ifdef XP_WIN
   if (update) {
     try {
-      dir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
+      dir = fileLocator.get(KEY_UPDROOT, Components.interfaces.nsIFile);
     } catch (e) {
     }
   }
@@ -248,7 +252,7 @@ function getDirInternal(key, pathArray, shouldCreate, update) {
   for (var i = 0; i < pathArray.length; ++i) {
     dir.append(pathArray[i]);
     if (shouldCreate && !dir.exists())
-      dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
+      dir.create(nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
   }
   return dir;
 }
@@ -293,7 +297,7 @@ function getUpdateFile(pathArray) {
  *          The Safe Output Stream to close
  */
 function closeSafeOutputStream(fos) {
-  if (fos instanceof Ci.nsISafeOutputStream) {
+  if (fos instanceof Components.interfaces.nsISafeOutputStream) {
     try {
       fos.finish();
     }
@@ -316,18 +320,18 @@ function closeSafeOutputStream(fos) {
  * @returns A human readable status text string
  */
 function getStatusTextFromCode(code, defaultCode) {
-  const updateBundle = Cc["@mozilla.org/intl/stringbundle;1"].
-                       getService(Ci.nsIStringBundleService).
-                       createBundle(URI_UPDATES_PROPERTIES);
-  var reason;
+  var sbs =
+      Components.classes["@mozilla.org/intl/stringbundle;1"].
+      getService(Components.interfaces.nsIStringBundleService);
+  var updateBundle = sbs.createBundle(URI_UPDATES_PROPERTIES);
+  var reason = updateBundle.GetStringFromName("checker_error-" + defaultCode);
   try {
     reason = updateBundle.GetStringFromName("checker_error-" + code);
     LOG("General", "Transfer Error: " + reason + ", code: " + code);
   }
   catch (e) {
     // Use the default reason
-    reason = updateBundle.GetStringFromName("checker_error-" + defaultCode);
-    LOG("General", "Transfer Error: " + reason + ", default code: " + defaultCode);
+    LOG("General", "Transfer Error: " + reason + ", code: " + defaultCode);
   }
   return reason;
 }
@@ -342,25 +346,26 @@ function getStatusTextFromCode(code, defaultCode) {
 function getUpdatesDir(key) {
   // Right now, we only support downloading one patch at a time, so we always
   // use the same target directory.
-  var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
-                    getService(Ci.nsIProperties);
-  var updateDir;
+  var fileLocator =
+      Components.classes["@mozilla.org/file/directory_service;1"].
+      getService(Components.interfaces.nsIProperties);
+  var appDir;
   if (key)
-    updateDir = fileLocator.get(key, Ci.nsIFile);
+    appDir = fileLocator.get(key, Components.interfaces.nsIFile);
   else {
-    updateDir = fileLocator.get(KEY_APPDIR, Ci.nsIFile);
+    appDir = fileLocator.get(KEY_APPDIR, Components.interfaces.nsIFile);
 #ifdef XP_WIN
     try {
-      updateDir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
+      appDir = fileLocator.get(KEY_UPDROOT, Components.interfaces.nsIFile);
     } catch (e) {
     }
 #endif
   }
-  updateDir.append(DIR_UPDATES);
-  updateDir.append("0");
-  if (!updateDir.exists() && !key)
-    updateDir.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-  return updateDir;
+  appDir.append(DIR_UPDATES);
+  appDir.append("0");
+  if (!appDir.exists() && !key)
+    appDir.create(nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
+  return appDir;
 }
 
 /**
@@ -411,7 +416,7 @@ function cleanUpUpdatesDir(key) {
 
   var e = updateDir.directoryEntries;
   while (e.hasMoreElements()) {
-    var f = e.getNext().QueryInterface(Ci.nsIFile);
+    var f = e.getNext().QueryInterface(Components.interfaces.nsIFile);
     // Preserve the last update log file for debugging purposes
     if (f.leafName == FILE_UPDATE_LOG) {
       try {
@@ -453,8 +458,9 @@ function cleanUpUpdatesDir(key) {
  */
 function cleanupActiveUpdate(key) {
   // Move the update from the Active Update list into the Past Updates list.
-  var um = Cc["@mozilla.org/updates/update-manager;1"].
-           getService(Ci.nsIUpdateManager);
+  var um =
+      Components.classes["@mozilla.org/updates/update-manager;1"].
+      getService(Components.interfaces.nsIUpdateManager);
   um.activeUpdate = null;
   um.saveUpdates();
 
@@ -484,20 +490,20 @@ function getPref(func, preference, defaultValue) {
 }
 
 /**
- * Gets the locale specified by the 'Locale' key in the 'Installation' section
- * of updater.ini.
+ * Gets the current value of the locale.  It's possible for this preference to
+ * be localized, so we have to do a little extra work here.  Similar code
+ * exists in nsHttpHandler.cpp when building the UA string.
  */
 function getLocale() {
-  if (gLocale)
-    return gLocale;
+  try {
+      // Get the default branch
+      var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+          .getService(Components.interfaces.nsIPrefService);
+      var defaultPrefs = prefs.getDefaultBranch(null);
+      return defaultPrefs.getCharPref(PREF_GENERAL_USERAGENT_LOCALE);
+  } catch (e) {}
 
-  var updaterIni = getFile(KEY_APPDIR, [FILE_UPDATER_INI]);
-  var iniParser = Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
-                  getService(Ci.nsIINIParserFactory).
-                  createINIParser(updaterIni);
-  gLocale = iniParser.getString("Installation", "Locale");
-  LOG("General", "Getting Locale from File: " + updaterIni.path + " Locale: " + gLocale);
-  return gLocale;
+  return gPref.getCharPref(PREF_GENERAL_USERAGENT_LOCALE);
 }
 
 /**
@@ -510,8 +516,11 @@ function getUpdateChannel() {
   var prefName;
   var prefValue;
 
+  var defaults =
+      gPref.QueryInterface(Components.interfaces.nsIPrefService).
+      getDefaultBranch(null);
   try {
-    channel = getDefaultPrefBranch().getCharPref(PREF_APP_UPDATE_CHANNEL);
+    channel = defaults.getCharPref(PREF_APP_UPDATE_CHANNEL);
   } catch (e) {
     // use default when pref not found
   }
@@ -539,8 +548,11 @@ function getUpdateChannel() {
 function getDistributionPrefValue(aPrefName) {
   var prefValue = "default";
 
+  var defaults =
+      gPref.QueryInterface(Components.interfaces.nsIPrefService).
+      getDefaultBranch(null);
   try {
-    prefValue = getDefaultPrefBranch().getCharPref(aPrefName);
+    prefValue = defaults.getCharPref(aPrefName);
   } catch (e) {
     // use default when pref not found
   }
@@ -593,11 +605,12 @@ function stripPrefix(string, prefix) {
  * written to the file.  This function only works with ASCII text.
  */
 function writeStringToFile(file, text) {
-  var fos = Cc["@mozilla.org/network/safe-file-output-stream;1"].
-            createInstance(Ci.nsIFileOutputStream);
+  var fos =
+      Components.classes["@mozilla.org/network/safe-file-output-stream;1"].
+      createInstance(nsIFileOutputStream);
   var modeFlags = MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE;
   if (!file.exists())
-    file.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+    file.create(nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
   fos.init(file, modeFlags, PERMS_FILE, 0);
   text += "\n";
   fos.write(text, text.length);
@@ -609,14 +622,16 @@ function writeStringToFile(file, text) {
  * before the result is returned.  This function only works with ASCII text.
  */
 function readStringFromFile(file) {
-  var fis = Cc["@mozilla.org/network/file-input-stream;1"].
-            createInstance(Ci.nsIFileInputStream);
+  var fis =
+      Components.classes["@mozilla.org/network/file-input-stream;1"].
+      createInstance(nsIFileInputStream);
   var modeFlags = MODE_RDONLY;
   if (!file.exists())
     return null;
   fis.init(file, modeFlags, PERMS_FILE, 0);
-  var sis = Cc["@mozilla.org/scriptableinputstream;1"].
-            createInstance(Ci.nsIScriptableInputStream);
+  var sis =
+      Components.classes["@mozilla.org/scriptableinputstream;1"].
+      createInstance(Components.interfaces.nsIScriptableInputStream);
   sis.init(fis);
   var text = sis.read(sis.available());
   sis.close();
@@ -627,14 +642,10 @@ function readStringFromFile(file) {
 
 function getObserverService()
 {
-  return Cc["@mozilla.org/observer-service;1"].
-         getService(Ci.nsIObserverService);
+  return Components.classes["@mozilla.org/observer-service;1"]
+                   .getService(Components.interfaces.nsIObserverService);
 }
 
-function getDefaultPrefBranch()
-{
-  return gPref.QueryInterface(Ci.nsIPrefService).getDefaultBranch(null);
-}
 /**
  * Update Patch
  * @param   patch
@@ -646,7 +657,7 @@ function UpdatePatch(patch) {
   this._properties = {};
   for (var i = 0; i < patch.attributes.length; ++i) {
     var attr = patch.attributes.item(i);
-    attr.QueryInterface(Ci.nsIDOMAttr);
+    attr.QueryInterface(Components.interfaces.nsIDOMAttr);
     switch (attr.name) {
     case "selected":
       this.selected = attr.value == "true";
@@ -654,7 +665,7 @@ function UpdatePatch(patch) {
     case "size":
       if (0 == parseInt(attr.value)) {
         LOG("UpdatePatch", "0-sized patch!");
-        throw Cr.NS_ERROR_ILLEGAL_VALUE;
+        throw Components.results.NS_ERROR_ILLEGAL_VALUE;
       }
       // fall through
     default:
@@ -704,7 +715,7 @@ UpdatePatch.prototype = {
     if (name in this._properties)
       this._properties[name].present = false;
     else
-      throw Cr.NS_ERROR_FAILURE;
+      throw Components.results.NS_ERROR_FAILURE;
   },
 
   /**
@@ -724,7 +735,7 @@ UpdatePatch.prototype = {
     if (name in this._properties &&
         this._properties[name].present)
       return this._properties[name].data;
-    throw Cr.NS_ERROR_FAILURE;
+    throw Components.results.NS_ERROR_FAILURE;
   },
 
   /**
@@ -749,9 +760,17 @@ UpdatePatch.prototype = {
     this._properties.state = val;
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdatePatch,
-                                         Ci.nsIPropertyBag,
-                                         Ci.nsIWritablePropertyBag])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdatePatch) &&
+        !iid.equals(Components.interfaces.nsIPropertyBag) &&
+        !iid.equals(Components.interfaces.nsIWritablePropertyBag) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 /**
@@ -774,14 +793,13 @@ function Update(update) {
   if (!update)
     return;
 
-  const ELEMENT_NODE = Ci.nsIDOMNode.ELEMENT_NODE;
   for (var i = 0; i < update.childNodes.length; ++i) {
     var patchElement = update.childNodes.item(i);
-    if (patchElement.nodeType != ELEMENT_NODE ||
+    if (patchElement.nodeType != Node.ELEMENT_NODE ||
         patchElement.localName != "patch")
       continue;
 
-    patchElement.QueryInterface(Ci.nsIDOMElement);
+    patchElement.QueryInterface(Components.interfaces.nsIDOMElement);
     try {
       var patch = new UpdatePatch(patchElement);
     } catch (e) {
@@ -791,11 +809,11 @@ function Update(update) {
   }
 
   if (0 == this._patches.length)
-    throw Cr.NS_ERROR_ILLEGAL_VALUE;
+    throw Components.results.NS_ERROR_ILLEGAL_VALUE;
 
   for (var i = 0; i < update.attributes.length; ++i) {
     var attr = update.attributes.item(i);
-    attr.QueryInterface(Ci.nsIDOMAttr);
+    attr.QueryInterface(Components.interfaces.nsIDOMAttr);
     if (attr.name == "installDate" && attr.value)
       this.installDate = parseInt(attr.value);
     else if (attr.name == "isCompleteUpdate")
@@ -816,8 +834,8 @@ function Update(update) {
   if (update.hasAttribute("name"))
     name = update.getAttribute("name");
   else {
-    var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
-              getService(Ci.nsIStringBundleService);
+    var sbs = Components.classes["@mozilla.org/intl/stringbundle;1"]
+                        .getService(Components.interfaces.nsIStringBundleService);
     var brandBundle = sbs.createBundle(URI_BRAND_PROPERTIES);
     var updateBundle = sbs.createBundle(URI_UPDATES_PROPERTIES);
     var appName = brandBundle.GetStringFromName("brandShortName");
@@ -886,8 +904,8 @@ Update.prototype = {
       try {
         // Try using a default details URL supplied by the distribution
         // if the update XML does not supply one.
-        var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-                        getService(Ci.nsIURLFormatter);
+        var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                                  .getService(Components.interfaces.nsIURLFormatter);
         return formatter.formatURLPref(PREF_APP_UPDATE_URL_DETAILS);
       }
       catch (e) {
@@ -946,7 +964,7 @@ Update.prototype = {
     if (name in this._properties)
       this._properties[name].present = false;
     else
-      throw Cr.NS_ERROR_FAILURE;
+      throw Components.results.NS_ERROR_FAILURE;
   },
 
   /**
@@ -966,21 +984,19 @@ Update.prototype = {
     if (name in this._properties &&
         this._properties[name].present)
       return this._properties[name].data;
-    throw Cr.NS_ERROR_FAILURE;
+    throw Components.results.NS_ERROR_FAILURE;
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdate,
-                                         Ci.nsIPropertyBag,
-                                         Ci.nsIWritablePropertyBag])
-};
-
-const UpdateServiceFactory = {
-  _instance: null,
-  createInstance: function (outer, iid) {
-    if (outer != null)
-      throw Components.results.NS_ERROR_NO_AGGREGATION;
-    return this._instance == null ? this._instance = new UpdateService() :
-                                    this._instance;
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdate) &&
+        !iid.equals(Components.interfaces.nsIPropertyBag) &&
+        !iid.equals(Components.interfaces.nsIWritablePropertyBag) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
   }
 };
 
@@ -990,12 +1006,13 @@ const UpdateServiceFactory = {
  * @constructor
  */
 function UpdateService() {
-  gApp  = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).
-          QueryInterface(Ci.nsIXULRuntime);
-  gPref = Cc["@mozilla.org/preferences-service;1"].
-          getService(Ci.nsIPrefBranch2);
-  gConsole = Cc["@mozilla.org/consoleservice;1"].
-             getService(Ci.nsIConsoleService);
+  gApp  = Components.classes["@mozilla.org/xre/app-info;1"]
+                    .getService(Components.interfaces.nsIXULAppInfo)
+                    .QueryInterface(Components.interfaces.nsIXULRuntime);
+  gPref = Components.classes["@mozilla.org/preferences-service;1"]
+                    .getService(Components.interfaces.nsIPrefBranch2);
+  gConsole = Components.classes["@mozilla.org/consoleservice;1"]
+                       .getService(Components.interfaces.nsIConsoleService);
 
   // Not all builds have a known ABI
   try {
@@ -1006,8 +1023,8 @@ function UpdateService() {
   }
 
   var osVersion;
-  var sysInfo = Cc["@mozilla.org/system-info;1"].
-                getService(Ci.nsIPropertyBag2);
+  var sysInfo = Components.classes["@mozilla.org/system-info;1"]
+                          .getService(Components.interfaces.nsIPropertyBag2);
   try {
     osVersion = sysInfo.getProperty("name") + " " + sysInfo.getProperty("version");
   }
@@ -1028,8 +1045,8 @@ function UpdateService() {
 #ifdef XP_MACOSX
   // Mac universal build should report a different ABI than either macppc
   // or mactel.
-  var macutils = Cc["@mozilla.org/xpcom/mac-utils;1"].
-                 getService(Ci.nsIMacUtils);
+  var macutils = Components.classes["@mozilla.org/xpcom/mac-utils;1"]
+                           .getService(Components.interfaces.nsIMacUtils);
 
   if (macutils.isUniversalBinary)
     gABI = "Universal-gcc3";
@@ -1092,14 +1109,15 @@ UpdateService.prototype = {
     this._postUpdateProcessing();
 
     // Register a background update check timer
-    var tm = Cc["@mozilla.org/updates/timer-manager;1"].
-             getService(Ci.nsIUpdateTimerManager);
+    var tm =
+        Components.classes["@mozilla.org/updates/timer-manager;1"]
+                  .getService(Components.interfaces.nsIUpdateTimerManager);
     var interval = getPref("getIntPref", PREF_APP_UPDATE_INTERVAL, 86400);
     tm.registerTimer("background-update-timer", this, interval);
 
     // Resume fetching...
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
+    var um = Components.classes["@mozilla.org/updates/update-manager;1"]
+                        .getService(Components.interfaces.nsIUpdateManager);
     var activeUpdate = um.activeUpdate;
     if (activeUpdate) {
       var status = this.downloadUpdate(activeUpdate, true);
@@ -1160,10 +1178,12 @@ UpdateService.prototype = {
       // 2) an update was attempted but failed during checking, transfer or
       //    verification, and was cleaned up at that point, and UI notifying of
       //    that error was shown at that stage.
-      var um = Cc["@mozilla.org/updates/update-manager;1"].
-               getService(Ci.nsIUpdateManager);
-      var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
-                     createInstance(Ci.nsIUpdatePrompt);
+      var um =
+          Components.classes["@mozilla.org/updates/update-manager;1"].
+          getService(Components.interfaces.nsIUpdateManager);
+      var prompter =
+          Components.classes["@mozilla.org/updates/update-prompt;1"].
+          createInstance(Components.interfaces.nsIUpdatePrompt);
 
       var shouldCleanup = true;
       var update = um.activeUpdate;
@@ -1171,8 +1191,9 @@ UpdateService.prototype = {
         update = new Update(null);
       }
       update.state = status;
-      var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
-                getService(Ci.nsIStringBundleService);
+      var sbs =
+          Components.classes["@mozilla.org/intl/stringbundle;1"].
+          getService(Components.interfaces.nsIStringBundleService);
       var bundle = sbs.createBundle(URI_UPDATES_PROPERTIES);
       if (status == STATE_SUCCEEDED) {
         update.statusText = bundle.GetStringFromName("installSuccess");
@@ -1182,7 +1203,7 @@ UpdateService.prototype = {
         for (var i = 0; i < um.updateCount; ++i) {
           var umUpdate = um.getUpdateAt(i);
           if (umUpdate && umUpdate.version == update.version &&
-              umUpdate.buildID == update.buildID) {
+                          umUpdate.buildID == update.buildID) {
             umUpdate.statusText = update.statusText;
             break;
           }
@@ -1195,8 +1216,9 @@ UpdateService.prototype = {
         // the uninstaller to work for sunbird
 #else
         // Perform platform-specific post-update processing.
-        if (POST_UPDATE_CONTRACTID in Cc) {
-          Cc[POST_UPDATE_CONTRACTID].createInstance(Ci.nsIRunnable).run();
+        if (POST_UPDATE_CONTRACTID in Components.classes) {
+          Components.classes[POST_UPDATE_CONTRACTID].
+              createInstance(Components.interfaces.nsIRunnable).run();
         }
 #endif
 
@@ -1238,7 +1260,7 @@ UpdateService.prototype = {
           LOG("UpdateService", "_postUpdateProcessing: Install of Complete or " +
               "only patch failed. Showing error.");
         }
-        update.QueryInterface(Ci.nsIWritablePropertyBag);
+        update.QueryInterface(Components.interfaces.nsIWritablePropertyBag);
         update.setProperty("patchingFailed", oldType);
         prompter.showUpdateError(update);
       }
@@ -1254,8 +1276,8 @@ UpdateService.prototype = {
    */
   _initLoggingPrefs: function() {
     try {
-      var ps = Cc["@mozilla.org/preferences-service;1"].
-               getService(Ci.nsIPrefService);
+      var ps = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefService);
       var logBranch = ps.getBranch(PREF_APP_UPDATE_LOG_BRANCH);
       var modules = logBranch.getChildList("", { value: 0 });
 
@@ -1343,7 +1365,7 @@ UpdateService.prototype = {
       return true;
     }
 
-    update.QueryInterface(Ci.nsIPropertyBag);
+    update.QueryInterface(Components.interfaces.nsIPropertyBag);
     try {
       var licenseAccepted = update.getProperty("licenseAccepted") == "true";
     }
@@ -1395,8 +1417,8 @@ UpdateService.prototype = {
     var majorUpdate = null, minorUpdate = null;
     var newestMinor = updates[0], newestMajor = updates[0];
 
-    var vc = Cc["@mozilla.org/xpcom/version-comparator;1"].
-             getService(Ci.nsIVersionComparator);
+    var vc = Components.classes["@mozilla.org/xpcom/version-comparator;1"]
+                       .getService(Components.interfaces.nsIVersionComparator);
     for (var i = 0; i < updates.length; ++i) {
       if (updates[i].type == "major" &&
           vc.compare(newestMajor.version, updates[i].version) <= 0)
@@ -1428,8 +1450,8 @@ UpdateService.prototype = {
     // Don't prompt if there's an active update - the user is already
     // aware and is downloading, or performed some user action to prevent
     // notification.
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
+    var um = Components.classes["@mozilla.org/updates/update-manager;1"]
+                       .getService(Components.interfaces.nsIUpdateManager);
     if (um.activeUpdate)
       return;
 
@@ -1490,7 +1512,7 @@ UpdateService.prototype = {
       var appDirFile = getUpdateFile([FILE_PERMS_TEST]);
       LOG("UpdateService", "canUpdate?  testing " + appDirFile.path);
       if (!appDirFile.exists()) {
-        appDirFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+        appDirFile.create(nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
         appDirFile.remove(false);
       }
       var updateDir = getUpdatesDir();
@@ -1498,12 +1520,13 @@ UpdateService.prototype = {
       upDirFile.append(FILE_PERMS_TEST);
       LOG("UpdateService", "canUpdate?  testing " + upDirFile.path);
       if (!upDirFile.exists()) {
-        upDirFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+        upDirFile.create(nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
         upDirFile.remove(false);
       }
 #ifdef XP_WIN
-      var sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
+      var sysInfo =
+        Components.classes["@mozilla.org/system-info;1"]
+                  .getService(Components.interfaces.nsIPropertyBag2);
 
       // Example windowsVersion:  Windows XP == 5.1
       var windowsVersion = sysInfo.getProperty("version");
@@ -1524,14 +1547,16 @@ UpdateService.prototype = {
 
       if (parseFloat(windowsVersion) >= 6) {
         try {
-          var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
-                            getService(Ci.nsIProperties);
+          var fileLocator = 
+            Components.classes["@mozilla.org/file/directory_service;1"]
+                      .getService(Components.interfaces.nsIProperties);
           // KEY_UPDROOT will fail and throw an exception if
           // appDir is not under the Program Files, so we rely on that
-          var dir = fileLocator.get(KEY_UPDROOT, Ci.nsIFile);
+          var dir = fileLocator.get(KEY_UPDROOT, Components.interfaces.nsIFile);
           // appDir is under Program Files, so check if the user can elevate
-          userCanElevate = gApp.QueryInterface(Ci.nsIWinAppHelper).
-                           userCanElevate;
+          userCanElevate = 
+            gApp.QueryInterface(Components.interfaces.nsIWinAppHelper)
+                .userCanElevate;
           LOG("UpdateService", 
               "canUpdate?  on Vista, userCanElevate = " + userCanElevate);
         }
@@ -1572,7 +1597,7 @@ UpdateService.prototype = {
         actualAppDirFile.append(FILE_PERMS_TEST);
         LOG("UpdateService", "canUpdate?  testing " + actualAppDirFile.path);
         if (!actualAppDirFile.exists()) {
-          actualAppDirFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+          actualAppDirFile.create(nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
           actualAppDirFile.remove(false);
         }
       }
@@ -1635,7 +1660,7 @@ UpdateService.prototype = {
    */
   downloadUpdate: function(update, background) {
     if (!update)
-      throw Cr.NS_ERROR_NULL_POINTER;
+      throw Components.results.NS_ERROR_NULL_POINTER;
     if (this.isDownloading) {
       if (update.isCompleteUpdate == this._downloader.isCompleteUpdate &&
           background == this._downloader.background) {
@@ -1663,25 +1688,17 @@ UpdateService.prototype = {
     return this._downloader && this._downloader.isBusy;
   },
 
-  // nsIClassInfo
-  flags: Ci.nsIClassInfo.SINGLETON,
-  implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
-  getHelperForLanguage: function(language) null,
-  getInterfaces: function(count) {
-    var interfaces = [Ci.nsIApplicationUpdateService, Ci.nsITimerCallback,
-                      Ci.nsIObserver];
-    count.value = interfaces.length;
-    return interfaces;
-  },
-
-  classDescription: "Update Service",
-  contractID: "@mozilla.org/updates/update-service;1",
-  classID: Components.ID("{B3C290A6-3943-4B89-8BBE-C01EB7B3B311}"),
-  _xpcom_categories: [{ category: "app-startup", service: true }],
-  _xpcom_factory: UpdateServiceFactory,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationUpdateService,
-                                         Ci.nsITimerCallback,
-                                         Ci.nsIObserver])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIApplicationUpdateService) &&
+        !iid.equals(Components.interfaces.nsITimerCallback) &&
+        !iid.equals(Components.interfaces.nsIObserver) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 /**
@@ -1719,24 +1736,22 @@ UpdateManager.prototype = {
     }
 
     var result = [];
-    var fileStream = Cc["@mozilla.org/network/file-input-stream;1"].
-                     createInstance(Ci.nsIFileInputStream);
+    var fileStream = Components.classes["@mozilla.org/network/file-input-stream;1"]
+                               .createInstance(Components.interfaces.nsIFileInputStream);
     fileStream.init(file, MODE_RDONLY, PERMS_FILE, 0);
     try {
-      var parser = Cc["@mozilla.org/xmlextras/domparser;1"].
-                   createInstance(Ci.nsIDOMParser);
-      var doc = parser.parseFromStream(fileStream, "UTF-8",
-                                       fileStream.available(), "text/xml");
+      var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"]
+                            .createInstance(Components.interfaces.nsIDOMParser);
+      var doc = parser.parseFromStream(fileStream, "UTF-8", fileStream.available(), "text/xml");
 
-      const ELEMENT_NODE = Ci.nsIDOMNode.ELEMENT_NODE;
       var updateCount = doc.documentElement.childNodes.length;
       for (var i = 0; i < updateCount; ++i) {
         var updateElement = doc.documentElement.childNodes.item(i);
-        if (updateElement.nodeType != ELEMENT_NODE ||
+        if (updateElement.nodeType != Node.ELEMENT_NODE ||
             updateElement.localName != "update")
           continue;
 
-        updateElement.QueryInterface(Ci.nsIDOMElement);
+        updateElement.QueryInterface(Components.interfaces.nsIDOMElement);
         try {
           var update = new Update(updateElement);
         } catch (e) {
@@ -1849,16 +1864,16 @@ UpdateManager.prototype = {
    *          The nsIFile object to serialize to
    */
   _writeUpdatesToXMLFile: function(updates, file) {
-    var fos = Cc["@mozilla.org/network/safe-file-output-stream;1"].
-              createInstance(Ci.nsIFileOutputStream);
+    var fos = Components.classes["@mozilla.org/network/safe-file-output-stream;1"]
+                        .createInstance(Components.interfaces.nsIFileOutputStream);
     var modeFlags = MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE;
     if (!file.exists())
-      file.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
+      file.create(nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
     fos.init(file, modeFlags, PERMS_FILE, 0);
 
     try {
-      var parser = Cc["@mozilla.org/xmlextras/domparser;1"].
-                   createInstance(Ci.nsIDOMParser);
+      var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"]
+                            .createInstance(Components.interfaces.nsIDOMParser);
       const EMPTY_UPDATES_DOCUMENT = "<?xml version=\"1.0\"?><updates xmlns=\"http://www.mozilla.org/2005/app-update\"></updates>";
       var doc = parser.parseFromString(EMPTY_UPDATES_DOCUMENT, "text/xml");
 
@@ -1867,8 +1882,8 @@ UpdateManager.prototype = {
           doc.documentElement.appendChild(updates[i].serialize(doc));
       }
 
-      var serializer = Cc["@mozilla.org/xmlextras/xmlserializer;1"].
-                       createInstance(Ci.nsIDOMSerializer);
+      var serializer = Components.classes["@mozilla.org/xmlextras/xmlserializer;1"]
+                                .createInstance(Components.interfaces.nsIDOMSerializer);
       serializer.serializeToStream(doc.documentElement, fos, null);
     }
     catch (e) {
@@ -1889,10 +1904,15 @@ UpdateManager.prototype = {
     }
   },
 
-  classDescription: "Update Manager",
-  contractID: "@mozilla.org/updates/update-manager;1",
-  classID: Components.ID("{093C2356-4843-4C65-8709-D7DBCBBE7DFB}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateManager])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdateManager) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 
@@ -1921,13 +1941,17 @@ Checker.prototype = {
   getUpdateURL: function(force) {
     this._forced = force;
 
+    var defaults =
+        gPref.QueryInterface(Components.interfaces.nsIPrefService).
+        getDefaultBranch(null);
+
     // Use the override URL if specified.
     var url = getPref("getCharPref", PREF_APP_UPDATE_URL_OVERRIDE, null);
 
     // Otherwise, construct the update URL from component parts.
     if (!url) {
       try {
-        url = getDefaultPrefBranch().getCharPref(PREF_APP_UPDATE_URL);
+        url = defaults.getCharPref(PREF_APP_UPDATE_URL);
       } catch (e) {
       }
     }
@@ -1942,8 +1966,7 @@ Checker.prototype = {
     url = url.replace(/%BUILD_ID%/g, gApp.appBuildID);
     url = url.replace(/%BUILD_TARGET%/g, gApp.OS + "_" + gABI);
     url = url.replace(/%OS_VERSION%/g, gOSVersion);
-    if (/%LOCALE%/.test(url))
-      url = url.replace(/%LOCALE%/g, getLocale());
+    url = url.replace(/%LOCALE%/g, getLocale());
     url = url.replace(/%CHANNEL%/g, getUpdateChannel());
     url = url.replace(/%PLATFORM_VERSION%/g, gApp.platformVersion);
     url = url.replace(/%DISTRIBUTION%/g,
@@ -1953,7 +1976,7 @@ Checker.prototype = {
     url = url.replace(/\+/g, "%2B");
 
     if (force)
-      url += (url.indexOf("?") != -1 ? "&" : "?") + "force=1";
+	url += "?force=1"
 
     LOG("Checker", "update url: " + url);
     return url;
@@ -1964,15 +1987,15 @@ Checker.prototype = {
    */
   checkForUpdates: function(listener, force) {
     if (!listener)
-      throw Cr.NS_ERROR_NULL_POINTER;
+      throw Components.results.NS_ERROR_NULL_POINTER;
 
-    var url = this.getUpdateURL(force);
-    if (!url || (!this.enabled && !force))
+    if (!this.getUpdateURL(force) || (!this.enabled && !force))
       return;
 
-    this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
-                    createInstance(Ci.nsIXMLHttpRequest);
-    this._request.open("GET", url, true);
+    this._request =
+      Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].
+      createInstance(Components.interfaces.nsIXMLHttpRequest);
+    this._request.open("GET", this.getUpdateURL(force), true);
     this._request.channel.notificationCallbacks = new BadCertHandler();
     this._request.overrideMimeType("text/xml");
     this._request.setRequestHeader("Cache-Control", "no-cache");
@@ -1982,7 +2005,7 @@ Checker.prototype = {
     this._request.onload      = function(event) { self.onLoad(event);     };
     this._request.onprogress  = function(event) { self.onProgress(event); };
 
-    LOG("Checker", "checkForUpdates: sending request to " + url);
+    LOG("Checker", "checkForUpdates: sending request to " + this.getUpdateURL(force));
     this._request.send(null);
 
     this._callback = listener;
@@ -2013,15 +2036,14 @@ Checker.prototype = {
       throw "";
     }
 
-    const ELEMENT_NODE = Ci.nsIDOMNode.ELEMENT_NODE;
     var updates = [];
     for (var i = 0; i < updatesElement.childNodes.length; ++i) {
       var updateElement = updatesElement.childNodes.item(i);
-      if (updateElement.nodeType != ELEMENT_NODE ||
+      if (updateElement.nodeType != Node.ELEMENT_NODE ||
           updateElement.localName != "update")
         continue;
 
-      updateElement.QueryInterface(Ci.nsIDOMElement);
+      updateElement.QueryInterface(Components.interfaces.nsIDOMElement);
       try {
         var update = new Update(updateElement);
       } catch (e) {
@@ -2037,25 +2059,9 @@ Checker.prototype = {
   },
 
   /**
-   * Returns the status code for the XMLHttpRequest
-   */
-  _getChannelStatus: function(request) {
-    var status = 0;
-    try {
-      status = request.status;
-    }
-    catch (e) {
-    }
-
-    if (status == 0)
-      status = request.channel.QueryInterface(Ci.nsIRequest).status;
-    return status;
-  },
-
-  /**
    * The XMLHttpRequest succeeded and the document was loaded.
    * @param   event
-   *          The nsIDOMEvent for the load
+   *          The nsIDOMLSEvent for the load
    */
   onLoad: function(event) {
     LOG("Checker", "onLoad: request completed downloading document");
@@ -2075,12 +2081,9 @@ Checker.prototype = {
       LOG("Checker", "There was a problem with the update service URL specified, " +
           "either the XML file was malformed or it does not exist at the location " +
           "specified. Exception: " + e);
-      var request = event.target;
-      var status = this._getChannelStatus(request);
-      LOG("Checker", "onLoad: request.status = " + status);
       var update = new Update(null);
-      update.statusText = getStatusTextFromCode(status, 404);
-      this._callback.onError(request, update);
+      update.statusText = getStatusTextFromCode(404, 404);
+      this._callback.onError(event.target, update);
     }
 
     this._request = null;
@@ -2089,14 +2092,19 @@ Checker.prototype = {
   /**
    * There was an error of some kind during the XMLHttpRequest
    * @param   event
-   *          The nsIDOMEvent for the load
+   *          The nsIDOMLSEvent for the load
    */
   onError: function(event) {
     LOG("Checker", "onError: error during load");
 
     var request = event.target;
-    var status = this._getChannelStatus(request);
-    LOG("Checker", "onError: request.status = " + status);
+    try {
+      var status = request.status;
+    }
+    catch (e) {
+      var req = request.channel.QueryInterface(Components.interfaces.nsIRequest);
+      status = req.status;
+    }
 
     // If we can't find an error string specific to this status code,
     // just use the 200 message from above, which means everything
@@ -2112,9 +2120,14 @@ Checker.prototype = {
    * Whether or not we are allowed to do update checking.
    */
   _enabled: true,
+
+  /**
+   * See nsIUpdateService.idl
+   */
   get enabled() {
-    var aus = Cc["@mozilla.org/updates/update-service;1"].
-              getService(Ci.nsIApplicationUpdateService);
+    var aus =
+        Components.classes["@mozilla.org/updates/update-service;1"].
+        getService(Components.interfaces.nsIApplicationUpdateService);
     var enabled = getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true) &&
                   aus.canUpdate && this._enabled;
     return enabled;
@@ -2128,21 +2141,27 @@ Checker.prototype = {
     if (this._request)
       this._request.abort();
 
+    const nsIUpdateChecker = Components.interfaces.nsIUpdateChecker;
     switch (duration) {
-    case Ci.nsIUpdateChecker.CURRENT_SESSION:
+    case nsIUpdateChecker.CURRENT_SESSION:
       this._enabled = false;
       break;
-    case Ci.nsIUpdateChecker.ANY_CHECKS:
+    case nsIUpdateChecker.ANY_CHECKS:
       this._enabled = false;
       gPref.setBoolPref(PREF_APP_UPDATE_ENABLED, this._enabled);
       break;
     }
   },
 
-  classDescription: "Update Checker",
-  contractID: "@mozilla.org/updates/update-checker;1",
-  classID: Components.ID("{898CDC9B-E43F-422F-9CC4-2F6291B415A3}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateChecker])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdateChecker) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 /**
@@ -2182,7 +2201,8 @@ Downloader.prototype = {
    * Cancels the active download.
    */
   cancel: function() {
-    if (this._request && this._request instanceof Ci.nsIRequest) {
+    if (this._request &&
+        this._request instanceof Components.interfaces.nsIRequest) {
       const NS_BINDING_ABORTED = 0x804b0002;
       this._request.cancel(NS_BINDING_ABORTED);
     }
@@ -2209,16 +2229,16 @@ Downloader.prototype = {
     if (destination.fileSize != this._patch.size)
       return false;
 
-    var fileStream = Cc["@mozilla.org/network/file-input-stream;1"].
-                     createInstance(Ci.nsIFileInputStream);
+    var fileStream = Components.classes["@mozilla.org/network/file-input-stream;1"].
+        createInstance(nsIFileInputStream);
     fileStream.init(destination, MODE_RDONLY, PERMS_FILE, 0);
 
     try {
-      var hash = Cc["@mozilla.org/security/hash;1"].
-                 createInstance(Ci.nsICryptoHash);
-      var hashFunction = Ci.nsICryptoHash[this._patch.hashFunction.toUpperCase()];
+      var hash = Components.classes["@mozilla.org/security/hash;1"].
+          createInstance(nsICryptoHash);
+      var hashFunction = nsICryptoHash[this._patch.hashFunction.toUpperCase()];
       if (hashFunction == undefined)
-        throw Cr.NS_ERROR_UNEXPECTED;
+        throw Components.results.NS_ERROR_UNEXPECTED;
       hash.init(hashFunction);
       hash.updateFromStream(fileStream, -1);
       // NOTE: For now, we assume that the format of _patch.hashValue is hex
@@ -2323,8 +2343,8 @@ Downloader.prototype = {
 
     // Reset the Active Update object on the Update Manager and flush the
     // Active Update DB.
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
+    var um = Components.classes["@mozilla.org/updates/update-manager;1"]
+                       .getService(Components.interfaces.nsIUpdateManager);
     um.activeUpdate = update;
 
     return selectedPatch;
@@ -2344,7 +2364,7 @@ Downloader.prototype = {
    */
   downloadUpdate: function(update) {
     if (!update)
-      throw Cr.NS_ERROR_NULL_POINTER;
+      throw Components.results.NS_ERROR_NULL_POINTER;
 
     var updateDir = getUpdatesDir();
 
@@ -2362,12 +2382,13 @@ Downloader.prototype = {
     var patchFile = updateDir.clone();
     patchFile.append(FILE_UPDATE_ARCHIVE);
 
-    var ios = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
+    var ios = Components.classes["@mozilla.org/network/io-service;1"].
+        getService(Components.interfaces.nsIIOService);
     var uri = ios.newURI(this._patch.URL, null, null);
 
-    this._request = Cc["@mozilla.org/network/incremental-download;1"].
-                    createInstance(Ci.nsIIncrementalDownload);
+    this._request =
+        Components.classes["@mozilla.org/network/incremental-download;1"].
+        createInstance(nsIIncrementalDownload);
 
     LOG("Downloader", "downloadUpdate: Downloading from " + uri.spec + " to " +
         patchFile.path);
@@ -2378,10 +2399,10 @@ Downloader.prototype = {
     this._request.start(this, null);
 
     writeStatusFile(updateDir, STATE_DOWNLOADING);
-    this._patch.QueryInterface(Ci.nsIWritablePropertyBag);
+    this._patch.QueryInterface(Components.interfaces.nsIWritablePropertyBag);
     this._patch.state = STATE_DOWNLOADING;
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
+    var um = Components.classes["@mozilla.org/updates/update-manager;1"]
+                       .getService(Components.interfaces.nsIUpdateManager);
     um.saveUpdates();
     return STATE_DOWNLOADING;
   },
@@ -2428,7 +2449,7 @@ Downloader.prototype = {
    *          Additional data
    */
   onStartRequest: function(request, context) {
-    request.QueryInterface(Ci.nsIIncrementalDownload);
+    request.QueryInterface(nsIIncrementalDownload);
     LOG("Downloader", "onStartRequest: " + request.URI.spec);
 
     var listenerCount = this._listeners.length;
@@ -2448,13 +2469,13 @@ Downloader.prototype = {
    *          The total number of bytes that must be transferred
    */
   onProgress: function(request, context, progress, maxProgress) {
-    request.QueryInterface(Ci.nsIIncrementalDownload);
+    request.QueryInterface(nsIIncrementalDownload);
     LOG("Downloader.onProgress", "onProgress: " + request.URI.spec + ", " + progress + "/" + maxProgress);
 
     var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i) {
       var listener = this._listeners[i];
-      if (listener instanceof Ci.nsIProgressEventSink)
+      if (listener instanceof Components.interfaces.nsIProgressEventSink)
         listener.onProgress(request, context, progress, maxProgress);
     }
   },
@@ -2471,12 +2492,12 @@ Downloader.prototype = {
    *          Human readable version of |status|
    */
   onStatus: function(request, context, status, statusText) {
-    request.QueryInterface(Ci.nsIIncrementalDownload);
+    request.QueryInterface(nsIIncrementalDownload);
     LOG("Downloader", "onStatus: " + request.URI.spec + " status = " + status + ", text = " + statusText);
     var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i) {
       var listener = this._listeners[i];
-      if (listener instanceof Ci.nsIProgressEventSink)
+      if (listener instanceof Components.interfaces.nsIProgressEventSink)
         listener.onStatus(request, context, status, statusText);
     }
   },
@@ -2491,7 +2512,7 @@ Downloader.prototype = {
    *          Status code containing the reason for the cessation.
    */
   onStopRequest: function(request, context, status) {
-    request.QueryInterface(Ci.nsIIncrementalDownload);
+    request.QueryInterface(nsIIncrementalDownload);
     LOG("Downloader", "onStopRequest: " + request.URI.spec + ", status = " + status);
 
     var state = this._patch.state;
@@ -2500,8 +2521,9 @@ Downloader.prototype = {
     const NS_BINDING_ABORTED = 0x804b0002;
     const NS_ERROR_ABORT = 0x80004004;
     if (Components.isSuccessCode(status)) {
-      var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
-                getService(Ci.nsIStringBundleService);
+      var sbs =
+          Components.classes["@mozilla.org/intl/stringbundle;1"].
+          getService(Components.interfaces.nsIStringBundleService);
       var updateStrings = sbs.createBundle(URI_UPDATES_PROPERTIES);
       if (this._verifyDownload()) {
         state = STATE_PENDING;
@@ -2515,21 +2537,22 @@ Downloader.prototype = {
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
         this._update.installDate = (new Date()).getTime();
-        this._update.statusText = updateStrings.GetStringFromName("installPending");
+        this._update.statusText = updateStrings.
+          GetStringFromName("installPending");
       } else {
         LOG("Downloader", "onStopRequest: download verification failed");
         state = STATE_DOWNLOAD_FAILED;
 
         var brandStrings = sbs.createBundle(URI_BRAND_PROPERTIES);
         var brandShortName = brandStrings.GetStringFromName("brandShortName");
-        this._update.statusText = updateStrings.formatStringFromName("verificationError",
-                                                                     [brandShortName], 1);
-        // TODO: use more informative error code here
-        status = Cr.NS_ERROR_UNEXPECTED;
+        this._update.statusText = updateStrings.
+          formatStringFromName("verificationError", [brandShortName], 1);
 
-        // Yes, this code is a string.
-        const vfCode = "verification_failed";
-        var message = getStatusTextFromCode(vfCode, vfCode);
+        // TODO: use more informative error code here
+        status = Components.results.NS_ERROR_UNEXPECTED;
+
+        var message = getStatusTextFromCode("verification_failed",
+          "verification_failed");
         this._update.statusText = message;
 
         if (this._update.isCompleteUpdate)
@@ -2559,8 +2582,9 @@ Downloader.prototype = {
     }
     LOG("Downloader", "Setting state to: " + state);
     this._patch.state = state;
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
+    var um =
+        Components.classes["@mozilla.org/updates/update-manager;1"].
+        getService(Components.interfaces.nsIUpdateManager);
     if (deleteActiveUpdate) {
       this._update.installDate = (new Date()).getTime();
       um.activeUpdate = null;
@@ -2602,16 +2626,17 @@ Downloader.prototype = {
         // error, we must notify now. Otherwise we can keep the failure to
         // ourselves since the user won't be expecting it.
         try {
-          this._update.QueryInterface(Ci.nsIWritablePropertyBag);
+          this._update.QueryInterface(Components.interfaces.nsIWritablePropertyBag);
           var fgdl = this._update.getProperty("foregroundDownload");
         }
         catch (e) {
         }
 
         if (fgdl == "true") {
-          var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
-                         createInstance(Ci.nsIUpdatePrompt);
-          this._update.QueryInterface(Ci.nsIWritablePropertyBag);
+          var prompter =
+              Components.classes["@mozilla.org/updates/update-prompt;1"].
+              createInstance(Components.interfaces.nsIUpdatePrompt);
+          this._update.QueryInterface(Components.interfaces.nsIWritablePropertyBag);
           this._update.setProperty("downloadFailed", "true");
           prompter.showUpdateError(this._update);
         }
@@ -2627,8 +2652,9 @@ Downloader.prototype = {
       // Notify the user that an update has been downloaded and is ready for
       // installation (i.e. that they should restart the application). We do
       // not notify on failed update attempts.
-      var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
-                     createInstance(Ci.nsIUpdatePrompt);
+      var prompter =
+          Components.classes["@mozilla.org/updates/update-prompt;1"].
+          createInstance(Components.interfaces.nsIUpdatePrompt);
       prompter.showUpdateDownloaded(this._update, true);
     }
   },
@@ -2639,17 +2665,26 @@ Downloader.prototype = {
   getInterface: function(iid) {
     // The network request may require proxy authentication, so provide the
     // default nsIAuthPrompt if requested.
-    if (iid.equals(Ci.nsIAuthPrompt)) {
-      var prompt = Cc["@mozilla.org/network/default-auth-prompt;1"].
-                   createInstance();
+    if (iid.equals(Components.interfaces.nsIAuthPrompt)) {
+      var prompt =
+          Components.classes["@mozilla.org/network/default-auth-prompt;1"].
+          createInstance();
       return prompt.QueryInterface(iid);
     }
-    throw Cr.NS_ERROR_NO_INTERFACE;
+    throw Components.results.NS_ERROR_NO_INTERFACE;
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIRequestObserver,
-                                         Ci.nsIProgressEventSink,
-                                         Ci.nsIInterfaceRequestor])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIRequestObserver) &&
+        !iid.equals(Components.interfaces.nsIProgressEventSink) &&
+        !iid.equals(Components.interfaces.nsIInterfaceRequestor) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 /**
@@ -2660,10 +2695,12 @@ Downloader.prototype = {
 function TimerManager() {
   getObserverService().addObserver(this, "xpcom-shutdown", false);
 
-  this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+  const nsITimer = Components.interfaces.nsITimer;
+  this._timer = Components.classes["@mozilla.org/timer;1"]
+                          .createInstance(nsITimer);
   var timerInterval = getPref("getIntPref", PREF_APP_UPDATE_TIMER, 600000);
   this._timer.initWithCallback(this, timerInterval,
-                               Ci.nsITimer.TYPE_REPEATING_SLACK);
+                               nsITimer.TYPE_REPEATING_SLACK);
 }
 TimerManager.prototype = {
   /**
@@ -2711,7 +2748,7 @@ TimerManager.prototype = {
       lastUpdateTime += Math.round(Math.random() * timerInterval / 1000);
 
       if ((now - lastUpdateTime) > timerData.interval &&
-          timerData.callback instanceof Ci.nsITimerCallback) {
+          timerData.callback instanceof Components.interfaces.nsITimerCallback) {
         timerData.callback.notify(timer);
         timerData.lastUpdateTime = now;
         var preference = PREF_APP_UPDATE_LASTUPDATETIME_FMT.replace(/%ID%/, timerID);
@@ -2738,14 +2775,20 @@ TimerManager.prototype = {
                          lastUpdateTime : lastUpdateTime };
   },
 
-  classDescription: "Timer Manager",
-  contractID: "@mozilla.org/updates/timer-manager;1",
-  classID: Components.ID("{B322A5C0-A419-484E-96BA-D7182163899F}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateTimerManager,
-                                         Ci.nsITimerCallback,
-                                         Ci.nsIObserver])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdateTimerManager) &&
+        !iid.equals(Components.interfaces.nsITimerCallback) &&
+        !iid.equals(Components.interfaces.nsIObserver) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
+#ifdef MOZ_XUL_APP
 /**
  * UpdatePrompt
  * An object which can prompt the user with information about updates, request
@@ -2772,8 +2815,7 @@ UpdatePrompt.prototype = {
       return;
     var bundle = this._updateBundle;
     var stringsPrefix = "updateAvailable_" + update.type + ".";
-    var title = bundle.formatStringFromName(stringsPrefix + "title",
-                                            [update.name], 1);
+    var title = bundle.formatStringFromName(stringsPrefix + "title", [update.name], 1);
     var text = bundle.GetStringFromName(stringsPrefix + "text");
     var imageUrl = "";
     this._showUnobtrusiveUI(null, URI_UPDATE_PROMPT_DIALOG, null,
@@ -2790,8 +2832,7 @@ UpdatePrompt.prototype = {
         return;
       var bundle = this._updateBundle;
       var stringsPrefix = "updateDownloaded_" + update.type + ".";
-      var title = bundle.formatStringFromName(stringsPrefix + "title",
-                                              [update.name], 1);
+      var title = bundle.formatStringFromName(stringsPrefix + "title", [update.name], 1);
       var text = bundle.GetStringFromName(stringsPrefix + "text");
       var imageUrl = "";
       this._showUnobtrusiveUI(null, URI_UPDATE_PROMPT_DIALOG, null,
@@ -2826,8 +2867,9 @@ UpdatePrompt.prototype = {
         var title = updateBundle.GetStringFromName("updaterIOErrorTitle");
         var text = updateBundle.formatStringFromName("updaterIOErrorMsg",
                                                      [gApp.name, gApp.name], 2);
-        var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-                 getService(Ci.nsIWindowWatcher);
+        var ww =
+            Components.classes["@mozilla.org/embedcomp/window-watcher;1"].
+            getService(Components.interfaces.nsIWindowWatcher);
         ww.getNewPrompter(null).alert(title, text);
       } else {
         this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, "Update:Wizard",
@@ -2852,9 +2894,9 @@ UpdatePrompt.prototype = {
   },
 
   get _updateBundle() {
-    return Cc["@mozilla.org/intl/stringbundle;1"].
-           getService(Ci.nsIStringBundleService).
-           createBundle(URI_UPDATES_PROPERTIES);
+    return Components.classes["@mozilla.org/intl/stringbundle;1"]
+                     .getService(Components.interfaces.nsIStringBundleService)
+                     .createBundle(URI_UPDATES_PROPERTIES);
   },
 
   /**
@@ -2903,8 +2945,8 @@ UpdatePrompt.prototype = {
     };
 
     try {
-      var notifier = Cc["@mozilla.org/alerts-service;1"].
-                     getService(Ci.nsIAlertsService);
+      var notifier = Components.classes["@mozilla.org/alerts-service;1"]
+                               .getService(Components.interfaces.nsIAlertsService);
       notifier.showAlertNotification(imageUrl, title, text, true, "", observer);
     }
     catch (e) {
@@ -2913,14 +2955,16 @@ UpdatePrompt.prototype = {
       return;
     }
 
-    observer.service = Cc["@mozilla.org/observer-service;1"].
-                       getService(Ci.nsIObserverService);
+    observer.service =
+      Components.classes["@mozilla.org/observer-service;1"]
+                .getService(Components.interfaces.nsIObserverService);
     observer.service.addObserver(observer, "quit-application", false);
 
     // Give the user x seconds to react before showing the big UI
     var promptWaitTime = getPref("getIntPref", PREF_APP_UPDATE_PROMPTWAITTIME, 43200);
-    observer.timer = Cc["@mozilla.org/timer;1"].
-                     createInstance(Ci.nsITimer);
+    observer.timer =
+      Components.classes["@mozilla.org/timer;1"]
+                .createInstance(Components.interfaces.nsITimer);
     observer.timer.initWithCallback(observer, promptWaitTime * 1000,
                                     observer.timer.TYPE_ONE_SHOT);
   },
@@ -2941,15 +2985,17 @@ UpdatePrompt.prototype = {
    *          Can be null
    */
   _showUIWhenIdle: function(parent, uri, features, name, page, update) {
-    var idleService = Cc["@mozilla.org/widget/idleservice;1"].
-                      getService(Ci.nsIIdleService);
+    var idleService =
+      Components.classes["@mozilla.org/widget/idleservice;1"]
+                .getService(Components.interfaces.nsIIdleService);
 
     const IDLE_TIME = getPref("getIntPref", PREF_APP_UPDATE_IDLETIME, 60);
     if (idleService.idleTime / 1000 >= IDLE_TIME) {
       this._showUI(parent, uri, features, name, page, update);
     } else {
-      var observerService = Cc["@mozilla.org/observer-service;1"].
-                            getService(Ci.nsIObserverService);
+      var observerService =
+        Components.classes["@mozilla.org/observer-service;1"]
+                  .getService(Components.interfaces.nsIObserverService);
       var observer = {
         updatePrompt: this,
         observe: function (aSubject, aTopic, aData) {
@@ -2987,13 +3033,13 @@ UpdatePrompt.prototype = {
   _showUI: function(parent, uri, features, name, page, update) {
     var ary = null;
     if (update) {
-      ary = Cc["@mozilla.org/supports-array;1"].
-            createInstance(Ci.nsISupportsArray);
+      ary = Components.classes["@mozilla.org/supports-array;1"]
+                      .createInstance(Components.interfaces.nsISupportsArray);
       ary.AppendElement(update);
     }
 
-    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
+    var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                       .getService(Components.interfaces.nsIWindowMediator);
     var win = wm.getMostRecentWindow(name);
     if (win) {
       if (page && "setCurrentPage" in win)
@@ -3004,20 +3050,105 @@ UpdatePrompt.prototype = {
       var openFeatures = "chrome,centerscreen,dialog=no,resizable=no,titlebar,toolbar=no";
       if (features)
         openFeatures += "," + features;
-      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-               getService(Ci.nsIWindowWatcher);
+      var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                         .getService(Components.interfaces.nsIWindowWatcher);
       ww.openWindow(parent, uri, "", openFeatures, ary);
     }
   },
 
-  classDescription: "Update Prompt",
-  contractID: "@mozilla.org/updates/update-prompt;1",
-  classID: Components.ID("{27ABA825-35B5-4018-9FDD-F99250A0E722}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdatePrompt])
+  /**
+   * See nsISupports.idl
+   */
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIUpdatePrompt) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
+};
+#endif
+
+var gModule = {
+  registerSelf: function(componentManager, fileSpec, location, type) {
+    componentManager = componentManager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+
+    for (var key in this._objects) {
+      var obj = this._objects[key];
+      componentManager.registerFactoryLocation(obj.CID, obj.className, obj.contractID,
+                                               fileSpec, location, type);
+    }
+
+    // Make the Update Service a startup observer
+    var categoryManager = Components.classes["@mozilla.org/categorymanager;1"]
+                                    .getService(Components.interfaces.nsICategoryManager);
+    categoryManager.addCategoryEntry("app-startup", this._objects.service.className,
+                                     "service," + this._objects.service.contractID,
+                                     true, true);
+  },
+
+  getClassObject: function(componentManager, cid, iid) {
+    if (!iid.equals(Components.interfaces.nsIFactory))
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+
+    for (var key in this._objects) {
+      if (cid.equals(this._objects[key].CID))
+        return this._objects[key].factory;
+    }
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+
+  _objects: {
+    service: { CID        : Components.ID("{B3C290A6-3943-4B89-8BBE-C01EB7B3B311}"),
+               contractID : "@mozilla.org/updates/update-service;1",
+               className  : "Update Service",
+               factory    : makeFactory(UpdateService)
+             },
+    checker: { CID        : Components.ID("{898CDC9B-E43F-422F-9CC4-2F6291B415A3}"),
+               contractID : "@mozilla.org/updates/update-checker;1",
+               className  : "Update Checker",
+               factory    : makeFactory(Checker)
+             },
+#ifdef MOZ_XUL_APP
+    prompt:  { CID        : Components.ID("{27ABA825-35B5-4018-9FDD-F99250A0E722}"),
+               contractID : "@mozilla.org/updates/update-prompt;1",
+               className  : "Update Prompt",
+               factory    : makeFactory(UpdatePrompt)
+             },
+#endif
+    timers:  { CID        : Components.ID("{B322A5C0-A419-484E-96BA-D7182163899F}"),
+               contractID : "@mozilla.org/updates/timer-manager;1",
+               className  : "Timer Manager",
+               factory    : makeFactory(TimerManager)
+             },
+    manager: { CID        : Components.ID("{093C2356-4843-4C65-8709-D7DBCBBE7DFB}"),
+               contractID : "@mozilla.org/updates/update-manager;1",
+               className  : "Update Manager",
+               factory    : makeFactory(UpdateManager)
+             },
+  },
+
+  canUnload: function(componentManager) {
+    return true;
+  }
 };
 
-function NSGetModule(compMgr, fileSpec)
-  XPCOMUtils.generateModule([UpdateService, Checker, UpdatePrompt, TimerManager, UpdateManager]);
+/**
+ * Creates a factory for instances of an object created using the passed-in
+ * constructor.
+ */
+function makeFactory(ctor) {
+  function ci(outer, iid) {
+    if (outer != null)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+    return (new ctor()).QueryInterface(iid);
+  }
+  return { createInstance: ci };
+}
+
+function NSGetModule(compMgr, fileSpec) {
+  return gModule;
+}
 
 /**
  * Determines whether or there are installed addons which are incompatible
@@ -3028,12 +3159,16 @@ function NSGetModule(compMgr, fileSpec)
  *          the specified update, false otherwise.
  */
 function isCompatible(update) {
-  var em = Cc["@mozilla.org/extensions/manager;1"].
-           getService(Ci.nsIExtensionManager);
+#ifdef MOZ_XUL_APP
+  var em =
+      Components.classes["@mozilla.org/extensions/manager;1"].
+      getService(nsIExtensionManager);
   var items = em.getIncompatibleItemList("", update.extensionVersion,
-                                         update.platformVersion,
-                                         Ci.nsIUpdateItem.TYPE_ANY, false, { });
+    update.platformVersion, nsIUpdateItem.TYPE_ANY, false, { });
   return items.length == 0;
+#else
+  return true;
+#endif
 }
 
 /**
@@ -3046,11 +3181,13 @@ function isCompatible(update) {
 function showPromptIfNoIncompatibilities(update) {
   function showPrompt(update) {
     LOG("UpdateService", "_selectAndInstallUpdate: need to prompt user before continuing...");
-    var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
-                   createInstance(Ci.nsIUpdatePrompt);
+    var prompter =
+        Components.classes["@mozilla.org/updates/update-prompt;1"].
+        createInstance(Components.interfaces.nsIUpdatePrompt);
     prompter.showUpdateAvailable(update);
   }
 
+#ifdef MOZ_XUL_APP
   /**
    * Determines if an addon is compatible with a particular update.
    * @param   addon
@@ -3061,8 +3198,9 @@ function showPromptIfNoIncompatibilities(update) {
    * @returns true if the addon is compatible, false otherwise
    */
   function addonIsCompatible(addon, version) {
-    var vc = Cc["@mozilla.org/xpcom/version-comparator;1"].
-             getService(Ci.nsIVersionComparator);
+    var vc =
+        Components.classes["@mozilla.org/xpcom/version-comparator;1"].
+        getService(Components.interfaces.nsIVersionComparator);
     return (vc.compare(version, addon.minAppVersion) >= 0) &&
            (vc.compare(version, addon.maxAppVersion) <= 0);
   }
@@ -3109,14 +3247,15 @@ function showPromptIfNoIncompatibilities(update) {
       //      be required after the update. This is not the default and is
       //      supplied only as a hidden option for those that want it.
       var mode = getPref("getIntPref", PREF_APP_UPDATE_INCOMPATIBLE_MODE,
-                         Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION);
-      if ((mode == Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION
+                         nsIExtensionManager.UPDATE_CHECK_NEWVERSION);
+      if ((mode == nsIExtensionManager.UPDATE_CHECK_NEWVERSION
            && this._addons.length) || !isCompatible(update))
         showPrompt(update);
     },
     onAddonUpdateStarted: function(addon) {
     },
     onAddonUpdateEnded: function(addon, status) {
+      const Ci = Components.interfaces;
       if (status != Ci.nsIAddonUpdateCheckListener.STATUS_UPDATE)
         return;
 
@@ -3133,24 +3272,30 @@ function showPromptIfNoIncompatibilities(update) {
         }
       }
     },
-
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsIAddonUpdateCheckListener])
+    /**
+     * See nsISupports.idl
+     */
+    QueryInterface: function(iid) {
+      if (!iid.equals(Components.interfaces.nsIAddonUpdateCheckListener) &&
+          !iid.equals(Components.interfaces.nsISupports))
+        throw Components.results.NS_ERROR_NO_INTERFACE;
+      return this;
+    }
   };
 
   if (!isCompatible(update)) {
-    var em = Cc["@mozilla.org/extensions/manager;1"].
-             getService(Ci.nsIExtensionManager);
+    var em =
+        Components.classes["@mozilla.org/extensions/manager;1"].
+        getService(nsIExtensionManager);
     var items = em.getIncompatibleItemList("", update.extensionVersion,
-                                           update.platformVersion,
-                                           Ci.nsIUpdateItem.TYPE_ANY, false,
-                                           { });
-
+      update.platformVersion, nsIUpdateItem.TYPE_ANY, false, { });
     var listener = new Listener(items);
     // See documentation on |mode| above.
     var mode = getPref("getIntPref", PREF_APP_UPDATE_INCOMPATIBLE_MODE,
-                       Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION);
+                       nsIExtensionManager.UPDATE_CHECK_NEWVERSION);
     em.update([], 0, mode, listener);
   }
   else
+#endif
     showPrompt(update);
 }

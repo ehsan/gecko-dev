@@ -166,10 +166,7 @@ ServiceInfo.prototype = {
   }
 };
 
-function WebContentConverterRegistrar() {
-  this._contentTypes = { };
-  this._autoHandleContentTypes = { };
-}
+function WebContentConverterRegistrar() {}
 
 WebContentConverterRegistrar.prototype = {
   get stringBundle() {
@@ -187,6 +184,14 @@ WebContentConverterRegistrar.prototype = {
   _getString: function WCCR_getString(key) {
     return this.stringBundle.GetStringFromName(key);
   },
+
+  _contentTypes: { },
+
+  /**
+   * Track auto handlers for various content types using a content-type to 
+   * handler map.
+   */
+  _autoHandleContentTypes: { },
 
   /**
    * See nsIWebContentConverterService
@@ -882,10 +887,10 @@ WebContentConverterRegistrar.prototype = {
         getService(Ci.nsIObserverService);
     switch (topic) {
     case "app-startup":
-      os.addObserver(this, "browser-ui-startup-complete", false);
+      os.addObserver(this, "profile-after-change", false);
       break;
-    case "browser-ui-startup-complete":
-      os.removeObserver(this, "browser-ui-startup-complete");
+    case "profile-after-change":
+      os.removeObserver(this, "profile-after-change");
       this._init();
       break;
     }

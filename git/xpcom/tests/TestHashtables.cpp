@@ -47,8 +47,6 @@
 
 #include <stdio.h>
 
-namespace TestHashtables {
-
 class TestUniChar // for nsClassHashtable
 {
 public:
@@ -216,7 +214,7 @@ nsCEnum(const nsACString& aKey, nsAutoPtr<TestUniChar>& aData, void* userArg) {
 }
 
 //
-// all this nsIFoo stuff was copied wholesale from TestCOMPtr.cpp
+// all this nsIFoo stuff was copied wholesale from TestCOMPTr.cpp
 //
 
 #define NS_IFOO_IID \
@@ -228,6 +226,7 @@ class IFoo : public nsISupports
     public:
       NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFOO_IID)
 
+    public:
       IFoo();
 
       NS_IMETHOD_(nsrefcnt) AddRef();
@@ -396,10 +395,6 @@ nsIEnum2(nsISupports* aKey, PRUint32& aData, void* userArg) {
   printf("  enumerated \"%s\" = %u\n", str.get(), aData);
   return PL_DHASH_NEXT;
 }
-
-}
-
-using namespace TestHashtables;
 
 int
 main(void) {

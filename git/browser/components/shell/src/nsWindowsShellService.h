@@ -57,9 +57,16 @@ public:
   NS_DECL_NSIWINDOWSSHELLSERVICE
 
 protected:
-  PRBool    IsDefaultBrowserVista(PRBool* aIsDefaultBrowser);
+  PRBool    IsDefaultBrowserVista(PRBool aStartupCheck, PRBool* aIsDefaultBrowser);
 
   PRBool    GetMailAccountKey(HKEY* aResult);
+  void      SetRegKey(const nsString& aKeyName,
+                      const nsString& aValueName,
+                      const nsString& aValue, PRBool aHKLMOnly);
+
+  DWORD     DeleteRegKey(HKEY baseKey, const nsString& keyName);
+  DWORD     DeleteRegKeyDefaultValue(HKEY baseKey,
+                                     const nsString& keyName);
 
 private:
   PRBool    mCheckedThisSession;

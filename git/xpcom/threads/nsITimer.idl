@@ -40,7 +40,6 @@
 #include "nsISupports.idl"
 
 interface nsIObserver;
-interface nsIEventTarget;
 
 %{C++
 /**
@@ -83,7 +82,7 @@ interface nsITimerCallback : nsISupports
  * delay to avoid the overhead of destroying and creating a timer.  It is not
  * necessary to cancel the timer in that case.
  */
-[scriptable, uuid(193fc37a-8aa4-4d29-aa57-1acd87c26b66)]
+[scriptable, uuid(436a83fa-b396-11d9-bcfa-00112478d626)]
 interface nsITimer : nsISupports
 {
   /* Timer types */
@@ -188,12 +187,6 @@ interface nsITimer : nsISupports
    * The nsITimerCallback object passed to initWithCallback.
    */
   readonly attribute nsITimerCallback callback;
-
-  /**
-   * The nsIEventTarget where the callback will be dispatched. Note that this
-   * target may only be set before the call to one of the init methods above.
-   */
-  attribute nsIEventTarget target;
 };
 
 %{C++

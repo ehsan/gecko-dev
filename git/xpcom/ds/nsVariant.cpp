@@ -807,7 +807,7 @@ static nsresult ToString(const nsDiscriminatedUnion& data,
     default:
         return NS_ERROR_CANNOT_CONVERT_DATA;
 
-    // nsID has its own text formatter.
+    // nsID has its own text formater.
 
     case nsIDataType::VTYPE_ID:
         ptr = data.u.mIDValue.ToString();

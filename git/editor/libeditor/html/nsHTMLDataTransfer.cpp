@@ -35,6 +35,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#include "nsICaret.h"
 
 
 #include "nsHTMLEditor.h"
@@ -1116,33 +1117,8 @@ NS_IMETHODIMP nsHTMLEditor::PrepareHTMLTransferable(nsITransferable **aTransfera
       }
       (*aTransferable)->AddDataFlavor(kHTMLMime);
       (*aTransferable)->AddDataFlavor(kFileMime);
-
-      nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-      PRInt32 clipboardPasteOrder = 1; // order of image-encoding preference
-
-      if (prefs)
-      {
-        prefs->GetIntPref("clipboard.paste_image_type", &clipboardPasteOrder);
-        switch (clipboardPasteOrder)
-        {
-          case 0:  // prefer JPEG over PNG over GIF encoding
-            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-            (*aTransferable)->AddDataFlavor(kPNGImageMime);
-            (*aTransferable)->AddDataFlavor(kGIFImageMime);
-            break;
-          case 1:  // prefer PNG over JPEG over GIF encoding (default)
-          default:
-            (*aTransferable)->AddDataFlavor(kPNGImageMime);
-            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-            (*aTransferable)->AddDataFlavor(kGIFImageMime);
-            break;
-          case 2:  // prefer GIF over JPEG over PNG encoding
-            (*aTransferable)->AddDataFlavor(kGIFImageMime);
-            (*aTransferable)->AddDataFlavor(kJPEGImageMime);
-            (*aTransferable)->AddDataFlavor(kPNGImageMime);
-            break;
-        }
-      }
+      // image pasting from the clipboard is only implemented on Windows & Mac right now.
+      (*aTransferable)->AddDataFlavor(kJPEGImageMime);
     }
     (*aTransferable)->AddDataFlavor(kUnicodeMime);
   }
@@ -1407,23 +1383,14 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
         }
       }
     }
-    else if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime) ||
-             0 == nsCRT::strcmp(bestFlavor, kPNGImageMime) ||
-             0 == nsCRT::strcmp(bestFlavor, kGIFImageMime))
+    else if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime))
     {
       nsCOMPtr<nsIInputStream> imageStream(do_QueryInterface(genericDataObj));
       NS_ENSURE_TRUE(imageStream, NS_ERROR_FAILURE);
 
       nsCOMPtr<nsIFile> fileToUse;
       NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(fileToUse));
-
-      if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.jpg"));
-      else if (0 == nsCRT::strcmp(bestFlavor, kPNGImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.png"));
-      else if (0 == nsCRT::strcmp(bestFlavor, kGIFImageMime))
-        fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.gif"));
-
+      fileToUse->Append(NS_LITERAL_STRING("moz-screenshot.jpg"));
       nsCOMPtr<nsILocalFile> path = do_QueryInterface(fileToUse);
       path->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
 
@@ -1497,6 +1464,8 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   // transferable hooks here
   nsCOMPtr<nsIDOMDocument> domdoc;
   GetDocument(getter_AddRefs(domdoc));
+  if (!nsEditorHookUtils::DoAllowDropHook(domdoc, aDropEvent, dragSession))
+    return NS_OK;
 
   // find out if we have our internal html flavor on the clipboard.  We don't want to mess
   // around with cfhtml if we do.
@@ -1980,10 +1949,10 @@ NS_IMETHODIMP nsHTMLEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv)) return rv;
   
-  // the flavors that we can deal with (preferred order selectable for k*ImageMime)
+  // the flavors that we can deal with
   const char* textEditorFlavors[] = { kUnicodeMime };
   const char* textHtmlEditorFlavors[] = { kUnicodeMime, kHTMLMime,
-                                          kJPEGImageMime, kPNGImageMime, kGIFImageMime };
+                                          kJPEGImageMime };
 
   PRUint32 editorFlags;
   GetFlags(&editorFlags);

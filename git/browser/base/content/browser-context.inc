@@ -114,19 +114,16 @@
                 label="&backCmd.label;"
                 accesskey="&backCmd.accesskey;"
                 chromedir="&locale.dir;"
-                command="Browser:BackOrBackDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
+                command="Browser:Back"/>
       <menuitem id="context-forward"
                 label="&forwardCmd.label;"
                 accesskey="&forwardCmd.accesskey;"
                 chromedir="&locale.dir;"
-                command="Browser:ForwardOrForwardDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
+                command="Browser:Forward"/>
       <menuitem id="context-reload"
                 label="&reloadCmd.label;"
                 accesskey="&reloadCmd.accesskey;"
-                command="Browser:ReloadOrDuplicate"
-                onclick="checkForMiddleClick(this, event);"/>
+                command="Browser:Reload"/>
       <menuitem id="context-stop"
                 label="&stopCmd.label;"
                 accesskey="&stopCmd.accesskey;"
@@ -182,6 +179,7 @@
                 accesskey="&keywordfield.accesskey;"
                 oncommand="AddKeywordForSearchField();"/>
       <menuitem id="context-searchselect"
+                accesskey="&search.accesskey;"
                 oncommand="BrowserSearch.loadSearch(getBrowserSelection(), true);"/>
       <menuseparator id="frame-sep"/>
       <menu id="frame" label="&thisFrameMenu.label;" accesskey="&thisFrameMenu.accesskey;">

@@ -36,83 +36,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "TestHarness.h"
-
 #include "nsIThread.h"
 #include "nsIRunnable.h"
+#include "nsIInputStream.h"
+#include "nsIOutputStream.h"
+#include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
 #include "prprf.h"
 #include "prinrval.h"
+#include "plstr.h"
 #include "nsCRT.h"
+#include "nsCOMPtr.h"
+#include <stdio.h>
 #include "nsIPipe.h"    // new implementation
 #include "nsAutoLock.h"
-
-
-/** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
-nsresult TP_NewPipe2(nsIAsyncInputStream** input,
-                     nsIAsyncOutputStream** output,
-                     PRBool nonBlockingInput,
-                     PRBool nonBlockingOutput,
-                     PRUint32 segmentSize,
-                     PRUint32 segmentCount,
-                     nsIMemory* segmentAlloc)
-{
-  nsCOMPtr<nsIPipe> pipe = do_CreateInstance("@mozilla.org/pipe;1");
-  if (!pipe)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  nsresult rv = pipe->Init(nonBlockingInput,
-                           nonBlockingOutput,
-                           segmentSize,
-                           segmentCount,
-                           segmentAlloc);
-
-  if (NS_FAILED(rv))
-    return rv;
-
-  pipe->GetInputStream(input);
-  pipe->GetOutputStream(output);
-  return NS_OK;
-}
-
-/** NS_NewPipe reimplemented, because it's not exported by XPCOM */
-#define TP_DEFAULT_SEGMENT_SIZE  4096
-nsresult TP_NewPipe(nsIInputStream **pipeIn,
-                    nsIOutputStream **pipeOut,
-                    PRUint32 segmentSize = 0,
-                    PRUint32 maxSize = 0,
-                    PRBool nonBlockingInput = PR_FALSE,
-                    PRBool nonBlockingOutput = PR_FALSE,
-                    nsIMemory *segmentAlloc = nsnull);
-nsresult TP_NewPipe(nsIInputStream **pipeIn,
-                    nsIOutputStream **pipeOut,
-                    PRUint32 segmentSize,
-                    PRUint32 maxSize,
-                    PRBool nonBlockingInput,
-                    PRBool nonBlockingOutput,
-                    nsIMemory *segmentAlloc)
-{
-    if (segmentSize == 0)
-        segmentSize = TP_DEFAULT_SEGMENT_SIZE;
-
-    // Handle maxSize of PR_UINT32_MAX as a special case
-    PRUint32 segmentCount;
-    if (maxSize == PR_UINT32_MAX)
-        segmentCount = PR_UINT32_MAX;
-    else
-        segmentCount = maxSize / segmentSize;
-
-    nsIAsyncInputStream *in;
-    nsIAsyncOutputStream *out;
-    nsresult rv = TP_NewPipe2(&in, &out, nonBlockingInput, nonBlockingOutput,
-                              segmentSize, segmentCount, segmentAlloc);
-    if (NS_FAILED(rv)) return rv;
-
-    *pipeIn = in;
-    *pipeOut = out;
-    return NS_OK;
-}
-
+#include <stdlib.h>     // for rand
 
 #define KEY             0xa7
 #define ITERATIONS      33333
@@ -157,8 +95,10 @@ public:
             }
 
             if (gTrace) {
+                printf("read:  ");
                 buf[count] = '\0';
-                printf("read: %s\n", buf);
+                printf(buf);
+                printf("\n");
             }
             mCount += count;
         }
@@ -169,12 +109,18 @@ public:
     }
 
     nsReceiver(nsIInputStream* in) : mIn(in), mCount(0) {
+        NS_ADDREF(in);
     }
 
     PRUint32 GetBytesRead() { return mCount; }
 
+private:
+    ~nsReceiver() {
+        NS_RELEASE(mIn);
+    }
+
 protected:
-    nsCOMPtr<nsIInputStream> mIn;
+    nsIInputStream*     mIn;
     PRUint32            mCount;
 };
 
@@ -183,14 +129,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsReceiver, nsIRunnable)
 nsresult
 TestPipe(nsIInputStream* in, nsIOutputStream* out)
 {
-    nsCOMPtr<nsReceiver> receiver = new nsReceiver(in);
-    if (!receiver)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     nsresult rv;
+    nsIThread* thread;
+    nsReceiver* receiver = new nsReceiver(in);
+    if (receiver == nsnull) return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(receiver);
 
-    nsCOMPtr<nsIThread> thread;
-    rv = NS_NewThread(getter_AddRefs(thread), receiver);
+    rv = NS_NewThread(&thread, receiver);
     if (NS_FAILED(rv)) return rv;
 
     PRUint32 total = 0;
@@ -222,6 +167,9 @@ TestPipe(nsIInputStream* in, nsIOutputStream* out)
            PR_IntervalToMilliseconds(end - start));
     NS_ASSERTION(receiver->GetBytesRead() == total, "didn't read everything");
 
+    NS_RELEASE(thread);
+    NS_RELEASE(receiver);
+
     return NS_OK;
 }
 
@@ -247,14 +195,9 @@ public:
             if (count == 0) {
                 break;
             }
-
-            if (gTrace) {
-                // For next |printf()| call and possible others elsewhere.
-                buf[count] = '\0';
-
+            buf[count] = '\0';
+            if (gTrace)
                 printf("read %d bytes: %s\n", count, buf);
-            }
-
             Received(count);
             total += count;
         }
@@ -263,6 +206,7 @@ public:
     }
 
     nsShortReader(nsIInputStream* in) : mIn(in), mReceived(0) {
+        NS_ADDREF(in);
     }
 
     void Received(PRUint32 count) {
@@ -271,23 +215,25 @@ public:
         mon.Notify();
     }
 
-    PRUint32 WaitForReceipt(const PRUint32 aWriteCount) {
+    PRUint32 WaitForReceipt() {
         nsAutoCMonitor mon(this);
         PRUint32 result = mReceived;
-
-        while (result < aWriteCount) {
+        while (result == 0) {
             mon.Wait();
-
-            NS_ASSERTION(mReceived > result, "failed to receive");
+            NS_ASSERTION(mReceived >= 0, "failed to receive");
             result = mReceived;
         }
-
         mReceived = 0;
         return result;
     }
 
+private:
+    ~nsShortReader() {
+        NS_RELEASE(mIn);
+    }
+
 protected:
-    nsCOMPtr<nsIInputStream> mIn;
+    nsIInputStream*     mIn;
     PRUint32            mReceived;
 };
 
@@ -296,14 +242,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsShortReader, nsIRunnable)
 nsresult
 TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
 {
-    nsCOMPtr<nsShortReader> receiver = new nsShortReader(in);
-    if (!receiver)
-        return NS_ERROR_OUT_OF_MEMORY;
-
     nsresult rv;
+    nsIThread* thread;
+    nsShortReader* receiver = new nsShortReader(in);
+    if (receiver == nsnull) return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(receiver);
 
-    nsCOMPtr<nsIThread> thread;
-    rv = NS_NewThread(getter_AddRefs(thread), receiver);
+    rv = NS_NewThread(&thread, receiver);
     if (NS_FAILED(rv)) return rv;
 
     PRUint32 total = 0;
@@ -324,15 +269,17 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         //printf("calling Flush\n");
         out->Flush();
         //printf("calling WaitForReceipt\n");
-        const PRUint32 received = receiver->WaitForReceipt(writeCount);
+        PRUint32 received = receiver->WaitForReceipt();
         NS_ASSERTION(received == writeCount, "received wrong amount");
     }
     rv = out->Close();
     if (NS_FAILED(rv)) return rv;
 
     thread->Shutdown();
-
     printf("wrote %d bytes\n", total);
+
+    NS_RELEASE(thread);
+    NS_RELEASE(receiver);
 
     return NS_OK;
 }
@@ -348,6 +295,7 @@ public:
         nsresult rv;
         PRUint32 count;
         while (PR_TRUE) {
+            nsAutoCMonitor mon(this);
             rv = mOut->WriteFrom(mIn, ~0U, &count);
             if (NS_FAILED(rv)) {
                 printf("Write failed\n");
@@ -372,6 +320,9 @@ public:
         : mIn(in), mOut(out), mCount(0) {
     }
 
+private:
+    ~nsPump() {}
+
 protected:
     nsCOMPtr<nsIInputStream>      mIn;
     nsCOMPtr<nsIOutputStream>     mOut;
@@ -387,28 +338,30 @@ TestChainedPipes()
     nsresult rv;
     printf("TestChainedPipes\n");
 
-    nsCOMPtr<nsIInputStream> in1;
-    nsCOMPtr<nsIOutputStream> out1;
-    rv = TP_NewPipe(getter_AddRefs(in1), getter_AddRefs(out1), 20, 1999);
+    nsIInputStream* in1;
+    nsIOutputStream* out1;
+    rv = NS_NewPipe(&in1, &out1, 20, 1999);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIInputStream> in2;
-    nsCOMPtr<nsIOutputStream> out2;
-    rv = TP_NewPipe(getter_AddRefs(in2), getter_AddRefs(out2), 200, 401);
+    nsIInputStream* in2;
+    nsIOutputStream* out2;
+    rv = NS_NewPipe(&in2, &out2, 200, 401);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsPump> pump = new nsPump(in1, out2);
+    nsIThread* thread;
+    nsPump* pump = new nsPump(in1, out2);
     if (pump == nsnull) return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(pump);
 
-    nsCOMPtr<nsIThread> thread;
-    rv = NS_NewThread(getter_AddRefs(thread), pump);
+    rv = NS_NewThread(&thread, pump);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsReceiver> receiver = new nsReceiver(in2);
+    nsIThread* receiverThread;
+    nsReceiver* receiver = new nsReceiver(in2);
     if (receiver == nsnull) return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(receiver);
 
-    nsCOMPtr<nsIThread> receiverThread;
-    rv = NS_NewThread(getter_AddRefs(receiverThread), receiver);
+    rv = NS_NewThread(&receiverThread, receiver);
     if (NS_FAILED(rv)) return rv;
 
     PRUint32 total = 0;
@@ -435,6 +388,10 @@ TestChainedPipes()
     thread->Shutdown();
     receiverThread->Shutdown();
 
+    NS_RELEASE(thread);
+    NS_RELEASE(pump);
+    NS_RELEASE(receiverThread);
+    NS_RELEASE(receiver);
     return NS_OK;
 }
 
@@ -444,21 +401,27 @@ void
 RunTests(PRUint32 segSize, PRUint32 segCount)
 {
     nsresult rv;
-    nsCOMPtr<nsIInputStream> in;
-    nsCOMPtr<nsIOutputStream> out;
-    PRUint32 bufSize = segSize * segCount;
+    nsIInputStream* in;
+    nsIOutputStream* out;
+    PRUint32 bufSize;
+
+    bufSize = segSize * segCount;
     printf("Testing New Pipes: segment size %d buffer size %d\n", segSize, bufSize);
 
     printf("Testing long writes...\n");
-    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
+    rv = NS_NewPipe(&in, &out, segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "NS_NewPipe failed");
     rv = TestPipe(in, out);
+    NS_RELEASE(in);
+    NS_RELEASE(out);
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestPipe failed");
 
     printf("Testing short writes...\n");
-    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
+    rv = NS_NewPipe(&in, &out, segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "NS_NewPipe failed");
     rv = TestShortWrites(in, out);
+    NS_RELEASE(in);
+    NS_RELEASE(out);
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestPipe failed");
 }
 
@@ -471,10 +434,10 @@ TestSearch(const char* delim, PRUint32 segSize)
     // need at least 2 segments to test boundary conditions:
     PRUint32 bufDataSize = segSize * 2;
     PRUint32 bufSize = segSize * 2;
-    nsCOMPtr<nsIInputStream> in;
-    nsCOMPtr<nsIOutputStream> out;
-    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
+    nsIInputStream* in;
+    nsIOutputStream* out;
+    rv = NS_NewPipe(&in, &out, segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "NS_NewPipe failed");
     out->SetNonBlocking(PR_TRUE);
 
     PRUint32 i, j, amt;
@@ -508,6 +471,8 @@ TestSearch(const char* delim, PRUint32 segSize)
         printf("Buffer: %s\nDelim: %s %s offset: %d\n", bufferContents,
                delim, (found ? "found" : "not found"), offset);
     }
+    NS_RELEASE(in);
+    NS_RELEASE(out);
 }
 #endif
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,29 +486,28 @@ int
 main(int argc, char* argv[])
 {
     nsresult rv;
+    nsIServiceManager* servMgr;
 
-    nsCOMPtr<nsIServiceManager> servMgr;
-    rv = NS_InitXPCOM2(getter_AddRefs(servMgr), NULL, NULL);
+    rv = NS_InitXPCOM2(&servMgr, NULL, NULL);
     if (NS_FAILED(rv)) return rv;
 
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
         gTrace = PR_TRUE;
 
 #ifdef DEBUG
-    printf("Testing segmented buffer...\n");
     TestSegmentedBuffer();
 #endif
 
 #if 0   // obsolete old implementation
-    nsCOMPtr<nsIInputStream> in;
-    nsCOMPtr<nsIOutputStream> out;
-    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), 4096 * 4);
+    rv = NS_NewPipe(&in, &out, 4096 * 4);
     if (NS_FAILED(rv)) {
-        printf("TP_NewPipe failed\n");
+        printf("NewPipe failed\n");
         return -1;
     }
 
     rv = TestPipe(in, out);
+    NS_RELEASE(in);
+    NS_RELEASE(out);
     if (NS_FAILED(rv)) {
         printf("TestPipe failed\n");
         return -1;
@@ -559,11 +523,9 @@ main(int argc, char* argv[])
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestChainedPipes failed");
     RunTests(16, 1);
     RunTests(4096, 16);
-
-    servMgr = 0;
+    NS_RELEASE(servMgr);
     rv = NS_ShutdownXPCOM( NULL );
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
-
     return 0;
 }
 

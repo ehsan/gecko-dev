@@ -559,21 +559,19 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
     // We're doing print-selection, with one long page-content frame.
     // Clip to the appropriate page-content slice for the current page.
     NS_ASSERTION(mPageNum > 0, "page num should be positive");
-    // Note: The pageContentFrame's y-position has been set such that a zero
-    // y-value matches the top edge of the current page.  So, to clip to the
-    // current page's content (in coordinates *relative* to the page content
-    // frame), we just negate its y-position and add the top margin.
-    clipRect.y = NSToCoordCeil((-pageContentFrame->GetRect().y + 
-                                mPD->mReflowMargin.top) / scale);
+    clipRect.y =  expectedPageContentHeight * (mPageNum - 1);
     clipRect.height = expectedPageContentHeight;
     NS_ASSERTION(clipRect.y < pageContentFrame->GetSize().height,
                  "Should be clipping to region inside the page content bounds");
   }
   aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
+  const nsStyleBorder* border = GetStyleBorder();
+  const nsStylePadding* padding = GetStylePadding();
   nsRect backgroundRect = nsRect(nsPoint(0, 0), pageContentFrame->GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  rect, backgroundRect, PR_TRUE);
+                                  rect, backgroundRect, *border, *padding,
+                                  PR_TRUE);
 
   nsLayoutUtils::PaintFrame(&aRenderingContext, pageContentFrame,
                             nsRegion(rect), NS_RGBA(0,0,0,0));

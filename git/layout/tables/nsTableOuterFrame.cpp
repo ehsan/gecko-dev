@@ -220,6 +220,20 @@ nsTableOuterFrame::IsContainingBlock() const
   return PR_FALSE;
 }
 
+NS_IMETHODIMP
+nsTableOuterFrame::Init(
+                   nsIContent*           aContent,
+                   nsIFrame*             aParent,
+                   nsIFrame*             aPrevInFlow)
+{
+  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
+}
+
 void
 nsTableOuterFrame::Destroy()
 {
@@ -408,12 +422,11 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
 NS_IMETHODIMP nsTableOuterFrame::SetSelected(nsPresContext* aPresContext,
                                              nsIDOMRange *aRange,
                                              PRBool aSelected,
-                                             nsSpread aSpread,
-                                             SelectionType aType)
+                                             nsSpread aSpread)
 {
-  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread);
   if (NS_SUCCEEDED(result) && mInnerTableFrame)
-    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread);
   return result;
 }
 

@@ -68,6 +68,10 @@ class nsReadingIterator
     private:
       friend class nsAString;
       friend class nsACString;
+#ifdef MOZ_V1_STRING_ABI
+      friend class nsSubstring;
+      friend class nsCSubstring;
+#endif
 
         // unfortunately, the API for nsReadingIterator requires that the
         // iterator know its start and end positions.  this was needed when
@@ -202,6 +206,10 @@ class nsWritingIterator
     private:
       friend class nsAString;
       friend class nsACString;
+#ifdef MOZ_V1_STRING_ABI
+      friend class nsSubstring;
+      friend class nsCSubstring;
+#endif
 
         // unfortunately, the API for nsWritingIterator requires that the
         // iterator know its start and end positions.  this was needed when

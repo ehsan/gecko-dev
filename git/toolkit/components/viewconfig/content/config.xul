@@ -56,13 +56,6 @@
 <stringbundle id="configBundle" src="chrome://global/locale/config.properties"/>
 
 <popup id="configContext" onpopupshowing="if (event.target == this) updateContextMenu();">
-  <menuitem id="toggleSelected" default="true"
-            label="&toggle.label;" accesskey="&toggle.accesskey;"
-            oncommand="ModifySelected();"/>
-  <menuitem id="modifySelected" default="true"
-            label="&modify.label;" accesskey="&modify.accesskey;"
-            oncommand="ModifySelected();"/>
-  <menuseparator/>
   <menuitem id="copyPref" label="&copyPref.label;" accesskey="&copyPref.accesskey;" oncommand="copyPref();"/>
   <menuitem id="copyName" label="&copyName.label;" accesskey="&copyName.accesskey;" oncommand="copyName();"/>
   <menuitem id="copyValue" label="&copyValue.label;" accesskey="&copyValue.accesskey;" oncommand="copyValue();"/>
@@ -73,6 +66,8 @@
       <menuitem label="&boolean.label;" accesskey="&boolean.accesskey;" oncommand="NewPref(nsIPrefBranch.PREF_BOOL);"/>
     </menupopup>
   </menu>
+  <menuitem id="toggleSelected" label="&toggle.label;" accesskey="&toggle.accesskey;" oncommand="ModifySelected();"/>
+  <menuitem id="modifySelected" label="&modify.label;" accesskey="&modify.accesskey;" oncommand="ModifySelected();"/>
   <menuitem id="resetSelected" label="&reset.label;" accesskey="&reset.accesskey;" oncommand="ResetSelected();"/>
 </popup>
 
@@ -99,7 +94,8 @@
   <vbox flex="1">
     <hbox id="filterRow" align="center">
       <label value="&filterPrefs.label;" accesskey="&filterPrefs.accesskey;" control="textbox"/>
-      <textbox id="textbox" flex="1" type="search" oncommand="FilterPrefs();"/>
+      <textbox id="textbox" flex="1" type="timed" timeout="500" oncommand="FilterPrefs();"/>
+      <button id="button" label="&showAll.label;" accesskey="&showAll.accesskey;" oncommand="ClearFilter();" disabled="true"/>
     </hbox>
   
     <tree id="configTree" flex="1" class="plain focusring" seltype="single"

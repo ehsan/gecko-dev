@@ -65,7 +65,8 @@ class nsSVGPathGeometryFrame : public nsSVGPathGeometryFrameBase,
                              nsStyleContext* aContext);
 protected:
   nsSVGPathGeometryFrame(nsStyleContext* aContext) :
-    nsSVGPathGeometryFrameBase(aContext) {}
+    nsSVGPathGeometryFrameBase(aContext),
+    mPropagateTransform(PR_TRUE) {}
 
 public:
   // nsISupports interface:
@@ -102,8 +103,8 @@ public:
 
 protected:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
+  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
@@ -111,7 +112,6 @@ protected:
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
-  virtual PRBool GetMatrixPropagation();
   NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
   virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
@@ -143,6 +143,7 @@ private:
   void RemovePathProperties();
 
   nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+  PRPackedBool mPropagateTransform;
 };
 
 #endif // __NS_SVGPATHGEOMETRYFRAME_H__

@@ -80,7 +80,7 @@ class nsIPageSequenceFrame;
 class nsString;
 class nsAString;
 class nsStringArray;
-class nsCaret;
+class nsICaret;
 class nsStyleContext;
 class nsFrameSelection;
 class nsFrameManager;
@@ -102,10 +102,10 @@ class gfxContext;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// 5c103bc2-788e-4bbe-b82e-635bea34e78f
+// 228a7d67-811b-4d75-85c0-1ee22c0d2af0
 #define NS_IPRESSHELL_IID \
-{ 0x5c103bc2, 0x788e, 0x4bbe, \
-  { 0xb8, 0x2e, 0x63, 0x5b, 0xea, 0x34, 0xe7, 0x8f } }
+{ 0x228a7d67, 0x811b, 0x4d75, \
+  { 0x85, 0xc0, 0x1e, 0xe2, 0x2c, 0x0d, 0x2a, 0xf0 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -164,8 +164,6 @@ public:
    * times to make form controls behave nicely when printed.
    */
   NS_IMETHOD Destroy() = 0;
-  
-  PRBool IsDestroying() { return mIsDestroying; }
 
   // All frames owned by the shell are allocated from an arena.  They are also recycled
   // using free lists (separate free lists being maintained for each size_t).
@@ -348,6 +346,15 @@ public:
   virtual NS_HIDDEN_(nsIFrame*) GetRealPrimaryFrameFor(nsIContent* aContent) const = 0;
 
   /**
+   * Returns a layout object associated with the primary frame for the content object.
+   *
+   * @param aContent   the content object for which we seek a layout object
+   * @param aResult    the resulting layout object as an nsISupports, if found.
+   */
+  NS_IMETHOD GetLayoutObjectFor(nsIContent*   aContent,
+                                nsISupports** aResult) const = 0;
+
+  /**
    * Gets the placeholder frame associated with the specified frame. This is
    * a helper frame that forwards the request to the frame manager.
    */
@@ -378,8 +385,6 @@ public:
    */
   NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
 
-  void PostRecreateFramesFor(nsIContent* aContent);
-  
   /**
    * Determine if it is safe to flush all pending notifications
    * @param aIsSafeToFlush PR_TRUE if it is safe, PR_FALSE otherwise.
@@ -504,7 +509,7 @@ public:
   /**
    * Get the caret, if it exists. AddRefs it.
    */
-  NS_IMETHOD GetCaret(nsCaret **aOutCaret) = 0;
+  NS_IMETHOD GetCaret(nsICaret **aOutCaret) = 0;
 
   /**
    * Invalidate the caret's current position if it's outside of its frame's
@@ -516,7 +521,7 @@ public:
   /**
    * Set the current caret to a new caret. To undo this, call RestoreCaret.
    */
-  virtual void SetCaret(nsCaret *aNewCaret) = 0;
+  virtual void SetCaret(nsICaret *aNewCaret) = 0;
 
   /**
    * Restore the caret to the original caret that this pres shell was created

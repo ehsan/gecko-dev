@@ -114,13 +114,13 @@
                         oncommand="PlacesQueryBuilder.showSearch(this.getAttribute('rowid'), PlacesQueryBuilder._timeInLastSearch);"/>
             </menupopup>
           </menulist>
-          <textbox type="search"
+          <textbox type="timed"
                    timeout="50"
                    id="advancedSearch0Textbox"
                    flex="1"
                    oncommand="PlacesQueryBuilder.doSearch();"/>
 
-          <textbox type="search"
+          <textbox type="timed"
                    timeout="50"
                    id="advancedSearch0TimePicker"
                    hidden="true" flex="1"

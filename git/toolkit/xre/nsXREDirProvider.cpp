@@ -56,7 +56,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsXULAppAPI.h"
-#include "nsCategoryManagerUtils.h"
 
 #include "nsINIParser.h"
 #include "nsDependentString.h"
@@ -124,15 +123,6 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
   mAppProvider = aAppProvider;
   mXULAppDir = aXULAppDir;
   mGREDir = aGREDir;
-
-  if (!mProfileDir) {
-    nsCOMPtr<nsIDirectoryServiceProvider> app(do_QueryInterface(mAppProvider));
-    if (app) {
-      PRBool per = PR_FALSE;
-      app->GetFile(NS_APP_USER_PROFILE_50_DIR, &per, getter_AddRefs(mProfileDir));
-      NS_ASSERTION(per, "NS_APP_USER_PROFILE_50_DIR no defined! This shouldn't happen!"); 
-    }
-  }
 
   return NS_OK;
 }
@@ -803,11 +793,6 @@ nsXREDirProvider::DoStartup()
     static const PRUnichar kStartup[] = {'s','t','a','r','t','u','p','\0'};
     obsSvc->NotifyObservers(nsnull, "profile-do-change", kStartup);
     obsSvc->NotifyObservers(nsnull, "profile-after-change", kStartup);
-
-    // Any component that has registered for the profile-after-change category
-    // should also be created at this time.
-    (void)NS_CreateServicesFromCategory("profile-after-change", nsnull,
-                                        "profile-after-change");
   }
   return NS_OK;
 }
@@ -997,6 +982,9 @@ nsXREDirProvider::GetProfileDir(nsIFile* *aResult)
 nsresult
 nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
 {
+  if (!gAppData)
+    return NS_ERROR_FAILURE;
+
   // Copied from nsAppFileLocationProvider (more or less)
   nsresult rv;
   nsCOMPtr<nsILocalFile> localDir;
@@ -1039,8 +1027,6 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
 #if 0 /* For OS/2 we want to always use MOZILLA_HOME */
   // we want an environment variable of the form
   // FIREFOX_HOME, etc
-  if (!gAppData)
-    return NS_ERROR_FAILURE;
   nsDependentCString envVar(nsDependentCString(gAppData->name));
   envVar.Append("_HOME");
   char *pHome = getenv(envVar.get());
@@ -1282,9 +1268,6 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile)
   NS_ASSERTION(aFile, "Null pointer!");
 
   nsresult rv;
-
-  if (!gAppData)
-    return NS_ERROR_FAILURE;
 
 #if defined (XP_MACOSX)
   if (gAppData->profile) {

@@ -69,7 +69,6 @@ typedef union jsdpun {
         uint32 hi, lo;
 #endif
     } s;
-    uint64   u64;
     jsdouble d;
 } jsdpun;
 
@@ -143,8 +142,6 @@ typedef union jsdpun {
 #define JSDOUBLE_COMPARE(LVAL, OP, RVAL, IFNAN) ((LVAL) OP (RVAL))
 #endif
 
-extern jsdouble js_NaN;
-
 /* Initialize number constants and runtime state for the first context. */
 extern JSBool
 js_InitRuntimeNumberState(JSContext *cx);
@@ -178,7 +175,7 @@ extern JSBool
 js_NewNumberInRootedValue(JSContext *cx, jsdouble d, jsval *vp);
 
 /* Convert a number to a GC'ed string. */
-extern JSString * JS_FASTCALL
+extern JSString *
 js_NumberToString(JSContext *cx, jsdouble d);
 
 /*

@@ -44,8 +44,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xhtml:role="alert"
         pack="start"
-        onload="onAlertLoad()"
-        onclick="closeAlert();">
+        onload="onAlertLoad()">
   
   <script type="application/javascript" src="chrome://global/content/alerts/alert.js"/>
 

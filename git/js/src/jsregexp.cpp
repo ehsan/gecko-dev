@@ -52,7 +52,7 @@
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsinterp.h"
@@ -238,7 +238,7 @@ GetCompactIndexWidth(size_t index)
     return width;
 }
 
-static JS_ALWAYS_INLINE jsbytecode *
+static JS_INLINE jsbytecode *
 WriteCompactIndex(jsbytecode *pc, size_t index)
 {
     size_t next;
@@ -251,7 +251,7 @@ WriteCompactIndex(jsbytecode *pc, size_t index)
     return pc;
 }
 
-static JS_ALWAYS_INLINE jsbytecode *
+static JS_INLINE jsbytecode *
 ReadCompactIndex(jsbytecode *pc, size_t *result)
 {
     size_t nextByte;
@@ -338,6 +338,10 @@ typedef struct REGlobalData {
     size_t cursz;                   /* size of current stack entry */
     size_t backTrackCount;          /* how many times we've backtracked */
     size_t backTrackLimit;          /* upper limit on backtrack states */
+
+    JSArenaPool     pool;           /* It's faster to use one malloc'd pool
+                                       than to malloc/free the three items
+                                       that are allocated from this pool */
 } REGlobalData;
 
 /*
@@ -350,7 +354,7 @@ typedef struct REGlobalData {
  *    code point value is less than decimal 128, then return ch.
  * 6. Return cu.
  */
-static JS_ALWAYS_INLINE uintN
+static JS_INLINE uintN
 upcase(uintN ch)
 {
     uintN cu;
@@ -366,7 +370,7 @@ upcase(uintN ch)
     return (cu < 128) ? ch : cu;
 }
 
-static JS_ALWAYS_INLINE uintN
+static JS_INLINE uintN
 downcase(uintN ch)
 {
     JS_ASSERT((uintN) (jschar) ch == ch);
@@ -1079,7 +1083,7 @@ lexHex:
 
             for (i = rangeStart; i <= localMax; i++) {
                 jschar uch, dch;
-
+            
                 uch = upcase(i);
                 dch = downcase(i);
                 maxch = JS_MAX(maxch, uch);
@@ -2103,7 +2107,7 @@ PushBackTrackState(REGlobalData *gData, REOp op,
         JS_COUNT_OPERATION(gData->cx, JSOW_ALLOCATION);
         btincr = JS_ROUNDUP(btincr, btsize);
         JS_ARENA_GROW_CAST(gData->backTrackStack, REBackTrackData *,
-                           &gData->cx->regexpPool, btsize, btincr);
+                           &gData->pool, btsize, btincr);
         if (!gData->backTrackStack) {
             js_ReportOutOfScriptQuota(gData->cx);
             gData->ok = JS_FALSE;
@@ -2160,7 +2164,7 @@ FlatNMatcher(REGlobalData *gData, REMatchState *x, jschar *matchChars,
 }
 #endif
 
-static JS_ALWAYS_INLINE REMatchState *
+static JS_INLINE REMatchState *
 FlatNIMatcher(REGlobalData *gData, REMatchState *x, jschar *matchChars,
               size_t length)
 {
@@ -2264,66 +2268,6 @@ AddCharacterRangeToCharSet(RECharSet *cs, uintN c1, uintN c2)
     }
 }
 
-struct CharacterRange {
-    jschar start;
-    jschar end;
-};
-
-/*
- * The following characters are taken from the ECMA-262 standard, section 7.2
- * and 7.3, and the Unicode 3 standard, Table 6-1.
- */
-static const CharacterRange WhiteSpaceRanges[] = {
-    /* TAB, LF, VT, FF, CR */
-    { 0x0009, 0x000D },
-    /* SPACE */
-    { 0x0020, 0x0020 },
-    /* NO-BREAK SPACE */
-    { 0x00A0, 0x00A0 },
-    /*
-     * EN QUAD, EM QUAD, EN SPACE, EM SPACE, THREE-PER-EM SPACE, FOUR-PER-EM
-     * SPACE, SIX-PER-EM SPACE, FIGURE SPACE, PUNCTUATION SPACE, THIN SPACE,
-     * HAIR SPACE, ZERO WIDTH SPACE
-     */
-    { 0x2000, 0x200B },
-    /* LS, PS */
-    { 0x2028, 0x2029 },
-    /* NARROW NO-BREAK SPACE */
-    { 0x202F, 0x202F },
-    /* IDEOGRAPHIC SPACE */
-    { 0x3000, 0x3000 }
-};
-
-/* ECMA-262 standard, section 15.10.2.6. */
-static const CharacterRange WordRanges[] = {
-    { jschar('0'), jschar('9') },
-    { jschar('A'), jschar('Z') },
-    { jschar('_'), jschar('_') },
-    { jschar('a'), jschar('z') }
-};
-
-static void
-AddCharacterRanges(RECharSet *charSet,
-                   const CharacterRange *range,
-                   const CharacterRange *end)
-{
-    for (; range < end; ++range)
-        AddCharacterRangeToCharSet(charSet, range->start, range->end);
-}
-
-static void
-AddInvertedCharacterRanges(RECharSet *charSet,
-                           const CharacterRange *range,
-                           const CharacterRange *end)
-{
-    uint16 previous = 0;
-    for (; range < end; ++range) {
-        AddCharacterRangeToCharSet(charSet, previous, range->start - 1);
-        previous = range->end + 1;
-    }
-    AddCharacterRangeToCharSet(charSet, previous, charSet->length);
-}
-    
 /* Compile the source of the class into a RECharSet */
 static JSBool
 ProcessCharSet(REGlobalData *gData, RECharSet *charSet)
@@ -2467,20 +2411,24 @@ ProcessCharSet(REGlobalData *gData, RECharSet *charSet)
                                            (jschar)charSet->length);
                 continue;
               case 's':
-                AddCharacterRanges(charSet, WhiteSpaceRanges,
-                                   WhiteSpaceRanges + JS_ARRAY_LENGTH(WhiteSpaceRanges));
+                for (i = (intN)charSet->length; i >= 0; i--)
+                    if (JS_ISSPACE(i))
+                        AddCharacterToCharSet(charSet, (jschar)i);
                 continue;
               case 'S':
-                AddInvertedCharacterRanges(charSet, WhiteSpaceRanges,
-                                           WhiteSpaceRanges + JS_ARRAY_LENGTH(WhiteSpaceRanges));
+                for (i = (intN)charSet->length; i >= 0; i--)
+                    if (!JS_ISSPACE(i))
+                        AddCharacterToCharSet(charSet, (jschar)i);
                 continue;
               case 'w':
-                AddCharacterRanges(charSet, WordRanges,
-                                   WordRanges + JS_ARRAY_LENGTH(WordRanges));
+                for (i = (intN)charSet->length; i >= 0; i--)
+                    if (JS_ISWORD(i))
+                        AddCharacterToCharSet(charSet, (jschar)i);
                 continue;
               case 'W':
-                AddInvertedCharacterRanges(charSet, WordRanges,
-                                           WordRanges + JS_ARRAY_LENGTH(WordRanges));
+                for (i = (intN)charSet->length; i >= 0; i--)
+                    if (!JS_ISWORD(i))
+                        AddCharacterToCharSet(charSet, (jschar)i);
                 continue;
               default:
                 thisCh = c;
@@ -2556,8 +2504,7 @@ ReallocStateStack(REGlobalData *gData)
     size_t limit = gData->stateStackLimit;
     size_t sz = sizeof(REProgState) * limit;
 
-    JS_ARENA_GROW_CAST(gData->stateStack, REProgState *,
-                       &gData->cx->regexpPool, sz, sz);
+    JS_ARENA_GROW_CAST(gData->stateStack, REProgState *, &gData->pool, sz, sz);
     if (!gData->stateStack) {
         js_ReportOutOfScriptQuota(gData->cx);
         gData->ok = JS_FALSE;
@@ -2582,7 +2529,7 @@ ReallocStateStack(REGlobalData *gData)
  * true, then update the current state's cp. Always update startpc to the next
  * op.
  */
-static JS_ALWAYS_INLINE REMatchState *
+static JS_INLINE REMatchState *
 SimpleMatch(REGlobalData *gData, REMatchState *x, REOp op,
             jsbytecode **startpc, JSBool updatecp)
 {
@@ -2791,7 +2738,7 @@ SimpleMatch(REGlobalData *gData, REMatchState *x, REOp op,
     return NULL;
 }
 
-static JS_ALWAYS_INLINE REMatchState *
+static JS_INLINE REMatchState *
 ExecuteREBytecode(REGlobalData *gData, REMatchState *x)
 {
     REMatchState *result = NULL;
@@ -3374,7 +3321,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
 
     gData->backTrackStackSize = INITIAL_BACKTRACK;
     JS_ARENA_ALLOCATE_CAST(gData->backTrackStack, REBackTrackData *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            INITIAL_BACKTRACK);
     if (!gData->backTrackStack)
         goto bad;
@@ -3391,7 +3338,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
 
     gData->stateStackLimit = INITIAL_STATESTACK;
     JS_ARENA_ALLOCATE_CAST(gData->stateStack, REProgState *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            sizeof(REProgState) * INITIAL_STATESTACK);
     if (!gData->stateStack)
         goto bad;
@@ -3402,7 +3349,7 @@ InitMatch(JSContext *cx, REGlobalData *gData, JSRegExp *re, size_t length)
     gData->ok = JS_TRUE;
 
     JS_ARENA_ALLOCATE_CAST(result, REMatchState *,
-                           &cx->regexpPool,
+                           &gData->pool,
                            offsetof(REMatchState, parens)
                            + re->parenCount * sizeof(RECapture));
     if (!result)
@@ -3441,8 +3388,6 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     JSObject *obj;
 
     RECapture *parsub = NULL;
-    void *mark;
-    int64 *timestamp;
 
     /*
      * It's safe to load from cp because JSStrings have a zero at the end,
@@ -3458,18 +3403,15 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     gData.start = start;
     gData.skipped = 0;
 
-    if (!cx->regexpPool.first.next) {
-        /*
-         * The first arena in the regexpPool must have a timestamp at its base.
-         */
-        JS_ARENA_ALLOCATE_CAST(timestamp, int64 *,
-                               &cx->regexpPool, sizeof *timestamp);
-        if (!timestamp)
-            return JS_FALSE;
-        *timestamp = JS_Now();
-    }
-    mark = JS_ARENA_MARK(&cx->regexpPool);
-
+    /*
+     * To avoid multiple allocations in InitMatch(), the arena size parameter
+     * should be at least as big as:
+     * INITIAL_BACKTRACK
+     * + (sizeof(REProgState) * INITIAL_STATESTACK)
+     * + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
+     */
+    JS_INIT_ARENA_POOL(&gData.pool, "RegExpPool", 12288, 4,
+                       &cx->scriptStackQuota);
     x = InitMatch(cx, &gData, re, length);
 
     if (!x) {
@@ -3644,11 +3586,20 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     res->rightContext.length = gData.cpend - ep;
 
 out:
-    JS_ARENA_RELEASE(&cx->regexpPool, mark);
+    JS_FinishArenaPool(&gData.pool);
     return ok;
 }
 
 /************************************************************************/
+
+enum regexp_tinyid {
+    REGEXP_SOURCE       = -1,
+    REGEXP_GLOBAL       = -2,
+    REGEXP_IGNORE_CASE  = -3,
+    REGEXP_LAST_INDEX   = -4,
+    REGEXP_MULTILINE    = -5,
+    REGEXP_STICKY       = -6
+};
 
 #define REGEXP_PROP_ATTRS     (JSPROP_PERMANENT | JSPROP_SHARED)
 #define RO_REGEXP_PROP_ATTRS  (REGEXP_PROP_ATTRS | JSPROP_READONLY)
@@ -3671,17 +3622,12 @@ regexp_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
     if (!JSVAL_IS_INT(id))
         return JS_TRUE;
-    while (OBJ_GET_CLASS(cx, obj) != &js_RegExpClass) {
-        obj = OBJ_GET_PROTO(cx, obj);
-        if (!obj)
-            return JS_TRUE;
-    }
     slot = JSVAL_TO_INT(id);
     if (slot == REGEXP_LAST_INDEX)
         return JS_GetReservedSlot(cx, obj, 0, vp);
 
     JS_LOCK_OBJ(cx, obj);
-    re = (JSRegExp *) JS_GetPrivate(cx, obj);
+    re = (JSRegExp *) JS_GetInstancePrivate(cx, obj, &js_RegExpClass, NULL);
     if (re) {
         switch (slot) {
           case REGEXP_SOURCE:
@@ -3715,11 +3661,6 @@ regexp_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     ok = JS_TRUE;
     if (!JSVAL_IS_INT(id))
         return ok;
-    while (OBJ_GET_CLASS(cx, obj) != &js_RegExpClass) {
-        obj = OBJ_GET_PROTO(cx, obj);
-        if (!obj)
-            return JS_TRUE;
-    }
     slot = JSVAL_TO_INT(id);
     if (slot == REGEXP_LAST_INDEX) {
         if (!JS_ValueToNumber(cx, *vp, &lastIndex))
@@ -3936,8 +3877,8 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
         obj = js_NewObject(xdr->cx, &js_RegExpClass, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
-        STOBJ_CLEAR_PARENT(obj);
-        STOBJ_CLEAR_PROTO(obj);
+        STOBJ_SET_PARENT(obj, NULL);
+        STOBJ_SET_PROTO(obj, NULL);
         re = js_NewRegExp(xdr->cx, NULL, source, (uint8)flagsword, JS_FALSE);
         if (!re)
             return JS_FALSE;
@@ -4275,12 +4216,12 @@ regexp_test(JSContext *cx, uintN argc, jsval *vp)
 
 static JSFunctionSpec regexp_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  regexp_toString,    0,0),
+    JS_FN(js_toSource_str,  regexp_toString,    0,0,0),
 #endif
-    JS_FN(js_toString_str,  regexp_toString,    0,0),
-    JS_FN("compile",        regexp_compile,     2,0),
-    JS_FN("exec",           regexp_exec,        1,0),
-    JS_FN("test",           regexp_test,        1,0),
+    JS_FN(js_toString_str,  regexp_toString,    0,0,0),
+    JS_FN("compile",        regexp_compile,     0,2,0),
+    JS_FN("exec",           regexp_exec,        0,1,0),
+    JS_FN("test",           regexp_test,        0,1,0),
     JS_FS_END
 };
 

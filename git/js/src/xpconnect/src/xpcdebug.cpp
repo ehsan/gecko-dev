@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "xpcprivate.h"
+#if defined(DEBUG_xpc_hacker) || defined(DEBUG)
 
 #ifdef TAB
 #undef TAB
@@ -305,7 +306,7 @@ xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showTh
 
 /***************************************************************************/
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 xpcDumpEvalErrorReporter(JSContext *cx, const char *message,
                          JSErrorReport *report)
 {
@@ -363,7 +364,7 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, JSUint32 frameno, const char* text)
 
 /***************************************************************************/
 
-JSTrapStatus
+JSTrapStatus JS_DLL_CALLBACK
 xpc_DebuggerKeywordHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
                            jsval *rval, void *closure)
 {
@@ -479,3 +480,4 @@ xpc_DumpJSObject(JSObject* obj)
 
     return JS_TRUE;
 }
+#endif

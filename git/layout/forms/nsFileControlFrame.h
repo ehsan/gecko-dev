@@ -126,6 +126,8 @@ protected:
     nsFileControlFrame* mFrame;
   };
   
+  nsresult MouseClick(nsIDOMEvent* aMouseEvent);
+
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsAreaFrame::IsFrameOfType(aFlags &
@@ -182,7 +184,7 @@ private:
    *        or SYNC_BOTH)
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                PRInt32 aWhichControls);
+                PRBool aWhichControls);
 
   NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
   NS_IMETHOD_(nsrefcnt) Release() { return 1; }

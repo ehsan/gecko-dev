@@ -606,9 +606,7 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
         // Tell the image that it's data has been updated
         nsCOMPtr<nsIImage> img(do_GetInterface(mFrame, &rv));
         NS_ENSURE_SUCCESS(rv, rv);
-        rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);        
-        if (NS_FAILED(rv))
-          return rv;
+        img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
 
         mObserver->OnDataAvailable(nsnull, mFrame, &r);
         mOldLine = mCurLine;

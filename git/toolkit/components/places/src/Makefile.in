@@ -107,10 +107,7 @@ EXTRA_PP_COMPONENTS = nsLivemarkService.js \
                       nsTaggingService.js \
                       $(NULL)
 
-EXTRA_JS_MODULES = \
-  utils.js \
-  PlacesBackground.jsm \
-  $(NULL)
+EXTRA_JS_MODULES = utils.js
 
 EXTRA_PP_JS_MODULES = utils.js
 

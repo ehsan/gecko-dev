@@ -275,31 +275,23 @@ NS_IMETHODIMP nsHTMLButtonAccessible::GetRole(PRUint32 *_retval)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLButtonAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsHTMLButtonAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content) {
     return NS_ERROR_FAILURE; // Node shut down
   }
 
   nsAutoString name;
-  // Prefer aria-labelledby attribute for name
-  if (content->HasAttr(kNameSpaceID_None,
-                       nsAccessibilityAtoms::aria_label) ||
-      content->HasAttr(kNameSpaceID_None,
-                       nsAccessibilityAtoms::aria_labelledby)) {
-    GetHTMLName(name, PR_FALSE);
-  }
-
-  if (name.IsEmpty()) {
-    // no label from HTML or ARIA
-    if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value,
-                          name) &&
-        !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
-                          name)) {
+  if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value,
+                        name) &&
+      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
+                        name)) {
+    if (mRoleMapEntry) {
+      // Use HTML label or DHTML accessibility's labelledby attribute for name
+      GetHTMLName(name, PR_FALSE);
+    }
+    if (name.IsEmpty()) {
       // Use the button's (default) label if nothing else works
       nsIFrame* frame = GetFrame();
       if (frame) {
@@ -403,11 +395,8 @@ NS_IMETHODIMP nsHTMLTextFieldAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLTextFieldAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsHTMLTextFieldAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (!content) {
     return NS_ERROR_FAILURE;
@@ -474,7 +463,7 @@ nsHTMLTextFieldAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     *aState |= nsIAccessibleStates::STATE_READONLY;
   }
 
-  if (!aExtraState)
+  if (!aExtraState || !(*aExtraState & nsIAccessibleStates::EXT_STATE_EDITABLE))
     return NS_OK;
 
   nsCOMPtr<nsIDOMHTMLInputElement> htmlInput(do_QueryInterface(mDOMNode));
@@ -485,9 +474,6 @@ nsHTMLTextFieldAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   else {
     *aExtraState |= nsIAccessibleStates::EXT_STATE_MULTI_LINE;
   }
-
-  if (!(*aExtraState & nsIAccessibleStates::EXT_STATE_EDITABLE))
-    return NS_OK;
 
   nsCOMPtr<nsIContent> bindingContent = content->GetBindingParent();
   if (bindingContent &&
@@ -614,14 +600,12 @@ nsIContent* nsHTMLGroupboxAccessible::GetLegend()
   return nsnull;
 }
 
-NS_IMETHODIMP
-nsHTMLGroupboxAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsHTMLGroupboxAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   if (!mDOMNode) {
     return NS_ERROR_FAILURE;
   }
+  aName.Truncate();
   if (mRoleMapEntry) {
     nsAccessible::GetName(aName);
     if (!aName.IsEmpty()) {

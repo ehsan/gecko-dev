@@ -54,19 +54,10 @@
 #include "nsIRunnable.h"
 #include "nsIChannelClassifier.h"
 
-class nsAsyncInstantiateEvent;
-class AutoNotifier;
-class AutoFallback;
-class AutoSetInstantiatingToFalse;
-
-enum PluginSupportState {
-  ePluginUnsupported,  // The plugin is not supported (not installed, say)
-  ePluginDisabled,     // The plugin has been explicitly disabled by the
-                       // user.
-  ePluginBlocklisted,  // The plugin is blocklisted and disabled
-  ePluginOtherState    // Something else (e.g. not a plugin at all as far
-                       // as we can tell).
-};
+struct nsAsyncInstantiateEvent;
+class  AutoNotifier;
+class  AutoFallback;
+class  AutoSetInstantiatingToFalse;
 
 /**
  * INVARIANTS OF THIS CLASS
@@ -261,7 +252,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Fires the "Plugin not found" event. This function doesn't do any checks
      * whether it should be fired, the caller should do that.
      */
-    static void FirePluginError(nsIContent* thisContent, PluginSupportState state);
+    static void FirePluginError(nsIContent* thisContent, PRBool blocklisted);
 
     ObjectType GetTypeOfContent(const nsCString& aMIMEType);
 
@@ -341,6 +332,15 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     static PRBool ShouldShowDefaultPlugin(nsIContent* aContent,
                                           const nsCString& aContentType);
 
+    enum PluginSupportState {
+      ePluginUnsupported,  // The plugin is not supported (not installed, say)
+      ePluginDisabled,     // The plugin has been explicitly disabled by the
+                           // user.
+      ePluginBlocklisted,  // The plugin is blocklisted and disabled
+      ePluginOtherState    // Something else (e.g. not a plugin at all as far
+                           // as we can tell).
+    };
+
     /**
      * Get the plugin support state for the given content node and MIME type.
      * This is used for purposes of determining whether to fire PluginNotFound
@@ -418,8 +418,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Blocking status from content policy
     PRBool                      mUserDisabled  : 1;
     PRBool                      mSuppressed    : 1;
-    // A specific state that caused us to fallback
-    PluginSupportState          mPluginState;
+    // Whether we fell back because of an unsupported type
+    PRBool                      mTypeUnsupported:1;
 
     friend class nsAsyncInstantiateEvent;
 };

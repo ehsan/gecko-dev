@@ -313,9 +313,6 @@
 
 ################################################################################
 # Macros for creating Install Options ini files
-#
-# DEPRECATED - all ini creation code should be added to the application's
-# installer and uninstaller files.
 
 !macro createComponentsINI
   WriteINIStr "$PLUGINSDIR\components.ini" "Settings" NumFields "5"
@@ -3096,7 +3093,6 @@
 
 /**
  * Checks if a handler's open command points to this installation directory.
- * Uses SHCTX to determine the registry hive (e.g. HKLM or HKCU) to check.
  *
  * @param   _HANDLER_NAME
  *          The registry name for the handler.
@@ -3130,7 +3126,7 @@
 
       StrCpy $R8 "$R9"
       StrCpy $R9 "false"
-      ReadRegStr $R7 SHCTX "Software\Classes\$R8\shell\open\command" ""
+      ReadRegStr $R7 HKCR "$R8\shell\open\command" ""
       StrCmp "$R7" "" end
 
       ${GetPathFromString} "$R7" $R7
@@ -3189,11 +3185,9 @@
  * program files directory path and the current install location to determine
  * the sub-directory in the VirtualStore directory.
  *
- * $R5 = various path values.
- * $R6 = length of the long path to $PROGRAMFILES
- * $R7 = length of the long path to $INSTDIR
- * $R8 = long path to $PROGRAMFILES
- * $R9 = long path to $INSTDIR
+ * $R7 = stores the value of the open command and the path macros return values
+ * $R8 = stores the handler's registry key name
+ * $R9 = _DEFAULT_VALUE and _RESULT
  */
 !macro CleanVirtualStore
 
@@ -3212,38 +3206,39 @@
       Push $R9
       Push $R8
       Push $R7
-      Push $R6
-      Push $R5
 
-      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R9
-      StrCmp $R9 "" end +1
-      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES" $R8
+      StrLen $R9 "$INSTDIR"
+
+      ; Get the installation's directory name including the preceding slash
+      start:
+      IntOp $R8 $R8 - 1
+      IntCmp $R8 -$R9 end end +1
+      StrCpy $R7 "$INSTDIR" 1 $R8
+      StrCmp $R7 "\" +1 start
+
+      StrCpy $R9 "$INSTDIR" "" $R8
       StrCmp $R8 "" end +1
 
-      StrLen $R7 "$R9"
-      StrLen $R6 "$R8"
-      ; Only continue If the length of $INSTDIR is greater than the length of
-      ; $PROGRAMFILES
-      IntCmp $R7 $R6 end end +1
+      ClearErrors
+      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES$R9" $R8
+      StrCmp $R8 "" end +1
+      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R7
+      StrCmp $R7 "" end +1
 
-      ; Copy from the start of $INSTDIR the length of $PROGRAMFILES 
-      StrCpy $R5 "$R9" $R6
-      StrCmp "$R5" "$R8" +1 end ; Check if $INSTDIR is under $PROGRAMFILES
+      ; Compare the installation's directory path with the path created by
+      ; concatenating the installation's directory name and the path to the
+      ; program files directory.
+      StrCmp "$R7" "$R8" +1 end
 
-      ; Remove the drive letter and colon from the $INSTDIR long path
-      StrCpy $R5 "$R9" "" 2
-      StrCpy $R5 "$PROFILE\AppData\Local\VirtualStore$R5"
-      ${${_MOZFUNC_UN}GetLongPath} "$R5" $R5
-      StrCmp $R5 "" end +1
+      StrCpy $R8 "$PROGRAMFILES" "" 2 ; Remove the drive letter and colon
+      StrCpy $R7 "$PROFILE\AppData\Local\VirtualStore$R8$R9"
 
-      IfFileExists "$R5" +1 end
-      RmDir /r "$R5"
+      IfFileExists "$R7" 0 end
+      RmDir /r "$R7"
 
       end:
       ClearErrors
 
-      Pop $R5
-      Pop $R6
       Pop $R7
       Pop $R8
       Pop $R9
@@ -3289,11 +3284,11 @@
  * @param   _REL_PROFILE_PATH
  *          The relative path to the profile directory from $LOCALAPPDATA.
  *
- * $R4 = various path values.
- * $R5 = length of the long path to $PROGRAMFILES
- * $R6 = length of the long path to $INSTDIR
- * $R7 = long path to $PROGRAMFILES
- * $R8 = long path to $INSTDIR
+ * $R6 = stores single characters to find the first "\" from the right of
+ *       $INSTDIR and the long path to $INSTDIR
+ * $R7 = long path of the concatenation of Program Files and the  installation
+ *       directory name (e.g. $PROGRAMFILES$R68)
+ * $R8 = installation directory name
  * $R9 = _REL_PROFILE_PATH
  */
 !macro CleanUpdatesDir
@@ -3314,42 +3309,41 @@
       Push $R8
       Push $R7
       Push $R6
-      Push $R5
-      Push $R4
 
-      StrCmp $R9 "" end +1 ; The relative path to the app's profiles is required
-      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R8
+      StrCmp $R9 "" end +1   ; The path to the app's profiles is required
+      StrLen $R8 "$INSTDIR"
+
+      ; Get the installation's directory name including the preceding slash
+      start:
+      IntOp $R7 $R7 - 1
+      IntCmp $R7 -$R8 end end +1
+      StrCpy $R6 "$INSTDIR" 1 $R7
+      StrCmp $R6 "\" +1 start
+
+      StrCpy $R8 "$INSTDIR" "" $R7
       StrCmp $R8 "" end +1
-      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES" $R7
+
+      ClearErrors
+      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES$R8" $R7
       StrCmp $R7 "" end +1
+      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R6
+      StrCmp $R6 "" end +1
 
-      StrLen $R6 "$R8"
-      StrLen $R5 "$R7"
-      ; Only continue If the length of $INSTDIR is greater than the length of
-      ; $PROGRAMFILES
-      IntCmp $R6 $R5 end end +1
+      ; Compare the installation's directory path with the path created by
+      ; concatenating the installation's directory name and the path to the
+      ; program files directory.
+      StrCmp "$R6" "$R7" +1 end
 
-      ; Copy from the start of $INSTDIR the length of $PROGRAMFILES 
-      StrCpy $R4 "$R8" $R5
-      StrCmp "$R4" "$R7" +1 end ; Check if $INSTDIR is under $PROGRAMFILES
+      StrCpy $R6 "$LOCALAPPDATA\$R9$R8"
 
-      ; Copy the relative path to $INSTDIR from $PROGRAMFILES
-      StrCpy $R4 "$R8" "" $R5
-
-      ; Concatenate the path to $LOCALAPPDATA the relative profile path and the
-      ; relative path to $INSTDIR from $PROGRAMFILES
-      StrCpy $R4 "$LOCALAPPDATA\$R9$R4"
-      ${${_MOZFUNC_UN}GetLongPath} "$R4" $R4
-      StrCmp $R4 "" end +1
-
-      IfFileExists "$R4\updates" +1 end
-      RmDir /r "$R4"
+      ${${_MOZFUNC_UN}GetLongPath} "$R6" $R6
+      StrCmp $R6 "" end +1
+      IfFileExists "$R6\updates" +1 end
+      RmDir /r "$R6"
 
       end:
       ClearErrors
 
-      Pop $R4
-      Pop $R5
       Pop $R6
       Pop $R7
       Pop $R8
@@ -3825,7 +3819,7 @@
  *          will be inserted below this string.
  *
  * @param   _SUFFIX_ERROR_CREATEDIR
- *          Suffix for the directory creation error message. The directory path
+ *          Prefix for the directory creation error message. The directory path
  *          will be inserted above this string.
  *
  * $0  = destination file's parent directory used in the create_dir label
@@ -4470,22 +4464,9 @@
 
       !ifdef ___WINVER__NSH___
         ${Unless} ${AtLeastWin2000}
-          ; XXX-rstrong - some systems fail the AtLeastWin2000 test for an
-          ; unknown reason. To work around this also check if the Windows NT
-          ; registry Key exists and if it does if the first char in
-          ; CurrentVersion is equal to 3 (Windows NT 3.5 and 3.5.1) or 4
-          ; (Windows NT 4).
-          StrCpy $R8 ""
-          ClearErrors
-          ReadRegStr $R8 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" CurrentVersion
-          StrCpy $R8 "$R8" 1
-          ${If} ${Errors}
-          ${OrIf} "$R8" == "3"
-          ${OrIf} "$R8" == "4"
-            MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
-            ; Nothing initialized so no need to call OnEndCommon
-            Quit
-          ${EndIf}
+          MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
+          ; Nothing initialized so no need to call OnEndCommon
+          Quit
         ${EndUnless}
       !endif
 
@@ -4628,7 +4609,7 @@
 !macro InstallOnInitCommonCall _WARN_UNSUPPORTED_MSG
   !verbose push
   !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_WARN_UNSUPPORTED_MSG}"
+  Push ${_WARN_UNSUPPORTED_MSG}
   Call InstallOnInitCommon
   !verbose pop
 !macroend

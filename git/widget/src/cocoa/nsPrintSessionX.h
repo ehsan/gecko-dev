@@ -42,6 +42,9 @@
 #include "nsPrintSession.h"
 #include "nsIPrintSessionX.h"
 
+//*****************************************************************************
+//***    nsPrintSessionX
+//*****************************************************************************
 
 class nsPrintSessionX : public nsPrintSession,
                         public nsIPrintSessionX
@@ -52,11 +55,11 @@ public:
 
   nsPrintSessionX();
   virtual ~nsPrintSessionX();
-
+  
   nsresult Init();
-
+  
 protected:
-  PMPrintSession mSession;
+  PMPrintSession    mSession;
 };
 
 #endif // nsPrintSessionX_h_

@@ -143,8 +143,6 @@ nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
   { "ui.IMEUnderlineRelativeSize", eMetricFloat_IMEUnderlineRelativeSize,
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
-  { "ui.caretAspectRatio", eMetricFloat_CaretAspectRatio, PR_FALSE,
-    nsLookAndFeelTypeFloat, 0 },
 };
 
 
@@ -170,8 +168,6 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.textSelectForeground",
   "ui.textSelectBackgroundDisabled",
   "ui.textSelectBackgroundAttention",
-  "ui.textHighlightBackground",
-  "ui.textHighlightForeground",
   "ui.IMERawInputBackground",
   "ui.IMERawInputForeground",
   "ui.IMERawInputUnderline",
@@ -244,8 +240,7 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.-moz-mac-alternateprimaryhighlight",
   "ui.-moz-mac-secondaryhighlight",
   "ui.-moz-win-mediatext",
-  "ui.-moz-win-communicationstext",
-  "ui.-moz-nativehyperlinktext"
+  "ui.-moz-win-communicationstext"
 };
 
 PRInt32 nsXPLookAndFeel::sCachedColors[nsILookAndFeel::eColor_LAST_COLOR] = {0};
@@ -326,11 +321,6 @@ nsXPLookAndFeel::ColorPrefChanged (unsigned int index, const char *prefName)
                prefName, thecolor);
 #endif
       }
-    } else if (colorStr.IsEmpty()) {
-      // Reset to the default color, by clearing the cache
-      // to force lookup when the color is next used
-      PRInt32 id = NS_PTR_TO_INT32(index);
-      CLEAR_COLOR_CACHE(id);
     }
   }
 }
@@ -475,12 +465,6 @@ nsXPLookAndFeel::IsSpecialColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedRawTextUnderline:
     case eColor_IMESelectedConvertedTextUnderline:
       return NS_IS_IME_SPECIAL_COLOR(aColor);
-    default:
-      /*
-       * In GetColor(), every color that is not a special color is color
-       * corrected. Use PR_FALSE to make other colors color corrected.
-       */
-      return PR_FALSE;
   }
   return PR_FALSE;
 }
@@ -598,22 +582,8 @@ nsXPLookAndFeel::GetColor(const nsColorID aID, nscolor &aColor)
     return NS_OK;
   }
 
-  if (aID == eColor_TextHighlightBackground) {
-    // This makes the matched text stand out when findbar highlighting is on
-    // Used with nsISelectionController::SELECTION_FIND
-    aColor = NS_RGB(0xf0, 0xe0, 0x20);
-    return NS_OK;
-  }
-
-  if (aID == eColor_TextHighlightForeground) {
-    // The foreground color for the matched text in findbar highlighting
-    // Used with nsISelectionController::SELECTION_FIND
-    aColor = NS_RGB(0x00, 0x00, 0x00);
-    return NS_OK;
-  }
-
   if (NS_SUCCEEDED(NativeGetColor(aID, aColor))) {
-    if ((gfxPlatform::GetCMSMode() == eCMSMode_All) && !IsSpecialColor(aID, aColor)) {
+    if (gfxPlatform::IsCMSEnabled() && !IsSpecialColor(aID, aColor)) {
       cmsHTRANSFORM transform = gfxPlatform::GetCMSInverseRGBTransform();
       if (transform) {
         PRUint8 color[3];
@@ -650,12 +620,6 @@ nsXPLookAndFeel::GetMetric(const nsMetricID aID, PRInt32& aMetric)
     case eMetric_ScrollButtonRightMouseButtonAction:
       aMetric = 3;
       return NS_OK;
-    default:
-      /*
-       * The metrics above are hardcoded platform defaults. All the other
-       * metrics are stored in sIntPrefs and can be changed at runtime.
-       */
-    break;
   }
 
   for (unsigned int i = 0; i < ((sizeof (sIntPrefs) / sizeof (*sIntPrefs))); ++i)

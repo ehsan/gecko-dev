@@ -39,7 +39,7 @@
 #include "nsGUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsEventListenerManager.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMMouseListener.h"
@@ -225,7 +225,11 @@ static const EventDispatchData sCompositionEvents[] = {
   { NS_COMPOSITION_END,
     HANDLER(&nsIDOMCompositionListener::HandleEndComposition)    },
   { NS_COMPOSITION_QUERY,
-    HANDLER(&nsIDOMCompositionListener::HandleQueryComposition)  }
+    HANDLER(&nsIDOMCompositionListener::HandleQueryComposition)  },
+  { NS_RECONVERSION_QUERY,
+    HANDLER(&nsIDOMCompositionListener::HandleQueryReconversion) },
+  { NS_QUERYCARETRECT,
+    HANDLER(&nsIDOMCompositionListener::HandleQueryCaretRect)    }
 };
 
 static const EventDispatchData sTextEvents[] = {
@@ -262,13 +266,10 @@ static const EventDispatchData sDragEvents[] = {
   { NS_DRAGDROP_ENTER,       HANDLER(&nsIDOMDragListener::DragEnter)   },
   { NS_DRAGDROP_OVER_SYNTH,  HANDLER(&nsIDOMDragListener::DragOver)    },
   { NS_DRAGDROP_EXIT_SYNTH,  HANDLER(&nsIDOMDragListener::DragExit)    },
-  { NS_DRAGDROP_DRAGDROP,    HANDLER(&nsIDOMDragListener::DragDrop)    },
+  { NS_DRAGDROP_DROP,        HANDLER(&nsIDOMDragListener::DragDrop)    },
   { NS_DRAGDROP_GESTURE,     HANDLER(&nsIDOMDragListener::DragGesture) },
   { NS_DRAGDROP_DRAG,        HANDLER(&nsIDOMDragListener::Drag)        },
-  { NS_DRAGDROP_END,         HANDLER(&nsIDOMDragListener::DragEnd)     },
-  { NS_DRAGDROP_START,       HANDLER(&nsIDOMDragListener::DragStart)   },
-  { NS_DRAGDROP_LEAVE_SYNTH, HANDLER(&nsIDOMDragListener::DragLeave)   },
-  { NS_DRAGDROP_DROP,        HANDLER(&nsIDOMDragListener::Drop)        }
+  { NS_DRAGDROP_END,         HANDLER(&nsIDOMDragListener::DragEnd)     }
 };
 
 static const EventDispatchData sXULEvents[] = {
@@ -391,7 +392,6 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEventListenerManager, nsIEventListe
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventListenerManager)
   PRUint32 count = tmp->mListeners.Length();
   for (PRUint32 i = 0; i < count; i++) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mListeners[i] mListener");
     cb.NoteXPCOMChild(tmp->mListeners.ElementAt(i).mListener.get());
   }  
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -1176,7 +1176,6 @@ found:
                                            EmptyString(), aDOMEvent);
           }
           if (*aDOMEvent) {
-            nsRefPtr<nsIDOMEventListener> kungFuDeathGrip = ls->mListener;
             if (useTypeInterface) {
               DispatchToInterface(*aDOMEvent, ls->mListener,
                                   dispData->method, *typeData->iid);
@@ -1446,7 +1445,7 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   nsresult rv;
 
   // check caret visibility
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   rv = aShell->GetCaret(getter_AddRefs(caret));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ENSURE_TRUE(caret, PR_FALSE);
@@ -1456,9 +1455,10 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   if (NS_FAILED(rv) || ! caretVisible)
     return PR_FALSE;
 
-  // caret selection, this is a temporary weak reference, so no refcounting is 
-  // needed
-  nsISelection* domSelection = caret->GetCaretDOMSelection();
+  // caret selection, watch out: GetCaretDOMSelection can return null but NS_OK
+  nsCOMPtr<nsISelection> domSelection;
+  rv = caret->GetCaretDOMSelection(getter_AddRefs(domSelection));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ENSURE_TRUE(domSelection, PR_FALSE);
 
   // since the match could be an anonymous textnode inside a
@@ -1521,7 +1521,7 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   PRBool isCollapsed;
   nsIView* view;
   nsRect caretCoords;
-  rv = caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+  rv = caret->GetCaretCoordinates(nsICaret::eRenderingViewCoordinates,
                                   domSelection, &caretCoords, &isCollapsed,
                                   &view);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
@@ -1748,12 +1748,6 @@ found:
     }
   }
   return PR_FALSE;
-}
-
-PRBool
-nsEventListenerManager::HasListeners()
-{
-  return !mListeners.IsEmpty();
 }
 
 PRBool

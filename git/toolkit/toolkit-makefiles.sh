@@ -84,15 +84,6 @@ MAKEFILES_editor="
   editor/txtsvc/Makefile
   editor/txtsvc/public/Makefile
   editor/txtsvc/src/Makefile
-  editor/composer/Makefile
-  editor/composer/public/Makefile
-  editor/composer/src/Makefile
-  editor/composer/test/Makefile
-  editor/libeditor/Makefile
-  editor/libeditor/base/Makefile
-  editor/libeditor/base/tests/Makefile
-  editor/libeditor/html/Makefile
-  editor/libeditor/text/Makefile
 "
 
 MAKEFILES_expat="
@@ -105,7 +96,9 @@ MAKEFILES_gfx="
   gfx/idl/Makefile
   gfx/public/Makefile
   gfx/src/Makefile
+  gfx/src/beos/Makefile
   gfx/src/psshared/Makefile
+  gfx/src/photon/Makefile
   gfx/src/thebes/Makefile
   gfx/tests/Makefile
 "
@@ -168,6 +161,7 @@ MAKEFILES_intl="
 
 MAKEFILES_js="
   js/src/Makefile
+  js/src/fdlibm/Makefile
 "
 
 MAKEFILES_liveconnect="
@@ -289,55 +283,6 @@ MAKEFILES_libutil="
   modules/libutil/src/Makefile
 "
 
-MAKEFILES_libvorbis="
-  media/libvorbis/Makefile
-  media/libvorbis/lib/Makefile
-  media/libvorbis/include/Makefile
-  media/libvorbis/include/vorbis/Makefile
-"
-
-MAKEFILES_libtheora="
-  media/libtheora/Makefile
-  media/libtheora/lib/Makefile
-  media/libtheora/include/Makefile
-  media/libtheora/include/theora/Makefile
-"
-
-MAKEFILES_liboggz="
-  media/liboggz/Makefile
-  media/liboggz/src/Makefile
-  media/liboggz/src/liboggz/Makefile
-  media/liboggz/include/Makefile
-  media/liboggz/include/oggz/Makefile
-"
-
-MAKEFILES_libogg="
-  media/libogg/Makefile
-  media/libogg/src/Makefile
-  media/libogg/include/Makefile
-  media/libogg/include/ogg/Makefile
-"
-
-MAKEFILES_libfishsound="
-  media/libfishsound/Makefile
-  media/libfishsound/src/Makefile
-  media/libfishsound/src/libfishsound/Makefile
-  media/libfishsound/include/Makefile
-  media/libfishsound/include/fishsound/Makefile
-"
-
-MAKEFILES_liboggplay="
-  media/liboggplay/Makefile
-  media/liboggplay/src/Makefile
-  media/liboggplay/src/liboggplay/Makefile
-  media/liboggplay/include/Makefile
-  media/liboggplay/include/oggplay/Makefile
-"
-
-MAKEFILES_liboggplay_audio="
-  media/liboggplay_audio/Makefile
-"
-
 MAKEFILES_oji="
   modules/oji/Makefile
   modules/oji/public/Makefile
@@ -349,12 +294,16 @@ MAKEFILES_plugin="
   modules/plugin/Makefile
   modules/plugin/base/src/Makefile
   modules/plugin/base/public/Makefile
-  modules/plugin/default/unix/Makefile
-  modules/plugin/sdk/Makefile
-  modules/plugin/sdk/samples/Makefile
-  modules/plugin/sdk/samples/common/Makefile
-  modules/plugin/sdk/samples/basic/windows/Makefile
-  modules/plugin/sdk/samples/winless/windows/Makefile
+  modules/plugin/samples/simple/Makefile
+  modules/plugin/samples/SanePlugin/Makefile
+  modules/plugin/samples/default/unix/Makefile
+  modules/plugin/tools/sdk/Makefile
+  modules/plugin/tools/sdk/samples/Makefile
+  modules/plugin/tools/sdk/samples/common/Makefile
+  modules/plugin/tools/sdk/samples/basic/windows/Makefile
+  modules/plugin/tools/sdk/samples/scriptable/windows/Makefile
+  modules/plugin/tools/sdk/samples/simple/Makefile
+  modules/plugin/tools/sdk/samples/winless/windows/Makefile
 "
 
 MAKEFILES_netwerk="
@@ -404,6 +353,7 @@ MAKEFILES_netwerk="
   netwerk/streamconv/test/Makefile
   netwerk/test/Makefile
   netwerk/testserver/Makefile
+  netwerk/resources/Makefile
   netwerk/locales/Makefile
   netwerk/system/Makefile
   netwerk/system/win32/Makefile
@@ -461,6 +411,13 @@ MAKEFILES_chrome="
   chrome/Makefile
   chrome/public/Makefile
   chrome/src/Makefile
+  embedding/minimo/chromelite/Makefile
+  rdf/chrome/Makefile
+  rdf/chrome/public/Makefile
+  rdf/chrome/build/Makefile
+  rdf/chrome/src/Makefile
+  rdf/chrome/tools/Makefile
+  rdf/chrome/tools/chromereg/Makefile
 "
 
 MAKEFILES_view="
@@ -579,6 +536,9 @@ MAKEFILES_xpfe="
   xpfe/components/find/Makefile
   xpfe/components/find/public/Makefile
   xpfe/components/find/src/Makefile
+  xpfe/components/filepicker/Makefile
+  xpfe/components/filepicker/public/Makefile
+  xpfe/components/filepicker/src/Makefile
   xpfe/components/history/Makefile
   xpfe/components/history/src/Makefile
   xpfe/components/history/public/Makefile
@@ -586,15 +546,36 @@ MAKEFILES_xpfe="
   xpfe/components/related/Makefile
   xpfe/components/related/src/Makefile
   xpfe/components/related/public/Makefile
+  xpfe/components/startup/Makefile
+  xpfe/components/startup/public/Makefile
+  xpfe/components/startup/src/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
+  xpfe/components/winhooks/Makefile
   xpfe/components/windowds/Makefile
+  xpfe/components/resetPref/Makefile
   xpfe/components/build/Makefile
+  xpfe/components/xremote/Makefile
+  xpfe/components/xremote/public/Makefile
+  xpfe/components/xremote/src/Makefile
   xpfe/appshell/Makefile
   xpfe/appshell/src/Makefile
   xpfe/appshell/public/Makefile
   xpfe/bootstrap/appleevents/Makefile
+  xpfe/global/Makefile
+  xpfe/global/buildconfig.html
+  xpfe/global/resources/Makefile
+  xpfe/global/resources/content/Makefile
+  xpfe/global/resources/content/os2/Makefile
+  xpfe/global/resources/content/unix/Makefile
+  xpfe/global/resources/locale/Makefile
+  xpfe/global/resources/locale/en-US/Makefile
+  xpfe/global/resources/locale/en-US/mac/Makefile
+  xpfe/global/resources/locale/en-US/os2/Makefile
+  xpfe/global/resources/locale/en-US/unix/Makefile
+  xpfe/global/resources/locale/en-US/win/Makefile
+  xpfe/communicator/Makefile
   extensions/spellcheck/Makefile
   extensions/spellcheck/hunspell/Makefile
   extensions/spellcheck/idl/Makefile
@@ -610,6 +591,7 @@ MAKEFILES_embedding="
   embedding/browser/activex/src/control/Makefile
   embedding/browser/activex/src/control_kicker/Makefile
   embedding/browser/build/Makefile
+  embedding/browser/chrome/Makefile
   embedding/browser/webBrowser/Makefile
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
@@ -627,6 +609,7 @@ MAKEFILES_embedding="
   embedding/components/ui/progressDlg/Makefile
   embedding/config/Makefile
   embedding/tests/Makefile
+  embedding/tests/cocoaEmbed/Makefile
   embedding/tests/winEmbed/Makefile
 "
 
@@ -645,6 +628,7 @@ MAKEFILES_xulapp="
   toolkit/crashreporter/google-breakpad/src/common/windows/Makefile
   toolkit/crashreporter/google-breakpad/src/tools/mac/dump_syms/Makefile
   toolkit/content/Makefile
+  toolkit/content/buildconfig.html
   toolkit/obsolete/Makefile
   toolkit/components/alerts/Makefile
   toolkit/components/alerts/public/Makefile
@@ -663,12 +647,13 @@ MAKEFILES_xulapp="
   toolkit/components/downloads/Makefile
   toolkit/components/downloads/src/Makefile
   toolkit/components/filepicker/Makefile
-  toolkit/components/filepicker/public/Makefile
-  toolkit/components/filepicker/src/Makefile
   toolkit/system/gnome/Makefile
   toolkit/system/unixproxy/Makefile
   toolkit/system/osxproxy/Makefile
   toolkit/components/help/Makefile
+  toolkit/components/history/Makefile
+  toolkit/components/history/public/Makefile
+  toolkit/components/history/src/Makefile
   toolkit/components/passwordmgr/Makefile
   toolkit/components/passwordmgr/public/Makefile
   toolkit/components/passwordmgr/src/Makefile
@@ -813,6 +798,14 @@ add_makefiles "
 # Conditional makefiles
 #
 
+if [ "$MOZ_COMPOSER" ]; then
+  add_makefiles "
+    editor/composer/Makefile
+    editor/ui/Makefile
+    editor/ui/locales/Makefile
+  "
+fi
+
 if [ "$MOZ_ZIPWRITER" ]; then
   add_makefiles "
     modules/libjar/zipwriter/Makefile
@@ -840,6 +833,9 @@ if [ "$MOZ_TREE_CAIRO" ] ; then
     gfx/cairo/libpixman/src/Makefile
     gfx/cairo/cairo/src/Makefile
     gfx/cairo/cairo/src/cairo-features.h
+    gfx/cairo/glitz/src/Makefile
+    gfx/cairo/glitz/src/glx/Makefile
+    gfx/cairo/glitz/src/wgl/Makefile
   "
 fi
 
@@ -848,6 +844,17 @@ if [ ! "$MOZ_NATIVE_LCMS" ] ; then
     modules/lcms/Makefile
     modules/lcms/include/Makefile
     modules/lcms/src/Makefile
+  "
+fi
+
+if [ "$SUNCTL" ] ; then
+  add_makefiles "
+    intl/ctl/Makefile
+    intl/ctl/public/Makefile
+    intl/ctl/src/Makefile
+    intl/ctl/src/pangoLite/Makefile
+    intl/ctl/src/thaiShaper/Makefile
+    intl/ctl/src/hindiShaper/Makefile
   "
 fi
 
@@ -875,6 +882,7 @@ if test -n "$MOZ_PSM"; then
     security/manager/boot/public/Makefile
     security/manager/ssl/Makefile
     security/manager/ssl/src/Makefile
+    security/manager/ssl/resources/Makefile
     security/manager/ssl/public/Makefile
     security/manager/pki/Makefile
     security/manager/pki/resources/Makefile
@@ -882,6 +890,29 @@ if test -n "$MOZ_PSM"; then
     security/manager/pki/public/Makefile
     security/manager/locales/Makefile
   "
+fi
+
+if test -n "$MOZ_CALENDAR"; then
+  add_makefiles "
+    calendar/Makefile
+    calendar/resources/Makefile
+    calendar/libical/Makefile
+    calendar/libical/src/Makefile
+    calendar/libical/src/libical/Makefile
+    calendar/libical/src/libicalss/Makefile
+    calendar/base/Makefile
+    calendar/base/public/Makefile
+    calendar/base/src/Makefile
+    calendar/base/build/Makefile
+    calendar/providers/Makefile
+    calendar/providers/memory/Makefile
+    calendar/providers/storage/Makefile
+    calendar/providers/composite/Makefile
+  "
+fi
+
+if [ "$MOZ_MAIL_NEWS" ]; then
+  . "${srcdir}/mailnews/makefiles.sh"
 fi
 
 if test -n "$MOZ_IPCD"; then
@@ -1108,24 +1139,3 @@ else
     "
   fi
 fi # MOZ_COMPONENTLIB
-
-if [ "$MOZ_MEDIA" ]; then
- add_makefiles "
-   content/media/Makefile
-   content/media/video/Makefile
-   content/media/video/public/Makefile
-   content/media/video/src/Makefile
- "
-fi
-
-if [ "$MOZ_OGG" ]; then
- add_makefiles "
-   $MAKEFILES_libvorbis
-   $MAKEFILES_libtheora
-   $MAKEFILES_liboggz
-   $MAKEFILES_libogg
-   $MAKEFILES_libfishsound
-   $MAKEFILES_liboggplay
-   $MAKEFILES_liboggplay_audio
- "
-fi

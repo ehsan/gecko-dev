@@ -113,14 +113,9 @@ private:
     ~nsLocalFile() {}
 
 protected:
-// This stat cache holds the *last stat* - it does not invalidate.
-// Call "FillStatCache" whenever you want to stat our file.
-#ifdef HAVE_STAT64
-    struct stat64 mCachedStat;
-#else
     struct stat  mCachedStat;
-#endif
     nsCString    mPath;
+    PRPackedBool mHaveCachedStat;
 
     void LocateNativeLeafName(nsACString::const_iterator &,
                               nsACString::const_iterator &);
@@ -131,7 +126,10 @@ protected:
                                      const nsACString &newName,
                                      nsACString &_retval);
 
-    PRBool FillStatCache();
+    void InvalidateCache() {
+        mHaveCachedStat = PR_FALSE;
+    }
+    nsresult FillStatCache();
 
     nsresult CreateAndKeepOpen(PRUint32 type, PRIntn flags,
                                PRUint32 permissions, PRFileDesc **_retval);

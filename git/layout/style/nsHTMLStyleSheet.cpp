@@ -187,14 +187,13 @@ ProcessTableRulesAttribute(void*       aStyleStruct,
       borderData->SetBorderStyle(aSide, bStyle);
 
       nscolor borderColor;
-      PRBool foreground;
-      borderData->GetBorderColor(aSide, borderColor, foreground);
-      if (foreground || NS_GET_A(borderColor) == 0) {
+      PRBool transparent, foreground;
+      borderData->GetBorderColor(aSide, borderColor, transparent, foreground);
+      if (transparent || foreground) {
         // use the table's border color if it is set, otherwise use black
         nscolor tableBorderColor;
-        tableBorderData->GetBorderColor(aSide, tableBorderColor, foreground);
-        borderColor = (foreground || NS_GET_A(tableBorderColor) == 0)
-                        ? NS_RGB(0,0,0) : tableBorderColor;
+        tableBorderData->GetBorderColor(aSide, tableBorderColor, transparent, foreground);
+        borderColor = (transparent || foreground) ? NS_RGB(0,0,0) : tableBorderColor;
         borderData->SetBorderColor(aSide, borderColor);
       }
       // set the border width to be 1 pixel
@@ -563,14 +562,6 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
-                                        PRBool* aRulesChanged)
-{
-  *aRulesChanged = PR_FALSE;
-  return NS_OK;
-}
-
 
 NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(PseudoRuleProcessorData* aData)
@@ -615,6 +606,12 @@ nsHTMLStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
   return NS_OK;
+}
+
+NS_IMETHODIMP_(PRBool)
+nsHTMLStyleSheet::UseForMedium(nsPresContext* aPresContext) const
+{
+  return PR_TRUE; // works for all media
 }
 
 NS_IMETHODIMP_(PRBool)

@@ -75,8 +75,6 @@
 #include "nsIJSContextStack.h"
 #include "nsIScriptSecurityManager.h"
 #include "mozAutoDocUpdate.h"
-#include "nsCSSDeclaration.h"
-#include "nsRuleNode.h"
 
 // -------------------------------
 // Style Rule List for the DOM
@@ -165,327 +163,6 @@ CSSRuleListImpl::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
   return result;
 }
 
-template <class Numeric>
-PRInt32 DoCompare(Numeric a, Numeric b)
-{
-  if (a == b)
-    return 0;
-  if (a < b)
-    return -1;
-  return 1;
-}
-
-PRBool
-nsMediaExpression::Matches(nsPresContext *aPresContext,
-                           const nsCSSValue& aActualValue) const
-{
-  const nsCSSValue& actual = aActualValue;
-  const nsCSSValue& required = mValue;
-
-  // If we don't have the feature, the match fails.
-  if (actual.GetUnit() == eCSSUnit_Null) {
-    return PR_FALSE;
-  }
-
-  // If the expression had no value to match, the match succeeds,
-  // unless the value is an integer 0 or a zero length.
-  if (required.GetUnit() == eCSSUnit_Null) {
-    if (actual.GetUnit() == eCSSUnit_Integer)
-      return actual.GetIntValue() != 0;
-    if (actual.IsLengthUnit())
-      return actual.GetFloatValue() != 0;
-    return PR_TRUE;
-  }
-
-  NS_ASSERTION(mFeature->mRangeType == nsMediaFeature::eMinMaxAllowed ||
-               mRange == nsMediaExpression::eEqual, "yikes");
-  PRInt32 cmp; // -1 (actual < required)
-               //  0 (actual == required)
-               //  1 (actual > required)
-  switch (mFeature->mValueType) {
-    case nsMediaFeature::eLength:
-      {
-        NS_ASSERTION(actual.IsLengthUnit(), "bad actual value");
-        NS_ASSERTION(required.IsLengthUnit(), "bad required value");
-        nscoord actualCoord = nsRuleNode::CalcLengthWithInitialFont(
-                                aPresContext, actual);
-        nscoord requiredCoord = nsRuleNode::CalcLengthWithInitialFont(
-                                  aPresContext, required);
-        cmp = DoCompare(actualCoord, requiredCoord);
-      }
-      break;
-    case nsMediaFeature::eInteger:
-    case nsMediaFeature::eBoolInteger:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Integer,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Integer,
-                     "bad required value");
-        NS_ASSERTION(mFeature->mValueType != nsMediaFeature::eBoolInteger ||
-                     actual.GetIntValue() == 0 || actual.GetIntValue() == 1,
-                     "bad actual bool integer value");
-        NS_ASSERTION(mFeature->mValueType != nsMediaFeature::eBoolInteger ||
-                     required.GetIntValue() == 0 || required.GetIntValue() == 1,
-                     "bad required bool integer value");
-        cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
-      }
-      break;
-    case nsMediaFeature::eIntRatio:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Array &&
-                     actual.GetArrayValue()->Count() == 2 &&
-                     actual.GetArrayValue()->Item(0).GetUnit() ==
-                       eCSSUnit_Integer &&
-                     actual.GetArrayValue()->Item(1).GetUnit() ==
-                       eCSSUnit_Integer,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Array &&
-                     required.GetArrayValue()->Count() == 2 &&
-                     required.GetArrayValue()->Item(0).GetUnit() ==
-                       eCSSUnit_Integer &&
-                     required.GetArrayValue()->Item(1).GetUnit() ==
-                       eCSSUnit_Integer,
-                     "bad required value");
-        // Convert to PRInt64 so we can multiply without worry.  Note
-        // that while the spec requires that both halves of |required|
-        // be positive, the numerator or denominator of |actual| might
-        // be zero (e.g., when testing 'aspect-ratio' on a 0-width or
-        // 0-height iframe).
-        PRInt64 actualNum = actual.GetArrayValue()->Item(0).GetIntValue(),
-                actualDen = actual.GetArrayValue()->Item(1).GetIntValue(),
-                requiredNum = required.GetArrayValue()->Item(0).GetIntValue(),
-                requiredDen = required.GetArrayValue()->Item(1).GetIntValue();
-        cmp = DoCompare(actualNum * requiredDen, requiredNum * actualDen);
-      }
-      break;
-    case nsMediaFeature::eResolution:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Inch ||
-                     actual.GetUnit() == eCSSUnit_Centimeter,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Inch ||
-                     required.GetUnit() == eCSSUnit_Centimeter,
-                     "bad required value");
-        float actualDPI = actual.GetFloatValue();
-        if (actual.GetUnit() == eCSSUnit_Centimeter)
-          actualDPI = actualDPI * 2.54f;
-        float requiredDPI = required.GetFloatValue();
-        if (required.GetUnit() == eCSSUnit_Centimeter)
-          requiredDPI = requiredDPI * 2.54f;
-        cmp = DoCompare(actualDPI, requiredDPI);
-      }
-      break;
-    case nsMediaFeature::eEnumerated:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Enumerated,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Enumerated,
-                     "bad required value");
-        NS_ASSERTION(mFeature->mRangeType == nsMediaFeature::eMinMaxNotAllowed,
-                     "bad range"); // we asserted above about mRange
-        // We don't really need DoCompare, but it doesn't hurt (and
-        // maybe the compiler will condense this case with eInteger).
-        cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
-      }
-      break;
-  }
-  switch (mRange) {
-    case nsMediaExpression::eMin:
-      return cmp != -1;
-    case nsMediaExpression::eMax:
-      return cmp != 1;
-    case nsMediaExpression::eEqual:
-      return cmp == 0;
-  }
-  NS_NOTREACHED("unexpected mRange");
-  return PR_FALSE;
-}
-
-void
-nsMediaQueryResultCacheKey::AddExpression(const nsMediaExpression* aExpression,
-                                          PRBool aExpressionMatches)
-{
-  const nsMediaFeature *feature = aExpression->mFeature;
-  FeatureEntry *entry = nsnull;
-  for (PRUint32 i = 0; i < mFeatureCache.Length(); ++i) {
-    if (mFeatureCache[i].mFeature == feature) {
-      entry = &mFeatureCache[i];
-      break;
-    }
-  }
-  if (!entry) {
-    entry = mFeatureCache.AppendElement();
-    if (!entry) {
-      return; /* out of memory */
-    }
-    entry->mFeature = feature;
-  }
-
-  ExpressionEntry eentry = { *aExpression, aExpressionMatches };
-  entry->mExpressions.AppendElement(eentry);
-}
-
-PRBool
-nsMediaQueryResultCacheKey::Matches(nsPresContext* aPresContext) const
-{
-  if (aPresContext->Medium() != mMedium) {
-    return PR_FALSE;
-  }
-
-  for (PRUint32 i = 0; i < mFeatureCache.Length(); ++i) {
-    const FeatureEntry *entry = &mFeatureCache[i];
-    nsCSSValue actual;
-    nsresult rv = (entry->mFeature->mGetter)(aPresContext, actual);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
-
-    for (PRUint32 j = 0; j < entry->mExpressions.Length(); ++j) {
-      const ExpressionEntry &eentry = entry->mExpressions[j];
-      if (eentry.mExpression.Matches(aPresContext, actual) !=
-          eentry.mExpressionMatches) {
-        return PR_FALSE;
-      }
-    }
-  }
-
-  return PR_TRUE;
-}
-
-void
-nsMediaQuery::AppendToString(nsAString& aString) const
-{
-  nsAutoString buffer;
-
-  if (mHadUnknownExpression) {
-    aString.AppendLiteral("not all");
-    return;
-  }
-
-  NS_ASSERTION(!mNegated || !mHasOnly, "can't have not and only");
-  NS_ASSERTION(!mTypeOmitted || (!mNegated && !mHasOnly),
-               "can't have not or only when type is omitted");
-  if (!mTypeOmitted) {
-    if (mNegated) {
-      aString.AppendLiteral("not ");
-    } else if (mHasOnly) {
-      aString.AppendLiteral("only ");
-    }
-    mMediaType->ToString(buffer);
-    aString.Append(buffer);
-    buffer.Truncate();
-  }
-
-  for (PRUint32 i = 0, i_end = mExpressions.Length(); i < i_end; ++i) {
-    if (i > 0 || !mTypeOmitted)
-      aString.AppendLiteral(" and ");
-    aString.AppendLiteral("(");
-
-    const nsMediaExpression &expr = mExpressions[i];
-    if (expr.mRange == nsMediaExpression::eMin) {
-      aString.AppendLiteral("min-");
-    } else if (expr.mRange == nsMediaExpression::eMax) {
-      aString.AppendLiteral("max-");
-    }
-
-    const nsMediaFeature *feature = expr.mFeature;
-    (*feature->mName)->ToString(buffer);
-    aString.Append(buffer);
-    buffer.Truncate();
-
-    if (expr.mValue.GetUnit() != eCSSUnit_Null) {
-      aString.AppendLiteral(": ");
-      switch (feature->mValueType) {
-        case nsMediaFeature::eLength:
-          NS_ASSERTION(expr.mValue.IsLengthUnit(), "bad unit");
-          // Use 'width' as a property that takes length values
-          // written in the normal way.
-          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_width,
-                                                   expr.mValue, aString);
-          break;
-        case nsMediaFeature::eInteger:
-        case nsMediaFeature::eBoolInteger:
-          NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Integer,
-                       "bad unit");
-          // Use 'z-index' as a property that takes integer values
-          // written without anything extra.
-          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                   expr.mValue, aString);
-          break;
-        case nsMediaFeature::eIntRatio:
-          {
-            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Array,
-                         "bad unit");
-            nsCSSValue::Array *array = expr.mValue.GetArrayValue();
-            NS_ASSERTION(array->Count() == 2, "unexpected length");
-            NS_ASSERTION(array->Item(0).GetUnit() == eCSSUnit_Integer,
-                         "bad unit");
-            NS_ASSERTION(array->Item(1).GetUnit() == eCSSUnit_Integer,
-                         "bad unit");
-            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                     array->Item(0), aString);
-            aString.AppendLiteral("/");
-            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                     array->Item(1), aString);
-          }
-          break;
-        case nsMediaFeature::eResolution:
-          buffer.AppendFloat(expr.mValue.GetFloatValue());
-          aString.Append(buffer);
-          buffer.Truncate();
-          if (expr.mValue.GetUnit() == eCSSUnit_Inch) {
-            aString.AppendLiteral("dpi");
-          } else {
-            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Centimeter,
-                         "bad unit");
-            aString.AppendLiteral("dpcm");
-          }
-          break;
-        case nsMediaFeature::eEnumerated:
-          NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Enumerated,
-                       "bad unit");
-          AppendASCIItoUTF16(
-              nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
-                                         feature->mKeywordTable),
-              aString);
-          break;
-      }
-    }
-
-    aString.AppendLiteral(")");
-  }
-}
-
-nsMediaQuery*
-nsMediaQuery::Clone() const
-{
-  nsAutoPtr<nsMediaQuery> result(new nsMediaQuery(*this));
-  NS_ENSURE_TRUE(result &&
-                   result->mExpressions.Length() == mExpressions.Length(),
-                 nsnull);
-  return result.forget();
-}
-
-PRBool
-nsMediaQuery::Matches(nsPresContext* aPresContext,
-                      nsMediaQueryResultCacheKey& aKey) const
-{
-  if (mHadUnknownExpression)
-    return PR_FALSE;
-
-  PRBool match =
-    mMediaType == aPresContext->Medium() || mMediaType == nsGkAtoms::all;
-  for (PRUint32 i = 0, i_end = mExpressions.Length(); match && i < i_end; ++i) {
-    const nsMediaExpression &expr = mExpressions[i];
-    nsCSSValue actual;
-    nsresult rv = (expr.mFeature->mGetter)(aPresContext, actual);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
-
-    match = expr.Matches(aPresContext, actual);
-    aKey.AddExpression(&expr, match);
-  }
-
-  return match == !mNegated;
-}
-
 NS_INTERFACE_MAP_BEGIN(nsMediaList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMediaList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -497,8 +174,7 @@ NS_IMPL_RELEASE(nsMediaList)
 
 
 nsMediaList::nsMediaList()
-  : mIsEmpty(PR_TRUE)
-  , mStyleSheet(nsnull)
+  : mStyleSheet(nsnull)
 {
 }
 
@@ -511,16 +187,13 @@ nsMediaList::GetText(nsAString& aMediaText)
 {
   aMediaText.Truncate();
 
-  if (mArray.Length() == 0 && !mIsEmpty) {
-    aMediaText.AppendLiteral("not all");
-  }
+  for (PRInt32 i = 0, i_end = mArray.Count(); i < i_end; ++i) {
+    nsIAtom* medium = mArray[i];
+    NS_ENSURE_TRUE(medium, NS_ERROR_FAILURE);
 
-  for (PRInt32 i = 0, i_end = mArray.Length(); i < i_end; ++i) {
-    nsMediaQuery* query = mArray[i];
-    NS_ENSURE_TRUE(query, NS_ERROR_FAILURE);
-
-    query->AppendToString(aMediaText);
-
+    nsAutoString buffer;
+    medium->ToString(buffer);
+    aMediaText.Append(buffer);
     if (i + 1 < i_end) {
       aMediaText.AppendLiteral(", ");
     }
@@ -551,16 +224,18 @@ nsMediaList::SetText(const nsAString& aMediaText)
                                 this, htmlMode);
 }
 
+/*
+ * aMatch is true when we contain the desired medium or contain the
+ * "all" medium or contain no media at all, which is the same as
+ * containing "all"
+ */
 PRBool
-nsMediaList::Matches(nsPresContext* aPresContext,
-                     nsMediaQueryResultCacheKey& aKey)
+nsMediaList::Matches(nsPresContext* aPresContext)
 {
-  for (PRInt32 i = 0, i_end = mArray.Length(); i < i_end; ++i) {
-    if (mArray[i]->Matches(aPresContext, aKey)) {
-      return PR_TRUE;
-    }
-  }
-  return mIsEmpty;
+  if (-1 != mArray.IndexOf(aPresContext->Medium()) ||
+      -1 != mArray.IndexOf(nsGkAtoms::all))
+    return PR_TRUE;
+  return mArray.Count() == 0;
 }
 
 nsresult
@@ -576,13 +251,10 @@ nsresult
 nsMediaList::Clone(nsMediaList** aResult)
 {
   nsRefPtr<nsMediaList> result = new nsMediaList();
-  if (!result || !result->mArray.AppendElements(mArray.Length()))
+  if (!result)
     return NS_ERROR_OUT_OF_MEMORY;
-  for (PRInt32 i = 0, i_end = mArray.Length(); i < i_end; ++i) {
-    if (!(result->mArray[i] = mArray[i]->Clone())) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
+  if (!result->mArray.AppendObjects(mArray))
+    return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(*aResult = result);
   return NS_OK;
 }
@@ -638,7 +310,7 @@ nsMediaList::GetLength(PRUint32* aLength)
 {
   NS_ENSURE_ARG_POINTER(aLength);
 
-  *aLength = mArray.Length();
+  *aLength = mArray.Count();
   return NS_OK;
 }
 
@@ -647,11 +319,7 @@ nsMediaList::Item(PRUint32 aIndex, nsAString& aReturn)
 {
   PRInt32 index = aIndex;
   if (0 <= index && index < Count()) {
-    nsMediaQuery* query = mArray[index];
-    NS_ENSURE_TRUE(query, NS_ERROR_FAILURE);
-
-    aReturn.Truncate();
-    query->AppendToString(aReturn);
+    MediumAt(aIndex)->ToString(aReturn);
   } else {
     SetDOMStringToNull(aReturn);
   }
@@ -699,19 +367,18 @@ nsMediaList::Delete(const nsAString& aOldMedium)
   if (aOldMedium.IsEmpty())
     return NS_ERROR_DOM_NOT_FOUND_ERR;
 
-  for (PRInt32 i = 0, i_end = mArray.Length(); i < i_end; ++i) {
-    nsMediaQuery* query = mArray[i];
-    NS_ENSURE_TRUE(query, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIAtom> old = do_GetAtom(aOldMedium);
+  NS_ENSURE_TRUE(old, NS_ERROR_OUT_OF_MEMORY);
 
-    nsAutoString buf;
-    query->AppendToString(buf);
-    if (buf == aOldMedium) {
-      mArray.RemoveElementAt(i);
-      return NS_OK;
-    }
+  PRInt32 indx = mArray.IndexOf(old);
+
+  if (indx < 0) {
+    return NS_ERROR_DOM_NOT_FOUND_ERR;
   }
 
-  return NS_ERROR_DOM_NOT_FOUND_ERR;
+  mArray.RemoveObjectAt(indx);
+
+  return NS_OK;
 }
 
 nsresult
@@ -720,31 +387,98 @@ nsMediaList::Append(const nsAString& aNewMedium)
   if (aNewMedium.IsEmpty())
     return NS_ERROR_DOM_NOT_FOUND_ERR;
 
-  Delete(aNewMedium);
+  nsCOMPtr<nsIAtom> media = do_GetAtom(aNewMedium);
+  NS_ENSURE_TRUE(media, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_OK;
-  nsTArray<nsAutoPtr<nsMediaQuery> > buf;
-#ifdef DEBUG
-  PRBool ok = 
-#endif
-    mArray.SwapElements(buf);
-  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
-                   "is an auto array");
-  SetText(aNewMedium);
-  if (mArray.Length() == 1) {
-    nsMediaQuery *query = mArray[0].forget();
-    if (!buf.AppendElement(query)) {
-      delete query;
-      rv = NS_ERROR_OUT_OF_MEMORY;
+  PRInt32 indx = mArray.IndexOf(media);
+
+  if (indx >= 0) {
+    mArray.RemoveObjectAt(indx);
+  }
+
+  mArray.AppendObject(media);
+
+  return NS_OK;
+}
+
+// -------------------------------
+// Imports Collection for the DOM
+//
+class CSSImportsCollectionImpl : public nsIDOMStyleSheetList
+{
+public:
+  CSSImportsCollectionImpl(nsICSSStyleSheet *aStyleSheet);
+
+  NS_DECL_ISUPPORTS
+
+  // nsIDOMCSSStyleSheetList interface
+  NS_IMETHOD    GetLength(PRUint32* aLength); 
+  NS_IMETHOD    Item(PRUint32 aIndex, nsIDOMStyleSheet** aReturn); 
+
+  void DropReference() { mStyleSheet = nsnull; }
+
+protected:
+  virtual ~CSSImportsCollectionImpl();
+
+  nsICSSStyleSheet*  mStyleSheet;
+};
+
+CSSImportsCollectionImpl::CSSImportsCollectionImpl(nsICSSStyleSheet *aStyleSheet)
+{
+  // Not reference counted to avoid circular references.
+  // The style sheet will tell us when its going away.
+  mStyleSheet = aStyleSheet;
+}
+
+CSSImportsCollectionImpl::~CSSImportsCollectionImpl()
+{
+}
+
+
+// QueryInterface implementation for CSSImportsCollectionImpl
+NS_INTERFACE_MAP_BEGIN(CSSImportsCollectionImpl)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStyleSheetList)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(StyleSheetList)
+NS_INTERFACE_MAP_END
+
+
+NS_IMPL_ADDREF(CSSImportsCollectionImpl)
+NS_IMPL_RELEASE(CSSImportsCollectionImpl)
+
+
+NS_IMETHODIMP
+CSSImportsCollectionImpl::GetLength(PRUint32* aLength)
+{
+  if (nsnull != mStyleSheet) {
+    PRInt32 count;
+    mStyleSheet->StyleSheetCount(count);
+    *aLength = (PRUint32)count;
+  }
+  else {
+    *aLength = 0;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP    
+CSSImportsCollectionImpl::Item(PRUint32 aIndex, nsIDOMStyleSheet** aReturn)
+{
+  nsresult result = NS_OK;
+
+  *aReturn = nsnull;
+
+  if (mStyleSheet) {
+    nsCOMPtr<nsICSSStyleSheet> sheet;
+
+    result = mStyleSheet->GetStyleSheetAt(aIndex, *getter_AddRefs(sheet));
+    if (NS_SUCCEEDED(result)) {
+      result = CallQueryInterface(sheet, aReturn);
     }
   }
-#ifdef DEBUG
-  ok = 
-#endif
-    mArray.SwapElements(buf);
-  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
-                   "is an auto array");
-  return rv;
+  
+  return result;
 }
 
 // -------------------------------
@@ -752,7 +486,15 @@ nsMediaList::Append(const nsAString& aNewMedium)
 //
 
 
-nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet)
+static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
+{
+  if (aRule) {
+    aRule->SetStyleSheet((nsICSSStyleSheet*)aSheet);
+  }
+  return PR_TRUE;
+}
+
+nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsICSSStyleSheet* aParentSheet)
   : mSheets(),
     mComplete(PR_FALSE)
 #ifdef DEBUG
@@ -760,17 +502,9 @@ nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet)
 #endif
 {
   MOZ_COUNT_CTOR(nsCSSStyleSheetInner);
-  mSheets.AppendElement(aPrimarySheet);
+  mSheets.AppendElement(aParentSheet);
 
   mPrincipal = do_CreateInstance("@mozilla.org/nullprincipal;1");
-}
-
-static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
-{
-  if (aRule) {
-    aRule->SetStyleSheet((nsICSSStyleSheet*)aSheet);
-  }
-  return PR_TRUE;
 }
 
 static PRBool
@@ -785,56 +519,8 @@ CloneRuleInto(nsICSSRule* aRule, void* aArray)
   return PR_TRUE;
 }
 
-struct ChildSheetListBuilder {
-  nsRefPtr<nsCSSStyleSheet>* sheetSlot;
-  nsCSSStyleSheet* parent;
-
-  void SetParentLinks(nsCSSStyleSheet* aSheet) {
-    aSheet->mParent = parent;
-    aSheet->SetOwningDocument(parent->mDocument);
-  }
-};
-  
-static PRBool
-RebuildChildList(nsICSSRule* aRule, void* aBuilder)
-{
-  PRInt32 type;
-  aRule->GetType(type);
-  if (type == nsICSSRule::CHARSET_RULE) {
-    return PR_TRUE;
-  }
-
-  if (type == nsICSSRule::NAMESPACE_RULE || type == nsICSSRule::MEDIA_RULE ||
-      type == nsICSSRule::STYLE_RULE) {
-    return PR_FALSE;
-  }
-
-  ChildSheetListBuilder* builder =
-    static_cast<ChildSheetListBuilder*>(aBuilder);
-
-  // XXXbz We really need to decomtaminate all this stuff.  Is there a reason
-  // that I can't just QI to nsICSSImportRule and get an nsCSSStyleSheet
-  // directly from it?
-  nsCOMPtr<nsIDOMCSSImportRule> importRule(do_QueryInterface(aRule));
-  NS_ASSERTION(importRule, "GetType lied");
-
-  nsCOMPtr<nsIDOMCSSStyleSheet> childSheet;
-  importRule->GetStyleSheet(getter_AddRefs(childSheet));
-
-  // Have to do this QI to be safe, since XPConnect can fake
-  // nsIDOMCSSStyleSheets
-  nsCOMPtr<nsICSSStyleSheet> cssSheet = do_QueryInterface(childSheet);
-  if (!cssSheet) {
-    return PR_TRUE;
-  }
-
-  (*builder->sheetSlot) = static_cast<nsCSSStyleSheet*>(cssSheet.get());
-  builder->SetParentLinks(*builder->sheetSlot);
-  return PR_TRUE;
-}
-
 nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
-                                           nsCSSStyleSheet* aPrimarySheet)
+                                           nsICSSStyleSheet* aParentSheet)
   : mSheets(),
     mSheetURI(aCopy.mSheetURI),
     mOriginalSheetURI(aCopy.mOriginalSheetURI),
@@ -846,13 +532,9 @@ nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
 #endif
 {
   MOZ_COUNT_CTOR(nsCSSStyleSheetInner);
-  mSheets.AppendElement(aPrimarySheet);
+  mSheets.AppendElement(aParentSheet);
   aCopy.mOrderedRules.EnumerateForwards(CloneRuleInto, &mOrderedRules);
-  mOrderedRules.EnumerateForwards(SetStyleSheetReference, aPrimarySheet);
-
-  ChildSheetListBuilder builder = { &mFirstChild, aPrimarySheet };
-  mOrderedRules.EnumerateForwards(RebuildChildList, &builder);
-
+  mOrderedRules.EnumerateForwards(SetStyleSheetReference, aParentSheet);
   RebuildNameSpaces();
 }
 
@@ -863,33 +545,33 @@ nsCSSStyleSheetInner::~nsCSSStyleSheetInner()
 }
 
 nsCSSStyleSheetInner* 
-nsCSSStyleSheetInner::CloneFor(nsCSSStyleSheet* aPrimarySheet)
+nsCSSStyleSheetInner::CloneFor(nsICSSStyleSheet* aParentSheet)
 {
-  return new nsCSSStyleSheetInner(*this, aPrimarySheet);
+  return new nsCSSStyleSheetInner(*this, aParentSheet);
 }
 
 void
-nsCSSStyleSheetInner::AddSheet(nsICSSStyleSheet* aSheet)
+nsCSSStyleSheetInner::AddSheet(nsICSSStyleSheet* aParentSheet)
 {
-  mSheets.AppendElement(aSheet);
+  mSheets.AppendElement(aParentSheet);
 }
 
 void
-nsCSSStyleSheetInner::RemoveSheet(nsICSSStyleSheet* aSheet)
+nsCSSStyleSheetInner::RemoveSheet(nsICSSStyleSheet* aParentSheet)
 {
   if (1 == mSheets.Count()) {
-    NS_ASSERTION(aSheet == (nsICSSStyleSheet*)mSheets.ElementAt(0), "bad parent");
+    NS_ASSERTION(aParentSheet == (nsICSSStyleSheet*)mSheets.ElementAt(0), "bad parent");
     delete this;
     return;
   }
-  if (aSheet == (nsICSSStyleSheet*)mSheets.ElementAt(0)) {
+  if (aParentSheet == (nsICSSStyleSheet*)mSheets.ElementAt(0)) {
     mSheets.RemoveElementAt(0);
     NS_ASSERTION(mSheets.Count(), "no parents");
     mOrderedRules.EnumerateForwards(SetStyleSheetReference,
                                     (nsICSSStyleSheet*)mSheets.ElementAt(0));
   }
   else {
-    mSheets.RemoveElement(aSheet);
+    mSheets.RemoveElement(aParentSheet);
   }
 }
 
@@ -941,8 +623,11 @@ nsCSSStyleSheet::nsCSSStyleSheet()
     mRefCnt(0),
     mTitle(), 
     mMedia(nsnull),
+    mFirstChild(nsnull), 
+    mNext(nsnull),
     mParent(nsnull),
     mOwnerRule(nsnull),
+    mImportsCollection(nsnull),
     mRuleCollection(nsnull),
     mDocument(nsnull),
     mOwningNode(nsnull),
@@ -963,8 +648,11 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
     mRefCnt(0),
     mTitle(aCopy.mTitle), 
     mMedia(nsnull),
+    mFirstChild(nsnull), 
+    mNext(nsnull),
     mParent(aParentToUse),
     mOwnerRule(aOwnerRuleToUse),
+    mImportsCollection(nsnull), // re-created lazily
     mRuleCollection(nsnull), // re-created lazily
     mDocument(aDocumentToUse),
     mOwningNode(aOwningNodeToUse),
@@ -983,27 +671,50 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
   }
 
   if (aCopy.mMedia) {
-    // XXX This is wrong; we should be keeping @import rules and
-    // sheets in sync!
     aCopy.mMedia->Clone(getter_AddRefs(mMedia));
+  }
+
+  if (aCopy.mFirstChild) {
+    nsCSSStyleSheet*  otherChild = aCopy.mFirstChild;
+    nsCSSStyleSheet** ourSlot = &mFirstChild;
+    do {
+      // XXX This is wrong; we should be keeping @import rules and
+      // sheets in sync!
+      nsCSSStyleSheet* child = new nsCSSStyleSheet(*otherChild,
+                                                       this,
+                                                       nsnull,
+                                                       aDocumentToUse,
+                                                       nsnull);
+      if (child) {
+        NS_ADDREF(child);
+        (*ourSlot) = child;
+        ourSlot = &(child->mNext);
+      }
+      otherChild = otherChild->mNext;
+    }
+    while (otherChild && ourSlot);
   }
 }
 
 nsCSSStyleSheet::~nsCSSStyleSheet()
 {
-  for (nsCSSStyleSheet* child = mInner->mFirstChild;
-       child;
-       child = child->mNext) {
-    // XXXbz this is a little bogus; see the XXX comment where we
-    // declare mFirstChild.
-    if (child->mParent == this) {
+  if (mFirstChild) {
+    nsCSSStyleSheet* child = mFirstChild;
+    do {
       child->mParent = nsnull;
       child->mDocument = nsnull;
-    }
+      child = child->mNext;
+    } while (child);
+    NS_RELEASE(mFirstChild);
   }
+  NS_IF_RELEASE(mNext);
   if (nsnull != mRuleCollection) {
     mRuleCollection->DropReference();
     NS_RELEASE(mRuleCollection);
+  }
+  if (nsnull != mImportsCollection) {
+    mImportsCollection->DropReference();
+    NS_RELEASE(mImportsCollection);
   }
   if (mMedia) {
     mMedia->SetStyleSheet(nsnull);
@@ -1123,12 +834,11 @@ nsCSSStyleSheet::GetType(nsString& aType) const
   return NS_OK;
 }
 
-PRBool
-nsCSSStyleSheet::UseForPresentation(nsPresContext* aPresContext,
-                                    nsMediaQueryResultCacheKey& aKey) const
+NS_IMETHODIMP_(PRBool)
+nsCSSStyleSheet::UseForMedium(nsPresContext* aPresContext) const
 {
   if (mMedia) {
-    return mMedia->Matches(aPresContext, aKey);
+    return mMedia->Matches(aPresContext);
   }
   return PR_TRUE;
 }
@@ -1214,13 +924,8 @@ nsCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 { // not ref counted
   mDocument = aDocument;
   // Now set the same document on all our child sheets....
-  // XXXbz this is a little bogus; see the XXX comment where we
-  // declare mFirstChild.
-  for (nsCSSStyleSheet* child = mInner->mFirstChild;
-       child; child = child->mNext) {
-    if (child->mParent == this) {
-      child->SetOwningDocument(aDocument);
-    }
+  for (nsCSSStyleSheet* child = mFirstChild; child; child = child->mNext) {
+    child->SetOwningDocument(aDocument);
   }
   return NS_OK;
 }
@@ -1268,16 +973,17 @@ nsCSSStyleSheet::ContainsStyleSheet(nsIURI* aURL, PRBool& aContains, nsIStyleShe
   if (aContains) {
     // if we found it and the out-param is there, set it and addref
     if (aTheChild) {
-      rv = CallQueryInterface(this, aTheChild);
+      rv = QueryInterface( NS_GET_IID(nsIStyleSheet), (void **)aTheChild);
     }
   } else {
+    nsCSSStyleSheet*  child = mFirstChild;
     // now check the chil'ins out (recursively)
-    for (nsCSSStyleSheet* child = mInner->mFirstChild;
-         child;
-         child = child->mNext) {
+    while ((PR_FALSE == aContains) && (nsnull != child)) {
       child->ContainsStyleSheet(aURL, aContains, aTheChild);
       if (aContains) {
         break;
+      } else {
+        child = child->mNext;
       }
     }
   }
@@ -1293,13 +999,19 @@ nsCSSStyleSheet::AppendStyleSheet(nsICSSStyleSheet* aSheet)
   NS_PRECONDITION(nsnull != aSheet, "null arg");
 
   if (NS_SUCCEEDED(WillDirty())) {
+    NS_ADDREF(aSheet);
     nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
 
-    nsRefPtr<nsCSSStyleSheet>* tail = &mInner->mFirstChild;
-    while (*tail) {
-      tail = &(*tail)->mNext;
+    if (! mFirstChild) {
+      mFirstChild = sheet;
     }
-    *tail = sheet;
+    else {
+      nsCSSStyleSheet* child = mFirstChild;
+      while (child->mNext) {
+        child = child->mNext;
+      }
+      child->mNext = sheet;
+    }
   
     // This is not reference counted. Our parent tells us when
     // it's going away.
@@ -1318,15 +1030,21 @@ nsCSSStyleSheet::InsertStyleSheetAt(nsICSSStyleSheet* aSheet, PRInt32 aIndex)
   nsresult result = WillDirty();
 
   if (NS_SUCCEEDED(result)) {
+    NS_ADDREF(aSheet);
     nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
+    nsCSSStyleSheet* child = mFirstChild;
 
-    nsRefPtr<nsCSSStyleSheet>* tail = &mInner->mFirstChild;
-    while (*tail && aIndex) {
-      --aIndex;
-      tail = &(*tail)->mNext;
+    if (aIndex && child) {
+      while ((0 < --aIndex) && child->mNext) {
+        child = child->mNext;
+      }
+      sheet->mNext = child->mNext;
+      child->mNext = sheet;
     }
-    sheet->mNext = *tail;
-    *tail = sheet;
+    else {
+      sheet->mNext = mFirstChild;
+      mFirstChild = sheet; 
+    }
 
     // This is not reference counted. Our parent tells us when
     // it's going away.
@@ -1448,7 +1166,7 @@ nsCSSStyleSheet::StyleSheetCount(PRInt32& aCount) const
   // consider storing the children in an array.
   aCount = 0;
 
-  const nsCSSStyleSheet* child = mInner->mFirstChild;
+  const nsCSSStyleSheet* child = mFirstChild;
   while (child) {
     aCount++;
     child = child->mNext;
@@ -1465,13 +1183,16 @@ nsCSSStyleSheet::GetStyleSheetAt(PRInt32 aIndex, nsICSSStyleSheet*& aSheet) cons
   // underlying storage mechanism
   aSheet = nsnull;
 
-  nsCSSStyleSheet* child = mInner->mFirstChild;
-  while (child && (0 != aIndex)) {
-    --aIndex;
-    child = child->mNext;
-  }
+  if (mFirstChild) {
+    const nsCSSStyleSheet* child = mFirstChild;
+    while ((child) && (0 != aIndex)) {
+      --aIndex;
+      child = child->mNext;
+    }
     
-  NS_IF_ADDREF(aSheet = child);
+    aSheet = (nsICSSStyleSheet*)child;
+    NS_IF_ADDREF(aSheet);
+  }
 
   return NS_OK;
 }
@@ -1494,17 +1215,17 @@ nsCSSStyleSheet::EnsureUniqueInner()
 
 NS_IMETHODIMP
 nsCSSStyleSheet::Clone(nsICSSStyleSheet* aCloneParent,
-                       nsICSSImportRule* aCloneOwnerRule,
-                       nsIDocument* aCloneDocument,
-                       nsIDOMNode* aCloneOwningNode,
-                       nsICSSStyleSheet** aClone) const
+                         nsICSSImportRule* aCloneOwnerRule,
+                         nsIDocument* aCloneDocument,
+                         nsIDOMNode* aCloneOwningNode,
+                         nsICSSStyleSheet** aClone) const
 {
   NS_PRECONDITION(aClone, "Null out param!");
   nsCSSStyleSheet* clone = new nsCSSStyleSheet(*this,
-                                               aCloneParent,
-                                               aCloneOwnerRule,
-                                               aCloneDocument,
-                                               aCloneOwningNode);
+                                                   aCloneParent,
+                                                   aCloneOwnerRule,
+                                                   aCloneDocument,
+                                                   aCloneOwningNode);
   if (clone) {
     *aClone = static_cast<nsICSSStyleSheet*>(clone);
     NS_ADDREF(*aClone);
@@ -1554,10 +1275,10 @@ void nsCSSStyleSheet::List(FILE* out, PRInt32 aIndent) const
   }
   fputs("\n", out);
 
-  for (const nsCSSStyleSheet*  child = mInner->mFirstChild;
-       child;
-       child = child->mNext) {
+  const nsCSSStyleSheet*  child = mFirstChild;
+  while (nsnull != child) {
     child->List(out, aIndent + 1);
+    child = child->mNext;
   }
 
   fputs("Rules in source order:\n", out);

@@ -66,14 +66,9 @@ enum nsCSSUnit {
                                   //       only in temporary values
   eCSSUnit_String       = 10,     // (PRUnichar*) a string value
   eCSSUnit_Attr         = 11,     // (PRUnichar*) a attr(string) value
-  eCSSUnit_Local_Font   = 12,     // (PRUnichar*) a local font name
-  eCSSUnit_Font_Format  = 13,     // (PRUnichar*) a font format name
   eCSSUnit_Array        = 20,     // (nsCSSValue::Array*) a list of values
   eCSSUnit_Counter      = 21,     // (nsCSSValue::Array*) a counter(string,[string]) value
   eCSSUnit_Counters     = 22,     // (nsCSSValue::Array*) a counters(string,string[,string]) value
-  eCSSUnit_Function     = 23,     // (nsCSSValue::Array*) a function with parameters.  First elem of array is name,
-                                  //  the rest of the values are arguments.
-
   eCSSUnit_URL          = 30,     // (nsCSSValue::URL*) value
   eCSSUnit_Image        = 31,     // (nsCSSValue::Image*) value
   eCSSUnit_Integer      = 50,     // (int) simple value
@@ -166,20 +161,17 @@ public:
 
   nsCSSUnit GetUnit() const { return mUnit; }
   PRBool    IsLengthUnit() const
-    { return eCSSUnit_Inch <= mUnit && mUnit <= eCSSUnit_Pixel; }
+    { return PRBool((eCSSUnit_Inch <= mUnit) && (mUnit <= eCSSUnit_Pixel)); }
   PRBool    IsFixedLengthUnit() const  
-    { return eCSSUnit_Inch <= mUnit && mUnit <= eCSSUnit_Cicero; }
+    { return PRBool((eCSSUnit_Inch <= mUnit) && (mUnit <= eCSSUnit_Cicero)); }
   PRBool    IsRelativeLengthUnit() const  
-    { return eCSSUnit_EM <= mUnit && mUnit <= eCSSUnit_Pixel; }
+    { return PRBool((eCSSUnit_EM <= mUnit) && (mUnit <= eCSSUnit_Pixel)); }
   PRBool    IsAngularUnit() const  
-    { return eCSSUnit_Degree <= mUnit && mUnit <= eCSSUnit_Radian; }
+    { return PRBool((eCSSUnit_Degree <= mUnit) && (mUnit <= eCSSUnit_Radian)); }
   PRBool    IsFrequencyUnit() const  
-    { return eCSSUnit_Hertz <= mUnit && mUnit <= eCSSUnit_Kilohertz; }
+    { return PRBool((eCSSUnit_Hertz <= mUnit) && (mUnit <= eCSSUnit_Kilohertz)); }
   PRBool    IsTimeUnit() const  
-    { return eCSSUnit_Seconds <= mUnit && mUnit <= eCSSUnit_Milliseconds; }
-
-  PRBool    UnitHasStringValue() const
-    { return eCSSUnit_String <= mUnit && mUnit <= eCSSUnit_Font_Format; }
+    { return PRBool((eCSSUnit_Seconds <= mUnit) && (mUnit <= eCSSUnit_Milliseconds)); }
 
   PRInt32 GetIntValue() const
   {
@@ -203,7 +195,8 @@ public:
 
   nsAString& GetStringValue(nsAString& aBuffer) const
   {
-    NS_ASSERTION(UnitHasStringValue(), "not a string value");
+    NS_ASSERTION(eCSSUnit_String <= mUnit && mUnit <= eCSSUnit_Attr,
+                 "not a string value");
     aBuffer.Truncate();
     PRUint32 len = NS_strlen(GetBufferValue(mValue.mString));
     mValue.mString->ToString(len, aBuffer);
@@ -212,7 +205,8 @@ public:
 
   const PRUnichar* GetStringBufferValue() const
   {
-    NS_ASSERTION(UnitHasStringValue(), "not a string value");
+    NS_ASSERTION(eCSSUnit_String <= mUnit && mUnit <= eCSSUnit_Attr,
+                 "not a string value");
     return GetBufferValue(mValue.mString);
   }
 
@@ -224,7 +218,7 @@ public:
 
   Array* GetArrayValue() const
   {
-    NS_ASSERTION(eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function,
+    NS_ASSERTION(eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Counters,
                  "not an array value");
     return mValue.mArray;
   }
@@ -325,18 +319,10 @@ public:
     }
 
     void AddRef() {
-      if (mRefCnt == PR_UINT16_MAX) {
-        NS_WARNING("refcount overflow, leaking nsCSSValue::Array");
-        return;
-      }
       ++mRefCnt;
       NS_LOG_ADDREF(this, mRefCnt, "nsCSSValue::Array", sizeof(*this));
     }
     void Release() {
-      if (mRefCnt == PR_UINT16_MAX) {
-        NS_WARNING("refcount overflow, leaking nsCSSValue::Array");
-        return;
-      }
       --mRefCnt;
       NS_LOG_RELEASE(this, mRefCnt, "nsCSSValue::Array");
       if (mRefCnt == 0)

@@ -81,6 +81,11 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
+  void PrintPlugin(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect);
+  void PaintPlugin(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect);
+
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
@@ -176,17 +181,6 @@ protected:
   void NotifyContentObjectWrapper();
 
   nsPoint GetWindowOriginInPixels(PRBool aWindowless);
-
-  static void PaintPrintPlugin(nsIFrame* aFrame,
-                               nsIRenderingContext* aRenderingContext,
-                               const nsRect& aDirtyRect, nsPoint aPt);
-  static void PaintPlugin(nsIFrame* aFrame,
-                               nsIRenderingContext* aRenderingContext,
-                               const nsRect& aDirtyRect, nsPoint aPt);
-  void PrintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect);
-  void PaintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect, const nsPoint& aFramePt);
 
   /**
    * Makes sure that mInstanceOwner is valid and without a current plugin

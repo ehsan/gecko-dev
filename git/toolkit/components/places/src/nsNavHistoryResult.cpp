@@ -51,6 +51,8 @@
 #include "nsIComponentManager.h"
 #include "nsIDateTimeFormat.h"
 #include "nsIDOMElement.h"
+#include "nsILocale.h"
+#include "nsILocaleService.h"
 #include "nsILocalFile.h"
 #include "nsIDynamicContainer.h"
 #include "nsIServiceManager.h"
@@ -2880,18 +2882,15 @@ nsNavHistoryQueryResultNode::OnItemChanged(PRInt64 aItemId,
                                            PRBool aIsAnnotationProperty,
                                            const nsACString& aValue)
 {
-  // History observers should not get OnItemChanged
-  // but should get the corresponding history notifications instead.
-  // For bookmark queries, "all bookmark" observers should get OnItemChanged.
-  // For example, when a title of a bookmark changes, we want that to refresh.
+  // history observers should not get OnItemChanged
+  // but should get the corresponding history notifications instead
+  // for bookmark queries, "all bookmark" observers should get OnItemChanged
+  // for example, when a title of a bookmark change, we want that to refresh
   if (mLiveUpdate == QUERYUPDATE_COMPLEX_WITH_BOOKMARKS)
-    (void)Refresh();
+    return Refresh();
   else
     NS_WARNING("history observers should not get OnItemChanged, but should get the corresponding history notifications instead");
-
-  return nsNavHistoryResultNode::OnItemChanged(aItemId, aProperty,
-                                               aIsAnnotationProperty,
-                                               aValue);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -3497,9 +3496,6 @@ nsNavHistoryResultNode::OnItemChanged(PRInt64 aItemId,
                                       PRBool aIsAnnotationProperty,
                                       const nsACString& aValue)
 {
-  if (aItemId != mItemId)
-    return NS_OK;
-
   if (aProperty.EqualsLiteral("title")) {
     // XXX: what should we do if the new title is void?
     mTitle = aValue;

@@ -109,7 +109,6 @@
 #include "nsIChannelClassifier.h"
 
 class nsIScrollableView;
-class nsDocShell;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -134,7 +133,7 @@ public:
 
     PRInt32 GetDelay() { return mDelay ;}
 
-    nsRefPtr<nsDocShell>  mDocShell;
+    nsCOMPtr<nsIDocShell> mDocShell;
     nsCOMPtr<nsIURI>      mURI;
     PRInt32               mDelay;
     PRPackedBool          mRepeat;
@@ -235,13 +234,6 @@ public:
     // This method swaps out the content viewer and simulates loads for
     // subframes.  It then simulates the completion of the toplevel load.
     nsresult RestoreFromHistory();
-
-    // Perform a URI load from a refresh timer.  This is just like the
-    // ForceRefreshURI method on nsIRefreshURI, but makes sure to take
-    // the timer involved out of mRefreshURIList if it's there.
-    // aTimer must not be null.
-    nsresult ForceRefreshURIFromTimer(nsIURI * aURI, PRInt32 aDelay,
-                                      PRBool aMetaRefresh, nsITimer* aTimer);
 
 protected:
     // Object Management
@@ -562,7 +554,6 @@ protected:
     PRPackedBool               mObserveErrorPages;
     PRPackedBool               mAllowAuth;
     PRPackedBool               mAllowKeywordFixup;
-    PRPackedBool               mIsOffScreenBrowser;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation

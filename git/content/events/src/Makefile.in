@@ -75,8 +75,6 @@ CPPSRCS		= \
 		nsDOMKeyboardEvent.cpp \
 		nsDOMTextEvent.cpp \
 		nsDOMMouseEvent.cpp \
-		nsDOMMouseScrollEvent.cpp \
-		nsDOMDragEvent.cpp \
 		nsDOMMutationEvent.cpp \
 		nsDOMPopupBlockedEvent.cpp \
 		nsDOMBeforeUnloadEvent.cpp \
@@ -92,9 +90,6 @@ CPPSRCS		= \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
 		nsQueryContentEventHandler.cpp \
-		nsDOMProgressEvent.cpp \
-		nsDOMDataTransfer.cpp \
-		nsDOMNotifyPaintEvent.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

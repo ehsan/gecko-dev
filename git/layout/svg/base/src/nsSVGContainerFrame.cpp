@@ -88,7 +88,7 @@ nsSVGContainerFrame::Init(nsIContent* aContent,
                           nsIFrame* aParent,
                           nsIFrame* aPrevInFlow)
 {
-  AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
 }
@@ -98,12 +98,16 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
                                  nsIFrame* aParent,
                                  nsIFrame* aPrevInFlow)
 {
-  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
-  if (!(GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
-    AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
   nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
+}
+
+void
+nsSVGDisplayContainerFrame::Destroy()
+{
+  nsSVGUtils::StyleEffects(this);
+  nsSVGContainerFrame::Destroy();
 }
 
 NS_IMETHODIMP
@@ -166,7 +170,7 @@ nsSVGDisplayContainerFrame::RemoveFrame(nsIAtom* aListName,
 
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsSVGRenderState* aContext,
-                                     nsIntRect *aDirtyRect)
+                                     nsRect *aDirtyRect)
 {
   const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
   if (display->mOpacity == 0.0)
@@ -180,10 +184,12 @@ nsSVGDisplayContainerFrame::PaintSVG(nsSVGRenderState* aContext,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(nsIFrame*)
-nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
+NS_IMETHODIMP
+nsSVGDisplayContainerFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
 {
-  return nsSVGUtils::HitTestChildren(this, aPoint);
+  nsSVGUtils::HitTestChildren(this, x, y, hit);
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(nsRect)
@@ -277,21 +283,4 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
   return nsSVGUtils::GetBBox(&mFrames, _retval);
-}
-
-NS_IMETHODIMP
-nsSVGDisplayContainerFrame::SetMatrixPropagation(PRBool aPropagate)
-{
-  if (aPropagate) {
-    AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
-  } else {
-    RemoveStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
-  }
-  return NS_OK;
-}
-
-PRBool
-nsSVGDisplayContainerFrame::GetMatrixPropagation()
-{
-  return (GetStateBits() & NS_STATE_SVG_PROPAGATE_TRANSFORM) != 0;
 }

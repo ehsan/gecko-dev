@@ -457,7 +457,7 @@ public:
     {
         XPCNativeSet* key_value;
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
@@ -526,12 +526,12 @@ public:
         nsIID                         key;
         nsIXPCFunctionThisTranslator* value;
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);
 
-        static void
+        static void JS_DLL_CALLBACK
         Clear(JSDHashTable *table, JSDHashEntryHdr *entry);
 
         static struct JSDHashTableOps sOps;
@@ -589,10 +589,10 @@ public:
     {
         XPCNativeScriptableShared* key;
 
-        static JSDHashNumber
+        static JSDHashNumber JS_DLL_CALLBACK
         Hash(JSDHashTable *table, const void *key);
 
-        static JSBool
+        static JSBool JS_DLL_CALLBACK
         Match(JSDHashTable *table,
               const JSDHashEntryHdr *entry,
               const void *key);

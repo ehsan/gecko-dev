@@ -50,10 +50,10 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMLoadStatus.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIMutableArray.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsIApplicationCache.h"
+#include "nsIOfflineCacheSession.h"
+#include "nsIPrefetchService.h"
 #include "nsIRequestObserver.h"
 #include "nsIRunnable.h"
 #include "nsIStreamListener.h"
@@ -68,7 +68,6 @@
 class nsOfflineCacheUpdate;
 
 class nsICacheEntryDescriptor;
-class nsIUTF8StringEnumerator;
 
 class nsOfflineCacheUpdateItem : public nsIDOMLoadStatus
                                , public nsIStreamListener
@@ -88,17 +87,12 @@ public:
     nsOfflineCacheUpdateItem(nsOfflineCacheUpdate *aUpdate,
                              nsIURI *aURI,
                              nsIURI *aReferrerURI,
-                             nsIApplicationCache *aPreviousApplicationCache,
-                             const nsACString &aClientID,
-                             PRUint32 aType);
+                             const nsACString &aClientID);
     virtual ~nsOfflineCacheUpdateItem();
 
     nsCOMPtr<nsIURI>           mURI;
     nsCOMPtr<nsIURI>           mReferrerURI;
-    nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
     nsCString                  mClientID;
-    nsCString                  mCacheKey;
-    PRUint32                   mItemType;
 
     nsresult OpenChannel();
     nsresult Cancel();
@@ -122,17 +116,10 @@ public:
     nsOfflineManifestItem(nsOfflineCacheUpdate *aUpdate,
                           nsIURI *aURI,
                           nsIURI *aReferrerURI,
-                          nsIApplicationCache *aPreviousApplicationCache,
                           const nsACString &aClientID);
     virtual ~nsOfflineManifestItem();
 
     nsCOMArray<nsIURI> &GetExplicitURIs() { return mExplicitURIs; }
-    nsCOMArray<nsIURI> &GetFallbackURIs() { return mFallbackURIs; }
-
-    nsTArray<nsCString> &GetOpportunisticNamespaces()
-        { return mOpportunisticNamespaces; }
-    nsIArray *GetNamespaces()
-        { return mNamespaces.get(); }
 
     PRBool ParseSucceeded()
         { return (mParserState != PARSE_INIT && mParserState != PARSE_ERROR); }
@@ -145,10 +132,6 @@ private:
                                   PRUint32 aOffset,
                                   PRUint32 aCount,
                                   PRUint32 *aBytesConsumed);
-
-    nsresult AddNamespace(PRUint32 namespaceType,
-                          const nsCString &namespaceSpec,
-                          const nsCString &data);
 
     nsresult HandleManifestLine(const nsCString::const_iterator &aBegin,
                                 const nsCString::const_iterator &aEnd);
@@ -167,31 +150,17 @@ private:
      */
     nsresult CheckNewManifestContentHash(nsIRequest *aRequest);
 
-    void ReadStrictFileOriginPolicyPref();
-
     enum {
         PARSE_INIT,
         PARSE_CACHE_ENTRIES,
         PARSE_FALLBACK_ENTRIES,
-        PARSE_BYPASS_ENTRIES,
+        PARSE_NETWORK_ENTRIES,
         PARSE_ERROR
     } mParserState;
 
     nsCString mReadBuf;
-
     nsCOMArray<nsIURI> mExplicitURIs;
-    nsCOMArray<nsIURI> mFallbackURIs;
-
-    // All opportunistic caching namespaces.  Used to decide whether
-    // to include previously-opportunistically-cached entries.
-    nsTArray<nsCString> mOpportunisticNamespaces;
-
-    // Array of nsIApplicationCacheNamespace objects specified by the
-    // manifest.
-    nsCOMPtr<nsIMutableArray> mNamespaces;
-
     PRBool mNeedsUpdate;
-    PRBool mStrictFileOriginPolicy;
 
     // manifest hash data
     nsCOMPtr<nsICryptoHash> mManifestHash;
@@ -208,26 +177,19 @@ public:
     nsOfflineCacheUpdate();
     ~nsOfflineCacheUpdate();
 
-    static nsresult GetCacheKey(nsIURI *aURI, nsACString &aKey);
-
     nsresult Init();
 
     nsresult Begin();
     nsresult Cancel();
 
     void LoadCompleted();
-
 private:
     nsresult HandleManifest(PRBool *aDoUpdate);
-    nsresult AddURI(nsIURI *aURI, PRUint32 aItemType);
+    nsresult AddURI(nsIURI *aURI, const nsACString &aOwnerSpec);
 
     nsresult ProcessNextURI();
 
-    // Adds items from the previous cache witha type matching aType.
-    // If namespaceFilter is non-null, only items matching the
-    // specified namespaces will be added.
-    nsresult AddExistingItems(PRUint32 aType,
-                              nsTArray<nsCString>* namespaceFilter = nsnull);
+    nsresult AddOwnedItems(const nsACString &aOwnerURI);
 
     nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
     nsresult NotifyError();
@@ -252,12 +214,14 @@ private:
     PRBool mSucceeded;
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
+    nsCString mManifestOwnerSpec;
+    nsCString mDynamicOwnerSpec;
 
     nsCOMPtr<nsIURI> mDocumentURI;
 
     nsCString mClientID;
-    nsCOMPtr<nsIApplicationCache> mApplicationCache;
-    nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
+    nsCOMPtr<nsIOfflineCacheSession> mCacheSession;
+    nsCOMPtr<nsIOfflineCacheSession> mMainCacheSession;
 
     nsCOMPtr<nsIObserverService> mObserverService;
 

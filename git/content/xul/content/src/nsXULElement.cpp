@@ -167,6 +167,8 @@
 #define XUL_ELEMENT_CONTAINER_CONTENTS_BUILT \
   (nsXULElement::eContainerContentsBuilt << XUL_ELEMENT_LAZY_STATE_OFFSET)
 
+class nsIDocShell;
+
 // Global object maintenance
 nsICSSParser* nsXULPrototypeElement::sCSSParser = nsnull;
 nsIXBLService * nsXULElement::gXBLService = nsnull;
@@ -329,12 +331,14 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype,
         return NS_ERROR_NULL_POINTER;
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
+    nsresult rv;
     if (aDocument) {
         nsINodeInfo* ni = aPrototype->mNodeInfo;
-        nodeInfo = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
-                                                             ni->GetPrefixAtom(),
-                                                             ni->NamespaceID());
-        NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+        rv = aDocument->NodeInfoManager()->GetNodeInfo(ni->NameAtom(),
+                                                       ni->GetPrefixAtom(),
+                                                       ni->NamespaceID(),
+                                                       getter_AddRefs(nodeInfo));
+        NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
         nodeInfo = aPrototype->mNodeInfo;
@@ -943,16 +947,6 @@ nsXULElement::GetChildAt(PRUint32 aIndex) const
     return mAttrsAndChildren.GetSafeChildAt(aIndex);
 }
 
-nsIContent * const *
-nsXULElement::GetChildArray() const
-{
-    if (NS_FAILED(EnsureContentsGenerated())) {
-        return nsnull;
-    }
-
-    return mAttrsAndChildren.GetChildArray();
-}
-
 PRInt32
 nsXULElement::IndexOf(nsINode* aPossibleChild) const
 {
@@ -1082,7 +1076,6 @@ nsXULElement::UnregisterAccessKey(const nsAString& aOldValue)
             if (mNodeInfo->Equals(nsGkAtoms::label)) {
                 // For anonymous labels the unregistering must
                 // occur on the binding parent control.
-                // XXXldb: And what if the binding parent is null?
                 content = GetBindingParent();
             }
 
@@ -1152,14 +1145,9 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             aValue) {
             HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
         }
-        
-        nsIDocument *document = GetCurrentDoc();
-        if (aName == nsGkAtoms::title &&
-            document && document->GetRootContent() == this) {
-            document->NotifyPossibleTitleChange(PR_FALSE);
-        }
 
         // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
+        nsIDocument *document = GetCurrentDoc();
         if ((aName == nsGkAtoms::activetitlebarcolor ||
              aName == nsGkAtoms::inactivetitlebarcolor) &&
             document && document->GetRootContent() == this) {
@@ -1828,9 +1816,11 @@ nsXULElement::GetID() const
 }
 
 const nsAttrValue*
-nsXULElement::DoGetClasses() const
+nsXULElement::GetClasses() const
 {
-    NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
+    if (!HasFlag(NODE_MAY_HAVE_CLASS)) {
+        return nsnull;
+    }
     return FindLocalOrProtoAttr(kNameSpaceID_None, nsGkAtoms::_class);
 }
 
@@ -2116,36 +2106,6 @@ nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
     }
     return NS_OK;
 }
-
-nsresult
-nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
-{
-    nsCOMPtr<nsIContent> otherContent(do_QueryInterface(aOtherOwner));
-    NS_ENSURE_TRUE(otherContent, NS_ERROR_NOT_IMPLEMENTED);
-
-    nsXULElement* otherEl = FromContent(otherContent);
-    NS_ENSURE_TRUE(otherEl, NS_ERROR_NOT_IMPLEMENTED);
-
-    if (otherEl == this) {
-        // nothing to do
-        return NS_OK;
-    }
-
-    nsXULSlots *ourSlots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
-    nsXULSlots *otherSlots =
-        static_cast<nsXULSlots*>(otherEl->GetExistingDOMSlots());
-    if (!ourSlots || !ourSlots->mFrameLoader ||
-        !otherSlots || !otherSlots->mFrameLoader) {
-        // Can't handle swapping when there is nothing to swap... yet.
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    return
-        ourSlots->mFrameLoader->SwapWithOtherLoader(otherSlots->mFrameLoader,
-                                                    ourSlots->mFrameLoader,
-                                                    otherSlots->mFrameLoader);
-}
-
 
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)
@@ -2700,9 +2660,9 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
     for (i = 0; i < mNumAttributes; ++i) {
         nsCOMPtr<nsINodeInfo> ni;
         if (mAttributes[i].mName.IsAtom()) {
-            ni = mNodeInfo->NodeInfoManager()->
+            mNodeInfo->NodeInfoManager()->
                 GetNodeInfo(mAttributes[i].mName.Atom(), nsnull,
-                            kNameSpaceID_None);
+                            kNameSpaceID_None, getter_AddRefs(ni));
             NS_ASSERTION(ni, "the nodeinfo should already exist");
         }
         else {

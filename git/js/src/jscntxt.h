@@ -47,7 +47,7 @@
 #include "jsclist.h"
 #include "jslong.h"
 #include "jsatom.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsdhash.h"
 #include "jsgc.h"
 #include "jsinterp.h"
@@ -61,12 +61,10 @@ JS_BEGIN_EXTERN_C
 
 /*
  * js_GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
- * given pc in a script. We use the script->code pointer to tag the cache,
- * instead of the script address itself, so that source notes are always found
- * by offset from the bytecode with which they were generated.
+ * given pc in a script.
  */
 typedef struct JSGSNCache {
-    jsbytecode      *code;
+    JSScript        *script;
     JSDHashTable    table;
 #ifdef JS_GSNMETER
     uint32          hits;
@@ -81,7 +79,7 @@ typedef struct JSGSNCache {
 
 #define GSN_CACHE_CLEAR(cache)                                                \
     JS_BEGIN_MACRO                                                            \
-        (cache)->code = NULL;                                                 \
+        (cache)->script = NULL;                                               \
         if ((cache)->table.ops) {                                             \
             JS_DHashTableFinish(&(cache)->table);                             \
             (cache)->table.ops = NULL;                                        \
@@ -92,62 +90,6 @@ typedef struct JSGSNCache {
 /* These helper macros take a cx as parameter and operate on its GSN cache. */
 #define JS_CLEAR_GSN_CACHE(cx)      GSN_CACHE_CLEAR(&JS_GSN_CACHE(cx))
 #define JS_METER_GSN_CACHE(cx,cnt)  GSN_CACHE_METER(&JS_GSN_CACHE(cx), cnt)
-
-#ifdef __cplusplus
-namespace nanojit {
-    class Fragment;
-    class Fragmento;
-}
-class TraceRecorder;
-extern "C++" { template<typename T> class Queue; }
-typedef Queue<uint16> SlotList;
-class TypeMap;
-
-# define CLS(T)  T*
-#else
-# define CLS(T)  void*
-#endif
-
-/* 
- * Fragment quick cache entry.
- */
-typedef struct JSFragmentCacheEntry {
-    jsbytecode*             pc;
-    CLS(nanojit::Fragment)  fragment;
-} JSFragmentCacheEntry;
-
-#define JS_FRAGMENT_CACHE_LOG2  2
-#define JS_FRAGMENT_CACHE_SIZE  JS_BIT(JS_FRAGMENT_CACHE_LOG2)
-#define JS_FRAGMENT_CACHE_MASK  JS_BITMASK(JS_FRAGMENT_CACHE_LOG2)
-
-/*
- * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
- * JS_THREADSAFE) has an associated trace monitor that keeps track of loop
- * frequencies for all JavaScript code loaded into that runtime.
- */
-typedef struct JSTraceMonitor {
-    /*
-     * Flag set when running (or recording) JIT-compiled code. This prevents
-     * both interpreter activation and last-ditch garbage collection when up
-     * against our runtime's memory limits. This flag also suppresses calls to
-     * JS_ReportOutOfMemory when failing due to runtime limits.
-     */
-    JSBool                  onTrace;
-    CLS(nanojit::Fragmento) fragmento;
-    CLS(TraceRecorder)      recorder;
-    uint32                  globalShape;
-    CLS(SlotList)           globalSlots;
-    CLS(TypeMap)            globalTypeMap;
-    JSFragmentCacheEntry    fcache[JS_FRAGMENT_CACHE_SIZE];
-    jsval                   *recoveryDoublePool;
-    jsval                   *recoveryDoublePoolPtr;
-} JSTraceMonitor;
-
-#ifdef JS_TRACER
-# define JS_ON_TRACE(cx)   (JS_TRACE_MONITOR(cx).onTrace)
-#else
-# define JS_ON_TRACE(cx)   JS_FALSE
-#endif
 
 #ifdef JS_THREADSAFE
 
@@ -168,6 +110,9 @@ struct JSThread {
      */
     uint32              gcMallocBytes;
 
+    /* Thread-local gc free lists array. */
+    JSGCThing           *gcFreeLists[GC_NUM_FREELISTS];
+
     /*
      * Store the GSN cache in struct JSThread, not struct JSContext, both to
      * save space and to simplify cleanup in js_GC.  Any embedding (Firefox
@@ -179,20 +124,12 @@ struct JSThread {
 
     /* Property cache for faster call/get/set invocation. */
     JSPropertyCache     propertyCache;
-
-    /* Trace-tree JIT recorder/interpreter state. */
-    JSTraceMonitor      traceMonitor;
-
-    /* Lock-free list of scripts created by eval to garbage-collect. */
-    JSScript            *scriptsToGC;
 };
 
 #define JS_GSN_CACHE(cx)        ((cx)->thread->gsnCache)
 #define JS_PROPERTY_CACHE(cx)   ((cx)->thread->propertyCache)
-#define JS_TRACE_MONITOR(cx)    ((cx)->thread->traceMonitor)
-#define JS_SCRIPTS_TO_GC(cx)    ((cx)->thread->scriptsToGC)
 
-extern void
+extern void JS_DLL_CALLBACK
 js_ThreadDestructorCB(void *ptr);
 
 extern JSBool
@@ -225,6 +162,11 @@ typedef struct JSPropertyTreeEntry {
     JSScopeProperty     *child;
 } JSPropertyTreeEntry;
 
+/*
+ * Forward declaration for opaque JSRuntime.nativeIteratorStates.
+ */
+typedef struct JSNativeIteratorState JSNativeIteratorState;
+
 typedef struct JSSetSlotRequest JSSetSlotRequest;
 
 struct JSSetSlotRequest {
@@ -246,7 +188,6 @@ struct JSRuntime {
     JSGCChunkInfo       *gcChunkList;
     JSGCArenaList       gcArenaList[GC_NUM_FREELISTS];
     JSGCDoubleArenaList gcDoubleArenaList;
-    JSGCFreeListSet     *gcFreeListsPool;
     JSDHashTable        gcRootsHash;
     JSDHashTable        *gcLocksHash;
     jsrefcount          gcKeepAtoms;
@@ -254,7 +195,7 @@ struct JSRuntime {
     uint32              gcLastBytes;
     uint32              gcMaxBytes;
     uint32              gcMaxMallocBytes;
-    uint32              gcEmptyArenaPoolLifespan;
+    uint32              gcStackPoolLifespan;
     uint32              gcLevel;
     uint32              gcNumber;
     JSTracer            *gcMarkingTracer;
@@ -391,10 +332,16 @@ struct JSRuntime {
     uint32              debuggerMutations;
 
     /*
-     * Security callbacks set on the runtime are used by each context unless
-     * an override is set on the context.
+     * Check property accessibility for objects of arbitrary class.  Used at
+     * present to check f.caller accessibility for any function object f.
      */
-    JSSecurityCallbacks *securityCallbacks;
+    JSCheckAccessOp     checkObjectAccess;
+
+    /* Security principals serialization support. */
+    JSPrincipalsTranscoder principalsTranscoder;
+
+    /* Optional hook to find principals for an object in this runtime. */
+    JSObjectPrincipalsFinder findObjectPrincipals;
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -431,9 +378,9 @@ struct JSRuntime {
 
     /*
      * A helper list for the GC, so it can mark native iterator states. See
-     * js_TraceNativeEnumerators for details.
+     * js_TraceNativeIteratorStates for details.
      */
-    JSNativeEnumerator  *nativeEnumerators;
+    JSNativeIteratorState *nativeIteratorStates;
 
 #ifndef JS_THREADSAFE
     /*
@@ -447,16 +394,8 @@ struct JSRuntime {
     /* Property cache for faster call/get/set invocation. */
     JSPropertyCache     propertyCache;
 
-    /* Trace-tree JIT recorder/interpreter state. */
-    JSTraceMonitor      traceMonitor;
-
-    /* Lock-free list of scripts created by eval to garbage-collect. */
-    JSScript            *scriptsToGC;
-
 #define JS_GSN_CACHE(cx)        ((cx)->runtime->gsnCache)
 #define JS_PROPERTY_CACHE(cx)   ((cx)->runtime->propertyCache)
-#define JS_TRACE_MONITOR(cx)    ((cx)->runtime->traceMonitor)
-#define JS_SCRIPTS_TO_GC(cx)    ((cx)->runtime->scriptsToGC)
 #endif
 
     /*
@@ -477,36 +416,10 @@ struct JSRuntime {
     JSAtomState         atomState;
 
     /*
-     * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
-     * stored in scope->shape). This cache is nulled by the GC and protected
-     * by gcLock.
-     */
-#define NATIVE_ENUM_CACHE_LOG2  8
-#define NATIVE_ENUM_CACHE_MASK  JS_BITMASK(NATIVE_ENUM_CACHE_LOG2)
-#define NATIVE_ENUM_CACHE_SIZE  JS_BIT(NATIVE_ENUM_CACHE_LOG2)
-
-#define NATIVE_ENUM_CACHE_HASH(shape)                                         \
-    ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
-
-    jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
-
-    /*
      * Various metering fields are defined at the end of JSRuntime. In this
      * way there is no need to recompile all the code that refers to other
      * fields of JSRuntime after enabling the corresponding metering macro.
      */
-#ifdef JS_DUMP_ENUM_CACHE_STATS
-    int32               nativeEnumProbes;
-    int32               nativeEnumMisses;
-# define ENUM_CACHE_METER(name)     JS_ATOMIC_INCREMENT(&cx->runtime->name)
-#else
-# define ENUM_CACHE_METER(name)     ((void) 0)
-#endif
-
-#ifdef JS_DUMP_LOOP_STATS
-    /* Loop statistics, to trigger trace recording and compiling. */
-    JSBasicStats        loopStats;
-#endif
 
 #if defined DEBUG || defined JS_DUMP_PROPTREE_STATS
     /* Function invocation metering. */
@@ -706,6 +619,12 @@ JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
 #define JS_PUSH_TEMP_ROOT_STRING(cx,str,tvr)                                  \
     JS_PUSH_TEMP_ROOT_COMMON(cx, str, tvr, JSTVU_SINGLE, string)
 
+#define JS_PUSH_TEMP_ROOT_QNAME(cx,qn,tvr)                                    \
+    JS_PUSH_TEMP_ROOT_COMMON(cx, qn, tvr, JSTVU_SINGLE, qname)
+
+#define JS_PUSH_TEMP_ROOT_NAMESPACE(cx,ns,tvr)                                \
+    JS_PUSH_TEMP_ROOT_COMMON(cx, ns, tvr, JSTVU_SINGLE, nspace)
+
 #define JS_PUSH_TEMP_ROOT_XML(cx,xml_,tvr)                                    \
     JS_PUSH_TEMP_ROOT_COMMON(cx, xml_, tvr, JSTVU_SINGLE, xml)
 
@@ -723,9 +642,6 @@ JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
 
 #define JS_PUSH_TEMP_ROOT_SCRIPT(cx,script_,tvr)                              \
     JS_PUSH_TEMP_ROOT_COMMON(cx, script_, tvr, JSTVU_SCRIPT, script)
-
-
-#define JSRESOLVE_INFER         0xffff  /* infer bits from current bytecode */
 
 struct JSContext {
     /* JSRuntime contextList linkage. */
@@ -749,13 +665,6 @@ struct JSContext {
 #else
     uint16              padding;
 #endif
-
-    /*
-     * Classic Algol "display" static link optimization.
-     */
-#define JS_DISPLAY_SIZE 16
-
-    JSStackFrame        *display[JS_DISPLAY_SIZE];
 
     /* Runtime version control identifier. */
     uint16              version;
@@ -879,24 +788,11 @@ struct JSContext {
     /* Stack of thread-stack-allocated temporary GC roots. */
     JSTempValueRooter   *tempValueRooters;
 
-#ifdef JS_THREADSAFE
-    JSGCFreeListSet     *gcLocalFreeLists;
-#endif
-
     /* List of pre-allocated doubles. */
     JSGCDoubleCell      *doubleFreeList;
 
     /* Debug hooks associated with the current context. */
     JSDebugHooks        *debugHooks;
-
-    /* Security callbacks that override any defined on the runtime. */
-    JSSecurityCallbacks *securityCallbacks;
-
-    /* Pinned regexp pool used for regular expressions. */
-    JSArenaPool         regexpPool;
-
-    /* Stored here to avoid passing it around as a parameter. */
-    uintN               resolveFlags;
 };
 
 #ifdef JS_THREADSAFE
@@ -929,21 +825,6 @@ class JSAutoTempValueRooter
 
     JSContext *mContext;
     JSTempValueRooter mTvr;
-};
-
-class JSAutoResolveFlags
-{
-  public:
-    JSAutoResolveFlags(JSContext *cx, uintN flags)
-        : mContext(cx), mSaved(cx->resolveFlags) {
-        cx->resolveFlags = flags;
-    }
-
-    ~JSAutoResolveFlags() { mContext->resolveFlags = mSaved; }
-
-  private:
-    JSContext *mContext;
-    uintN mSaved;
 };
 #endif
 
@@ -994,7 +875,7 @@ class JSAutoResolveFlags
  * success.
  */
 extern JSBool
-js_InitThreadPrivateIndex(void (*ptr)(void *));
+js_InitThreadPrivateIndex(void (JS_DLL_CALLBACK *ptr)(void *));
 
 /*
  * Common subroutine of JS_SetVersion and js_SetVersion, to update per-context
@@ -1083,7 +964,7 @@ typedef enum JSErrNum {
     JSErr_Limit
 } JSErrNum;
 
-extern JS_FRIEND_API(const JSErrorFormatString *)
+extern const JSErrorFormatString *
 js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber);
 
 #ifdef va_start
@@ -1143,9 +1024,6 @@ js_ReportIsNotDefined(JSContext *cx, const char *name);
 extern JSBool
 js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
-
-extern void
-js_ReportMissingArg(JSContext *cx, jsval *vp, uintN arg);
 
 /*
  * Report error using js_DecompileValueGenerator(cx, spindex, v, fallback) as

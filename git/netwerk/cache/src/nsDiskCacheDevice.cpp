@@ -403,13 +403,13 @@ nsDiskCacheDevice::FindEntry(nsCString * key, PRBool *collision)
 
     *collision = PR_FALSE;
 
+#if DEBUG  /* because we shouldn't be called for active entries */
     binding = mBindery.FindActiveBinding(hashNumber);
-    if (binding && PL_strcmp(binding->mCacheEntry->Key()->get(), key->get()) != 0) {
-        *collision = PR_TRUE;
-        return nsnull;
-    }
+    NS_ASSERTION(!binding || strcmp(binding->mCacheEntry->Key()->get(), key->get()) != 0,
+                 "FindEntry() called for a bound entry.");
     binding = nsnull;
-
+#endif
+    
     // lookup hash number in cache map
     nsresult rv = mCacheMap.FindRecord(hashNumber, &record);
     if (NS_FAILED(rv))  return nsnull;  // XXX log error?
@@ -550,10 +550,7 @@ nsDiskCacheDevice::DoomEntry(nsCacheEntry * entry)
 
     if (!binding->mDoomed) {
         // so it can't be seen by FindEntry() ever again.
-#ifdef DEBUG
-        nsresult rv =
-#endif
-            mCacheMap.DeleteRecord(&binding->mRecord);
+        nsresult rv = mCacheMap.DeleteRecord(&binding->mRecord);
         NS_ASSERTION(NS_SUCCEEDED(rv),"DeleteRecord failed.");
         binding->mDoomed = PR_TRUE; // record in no longer in cache map
     }
@@ -688,10 +685,7 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
     // If the new size is larger than max. file size or larger than
     // half the cache capacity (which is in KiB's), doom the entry and abort
     if ((newSize > kMaxDataFileSize) || (newSizeK > mCacheCapacity/2)) {
-#ifdef DEBUG
-        nsresult rv =
-#endif
-            nsCacheService::DoomEntry(entry);
+        nsresult rv = nsCacheService::DoomEntry(entry);
         NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
         return NS_ERROR_ABORT;
     }

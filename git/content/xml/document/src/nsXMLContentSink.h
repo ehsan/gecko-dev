@@ -111,8 +111,6 @@ public:
                           nsString &aTitle, nsString &aMedia,
                           PRBool &aIsAlternate);
 
-  virtual nsresult ProcessMETATag(nsIContent* aContent);
-
 protected:
   // Start layout.  If aIgnorePendingSheets is true, this will happen even if
   // we still have stylesheet loads pending.  Otherwise, we'll wait until the
@@ -135,8 +133,7 @@ protected:
                                nsIContent *aContent);
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                 nsIContent** aResult, PRBool* aAppendContent,
-                                 PRBool aFromParser);
+                                 nsIContent** aResult, PRBool* aAppendContent);
 
   // aParent is allowed to be null here if this is the root content
   // being closed
@@ -195,6 +192,8 @@ protected:
 
   XMLContentSinkState mState;
 
+  nsString mTitleText; 
+  
   PRInt32 mTextLength;
   PRInt32 mTextSize;
   

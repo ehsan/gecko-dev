@@ -106,7 +106,7 @@
 #include "nsUnicharUtils.h"
 #include "nsWeakReference.h"
 #include "nsIPageSequenceFrame.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIXPointer.h"
 #include "nsIDOMXMLDocument.h"
@@ -163,9 +163,6 @@
 #include "nsStyleSheetService.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
-#ifdef MOZ_MEDIA
-#include "nsVideoFrame.h"
-#endif
 
 // Drag & Drop, Clipboard
 #include "nsWidgetsCID.h"
@@ -814,6 +811,8 @@ public:
   virtual NS_HIDDEN_(nsIFrame*) GetPrimaryFrameFor(nsIContent* aContent) const;
   virtual NS_HIDDEN_(nsIFrame*) GetRealPrimaryFrameFor(nsIContent* aContent) const;
 
+  NS_IMETHOD GetLayoutObjectFor(nsIContent*   aContent,
+                                nsISupports** aResult) const;
   NS_IMETHOD GetPlaceholderFrameFor(nsIFrame*  aFrame,
                                     nsIFrame** aPlaceholderFrame) const;
   NS_IMETHOD FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
@@ -913,17 +912,16 @@ public:
   NS_IMETHOD ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight);
   NS_IMETHOD_(PRBool) IsVisible();
   NS_IMETHOD_(void) WillPaint();
-  NS_IMETHOD_(void) InvalidateFrameForView(nsIView *view);
 
   // caret handling
-  NS_IMETHOD GetCaret(nsCaret **aOutCaret);
+  NS_IMETHOD GetCaret(nsICaret **aOutCaret);
   NS_IMETHOD_(void) MaybeInvalidateCaretPosition();
   NS_IMETHOD SetCaretEnabled(PRBool aInEnable);
   NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
   NS_IMETHOD GetCaretEnabled(PRBool *aOutEnabled);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD GetCaretVisible(PRBool *_retval);
-  virtual void SetCaret(nsCaret *aNewCaret);
+  virtual void SetCaret(nsICaret *aNewCaret);
   virtual void RestoreCaret();
 
   NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable);
@@ -1011,6 +1009,7 @@ protected:
   void CancelPostedReflowCallbacks();
 
   void UnsuppressAndInvalidate();
+
 
   void WillCauseReflow() {
     nsContentUtils::AddScriptBlocker();
@@ -1145,8 +1144,8 @@ protected:
 
   nsCOMPtr<nsIContent>          mLastAnchorScrolledTo;
   nscoord                       mLastAnchorScrollPositionY;
-  nsRefPtr<nsCaret>             mCaret;
-  nsRefPtr<nsCaret>             mOriginalCaret;
+  nsCOMPtr<nsICaret>            mCaret;
+  nsCOMPtr<nsICaret>            mOriginalCaret;
   PRInt16                       mSelectionFlags;
   FrameArena                    mFrameArena;
   StackArena                    mStackArena;
@@ -1238,7 +1237,7 @@ public:
   PresShell* mShell;
 };
 
-class NS_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
+class nsPresShellEventCB : public nsDispatchingCallback
 {
 public:
   nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
@@ -1804,35 +1803,49 @@ PresShell::SetPreferenceStyleRules(PRBool aForceReflow)
 
   NS_PRECONDITION(mPresContext, "presContext cannot be null");
   if (mPresContext) {
-    // first, make sure this is not a chrome shell 
-    if (nsContentUtils::IsInChromeDocshell(mDocument)) {
-      return NS_OK;
-    }
+    nsresult result = NS_OK;
 
-#ifdef DEBUG_attinasi
-    printf("Setting Preference Style Rules:\n");
-#endif
-    // if here, we need to create rules for the prefs
-    // - this includes the background-color, the text-color,
-    //   the link color, the visited link color and the link-underlining
+    // first, make sure this is not a chrome shell 
+    nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+    if (container) {
+      nsCOMPtr<nsIDocShellTreeItem> docShell(do_QueryInterface(container, &result));
+      if (NS_SUCCEEDED(result) && docShell){
+        PRInt32 docShellType;
+        result = docShell->GetItemType(&docShellType);
+        if (NS_SUCCEEDED(result)){
+          if (nsIDocShellTreeItem::typeChrome == docShellType){
+            return NS_OK;
+          }
+        }      
+      }
+    }
+    if (NS_SUCCEEDED(result)) {
     
-    // first clear any exising rules
-    nsresult result = ClearPreferenceStyleRules();
+#ifdef DEBUG_attinasi
+      printf("Setting Preference Style Rules:\n");
+#endif
+      // if here, we need to create rules for the prefs
+      // - this includes the background-color, the text-color,
+      //   the link color, the visited link color and the link-underlining
+    
+      // first clear any exising rules
+      result = ClearPreferenceStyleRules();
       
-    // now the link rules (must come after the color rules, or links will not be correct color!)
-    // XXX - when there is both an override and agent pref stylesheet this won't matter,
-    //       as the color rules will be overrides and the links rules will be agent
-    if (NS_SUCCEEDED(result)) {
-      result = SetPrefLinkRules();
-    }
-    if (NS_SUCCEEDED(result)) {
-      result = SetPrefFocusRules();
-    }
-    if (NS_SUCCEEDED(result)) {
-      result = SetPrefNoScriptRule();
-    }
-    if (NS_SUCCEEDED(result)) {
-      result = SetPrefNoFramesRule();
+      // now the link rules (must come after the color rules, or links will not be correct color!)
+      // XXX - when there is both an override and agent pref stylesheet this won't matter,
+      //       as the color rules will be overrides and the links rules will be agent
+      if (NS_SUCCEEDED(result)) {
+        result = SetPrefLinkRules();
+      }
+      if (NS_SUCCEEDED(result)) {
+        result = SetPrefFocusRules();
+      }
+      if (NS_SUCCEEDED(result)) {
+        result = SetPrefNoScriptRule();
+      }
+      if (NS_SUCCEEDED(result)) {
+        result = SetPrefNoFramesRule();
+      }
     }
 #ifdef DEBUG_attinasi
     printf( "Preference Style Rules set: error=%ld\n", (long)result);
@@ -2581,9 +2594,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
 void
 PresShell::CreateResizeEventTimer ()
 {
-  // if we already have a timer set, ignore this call
-  if (mResizeEventTimer)
-    return;
+  KillResizeEventTimer();
 
   if (mIsDocumentGone)
     return;
@@ -2598,7 +2609,7 @@ PresShell::CreateResizeEventTimer ()
 void
 PresShell::KillResizeEventTimer()
 {
-  if (mResizeEventTimer) {
+  if(mResizeEventTimer) {
     mResizeEventTimer->Cancel();
     mResizeEventTimer = nsnull;
   }
@@ -2618,9 +2629,6 @@ PresShell::FireResizeEvent()
 {
   if (mIsDocumentGone)
     return;
-
-  // allow a new timer to be set
-  mResizeEventTimer = nsnull;
 
   //Send resize event from here.
   nsEvent event(PR_TRUE, NS_RESIZE_EVENT);
@@ -2663,7 +2671,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
 }
 
 // note that this can return a null caret, but NS_OK
-NS_IMETHODIMP PresShell::GetCaret(nsCaret **outCaret)
+NS_IMETHODIMP PresShell::GetCaret(nsICaret **outCaret)
 {
   NS_ENSURE_ARG_POINTER(outCaret);
   
@@ -2679,7 +2687,7 @@ NS_IMETHODIMP_(void) PresShell::MaybeInvalidateCaretPosition()
   }
 }
 
-void PresShell::SetCaret(nsCaret *aNewCaret)
+void PresShell::SetCaret(nsICaret *aNewCaret)
 {
   mCaret = aNewCaret;
 }
@@ -2691,7 +2699,8 @@ void PresShell::RestoreCaret()
 
 NS_IMETHODIMP PresShell::SetCaretEnabled(PRBool aInEnable)
 {
-  PRBool oldEnabled = mCaretEnabled;
+  nsresult result = NS_OK;
+  PRBool   oldEnabled = mCaretEnabled;
 
   mCaretEnabled = aInEnable;
 
@@ -2702,10 +2711,10 @@ NS_IMETHODIMP PresShell::SetCaretEnabled(PRBool aInEnable)
     if (NS_SUCCEEDED(GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel))) && domSel)
       mCaret->SetCaretDOMSelection(domSel);
 */
-    mCaret->SetCaretVisible(mCaretEnabled);
+    result = mCaret->SetCaretVisible(mCaretEnabled);
   }
 
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP PresShell::SetCaretReadOnly(PRBool aReadOnly)
@@ -2926,9 +2935,36 @@ PresShell::CompleteMove(PRBool aForward, PRBool aExtend)
                               PR_TRUE);
   }
 
-  nsIFrame *frame = FrameConstructor()->GetRootElementFrame();
+  nsIScrollableView *scrollableView;
+  if (!mViewManager) 
+    return NS_ERROR_UNEXPECTED;
+  nsresult result = mViewManager->GetRootScrollableView(&scrollableView);
+  if (NS_FAILED(result)) 
+    return result;
+  if (!scrollableView) 
+    return NS_ERROR_UNEXPECTED;
+  nsIView *scrolledView;
+  result = scrollableView->GetScrolledView(scrolledView);
+  // get a frame
+  nsIFrame *frame = (nsIFrame*)scrolledView->GetClientData();
   if (!frame)
     return NS_ERROR_FAILURE;
+  //we need to get to the area frame.
+  nsIAtom* frameType;
+  do 
+  {
+    frameType = frame->GetType();
+    if (frameType != nsGkAtoms::areaFrame)
+    {
+      frame = frame->GetFirstChild(nsnull);
+      if (!frame)
+        break;
+    }
+  }while(frameType != nsGkAtoms::areaFrame);
+  
+  if (!frame)
+    return NS_ERROR_FAILURE; //could not find an area frame.
+
   nsPeekOffsetStruct pos = frame->GetExtremeCaretPosition(!aForward);
 
   mSelection->HandleClick(pos.mResultContent ,pos.mContentOffset ,pos.mContentOffset/*End*/ ,aExtend, PR_FALSE, aForward);
@@ -3379,13 +3415,6 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   InvalidateAccessibleSubtree(aContent);
 #endif
   return rv;
-}
-
-void
-nsIPresShell::PostRecreateFramesFor(nsIContent* aContent)
-{
-  FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
-          nsChangeHint_ReconstructFrame);
 }
 
 NS_IMETHODIMP
@@ -3976,12 +4005,12 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   // this check is preventing.
   // XXX: The dependency on the command dispatcher needs to be fixed.
   nsPIDOMWindow* ourWindow = currentDoc->GetWindow();
-  if (ourWindow) {
+  if(ourWindow) {
     nsIFocusController *focusController = ourWindow->GetRootFocusController();
     if (focusController) {
       PRBool dontScroll = PR_FALSE;
       focusController->GetSuppressFocusScroll(&dontScroll);
-      if (dontScroll) {
+      if(dontScroll) {
         return NS_OK;
       }
     }
@@ -4154,14 +4183,6 @@ PresShell::GetSelectionForCopy(nsISelection** outSelection)
   return rv;
 }
 
-/* Just hook this call into InvalidateOverflowRect */
-void
-PresShell::InvalidateFrameForView(nsIView *aView)
-{
-  nsIFrame* frame = nsLayoutUtils::GetFrameFor(aView);
-  if (frame)
-    frame->InvalidateOverflowRect();
-}
 
 NS_IMETHODIMP
 PresShell::DoGetContents(const nsACString& aMimeType, PRUint32 aFlags, PRBool aSelectionOnly, nsAString& aOutValue)
@@ -4302,7 +4323,7 @@ PresShell::UnsuppressAndInvalidate()
   if (rootFrame) {
     // let's assume that outline on a root frame is not supported
     nsRect rect(nsPoint(0, 0), rootFrame->GetSize());
-    rootFrame->Invalidate(rect);
+    rootFrame->Invalidate(rect, PR_FALSE);
   }
 
   // This makes sure to get the same thing that nsPresContext::EnsureVisible()
@@ -4524,8 +4545,6 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     // Process pending restyles, since any flush of the presshell wants
     // up-to-date style data.
     if (!mIsDestroying) {
-      mPresContext->FlushPendingMediaFeatureValuesChanged();
-
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4552,7 +4571,6 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     
     if (aType >= Flush_Layout && !mIsDestroying) {
       mFrameConstructor->RecalcQuotesAndCounters();
-      mViewManager->FlushDelayedResize();
       ProcessReflowCommands(aInterruptibleReflow);
     }
 
@@ -4607,7 +4625,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   nsIContent *container = aContent->GetParent();
   PRUint32 selectorFlags =
     container ? (container->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
-  if (selectorFlags != 0 && !aContent->IsRootOfAnonymousSubtree()) {
+  if (selectorFlags != 0 && !aContent->IsNativeAnonymous()) {
     PRUint32 index;
     if (aInfo->mAppend &&
         container->GetChildAt((index = container->GetChildCount() - 1)) ==
@@ -4752,10 +4770,8 @@ nsresult
 PresShell::ReconstructFrames(void)
 {
   nsAutoCauseReflowNotifier crNotifier(this);
-  mFrameConstructor->BeginUpdate();
   nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
   VERIFY_STYLE_TREE;
-  mFrameConstructor->EndUpdate();
 
   return rv;
 }
@@ -4874,6 +4890,24 @@ PresShell::GetRealPrimaryFrameFor(nsIContent* aContent) const
 }
 
 NS_IMETHODIMP
+PresShell::GetLayoutObjectFor(nsIContent*   aContent,
+                              nsISupports** aResult) const 
+{
+  nsresult result = NS_ERROR_NULL_POINTER;
+  if ((nsnull!=aResult) && (nsnull!=aContent))
+  {
+    *aResult = nsnull;
+    nsIFrame *primaryFrame = GetPrimaryFrameFor(aContent);
+    if (primaryFrame)
+    {
+      result = primaryFrame->QueryInterface(NS_GET_IID(nsISupports),
+                                            (void**)aResult);
+    }
+  }
+  return result;
+}
+
+NS_IMETHODIMP
 PresShell::GetPlaceholderFrameFor(nsIFrame*  aFrame,
                                   nsIFrame** aResult) const
 {
@@ -4941,7 +4975,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
       builder.SetIgnoreScrollFrame(rootScrollFrame);
     }
 
-    builder.SetBackgroundOnly(PR_FALSE);
     builder.EnterPresShell(rootFrame, rect);
 
     nsresult rv = rootFrame->BuildDisplayListForStackingContext(&builder, rect, &list);   
@@ -5272,11 +5305,6 @@ PresShell::RenderNode(nsIDOMNode* aNode,
   nsRect area;
   nsTArray<nsAutoPtr<RangePaintInfo> > rangeItems;
 
-  // nothing to draw if the node isn't in a document
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  if (!node->IsInDoc())
-    return nsnull;
-  
   nsCOMPtr<nsIDOMRange> range;
   NS_NewRange(getter_AddRefs(range));
   range->SelectNode(aNode);
@@ -5364,8 +5392,9 @@ PresShell::Paint(nsIView*             aView,
   mViewManager->GetDefaultBackgroundColor(&backgroundColor);
   for (nsIView *view = aView; view; view = view->GetParent()) {
     if (view->HasWidget()) {
-      // Both glass and transparent windows need the transparent bg color
-      if (eTransparencyOpaque != view->GetWidget()->GetTransparencyMode()) {
+      PRBool widgetIsTransparent;
+      view->GetWidget()->GetHasTransparentBackground(widgetIsTransparent);
+      if (widgetIsTransparent) {
         backgroundColor = NS_RGBA(0,0,0,0);
         break;
       }
@@ -5479,11 +5508,7 @@ nsresult PresShell::RetargetEventToParent(nsGUIEvent*     aEvent,
   // Now, find the parent pres shell and send the event there
   nsCOMPtr<nsIDocShellTreeItem> treeItem = 
     do_QueryInterface(container);
-  if (!treeItem) {
-    // Might have gone away, or never been around to start with
-    return NS_ERROR_FAILURE;
-  }
-  
+  NS_ASSERTION(treeItem, "No tree item for container.");
   nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
   treeItem->GetParent(getter_AddRefs(parentTreeItem));
   nsCOMPtr<nsIDocShell> parentDocShell = 
@@ -6028,20 +6053,6 @@ StopPluginInstance(PresShell *aShell, nsIContent *aContent)
   objectFrame->StopPlugin();
 }
 
-static void
-StopVideoInstance(PresShell *aShell, nsIContent *aContent)
-{
-#ifdef MOZ_MEDIA
-  nsVideoFrame *frame = static_cast<nsVideoFrame*>(aShell->FrameManager()->GetPrimaryFrameFor(aContent, -1));
-  if (frame) {
-    nsIAtom* frameType = frame->GetType();
-    if (frameType == nsGkAtoms::HTMLVideoFrame) {
-      frame->Freeze();
-    }
-  }
-#endif
-}
-
 PR_STATIC_CALLBACK(PRBool)
 FreezeSubDocument(nsIDocument *aDocument, void *aData)
 {
@@ -6060,7 +6071,6 @@ PresShell::Freeze()
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StopPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StopPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StopPluginInstance);
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StopVideoInstance);
   }
 
   if (mCaret)
@@ -6083,20 +6093,6 @@ StartPluginInstance(PresShell *aShell, nsIContent *aContent)
   objlc->EnsureInstantiation(getter_AddRefs(inst));
 }
 
-static void
-StartVideoInstance(PresShell *aShell, nsIContent *aContent)
-{
-#ifdef MOZ_MEDIA
-  nsVideoFrame *frame = static_cast<nsVideoFrame*>(aShell->FrameManager()->GetPrimaryFrameFor(aContent, -1));
-  if (frame) {
-    nsIAtom* frameType = frame->GetType();
-    if (frameType == nsGkAtoms::HTMLVideoFrame) {
-      frame->Thaw();
-    }
-  }
-#endif
-}
-
 PR_STATIC_CALLBACK(PRBool)
 ThawSubDocument(nsIDocument *aDocument, void *aData)
 {
@@ -6115,7 +6111,6 @@ PresShell::Thaw()
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("object"), StartPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("applet"), StartPluginInstance);
     EnumeratePlugins(domDoc, NS_LITERAL_STRING("embed"), StartPluginInstance);
-    EnumeratePlugins(domDoc, NS_LITERAL_STRING("video"), StartVideoInstance);
   }
 
   if (mDocument)

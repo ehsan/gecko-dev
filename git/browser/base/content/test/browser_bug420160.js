@@ -13,6 +13,7 @@ function test() {
   
   waitForExplicitFinish();
   
+  ok(getIdentityHandler(), "getIdentityHandler should return a result");
   ok(gIdentityHandler, "gIdentityHandler should exist");
   
   var newTab = gBrowser.addTab();

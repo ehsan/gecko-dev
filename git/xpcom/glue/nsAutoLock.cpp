@@ -46,7 +46,7 @@
 #include "nsDebug.h"
 #include "nsVoidArray.h"
 
-#ifdef NS_TRACE_MALLOC
+#ifdef NS_TRACE_MALLOC_XXX
 # include <stdio.h>
 # include "nsTraceMalloc.h"
 #endif
@@ -60,7 +60,7 @@ static const char* const LockTypeNames[] = {"Lock", "Monitor", "CMonitor"};
 struct nsNamedVector : public nsVoidArray {
     const char* mName;
 
-#ifdef NS_TRACE_MALLOC
+#ifdef NS_TRACE_MALLOC_XXX
     // Callsites for the inner locks/monitors stored in our base nsVoidArray.
     // This array parallels our base nsVoidArray.
     nsVoidArray mInnerSites;
@@ -257,7 +257,7 @@ static PRBool WellOrdered(const void* addr1, const void* addr2,
                     // Assert (addr1 < addr2) into the order table.
                     // XXX fix plvector/nsVector to use const void*
                     vec1->AppendElement((void*) addr2);
-#ifdef NS_TRACE_MALLOC
+#ifdef NS_TRACE_MALLOC_XXX
                     vec1->mInnerSites.AppendElement((void*) callsite2);
 #endif
                 }
@@ -285,8 +285,8 @@ nsAutoLockBase::nsAutoLockBase(void* addr, nsAutoLockType type)
             // lock at all, and NSPR will assert if you enter it.
         } else {
             const void* node =
-#ifdef NS_TRACE_MALLOC
-                (const void*)NS_TraceMallocGetStackTrace();
+#ifdef NS_TRACE_MALLOC_XXX
+                NS_GetStackTrace(1)
 #else
                 nsnull
 #endif
@@ -305,14 +305,12 @@ nsAutoLockBase::nsAutoLockBase(void* addr, nsAutoLockType type)
                             vec2->mName ? vec2->mName : "",
                             LockTypeNames[type],
                             addr);
-#ifdef NS_TRACE_MALLOC
+#ifdef NS_TRACE_MALLOC_XXX
                 fprintf(stderr, "\n*** %s\n\nCurrent stack:\n", buf);
-                NS_TraceMallocPrintStackTrace(stderr,
-                                              NS_TraceMallocGetStackTrace());
+                NS_DumpStackTrace(node, stderr);
 
                 fputs("\nPrevious stack:\n", stderr);
-                NS_TraceMallocPrintStackTrace(stderr,
-                    (nsTMStackTraceIDStruct *)vec2->mInnerSites.ElementAt(i2));
+                NS_DumpStackTrace(vec2->mInnerSites.ElementAt(i2), stderr);
                 putc('\n', stderr);
 #endif
                 NS_ERROR(buf);

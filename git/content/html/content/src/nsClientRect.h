@@ -42,9 +42,6 @@
 #include "nsIDOMClientRect.h"
 #include "nsIDOMClientRectList.h"
 #include "nsCOMArray.h"
-#include "nsRect.h"
-
-class nsPresContext;
 
 class nsClientRect : public nsIDOMClientRect
 {
@@ -58,8 +55,6 @@ public:
   virtual ~nsClientRect() {}
   
   NS_DECL_NSIDOMCLIENTRECT
-
-  void SetLayoutRect(const nsRect& aLayoutRect, nsPresContext* aPresContext);
 
 protected:
   float mX, mY, mWidth, mHeight;

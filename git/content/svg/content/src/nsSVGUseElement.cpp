@@ -70,13 +70,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGUseElement,
   nsAutoScriptBlocker scriptBlocker;
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginal)
   tmp->DestroyAnonymousContent();
-  tmp->UnlinkSource();
+  tmp->RemoveListener();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGUseElement,
                                                   nsSVGUseElementBase)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mClone)
-  tmp->mSource.Traverse(&cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
@@ -99,13 +99,13 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 // Implementation
 
 nsSVGUseElement::nsSVGUseElement(nsINodeInfo *aNodeInfo)
-  : nsSVGUseElementBase(aNodeInfo), mSource(this)
+  : nsSVGUseElementBase(aNodeInfo)
 {
 }
 
 nsSVGUseElement::~nsSVGUseElement()
 {
-  UnlinkSource();
+  RemoveListener();
 }
 
 //----------------------------------------------------------------------
@@ -232,7 +232,7 @@ nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
 void
 nsSVGUseElement::NodeWillBeDestroyed(const nsINode *aNode)
 {
-  UnlinkSource();
+  RemoveListener();
 }
 
 //----------------------------------------------------------------------
@@ -247,14 +247,16 @@ nsSVGUseElement::CreateAnonymousContent()
 
   mClone = nsnull;
 
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
-  }
+  nsCOMPtr<nsIContent> targetContent = LookupHref();
 
-  LookupHref();
-  nsIContent* targetContent = mSource.get();
   if (!targetContent)
     return nsnull;
+
+  PRBool needAddObserver = PR_FALSE;
+  if (mSourceContent != targetContent) {
+    RemoveListener();
+    needAddObserver = PR_TRUE;
+  }
 
   // make sure target is valid type for <use>
   // QIable nsSVGGraphicsElement would eliminate enumerating all elements
@@ -321,7 +323,8 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::svg, nsnull, kNameSpaceID_SVG);
+    nodeInfoManager->GetNodeInfo(nsGkAtoms::svg, nsnull, kNameSpaceID_SVG,
+                                 getter_AddRefs(nodeInfo));
     if (!nodeInfo)
       return nsnull;
 
@@ -374,7 +377,10 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  targetContent->AddMutationObserver(this);
+  if (needAddObserver) {
+    targetContent->AddMutationObserver(this);
+  }
+  mSourceContent = targetContent;
   mClone = newcontent;
   return mClone;
 }
@@ -409,18 +415,18 @@ nsSVGUseElement::SyncWidthHeight(PRUint8 aAttrEnum)
   }
 }
 
-void
+nsIContent *
 nsSVGUseElement::LookupHref()
 {
   const nsString &href = mStringAttributes[HREF].GetAnimValue();
   if (href.IsEmpty())
-    return;
+    return nsnull;
 
   nsCOMPtr<nsIURI> targetURI, baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                             GetCurrentDoc(), baseURI);
 
-  mSource.Reset(this, targetURI);
+  return nsContentUtils::GetReferencedElement(targetURI, this);
 }
 
 void
@@ -430,16 +436,16 @@ nsSVGUseElement::TriggerReclone()
   if (!doc) return;
   nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell) return;
-  presShell->PostRecreateFramesFor(this);
+  presShell->RecreateFramesFor(this);
 }
 
 void
-nsSVGUseElement::UnlinkSource()
+nsSVGUseElement::RemoveListener()
 {
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
+  if (mSourceContent) {
+    mSourceContent->RemoveMutationObserver(this);
+    mSourceContent = nsnull;
   }
-  mSource.Unlink();
 }
 
 //----------------------------------------------------------------------

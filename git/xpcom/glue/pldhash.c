@@ -68,27 +68,19 @@
  */
 #ifdef DEBUG
 
-#define JSDHASH_SINGLE_LINE_ASSERTION PR_ASSERT
 #define RECURSION_LEVEL(table_) (*(PRUint32*)(table_->entryStore + \
                                             PL_DHASH_TABLE_SIZE(table_) * \
                                             table_->entrySize))
 
 #define ENTRY_STORE_EXTRA                   sizeof(PRUint32)
-#define INCREMENT_RECURSION_LEVEL(table_)   \
-    PR_BEGIN_MACRO                          \
-      ++RECURSION_LEVEL(table_);            \
-    PR_END_MACRO
-#define DECREMENT_RECURSION_LEVEL(table_)                         \
-    PR_BEGIN_MACRO                                                \
-      NS_ASSERTION(RECURSION_LEVEL(table_) > 0, "RECURSION_LEVEL(table_) > 0"); \
-      --RECURSION_LEVEL(table_);                                \
-    PR_END_MACRO
+#define INCREMENT_RECURSION_LEVEL(table_)   (++RECURSION_LEVEL(table_))
+#define DECREMENT_RECURSION_LEVEL(table_)   (--RECURSION_LEVEL(table_))
 
 #else
 
 #define ENTRY_STORE_EXTRA 0
-#define INCREMENT_RECURSION_LEVEL(table_)   PR_BEGIN_MACRO PR_END_MACRO
-#define DECREMENT_RECURSION_LEVEL(table_)   PR_BEGIN_MACRO PR_END_MACRO
+#define INCREMENT_RECURSION_LEVEL(table_)   ((void)1)
+#define DECREMENT_RECURSION_LEVEL(table_)   ((void)0)
 
 #endif /* defined(DEBUG) */
 
@@ -111,7 +103,7 @@ PL_DHashStringKey(PLDHashTable *table, const void *key)
     const unsigned char *s;
 
     h = 0;
-    for (s = (const unsigned char *) key; *s != '\0'; s++)
+    for (s = key; *s != '\0'; s++)
         h = PR_ROTATE_LEFT32(h, 4) ^ *s;
     return h;
 }
@@ -141,8 +133,7 @@ PL_DHashMatchStringKey(PLDHashTable *table,
 
     /* XXX tolerate null keys on account of sloppy Mozilla callers. */
     return stub->key == key ||
-           (stub->key && key &&
-            strcmp((const char *) stub->key, (const char *) key) == 0);
+           (stub->key && key && strcmp(stub->key, key) == 0);
 }
 
 void
@@ -225,7 +216,7 @@ PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
         printf_stderr(
                 "pldhash: for the table at address %p, the given entrySize"
                 " of %lu %s favors chaining over double hashing.\n",
-                (void *) table,
+                (void *)table,
                 (unsigned long) entrySize,
                 (entrySize > 16 * sizeof(void*)) ? "definitely" : "probably");
     }
@@ -249,8 +240,7 @@ PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
     table->generation = 0;
     nbytes = capacity * entrySize;
 
-    table->entryStore = (char *) ops->allocTable(table,
-                                                 nbytes + ENTRY_STORE_EXTRA);
+    table->entryStore = ops->allocTable(table, nbytes + ENTRY_STORE_EXTRA);
     if (!table->entryStore)
         return PR_FALSE;
     memset(table->entryStore, 0, nbytes);
@@ -544,8 +534,7 @@ ChangeTable(PLDHashTable *table, int deltaLog2)
     entrySize = table->entrySize;
     nbytes = newCapacity * entrySize;
 
-    newEntryStore = (char *) table->ops->allocTable(table,
-                                                    nbytes + ENTRY_STORE_EXTRA);
+    newEntryStore = table->ops->allocTable(table, nbytes + ENTRY_STORE_EXTRA);
     if (!newEntryStore)
         return PR_FALSE;
 

@@ -98,6 +98,8 @@ nsThebesRenderingContext::Init(nsIDeviceContext* aContext, gfxASurface *aThebesS
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::Init ctx %p thebesSurface %p\n", this, aContext, aThebesSurface));
 
+    nsThebesDeviceContext *thebesDC = static_cast<nsThebesDeviceContext*>(aContext);
+
     mDeviceContext = aContext;
     mWidget = nsnull;
 
@@ -123,6 +125,8 @@ NS_IMETHODIMP
 nsThebesRenderingContext::Init(nsIDeviceContext* aContext, nsIWidget *aWidget)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::Init ctx %p widget %p\n", this, aContext, aWidget));
+
+    nsThebesDeviceContext *thebesDC = static_cast<nsThebesDeviceContext*>(aContext);
 
     mDeviceContext = aContext;
     mWidget = aWidget;
@@ -187,6 +191,19 @@ nsThebesRenderingContext::SetTranslation(nscoord aX, nscoord aY)
     newMat.x0 = aX;
     newMat.y0 = aY;
     mThebes->SetMatrix(newMat);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsThebesRenderingContext::GetHints(PRUint32& aResult)
+{
+    aResult = 0;
+
+    aResult |= (NS_RENDERING_HINT_BIDI_REORDERING |
+                NS_RENDERING_HINT_ARABIC_SHAPING |
+                NS_RENDERING_HINT_REORDER_SPACED_TEXT |
+                NS_RENDERING_HINT_NEW_TEXT_RUNS);
+
     return NS_OK;
 }
 
@@ -688,7 +705,8 @@ nsThebesRenderingContext::FillPolygon(const nsPoint twPoints[], PRInt32 aNumPoin
 void*
 nsThebesRenderingContext::GetNativeGraphicData(GraphicDataType aType)
 {
-    if (aType == NATIVE_GDK_DRAWABLE)
+    if (aType == NATIVE_GDK_DRAWABLE &&
+        !gfxPlatform::GetPlatform()->UseGlitz())
     {
         if (mWidget)
             return mWidget->GetNativeData(NS_NATIVE_WIDGET);
@@ -956,7 +974,7 @@ nsThebesRenderingContext::GetTextDimensionsInternal(const PRUnichar* aString,
   return GetWidth(aString, aLength, aDimensions.width, aFontID);
 }
 
-#if defined(_WIN32) || defined(XP_OS2) || defined(MOZ_X11) || defined(XP_BEOS) || defined(XP_MACOSX) || defined (MOZ_DFB)
+#if defined(_WIN32) || defined(XP_OS2) || defined(MOZ_X11) || defined(XP_BEOS) || defined(XP_MACOSX)
 NS_IMETHODIMP
 nsThebesRenderingContext::GetTextDimensionsInternal(const char*       aString,
                                                     PRInt32           aLength,
@@ -1030,6 +1048,14 @@ nsThebesRenderingContext::DrawStringInternal(const PRUnichar *aString, PRUint32 
 
     return mFontMetrics->DrawString(aString, aLength, aX, aY, aFontID,
                                     aSpacing, this);
+}
+
+NS_IMETHODIMP
+nsThebesRenderingContext::GetClusterInfo(const PRUnichar *aText,
+                                         PRUint32 aLength,
+                                         PRUint8 *aClusterStarts)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 PRInt32

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # vim:set ts=2 sw=2 sts=2 et:
 #
@@ -110,12 +110,13 @@ done
 
 for t in $testdir/test_*.js
 do
+    echo -n "$t: "
     NATIVE_TOPSRCDIR="$native_topsrcdir" TOPSRCDIR="$topsrcdir" $xpcshell -s $headfiles -f $t $tailfiles 2> $t.log 1>&2
     rv="$?"
     if [ ! "$rv" = "0"  -o \
          `grep -c '\*\*\* PASS' $t.log` = 0 ]
     then
-        echo "TEST-UNEXPECTED-FAIL | $t | test failed, see log"
+        echo "FAIL"
         echo "$t.log:"
         echo ">>>>>>>"
         cat $t.log
@@ -123,7 +124,7 @@ do
         echo "<<<<<<<"
         exit_status=1
     else
-        echo "TEST-PASS | $t | all tests passed"
+        echo "PASS"
     fi
 done
 

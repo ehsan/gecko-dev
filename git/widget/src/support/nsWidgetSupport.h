@@ -47,6 +47,7 @@ struct nsRect;
 class nsIAppShell;
 class nsIEventListener;
 class nsILookAndFeel;
+class nsIMouseListener;
 class nsIToolkit;
 class nsIWidget;
 class nsITooltipWidget;

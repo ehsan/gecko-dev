@@ -59,8 +59,32 @@
 
 #define ReadWord(W) (W)
 
-/* Implement NativeCompareAndSwap. */
+#ifndef NSPR_LOCK
 
+#include <memory.h>
+
+static PRLock **global_locks;
+static uint32 global_lock_count = 1;
+static uint32 global_locks_log2 = 0;
+static uint32 global_locks_mask = 0;
+
+#define GLOBAL_LOCK_INDEX(id)   (((uint32)(id) >> 2) & global_locks_mask)
+
+static void
+js_LockGlobal(void *id)
+{
+    uint32 i = GLOBAL_LOCK_INDEX(id);
+    PR_Lock(global_locks[i]);
+}
+
+static void
+js_UnlockGlobal(void *id)
+{
+    uint32 i = GLOBAL_LOCK_INDEX(id);
+    PR_Unlock(global_locks[i]);
+}
+
+/* Exclude Alpha NT. */
 #if defined(_WIN32) && defined(_M_IX86)
 #pragma warning( disable : 4035 )
 JS_BEGIN_EXTERN_C
@@ -69,8 +93,8 @@ _InterlockedCompareExchange(long *volatile dest, long exchange, long comp);
 JS_END_EXTERN_C
 #pragma intrinsic(_InterlockedCompareExchange)
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
 {
     _InterlockedCompareExchange(w, nv, ov);
     __asm {
@@ -78,18 +102,18 @@ NativeCompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
     }
 }
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    return (NativeCompareAndSwapHelper(w, ov, nv) & 1);
+    return (js_CompareAndSwapHelper(w, ov, nv) & 1);
 }
 
 #elif defined(XP_MACOSX) || defined(DARWIN)
 
 #include <libkern/OSAtomic.h>
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
     /* Details on these functions available in the manpage for atomic */
 #if JS_BYTES_PER_WORD == 8 && JS_BYTES_PER_LONG != 8
@@ -102,8 +126,8 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
 #elif defined(__GNUC__) && defined(__i386__)
 
 /* Note: This fails on 386 cpus, cmpxchgl is a >= 486 instruction */
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
     unsigned int res;
 
@@ -118,27 +142,10 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
     return (int)res;
 }
 
-#elif defined(__GNUC__) && defined(__x86_64__)
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    unsigned int res;
-
-    __asm__ __volatile__ (
-                          "lock\n"
-                          "cmpxchgq %2, (%1)\n"
-                          "sete %%al\n"
-                          "movzbl %%al, %%eax\n"
-                          : "=a" (res)
-                          : "r" (w), "r" (nv), "a" (ov)
-                          : "cc", "memory");
-    return (int)res;
-}
-
 #elif defined(SOLARIS) && defined(sparc) && defined(ULTRA_SPARC)
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
 #if defined(__GNUC__)
     unsigned int res;
@@ -165,8 +172,8 @@ mov 0,%0\n\
 
 #include <sys/atomic_op.h>
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
     return !_check_lock((atomic_p)w, ov, nv);
 }
@@ -182,97 +189,18 @@ typedef int (__kernel_cmpxchg_t)(int oldval, int newval, volatile int *ptr);
 
 JS_STATIC_ASSERT(sizeof(jsword) == sizeof(int));
 
-static JS_ALWAYS_INLINE int
-NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    volatile int *vp = (volatile int *) w;
-    PRInt32 failed = 1;
-
-    /* Loop until a __kernel_cmpxchg succeeds. See bug 446169 */
-    do {
-        failed = __kernel_cmpxchg(ov, nv, vp);
-    } while (failed && *vp == ov);
-    return !failed;
+    volatile int *vp = (volatile int*)w;
+    return !__kernel_cmpxchg(ov, nv, vp);
 }
 
-#elif JS_HAS_NATIVE_COMPARE_AND_SWAP
+#else
 
-#error "JS_HAS_NATIVE_COMPARE_AND_SWAP should be 0 if your platform lacks a compare-and-swap instruction."
+#error "Define NSPR_LOCK if your platform lacks a compare-and-swap instruction."
 
 #endif /* arch-tests */
-
-#if JS_HAS_NATIVE_COMPARE_AND_SWAP
-
-JSBool
-js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    return !!NativeCompareAndSwap(w, ov, nv);
-}
-
-#elif defined(NSPR_LOCK)
-
-# ifdef __GNUC__
-# warning "js_CompareAndSwap is implemented using NSSP lock"
-# endif
-
-JSBool
-js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
-{
-    int result;
-    static PRLock *CompareAndSwapLock = JS_NEW_LOCK();
-
-    JS_ACQUIRE_LOCK(CompareAndSwapLock);
-    result = (*w == ov);
-    if (result)
-        *w = nv;
-    JS_RELEASE_LOCK(CompareAndSwapLock);
-    return result;
-}
-
-#else /* !defined(NSPR_LOCK) */
-
-#error "NSPR_LOCK should be on when the platform lacks native compare-and-swap."
-
-#endif
-
-#ifndef NSPR_LOCK
-
-struct JSFatLock {
-    int         susp;
-    PRLock      *slock;
-    PRCondVar   *svar;
-    JSFatLock   *next;
-    JSFatLock   **prevp;
-};
-
-typedef struct JSFatLockTable {
-    JSFatLock   *free;
-    JSFatLock   *taken;
-} JSFatLockTable;
-
-#define GLOBAL_LOCK_INDEX(id)   (((uint32)(jsuword)(id)>>2) & global_locks_mask)
-
-static void
-js_Dequeue(JSThinLock *);
-
-static PRLock **global_locks;
-static uint32 global_lock_count = 1;
-static uint32 global_locks_log2 = 0;
-static uint32 global_locks_mask = 0;
-
-static void
-js_LockGlobal(void *id)
-{
-    uint32 i = GLOBAL_LOCK_INDEX(id);
-    PR_Lock(global_locks[i]);
-}
-
-static void
-js_UnlockGlobal(void *id)
-{
-    uint32 i = GLOBAL_LOCK_INDEX(id);
-    PR_Unlock(global_locks[i]);
-}
 
 #endif /* !NSPR_LOCK */
 
@@ -299,6 +227,10 @@ js_FinishLock(JSThinLock *tl)
     JS_ASSERT(tl->fat == NULL);
 #endif
 }
+
+#ifndef NSPR_LOCK
+static void js_Dequeue(JSThinLock *);
+#endif
 
 #ifdef DEBUG_SCOPE_COUNT
 
@@ -439,20 +371,18 @@ js_FinishSharingTitle(JSContext *cx, JSTitle *title)
     scope = (JSScope *)map;
 
     obj = scope->object;
-    if (obj) {
-        nslots = scope->map.freeslot;
-        for (i = 0; i != nslots; ++i) {
-            v = STOBJ_GET_SLOT(obj, i);
-            if (JSVAL_IS_STRING(v) &&
-                !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
-                /*
-                 * FIXME bug 363059: The following error recovery changes
-                 * runtime execution semantics, arbitrarily and silently
-                 * ignoring errors except out-of-memory, which should have been
-                 * reported through JS_ReportOutOfMemory at this point.
-                 */
-                STOBJ_SET_SLOT(obj, i, JSVAL_VOID);
-            }
+    nslots = scope->map.freeslot;
+    for (i = 0; i != nslots; ++i) {
+        v = STOBJ_GET_SLOT(obj, i);
+        if (JSVAL_IS_STRING(v) &&
+            !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
+            /*
+             * FIXME bug 363059: The following error recovery changes runtime
+             * execution semantics, arbitrarily and silently ignoring errors
+             * except out-of-memory, which should have been reported through
+             * JS_ReportOutOfMemory at this point.
+             */
+            STOBJ_SET_SLOT(obj, i, JSVAL_VOID);
         }
     }
 
@@ -655,7 +585,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
     tl = &title->lock;
     me = CX_THINLOCK_ID(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me)) {
+    if (js_CompareAndSwap(&tl->owner, 0, me)) {
         /*
          * Got the lock with one compare-and-swap.  Even so, someone else may
          * have mutated obj so it now has its own scope and lock, which would
@@ -664,7 +594,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
          */
         if (scope == OBJ_SCOPE(obj)) {
             v = STOBJ_GET_SLOT(obj, slot);
-            if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
+            if (!js_CompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
                 LOGIT(scope, '1');
@@ -673,7 +603,7 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
             }
             return v;
         }
-        if (!NativeCompareAndSwap(&tl->owner, me, 0))
+        if (!js_CompareAndSwap(&tl->owner, me, 0))
             js_Dequeue(tl);
     }
     else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
@@ -751,10 +681,10 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     tl = &title->lock;
     me = CX_THINLOCK_ID(cx);
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me)) {
+    if (js_CompareAndSwap(&tl->owner, 0, me)) {
         if (scope == OBJ_SCOPE(obj)) {
             LOCKED_OBJ_WRITE_BARRIER(cx, obj, slot, v);
-            if (!NativeCompareAndSwap(&tl->owner, me, 0)) {
+            if (!js_CompareAndSwap(&tl->owner, me, 0)) {
                 /* Assert that scope locks never revert to flyweight. */
                 JS_ASSERT(title->ownercx != cx);
                 LOGIT(scope, '1');
@@ -763,7 +693,7 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
             }
             return;
         }
-        if (!NativeCompareAndSwap(&tl->owner, me, 0))
+        if (!js_CompareAndSwap(&tl->owner, me, 0))
             js_Dequeue(tl);
     }
     else if (Thin_RemoveWait(ReadWord(tl->owner)) == me) {
@@ -950,23 +880,7 @@ js_CleanupLocks()
 #endif /* !NSPR_LOCK */
 }
 
-#ifdef NSPR_LOCK
-
-static JS_ALWAYS_INLINE void
-ThinLock(JSThinLock *tl, jsword me)
-{
-    JS_ACQUIRE_LOCK((JSLock *) tl->fat);
-    tl->owner = me;
-}
-
-static JS_ALWAYS_INLINE void
-ThinUnlock(JSThinLock *tl, jsword /*me*/)
-{
-    tl->owner = 0;
-    JS_RELEASE_LOCK((JSLock *) tl->fat);
-}
-
-#else
+#ifndef NSPR_LOCK
 
 /*
  * Fast locking and unlocking is implemented by delaying the allocation of a
@@ -1056,13 +970,13 @@ js_Enqueue(JSThinLock *tl, jsword me)
     for (;;) {
         o = ReadWord(tl->owner);
         n = Thin_SetWait(o);
-        if (o != 0 && NativeCompareAndSwap(&tl->owner, o, n)) {
+        if (o != 0 && js_CompareAndSwap(&tl->owner, o, n)) {
             if (js_SuspendThread(tl))
                 me = Thin_RemoveWait(me);
             else
                 me = Thin_SetWait(me);
         }
-        else if (NativeCompareAndSwap(&tl->owner, 0, me)) {
+        else if (js_CompareAndSwap(&tl->owner, 0, me)) {
             js_UnlockGlobal(tl);
             return;
         }
@@ -1078,16 +992,16 @@ js_Dequeue(JSThinLock *tl)
     o = ReadWord(tl->owner);
     JS_ASSERT(Thin_GetWait(o) != 0);
     JS_ASSERT(tl->fat != NULL);
-    if (!NativeCompareAndSwap(&tl->owner, o, 0)) /* release it */
+    if (!js_CompareAndSwap(&tl->owner, o, 0)) /* release it */
         JS_ASSERT(0);
     js_ResumeThread(tl);
 }
 
-static JS_ALWAYS_INLINE void
-ThinLock(JSThinLock *tl, jsword me)
+JS_INLINE void
+js_Lock(JSThinLock *tl, jsword me)
 {
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
-    if (NativeCompareAndSwap(&tl->owner, 0, me))
+    if (js_CompareAndSwap(&tl->owner, 0, me))
         return;
     if (Thin_RemoveWait(ReadWord(tl->owner)) != me)
         js_Enqueue(tl, me);
@@ -1097,16 +1011,16 @@ ThinLock(JSThinLock *tl, jsword me)
 #endif
 }
 
-static JS_ALWAYS_INLINE void
-ThinUnlock(JSThinLock *tl, jsword me)
+JS_INLINE void
+js_Unlock(JSThinLock *tl, jsword me)
 {
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
 
     /*
-     * Since we can race with the NativeCompareAndSwap in js_Enqueue, we need
+     * Since we can race with the CompareAndSwap in js_Enqueue, we need
      * to use a C_A_S here as well -- Arjan van de Ven 30/1/08
      */
-    if (NativeCompareAndSwap(&tl->owner, me, 0))
+    if (js_CompareAndSwap(&tl->owner, me, 0))
         return;
 
     JS_ASSERT(Thin_GetWait(tl->owner));
@@ -1119,18 +1033,6 @@ ThinUnlock(JSThinLock *tl, jsword me)
 }
 
 #endif /* !NSPR_LOCK */
-
-void
-js_Lock(JSContext *cx, JSThinLock *tl)
-{
-    ThinLock(tl, CX_THINLOCK_ID(cx));
-}
-
-void
-js_Unlock(JSContext *cx, JSThinLock *tl)
-{
-    ThinUnlock(tl, CX_THINLOCK_ID(cx));
-}
 
 void
 js_LockRuntime(JSRuntime *rt)
@@ -1167,7 +1069,8 @@ js_LockTitle(JSContext *cx, JSTitle *title)
         LOGIT(scope, '+');
         title->u.count++;
     } else {
-        ThinLock(&title->lock, me);
+        JSThinLock *tl = &title->lock;
+        JS_LOCK0(tl, me);
         JS_ASSERT(title->u.count == 0);
         LOGIT(scope, '1');
         title->u.count = 1;
@@ -1214,8 +1117,10 @@ js_UnlockTitle(JSContext *cx, JSTitle *title)
         return;
     }
     LOGIT(scope, '-');
-    if (--title->u.count == 0)
-        ThinUnlock(&title->lock, me);
+    if (--title->u.count == 0) {
+        JSThinLock *tl = &title->lock;
+        JS_UNLOCK0(tl, me);
+    }
 }
 
 /*
@@ -1225,6 +1130,9 @@ js_UnlockTitle(JSContext *cx, JSTitle *title)
 void
 js_TransferTitle(JSContext *cx, JSTitle *oldtitle, JSTitle *newtitle)
 {
+    jsword me;
+    JSThinLock *tl;
+
     JS_ASSERT(JS_IS_TITLE_LOCKED(cx, newtitle));
 
     /*
@@ -1283,7 +1191,9 @@ js_TransferTitle(JSContext *cx, JSTitle *oldtitle, JSTitle *newtitle)
      */
     LOGIT(oldscope, '0');
     oldtitle->u.count = 0;
-    ThinUnlock(&oldtitle->lock, CX_THINLOCK_ID(cx));
+    tl = &oldtitle->lock;
+    me = CX_THINLOCK_ID(cx);
+    JS_UNLOCK0(tl, me);
 }
 
 void

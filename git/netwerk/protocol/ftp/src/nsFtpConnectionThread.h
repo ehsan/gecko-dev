@@ -185,7 +185,6 @@ private:
     void ConvertDirspecFromVMS(nsCString& fileSpec);
     nsresult BuildStreamConverter(nsIStreamListener** convertStreamListener);
     nsresult SetContentType();
-    nsresult ConvertUTF8PathToCharset(const nsACString &aCharset);
 
     /**
      * This method is called to kick-off the FTP state machine.  mState is
@@ -266,8 +265,6 @@ private:
     FTP_ACTION          mAction;        // the higher level action (GET/PUT)
     PRPackedBool        mAnonymous;     // try connecting anonymous (default)
     PRPackedBool        mRetryPass;     // retrying the password
-    PRPackedBool        mStorReplyReceived; // FALSE if waiting for STOR
-                                            // completion status from server
     nsresult            mInternalError; // represents internal state errors
 
         // ****** URI vars
@@ -292,7 +289,6 @@ private:
     nsCString               mControlReadCarryOverBuf;
 
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
-    PRPackedBool            mDoomCache;
     
     nsCString mSuppliedEntityID;
 };

@@ -55,8 +55,6 @@
 #include "nsIParser.h"
 #include "nsJSEnvironment.h"
 
-#include "nsIViewManager.h"
-
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
@@ -178,7 +176,7 @@ nsDOMWindowUtils::Redraw(PRUint32 aCount, PRUint32 *aDurationOut)
         PRIntervalTime iStart = PR_IntervalNow();
 
         for (PRUint32 i = 0; i < aCount; i++)
-          rootFrame->InvalidateWithFlags(r, nsIFrame::INVALIDATE_IMMEDIATE);
+          rootFrame->Invalidate(r, PR_TRUE);
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
         XSync(GDK_DISPLAY(), False);
@@ -249,57 +247,10 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
-                                       PRInt32 aX,
-                                       PRInt32 aY,
-                                       PRInt32 aButton,
-                                       PRInt32 aScrollFlags,
-                                       PRInt32 aDelta,
-                                       PRInt32 aModifiers)
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  // get the widget to send the event to
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_NULL_POINTER;
-
-  PRInt32 msg;
-  if (aType.EqualsLiteral("DOMMouseScroll"))
-    msg = NS_MOUSE_SCROLL;
-  else if (aType.EqualsLiteral("MozMousePixelScroll"))
-    msg = NS_MOUSE_PIXEL_SCROLL;
-  else
-    return NS_ERROR_UNEXPECTED;
-
-  nsMouseScrollEvent event(PR_TRUE, msg, widget);
-  event.isShift = (aModifiers & nsIDOMNSEvent::SHIFT_MASK) ? PR_TRUE : PR_FALSE;
-  event.isControl = (aModifiers & nsIDOMNSEvent::CONTROL_MASK) ? PR_TRUE : PR_FALSE;
-  event.isAlt = (aModifiers & nsIDOMNSEvent::ALT_MASK) ? PR_TRUE : PR_FALSE;
-  event.isMeta = (aModifiers & nsIDOMNSEvent::META_MASK) ? PR_TRUE : PR_FALSE;
-  event.button = aButton;
-  event.widget = widget;
-  event.delta = aDelta;
-  event.scrollFlags = aScrollFlags;
-
-  event.time = PR_IntervalNow();
-  event.refPoint.x = aX;
-  event.refPoint.y = aY;
-
-  nsEventStatus status;
-  return widget->DispatchEvent(&event, status);
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
                                PRInt32 aKeyCode,
                                PRInt32 aCharCode,
-                               PRInt32 aModifiers,
-                               PRBool aPreventDefault,
-                               PRBool* aDefaultActionTaken)
+                               PRInt32 aModifiers)
 {
   PRBool hasCap = PR_FALSE;
   if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
@@ -332,17 +283,8 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   event.refPoint.x = event.refPoint.y = 0;
   event.time = PR_IntervalNow();
 
-  if (aPreventDefault) {
-    event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
-  }
-
   nsEventStatus status;
-  nsresult rv = widget->DispatchEvent(&event, status);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aDefaultActionTaken = (status != nsEventStatus_eConsumeNoDefault);
-  
-  return NS_OK;
+  return widget->DispatchEvent(&event, status);
 }
 
 NS_IMETHODIMP
@@ -365,40 +307,6 @@ nsDOMWindowUtils::SendNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
   return widget->SynthesizeNativeKeyEvent(aNativeKeyboardLayout, aNativeKeyCode,
                                           aModifiers, aCharacters, aUnmodifiedCharacters);
 }
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString)
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  // get the widget to send the event to
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  return widget->ActivateNativeMenuItemAt(indexString);
-}
-
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ForceNativeMenuReload()
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  // get the widget to send the event to
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  return widget->ForceNativeMenuReload();
-}
-
 
 nsIWidget*
 nsDOMWindowUtils::GetWidget()
@@ -468,28 +376,5 @@ nsDOMWindowUtils::GarbageCollect()
   nsJSContext::CC();
   nsJSContext::CC();
 
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ProcessUpdates()
-{
-  nsCOMPtr<nsIDocShell> docShell = mWindow->GetDocShell();
-  if (!docShell) 
-    return NS_ERROR_UNEXPECTED;
-  nsCOMPtr<nsIPresShell> presShell;
-  
-  nsresult rv = docShell->GetPresShell(getter_AddRefs(presShell));
-  if (!NS_SUCCEEDED(rv) || !presShell) 
-    return NS_ERROR_UNEXPECTED;
-  
-  nsIViewManager *viewManager = presShell->GetViewManager();
-  if (!viewManager)
-    return NS_ERROR_UNEXPECTED;
-  
-  nsIViewManager::UpdateViewBatch batch;
-  batch.BeginUpdateViewBatch(viewManager);
-  batch.EndUpdateViewBatch(NS_VMREFRESH_IMMEDIATE);
   return NS_OK;
 }

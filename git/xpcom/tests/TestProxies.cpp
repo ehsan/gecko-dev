@@ -115,12 +115,12 @@ public:
     LOG(("Test thread successfully shut down [0x%p]", nativeThread));
   }
 
-  operator nsIThread*() const
+  operator nsDerivedSafe<nsIThread>*() const
   {
     return mThread;
   }
 
-  nsIThread* operator->() const
+  nsDerivedSafe<nsIThread>* operator->() const
   {
     return mThread;
   }

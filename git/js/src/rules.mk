@@ -81,10 +81,6 @@ $(OBJDIR)/jsinterp.o: jsinterp.cpp jsinterp.h
 	@$(MAKE_OBJDIR)
 	$(CXX) -o $@ -c $(INTERP_CFLAGS) jsinterp.cpp
 
-$(OBJDIR)/jsbuiltins.o: jsbuiltins.cpp jsinterp.h
-	@$(MAKE_OBJDIR)
-	$(CXX) -o $@ -c $(BUILTINS_CFLAGS) jsbuiltins.cpp
-
 $(OBJDIR)/%.o: %.cpp
 	@$(MAKE_OBJDIR)
 	$(CXX) -o $@ -c $(CFLAGS) $*.cpp
@@ -100,11 +96,7 @@ $(OBJDIR)/%.obj: %.cpp %.h
 
 $(OBJDIR)/jsinterp.obj: jsinterp.cpp jsinterp.h
 	@$(MAKE_OBJDIR)
-	$(CXX) -Fo$(OBJDIR)/ -c $(INTERP_CFLAGS) $(JSDLL_CFLAGS) jsinterp.cpp
-
-$(OBJDIR)/jsbuiltins.obj: jsbuiltins.cpp jsinterp.h
-	@$(MAKE_OBJDIR)
-	$(CXX) -Fo$(OBJDIR)/ -c $(BUILTINS_CFLAGS) $(JSDLL_CFLAGS) jsbuiltins.c
+	$(CXX) -Fo$(OBJDIR)/ -c $(INTERP_CFLAGS) $(JSDLL_CFLAGS) jsinterp.c
 
 $(OBJDIR)/%.obj: %.cpp
 	@$(MAKE_OBJDIR)
@@ -192,13 +184,12 @@ endif
 	+$(LOOP_OVER_DIRS)
 
 clean:
-	+$(LOOP_OVER_PREDIRS)
 	rm -rf $(OBJS) $(GARBAGE)
+	@cd fdlibm; $(MAKE) -f Makefile.ref clean
 
 clobber:
-	+$(LOOP_OVER_PREDIRS)
-	rm -rf $(OBJS) $(TARGETS) $(DEPENDENCIES) $(GARBAGE)
-	if test -d $(OBJDIR); then rmdir $(OBJDIR); fi
+	rm -rf $(OBJS) $(TARGETS) $(DEPENDENCIES)
+	@cd fdlibm; $(MAKE) -f Makefile.ref clobber
 
 tar:
 	tar cvf $(TARNAME) $(TARFILES)

@@ -52,7 +52,6 @@ REQUIRES	= xpcom \
 		  pref \
 		  intl \
 		  nkcache \
-		  uconv \
 		  $(NULL)
 
 CPPSRCS		= \

@@ -39,10 +39,6 @@
 #include "cairo-compiler-private.h"
 #include "cairo-types-private.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-
 typedef cairo_status_t (*cairo_output_stream_write_func_t) (cairo_output_stream_t *output_stream,
 							    const unsigned char   *data,
 							    unsigned int           length);
@@ -111,7 +107,7 @@ _cairo_output_stream_write (cairo_output_stream_t *stream,
 
 cairo_private void
 _cairo_output_stream_write_hex_string (cairo_output_stream_t *stream,
-				       const unsigned char *data,
+				       const char *data,
 				       size_t length);
 
 cairo_private void
@@ -161,11 +157,11 @@ _cairo_memory_stream_copy (cairo_output_stream_t *base,
 cairo_private int
 _cairo_memory_stream_length (cairo_output_stream_t *stream);
 
-/* cairo-base85-stream.c */
+/* cairo_base85_stream.c */
 cairo_private cairo_output_stream_t *
 _cairo_base85_stream_create (cairo_output_stream_t *output);
 
-/* cairo-deflate-stream.c */
+/* cairo_deflate_stream.c */
 cairo_private cairo_output_stream_t *
 _cairo_deflate_stream_create (cairo_output_stream_t *output);
 

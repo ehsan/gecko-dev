@@ -20,6 +20,8 @@
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
+            if (this.localName == "menuseparator")
+              return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
             return Components.interfaces.nsIAccessibleProvider.XULMenuitem;
           ]]>
         </getter>
@@ -248,7 +250,7 @@
            extends="chrome://global/content/bindings/menu.xml#menu-base">
     <content>
       <xul:hbox class="menu-iconic-left" align="center" pack="center">
-        <xul:image class="menu-iconic-icon" xbl:inherits="src=image"/>
+        <xul:image xbl:inherits="src=image"/>
       </xul:hbox>
       <xul:label class="menu-iconic-text" flex="1" xbl:inherits="value=label,accesskey,crop" crop="right"/>
       <xul:hbox class="menu-accel-container" anonid="accel">
@@ -269,18 +271,6 @@
     </content>
   </binding>  
   
-  <binding id="menuseparator"
-           extends="chrome://global/content/bindings/menu.xml#menuitem-base">
-    <implementation>
-      <!-- nsIAccessibleProvider -->
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULMenuSeparator;
-          ]]>
-        </getter>
-      </property>
-    </implementation>
-  </binding>
+  <binding id="menuseparator" extends="chrome://global/content/bindings/menu.xml#menuitem-base"/>
 
 </bindings>

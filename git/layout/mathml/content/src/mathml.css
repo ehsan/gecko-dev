@@ -226,7 +226,6 @@ mtable {
   display: inline-table;
   border-collapse: separate;
   border-spacing: 0;
-  text-indent: 0;
 }
 mtable[frame="none"] {
   border: none;

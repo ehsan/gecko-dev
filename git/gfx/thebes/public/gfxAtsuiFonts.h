@@ -85,12 +85,13 @@ public:
     PRBool TestCharacterMap(PRUint32 aCh);
 
     MacOSFontEntry* GetFontEntry();
-    PRBool Valid() { return mIsValid; }
 
 protected:
     const gfxFontStyle *mFontStyle;
 
     ATSUStyle mATSUStyle;
+
+    nsRefPtr<MacOSFontEntry> mFontEntry;
 
     PRBool mHasMirroring;
     PRBool mHasMirroringLookedUp;
@@ -113,8 +114,7 @@ protected:
 class THEBES_API gfxAtsuiFontGroup : public gfxFontGroup {
 public:
     gfxAtsuiFontGroup(const nsAString& families,
-                      const gfxFontStyle *aStyle,
-                      gfxUserFontSet *aUserFontSet);
+                      const gfxFontStyle *aStyle);
     virtual ~gfxAtsuiFontGroup() {};
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
@@ -138,9 +138,7 @@ public:
 
     PRBool HasFont(ATSUFontID fid);
 
-    inline gfxAtsuiFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, 
-                                               PRUint32 aCh)
-    {
+    inline gfxAtsuiFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, PRUint32 aCh) {
         PRUint32 len = aFontList.Length();
         for (PRUint32 i = 0; i < len; i++) {
             gfxAtsuiFont* font = static_cast<gfxAtsuiFont*>(aFontList.ElementAt(i).get());
@@ -150,12 +148,10 @@ public:
         return nsnull;
     }
 
-    // search through pref fonts for a character, return nsnull if no matching pref font
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
-
-    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
-
-    void UpdateFontList();
+   // search through pref fonts for a character, return nsnull if no matching pref font
+   already_AddRefed<gfxAtsuiFont> WhichPrefFontSupportsChar(PRUint32 aCh);
+   
+   already_AddRefed<gfxAtsuiFont> FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh, PRUint32 aNextCh, gfxAtsuiFont* aPrevMatchedFont);
 
 protected:
     static PRBool FindATSUFont(const nsAString& aName,

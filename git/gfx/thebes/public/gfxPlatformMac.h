@@ -56,8 +56,8 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
 
-    already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                gfxASurface::gfxImageFormat format);
+    already_AddRefed<gfxASurface> gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
+                                                                gfxASurface::gfxImageFormat format);
 
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
@@ -66,14 +66,7 @@ public:
     nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
     gfxFontGroup *CreateFontGroup(const nsAString &aFamilies,
-                                  const gfxFontStyle *aStyle,
-                                  gfxUserFontSet *aUserFontSet);
-
-    gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
-
-    gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData);
-
-    PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
+                                  const gfxFontStyle *aStyle);
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
@@ -91,8 +84,8 @@ public:
     PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
     
 private:
-    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
-                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+    void gfxPlatformMac::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
+                                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
     virtual cmsHPROFILE GetPlatformCMSOutputProfile();
     

@@ -196,6 +196,15 @@ protected:
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
+   * containing block width.
+   */
+  // XXX Make aResult a return value
+  inline void ComputeWidthDependentValue(nscoord aContainingBlockWidth,
+                                         const nsStyleCoord& aCoord,
+                                         nscoord& aResult);
+
+  /*
+   * Convert nsStyleCoord to nscoord when percentages depend on the
    * containing block width, and enumerated values are for width,
    * min-width, or max-width.  Does not handle auto widths.
    */
@@ -208,6 +217,15 @@ protected:
   nscoord ComputeWidthValue(nscoord aContainingBlockWidth,
                             PRUint8 aBoxSizing,
                             const nsStyleCoord& aCoord);
+
+  /*
+   * Convert nsStyleCoord to nscoord when percentages depend on the
+   * containing block height.
+   */
+  // XXX Make aResult a return value
+  inline void ComputeHeightDependentValue(nscoord aContainingBlockHeight,
+                                          const nsStyleCoord& aCoord,
+                                          nscoord& aResult);
 };
 
 /**
@@ -404,15 +422,17 @@ public:
    * Calculate the raw line-height property for the given frame. The return
    * value will be >= 0.
    */
-  static nscoord CalcLineHeight(nsIFrame* aFrame)
+  static nscoord CalcLineHeight(nsIRenderingContext* aRenderingContext,
+                                nsIFrame* aFrame)
   {
-    return CalcLineHeight(aFrame->GetStyleContext());
+    return CalcLineHeight(aRenderingContext, aFrame->GetStyleContext());
   }
   
   /**
    * Same as above, but doesn't need a frame.
    */
-  static nscoord CalcLineHeight(nsStyleContext* aStyleContext);
+  static nscoord CalcLineHeight(nsIRenderingContext* aRenderingContext,
+                                nsStyleContext* aStyleContext);
 
 
   void ComputeContainingBlockRectangle(nsPresContext*          aPresContext,

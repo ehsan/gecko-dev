@@ -543,7 +543,6 @@ public:
     // nsINode
     virtual PRUint32 GetChildCount() const;
     virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-    virtual nsIContent * const * GetChildArray() const;
     virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
     virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
     virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
@@ -592,7 +591,7 @@ public:
     virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
     virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
     virtual nsIAtom* GetID() const;
-    virtual const nsAttrValue* DoGetClasses() const;
+    virtual const nsAttrValue* GetClasses() const;
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
     virtual nsICSSStyleRule* GetInlineStyleRule();
@@ -625,8 +624,8 @@ public:
 
     nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
+    
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
-    nsresult SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner);
 
     virtual void RecompileScriptEventListeners();
 
@@ -642,9 +641,6 @@ protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
     //     access to mPrototype anymore.
     friend class nsNodeUtils;
-
-    // This can be removed if EnsureContentsGenerated dies.
-    friend class nsNSElementTearoff;
 
     nsXULElement(nsINodeInfo* aNodeInfo);
 
@@ -667,7 +663,7 @@ protected:
        nsXULSlots(PtrBits aFlags);
        virtual ~nsXULSlots();
 
-       nsRefPtr<nsFrameLoader> mFrameLoader;
+       nsCOMPtr<nsIFrameLoader> mFrameLoader;
     };
 
     virtual nsINode::nsSlots* CreateSlots();

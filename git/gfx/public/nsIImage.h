@@ -159,12 +159,11 @@ public:
 
   /**
    * Update the nsIImage color table
-   * @update - dougt 9/9/08
+   * @update - dwc 2/1/99
    * @param aFlags Used to pass in parameters for the update
    * @param aUpdateRect The rectangle to update
-   * @return success code. failure means stop decoding
    */
-  virtual nsresult ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsIntRect *aUpdateRect) = 0;
+  virtual void ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsIntRect *aUpdateRect) = 0;
   
   /**
    * Get whether this image's region is completely filled with data.

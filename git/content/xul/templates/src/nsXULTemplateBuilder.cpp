@@ -1111,10 +1111,8 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
             Rebuild();
 
         // Check for a change to the 'datasources' attribute. If so, setup
-        // mDB by parsing the new value and rebuild.
+        // mDB by parsing the vew value and rebuild.
         else if (aAttribute == nsGkAtoms::datasources) {
-            Uninit(PR_FALSE);  // Reset results
-            
             PRBool shouldDelay;
             LoadDataSources(aDocument, &shouldDelay);
             if (!shouldDelay)
@@ -1582,7 +1580,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
 }
 
 
-struct NS_STACK_CLASS SubstituteTextClosure {
+struct SubstituteTextClosure {
     SubstituteTextClosure(nsIXULTemplateResult* aResult, nsAString& aString)
         : result(aResult), str(aString) {}
 

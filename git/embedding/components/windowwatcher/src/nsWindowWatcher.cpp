@@ -268,7 +268,7 @@ void nsWatcherWindowEnumerator::WindowRemoved(nsWatcherWindowEntry *inInfo) {
  ********************** JSContextAutoPopper *********************
  ****************************************************************/
 
-class NS_STACK_CLASS JSContextAutoPopper {
+class JSContextAutoPopper {
 public:
   JSContextAutoPopper();
   ~JSContextAutoPopper();
@@ -675,21 +675,11 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
         if (popupConditions)
           contextFlags |= nsIWindowCreator2::PARENT_IS_LOADING_OR_RUNNING_TIMEOUT;
 
-        PRBool parentVisible = PR_TRUE;
-        if (parentChrome)
-        {
-          nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(parentTreeOwner));
-          nsCOMPtr<nsIWidget> parentWidget;
-          if (parentWindow)
-            parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
-          if (parentWidget)
-            parentWidget->IsVisible(parentVisible);            
-        }
         PRBool cancel = PR_FALSE;
-        rv = windowCreator2->CreateChromeWindow2(
-               parentVisible ? parentChrome.get() : nsnull,
-               chromeFlags, contextFlags, uriToLoad, &cancel,
-               getter_AddRefs(newChrome));
+        rv = windowCreator2->CreateChromeWindow2(parentChrome, chromeFlags,
+                                                 contextFlags, uriToLoad,
+                                                 &cancel,
+                                                 getter_AddRefs(newChrome));
         if (NS_SUCCEEDED(rv) && cancel) {
           newChrome = 0; // just in case
           rv = NS_ERROR_ABORT;

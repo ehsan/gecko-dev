@@ -47,7 +47,6 @@
 #include "nsNSSCertificate.h"
 #include "cert.h"
 #include "keyhi.h"
-#include "secder.h"
 #include "nsNSSCertValidity.h"
 #include "nsNSSASN1Object.h"
 #include "nsNSSComponent.h"
@@ -613,18 +612,10 @@ ProcessRawBytes(nsINSSComponent *nssComponent, SECItem *data,
 {
   // This function is used to display some DER bytes
   // that we have not added support for decoding.
-  // If it's short, let's display as an integer, no size header.
-
-  if (data->len <= 4) {
-    int i_pv = DER_GetInteger(data);
-    nsAutoString value;
-    value.AppendInt(i_pv);
-    text.Append(value);
-    text.Append(NS_LITERAL_STRING(SEPARATOR).get());
-    return NS_OK;
-  }
-
-  // Else produce a hex dump.
+  // It prints the value of the byte out into a 
+  // string that can later be displayed as a byte
+  // string.  We place a new line after 24 bytes
+  // to break up extermaly long sequence of bytes.
 
   if (wantHeader) {
     nsAutoString bytelen, bitlen;
@@ -639,11 +630,6 @@ ProcessRawBytes(nsINSSComponent *nssComponent, SECItem *data,
 
     text.Append(NS_LITERAL_STRING(SEPARATOR).get());
   }
-
-  // This prints the value of the byte out into a 
-  // string that can later be displayed as a byte
-  // string.  We place a new line after 24 bytes
-  // to break up extermaly long sequence of bytes.
 
   PRUint32 i;
   char buffer[5];
@@ -1816,32 +1802,11 @@ ProcessSubjectPublicKeyInfo(CERTSubjectPublicKeyInfo *spki,
                                                      params, 4, text);
          break;
       }
-      case ecKey: {
-        displayed = true;
-        SECKEYECPublicKey &ecpk = key->u.ec;
-        int fieldSizeLenAsBits = 
-              SECKEY_ECParamsToKeySize(&ecpk.DEREncodedParams);
-        int basePointOrderLenAsBits = 
-              SECKEY_ECParamsToBasePointOrderLen(&ecpk.DEREncodedParams);
-        nsAutoString s_fsl, s_bpol, s_pv;
-        s_fsl.AppendInt(fieldSizeLenAsBits);
-        s_bpol.AppendInt(basePointOrderLenAsBits);
-
-        if (ecpk.publicValue.len > 4) {
-          ProcessRawBytes(nssComponent, &ecpk.publicValue, s_pv, PR_FALSE);
-        } else {
-          int i_pv = DER_GetInteger(&ecpk.publicValue);
-          s_pv.AppendInt(i_pv);
-        }
-        const PRUnichar *params[] = {s_fsl.get(), s_bpol.get(), s_pv.get()};
-        nssComponent->PIPBundleFormatStringFromName("CertDumpECTemplate",
-                                                    params, 3, text);
-        break;
-      }
       case dhKey:
       case dsaKey:
       case fortezzaKey:
       case keaKey:
+      case ecKey:
          /* Too many parameters, to rarely used to bother displaying it */
          break;
       case nullKey:

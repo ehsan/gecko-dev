@@ -122,7 +122,7 @@ JS_BEGIN_EXTERN_C
 
 #include "jscntxt.h"
 
-static JSContext*
+JS_STATIC_DLL_CALLBACK(JSContext*)
 map_jsj_thread_to_js_context_impl(JSJavaThreadState *jsj_env, void* java_applet_obj, JNIEnv *env, char **errp)
 {
 	// Guess what? This design is totally invalid under Gecko, because there isn't a 1 to 1 mapping
@@ -150,7 +150,7 @@ map_jsj_thread_to_js_context_impl(JSJavaThreadState *jsj_env, void* java_applet_
 ** to a java thread. JSJ_AttachCurrentThreadToJava just calls AttachCurrentThread
 ** on the java vm.
 */
-static JSJavaThreadState*
+JS_STATIC_DLL_CALLBACK(JSJavaThreadState*)
 map_js_context_to_jsj_thread_impl(JSContext *cx, char **errp)
 {
 	*errp = NULL;
@@ -192,7 +192,7 @@ map_js_context_to_jsj_thread_impl(JSContext *cx, char **errp)
 ** to get to the javascript JSObject.
 */
 
-static JSObject*
+JS_STATIC_DLL_CALLBACK(JSObject*)
 map_java_object_to_js_object_impl(JNIEnv *env, void *pluginInstancePtr, char* *errp)
 {
 	JSObject        *window = NULL;
@@ -245,7 +245,7 @@ map_java_object_to_js_object_impl(JNIEnv *env, void *pluginInstancePtr, char* *e
 	return window;
 }
 
-static JSPrincipals*
+JS_STATIC_DLL_CALLBACK(JSPrincipals*)
 get_JSPrincipals_from_java_caller_impl(JNIEnv *pJNIEnv, JSContext *pJSContext, void  **ppNSIPrincipalArrayIN, int numPrincipals, void *pNSISecurityContext)
 {
     nsresult rv;
@@ -265,7 +265,7 @@ get_JSPrincipals_from_java_caller_impl(JNIEnv *pJNIEnv, JSContext *pJSContext, v
     return jsprincipals;
 }
 
-static jobject
+JS_STATIC_DLL_CALLBACK(jobject)
 get_java_wrapper_impl(JNIEnv *pJNIEnv, lcjsobject a_jsobject)
 {
     nsresult       err    = NS_OK;
@@ -286,7 +286,7 @@ get_java_wrapper_impl(JNIEnv *pJNIEnv, lcjsobject a_jsobject)
     return pJSObjectWrapper;
 }
 
-static lcjsobject
+JS_STATIC_DLL_CALLBACK(lcjsobject)
 unwrap_java_wrapper_impl(JNIEnv *pJNIEnv, jobject java_wrapper)
 {
     lcjsobject obj = 0;
@@ -307,7 +307,7 @@ unwrap_java_wrapper_impl(JNIEnv *pJNIEnv, jobject java_wrapper)
     return obj;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 enter_js_from_java_impl(JNIEnv *jEnv, char **errp,
                         void **pNSIPrincipaArray, int numPrincipals, 
                         void *pNSISecurityContext,
@@ -316,7 +316,7 @@ enter_js_from_java_impl(JNIEnv *jEnv, char **errp,
 	return PR_TRUE;
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 exit_js_impl(JNIEnv *jEnv, JSContext *cx)
 {
     // The main idea is to execute terminate function if have any;
@@ -332,7 +332,7 @@ exit_js_impl(JNIEnv *jEnv, JSContext *cx)
     return;
 }
 
-static PRBool
+JS_STATIC_DLL_CALLBACK(PRBool)
 create_java_vm_impl(SystemJavaVM* *jvm, JNIEnv* *initialEnv, void* initargs)
 {
     // const char* classpath = (const char*)initargs;
@@ -348,7 +348,7 @@ create_java_vm_impl(SystemJavaVM* *jvm, JNIEnv* *initialEnv, void* initargs)
     return PR_TRUE;
 }
 
-static PRBool
+JS_STATIC_DLL_CALLBACK(PRBool)
 destroy_java_vm_impl(SystemJavaVM* jvm, JNIEnv* initialEnv)
 {
     JVM_ReleaseJNIEnv(initialEnv);
@@ -356,20 +356,20 @@ destroy_java_vm_impl(SystemJavaVM* jvm, JNIEnv* initialEnv)
     return PR_TRUE;
 }
 
-static JNIEnv*
+JS_STATIC_DLL_CALLBACK(JNIEnv*)
 attach_current_thread_impl(SystemJavaVM* jvm)
 {
     return JVM_GetJNIEnv();
 }
 
-static PRBool
+JS_STATIC_DLL_CALLBACK(PRBool)
 detach_current_thread_impl(SystemJavaVM* jvm, JNIEnv* env)
 {
     JVM_ReleaseJNIEnv(env);
     return PR_TRUE;
 }
 
-static SystemJavaVM*
+JS_STATIC_DLL_CALLBACK(SystemJavaVM*)
 get_java_vm_impl(JNIEnv* env)
 {
     // only one SystemJavaVM for the whole browser, so it doesn't depend on env

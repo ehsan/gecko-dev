@@ -224,12 +224,14 @@ var PlacesOrganizer = {
 
     // Make sure the search UI is hidden.
     PlacesSearchBox.hideSearchUI();
-    if (resetSearchBox)
-      PlacesSearchBox.searchFilter.reset();
+    if (resetSearchBox) {
+      var searchFilter = document.getElementById("searchFilter");
+      searchFilter.reset();
+    }
 
     this._setSearchScopeForNode(node);
     if (this._places.treeBoxObject.focused)
-      this._fillDetailsPane([node]);
+      this._fillDetailsPane(node);
   },
 
   /**
@@ -306,7 +308,7 @@ var PlacesOrganizer = {
         // The command execution function will take care of seeing the
         // selection is a folder/container and loading its contents in
         // tabs for us.
-        PlacesUIUtils.openContainerNodeInTabs(selectedNode, aEvent);
+        PlacesUIUtils.openContainerNodeInTabs(selectedNode);
       }
     }
   },
@@ -319,9 +321,8 @@ var PlacesOrganizer = {
    */
   onTreeFocus: function PO_onTreeFocus(aEvent) {
     var currentView = aEvent.currentTarget;
-    var selectedNodes = currentView.selectedNode ? [currentView.selectedNode] :
-                        this._content.getSelectionNodes();
-    this._fillDetailsPane(selectedNodes);
+    var selectedNode = currentView.selectedNode;
+    this._fillDetailsPane(selectedNode);
   },
 
   openFlatContainer: function PO_openFlatContainerFlatContainer(aContainer) {
@@ -591,16 +592,6 @@ var PlacesOrganizer = {
      */
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
-    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
-    if (!aNode) {
-      infoBoxExpander.hidden = true;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = true;
-#endif
-      return;
-    }
     if (aNode.itemId != -1 &&
         ((PlacesUtils.nodeIsFolder(aNode) &&
           !PlacesUtils.nodeIsLivemarkContainer(aNode)) ||
@@ -609,18 +600,12 @@ var PlacesOrganizer = {
         infoBox.setAttribute("wasminimal", "true");
       infoBox.removeAttribute("minimal");
       infoBoxExpander.hidden = true;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = true;
-#endif
     }
     else {
       if (infoBox.getAttribute("wasminimal") == "true")
         infoBox.setAttribute("minimal", "true");
       infoBox.removeAttribute("wasminimal");
       infoBoxExpander.hidden = false;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = false;
-#endif
     }
   },
 
@@ -636,13 +621,13 @@ var PlacesOrganizer = {
 
   onContentTreeSelect: function PO_onContentTreeSelect() {
     if (this._content.treeBoxObject.focused)
-      this._fillDetailsPane(this._content.getSelectionNodes());
+      this._fillDetailsPane(this._content.selectedNode);
   },
 
-  _fillDetailsPane: function PO__fillDetailsPane(aNodeList) {
+  _fillDetailsPane: function PO__fillDetailsPane(aSelectedNode) {
     var infoBox = document.getElementById("infoBox");
     var detailsDeck = document.getElementById("detailsDeck");
-    var aSelectedNode = aNodeList.length == 1 ? aNodeList[0] : null;
+
     // If a textbox within a panel is focused, force-blur it so its contents
     // are saved
     if (gEditItemOverlay.itemId != -1) {
@@ -652,10 +637,9 @@ var PlacesOrganizer = {
           /^editBMPanel.*/.test(focusedElement.parentNode.parentNode.id))
         focusedElement.blur();
 
-      // don't update the panel if we are already editing this node unless we're
-      // in multi-edit mode
+      // don't update the panel if we are already editing this node
       if (aSelectedNode && gEditItemOverlay.itemId == aSelectedNode.itemId &&
-          detailsDeck.selectedIndex == 1 && !gEditItemOverlay.multiEdit)
+          detailsDeck.selectedIndex == 1)
         return;
     }
  
@@ -670,7 +654,6 @@ var PlacesOrganizer = {
         gEditItemOverlay.initPanel(asQuery(aSelectedNode).folderItemId,
                                   { hiddenRows: ["folderPicker"],
                                     forceReadOnly: true });
-
       }
       else {
         var itemId = PlacesUtils.getConcreteItemId(aSelectedNode);
@@ -678,31 +661,6 @@ var PlacesOrganizer = {
                                    PlacesUtils._uri(aSelectedNode.uri),
                                    { hiddenRows: ["folderPicker"] });
       }
-      this._detectAndSetDetailsPaneMinimalState(aSelectedNode);
-    }
-    else if (!aSelectedNode && aNodeList[0]) {
-      var itemIds = [];
-      for (var i = 0; i < aNodeList.length; i++) {
-        if (!PlacesUtils.nodeIsBookmark(aNodeList[i])) {
-          detailsDeck.selectedIndex = 0;
-          var selectItemDesc = document.getElementById("selectItemDescription");
-          var itemsCountLabel = document.getElementById("itemsCountText");
-          selectItemDesc.hidden = false;
-          itemsCountLabel.value =
-            PlacesUIUtils.getFormattedString("detailsPane.multipleItems",
-                                             [aNodeList.length]);
-          return;
-        }
-        itemIds[i] = PlacesUtils.getConcreteItemId(aNodeList[i]);
-      }
-      detailsDeck.selectedIndex = 1;
-      gEditItemOverlay.initPanel(itemIds,
-                                 { hiddenRows: ["folderPicker",
-                                                "loadInSidebar",
-                                                "location",
-                                                "keyword",
-                                                "description",
-                                                "name"]});
       this._detectAndSetDetailsPaneMinimalState(aSelectedNode);
     }
     else {
@@ -752,30 +710,15 @@ var PlacesOrganizer = {
   toggleAdditionalInfoFields: function PO_toggleAdditionalInfoFields() {
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
-    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
     if (infoBox.getAttribute("minimal") == "true") {
       infoBox.removeAttribute("minimal");
-#ifdef XP_WIN
-      infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("lesslabel");
-      infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("lessaccesskey"));
-      infoBoxExpander.className = "expander-up";
-#else
       infoBoxExpander.label = infoBoxExpander.getAttribute("lesslabel");
       infoBoxExpander.accessKey = infoBoxExpander.getAttribute("lessaccesskey");
-#endif
     }
     else {
       infoBox.setAttribute("minimal", "true");
-#ifdef XP_WIN
-      infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("morelabel");
-      infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("moreaccesskey"));
-      infoBoxExpander.className = "expander-down";
-#else
       infoBoxExpander.label = infoBoxExpander.getAttribute("morelabel");
       infoBoxExpander.accessKey = infoBoxExpander.getAttribute("moreaccesskey");
-#endif
     }
   },
 
@@ -805,7 +748,7 @@ var PlacesOrganizer = {
     // a real dialog and localize when we're sure this is the UI we want.
     var title = PlacesUIUtils.getString("saveSearch.title");
     var inputLabel = PlacesUIUtils.getString("saveSearch.inputLabel");
-    var defaultText = PlacesUIUtils.getString("saveSearch.inputDefaultText");
+    var defaultText = PlacesUIUtils.getString("saveSearch.defaultText");
 
     var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                   getService(Ci.nsIPromptService);
@@ -870,7 +813,7 @@ var PlacesSearchBox = {
     // contents of the current scope.
     // XXX this might be to jumpy, maybe should search for "", so results
     // are ungrouped, and search box not reset
-    if (filterString == "") {
+    if ((filterString == "" || this.searchFilter.hasAttribute("empty"))) {
       PO.onPlaceSelected(false);
       return;
     }
@@ -886,10 +829,6 @@ var PlacesSearchBox = {
       //scopeBtn.label = PlacesOrganizer._places.selectedNode.title;
       break;
     case "bookmarks":
-      // Make sure we're getting uri results.
-      // We do not yet support searching into grouped queries or into
-      // tag containers, so we must fall to the default case.
-      currentOptions.resultType = currentOptions.RESULT_TYPE_URI;
       content.applyFilter(filterString,
                           [PlacesUtils.bookmarksMenuFolderId,
                            PlacesUtils.toolbarFolderId,
@@ -912,6 +851,7 @@ var PlacesSearchBox = {
     }
 
     PlacesSearchBox.showSearchUI();
+    this.searchFilter.setAttribute("filtered", "true");
 
     // Update the details panel
     PlacesOrganizer.onContentTreeSelect();

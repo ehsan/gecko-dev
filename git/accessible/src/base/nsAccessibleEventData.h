@@ -49,7 +49,6 @@
 #include "nsIAccessibleDocument.h"
 #include "nsIDOMNode.h"
 #include "nsString.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIPresShell;
 
@@ -94,9 +93,7 @@ public:
              EEventRule aEventRule = eRemoveDupes);
   virtual ~nsAccEvent() {}
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsAccEvent)
-
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIACCESSIBLEEVENT
 
   static void GetLastEventAttributes(nsIDOMNode *aNode,
@@ -108,13 +105,13 @@ protected:
   void CaptureIsFromUserInput(PRBool aIsAsynch);
   PRBool mIsFromUserInput;
 
+private:
   PRUint32 mEventType;
   EEventRule mEventRule;
   nsCOMPtr<nsIAccessible> mAccessible;
   nsCOMPtr<nsIDOMNode> mDOMNode;
   nsCOMPtr<nsIAccessibleDocument> mDocAccessible;
 
-private:
   static PRBool gLastEventFromUserInput;
   static nsIDOMNode* gLastEventNodeWeak;
 

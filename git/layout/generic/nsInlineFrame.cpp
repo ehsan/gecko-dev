@@ -133,8 +133,8 @@ nsInlineFrame::IsSelfEmpty()
   // XXX Top and bottom removed, since they shouldn't affect things, but this
   // doesn't really match with nsLineLayout.cpp's setting of
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
-  if (border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
-      border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
+  if (border->GetBorderWidth(NS_SIDE_RIGHT) != 0 ||
+      border->GetBorderWidth(NS_SIDE_LEFT) != 0 ||
       !IsPaddingZero(padding->mPadding.GetRightUnit(),
                      padding->mPadding.GetRight()) ||
       !IsPaddingZero(padding->mPadding.GetLeftUnit(),
@@ -258,10 +258,12 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
   if (ancestor == aOurLineContainer)
     return;
 
-  nsBlockFrame* ourBlock = nsLayoutUtils::GetAsBlock(aOurLineContainer);
-  NS_ASSERTION(ourBlock, "Not a block, but broke vertically?");
-  nsBlockFrame* frameBlock = nsLayoutUtils::GetAsBlock(ancestor);
-  NS_ASSERTION(frameBlock, "ancestor not a block");
+  nsBlockFrame* ourBlock;
+  nsresult rv = aOurLineContainer->QueryInterface(kBlockFrameCID, (void**)&ourBlock);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "Not a block, but broke vertically?");
+  nsBlockFrame* frameBlock;
+  rv = ancestor->QueryInterface(kBlockFrameCID, (void**)&frameBlock);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "ancestor not a block");
 
   nsFrameList blockChildren(ancestor->GetFirstChild(nsnull));
   PRBool isOverflow = !blockChildren.ContainsFrame(ancestorBlockChild);
@@ -1073,8 +1075,11 @@ nsPositionedInlineFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 nsIFrame*
 nsPositionedInlineFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.GetFirstChild();
+  if (nsGkAtoms::absoluteList == aListName) {
+    nsIFrame* result = nsnull;
+    mAbsoluteContainer.FirstChild(this, aListName, &result);
+    return result;
+  }
 
   return nsInlineFrame::GetFirstChild(aListName);
 }

@@ -1628,7 +1628,6 @@ nsAccessibilityService::HasUniversalAriaProperty(nsIContent *aContent,
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_grab) ||
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_haspopup) ||
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_invalid) ||
-         aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label) ||
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_labelledby) ||
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_live) ||
          aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_owns) ||
@@ -2067,15 +2066,14 @@ nsAccessibilityService::GetAccessibleForDeckChildren(nsIDOMNode *aNode, nsIAcces
       // If deck frame is for xul:tabpanels element then the given node has
       // tabpanel accessible.
       nsCOMPtr<nsIContent> parentContent = parentFrame->GetContent();
-#ifdef MOZ_XUL
       if (parentContent->NodeInfo()->Equals(nsAccessibilityAtoms::tabpanels,
                                             kNameSpaceID_XUL)) {
         *aAccessible = new nsXULTabpanelAccessible(aNode, weakShell);
-      } else
-#endif
+      } else {
         *aAccessible =
           new nsEnumRoleAccessible(aNode, weakShell,
                                    nsIAccessibleRole::ROLE_PROPERTYPAGE);
+      }
 
       NS_ENSURE_TRUE(*aAccessible, NS_ERROR_OUT_OF_MEMORY);
 

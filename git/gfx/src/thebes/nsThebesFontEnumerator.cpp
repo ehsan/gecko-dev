@@ -124,7 +124,7 @@ nsThebesFontEnumerator::GetDefaultFont(const char *aLangGroup,
 NS_IMETHODIMP
 nsThebesFontEnumerator::UpdateFontList(PRBool *_retval)
 {
-    gfxPlatform::GetPlatform()->UpdateFontList();
+    nsresult rv = gfxPlatform::GetPlatform()->UpdateFontList();
     *_retval = PR_FALSE; // always return false for now
     return NS_OK;
 }

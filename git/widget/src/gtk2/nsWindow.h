@@ -56,13 +56,7 @@
 
 #include <gtk/gtk.h>
 
-#ifdef MOZ_DFB
-#include <gdk/gdkdirectfb.h>
-#endif /* MOZ_DFB */
-
-#ifdef MOZ_X11
 #include <gdk/gdkx.h>
-#endif /* MOZ_X11 */
 #include <gtk/gtkwindow.h>
 
 #ifdef ACCESSIBILITY
@@ -73,9 +67,13 @@
 #ifdef USE_XIM
 #include <gtk/gtkimmulticontext.h>
 #include "pldhash.h"
+#include "nsIKBStateControl.h"
 #endif
 
 class nsWindow : public nsCommonWidget, public nsSupportsWeakReference
+#ifdef USE_XIM
+                ,public nsIKBStateControl
+#endif
 {
 public:
     nsWindow();
@@ -143,7 +141,7 @@ public:
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
-    NS_IMETHOD         SetMenuBar(void * aMenuBar);
+    NS_IMETHOD         SetMenuBar(nsIMenuBar * aMenuBar);
     NS_IMETHOD         ShowMenuBar(PRBool aShow);
     NS_IMETHOD         WidgetToScreen(const nsRect& aOldRect,
                                       nsRect& aNewRect);
@@ -248,7 +246,6 @@ public:
                                     PRBool  aRepaint);
 
     void               NativeShow  (PRBool  aAction);
-    virtual nsSize     GetSafeWindowSize(nsSize aSize);
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
@@ -262,16 +259,12 @@ public:
     };
 
     void               SetPluginType(PluginType aPluginType);
-#ifdef MOZ_X11
     void               SetNonXEmbedPluginFocus(void);
     void               LoseNonXEmbedPluginFocus(void);
-#endif /* MOZ_X11 */
 
     void               ThemeChanged(void);
 
-#ifdef MOZ_X11
     Window             mOldFocusWindow;
-#endif /* MOZ_X11 */
 
     static guint32     mLastButtonPressTime;
     static guint32     mLastButtonReleaseTime;
@@ -304,7 +297,6 @@ public:
     nsWindow*          IMEComposingWindow(void);
     void               IMECreateContext  (void);
     PRBool             IMEFilterEvent    (GdkEventKey *aEvent);
-    void               IMESetCursorPosition(const nsTextEventReply& aReply);
 
     /*
      *  |mIMEData| has all IME data for the window and its children widgets.
@@ -349,11 +341,12 @@ public:
             mComposingWindow = nsnull;
             mOwner           = aOwner;
             mRefCount        = 1;
-            mEnabled         = nsIWidget::IME_STATUS_ENABLED;
+            mEnabled         = nsIKBStateControl::IME_STATUS_ENABLED;
         }
     };
     nsIMEData          *mIMEData;
 
+    // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     NS_IMETHOD SetIMEOpenState(PRBool aState);
     NS_IMETHOD GetIMEOpenState(PRBool* aState);
@@ -366,8 +359,8 @@ public:
 
    void                ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight);
    void                ApplyTransparencyBitmap();
-   virtual void        SetTransparencyMode(nsTransparencyMode aMode);
-   virtual nsTransparencyMode GetTransparencyMode();
+   NS_IMETHOD          SetHasTransparentBackground(PRBool aTransparent);
+   NS_IMETHOD          GetHasTransparentBackground(PRBool& aTransparent);
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
@@ -382,7 +375,6 @@ public:
 
 private:
     void               GetToplevelWidget(GtkWidget **aWidget);
-    GtkWidget         *GetMozContainerWidget();
     void               GetContainerWindow(nsWindow  **aWindow);
     void               SetUrgencyHint(GtkWidget *top_window, PRBool state);
     void              *SetupPluginPort(void);
@@ -413,14 +405,6 @@ private:
 
     nsRefPtr<gfxASurface> mThebesSurface;
 
-#ifdef MOZ_DFB
-    int                    mDFBCursorX;
-    int                    mDFBCursorY;
-    PRUint32               mDFBCursorCount;
-    IDirectFB             *mDFB;
-    IDirectFBDisplayLayer *mDFBLayer;
-#endif
-
 #ifdef ACCESSIBILITY
     nsCOMPtr<nsIAccessible> mRootAccessible;
     void                CreateRootAccessible();
@@ -443,8 +427,8 @@ private:
     // all of our DND stuff
     // this is the last window that had a drag event happen on it.
     static nsWindow    *mLastDragMotionWindow;
-    void   InitDragEvent         (nsDragEvent &aEvent);
-    void   UpdateDragStatus      (nsDragEvent &aEvent,
+    void   InitDragEvent         (nsMouseEvent &aEvent);
+    void   UpdateDragStatus      (nsMouseEvent &aEvent,
                                   GdkDragContext *aDragContext,
                                   nsIDragService *aDragService);
 

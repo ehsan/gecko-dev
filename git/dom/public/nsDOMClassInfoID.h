@@ -83,8 +83,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_MutationEvent_id,
   eDOMClassInfo_UIEvent_id,
   eDOMClassInfo_MouseEvent_id,
-  eDOMClassInfo_MouseScrollEvent_id,
-  eDOMClassInfo_DragEvent_id,
   eDOMClassInfo_KeyboardEvent_id,
   eDOMClassInfo_PopupBlockedEvent_id,
 
@@ -401,12 +399,13 @@ enum nsDOMClassInfoID {
   // added here, which is the end of the things that are currently on by
   // default.
 
-#ifdef MOZ_SVG
+#if defined(MOZ_SVG) && defined(MOZ_SVG_FOREIGNOBJECT)
   eDOMClassInfo_SVGForeignObjectElement_id,
 #endif
 
   eDOMClassInfo_XULCommandEvent_id,
   eDOMClassInfo_CommandEvent_id,
+
   eDOMClassInfo_OfflineResourceList_id,
   eDOMClassInfo_LoadStatusList_id,
   eDOMClassInfo_LoadStatus_id,
@@ -425,33 +424,6 @@ enum nsDOMClassInfoID {
   // event used for cross-domain message-passing and for server-sent events in
   // HTML5
   eDOMClassInfo_MessageEvent_id,
-
-  // Geolocation
-  eDOMClassInfo_GeoGeolocation_id,
-  eDOMClassInfo_GeoPosition_id,
-  eDOMClassInfo_GeoPositionError_id,
-
-  // @font-face in CSS
-  eDOMClassInfo_CSSFontFaceRule_id,
-  eDOMClassInfo_CSSFontFaceStyleDecl_id,
-
-  // WhatWG Video Element
-#if defined(MOZ_MEDIA)
-  eDOMClassInfo_HTMLVideoElement_id,
-  eDOMClassInfo_HTMLSourceElement_id,
-  eDOMClassInfo_HTMLMediaError_id,
-  eDOMClassInfo_HTMLAudioElement_id,
-#endif
-  eDOMClassInfo_ProgressEvent_id,
-
-  eDOMClassInfo_XMLHttpRequestUpload_id,
-
-  // DOM Traversal NodeIterator class
-  eDOMClassInfo_NodeIterator_id,
-
-  eDOMClassInfo_DataTransfer_id,
-
-  eDOMClassInfo_NotifyPaintEvent_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

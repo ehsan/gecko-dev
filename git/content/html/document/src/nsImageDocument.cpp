@@ -152,14 +152,13 @@ protected:
   // can be false when this is true
   PRPackedBool                  mShouldResize;
   PRPackedBool                  mFirstResize;
-  // mObservingImageLoader is true while the observer is set.
-  PRPackedBool                  mObservingImageLoader;
 };
 
 ImageListener::ImageListener(nsImageDocument* aDocument)
   : nsMediaDocumentStreamListener(aDocument)
 {
 }
+
 
 ImageListener::~ImageListener()
 {
@@ -213,7 +212,6 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
   imageLoader->AddObserver(imgDoc);
-  imgDoc->mObservingImageLoader = PR_TRUE;
   imageLoader->LoadImageWithChannel(channel, getter_AddRefs(mNextStream));
 
   return nsMediaDocumentStreamListener::OnStartRequest(request, ctxt);
@@ -229,7 +227,6 @@ ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
   
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(imgDoc->mImageContent);
   if (imageLoader) {
-    imgDoc->mObservingImageLoader = PR_FALSE;
     imageLoader->RemoveObserver(imgDoc);
   }
 
@@ -337,11 +334,9 @@ nsImageDocument::Destroy()
     target->RemoveEventListener(NS_LITERAL_STRING("click"), this, PR_FALSE);
 
     // Break reference cycle with mImageContent, if we have one
-    if (mObservingImageLoader) {
-      nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
-      if (imageLoader) {
-        imageLoader->RemoveObserver(this);
-      }
+    nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
+    if (imageLoader) {
+      imageLoader->RemoveObserver(this);
     }
 
     mImageContent = nsnull;
@@ -371,10 +366,7 @@ nsImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObjec
   if (aScriptGlobalObject) {
     if (!GetRootContent()) {
       // Create synthetic document
-#ifdef DEBUG
-      nsresult rv =
-#endif
-        CreateSyntheticDocument();
+      nsresult rv = CreateSyntheticDocument();
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create synthetic document");
 
       target = do_QueryInterface(mImageContent);
@@ -619,9 +611,10 @@ nsImageDocument::CreateSyntheticDocument()
   }
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                           kNameSpaceID_None);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  rv = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
+                                     kNameSpaceID_None,
+                                     getter_AddRefs(nodeInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo);
   if (!mImageContent) {
@@ -673,7 +666,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     nsMargin m;
     if (styleContext->GetStyleMargin()->GetMargin(m))
       visibleArea.Deflate(m);
-    m = styleContext->GetStyleBorder()->GetActualBorder();
+    m = styleContext->GetStyleBorder()->GetBorder();
     visibleArea.Deflate(m);
     if (styleContext->GetStylePadding()->GetPadding(m))
       visibleArea.Deflate(m);

@@ -62,8 +62,6 @@ TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 TARGETS		+= elf-dynstr-gc
-MAKE_DIRS	+= $(MDDEPDIR)
-GARBAGE_DIRS	+= $(MDDEPDIR)
 endif
 endif
 
@@ -168,7 +166,6 @@ check-preprocessor::
 check-jar-mn::
 	make -C tests/src-simple check-jar
 	make -C tests/src-simple check-flat
-	make -C tests/src-simple check-flat USE_EXTENSION_MANIFEST=1
 ifneq ($(OS_ARCH), WINNT)
 	make -C tests/src-simple check-symlink
 endif

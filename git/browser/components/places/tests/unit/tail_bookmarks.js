@@ -36,3 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 // put cleanup of the bookmarks test here.
+
+// remove bookmarks files
+cleanUp();

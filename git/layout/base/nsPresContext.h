@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -63,10 +62,8 @@
 #include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
-// This also pulls in gfxTypes.h, which we cannot include directly.
-#include "gfxRect.h"
-#include "nsRegion.h"
-
+// XXX we need only gfxTypes.h, but we cannot include it directly.
+#include "gfxPoint.h"
 class nsImageLoader;
 #ifdef IBMBIDI
 class nsBidiPresUtils;
@@ -92,7 +89,6 @@ class nsIAtom;
 struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
-class gfxUserFontSet;
 
 #ifdef MOZ_REFLOW_PERF
 class nsIRenderingContext;
@@ -212,14 +208,6 @@ public:
 
   void RebuildAllStyleData(nsChangeHint aExtraHint);
   void PostRebuildAllStyleDataEvent();
-
-  void MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData);
-  void PostMediaFeatureValuesChangedEvent();
-  NS_HIDDEN_(void) HandleMediaFeatureValuesChangedEvent();
-  void FlushPendingMediaFeatureValuesChanged() {
-    if (mPendingMediaFeatureValuesChanged)
-      MediaFeatureValuesChanged(PR_FALSE);
-  }
 
   /**
    * Access compatibility mode for this context.  This is the same as
@@ -376,36 +364,15 @@ public:
  
 
   /**
-   * Set up observers so that aTargetFrame will be invalidated when
-   * aImage loads, where aImage is its background image.  Only a single
-   * image will be tracked per frame.
+   * Load an image for the target frame. This call can be made
+   * repeated with only a single image ever being loaded. When the
+   * image's data is ready for rendering the target frame's Paint()
+   * method will be invoked (via the ViewManager) so that the
+   * appropriate damage repair is done.
    */
   NS_HIDDEN_(imgIRequest*) LoadImage(imgIRequest* aImage,
                                      nsIFrame* aTargetFrame);
-  /**
-   * Set up observers so that aTargetFrame will be invalidated or
-   * reflowed (as appropriate) when aImage loads, where aImage is its
-   * *border* image.  Only a single image will be tracked per frame.
-   */
-  NS_HIDDEN_(imgIRequest*) LoadBorderImage(imgIRequest* aImage,
-                                           nsIFrame* aTargetFrame);
 
-private:
-  typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsImageLoader> ImageLoaderTable;
-
-  NS_HIDDEN_(imgIRequest*) DoLoadImage(ImageLoaderTable& aTable,
-                                       imgIRequest* aImage,
-                                       nsIFrame* aTargetFrame,
-                                       PRBool aReflowOnLoad);
-
-  NS_HIDDEN_(void) DoStopImageFor(ImageLoaderTable& aTable,
-                                  nsIFrame* aTargetFrame);
-public:
-
-  NS_HIDDEN_(void) StopBackgroundImageFor(nsIFrame* aTargetFrame)
-  { DoStopImageFor(mImageLoaders, aTargetFrame); }
-  NS_HIDDEN_(void) StopBorderImageFor(nsIFrame* aTargetFrame)
-  { DoStopImageFor(mBorderImageLoaders, aTargetFrame); }
   /**
    * This method is called when a frame is being destroyed to
    * ensure that the image load gets disassociated from the prescontext
@@ -440,10 +407,7 @@ public:
    * Set the currently visible area. The units for r are standard
    * nscoord units (as scaled by the device context).
    */
-  void SetVisibleArea(const nsRect& r) {
-    mVisibleArea = r;
-    PostMediaFeatureValuesChangedEvent();
-  }
+  void SetVisibleArea(const nsRect& r) { mVisibleArea = r; }
 
   /**
    * Return true if this presentation context is a paginated
@@ -555,12 +519,6 @@ public:
 
   gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
   { return mDeviceContext->AppUnitsToGfxUnits(aAppUnits); }
-
-  gfxRect AppUnitsToGfxUnits(const nsRect& aAppRect) const
-  { return gfxRect(AppUnitsToGfxUnits(aAppRect.x),
-                   AppUnitsToGfxUnits(aAppRect.y),
-                   AppUnitsToGfxUnits(aAppRect.width),
-                   AppUnitsToGfxUnits(aAppRect.height)); }
 
   nscoord TwipsToAppUnits(PRInt32 aTwips) const
   { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *
@@ -703,6 +661,22 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
+
+  /**
+   * Set the Bidi capabilities of the system
+   * @param aIsBidi == TRUE if the system has the capability of reordering Bidi text
+   */
+  void SetIsBidiSystem(PRBool aIsBidi)
+  {
+    NS_ASSERTION(!(aIsBidi & ~1), "Value must be true or false");
+    mIsBidiSystem = aIsBidi;
+  }
+
+  /**
+   * Get the Bidi capabilities of the system
+   * @return TRUE if the system has the capability of reordering Bidi text
+   */
+  PRBool IsBidiSystem() const { return mIsBidiSystem; }
 #endif // IBMBIDI
 
   /**
@@ -780,12 +754,6 @@ public:
   }
 
   PRBool           SupressingResizeReflow() const { return mSupressResizeReflow; }
-  
-  gfxUserFontSet* GetUserFontSet();
-  void SetUserFontSet(gfxUserFontSet *aUserFontSet);
-
-  void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
-  void FireDOMPaintEvent();
 
 protected:
   friend class nsRunnableMethod<nsPresContext>;
@@ -826,8 +794,7 @@ protected:
   nsILinkHandler*       mLinkHandler;   // [WEAK]
   nsIAtom*              mLangGroup;     // [STRONG]
 
-  ImageLoaderTable      mImageLoaders;
-  ImageLoaderTable      mBorderImageLoaders;
+  nsInterfaceHashtable<nsVoidPtrHashKey, nsImageLoader> mImageLoaders;
   nsWeakPtr             mContainer;
 
   float                 mTextZoom;      // Text zoom, defaults to 1.0
@@ -847,12 +814,6 @@ protected:
 
   nsPropertyTable       mPropertyTable;
 
-  nsRegion              mSameDocDirtyRegion;
-  nsRegion              mCrossDocDirtyRegion;
-
-  // container for per-context fonts (downloadable, SVG, etc.)
-  gfxUserFontSet* mUserFontSet;
-  
   nsLanguageSpecificTransformType mLanguageSpecificTransformType;
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSize;
@@ -907,7 +868,6 @@ protected:
   unsigned              mPrefScrollbarSide : 2;
   unsigned              mPendingSysColorChanged : 1;
   unsigned              mPendingThemeChanged : 1;
-  unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
   unsigned              mRenderedPositionVaryingContent : 1;
 
@@ -917,6 +877,7 @@ protected:
 
 #ifdef IBMBIDI
   unsigned              mIsVisual : 1;
+  unsigned              mIsBidiSystem : 1;
 
 #endif
 #ifdef DEBUG

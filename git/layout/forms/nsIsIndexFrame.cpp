@@ -110,8 +110,8 @@ nsIsIndexFrame::Destroy()
 // REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
-nsresult
-nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
+NS_IMETHODIMP
+nsIsIndexFrame::UpdatePromptLabel()
 {
   if (!mTextContent) return NS_ERROR_UNEXPECTED;
 
@@ -133,7 +133,7 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
                                          "IsIndexPrompt", prompt);
   }
 
-  mTextContent->SetText(prompt, aNotify);
+  mTextContent->SetText(prompt, PR_TRUE);
 
   return NS_OK;
 }
@@ -191,7 +191,8 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create an hr
   nsCOMPtr<nsINodeInfo> hrInfo;
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_None);
+  nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_None,
+                     getter_AddRefs(hrInfo));
 
   NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
@@ -203,13 +204,14 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // set the value of the text node and add it to the child list
-  UpdatePromptLabel(PR_FALSE);
+  UpdatePromptLabel();
   if (!aElements.AppendElement(mTextContent))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Create text input field
   nsCOMPtr<nsINodeInfo> inputInfo;
-  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None);
+  nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None,
+                     getter_AddRefs(inputInfo));
 
   NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
   if (!mInputContent)
@@ -283,7 +285,7 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   nsresult rv = NS_OK;
   if (nsGkAtoms::prompt == aAttribute) {
-    rv = UpdatePromptLabel(PR_TRUE);
+    rv = UpdatePromptLabel();
   } else {
     rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }

@@ -38,7 +38,6 @@
 
 #include "nsAccessibleEventData.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityUtils.h"
 #include "nsIAccessibilityService.h"
 #include "nsIAccessNode.h"
 #include "nsIDocument.h"
@@ -58,22 +57,7 @@
 PRBool nsAccEvent::gLastEventFromUserInput = PR_FALSE;
 nsIDOMNode* nsAccEvent::gLastEventNodeWeak = 0;
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccEvent. nsISupports
-
-NS_IMPL_CYCLE_COLLECTION_2(nsAccEvent, mAccessible, mDocAccessible)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccEvent)
-  NS_INTERFACE_MAP_ENTRY(nsIAccessibleEvent)
-  NS_INTERFACE_MAP_ENTRY(nsAccEvent)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAccEvent)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAccEvent)
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccEvent. Constructors
+NS_IMPL_ISUPPORTS2(nsAccEvent, nsAccEvent, nsIAccessibleEvent)
 
 nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
                        PRBool aIsAsynch, EEventRule aEventRule):

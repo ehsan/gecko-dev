@@ -79,7 +79,6 @@ public:
 
   PRBool IsValid()
   {
-    NS_WARN_IF_FALSE(!!(mTarget), "Event target is not valid!");
     return !!(mTarget);
   }
 
@@ -523,17 +522,12 @@ nsEventDispatcher::DispatchDOMEvent(nsISupports* aTarget,
       privEvt->GetInternalNSEvent(&innerEvent);
       NS_ENSURE_TRUE(innerEvent, NS_ERROR_ILLEGAL_VALUE);
 
-      PRBool dontResetTrusted = PR_FALSE;
-      if (innerEvent->flags & NS_EVENT_DISPATCHED) {
-        innerEvent->target = nsnull;
-        innerEvent->originalTarget = nsnull;
-      }
-      else {
-        nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
-        nsevent->GetIsTrusted(&dontResetTrusted);
-      }
+      PRBool trusted;
+      nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
 
-      if (!dontResetTrusted) {
+      nsevent->GetIsTrusted(&trusted);
+
+      if (!trusted || (innerEvent->flags & NS_EVENT_DISPATCHED)) {
         //Check security state to determine if dispatcher is trusted
         privEvt->SetTrusted(nsContentUtils::IsCallerTrustedForWrite());
       }
@@ -563,6 +557,8 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
                                     static_cast<nsMutationEvent*>(aEvent));
     case NS_GUI_EVENT:
     case NS_COMPOSITION_EVENT:
+    case NS_RECONVERSION_EVENT:
+    case NS_QUERYCARETRECT_EVENT:
     case NS_SCROLLPORT_EVENT:
       return NS_NewDOMUIEvent(aDOMEvent, aPresContext,
                               static_cast<nsGUIEvent*>(aEvent));
@@ -570,15 +566,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext,
                                     static_cast<nsKeyEvent*>(aEvent));
     case NS_MOUSE_EVENT:
+    case NS_MOUSE_SCROLL_EVENT:
     case NS_POPUP_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aPresContext,
                                  static_cast<nsInputEvent*>(aEvent));
-    case NS_MOUSE_SCROLL_EVENT:
-      return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext,
-                                 static_cast<nsInputEvent*>(aEvent));
-    case NS_DRAG_EVENT:
-      return NS_NewDOMDragEvent(aDOMEvent, aPresContext,
-                                 static_cast<nsDragEvent*>(aEvent));
     case NS_POPUPBLOCKED_EVENT:
       return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext,
                                         static_cast<nsPopupBlockedEvent*>
@@ -611,10 +602,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
                                    static_cast<nsCommandEvent*>(aEvent));
-    case NS_NOTIFYPAINT_EVENT:
-      return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext,
-                                       static_cast<nsNotifyPaintEvent*>
-                                                     (aEvent));
     }
 
     // For all other types of events, create a vanilla event object.
@@ -625,13 +612,9 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
 
   if (aEventType.LowerCaseEqualsLiteral("mouseevent") ||
       aEventType.LowerCaseEqualsLiteral("mouseevents") ||
+      aEventType.LowerCaseEqualsLiteral("mousescrollevents") ||
       aEventType.LowerCaseEqualsLiteral("popupevents"))
     return NS_NewDOMMouseEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("mousescrollevents"))
-    return NS_NewDOMMouseScrollEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("dragevent") ||
-      aEventType.LowerCaseEqualsLiteral("dragevents"))
-    return NS_NewDOMDragEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("keyboardevent") ||
       aEventType.LowerCaseEqualsLiteral("keyevents"))
     return NS_NewDOMKeyboardEvent(aDOMEvent, aPresContext, nsnull);
@@ -669,10 +652,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMDataContainerEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("messageevent"))
     return NS_NewDOMMessageEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("progressevent"))
-    return NS_NewDOMProgressEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("notifypaintevent"))
-    return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

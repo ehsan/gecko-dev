@@ -867,15 +867,14 @@ nsXBLContentSink::ConstructParameter(const PRUnichar **aAtts)
 nsresult
 nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                nsIContent** aResult, PRBool* aAppendContent,
-                                PRBool aFromParser)
+                                nsIContent** aResult, PRBool* aAppendContent)
 {
 #ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
 #endif
     return nsXMLContentSink::CreateElement(aAtts, aAttsCount, aNodeInfo,
                                            aLineNumber, aResult,
-                                           aAppendContent, aFromParser);
+                                           aAppendContent);
 #ifdef MOZ_XUL
   }
 
@@ -947,7 +946,8 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
     }
     else {
       nsCOMPtr<nsINodeInfo> ni;
-      ni = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+      mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
+                                    getter_AddRefs(ni));
       attrs[i].mName.SetTo(ni);
     }
     

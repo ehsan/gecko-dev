@@ -42,7 +42,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 DIRS		+= tests
 endif
 
@@ -91,7 +91,6 @@ XPIDLSRCS	= \
 EXPORTS		= \
 		nsBidi.h \
 		nsBidiPresUtils.h \
-		nsCaret.h \
 		nsCSSFrameConstructor.h \
 		nsChangeHint.h \
 		nsCompatibility.h \
@@ -99,6 +98,7 @@ EXPORTS		= \
 		nsFrameManager.h \
 		nsFrameManagerBase.h \
 		nsFrameTraversal.h \
+		nsICaret.h \
 		nsIDocumentViewer.h \
 		nsIFrameTraversal.h \
 		nsIImageMap.h \
@@ -120,7 +120,6 @@ CPPSRCS		= \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \
-		nsCSSRenderingBorders.cpp \
 		nsCaret.cpp \
 		nsChildIterator.cpp \
 		nsCounterManager.cpp \

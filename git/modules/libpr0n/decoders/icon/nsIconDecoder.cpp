@@ -143,10 +143,7 @@ NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PR
   // Notify the image...
   nsIntRect r(0, 0, w, h);
   nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-  rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
-  if (NS_FAILED(rv))
-    return rv;
-
+  img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
   mObserver->OnDataAvailable(nsnull, mFrame, &r);
 
   return NS_OK;

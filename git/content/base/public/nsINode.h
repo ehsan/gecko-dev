@@ -95,8 +95,6 @@ enum {
   // Optimizations to quickly check whether element may have ID, class or style
   // attributes. Not all element implementations may use these!
   NODE_MAY_HAVE_ID =             0x00000200U,
-  // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
-  // node in fact has a class, but may be set even if it doesn't.
   NODE_MAY_HAVE_CLASS =          0x00000400U,
   NODE_MAY_HAVE_STYLE =          0x00000800U,
 
@@ -150,9 +148,8 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x2593b0d5, 0x9a06, 0x4d6b, \
-  { 0x9a, 0x10, 0xb1, 0x39, 0x9f, 0x1b, 0xa0, 0x8e } }
-
+{ 0x6f69dd90, 0x318d, 0x40ac, \
+  { 0xb8, 0xb8, 0x99, 0xb8, 0xa7, 0xbb, 0x9a, 0x58 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -235,16 +232,6 @@ public:
    * @return the child, or null if index out of bounds
    */
   virtual nsIContent* GetChildAt(PRUint32 aIndex) const = 0;
-
-  /**
-   * Get a raw pointer to the child array.  This should only be used if you
-   * plan to walk a bunch of the kids, promise to make sure that nothing ever
-   * mutates (no attribute changes, not DOM tree changes, no script execution,
-   * NOTHING), and will never ever peform an out-of-bounds access here.  This
-   * method may return null if there are no children, or it may return a
-   * garbage pointer..
-   */
-  virtual nsIContent * const * GetChildArray() const = 0;
 
   /**
    * Get the index of a child within this content

@@ -615,8 +615,10 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     nsCOMPtr<nsIDNSRecord> rec;
     nsresult rv;
     {
-        nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID);
-        if (!dns)
+        nsCOMPtr<nsIDNSService> dns;
+
+        dns = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
+        if (NS_FAILED(rv))
             return PR_FAILURE;
 
         rv = dns->Resolve(proxyHost, 0, getter_AddRefs(rec));

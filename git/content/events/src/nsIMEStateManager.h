@@ -44,7 +44,7 @@
 class nsIContent;
 class nsPIDOMWindow;
 class nsPresContext;
-class nsIWidget;
+class nsIKBStateControl;
 class nsIFocusController;
 
 /*
@@ -65,14 +65,14 @@ public:
 protected:
   static void SetIMEState(nsPresContext* aPresContext,
                           PRUint32 aState,
-                          nsIWidget* aKB);
+                          nsIKBStateControl* aKB);
   static PRUint32 GetNewIMEState(nsPresContext* aPresContext,
                                  nsIContent* aContent);
 
   static PRBool IsActive(nsPresContext* aPresContext);
 
   static nsIFocusController* GetFocusController(nsPresContext* aPresContext);
-  static nsIWidget* GetWidget(nsPresContext* aPresContext);
+  static nsIKBStateControl* GetKBStateControl(nsPresContext* aPresContext);
 
   static nsIContent*    sContent;
   static nsPresContext* sPresContext;

@@ -38,6 +38,7 @@
 #define nsHistory_h___
 
 #include "nsIDOMHistory.h"
+#include "nsIDOMNSHistory.h"
 #include "nsISupports.h"
 #include "nscore.h"
 #include "nsIScriptContext.h"
@@ -46,7 +47,8 @@
 class nsIDocShell;
 
 // Script "History" object
-class nsHistory : public nsIDOMHistory
+class nsHistory : public nsIDOMHistory,
+                  public nsIDOMNSHistory
 {
 public:
   nsHistory(nsIDocShell* aDocShell);
@@ -57,6 +59,9 @@ public:
 
   // nsIDOMHistory
   NS_DECL_NSIDOMHISTORY
+
+  // nsIDOMNSHistory
+  NS_DECL_NSIDOMNSHISTORY
 
   void SetDocShell(nsIDocShell *aDocShell);
 

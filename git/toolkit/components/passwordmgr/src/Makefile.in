@@ -48,7 +48,6 @@ EXTRA_COMPONENTS = \
 			nsLoginManagerPrompter.js \
 			nsLoginInfo.js \
 			storage-Legacy.js \
-			storage-mozStorage.js \
 			$(NULL)
 
 

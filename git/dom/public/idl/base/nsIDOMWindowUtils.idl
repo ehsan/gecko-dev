@@ -47,7 +47,7 @@
 
 interface nsIDOMElement;
 
-[scriptable, uuid(9a1ff4e0-5e31-46af-b393-2cbab8093442)]
+[scriptable, uuid(993da427-2ac3-4766-8485-21a236d258e4)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -127,34 +127,6 @@ interface nsIDOMWindowUtils : nsISupports {
                       in long aClickCount,
                       in long aModifiers);
 
-  /** Synthesize a mouse scroll event for a window. The event types supported
-   *  are: 
-   *    DOMMouseScroll
-   *    MozMousePixelScroll
-   *
-   * Events are sent in coordinates offset by aX and aY from the window.
-   *
-   * Cannot be accessed from unprivileged context (not content-accessible)
-   * Will throw a DOM security error if called without UniversalXPConnect
-   * privileges.
-   *
-   * @param aType event type
-   * @param aX x offset
-   * @param aY y offset
-   * @param aButton button to synthesize
-   * @param aScrollFlags flag bits --- see nsMouseScrollFlags in nsGUIEvent.h
-   * @param aDelta the direction and amount to scroll (in lines or pixels,
-   * depending on the event type)
-   * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
-   */
-  void sendMouseScrollEvent(in AString aType,
-                            in long aX,
-                            in long aY,
-                            in long aButton,
-                            in long aScrollFlags,
-                            in long aDelta,
-                            in long aModifiers);
-
   /**
    * Synthesize a key event to the window. The event types supported are:
    *   keydown, keyup, keypress
@@ -169,17 +141,11 @@ interface nsIDOMWindowUtils : nsISupports {
    * @param aKeyCode key code
    * @param aCharCode character code
    * @param aModifiers modifiers pressed, using constants defined in nsIDOMNSEvent
-   * @param aPreventDefault if true, preventDefault() the event before dispatch
-   *
-   * @return false if the event had preventDefault() called on it,
-   *               true otherwise.  In other words, true if and only if the
-   *               default action was taken.
    */
-  boolean sendKeyEvent(in AString aType,
-                       in long aKeyCode,
-                       in long aCharCode,
-                       in long aModifiers,
-                       [optional] in boolean aPreventDefault);
+  void sendKeyEvent(in AString aType,
+                    in long aKeyCode,
+                    in long aCharCode,
+                    in long aModifiers);
 
   /**
    * See nsIWidget::SynthesizeNativeKeyEvent
@@ -193,25 +159,6 @@ interface nsIDOMWindowUtils : nsISupports {
                           in long aModifierFlags,
                           in AString aCharacters,
                           in AString aUnmodifiedCharacters);
-
-  /**
-   * See nsIWidget::ActivateNativeMenuItemAt
-   *
-   * Cannot be accessed from unprivileged context (not content-accessible)
-   * Will throw a DOM security error if called without UniversalXPConnect
-   * privileges.
-   */
-  void activateNativeMenuItemAt(in AString indexString);
-
-  /**
-   * See nsIWidget::ForceNativeMenuReload
-   *
-   * This is used for native menu system testing. Calling this forces a full
-   * reload of the menu system, reloading all native menus and their items.
-   * This is important for testing because changes to the DOM can affect the
-   * native menu system lazily.
-   */
-  void forceNativeMenuReload();
 
   /**
    * Focus the element aElement. The element should be in the same document
@@ -234,10 +181,4 @@ interface nsIDOMWindowUtils : nsISupports {
    * privileges in non-debug builds. Available to all callers in debug builds.
    */
   void garbageCollect();
-
-  /**
-   * Force processing of any queued paints
-   */
-
-  void processUpdates();
 };

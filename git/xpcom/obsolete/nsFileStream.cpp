@@ -235,7 +235,7 @@ PRBool nsRandomAccessInputStream::readline(char* s, PRInt32 n)
     if (position < zero)
         return PR_FALSE;
     PRInt32 bytesRead = read(s, n - 1);
-    if (failed() || bytesRead < 0)
+    if (failed())
         return PR_FALSE;
     s[bytesRead] = '\0'; // always terminate at the end of the buffer
     char* tp = strpbrk(s, "\n\r");

@@ -56,6 +56,10 @@
      document observer methods will never be called because we'll be
      adding the XUL nodes into the content model "quietly".
 
+  2. The "element map" maps an RDF resource to the elements whose 'id'
+     or 'ref' attributes refer to that resource. We re-use the element
+     map to support the HTML-like 'getElementById()' method.
+
 */
 
 // Note the ALPHABETICAL ORDERING
@@ -181,35 +185,6 @@ struct BroadcastListener {
     nsCOMPtr<nsIAtom> mAttribute;
 };
 
-nsIContent*
-nsRefMapEntry::GetFirstContent()
-{
-    return static_cast<nsIContent*>(mRefContentList.SafeElementAt(0));
-}
-
-void
-nsRefMapEntry::AppendAll(nsCOMArray<nsIContent>* aElements)
-{
-    for (PRInt32 i = 0; i < mRefContentList.Count(); ++i) {
-        aElements->AppendObject(static_cast<nsIContent*>(mRefContentList[i]));
-    }
-}
-
-PRBool
-nsRefMapEntry::AddContent(nsIContent* aContent)
-{
-    if (mRefContentList.IndexOf(aContent) >= 0)
-        return PR_TRUE;
-    return mRefContentList.AppendElement(aContent);
-}
-
-PRBool
-nsRefMapEntry::RemoveContent(nsIContent* aContent)
-{
-    mRefContentList.RemoveElement(aContent);
-    return mRefContentList.Count() == 0;
-}
-
 //----------------------------------------------------------------------
 //
 // ctors & dtors
@@ -272,6 +247,16 @@ nsXULDocument::~nsXULDocument()
         if (mDocumentURI)
             nsXULPrototypeCache::GetInstance()->RemoveFromFastLoadSet(mDocumentURI);
     }
+
+    // The destructor of nsDocument will delete references to style
+    // sheets, but we don't want that if we're a popup document, so
+    // then we'll clear the stylesheets array here to prevent that
+    // from happening.
+    if (mIsPopup) {
+        mStyleSheets.Clear();
+        mStyleAttrStyleSheet = nsnull;
+        mAttrStyleSheet = nsnull;
+    }
 }
 
 nsresult
@@ -305,6 +290,17 @@ NS_NewXULDocument(nsIXULDocument** result)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULDocument)
 
+static PRIntn
+TraverseElement(const PRUnichar* aID, nsIContent* aElement, void* aContext)
+{
+    nsCycleCollectionTraversalCallback *cb =
+        static_cast<nsCycleCollectionTraversalCallback*>(aContext);
+
+    cb->NoteXPCOMChild(aElement);
+
+    return HT_ENUMERATE_NEXT;
+}
+
 static PLDHashOperator PR_CALLBACK
 TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
                          void* aContext)
@@ -312,9 +308,7 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable key");
     cb->NoteXPCOMChild(aKey);
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -326,7 +320,6 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mOverlayLoadObservers/mPendingOverlayLoadNotifications value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -335,6 +328,8 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
+
+    tmp->mElementMap.Enumerate(TraverseElement, &cb);
 
     // An element will only have a template builder as long as it's in the
     // document, so we'll traverse the table here instead of from the element.
@@ -350,7 +345,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 
     PRUint32 i, count = tmp->mPrototypes.Length();
     for (i = 0; i < count; ++i) {
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypes[i]");
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
@@ -362,10 +356,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     if (tmp->mPendingOverlayLoadNotifications.IsInitialized())
         tmp->mPendingOverlayLoadNotifications.EnumerateRead(TraverseObservers, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTooltipNode)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
@@ -435,9 +425,9 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     mMayStartLayout = PR_FALSE;
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
 
-    mChannel = aChannel;
+    mDocumentTitle.SetIsVoid(PR_TRUE);
 
-    mHaveInputEncoding = PR_TRUE;
+    mChannel = aChannel;
 
     // Get the URI.  Note that this should match nsDocShell::OnLoadingSite
     nsresult rv =
@@ -679,12 +669,6 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
                                             const nsAString &aAttr)
 {
-    if (mUpdateNestLevel > 0) {
-        nsDelayedBroadcastUpdate delayedUpdate(aBroadcaster, aListener,
-                                               aAttr);
-        mDelayedBroadcasters.AppendElement(delayedUpdate);
-        return;
-    }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
 
@@ -861,6 +845,8 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
                     PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                          PL_DHASH_REMOVE);
 
+                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
+
                 break;
             }
         }
@@ -932,23 +918,6 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
 }
 
 void
-nsXULDocument::AttributeWillChange(nsIContent* aContent, PRInt32 aNameSpaceID,
-                                   nsIAtom* aAttribute)
-{
-    NS_ABORT_IF_FALSE(aContent, "Null content!");
-    NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
-
-    // XXXbz check aNameSpaceID, dammit!
-    // See if we need to update our ref map.
-    if (aAttribute == nsGkAtoms::ref ||
-        (aAttribute == nsGkAtoms::id && !aContent->GetIDAttributeName())) {
-        RemoveElementFromRefMap(aContent);
-    }
-    
-    nsXMLDocument::AttributeWillChange(aContent, aNameSpaceID, aAttribute);
-}
-
-void
 nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIContent* aElement, PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute, PRInt32 aModType,
@@ -956,18 +925,20 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
-    // Do this here so that all the exit paths below don't leave this undone
-    nsXMLDocument::AttributeChanged(aDocument, aElement, aNameSpaceID,
-            aAttribute, aModType, aStateMask);
+    nsresult rv;
 
     // XXXbz check aNameSpaceID, dammit!
-    // See if we need to update our ref map.
-    if (aAttribute == nsGkAtoms::ref ||
-        (aAttribute == nsGkAtoms::id && !aElement->GetIDAttributeName())) {
-        AddElementToRefMap(aElement);
+    // First see if we need to update our element map.
+    if ((aAttribute == nsGkAtoms::id) || (aAttribute == nsGkAtoms::ref)) {
+
+        rv = mElementMap.Enumerate(RemoveElementsFromMapByContent, aElement);
+        if (NS_FAILED(rv)) return;
+
+        // That'll have removed _both_ the 'ref' and 'id' entries from
+        // the map. So add 'em back now.
+        rv = AddElementToMap(aElement);
+        if (NS_FAILED(rv)) return;
     }
-    
-    nsresult rv;
 
     // Synchronize broadcast listeners
     if (mBroadcasterMap && CanBroadcast(aNameSpaceID, aAttribute)) {
@@ -1042,7 +1013,7 @@ nsXULDocument::ContentAppended(nsIDocument* aDocument,
                                PRInt32 aNewIndexInContainer)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
-    
+
     // Update our element map
     PRUint32 count = aContainer->GetChildCount();
 
@@ -1051,8 +1022,6 @@ nsXULDocument::ContentAppended(nsIDocument* aDocument,
          ++i) {
         rv = AddSubtreeToDocument(aContainer->GetChildAt(i));
     }
-
-    nsXMLDocument::ContentAppended(aDocument, aContainer, aNewIndexInContainer);
 }
 
 void
@@ -1064,8 +1033,6 @@ nsXULDocument::ContentInserted(nsIDocument* aDocument,
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
     AddSubtreeToDocument(aChild);
-
-    nsXMLDocument::ContentInserted(aDocument, aContainer, aChild, aIndexInContainer);
 }
 
 void
@@ -1077,8 +1044,6 @@ nsXULDocument::ContentRemoved(nsIDocument* aDocument,
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
     RemoveSubtreeFromDocument(aChild);
-
-    nsXMLDocument::ContentRemoved(aDocument, aContainer, aChild, aIndexInContainer);
 }
 
 //----------------------------------------------------------------------
@@ -1087,13 +1052,25 @@ nsXULDocument::ContentRemoved(nsIDocument* aDocument,
 //
 
 NS_IMETHODIMP
-nsXULDocument::AddElementForID(nsIContent* aElement)
+nsXULDocument::AddElementForID(const nsAString& aID, nsIContent* aElement)
 {
     NS_PRECONDITION(aElement != nsnull, "null ptr");
     if (! aElement)
         return NS_ERROR_NULL_POINTER;
 
-    UpdateIdTableEntry(aElement);
+    mElementMap.Add(aID, aElement);
+    return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsXULDocument::RemoveElementForID(const nsAString& aID, nsIContent* aElement)
+{
+    NS_PRECONDITION(aElement != nsnull, "null ptr");
+    if (! aElement)
+        return NS_ERROR_NULL_POINTER;
+
+    mElementMap.Remove(aID, aElement);
     return NS_OK;
 }
 
@@ -1101,19 +1078,7 @@ NS_IMETHODIMP
 nsXULDocument::GetElementsForID(const nsAString& aID,
                                 nsCOMArray<nsIContent>& aElements)
 {
-    aElements.Clear();
-
-    nsCOMPtr<nsIAtom> atom = do_GetAtom(aID);
-    if (!atom)
-        return NS_ERROR_OUT_OF_MEMORY;
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
-    if (entry) {
-        entry->AppendAllIdContent(&aElements);
-    }
-    nsRefMapEntry *refEntry = mRefMap.GetEntry(atom);
-    if (refEntry) {
-        refEntry->AppendAll(&aElements);
-    }
+    mElementMap.Find(aID, aElements);
     return NS_OK;
 }
 
@@ -1589,26 +1554,20 @@ nsXULDocument::GetElementById(const nsAString& aId,
     NS_ENSURE_ARG_POINTER(aReturn);
     *aReturn = nsnull;
 
-    nsCOMPtr<nsIAtom> atom = do_GetAtom(aId);
-    if (!atom)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    if (!CheckGetElementByIdArg(atom))
+    if (!CheckGetElementByIdArg(aId))
         return NS_OK;
 
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
-    if (entry) {
-        nsIContent* content = entry->GetIdContent();
-        if (content)
-            return CallQueryInterface(content, aReturn);
+    nsresult rv;
+
+    nsCOMPtr<nsIContent> element;
+    rv = mElementMap.FindFirst(aId, getter_AddRefs(element));
+    if (NS_FAILED(rv)) return rv;
+
+    if (element) {
+        rv = CallQueryInterface(element, aReturn);
     }
-    nsRefMapEntry* refEntry = mRefMap.GetEntry(atom);
-    if (refEntry) {
-        NS_ASSERTION(refEntry->GetFirstContent(),
-                     "nsRefMapEntries should have nonempty content lists");
-        return CallQueryInterface(refEntry->GetFirstContent(), aReturn);
-    }
-    return NS_OK;
+
+    return rv;
 }
 
 nsresult
@@ -1618,11 +1577,8 @@ nsXULDocument::AddElementToDocumentPre(nsIContent* aElement)
     // to the XUL Document.
     nsresult rv;
 
-    // 1. Add the element to the resource-to-element map. Also add it to
-    // the id map, since it seems this can be called when creating
-    // elements from prototypes.
-    UpdateIdTableEntry(aElement);
-    rv = AddElementToRefMap(aElement);
+    // 1. Add the element to the resource-to-element map
+    rv = AddElementToMap(aElement);
     if (NS_FAILED(rv)) return rv;
 
     // 2. If the element is a 'command updater' (i.e., has a
@@ -1733,14 +1689,6 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aElement)
     // document.
     nsresult rv;
 
-    if (aElement->NodeInfo()->Equals(nsGkAtoms::keyset, kNameSpaceID_XUL)) {
-        nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
-        if (xblService) {
-            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
-            xblService->DetachGlobalKeyHandler(piTarget);
-        }
-    }
-
     // 1. Remove any children from the document.
     PRUint32 count = aElement->GetChildCount();
 
@@ -1750,11 +1698,9 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aElement)
             return rv;
     }
 
-    // 2. Remove the element from the resource-to-element map.
-    // Also remove it from the id map, since we added it in
-    // AddElementToDocumentPre().
-    RemoveElementFromRefMap(aElement);
-    RemoveFromIdTable(aElement);
+    // 2. Remove the element from the resource-to-element map
+    rv = RemoveElementFromMap(aElement);
+    if (NS_FAILED(rv)) return rv;
 
     // 3. If the element is a 'command updater', then remove the
     // element from the document's command dispatcher.
@@ -1817,54 +1763,64 @@ nsXULDocument::GetTemplateBuilderFor(nsIContent* aContent,
     return NS_OK;
 }
 
-static void
-GetRefMapAttribute(nsIContent* aElement, nsAutoString* aValue)
+// Attributes that are used with getElementById() and the
+// resource-to-element map.
+nsIAtom** nsXULDocument::kIdentityAttrs[] =
 {
-    aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, *aValue);
-    if (aValue->IsEmpty() && !aElement->GetIDAttributeName()) {
-        aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::id, *aValue);
-    }
-}
+    &nsGkAtoms::id,
+    &nsGkAtoms::ref,
+    nsnull
+};
 
 nsresult
-nsXULDocument::AddElementToRefMap(nsIContent* aElement)
+nsXULDocument::AddElementToMap(nsIContent* aElement)
 {
-    // Look at the element's 'ref' attribute, and if set,
-    // add an entry in the resource-to-element map to the element.
-    nsAutoString value;
-    GetRefMapAttribute(aElement, &value);
-    if (!value.IsEmpty()) {
-        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
-        if (!atom)
-            return NS_ERROR_OUT_OF_MEMORY;
-        nsRefMapEntry *entry = mRefMap.PutEntry(atom);
-        if (!entry)
-            return NS_ERROR_OUT_OF_MEMORY;
-        if (!entry->AddContent(aElement))
-            return NS_ERROR_OUT_OF_MEMORY;
+    // Look at the element's 'id' and 'ref' attributes, and if set,
+    // add pointers in the resource-to-element map to the element.
+    nsresult rv;
+
+    for (PRInt32 i = 0; kIdentityAttrs[i] != nsnull; ++i) {
+        nsAutoString value;
+        aElement->GetAttr(kNameSpaceID_None, *kIdentityAttrs[i], value);
+        if (!value.IsEmpty()) {
+            rv = mElementMap.Add(value, aElement);
+            if (NS_FAILED(rv)) return rv;
+        }
     }
 
     return NS_OK;
 }
 
-void
-nsXULDocument::RemoveElementFromRefMap(nsIContent* aElement)
+
+nsresult
+nsXULDocument::RemoveElementFromMap(nsIContent* aElement)
 {
     // Remove the element from the resource-to-element map.
-    nsAutoString value;
-    GetRefMapAttribute(aElement, &value);
-    if (!value.IsEmpty()) {
-        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
-        if (!atom)
-            return;
-        nsRefMapEntry *entry = mRefMap.GetEntry(atom);
-        if (!entry)
-            return;
-        if (entry->RemoveContent(aElement)) {
-            mRefMap.RemoveEntry(atom);
+    nsresult rv;
+
+    for (PRInt32 i = 0; kIdentityAttrs[i] != nsnull; ++i) {
+        nsAutoString value;
+        aElement->GetAttr(kNameSpaceID_None, *kIdentityAttrs[i], value);
+        if (!value.IsEmpty()) {
+            rv = mElementMap.Remove(value, aElement);
+            if (NS_FAILED(rv)) return rv;
         }
     }
+
+    return NS_OK;
 }
+
+
+PRIntn
+nsXULDocument::RemoveElementsFromMapByContent(const PRUnichar* aID,
+                                              nsIContent* aElement,
+                                              void* aClosure)
+{
+    nsIContent* content = reinterpret_cast<nsIContent*>(aClosure);
+    return (aElement == content) ? HT_ENUMERATE_REMOVE : HT_ENUMERATE_NEXT;
+}
+
+
 
 //----------------------------------------------------------------------
 //
@@ -1888,9 +1844,6 @@ nsXULDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 nsresult
 nsXULDocument::Init()
 {
-    SetIdTableLive();
-    mRefMap.Init();
-
     nsresult rv = nsXMLDocument::Init();
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2416,8 +2369,7 @@ nsXULDocument::PrepareToWalk()
         if (NS_FAILED(rv)) return rv;
         
         // Add the root element to the XUL document's ID-to-element map.
-        UpdateIdTableEntry(root);
-        rv = AddElementToRefMap(root);
+        rv = AddElementToMap(root);
         if (NS_FAILED(rv)) return rv;
 
         // Block onload until we've finished building the complete
@@ -3112,7 +3064,12 @@ nsXULDocument::DoneWalking()
         // happen.
         mDocumentLoaded = PR_TRUE;
 
-        NotifyPossibleTitleChange(PR_FALSE);
+        nsAutoString title;
+        nsIContent* root = GetRootContent();
+        if (root) {
+            root->GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);
+        }
+        SetTitle(title);
 
         // Before starting layout, check whether we're a toplevel chrome
         // window.  If we are, set our chrome flags now, so that we don't have
@@ -3224,24 +3181,6 @@ nsXULDocument::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
     }
 
     return NS_OK;
-}
-
-void
-nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
-{
-    nsXMLDocument::EndUpdate(aUpdateType);
-    if (mUpdateNestLevel == 0) {
-        PRUint32 length = mDelayedBroadcasters.Length();
-        if (length) {
-            nsTArray<nsDelayedBroadcastUpdate> delayedBroadcasters;
-            mDelayedBroadcasters.SwapElements(delayedBroadcasters);
-            for (PRUint32 i = 0; i < length; ++i) {
-                SynchronizeBroadcastListener(delayedBroadcasters[i].mBroadcaster,
-                                             delayedBroadcasters[i].mListener,
-                                             delayedBroadcasters[i].mAttr);
-            }
-        }
-    }
 }
 
 void
@@ -3593,10 +3532,11 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         // into the element.  Get a nodeinfo from our nodeinfo manager
         // for this node.
         nsCOMPtr<nsINodeInfo> newNodeInfo;
-        newNodeInfo = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
-                                                    aPrototype->mNodeInfo->GetPrefixAtom(),
-                                                    aPrototype->mNodeInfo->NamespaceID());
-        if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
+        rv = mNodeInfoManager->GetNodeInfo(aPrototype->mNodeInfo->NameAtom(),
+                                           aPrototype->mNodeInfo->GetPrefixAtom(),
+                                           aPrototype->mNodeInfo->NamespaceID(),
+                                           getter_AddRefs(newNodeInfo));
+        if (NS_FAILED(rv)) return rv;
         rv = NS_NewElement(getter_AddRefs(result), newNodeInfo->NamespaceID(),
                            newNodeInfo, PR_FALSE);
         if (NS_FAILED(rv)) return rv;

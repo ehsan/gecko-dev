@@ -87,19 +87,22 @@ nsJSON::Encode(nsAString &aJSON)
   // This function should only be called from JS.
   nsresult rv;
 
-  nsJSONWriter writer;
-  rv = EncodeInternal(&writer);
+  nsAutoPtr<nsJSONWriter> writer(new nsJSONWriter());
+  if (!writer)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  rv = EncodeInternal(writer);
 
   // FIXME: bug 408838. Get exception types sorted out
   if (NS_SUCCEEDED(rv) || rv == NS_ERROR_INVALID_ARG) {
     rv = NS_OK;
     // if we didn't consume anything, it's not JSON, so return null
-    if (!writer.DidWrite()) {
+    if (!writer->DidWrite()) {
       aJSON.Truncate();
       aJSON.SetIsVoid(PR_TRUE);
     } else {
-      writer.FlushBuffer();
-      aJSON.Append(writer.mOutputString);
+      writer->FlushBuffer();
+      aJSON.Append(writer->mOutputString);
     }
   }
 
@@ -169,11 +172,13 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsJSONWriter writer(bufferedStream);
-  rv = writer.SetCharset(aCharset);
+  nsAutoPtr<nsJSONWriter> writer(new nsJSONWriter(bufferedStream));
+  if (!writer)
+    return NS_ERROR_OUT_OF_MEMORY;
+  rv = writer->SetCharset(aCharset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EncodeInternal(&writer);
+  rv = EncodeInternal(writer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bufferedStream->Flush();
@@ -724,7 +729,7 @@ NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 }
 
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 trace_json_stack(JSTracer *trc, JSTempValueRooter *tvr)
 {
   nsJSONObjectStack *tmp = static_cast<nsJSONObjectStack *>(tvr);

@@ -491,12 +491,7 @@ nsPrintSettingsGTK::SetPrinterName(const PRUnichar * aPrinter)
     gtkPrinter.Cut(0, strlen("CUPS/"));
   }
 
-  // Give mPrintSettings the passed-in printer name if either...
-  // - it has no printer name stored yet
-  // - it has an existing printer name that's different from
-  //   the name passed to this function.
-  const char* oldPrinterName = gtk_print_settings_get_printer(mPrintSettings);
-  if (!oldPrinterName || !gtkPrinter.Equals(oldPrinterName)) {
+  if (!gtkPrinter.Equals(gtk_print_settings_get_printer(mPrintSettings))) {
     mIsInitedFromPrinter = PR_FALSE;
     mIsInitedFromPrefs = PR_FALSE;
     gtk_print_settings_set_printer(mPrintSettings, gtkPrinter.get());

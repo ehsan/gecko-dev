@@ -57,7 +57,8 @@
 #include "nsIScriptGlobalObject.h" // for misplaced NS_STID_ macros.
 
 class nsDOMScriptObjectFactory : public nsIDOMScriptObjectFactory,
-                                 public nsIObserver
+                                 public nsIObserver,
+                                 public nsIExceptionProvider
 {
 public:
   nsDOMScriptObjectFactory();
@@ -66,6 +67,9 @@ public:
 
   // nsIObserver
   NS_DECL_NSIOBSERVER
+
+  // nsIExceptionProvider
+  NS_DECL_NSIEXCEPTIONPROVIDER
 
   // nsIDOMScriptObjectFactory
   NS_IMETHOD GetScriptRuntime(const nsAString &aLanguageName,
@@ -92,14 +96,9 @@ public:
                                   PRBool aHasClassInterface,
                                   const nsCID *aConstructorCID);
 
+  static nsresult Startup();
+
 protected:
   PRBool mLoadedAllLanguages;
   nsCOMPtr<nsIScriptRuntime> mLanguageArray[NS_STID_ARRAY_UBOUND];
-};
-
-class nsDOMExceptionProvider : public nsIExceptionProvider
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIEXCEPTIONPROVIDER
 };

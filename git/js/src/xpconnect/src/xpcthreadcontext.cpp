@@ -153,14 +153,14 @@ XPCJSContextStack::DEBUG_StackHasJSContext(JSContext*  aJSContext)
 }
 #endif
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SafeGlobalResolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 SafeFinalize(JSContext* cx, JSObject* obj)
 {
 #ifndef XPCONNECT_STANDALONE
@@ -272,7 +272,7 @@ XPCJSContextStack::SetSafeJSContext(JSContext * aSafeJSContext)
        mOwnSafeJSContext == mSafeJSContext &&
        mOwnSafeJSContext != aSafeJSContext)
     {
-        JS_DestroyContextNoGC(mOwnSafeJSContext);
+        JS_DestroyContext(mOwnSafeJSContext);
         mOwnSafeJSContext = nsnull;
         SyncJSContexts();
     }
@@ -460,6 +460,8 @@ GetThreadStackLimit()
   return stackLimit;
 }
 
+MOZ_DECL_CTOR_COUNTER(xpcPerThreadData)
+
 XPCPerThreadData::XPCPerThreadData()
     :   mJSContextStack(new XPCJSContextStack()),
         mNextThread(nsnull),
@@ -620,8 +622,6 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
         sMainJSThread = cx->thread;
 
         sMainThreadData = data;
-
-        sMainThreadData->mThread = PR_GetCurrentThread();
     }
 
     return data;

@@ -59,7 +59,6 @@ nsIMutationObserver.h \
 nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
-nsINodeList.h \
 nsIRange.h \
 nsIRangeUtils.h \
 nsIScriptElement.h \
@@ -73,11 +72,10 @@ nsCaseTreatment.h \
 nsContentCID.h \
 nsCopySupport.h \
 nsContentCreatorFunctions.h \
-nsDOMFile.h \
 nsLineBreaker.h \
-nsPresShellIterator.h \
-nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
+nsPresShellIterator.h \
+nsDOMFile.h \
 $(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS

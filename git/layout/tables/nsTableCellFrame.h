@@ -130,8 +130,7 @@ public:
   NS_IMETHOD SetSelected(nsPresContext* aPresContext,
                          nsIDOMRange *aRange,
                          PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType);
+                         nsSpread aSpread);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -159,10 +158,6 @@ public:
   void VerticallyAlignChild(nscoord aMaxAscent);
 
   PRBool HasVerticalAlignBaseline();
-  
-  PRBool CellHasVisibleContent(nscoord       height, 
-                               nsTableFrame* tableFrame,
-                               nsIFrame*     kidFrame);
 
   /**
    * Get the first-line baseline of the cell relative to its top border

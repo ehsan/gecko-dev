@@ -53,7 +53,7 @@ $SCRIPT -p product -b branch -x executablepath -D directory -N profilename
 variable            description
 ===============     ============================================================
 -p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
+-b branch           required. 1.8.0|1.8.1|1.9.0
 -x executablepath   required. directory-tree containing executable 'product'
 -D directory        required. directory where profile is to be created.
 -N profilename      required. profile name 
@@ -86,23 +86,36 @@ while getopts $options optname ;
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 if [[ -z "$product" || -z "$branch" || -z "$executablepath" || \
     -z "$directory" || -z "$profilename" ]]; then
     usage
 fi
 
-if [[ "$product" != "firefox" && "$product" != "thunderbird" && "$product" ]]; then
+if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
     error "product \"$product\" must be one of firefox or thunderbird" $LINENO
 fi
 
-if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" && "$branch" != "1.9.1" ]]; 
+if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" ]]; 
     then
-    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0 1.9.1" $LINENO
+    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0" $LINENO
 fi
 
 executable=`get_executable $product $branch $executablepath`
+
+if [[ -z "$executable" ]]; then
+    error "get_executable $product $branch $executablepath returned empty path" $LINENO
+fi
+
+if [[ ! -x "$executable" ]]; then 
+    error "executable \"$executable\" is not executable" $LINENO
+fi
 
 $TEST_DIR/bin/create-directory.sh -d "$directory" -n 
 
@@ -110,7 +123,7 @@ if echo "$profilename" | egrep -qiv '[a-z0-9_]'; then
     error "profile name \"$profilename\" must consist of letters, digits or _" $LINENO
 fi
 
-if [ $OSID == "nt" ]; then
+if [ $OSID == "win32" ]; then
     directoryospath=`cygpath -a -w $directory`
     if [[ -z "$directoryospath" ]]; then
 	    error "unable to convert unix path to windows path" $LINENO
@@ -121,9 +134,7 @@ fi
 
 echo "creating profile $profilename in directory $directory"
 
-if ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" \
-        $EXECUTABLE_DRIVER \
-        $executable -CreateProfile "$profilename $directoryospath"; then
+if ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" $executable -CreateProfile "$profilename $directoryospath"; then
 	error "creating profile $directory" $LINENO
 fi
 

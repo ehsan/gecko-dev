@@ -50,8 +50,6 @@
 #include "nsSupportsArray.h"
 #include "nsIComponentRegistrar.h"
 
-namespace TestPageLoad {
-
 int getStrLine(const char *src, char *str, int ind, int max);
 nsresult auxLoad(char *uriBuf);
 //----------------------------------------------------------------------
@@ -344,9 +342,6 @@ nsresult auxLoad(char *uriBuf)
 
 //---------Buffer writer fun---------
 
-} // namespace
-
-using namespace TestPageLoad;
 
 //---------MAIN-----------
 

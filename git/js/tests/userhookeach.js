@@ -54,6 +54,7 @@ function userOnStart()
   try
   {
     dlog('userOnStart');
+    cdump('JavaScriptTest: Begin Run');
     registerDialogCloser();
   }
   catch(ex)
@@ -71,6 +72,7 @@ function userOnBeforePage()
 
     gCurrentTestId = /test=(.*);language/.exec(gSpider.mCurrentUrl.mUrl)[1];
     gCurrentTestValid = true;
+    cdump('JavaScriptTest: Begin Test ' + gCurrentTestId);
     gCurrentTestStart = new Date();
   }
   catch(ex)
@@ -88,6 +90,7 @@ function userOnAfterPage()
     dlog('userOnAfterPage');
     gPageStop = new Date();
 
+    cdump(gSpider.mCurrentUrl.mUrl + ': PAGE STATUS: NORMAL (' + ((gPageStop - gPageStart)/1000).toFixed(0) + ' seconds)');
     checkTestCompleted();
   }
   catch(ex)
@@ -103,6 +106,7 @@ function userOnStop()
   try
   {
     // close any pending dialogs
+    cdump('JavaScriptTest: End Run');
     closeDialog();
     unregisterDialogCloser();
   }
@@ -115,6 +119,7 @@ function userOnStop()
 function userOnPageTimeout()
 {
   gPageStop = new Date();
+  cdump(gSpider.mCurrentUrl.mUrl + ': PAGE STATUS: TIMED OUT (' + ((gPageStop - gPageStart)/1000).toFixed(0) + ' seconds)');
   if (typeof gSpider.mDocument != 'undefined')
   {
     try
@@ -132,6 +137,7 @@ function userOnPageTimeout()
       cdump('Spider: WARNING ERROR: userOnPageTimeout: ' + ex);
     }
   }
+  cdump('JavaScriptTest: End Test ' + gCurrentTestId);
 }
 
 function checkTestCompleted()
@@ -175,6 +181,7 @@ function checkTestCompleted()
       {
       }
       cdump('JavaScriptTest: ' + gCurrentTestId + ' Elapsed time ' + ((gCurrentTestStop - gCurrentTestStart)/1000).toFixed(2) + ' seconds');
+      cdump('JavaScriptTest: End Test ' + gCurrentTestId);
 
       gPageCompleted = true;
     }

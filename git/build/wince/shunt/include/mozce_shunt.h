@@ -128,11 +128,6 @@
 #undef  GetProcAddress
 #define GetProcAddress            GetProcAddressA
 
-#define SHELLEXECUTEINFOW         SHELLEXECUTEINFO
-#define ShellExecuteExW(x)        ShellExecuteEx(x)
-
-#define MapVirtualKeyEx(a,b,c)    MapVirtualKey(a,b)
-
 
 //still need these
 #define GetCurrentDirectory       GetCurrentDirectoryW
@@ -148,15 +143,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-  MOZCE_SHUNT_API BOOL InitializeAcl(PACL apAcl, DWORD len, DWORD rev);
-  MOZCE_SHUNT_API DWORD SetNamedSecurityInfoW(unsigned short* pObjectName,
-					      SE_OBJECT_TYPE ObjectType,
-					      SECURITY_INFORMATION SecurityInfo,
-					      PSID psidOwner,
-					      PSID psidGroup,
-					      PACL pDacl,
-					      PACL pSacl);
 
   // From assert.cpp
   MOZCE_SHUNT_API void mozce_assert(int inExpression);
@@ -216,7 +202,6 @@ extern "C" {
   MOZCE_SHUNT_API int unlink(const char *pathname);
   MOZCE_SHUNT_API int lseek(int fildes, int offset, int whence);
 
-  MOZCE_SHUNT_API int fstat(FILE* handle, struct stat* buff);
 
   // From stdlib.cpp
   MOZCE_SHUNT_API void splitpath(const char* inPath, char* outDrive, char* outDir, char* outFname, char* outExt);
@@ -437,9 +422,6 @@ MOZCE_SHUNT_API wchar_t *_wgetcwd(wchar_t *buffer,int maxlen);
 MOZCE_SHUNT_API wchar_t *_wfullpath(wchar_t *abspath, const wchar_t *relpath, int maxlen);
 
 MOZCE_SHUNT_API HWND GetAncestor(HWND hwnd, UINT gaFlags);
-
-MOZCE_SHUNT_API int _chdir (const char *dirname);
-MOZCE_SHUNT_API int _wchdir (const wchar_t *dirname);
 
 #ifdef __cplusplus
 };

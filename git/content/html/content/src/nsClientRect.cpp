@@ -40,8 +40,6 @@
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 
-#include "nsPresContext.h"
-
 NS_INTERFACE_TABLE_HEAD(nsClientRect)
   NS_INTERFACE_TABLE1(nsClientRect, nsIDOMClientRect)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
@@ -84,20 +82,6 @@ nsClientRect::GetBottom(float* aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsClientRect::GetWidth(float* aResult)
-{
-  *aResult = mWidth;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClientRect::GetHeight(float* aResult)
-{
-  *aResult = mHeight;
-  return NS_OK;
-}
-
 NS_INTERFACE_TABLE_HEAD(nsClientRectList)
   NS_INTERFACE_TABLE1(nsClientRectList, nsIDOMClientRectList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
@@ -125,24 +109,4 @@ nsClientRectList::Item(PRUint32 aIndex, nsIDOMClientRect** aReturn)
   
   NS_IF_ADDREF(*aReturn = mArray.ObjectAt(aIndex));
   return NS_OK;
-}
-
-static double
-RoundFloat(double aValue)
-{
-  return floor(aValue + 0.5);
-}
-
-void
-nsClientRect::SetLayoutRect(const nsRect& aLayoutRect, nsPresContext* aPresContext)
-{
-  double scale = 65536.0;
-  // Round to the nearest 1/scale units. We choose scale so it can be represented
-  // exactly by machine floating point.
-  double scaleInv = 1/scale;
-  double t2pScaled = scale/aPresContext->AppUnitsPerCSSPixel();
-  double x = RoundFloat(aLayoutRect.x*t2pScaled)*scaleInv;
-  double y = RoundFloat(aLayoutRect.y*t2pScaled)*scaleInv;
-  SetRect(x, y, RoundFloat(aLayoutRect.XMost()*t2pScaled)*scaleInv - x,
-          RoundFloat(aLayoutRect.YMost()*t2pScaled)*scaleInv - y);
 }

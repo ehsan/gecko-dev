@@ -78,15 +78,17 @@ endif
 # tier "gecko" - core components
 #
 
+ifdef NS_TRACE_MALLOC
+tier_gecko_dirs += tools/trace-malloc/lib
+endif
+
 tier_gecko_dirs += \
 		js/src/xpconnect \
 		intl/chardet \
 		$(NULL)
 
 ifdef MOZ_ENABLE_GTK2
-ifdef MOZ_X11
 tier_gecko_dirs     += widget/src/gtkxtbin
-endif
 endif
 
 ifdef MOZ_IPCD
@@ -116,18 +118,6 @@ endif
 
 ifdef MOZ_JSDEBUGGER
 tier_gecko_dirs += js/jsd
-endif
-
-ifdef MOZ_OGG
-tier_gecko_dirs += \
-		media/libfishsound \
-		media/libogg \
-		media/liboggplay \
-		media/liboggplay_audio \
-		media/liboggz \
-		media/libtheora \
-		media/libvorbis \
-		$(NULL)
 endif
 
 tier_gecko_dirs	+= \
@@ -189,7 +179,17 @@ endif
 # "toolkit" was.
 #
 
-tier_toolkit_dirs += chrome profile
+ifdef MOZ_XUL_APP
+tier_toolkit_dirs += chrome
+else
+ifdef MOZ_XUL
+tier_toolkit_dirs += rdf/chrome
+else
+tier_toolkit_dirs += embedding/minimo/chromelite
+endif
+endif
+
+tier_toolkit_dirs += profile
 
 # This must preceed xpfe
 ifdef MOZ_JPROF
@@ -205,6 +205,10 @@ tier_toolkit_dirs	+= \
 	toolkit/components \
 	$(NULL)
 
+ifndef MOZ_XUL_APP
+tier_toolkit_dirs += themes
+endif
+
 ifdef MOZ_ENABLE_XREMOTE
 tier_toolkit_dirs += widget/src/xremoteclient
 endif
@@ -213,7 +217,9 @@ ifdef MOZ_SPELLCHECK
 tier_toolkit_dirs	+= extensions/spellcheck
 endif
 
+ifdef MOZ_XUL_APP
 tier_toolkit_dirs	+= toolkit
+endif
 
 ifdef MOZ_XPINSTALL
 tier_toolkit_dirs     +=  xpinstall
@@ -235,13 +241,17 @@ tier_toolkit_dirs += extensions/java/xpcom/src
 endif
 
 ifndef BUILD_STATIC_LIBS
+ifdef MOZ_XUL_APP
 ifneq (,$(MOZ_ENABLE_GTK2))
 tier_toolkit_dirs += embedding/browser/gtk
 endif
 endif
+endif
 
+ifdef MOZ_XUL_APP
 ifndef BUILD_STATIC_LIBS
 tier_toolkit_dirs += toolkit/library
+endif
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -250,6 +260,11 @@ endif
 
 ifdef NS_TRACE_MALLOC
 tier_toolkit_dirs += tools/trace-malloc
+endif
+
+ifdef MOZ_LDAP_XPCOM
+tier_toolkit_staticdirs += directory/c-sdk
+tier_toolkit_dirs	+= directory/xpcom
 endif
 
 ifdef MOZ_ENABLE_GNOME_COMPONENT
@@ -268,6 +283,6 @@ ifdef MOZ_MAPINFO
 tier_toolkit_dirs	+= tools/codesighs
 endif
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 tier_toolkit_dirs	+= testing/mochitest
 endif

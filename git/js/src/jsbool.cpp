@@ -47,17 +47,12 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
-
-/* Check pseudo-booleans values. */
-JS_STATIC_ASSERT(JSVAL_VOID == JSVAL_TRUE + JSVAL_ALIGN);
-JS_STATIC_ASSERT(JSVAL_HOLE == JSVAL_VOID + JSVAL_ALIGN);
-JS_STATIC_ASSERT(JSVAL_ARETURN == JSVAL_HOLE + JSVAL_ALIGN);
 
 JSClass js_BooleanClass = {
     "Boolean",
@@ -117,10 +112,10 @@ bool_valueOf(JSContext *cx, uintN argc, jsval *vp)
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toSource_str,  bool_toSource,  0, 0, JSFUN_THISP_BOOLEAN),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toString_str,  bool_toString,  0, 0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, 0, JSFUN_THISP_BOOLEAN),
     JS_FS_END
 };
 

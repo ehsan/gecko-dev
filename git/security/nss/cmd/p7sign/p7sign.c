@@ -38,7 +38,7 @@
  * p7sign -- A command to create a *detached* pkcs7 signature (over a given
  * input file).
  *
- * $Id: p7sign.c,v 1.14 2008/08/04 22:58:28 julien.pierre.boogz%sun.com Exp $
+ * $Id: p7sign.c,v 1.13 2007/01/26 01:15:43 nelson%bolyard.com Exp $
  */
 
 #include "nspr.h"
@@ -64,7 +64,19 @@ extern int fwrite(char *, size_t, size_t, FILE*);
 extern int fprintf(FILE *, char *, ...);
 #endif
 
-static secuPWData  pwdata          = { PW_NONE, 0 };
+char* KeyDbPassword = 0;
+
+
+char* MyPK11PasswordFunc (PK11SlotInfo *slot, PRBool retry, void* arg)
+{
+    char *ret=0;
+
+    if (retry == PR_TRUE)
+        return NULL;
+    ret = PL_strdup (KeyDbPassword);
+    return ret;
+}
+
 
 static void
 Usage(char *progName)
@@ -83,7 +95,6 @@ Usage(char *progName)
     fprintf(stderr, "%-20s Encapsulate content in signature message\n",
 	    "-e");
     fprintf(stderr, "%-20s Password to the key databse\n", "-p");
-    fprintf(stderr, "%-20s password file\n", "-f");
     exit(-1);
 }
 
@@ -163,7 +174,7 @@ SignFile(FILE *outFile, PRFileDesc *inFile, CERTCertificate *cert,
     }
 
     rv = SEC_PKCS7Encode (cinfo, SignOut, outFile, NULL,
-			  NULL, &pwdata);
+			  NULL, NULL);
 
     SEC_PKCS7DestroyContentInfo (cinfo);
 
@@ -197,7 +208,7 @@ main(int argc, char **argv)
     /*
      * Parse command line arguments
      */
-    optstate = PL_CreateOptState(argc, argv, "ed:k:i:o:p:f:");
+    optstate = PL_CreateOptState(argc, argv, "ed:k:i:o:p:");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch (optstate->option) {
 	  case '?':
@@ -235,14 +246,8 @@ main(int argc, char **argv)
 	    }
 	    break;
 	  case 'p':
-            pwdata.source = PW_PLAINTEXT;
-            pwdata.data = strdup (optstate->value);
+            KeyDbPassword = strdup (optstate->value);
             break;
-
-	  case 'f':
-              pwdata.source = PW_FROMFILE;
-              pwdata.data = PORT_Strdup (optstate->value);
-              break;
 	}
     }
 
@@ -259,7 +264,7 @@ main(int argc, char **argv)
 	goto loser;
     }
 
-    PK11_SetPasswordFunc(SECU_GetModulePassword);
+    PK11_SetPasswordFunc (MyPK11PasswordFunc);
 
     /* open cert database */
     certHandle = CERT_GetDefaultCertDB();
@@ -285,8 +290,8 @@ main(int argc, char **argv)
     }
 
 loser:
-    if (pwdata.data) {
-        PORT_Free(pwdata.data);
+    if (KeyDbPassword) {
+        PORT_Free(KeyDbPassword);
     }
     if (keyName) {
         PORT_Free(keyName);

@@ -32,7 +32,7 @@
 
       <xul:popupset>
         <xul:panel type="autocomplete" anonid="popup"
-                   ignorekeys="true" noautofocus="true" level="top"
+                   ignorekeys="true" noautofocus="true"
                    xbl:inherits="for=id,nomatch"/>
       </xul:popupset>
       
@@ -157,10 +157,6 @@
       <property name="autoFillAfterMatch"
                 onset="this.setAttribute('autofillaftermatch', val); return val;"
                 onget="return this.getAttribute('autofillaftermatch') == 'true';"/>
-
-      <property name="completeDefaultIndex"
-                onset="this.setAttribute('completedefaultindex', val); return val;"
-                onget="return this.getAttribute('completedefaultindex') == 'true';"/>
 
       <!--  if this attribute is set, allow different style for 
             non auto-completed lines -->
@@ -295,7 +291,6 @@
       <field name="ignoreInputEvent">false</field>
       <field name="oninit">null</field>
       <field name="mDefaultMatchFilled">false</field>
-      <field name="mFirstReturn">true</field>
 
       <field name="mAutoCompleteSession"><![CDATA[
         var session = function(aSession) { this.session = aSession };
@@ -346,13 +341,9 @@
             else if (aResult.searchResult == aResult.RESULT_IGNORED)
               status = nsIAutoCompleteStatus.ignored;
             else if (aResult.searchResult == aResult.RESULT_NOMATCH)
-              status = nsIAutoCompleteStatus.noMatch;
+              status = nsIAutoCompleteStatus.nomatch;
             else if (aResult.searchResult == aResult.RESULT_SUCCESS)
               status = nsIAutoCompleteStatus.matchFound;
-            else if (aResult.searchResult == aResult.RESULT_NOMATCH_ONGOING)
-              status = nsIAutoCompleteStatus.noMatchYet;
-            else if (aResult.searchResult == aResult.RESULT_SUCCESS_ONGOING)
-              status = nsIAutoCompleteStatus.matchSoFar;
             this.param.processResults(this.sessionName, {
               searchString: aResult.searchString,
               items: this,
@@ -383,12 +374,6 @@
 
       <field name="mInputElt"><![CDATA[
         document.getAnonymousElementByAttribute(this, "anonid", "input");
-      ]]></field>
-
-      <field name="mMenuAccessKey"><![CDATA[
-        Components.classes["@mozilla.org/preferences-service;1"]
-                 .getService(Components.interfaces.nsIPrefBranch)
-                 .getIntPref("ui.key.menuAccessKey");
       ]]></field>
 
       <!-- =================== PUBLIC METHODS =================== -->
@@ -455,8 +440,9 @@
         ]]></body>
       </method>
 
-      <!-- get the total number of results overall -->
+      <!-- get the total number of results in a specific session or overall if session is null-->
       <method name="getResultCount">
+        <parameter name="aSession"/>
         <body><![CDATA[
           return this.view.rowCount;
         ]]></body>
@@ -540,9 +526,7 @@
         <body><![CDATA[
           for (var name in this.mLastResults) {
             var results = this.mLastResults[name];
-            var status = this.mLastStatus[name];
-            if (results && results.items.Count() > 0 && status !=
-                Components.interfaces.nsIAutoCompleteStatus.failureItems)
+            if (results && results.items.Count() > 0)
               return name;
           }
           return null;
@@ -597,16 +581,13 @@
       <method name="startLookup">
         <body><![CDATA[
           var str = this.currentSearchString;
-          if (!str) {
-            this.closeResultPopup();
-            return;
-          }
 
           this.isSearching = true;
-          this.mFirstReturn = true;
           this.mSessionReturns = this.sessionCount;
+          this.mFailureCount = 0;
           this.mFailureItems = 0;
           this.mDefaultMatchFilled = false; // clear out our prefill state.
+          this.removeAttribute("noMatchesFound");
 
           // tell each session to start searching...
           for (var name in this.mSessions)
@@ -646,9 +627,9 @@
           if (this.disableAutoComplete)
             return;
 
-          if (aStatus != Components.interfaces.nsIAutoCompleteStatus.noMatchYet &&
-              aStatus != Components.interfaces.nsIAutoCompleteStatus.matchSoFar)
-            --this.mSessionReturns;
+          --this.mSessionReturns;
+
+          var firstReturn = this.mSessionReturns == (this.sessionCount-1) - this.mFailureCount;
 
           this.mLastStatus[aSessionName] = aStatus;
 
@@ -656,40 +637,38 @@
           if (aStatus == Components.interfaces.nsIAutoCompleteStatus.failed ||
               aStatus == Components.interfaces.nsIAutoCompleteStatus.ignored || 
               aStatus == Components.interfaces.nsIAutoCompleteStatus.noMatch ||
-              aStatus == Components.interfaces.nsIAutoCompleteStatus.noMatchYet ||
               aResults == null ||
               aResults.items.Count() == 0 ||
               aResults.searchString != this.currentSearchString)
           {
             this.mLastResults[aSessionName] = null;
-            if (this.mFirstReturn)
-              this.clearResultElements(false);
-            this.mFirstReturn = false;
+            if (firstReturn)
+              this.clearResults(false);
             this.searchFailed();
             return;
-          }
-          if (aStatus == Components.interfaces.nsIAutoCompleteStatus.failureItems)
+          } else if (aStatus == 
+                     Components.interfaces.nsIAutoCompleteStatus.failureItems){
             ++this.mFailureItems;
+          }
           
-          if (this.mFirstReturn) {
+          if (firstReturn) {
             if (this.view.mTree)
               this.view.mTree.beginUpdateBatch();
-            this.clearResultElements(false); // clear results, but don't repaint yet
+            this.clearResults(false); // clear results, but don't repaint yet
           }
+          this.mLastResults[aSessionName] = aResults;
+
+          this.autoFillInput(aSessionName, aResults, false);
 
           // always call openResultPopup...we may not have opened it
           // if a previous search session didn't return enough search results.
           // it's smart and doesn't try to open itself multiple times...
           // be sure to add our result elements before calling openResultPopuup as we need
           // to know the total # of results found so far.
-          this.addResultElements(aResults, this.mLastResults[aSessionName]);
-          this.mLastResults[aSessionName] = aResults;
-
-          this.autoFillInput(aSessionName, aResults, false);
-          if (this.mFirstReturn && this.view.mTree)
+          this.addResultElements(aSessionName, aResults);      
+          if (firstReturn && this.view.mTree)
             this.view.mTree.endUpdateBatch();
           this.openResultPopup();
-          this.mFirstReturn = false;
          
           // if this is the last session to return... 
           if (this.mSessionReturns == 0) 
@@ -709,14 +688,19 @@
           if (this.mSessionReturns == 0)
             this.postSearchCleanup();
 
+          ++this.mFailureCount;
+          
           // if all searches are done and they all failed...
-          if (this.mSessionReturns == 0 && this.getResultCount() == 0) {
+          if (this.mSessionReturns == 0 && this.mFailureCount == this.sessionCount) {
             if (this.minResultsForPopup == 0) {
               this.clearResults(true); // clear data and repaint empty
-              this.openResultPopup();
-            } else {
+              
+              if (this.value) {
+                this.openResultPopup();
+              } else
+                this.closeResultPopup(); 
+            } else
               this.closeResultPopup(); 
-            }
           }
         ]]></body>
       </method>
@@ -736,9 +720,12 @@
           }
           this.noMatch = failed;
           if (this.noMatch)
-            this.setAttribute("nomatch", true);
+            this.setAttribute("nomatch", 1);
           else
             this.removeAttribute("nomatch");
+          
+          if (!this.mDefaultMatchFilled && this.highlightNonMatches)
+            this.setAttribute("noMatchesFound", true);
           
           // if we have processed all of our searches, and none of them gave us a default index,
           // then we should try to auto fill the input field with the first match. 
@@ -748,9 +735,6 @@
              if (defaultSession)
                 this.autoFillInput(defaultSession, this.mLastResults[defaultSession], true);         
           }
-
-	  // Now we've finished, fire an event to let everyone know
-	  this._fireEvent("searchcomplete");
         ]]></body>
       </method>
 
@@ -825,6 +809,7 @@
           }
           
           this.mNeedToComplete = false;
+          this.removeAttribute("noMatchesFound");
           this.clearTimer();
 
           if (aFireTextCommand)
@@ -924,20 +909,9 @@
           var str = this.value;
           this.currentSearchString = str;
           this.resultsPopup.clearSelection();
+          this.removeAttribute("noMatchesFound");
           
           this.mAutoCompleteTimer = setTimeout(this.callListener, this.timeout, this, "startLookup");
-        ]]></body>
-      </method>
-
-      <!--  -->
-      <method name="processKeyDown">
-        <parameter name="aEvent"/>
-        <body><![CDATA[
-          if (aEvent.keyCode && aEvent.keyCode == this.mMenuAccessKey) {
-              this.finishAutoComplete(false, false, aEvent);
-              this.clearTimer();
-              this.closeResultPopup();
-          }
         ]]></body>
       </method>
 
@@ -1047,25 +1021,14 @@
               k == KeyEvent.DOM_VK_UP || k == KeyEvent.DOM_VK_DOWN ||
               k == KeyEvent.DOM_VK_PAGE_UP || k == KeyEvent.DOM_VK_PAGE_DOWN)
           {
+            // up/down keys while menu is closed will open menu
             if (!this.mMenuOpen) {
-              // Original xpfe style was to allow the up and down keys to have
-              // their default Mac action if the popup could not be opened.
-              // For compatibility for toolkit we now have to predict which
-              // keys have a default action that we can always allow to fire.
-              if (/Mac/.test(navigator.platform) &&
-                  ((k == KeyEvent.DOM_VK_UP &&
-                   (this.selectionStart != 0 ||
-                    this.selectionEnd != 0)) ||
-                  (k == KeyEvent.DOM_VK_DOWN &&
-                   (this.selectionStart != this.value.length ||
-                    this.selectionEnd != this.value.length))))
-                return false;
               if (this.currentSearchString != this.value) {
                  this.processInput();
                  return true;
               }
               if (this.view.rowCount < this.minResultsForPopup)
-                return true; // used to be false, see above
+                return false;
 
               this.mNeedToFinish = true;
               this.openResultPopup();
@@ -1118,8 +1081,7 @@
               this.mDefaultMatchFilled)
             return;
 
-          if (!this.mFinishAfterSearch &&
-              (this.autoFill || this.completeDefaultIndex) && 
+          if (!this.mFinishAfterSearch && this.autoFill && 
               this.mLastKeyCode != KeyEvent.DOM_VK_BACK_SPACE &&
               this.mLastKeyCode != KeyEvent.DOM_VK_DELETE) {
             var indexToUse = aResults.defaultItemIndex;
@@ -1136,7 +1098,7 @@
                 this.setTextValue(this.value + resultValue.substr(endPoint));
                 this.mInputElt.setSelectionRange(endPoint, this.value.length);
               } else {
-                if (this.autoFillAfterMatch || this.completeDefaultIndex) {
+                if (this.autoFillAfterMatch) {
                   this.setTextValue(this.value + " >> " + resultValue);
                   this.mInputElt.setSelectionRange(entry.length, this.value.length);
                 } else {
@@ -1163,7 +1125,7 @@
       <method name="openResultPopup">
         <body><![CDATA[
           if (!this.mMenuOpen && this.focused &&
-               (this.getResultCount() >= this.minResultsForPopup
+               (this.getResultCount("") >= this.minResultsForPopup
                 || this.mFailureItems)) {
             var w = this.boxObject.width;
             if (w != this.resultsPopup.boxObject.width)
@@ -1186,11 +1148,11 @@
 
       <!--  -->
       <method name="addResultElements">
+        <parameter name="aSessionName"/>
         <parameter name="aResults"/>
-        <parameter name="aOldResults"/>
         <body><![CDATA[
           if (this.focused && this.showPopup) {
-            this.view.replaceResults(aResults, aOldResults);
+            this.view.addResults(aResults);
             this.resultsPopup.adjustHeight();
           }
         ]]></body>
@@ -1299,7 +1261,6 @@
           mTree: null,
           mSelection: null,
           mResults: [],
-          mCounts: [],
           mRowCount: 0,
           
           clearResults: function()
@@ -1307,7 +1268,6 @@
             var oldCount = this.mRowCount;
             this.mRowCount = 0;  
             this.mResults = [];
-            this.mCounts = [];
             
             if (this.mTree) {
               this.mTree.rowCountChanged(0, -oldCount);
@@ -1315,25 +1275,14 @@
             }
           },
           
-          replaceResults: function(aResults, aOldResults)
+          addResults: function(aResults)
           {
-            var count = aResults.items.Count();
-            var row = this.mRowCount;
-            var oldIndex = this.mResults.indexOf(aOldResults);
-            if (oldIndex == -1) {
-              this.mResults.push(aResults);
-              this.mCounts.push(count);
-            } else {
-              this.mResults[oldIndex] = aResults;
-              count -= this.mCounts[oldIndex];
-              this.mCounts[oldIndex] += count;
-              while (++oldIndex < this.mCounts.length)
-                row -= this.mCounts[oldIndex];
-            }
-            this.mRowCount += count;
+            this.mResults.push(aResults);
+            var oldCount = this.mRowCount;
+            this.mRowCount += aResults.items.Count();
             
             if (this.mTree)
-              this.mTree.rowCountChanged(row, count);
+              this.mTree.rowCountChanged(oldCount, this.mRowCount - oldCount);
           },
           
           createAtom: function(aVal)
@@ -1393,7 +1342,7 @@
             try { 
               if (aCol.id == "treecolAutoCompleteValue") {
                 var className = this.mTextbox.getResultAt(aIndex).className;
-                  if ( className ) {
+                  if ( className != "" ) {
                     aProperties.AppendElement(this.createAtom(className));
                   }
               }
@@ -1437,9 +1386,6 @@
     <handlers>
       <handler event="input"
                action="this.processInput();"/>
-
-      <handler event="keydown" phase="capturing"
-                action="return this.processKeyDown(event);"/>
 
       <handler event="keypress" phase="capturing"
                 action="return this.processKeyPress(event);"/>

@@ -123,7 +123,6 @@ static PRBool IsViewVisible(nsView *aView)
     if (view->GetVisibility() == nsViewVisibility_kHide)
       return PR_FALSE;
   }
-
   // Find out if the root view is visible by asking the view observer
   // (this won't be needed anymore if we link view trees across chrome /
   // content boundaries in DocumentViewerImpl::MakeWindow).
@@ -379,15 +378,6 @@ NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight
   return NS_OK;
 }
 
-NS_IMETHODIMP nsViewManager::FlushDelayedResize()
-{
-  if (mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE)) {
-    DoSetWindowDimensions(mDelayedResize.width, mDelayedResize.height);
-    mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
-  }
-  return NS_OK;
-}
-
 static void ConvertNativeRegionToAppRegion(nsIRegion* aIn, nsRegion* aOut,
                                            nsIDeviceContext* context)
 {
@@ -439,14 +429,13 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
   nsRect viewRect;
   aView->GetDimensions(viewRect);
-  nsPoint vtowoffset = aView->ViewToWidgetOffset();
 
   // damageRegion is the damaged area, in twips, relative to the view origin
   nsRegion damageRegion;
   // convert pixels-relative-to-widget-origin to twips-relative-to-widget-origin
   ConvertNativeRegionToAppRegion(aRegion, &damageRegion, mContext);
   // move it from widget coordinates into view coordinates
-  damageRegion.MoveBy(viewRect.TopLeft() - vtowoffset);
+  damageRegion.MoveBy(viewRect.x, viewRect.y);
 
   if (damageRegion.IsEmpty()) {
 #ifdef DEBUG_roc
@@ -499,6 +488,7 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
     ctx->Save();
 
+    nsPoint vtowoffset = aView->ViewToWidgetOffset();
     ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
                             gfxFloat(vtowoffset.y) / p2a));
 
@@ -532,7 +522,6 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
 }
 
-// aRect is in app units and relative to the top-left of the aView->GetWidget()
 void nsViewManager::DefaultRefresh(nsView* aView, nsIRenderingContext *aContext, const nsRect* aRect)
 {
   NS_PRECONDITION(aView, "Must have a view to work with!");
@@ -611,7 +600,6 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
   }
 }
 
-// aRC and aRegion are in view coordinates
 void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
                                 const nsRegion& aRegion)
 {
@@ -730,7 +718,6 @@ nsViewManager::WillBitBlit(nsView* aView, nsPoint aScrollAmount)
   }
 
   NS_PRECONDITION(aView, "Must have a view");
-  NS_PRECONDITION(!aView->NeedsInvalidateFrameOnScroll(), "We shouldn't be BitBlting.");
   NS_PRECONDITION(aView->HasWidget(), "View must have a widget");
 
   ++mScrollCnt;
@@ -1084,7 +1071,9 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
                       : nsnull) {
             if (vm->mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
                 IsViewVisible(vm->mRootView)) {
-              vm->FlushDelayedResize();
+              vm->DoSetWindowDimensions(vm->mDelayedResize.width,
+                                        vm->mDelayedResize.height);
+              vm->mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
 
               // Paint later.
               vm->UpdateView(vm->mRootView, NS_VMREFRESH_NO_SYNC);
@@ -1109,7 +1098,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             nsIWidget *widget = mRootView->GetWidget();
             PRBool transparentWindow = PR_FALSE;
             if (widget)
-                transparentWindow = widget->GetTransparencyMode() == eTransparencyTransparent;
+                widget->GetHasTransparentBackground(transparentWindow);
 
             if (rootVM->mScrollCnt == 0 && !transparentWindow) {
               nsIViewObserver* observer = GetViewObserver();
@@ -1359,6 +1348,10 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             case NS_COMPOSITION_QUERY:
               ConvertRectAppUnitsToIntPixels(
                 ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_QUERYCARETRECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect, p2a);
               break;
             case NS_QUERY_CHARACTER_RECT:
             case NS_QUERY_CARET_RECT:
@@ -1694,11 +1687,6 @@ NS_IMETHODIMP nsViewManager::ResizeView(nsIView *aView, const nsRect &aRect, PRB
   return NS_OK;
 }
 
-static double GetArea(const nsRect& aRect)
-{
-  return double(aRect.width)*double(aRect.height);
-}
-
 PRBool nsViewManager::CanScrollWithBitBlt(nsView* aView, nsPoint aDelta,
                                           nsRegion* aUpdateRegion)
 {
@@ -1725,7 +1713,7 @@ PRBool nsViewManager::CanScrollWithBitBlt(nsView* aView, nsPoint aDelta,
 #if defined(MOZ_WIDGET_GTK2) || defined(XP_OS2)
   return aUpdateRegion->IsEmpty();
 #else
-  return GetArea(aUpdateRegion->GetBounds()) < GetArea(parentBounds)/2;
+  return PR_TRUE;
 #endif
 }
 
@@ -1892,15 +1880,8 @@ nsViewManager::CreateRenderingContext(nsView &aView)
 
   if (nsnull != win)
     {
-      // XXXkt this has an origin at top-left of win ...
       mContext->CreateRenderingContext(par, cx);
 
-      // XXXkt ... but the translation is between the origins of views
-      NS_ASSERTION(aView.ViewToWidgetOffset()
-                   - aView.GetDimensions().TopLeft() ==
-                   par->ViewToWidgetOffset()
-                   - par->GetDimensions().TopLeft(),
-                   "ViewToWidgetOffset not handled!");
       if (nsnull != cx)
         cx->Translate(ax, ay);
     }
@@ -1932,16 +1913,16 @@ NS_IMETHODIMP nsViewManager::EnableRefresh(PRUint32 aUpdateFlags)
 
   mRefreshEnabled = PR_TRUE;
 
+  if (!mHasPendingUpdates) {
+    // Nothing to do
+    return NS_OK;
+  }
+
   // nested batching can combine IMMEDIATE with DEFERRED. Favour
-  // IMMEDIATE over DEFERRED and DEFERRED over NO_SYNC.  We need to
-  // check for IMMEDIATE before checking mHasPendingUpdates, because
-  // the latter might be false as far as gecko is concerned but the OS
-  // might still have queued up expose events that it hasn't sent yet.
+  // IMMEDIATE over DEFERRED and DEFERRED over NO_SYNC.
   if (aUpdateFlags & NS_VMREFRESH_IMMEDIATE) {
     FlushPendingInvalidates();
     Composite();
-  } else if (!mHasPendingUpdates) {
-    // Nothing to do
   } else if (aUpdateFlags & NS_VMREFRESH_DEFERRED) {
     PostInvalidateEvent();
   } else { // NO_SYNC

@@ -411,6 +411,21 @@ FocusElementButNotDocument(nsIDocument* aDocument, nsIContent* aContent)
   esm->SetFocusedContent(nsnull);
 }
 
+static PRBool
+IsInNativeAnonymousSubtree(nsIContent* aContent)
+{
+    while (aContent) {
+        nsIContent* bindingParent = aContent->GetBindingParent();
+        if (bindingParent == aContent) {
+            return PR_TRUE;
+        }
+
+        aContent = bindingParent;
+    }
+
+    return PR_FALSE;
+}
+
 void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
                                              nsIDOMRange*  aRange)
 {
@@ -436,7 +451,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   // <textarea> or text <input>, we need to get the outer frame
   nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
-    if (!content->IsInNativeAnonymousSubtree()) {
+    if (!IsInNativeAnonymousSubtree(content)) {
       nsIFrame* f = presShell->GetPrimaryFrameFor(content);
       if (!f)
         return;

@@ -64,7 +64,6 @@
 #include "editline.h"
 #include <signal.h>
 #include <ctype.h>
-#include <unistd.h>
 
 /*
 **  Manifest constants.
@@ -155,10 +154,12 @@ int		rl_meta_chars = 0;
 **  Declarations.
 */
 STATIC CHAR	*editinput();
+extern int	read();
+extern int	write();
 #if	defined(USE_TERMCAP)
-#include <stdlib.h>
-#include <curses.h>
-#include <term.h>
+extern char	*getenv();
+extern char	*tgetstr();
+extern int	tgetent();
 #endif	/* defined(USE_TERMCAP) */
 
 /*

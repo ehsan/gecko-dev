@@ -50,6 +50,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsIKBStateControl.h"
 #include "nsIFocusController.h"
 #include "nsIDOMWindow.h"
 #include "nsContentUtils.h"
@@ -85,11 +86,11 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
     return NS_OK;
 
   // Current IME transaction should commit
-  nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
-  if (widget) {
-    nsresult rv = widget->CancelIMEComposition();
+  nsCOMPtr<nsIKBStateControl> kb = GetKBStateControl(sPresContext);
+  if (kb) {
+    nsresult rv = kb->CancelIMEComposition();
     if (NS_FAILED(rv))
-      widget->ResetInputState();
+      kb->ResetInputState();
   }
 
   sContent = nsnull;
@@ -109,8 +110,9 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIWidget> widget = GetWidget(aPresContext);
-  if (!widget) {
+  nsCOMPtr<nsIKBStateControl> kb = GetKBStateControl(aPresContext);
+  if (!kb) {
+    // This platform doesn't support IME controlling
     return NS_OK;
   }
 
@@ -124,12 +126,12 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
       return NS_OK;
     }
     PRUint32 enabled;
-    if (NS_FAILED(widget->GetIMEEnabled(&enabled))) {
+    if (NS_FAILED(kb->GetIMEEnabled(&enabled))) {
       // this platform doesn't support IME controlling
       return NS_OK;
     }
     if (enabled ==
-        nsContentUtils::GetWidgetStatusFromIMEStatus(newEnabledState)) {
+        nsContentUtils::GetKBStateControlStatusFromIMEStatus(newEnabledState)) {
       // the enabled state isn't changing.
       return NS_OK;
     }
@@ -137,18 +139,18 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
 
   // Current IME transaction should commit
   if (sPresContext) {
-    nsCOMPtr<nsIWidget> oldWidget;
+    nsCOMPtr<nsIKBStateControl> oldKB;
     if (sPresContext == aPresContext)
-      oldWidget = widget;
+      oldKB = kb;
     else
-      oldWidget = GetWidget(sPresContext);
-    if (oldWidget)
-      oldWidget->ResetInputState();
+      oldKB = GetKBStateControl(sPresContext);
+    if (oldKB)
+      oldKB->ResetInputState();
   }
 
   if (newState != nsIContent::IME_STATUS_NONE) {
     // Update IME state for new focus widget
-    SetIMEState(aPresContext, newState, widget);
+    SetIMEState(aPresContext, newState, kb);
   }
 
   sPresContext = aPresContext;
@@ -244,11 +246,11 @@ nsIMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
 void
 nsIMEStateManager::SetIMEState(nsPresContext*     aPresContext,
                                PRUint32           aState,
-                               nsIWidget*         aKB)
+                               nsIKBStateControl* aKB)
 {
   if (aState & nsIContent::IME_STATUS_MASK_ENABLED) {
     PRUint32 state =
-      nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
+      nsContentUtils::GetKBStateControlStatusFromIMEStatus(aState);
     aKB->SetIMEEnabled(state);
   }
   if (aState & nsIContent::IME_STATUS_MASK_OPENED) {
@@ -257,8 +259,8 @@ nsIMEStateManager::SetIMEState(nsPresContext*     aPresContext,
   }
 }
 
-nsIWidget*
-nsIMEStateManager::GetWidget(nsPresContext* aPresContext)
+nsIKBStateControl*
+nsIMEStateManager::GetKBStateControl(nsPresContext* aPresContext)
 {
   nsIViewManager* vm = aPresContext->GetViewManager();
   if (!vm)
@@ -266,6 +268,8 @@ nsIMEStateManager::GetWidget(nsPresContext* aPresContext)
   nsCOMPtr<nsIWidget> widget = nsnull;
   nsresult rv = vm->GetWidget(getter_AddRefs(widget));
   NS_ENSURE_SUCCESS(rv, nsnull);
-  return widget;
+  NS_ENSURE_TRUE(widget, nsnull);
+  nsCOMPtr<nsIKBStateControl> kb = do_QueryInterface(widget);
+  return kb;
 }
 

@@ -62,16 +62,16 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPoint)
 
-  nsIContent* GetInsertionParent();
+  already_AddRefed<nsIContent> GetInsertionParent();
   void ClearInsertionParent() { mParentElement = nsnull; }
 
   PRInt32 GetInsertionIndex() { return mIndex; }
 
   void SetDefaultContent(nsIContent* aDefaultContent) { mDefaultContent = aDefaultContent; }
-  nsIContent* GetDefaultContent();
+  already_AddRefed<nsIContent> GetDefaultContent();
 
   void SetDefaultContentTemplate(nsIContent* aDefaultContent) { mDefaultContentTemplate = aDefaultContent; }
-  nsIContent* GetDefaultContentTemplate();
+  already_AddRefed<nsIContent> GetDefaultContentTemplate();
 
   void AddChild(nsIContent* aChildElement) { mElements.AppendObject(aChildElement); }
   void InsertChildAt(PRInt32 aIndex, nsIContent* aChildElement) { mElements.InsertObjectAt(aChildElement, aIndex); }
@@ -79,7 +79,7 @@ public:
   
   PRInt32 ChildCount() { return mElements.Count(); }
 
-  nsIContent* ChildAt(PRUint32 aIndex);
+  already_AddRefed<nsIContent> ChildAt(PRUint32 aIndex);
 
   PRBool Matches(nsIContent* aContent, PRUint32 aIndex);
 

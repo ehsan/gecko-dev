@@ -38,11 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_PLATFORM_HILDON
-#define MAEMO_CHANGES
-#include <gtk/gtkimcontext.h>
-#endif
-
 #include "prlink.h"
 
 #include "nsWindow.h"
@@ -62,12 +57,9 @@
 #include "nsGtkCursors.h"
 
 #include <gtk/gtkwindow.h>
-#ifdef MOZ_X11
 #include <gdk/gdkx.h>
-#include <X11/XF86keysym.h>
-#include "gtk2xtbin.h"
-#endif /* MOZ_X11 */
 #include <gdk/gdkkeysyms.h>
+#include <X11/XF86keysym.h>
 
 #include "nsWidgetAtoms.h"
 
@@ -75,6 +67,8 @@
 #define SN_API_NOT_YET_FROZEN
 #include <startup-notification-1.0/libsn/sn.h>
 #endif
+
+#include "gtk2xtbin.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -114,27 +108,13 @@ static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility"
 #include "nsAutoPtr.h"
 
 #include "gfxPlatformGtk.h"
+#include "gfxXlibSurface.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
-
-#ifdef MOZ_DFB
-extern "C" {
-#ifdef MOZ_DIRECT_DEBUG
-#define DIRECT_ENABLE_DEBUG
-#endif
-
-#include <direct/debug.h>
-
-D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
-}
-#include "gfxDirectFBSurface.h"
-#define GDK_WINDOW_XWINDOW(_win) _win
-#else
-#define D_DEBUG_AT(x,y...)    do {} while (0)
+#ifdef MOZ_ENABLE_GLITZ
+#include "gfxGlitzSurface.h"
+#include "glitz-glx.h"
 #endif
 
 /* For PrepareNativeWidget */
@@ -204,14 +184,12 @@ static nsWindow* GetFirstNSWindowForGDKWindow (GdkWindow *aGdkWindow);
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-#ifdef MOZ_X11
 static GdkFilterReturn plugin_window_filter_func (GdkXEvent *gdk_xevent,
                                                   GdkEvent *event,
                                                   gpointer data);
 static GdkFilterReturn plugin_client_message_filter (GdkXEvent *xevent,
                                                      GdkEvent *event,
                                                      gpointer data);
-#endif /* MOZ_X11 */
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -242,12 +220,10 @@ static void    drag_data_received_event_cb(GtkWidget *aWidget,
                                            gpointer aData);
 
 static GdkModifierType gdk_keyboard_get_modifiers();
-#ifdef MOZ_X11
 static PRBool gdk_keyboard_get_modmap_masks(Display*  aDisplay,
                                             PRUint32* aCapsLockMask,
                                             PRUint32* aNumLockMask,
                                             PRUint32* aScrollLockMask);
-#endif /* MOZ_X11 */
 
 /* initialization static functions */
 static nsresult    initialize_prefs        (void);
@@ -285,9 +261,6 @@ static GdkEventKey *gKeyEvent = NULL;
 static PRBool       gKeyEventCommitted = PR_FALSE;
 static PRBool       gKeyEventChanged = PR_FALSE;
 static PRBool       gIMESuppressCommit = PR_FALSE;
-#ifdef MOZ_PLATFORM_HILDON
-static PRBool       gIMEVirtualKeyboardOpened = PR_FALSE;
-#endif
 
 static void IM_commit_cb              (GtkIMContext *aContext,
                                        const gchar *aString,
@@ -334,20 +307,6 @@ typedef void (*_gdk_window_set_urgency_hint_fn)(GdkWindow *window,
 // cursor cache
 static GdkCursor *gCursorCache[eCursorCount];
 
-// Global update pixmap
-static PRBool gUseBufferPixmap = PR_FALSE;
-static GdkPixmap *gBufferPixmap = nsnull;
-static gfxIntSize gBufferPixmapSize(0,0);
-static gfxIntSize gBufferPixmapMaxSize(0,0);
-static int gBufferPixmapUsageCount = 0;
-
-// imported in nsWidgetFactory.cpp
-PRBool gDisableNativeTheme = PR_FALSE;
-
-// If this is 1, then a 24bpp buffer surface is always
-// created for exposes, even if the display has a different depth
-static PRBool gForce24bpp = PR_FALSE;
-
 nsWindow::nsWindow()
 {
     mContainer           = nsnull;
@@ -364,9 +323,7 @@ nsWindow::nsWindow()
     mTransientParent     = nsnull;
     mWindowType          = eWindowType_child;
     mSizeState           = nsSizeMode_Normal;
-#ifdef MOZ_X11
     mOldFocusWindow      = 0;
-#endif /* MOZ_X11 */
     mPluginType          = PluginType_NONE;
 
     if (!gGlobalsInitialized) {
@@ -400,27 +357,6 @@ nsWindow::nsWindow()
 
     mTransparencyBitmapWidth  = 0;
     mTransparencyBitmapHeight = 0;
-
-#ifdef MOZ_DFB
-    mDFBCursorX     = 0;
-    mDFBCursorY     = 0;
-
-    mDFBCursorCount = 0;
-
-    mDFB            = NULL;
-    mDFBLayer       = NULL;
-#endif
-
-    
-    if (gUseBufferPixmap) {
-        if (gBufferPixmapMaxSize.width == 0) {
-            gBufferPixmapMaxSize.width = gdk_screen_width();
-            gBufferPixmapMaxSize.height = gdk_screen_height();
-        }
-
-        gBufferPixmapUsageCount++;
-    }
-
 }
 
 nsWindow::~nsWindow()
@@ -432,14 +368,6 @@ nsWindow::~nsWindow()
 
     delete[] mTransparencyBitmap;
     mTransparencyBitmap = nsnull;
-
-#ifdef MOZ_DFB
-    if (mDFBLayer)
-         mDFBLayer->Release( mDFBLayer );
-         
-    if (mDFB)
-         mDFB->Release( mDFB );
-#endif
 
     Destroy();
 }
@@ -455,8 +383,14 @@ nsWindow::ReleaseGlobals()
   }
 }
 
+#ifndef USE_XIM
 NS_IMPL_ISUPPORTS_INHERITED1(nsWindow, nsCommonWidget,
                              nsISupportsWeakReference)
+#else
+NS_IMPL_ISUPPORTS_INHERITED2(nsWindow, nsCommonWidget,
+                             nsISupportsWeakReference,
+                             nsIKBStateControl)
+#endif
 
 NS_IMETHODIMP
 nsWindow::Create(nsIWidget        *aParent,
@@ -495,19 +429,7 @@ nsWindow::Destroy(void)
     LOG(("nsWindow::Destroy [%p]\n", (void *)this));
     mIsDestroyed = PR_TRUE;
     mCreated = PR_FALSE;
-
-    if (gUseBufferPixmap &&
-        gBufferPixmapUsageCount &&
-        --gBufferPixmapUsageCount == 0)
-    {
-        if (gBufferPixmap)
-            g_object_unref(G_OBJECT(gBufferPixmap));
-
-        gBufferPixmap = nsnull;
-        gBufferPixmapSize.width = 0;
-        gBufferPixmapSize.height = 0;
-    }
-
+    
     g_signal_handlers_disconnect_by_func(gtk_settings_get_default(),
                                          (gpointer)G_CALLBACK(theme_changed_cb),
                                          this);
@@ -542,12 +464,10 @@ nsWindow::Destroy(void)
         gFocusWindow = nsnull;
     }
 
-#ifdef MOZ_X11
     // make sure that we remove ourself as the plugin focus window
     if (gPluginFocusWindow == this) {
         gPluginFocusWindow->LoseNonXEmbedPluginFocus();
     }
-#endif /* MOZ_X11 */
 
     if (mWindowGroup) {
         g_object_unref(G_OBJECT(mWindowGroup));
@@ -563,21 +483,6 @@ nsWindow::Destroy(void)
         mDragMotionTimerID = 0;
     }
 
-    if (mDrawingarea) {
-        g_object_set_data(G_OBJECT(mDrawingarea->clip_window),
-                          "nsWindow", NULL);
-        g_object_set_data(G_OBJECT(mDrawingarea->inner_window),
-                          "nsWindow", NULL);
-
-        g_object_set_data(G_OBJECT(mDrawingarea->clip_window),
-                          "mozdrawingarea", NULL);
-        g_object_set_data(G_OBJECT(mDrawingarea->inner_window),
-                          "mozdrawingarea", NULL);
-
-        g_object_unref(mDrawingarea);
-        mDrawingarea = nsnull;
-    }
-
     if (mShell) {
         gtk_widget_destroy(mShell);
         mShell = nsnull;
@@ -586,6 +491,11 @@ nsWindow::Destroy(void)
     else if (mContainer) {
         gtk_widget_destroy(GTK_WIDGET(mContainer));
         mContainer = nsnull;
+    }
+
+    if (mDrawingarea) {
+        g_object_unref(mDrawingarea);
+        mDrawingarea = nsnull;
     }
 
     OnDestroy();
@@ -609,18 +519,6 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     NS_ASSERTION(newParentWindow, "Parent widget has a null native window handle");
 
     if (!mShell && mDrawingarea) {
-#ifdef DEBUG
-        if (!mContainer) {
-            // Check that the new Parent window has the same MozContainer
-            gpointer old_container;
-            gdk_window_get_user_data(mDrawingarea->inner_window,
-                                     &old_container);
-            gpointer new_container;
-            gdk_window_get_user_data(newParentWindow, &new_container);
-            NS_ASSERTION(old_container == new_container,
-                         "FIXME: Wrong MozContainer on MozDrawingarea");
-        }
-#endif
         moz_drawingarea_reparent(mDrawingarea, newParentWindow);
     } else {
         NS_NOTREACHED("nsWindow::SetParent - reparenting a non-child window");
@@ -893,7 +791,8 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!mDrawingarea)
         return NS_ERROR_FAILURE;
 
-    GtkWidget *owningWidget = GetMozContainerWidget();
+    GtkWidget *owningWidget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
     if (!owningWidget)
         return NS_ERROR_FAILURE;
 
@@ -1018,8 +917,9 @@ nsWindow::SetCursor(nsCursor aCursor)
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        GtkWidget *widget =
+            get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
+        nsWindow *window = get_window_for_gtk_widget(widget);
         return window->SetCursor(aCursor);
     }
 
@@ -1099,8 +999,9 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        GtkWidget *widget =
+            get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
+        nsWindow *window = get_window_for_gtk_widget(widget);
         return window->SetCursor(aCursor, aHotspotX, aHotspotY);
     }
 
@@ -1333,13 +1234,6 @@ nsWindow::Scroll(PRInt32  aDx,
     if (!mDrawingarea)
         return NS_OK;
 
-    D_DEBUG_AT( ns_Window, "%s( %4d,%4d )\n", __FUNCTION__, aDx, aDy );
-
-    if (aClipRect) {
-         D_DEBUG_AT( ns_Window, "  -> aClipRect: %4d,%4d-%4dx%4d\n",
-                     aClipRect->x, aClipRect->y, aClipRect->width, aClipRect->height );
-    }
-
     moz_drawingarea_scroll(mDrawingarea, aDx, aDy);
 
     // Update bounds on our child windows
@@ -1393,11 +1287,7 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         break;
 
     case NS_NATIVE_DISPLAY:
-#ifdef MOZ_X11
         return GDK_DISPLAY();
-#else
-        return nsnull;
-#endif /* MOZ_X11 */
         break;
 
     case NS_NATIVE_GRAPHIC: {
@@ -1483,7 +1373,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
 }
 
 NS_IMETHODIMP
-nsWindow::SetMenuBar(void * aMenuBar)
+nsWindow::SetMenuBar(nsIMenuBar * aMenuBar)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1581,7 +1471,8 @@ nsWindow::CaptureMouse(PRBool aCapture)
     if (!mDrawingarea)
         return NS_OK;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     if (aCapture) {
         gtk_grab_add(widget);
@@ -1603,7 +1494,8 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     if (!mDrawingarea)
         return NS_OK;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     LOG(("CaptureRollupEvents %p\n", (void *)this));
 
@@ -1664,9 +1556,8 @@ nsWindow::LoseFocus(void)
     LOGFOCUS(("  widget lost focus [%p]\n", (void *)this));
 }
 
-#if 0
 #ifdef DEBUG
-// Paint flashing code (disabled for cairo - see below)
+// Paint flashing code
 
 #define CAPS_LOCK_IS_ON \
 (gdk_keyboard_get_modifiers() & GDK_LOCK_MASK)
@@ -1674,7 +1565,6 @@ nsWindow::LoseFocus(void)
 #define WANT_PAINT_FLASHING \
 (debug_WantPaintFlashing() && CAPS_LOCK_IS_ON)
 
-#ifdef MOZ_X11
 static void
 gdk_window_flash(GdkWindow *    aGdkWindow,
                  unsigned int   aTimes,
@@ -1734,9 +1624,7 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
 
   gdk_region_offset(aRegion, -x, -y);
 }
-#endif /* MOZ_X11 */
 #endif // DEBUG
-#endif
 
 gboolean
 nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
@@ -1779,29 +1667,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         LOGDRAW(("\t%d %d %d %d\n", r->x, r->y, r->width, r->height));
     }
 
-#ifdef MOZ_DFB
-    nsCOMPtr<nsIRenderingContext> rc = getter_AddRefs(GetRenderingContext());
-    if (NS_UNLIKELY(!rc)) {
-        g_free(rects);
-        return FALSE;
-    }
-
-    // do double-buffering and clipping here
-    nsRefPtr<gfxContext> ctx = rc->ThebesContext();
-
-    gfxPlatformGtk::GetPlatform()->SetGdkDrawable(ctx->OriginalSurface(),
-                                                  GDK_DRAWABLE(mDrawingarea->inner_window));
-
-    // clip to the update region
-    ctx->Save();
-    ctx->NewPath();
-    for (r = rects; r < r_end; ++r) {
-        ctx->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
-    }
-    ctx->Clip();
-#endif
-
-#ifdef MOZ_X11
     nsCOMPtr<nsIRenderingContext> rc = getter_AddRefs(GetRenderingContext());
     if (NS_UNLIKELY(!rc)) {
         g_free(rects);
@@ -1809,12 +1674,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     }
 
     PRBool translucent;
-    translucent = eTransparencyTransparent == GetTransparencyMode();
+    GetHasTransparentBackground(translucent);
     nsIntRect boundsRect;
-
     GdkPixmap* bufferPixmap = nsnull;
-    gfxIntSize bufferPixmapSize;
-
     nsRefPtr<gfxASurface> bufferPixmapSurface;
 
     updateRegion->GetBoundingBox(&boundsRect.x, &boundsRect.y,
@@ -1842,64 +1704,20 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     if (translucent) {
         ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
     } else {
+#ifdef MOZ_ENABLE_GLITZ
+        ctx->PushGroup(gfxASurface::CONTENT_COLOR);
+#else // MOZ_ENABLE_GLITZ
         // Instead of just doing PushGroup we're going to do a little dance
         // to ensure that GDK creates the pixmap, so it doesn't go all
         // XGetGeometry on us in gdk_pixmap_foreign_new_for_display when we
         // paint native themes
-        gint depth;
-
-        if (gForce24bpp) {
-            depth = 24; // 24 always
-        } else {
-            depth = gdk_drawable_get_depth(GDK_DRAWABLE(mDrawingarea->inner_window));
-        }
-
-        if (!gUseBufferPixmap ||
-            boundsRect.width > gBufferPixmapMaxSize.width ||
-            boundsRect.height > gBufferPixmapMaxSize.height)
-        {
-            // create a one-off always if we're not using the global pixmap
-            // if gUseBufferPixmap == TRUE, who's redrawing an area bigger than the screen?
-            bufferPixmap = gdk_pixmap_new(GDK_DRAWABLE(mDrawingarea->inner_window),
-                                          boundsRect.width, boundsRect.height,
-                                          depth);
-            bufferPixmapSize.width = boundsRect.width;
-            bufferPixmapSize.height = boundsRect.height;
-        } else if (boundsRect.width > gBufferPixmapSize.width ||
-                   boundsRect.height > gBufferPixmapSize.height)
-        {
-            // grow the global pixmap
-            if (gBufferPixmap)
-                g_object_unref(G_OBJECT(gBufferPixmap));
-
-            gBufferPixmapSize.width = PR_MAX(gBufferPixmapSize.width, boundsRect.width);
-            gBufferPixmapSize.height = PR_MAX(gBufferPixmapSize.height, boundsRect.height);
-
-            gBufferPixmap = gdk_pixmap_new(GDK_DRAWABLE(mDrawingarea->inner_window),
-                                           gBufferPixmapSize.width, gBufferPixmapSize.height,
-                                           depth);
-
-            // use the newly-resized global
-            bufferPixmap = gBufferPixmap;
-            bufferPixmapSize = gBufferPixmapSize;
-        }  else {
-            // global's big enough, just use it
-            bufferPixmap = gBufferPixmap;
-            bufferPixmapSize = gBufferPixmapSize;
-        }
-
+        GdkDrawable* d = GDK_DRAWABLE(mDrawingarea->inner_window);
+        gint depth = gdk_drawable_get_depth(d);
+        bufferPixmap = gdk_pixmap_new(d, boundsRect.width, boundsRect.height, depth);
         if (bufferPixmap) {
             bufferPixmapSurface = GetSurfaceForGdkDrawable(GDK_DRAWABLE(bufferPixmap),
-                                                           nsSize(bufferPixmapSize.width, bufferPixmapSize.height));
-
-            if (bufferPixmapSurface && bufferPixmapSurface->CairoStatus()) {
-                bufferPixmapSurface = nsnull;
-            }
+                                                           boundsRect.Size());
             if (bufferPixmapSurface) {
-                gfxPlatformGtk::GetPlatform()->SetGdkDrawable(
-                        static_cast<gfxASurface *>(bufferPixmapSurface), 
-                        GDK_DRAWABLE(bufferPixmap));
-
                 bufferPixmapSurface->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
                 nsCOMPtr<nsIRenderingContext> newRC;
                 nsresult rv = GetDeviceContext()->
@@ -1916,6 +1734,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                 }
             }
         }
+#endif // MOZ_ENABLE_GLITZ
     }
 
 #if 0
@@ -1928,8 +1747,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
 #endif
 #endif
 
-#endif // MOZ_X11
-
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
     event.refPoint.x = aEvent->area.x;
     event.refPoint.y = aEvent->area.y;
@@ -1940,7 +1757,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     nsEventStatus status;
     DispatchEvent(&event, status);
 
-#ifdef MOZ_X11
     // DispatchEvent can Destroy us (bug 378273), avoid doing any paint
     // operations below if that happened - it will lead to XError and exit().
     if (NS_LIKELY(!mIsDestroyed)) {
@@ -1969,29 +1785,33 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                                          img->Data(), img->Stride());
                 }
             } else {
+#ifdef MOZ_ENABLE_GLITZ
+                ctx->PopGroupToSource();
+                ctx->Paint();
+#else // MOZ_ENABLE_GLITZ
                 if (bufferPixmapSurface) {
-                    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
                     ctx->SetSource(bufferPixmapSurface);
                     ctx->Paint();
                 }
+#endif // MOZ_ENABLE_GLITZ
             }
         } else {
             // ignore
-            if (translucent)
+            if (translucent) {
                 ctx->PopGroup();
+            } else {
+#ifdef MOZ_ENABLE_GLITZ
+                ctx->PopGroup();
+#endif // MOZ_ENABLE_GLITZ
+            }
         }
 
-        // if we had to allocate a local pixmap, free it here
-        if (bufferPixmap && bufferPixmap != gBufferPixmap)
+        if (bufferPixmap) {
             g_object_unref(G_OBJECT(bufferPixmap));
+        }
 
         ctx->Restore();
     }
-#endif // MOZ_X11
-
-#ifdef MOZ_DFB
-    ctx->Restore();
-#endif
 
     g_free(rects);
 
@@ -2132,63 +1952,6 @@ nsWindow::OnLeaveNotifyEvent(GtkWidget *aWidget, GdkEventCrossing *aEvent)
     DispatchEvent(&event, status);
 }
 
-#ifdef MOZ_DFB
-void
-nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
-{
-    int cursorX = (int) aEvent->x_root;
-    int cursorY = (int) aEvent->y_root;
-
-    D_DEBUG_AT( ns_Window, "%s( %4d,%4d - [%d] )\n", __FUNCTION__, cursorX, cursorY, mDFBCursorCount );
-
-    D_ASSUME( mDFBLayer != NULL );
-
-    if (mDFBLayer)
-         mDFBLayer->GetCursorPosition( mDFBLayer, &cursorX, &cursorY );
-
-    mDFBCursorCount++;
-
-#if D_DEBUG_ENABLED
-    if (cursorX != (int) aEvent->x_root || cursorY != (int) aEvent->y_root)
-         D_DEBUG_AT( ns_Window, "  -> forward to %4d,%4d\n", cursorX, cursorY );
-#endif
-
-    if (cursorX == mDFBCursorX && cursorY == mDFBCursorY) {
-         D_DEBUG_AT( ns_Window, "  -> dropping %4d,%4d\n", cursorX, cursorY );
-
-         /* drop zero motion */
-         return;
-    }
-
-    mDFBCursorX = cursorX;
-    mDFBCursorY = cursorY;
-
-
-    // when we receive this, it must be that the gtk dragging is over,
-    // it is dropped either in or out of mozilla, clear the flag
-    sIsDraggingOutOf = PR_FALSE;
-
-    nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
-
-    nsRect windowRect;
-    ScreenToWidget(nsRect(nscoord(cursorX), nscoord(cursorY), 1, 1), windowRect);
-
-    event.refPoint.x = windowRect.x;
-    event.refPoint.y = windowRect.y;
-
-    event.isShift   = (aEvent->state & GDK_SHIFT_MASK)
-        ? PR_TRUE : PR_FALSE;
-    event.isControl = (aEvent->state & GDK_CONTROL_MASK)
-        ? PR_TRUE : PR_FALSE;
-    event.isAlt     = (aEvent->state & GDK_MOD1_MASK)
-        ? PR_TRUE : PR_FALSE;
-
-    event.time = aEvent->time;
-
-    nsEventStatus status;
-    DispatchEvent(&event, status);
-}
-#else
 void
 nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 {
@@ -2199,10 +1962,8 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
     // see if we can compress this event
     // XXXldb Why skip every other motion event when we have multiple,
     // but not more than that?
-    PRPackedBool synthEvent = PR_FALSE;
-#ifdef MOZ_X11
     XEvent xevent;
-    
+    PRPackedBool synthEvent = PR_FALSE;
     while (XCheckWindowEvent(GDK_WINDOW_XDISPLAY(aEvent->window),
                              GDK_WINDOW_XWINDOW(aEvent->window),
                              ButtonMotionMask, &xevent)) {
@@ -2214,12 +1975,10 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
         nsRefPtr<nsWindow> kungFuDeathGrip = gPluginFocusWindow;
         gPluginFocusWindow->LoseNonXEmbedPluginFocus();
     }
-#endif /* MOZ_X11 */
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
     if (synthEvent) {
-#ifdef MOZ_X11
         event.refPoint.x = nscoord(xevent.xmotion.x);
         event.refPoint.y = nscoord(xevent.xmotion.y);
 
@@ -2231,19 +1990,6 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
             ? PR_TRUE : PR_FALSE;
 
         event.time = xevent.xmotion.time;
-#else
-        event.refPoint.x = nscoord(aEvent->x);
-        event.refPoint.y = nscoord(aEvent->y);
-
-        event.isShift   = (aEvent->state & GDK_SHIFT_MASK)
-            ? PR_TRUE : PR_FALSE;
-        event.isControl = (aEvent->state & GDK_CONTROL_MASK)
-            ? PR_TRUE : PR_FALSE;
-        event.isAlt     = (aEvent->state & GDK_MOD1_MASK)
-            ? PR_TRUE : PR_FALSE;
-
-        event.time = aEvent->time;
-#endif /* MOZ_X11 */
     }
     else {
         // XXX see OnScrollEvent()
@@ -2271,7 +2017,6 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
     nsEventStatus status;
     DispatchEvent(&event, status);
 }
-#endif
 
 void
 nsWindow::InitButtonEvent(nsMouseEvent &aEvent,
@@ -2473,13 +2218,11 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
 {
     LOGFOCUS(("OnContainerFocusOutEvent [%p]\n", (void *)this));
 
-#ifdef MOZ_X11
     // plugin lose focus
     if (gPluginFocusWindow) {
         nsRefPtr<nsWindow> kungFuDeathGrip = gPluginFocusWindow;
         gPluginFocusWindow->LoseNonXEmbedPluginFocus();
     }
-#endif /* MOZ_X11 */
 
     // Figure out if the focus widget is the child of this window.  If
     // it is, send a focus out and deactivate event for it.
@@ -2638,7 +2381,6 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
         return TRUE;
     }
 
-#ifdef MOZ_X11
     // Look for specialized app-command keys
     switch (aEvent->keyval) {
         case XF86XK_Back:
@@ -2656,7 +2398,6 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
         case XF86XK_HomePage:
             return DispatchCommandEvent(nsWidgetAtoms::Home);
     }
-#endif /* MOZ_X11 */
 
     nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
     InitKeyEvent(event, aEvent);
@@ -2859,17 +2600,6 @@ nsWindow::OnVisibilityNotifyEvent(GtkWidget *aWidget,
     case GDK_VISIBILITY_UNOBSCURED:
     case GDK_VISIBILITY_PARTIAL:
         mIsVisible = PR_TRUE;
-#ifdef MOZ_PLATFORM_HILDON
-#ifdef USE_XIM
-        // In Hildon/Maemo, a browser window will get into 'patially visible' state wheneven an
-        // autocomplete feature is dropped down (from urlbar or from an entry form completion),
-        // and there are no much further ways for that to happen in the plaftorm. In such cases, if hildon
-        // virtual keyboard is up, we can not grab focus to any dropdown list. Reason: nsWindow::EnsureGrabs()
-        // calls gdk_pointer_grab() which grabs the pointer (usually a mouse) so that all events are passed
-        // to this it until the pointer is ungrabbed.
-        if(!gIMEVirtualKeyboardOpened)
-#endif // USE_XIM
-#endif // MOZ_PLATFORM_HILDON
         // if we have to retry the grab, retry it.
         EnsureGrabs();
         break;
@@ -3019,7 +2749,8 @@ nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
 
     dragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget,
+                       nsMouseEvent::eReal);
 
     InitDragEvent(event);
 
@@ -3127,7 +2858,8 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // re-validate the drag target and then we do the drop.  The events
     // look the same except for the type.
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_OVER, innerMostWidget,
+                       nsMouseEvent::eReal);
 
     InitDragEvent(event);
 
@@ -3145,11 +2877,11 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // only protects innerMostWidget from being deleted, it does NOT protect
     // against nsView::~nsView() calling Destroy() on it, bug 378670.
     if (!innerMostWidget->mIsDestroyed) {
-        nsDragEvent event(PR_TRUE, NS_DRAGDROP_DROP, innerMostWidget);
+        event.message = NS_DRAGDROP_DROP;
+        event.widget = innerMostWidget;
         event.refPoint.x = retx;
         event.refPoint.y = rety;
 
-        nsEventStatus status = nsEventStatus_eIgnore;
         innerMostWidget->DispatchEvent(&event, status);
     }
 
@@ -3198,7 +2930,7 @@ nsWindow::OnDragLeave(void)
 {
     LOG(("nsWindow::OnDragLeave(%p)\n", this));
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this, nsMouseEvent::eReal);
 
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -3238,7 +2970,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
         dragService->StartDragSession();
     }
 
-    nsDragEvent event(PR_TRUE, NS_DRAGDROP_ENTER, this);
+    nsMouseEvent event(PR_TRUE, NS_DRAGDROP_ENTER, this, nsMouseEvent::eReal);
 
     event.refPoint.x = aX;
     event.refPoint.y = aY;
@@ -3356,6 +3088,29 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
     }
 
     GdkVisual* visual = nsnull;
+#ifdef MOZ_ENABLE_GLITZ
+    if (gfxPlatform::UseGlitz()) {
+        nsCOMPtr<nsIDeviceContext> dc = aContext;
+        if (!dc) {
+            nsCOMPtr<nsIDeviceContext> dc = do_CreateInstance(kDeviceContextCID);
+            // no parent widget to initialize with
+            dc->Init(nsnull);
+        }
+
+        Display* dpy = GDK_DISPLAY();
+        int defaultScreen = gdk_x11_get_default_screen();
+        glitz_drawable_format_t* format = glitz_glx_find_window_format (dpy, defaultScreen,
+                                                                        0, NULL, 0);
+        if (format) {
+            XVisualInfo* vinfo = glitz_glx_get_visual_info_from_format(dpy, defaultScreen, format);
+            GdkScreen* screen = gdk_display_get_screen(gdk_x11_lookup_xdisplay(dpy), defaultScreen);
+            visual = gdk_x11_screen_lookup_visual(screen, vinfo->visualid);
+        } else {
+            // couldn't find a GLX visual; force Glitz off
+            gfxPlatform::SetUseGlitz(PR_FALSE);
+        }
+    }
+#endif
 
     // ok, create our windows
     switch (mWindowType) {
@@ -3498,13 +3253,8 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
     }
     // Disable the double buffer because it will make the caret crazy
     // For bug#153805 (Gtk2 double buffer makes carets misbehave)
-    // DirectFB's expose code depends on gtk double buffering
-    // XXX - I think this bug is probably dead, we can just use gtk's
-    // double-buffering everywhere
-#ifdef MOZ_X11
     if (mContainer)
         gtk_widget_set_double_buffered (GTK_WIDGET(mContainer),FALSE);
-#endif
 
     // label the drawing area with this object so we can find our way
     // home
@@ -3625,7 +3375,7 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
         //check if accessibility enabled/disabled by environment variable
         const char *envValue = PR_GetEnv(sAccEnv);
         if (envValue) {
-            sAccessibilityEnabled = atoi(envValue) != 0;
+            sAccessibilityEnabled = atoi(envValue);
             LOG(("Accessibility Env %s=%s\n", sAccEnv, envValue));
         }
         //check gconf-2 setting
@@ -3648,22 +3398,6 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
     }
 #endif
 
-#ifdef MOZ_DFB
-    if (!mDFB) {
-         DirectFBCreate( &mDFB );
-
-         D_ASSUME( mDFB != NULL );
-
-         if (mDFB)
-              mDFB->GetDisplayLayer( mDFB, DLID_PRIMARY, &mDFBLayer );
-
-         D_ASSUME( mDFBLayer != NULL );
-
-         if (mDFBLayer)
-              mDFBLayer->GetCursorPosition( mDFBLayer, &mDFBCursorX, &mDFBCursorY );
-    }
-#endif
-
     return NS_OK;
 }
 
@@ -3673,7 +3407,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
   if (!mShell)
     return NS_ERROR_FAILURE;
 
-#ifdef MOZ_X11
   nsXPIDLString brandName;
   GetBrandName(brandName);
 
@@ -3717,39 +3450,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
   nsMemory::Free(class_hint->res_class);
   nsMemory::Free(class_hint->res_name);
   XFree(class_hint);
-#else /* MOZ_X11 */
-
-  char *res_name;
-
-  res_name = ToNewCString(xulWinType);
-  if (!res_name)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  printf("WARN: res_name = '%s'\n", res_name);
-
-
-  const char *role = NULL;
-
-  // Parse res_name into a name and role. Characters other than
-  // [A-Za-z0-9_-] are converted to '_'. Anything after the first
-  // colon is assigned to role; if there's no colon, assign the
-  // whole thing to both role and res_name.
-  for (char *c = res_name; *c; c++) {
-    if (':' == *c) {
-      *c = 0;
-      role = c + 1;
-    }
-    else if (!isascii(*c) || (!isalnum(*c) && ('_' != *c) && ('-' != *c)))
-      *c = '_';
-  }
-  res_name[0] = toupper(res_name[0]);
-  if (!role) role = res_name;
-
-  gdk_window_set_role(GTK_WIDGET(mShell)->window, role);
-
-  nsMemory::Free(res_name);
-
-#endif /* MOZ_X11 */
   return NS_OK;
 }
 
@@ -3869,22 +3569,6 @@ nsWindow::NativeShow (PRBool  aAction)
     }
 }
 
-nsSize
-nsWindow::GetSafeWindowSize(nsSize aSize)
-{
-    nsSize result = aSize;
-    const PRInt32 kInt16Max = 32767;
-    if (result.width > kInt16Max) {
-        NS_WARNING("Clamping huge window width");
-        result.width = kInt16Max;
-    }
-    if (result.height > kInt16Max) {
-        NS_WARNING("Clamping huge window height");
-        result.height = kInt16Max;
-    }
-    return result;
-}
-
 void
 nsWindow::EnsureGrabs(void)
 {
@@ -3894,29 +3578,27 @@ nsWindow::EnsureGrabs(void)
         GrabKeyboard();
 }
 
-void
-nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
+NS_IMETHODIMP
+nsWindow::SetHasTransparentBackground(PRBool aTransparent)
 {
     if (!mShell) {
         // Pass the request to the toplevel window
         GtkWidget *topWidget = nsnull;
         GetToplevelWidget(&topWidget);
         if (!topWidget)
-            return;
+            return NS_ERROR_FAILURE;
 
         nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
         if (!topWindow)
-            return;
+            return NS_ERROR_FAILURE;
 
-        topWindow->SetTransparencyMode(aMode);
-        return;
+        return topWindow->SetHasTransparentBackground(aTransparent);
     }
-    PRBool isTransparent = aMode == eTransparencyTransparent;
 
-    if (mIsTransparent == isTransparent)
-        return;
+    if (mIsTransparent == aTransparent)
+        return NS_OK;
 
-    if (!isTransparent) {
+    if (!aTransparent) {
         if (mTransparencyBitmap) {
             delete[] mTransparencyBitmap;
             mTransparencyBitmap = nsnull;
@@ -3927,29 +3609,33 @@ nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
     } // else the new default alpha values are "all 1", so we don't
     // need to change anything yet
 
-    mIsTransparent = isTransparent;
+    mIsTransparent = aTransparent;
+    return NS_OK;
 }
 
-nsTransparencyMode
-nsWindow::GetTransparencyMode()
+NS_IMETHODIMP
+nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
     if (!mShell) {
         // Pass the request to the toplevel window
         GtkWidget *topWidget = nsnull;
         GetToplevelWidget(&topWidget);
         if (!topWidget) {
-            return eTransparencyOpaque;
+            aTransparent = PR_FALSE;
+            return NS_ERROR_FAILURE;
         }
 
         nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
         if (!topWindow) {
-            return eTransparencyOpaque;
+            aTransparent = PR_FALSE;
+            return NS_ERROR_FAILURE;
         }
 
-        return topWindow->GetTransparencyMode();
+        return topWindow->GetHasTransparentBackground(aTransparent);
     }
 
-    return mIsTransparent ? eTransparencyTransparent : eTransparencyOpaque;
+    aTransparent = mIsTransparent;
+    return NS_OK;
 }
 
 void
@@ -4208,20 +3894,12 @@ nsWindow::GetToplevelWidget(GtkWidget **aWidget)
     if (!mDrawingarea)
         return;
 
-    GtkWidget *widget = GetMozContainerWidget();
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
     if (!widget)
         return;
 
     *aWidget = gtk_widget_get_toplevel(widget);
-}
-
-GtkWidget *
-nsWindow::GetMozContainerWidget()
-{
-    GtkWidget *owningWidget =
-        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
-    NS_ASSERTION(IS_MOZ_CONTAINER(owningWidget), "Lost our MozContainer");
-    return owningWidget;
 }
 
 void
@@ -4230,10 +3908,10 @@ nsWindow::GetContainerWindow(nsWindow **aWindow)
     if (!mDrawingarea)
         return;
 
-    GtkWidget *owningWidget = GetMozContainerWidget();
+    GtkWidget *owningWidget =
+        get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
 
     *aWindow = get_window_for_gtk_widget(owningWidget);
-    NS_ASSERTION(*aWindow, "Lost our Container Window");
 }
 
 void
@@ -4269,7 +3947,6 @@ nsWindow::SetupPluginPort(void)
     // we have to flush the X queue here so that any plugins that
     // might be running on separate X connections will be able to use
     // this window in case it was just created
-#ifdef MOZ_X11
     XWindowAttributes xattrs;
     XGetWindowAttributes(GDK_DISPLAY (),
                          GDK_WINDOW_XWINDOW(mDrawingarea->inner_window),
@@ -4284,7 +3961,6 @@ nsWindow::SetupPluginPort(void)
                           this);
 
     XSync(GDK_DISPLAY(), False);
-#endif /* MOZ_X11 */
 
     return (void *)GDK_WINDOW_XWINDOW(mDrawingarea->inner_window);
 }
@@ -4328,7 +4004,6 @@ nsWindow::SetPluginType(PluginType aPluginType)
     mPluginType = aPluginType;
 }
 
-#ifdef MOZ_X11
 void
 nsWindow::SetNonXEmbedPluginFocus()
 {
@@ -4423,7 +4098,6 @@ nsWindow::LoseNonXEmbedPluginFocus()
 
     LOGFOCUS(("nsWindow::LoseNonXEmbedPluginFocus end\n"));
 }
-#endif /* MOZ_X11 */
 
 
 gint
@@ -4507,11 +4181,7 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     // and flush the queue here so that we don't end up with a BadWindow
     // error later when this happens (when the persistence timer fires
     // and GetWindowPos is called)
-#ifdef MOZ_X11
     XSync(GDK_DISPLAY(), False);
-#else
-    gdk_flush ();
-#endif /* MOZ_X11 */
 
     return NS_OK;
 }
@@ -5019,7 +4689,6 @@ focus_out_event_cb(GtkWidget *widget, GdkEventFocus *event)
     return FALSE;
 }
 
-#ifdef MOZ_X11
 /* static */
 GdkFilterReturn
 plugin_window_filter_func(GdkXEvent *gdk_xevent, GdkEvent *event, gpointer data)
@@ -5118,7 +4787,6 @@ plugin_client_message_filter(GdkXEvent *gdk_xevent,
 
     return return_val;
 }
-#endif /* MOZ_X11 */
 
 /* static */
 gboolean
@@ -5200,7 +4868,7 @@ theme_changed_cb (GtkSettings *settings, GParamSpec *pspec, nsWindow *data)
 // These are all of our drag and drop operations
 
 void
-nsWindow::InitDragEvent(nsDragEvent &aEvent)
+nsWindow::InitDragEvent(nsMouseEvent &aEvent)
 {
     // set the keyboard modifiers
     gint x, y;
@@ -5217,7 +4885,7 @@ nsWindow::InitDragEvent(nsDragEvent &aEvent)
 // and what the source is offering.
 
 void
-nsWindow::UpdateDragStatus(nsDragEvent   &aEvent,
+nsWindow::UpdateDragStatus(nsMouseEvent   &aEvent,
                            GdkDragContext *aDragContext,
                            nsIDragService *aDragService)
 {
@@ -5325,28 +4993,16 @@ drag_data_received_event_cb(GtkWidget *aWidget,
 nsresult
 initialize_prefs(void)
 {
+    // check to see if we should set our raise pref
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
         return NS_OK;
 
     PRBool val = PR_TRUE;
     nsresult rv;
-
     rv = prefs->GetBoolPref("mozilla.widget.raise-on-setfocus", &val);
     if (NS_SUCCEEDED(rv))
         gRaiseWindows = val;
-
-    rv = prefs->GetBoolPref("mozilla.widget.force-24bpp", &val);
-    if (NS_SUCCEEDED(rv))
-        gForce24bpp = val;
-
-    rv = prefs->GetBoolPref("mozilla.widget.use-buffer-pixmap", &val);
-    if (NS_SUCCEEDED(rv))
-        gUseBufferPixmap = val;
-
-    rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
-    if (NS_SUCCEEDED(rv))
-        gDisableNativeTheme = val;
 
     return NS_OK;
 }
@@ -5517,7 +5173,6 @@ gdk_keyboard_get_modifiers()
     return m;
 }
 
-#ifdef MOZ_X11
 // Get the modifier masks for GDK_Caps_Lock, GDK_Num_Lock and GDK_Scroll_Lock.
 // Return PR_TRUE on success, PR_FALSE on error.
 static PRBool
@@ -5575,7 +5230,6 @@ gdk_keyboard_get_modmap_masks(Display*  aDisplay,
     XFree(xkeymap);
     return PR_TRUE;
 }
-#endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
 /**
@@ -5813,7 +5467,7 @@ nsWindow::IMEDestroyContext(void)
     }
 
     mIMEData->mOwner   = nsnull;
-    mIMEData->mEnabled = nsIWidget::IME_STATUS_DISABLED;
+    mIMEData->mEnabled = nsIKBStateControl::IME_STATUS_DISABLED;
 
     if (mIMEData->mContext) {
         workaround_gtk_im_display_closed(GTK_WIDGET(mContainer),
@@ -5897,7 +5551,20 @@ nsWindow::IMEComposeStart(void)
     if (NS_UNLIKELY(mIsDestroyed))
         return;
 
-    IMESetCursorPosition(compEvent.theReply);
+    gint x1, y1, x2, y2;
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(this->mDrawingarea->inner_window);
+
+    gdk_window_get_origin(widget->window, &x1, &y1);
+    gdk_window_get_origin(this->mDrawingarea->inner_window, &x2, &y2);
+
+    GdkRectangle area;
+    area.x = compEvent.theReply.mCursorPosition.x + (x2 - x1);
+    area.y = compEvent.theReply.mCursorPosition.y + (y2 - y1);
+    area.width  = 0;
+    area.height = compEvent.theReply.mCursorPosition.height;
+
+    gtk_im_context_set_cursor_location(IMEGetContext(), &area);
 }
 
 void
@@ -5943,7 +5610,20 @@ nsWindow::IMEComposeText(const PRUnichar *aText,
     if (NS_UNLIKELY(mIsDestroyed))
         return;
 
-    IMESetCursorPosition(textEvent.theReply);
+    gint x1, y1, x2, y2;
+    GtkWidget *widget =
+        get_gtk_widget_for_gdk_window(this->mDrawingarea->inner_window);
+
+    gdk_window_get_origin(widget->window, &x1, &y1);
+    gdk_window_get_origin(this->mDrawingarea->inner_window, &x2, &y2);
+
+    GdkRectangle area;
+    area.x = textEvent.theReply.mCursorPosition.x + (x2 - x1);
+    area.y = textEvent.theReply.mCursorPosition.y + (y2 - y1);
+    area.width  = 0;
+    area.height = textEvent.theReply.mCursorPosition.height;
+
+    gtk_im_context_set_cursor_location(IMEGetContext(), &area);
 }
 
 void
@@ -5974,7 +5654,7 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED;
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED;
 }
 
 PRBool
@@ -5986,8 +5666,8 @@ nsWindow::IMEIsEnabledState(void)
 static PRBool
 IsIMEEditableState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED ||
-           aState == nsIWidget::IME_STATUS_PASSWORD;
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED ||
+           aState == nsIKBStateControl::IME_STATUS_PASSWORD;
 }
 
 PRBool
@@ -6078,42 +5758,7 @@ nsWindow::IMEFilterEvent(GdkEventKey *aEvent)
     return retval;
 }
 
-void
-nsWindow::IMESetCursorPosition(const nsTextEventReply& aReply)
-{
-    nsIWidget *refWidget = aReply.mReferenceWidget;
-    if (!refWidget) {
-        NS_WARNING("mReferenceWidget is null");
-        refWidget = this;
-    }
-    nsWindow* refWindow = static_cast<nsWindow*>(refWidget);
-
-    nsWindow* ownerWindow = IM_get_owning_window(mDrawingarea);
-    if (!ownerWindow) {
-        NS_ERROR("there is no owner");
-        return;
-    }
-
-    // Get the position of the refWindow in screen.
-    gint refX, refY;
-    gdk_window_get_origin(refWindow->mDrawingarea->inner_window,
-                          &refX, &refY);
-
-    // Get the position of IM context owner window in screen.
-    gint ownerX, ownerY;
-    gdk_window_get_origin(ownerWindow->mDrawingarea->inner_window,
-                          &ownerX, &ownerY);
-
-    // Compute the caret position in the IM owner window.
-    GdkRectangle area;
-    area.x = aReply.mCursorPosition.x + refX - ownerX;
-    area.y = aReply.mCursorPosition.y + refY - ownerY;
-    area.width  = 0;
-    area.height = aReply.mCursorPosition.height;
-
-    gtk_im_context_set_cursor_location(IMEGetContext(), &area);
-}
-
+/* nsIKBStateControl */
 NS_IMETHODIMP
 nsWindow::ResetInputState()
 {
@@ -6183,16 +5828,6 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
         // Even when aState is not PR_TRUE, we need to set IME focus.
         // Because some IMs are updating the status bar of them in this time.
         focusedWin->IMESetFocus();
-#ifdef MOZ_PLATFORM_HILDON
-        if (mIMEData->mEnabled) {
-            gIMEVirtualKeyboardOpened = PR_TRUE;
-            hildon_gtk_im_context_show (focusedIm);
-        } else {
-            gIMEVirtualKeyboardOpened = PR_FALSE;
-            hildon_gtk_im_context_hide (focusedIm);
-        }
-#endif
-        
     } else {
         if (IsIMEEditableState(mIMEData->mEnabled))
             ResetInputState();
@@ -6210,7 +5845,7 @@ nsWindow::GetIMEEnabled(PRUint32* aState)
     IMEInitData();
 
     *aState =
-      mIMEData ? mIMEData->mEnabled : nsIWidget::IME_STATUS_DISABLED;
+      mIMEData ? mIMEData->mEnabled : nsIKBStateControl::IME_STATUS_DISABLED;
     return NS_OK;
 }
 
@@ -6243,8 +5878,6 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
 {
     NS_ENSURE_ARG_POINTER(aLEDState);
 
-#ifdef MOZ_X11
-
     GdkModifierType modifiers = gdk_keyboard_get_modifiers();
     PRUint32 capsLockMask, numLockMask, scrollLockMask;
     PRBool foundMasks = gdk_keyboard_get_modmap_masks(
@@ -6264,9 +5897,6 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
 
     *aLEDState = (modifiers & mask) != 0;
     return NS_OK;
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif /* MOZ_X11 */
 }
 
 /* static */
@@ -6536,88 +6166,104 @@ IM_get_input_context(nsWindow *aWindow)
     nsWindow::nsIMEData *data = aWindow->mIMEData;
     if (!data)
         return nsnull;
-    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED)
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_ENABLED)
         return data->mContext;
-    if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_PASSWORD)
         return data->mSimpleContext;
     return data->mDummyContext;
 }
 
 #endif
 
-#ifdef MOZ_X11
 /* static */ already_AddRefed<gfxASurface>
 nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                    const nsSize& aSize)
 {
     GdkVisual* visual = gdk_drawable_get_visual(aDrawable);
+    Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
     Display* xDisplay = gdk_x11_drawable_get_xdisplay(aDrawable);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
-    gfxASurface* result = nsnull;
-
-    if (visual) {
-        Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
-
-        result = new gfxXlibSurface(xDisplay, xDrawable, xVisual,
-                                    gfxIntSize(aSize.width, aSize.height));
-    } else {
-        // no visual? we must be using an xrender format.  Find a format
-        // for this depth.
-        XRenderPictFormat *pf = NULL;
-        switch (gdk_drawable_get_depth(aDrawable)) {
-            case 32:
-                pf = XRenderFindStandardFormat(xDisplay, PictStandardARGB32);
-                break;
-            case 24:
-                pf = XRenderFindStandardFormat(xDisplay, PictStandardRGB24);
-                break;
-            default:
-                NS_ERROR("Don't know how to handle the given depth!");
-                break;
-        }
-
-        result = new gfxXlibSurface(xDisplay, xDrawable, pf,
-                                    gfxIntSize(aSize.width, aSize.height));
-    }
-
+    gfxASurface* result = new gfxXlibSurface(xDisplay, xDrawable, xVisual,
+                                       gfxIntSize(aSize.width, aSize.height));
     NS_IF_ADDREF(result);
     return result;
 }
-#endif
 
 // return the gfxASurface for rendering to this widget
 gfxASurface*
 nsWindow::GetThebesSurface()
 {
-    GdkDrawable* d;
-    gint x_offset, y_offset;
-    gdk_window_get_internal_paint_info(mDrawingarea->inner_window,
-                                       &d, &x_offset, &y_offset);
+    // XXXvlad always create a new thebes surface for now,
+    // because the old clip doesn't get cleared otherwise.
+    // we should fix this at some point, and just reset
+    // the clip.
+    mThebesSurface = nsnull;
 
-#ifdef MOZ_X11
-    gint width, height;
-    gdk_drawable_get_size(d, &width, &height);
-    // Owen Taylor says this is the right thing to do!
-    width = PR_MIN(32767, width);
-    height = PR_MIN(32767, height);
+    if (!mThebesSurface) {
+        GdkDrawable* d;
+        gint x_offset, y_offset;
+        gdk_window_get_internal_paint_info(mDrawingarea->inner_window,
+                &d, &x_offset, &y_offset);
 
-    mThebesSurface = new gfxXlibSurface
-        (GDK_WINDOW_XDISPLAY(d),
-         GDK_WINDOW_XWINDOW(d),
-         GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(d)),
-         gfxIntSize(width, height));
+        gint width, height;
+        gdk_drawable_get_size(d, &width, &height);
+        // Owen Taylor says this is the right thing to do!
+        width = PR_MIN(32767, width);
+        height = PR_MIN(32767, height);
+
+        if (!gfxPlatform::UseGlitz()) {
+            mThebesSurface = new gfxXlibSurface
+                (GDK_WINDOW_XDISPLAY(d),
+                 GDK_WINDOW_XWINDOW(d),
+                 GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(d)),
+                 gfxIntSize(width, height));
+
+            // if the surface creation is reporting an error, then
+            // we don't have a surface to give back
+            if (mThebesSurface && mThebesSurface->CairoStatus() != 0)
+                mThebesSurface = nsnull;
+        } else {
+#ifdef MOZ_ENABLE_GLITZ
+            glitz_surface_t *gsurf;
+            glitz_drawable_t *gdraw;
+
+            glitz_drawable_format_t *gdformat = glitz_glx_find_window_format (GDK_DISPLAY(),
+                                                                              gdk_x11_get_default_screen(),
+                                                                              0, NULL, 0);
+            if (!gdformat)
+                NS_ERROR("Failed to find glitz drawable format");
+
+            Display* dpy = GDK_WINDOW_XDISPLAY(d);
+            Window wnd = GDK_WINDOW_XWINDOW(d);
+            
+            gdraw =
+                glitz_glx_create_drawable_for_window (dpy,
+                                                      DefaultScreen(dpy),
+                                                      gdformat,
+                                                      wnd,
+                                                      width,
+                                                      height);
+            glitz_format_t *gformat =
+                glitz_find_standard_format (gdraw, GLITZ_STANDARD_RGB24);
+            gsurf =
+                glitz_surface_create (gdraw,
+                                      gformat,
+                                      width,
+                                      height,
+                                      0,
+                                      NULL);
+            glitz_surface_attach (gsurf, gdraw, GLITZ_DRAWABLE_BUFFER_FRONT_COLOR);
+
+
+            //fprintf (stderr, "## nsThebesDrawingSurface::Init Glitz DRAWABLE %p (DC: %p)\n", aWidget, aDC);
+            mThebesSurface = new gfxGlitzSurface (gdraw, gsurf, PR_TRUE);
 #endif
-#ifdef MOZ_DFB
-    mThebesSurface = new gfxDirectFBSurface(gdk_directfb_surface_lookup(d));
-#endif
+        }
 
-    // if the surface creation is reporting an error, then
-    // we don't have a surface to give back
-    if (mThebesSurface && mThebesSurface->CairoStatus() != 0) {
-        mThebesSurface = nsnull;
-    } else {
-        mThebesSurface->SetDeviceOffset(gfxPoint(-x_offset, -y_offset));
+        if (mThebesSurface) {
+            mThebesSurface->SetDeviceOffset(gfxPoint(-x_offset, -y_offset));
+        }
     }
 
     return mThebesSurface;

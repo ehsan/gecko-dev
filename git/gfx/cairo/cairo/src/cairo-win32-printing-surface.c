@@ -51,7 +51,6 @@
 #include "cairo-clip-private.h"
 #include "cairo-win32-private.h"
 #include "cairo-meta-surface-private.h"
-#include "cairo-scaled-font-subsets-private.h"
 
 #include <windows.h>
 
@@ -495,6 +494,7 @@ _cairo_win32_printing_surface_paint_image_pattern (cairo_win32_surface_t   *surf
     cairo_image_surface_t *image;
     void *image_extra;
     cairo_surface_t *opaque_surface;
+    cairo_pattern_union_t opaque_pattern;
     cairo_image_surface_t *opaque_image = NULL;
     BITMAPINFO bi;
     cairo_matrix_t m;
@@ -538,8 +538,6 @@ _cairo_win32_printing_surface_paint_image_pattern (cairo_win32_surface_t   *surf
     }
 
     if (image->format != CAIRO_FORMAT_RGB24) {
-	cairo_surface_pattern_t opaque_pattern;
-
 	opaque_surface = cairo_image_surface_create (CAIRO_FORMAT_RGB24,
 						     image->width,
 						     image->height);
@@ -548,7 +546,7 @@ _cairo_win32_printing_surface_paint_image_pattern (cairo_win32_surface_t   *surf
 	    goto FINISH3;
 	}
 
-	_cairo_pattern_init_for_surface (&opaque_pattern, &image->base);
+	_cairo_pattern_init_for_surface (&opaque_pattern.surface, &image->base);
 
 	status = _cairo_surface_fill_rectangle (opaque_surface,
 				                CAIRO_OPERATOR_SOURCE,
@@ -1295,8 +1293,7 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
                                            cairo_pattern_t	*source,
                                            cairo_glyph_t        *glyphs,
                                            int			 num_glyphs,
-                                           cairo_scaled_font_t  *scaled_font,
-					   int			*remaining_glyphs)
+                                           cairo_scaled_font_t  *scaled_font)
 {
     cairo_win32_surface_t *surface = abstract_surface;
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
@@ -1314,35 +1311,31 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
     }
 
     if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE) {
-	/* When printing bitmap fonts to a printer DC, Windows may
-	 * substitute an outline font for bitmap font. As the win32
-	 * font backend always uses a screen DC when obtaining the
-	 * font metrics the metrics of the substituted font will not
-	 * match the metrics that the win32 font backend returns.
+	/* Calling ExtTextOutW() with ETO_GLYPH_INDEX and a Type 1 or
+	 * bitmap font on a printer DC prints garbled text. The text
+	 * displays correctly on a display DC. It appears that when
+	 * using a printer DC. ExtTextOutW() only works with
+	 * characters and not glyph indices.
 	 *
-	 * If we are printing a bitmap font, use fallback images to
-	 * ensure the font is not substituted.
+	 * For now we don't use ExtTextOutW for Type 1 or bitmap
+	 * fonts. These fonts will go through the fallback path for
+	 * non Windows fonts. ie filled outlines for Type 1 fonts and
+	 * fallback images for bitmap fonts.
 	 */
-	if (cairo_scaled_font_get_type (scaled_font) == CAIRO_FONT_TYPE_WIN32) {
-	    if (_cairo_win32_scaled_font_is_bitmap (scaled_font))
-		return CAIRO_INT_STATUS_UNSUPPORTED;
-	    else
-		return _cairo_win32_printing_surface_analyze_operation (surface, op, source);
-	}
+	if (_cairo_win32_scaled_font_is_bitmap (scaled_font))
+	    return CAIRO_INT_STATUS_UNSUPPORTED;
 
-	/* For non win32 fonts we need to check that each glyph has a
-	 * path available. If a path is not available,
-	 * _cairo_scaled_glyph_lookup() will return
-	 * CAIRO_INT_STATUS_UNSUPPORTED and a fallback image will be
-	 * used.
-	 */
-	for (i = 0; i < num_glyphs; i++) {
-	    status = _cairo_scaled_glyph_lookup (scaled_font,
-						 glyphs[i].index,
-						 CAIRO_SCALED_GLYPH_INFO_PATH,
-						 &scaled_glyph);
-	    if (status)
-		return status;
+	if (!(cairo_scaled_font_get_type (scaled_font) == CAIRO_FONT_TYPE_WIN32 &&
+	      ! _cairo_win32_scaled_font_is_type1 (scaled_font) &&
+	      source->type == CAIRO_PATTERN_TYPE_SOLID)) {
+	    for (i = 0; i < num_glyphs; i++) {
+		status = _cairo_scaled_glyph_lookup (scaled_font,
+						     glyphs[i].index,
+						     CAIRO_SCALED_GLYPH_INFO_PATH,
+						     &scaled_glyph);
+		if (status)
+		    return status;
+	    }
 	}
 
 	return _cairo_win32_printing_surface_analyze_operation (surface, op, source);
@@ -1363,46 +1356,10 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
     }
 
     if (cairo_scaled_font_get_type (scaled_font) == CAIRO_FONT_TYPE_WIN32 &&
+	! _cairo_win32_scaled_font_is_type1 (scaled_font) &&
 	source->type == CAIRO_PATTERN_TYPE_SOLID)
     {
 	cairo_matrix_t ctm;
-	cairo_glyph_t  *type1_glyphs = NULL;
-	cairo_scaled_font_subsets_glyph_t subset_glyph;
-
-	/* Calling ExtTextOutW() with ETO_GLYPH_INDEX and a Type 1
-	 * font on a printer DC prints garbled text. The text displays
-	 * correctly on a display DC. When using a printer
-	 * DC, ExtTextOutW() only works with characters and not glyph
-	 * indices.
-	 *
-	 * For Type 1 fonts the glyph indices are converted back to
-	 * unicode characters before calling _cairo_win32_surface_show_glyphs().
-	 *
-	 * As _cairo_win32_scaled_font_index_to_ucs4() is a slow
-	 * operation, the font subsetting function
-	 * _cairo_scaled_font_subsets_map_glyph() is used to obtain
-	 * the unicode value because it caches the reverse mapping in
-	 * the subsets.
-	 */
-	if (_cairo_win32_scaled_font_is_type1 (scaled_font)) {
-	    type1_glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
-	    if (type1_glyphs == NULL)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    memcpy (type1_glyphs, glyphs, num_glyphs * sizeof (cairo_glyph_t));
-	    for (i = 0; i < num_glyphs; i++) {
-		status = _cairo_scaled_font_subsets_map_glyph (surface->font_subsets,
-							       scaled_font,
-							       type1_glyphs[i].index,
-							       NULL, 0,
-							       &subset_glyph);
-		if (status)
-		    return status;
-
-		type1_glyphs[i].index = subset_glyph.unicode;
-	    }
-	    glyphs = type1_glyphs;
-	}
 
 	if (surface->has_ctm) {
 	    for (i = 0; i < num_glyphs; i++)
@@ -1415,13 +1372,9 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
 	}
 	status = _cairo_win32_surface_show_glyphs (surface, op,
 						   source, glyphs,
-						   num_glyphs, scaled_font,
-						   remaining_glyphs);
+						   num_glyphs, scaled_font);
 	if (surface->has_ctm)
 	    cairo_scaled_font_destroy (scaled_font);
-
-	if (type1_glyphs != NULL)
-	    free (type1_glyphs);
 
 	return status;
     }
@@ -1540,14 +1493,11 @@ _cairo_win32_printing_surface_set_paginated_mode (void *abstract_surface,
  * associated methods must be used for correct output.
  *
  * Return value: the newly created surface
- *
- * Since: 1.6
  **/
 cairo_surface_t *
 cairo_win32_printing_surface_create (HDC hdc)
 {
     cairo_win32_surface_t *surface;
-    cairo_surface_t *paginated;
     RECT rect;
 
     surface = malloc (sizeof (cairo_win32_surface_t));
@@ -1569,11 +1519,6 @@ cairo_win32_printing_surface_create (HDC hdc)
     surface->saved_dc_bitmap = NULL;
     surface->brush = NULL;
     surface->old_brush = NULL;
-    surface->font_subsets = _cairo_scaled_font_subsets_create_scaled ();
-    if (surface->font_subsets == NULL) {
-	free (surface);
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
-    }
 
     GetClipBox(hdc, &rect);
     surface->extents.x = rect.left;
@@ -1588,16 +1533,11 @@ cairo_win32_printing_surface_create (HDC hdc)
     _cairo_surface_init (&surface->base, &cairo_win32_printing_surface_backend,
                          CAIRO_CONTENT_COLOR_ALPHA);
 
-    paginated = _cairo_paginated_surface_create (&surface->base,
-						 CAIRO_CONTENT_COLOR_ALPHA,
-						 surface->extents.width,
-						 surface->extents.height,
-						 &cairo_win32_surface_paginated_backend);
-
-    /* paginated keeps the only reference to surface now, drop ours */
-    cairo_surface_destroy (&surface->base);
-
-    return paginated;
+    return _cairo_paginated_surface_create (&surface->base,
+                                            CAIRO_CONTENT_COLOR_ALPHA,
+					    surface->extents.width,
+					    surface->extents.height,
+                                            &cairo_win32_surface_paginated_backend);
 }
 
 cairo_bool_t

@@ -43,10 +43,8 @@
 
 <!DOCTYPE bindings [
   <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
-  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
   <!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd" >
   %brandDTD;
-  %globalDTD;
   %extensionsDTD;
 ]>
 
@@ -216,7 +214,7 @@
             <xul:hbox flex="1" class="blocklistedBox attention" align="center">
               <xul:label value="&blocklisted.label;" crop="end"/>
               <xul:label anonid="blocklistMoreInfo" class="text-link" value="&moreInfo.label;"
-                         onclick="if (event.button == 0) { openURL(this.getAttribute('moreInfoURL')); }" />
+                         onclick="openURL(this.getAttribute('moreInfoURL'));"/>
             </xul:hbox>
           </xul:vbox>
           <xul:hbox anonid="selectedButtons" flex="1" class="selectedButtons">
@@ -417,7 +415,7 @@
       </property>
 
       <constructor>
-        if (!this.hasAttribute("thumbnailURL") || this._imageBlocked(this)) {
+        if (!this.hasAttribute("thumbnailURL")) {
           this._hideImage();
           return;
         }
@@ -439,21 +437,6 @@
       </constructor>
 
       <field name="_maxSize">125</field>
-
-      <method name="_imageBlocked">
-        <parameter name="container"/>
-        <body>
-          var uri = Components.classes["@mozilla.org/network/io-service;1"]
-                              .getService(Components.interfaces.nsIIOService)
-                              .newURI(container.getAttribute("thumbnailURL"),
-                                      container.ownerDocument.characterSet, null);
-          var contentPolicy = Components.classes["@mozilla.org/layout/content-policy;1"]
-                                        .getService(Components.interfaces.nsIContentPolicy);
-          return contentPolicy.shouldLoad(contentPolicy.TYPE_IMAGE,
-                                          uri, container.ownerDocument.documentURIObject,
-                                          container, null, null) != contentPolicy.ACCEPT;
-        </body>
-      </method>
 
       <method name="_displayImage">
         <body>
@@ -522,7 +505,7 @@
               <xul:hbox pack="start">
                 <xul:label class="addonLearnMore text-link" xbl:inherits="homepageURL"
                            value="&searchResultHomepage.value;"
-                           onclick="if (event.button == 0) { openURL(this.getAttribute('homepageURL')); }"/>
+                           onclick="openURL(this.getAttribute('homepageURL'));"/>
               </xul:hbox>
               <xul:spacer flex="1"/>
               <xul:hbox anonid="selectedButtons" class="selectedButtons">
@@ -630,7 +613,7 @@
   <binding id="status-footer-recommended">
     <content align="end">
       <xul:label class="text-link" xbl:inherits="recommendedURL=link" value="&recommendedResults.label;"
-                 onclick="if (event.button == 0) { openURL(this.getAttribute('recommendedURL')); }" />
+                 onclick="openURL(this.getAttribute('recommendedURL'));"/>
     </content>
   </binding>
 
@@ -638,7 +621,7 @@
     <content align="stretch">
       <xul:hbox align="center">
         <xul:label class="text-link" xbl:inherits="searchURL=link" anonid="searchLink"
-                   onclick="if (event.button == 0) { openURL(this.getAttribute('searchURL')); }"/>
+                   onclick="openURL(this.getAttribute('searchURL'));"/>
         <xul:spacer flex="1"/>
         <xul:button command="cmd_resetSearch" label="&resetSearch.label;"/>
       </xul:hbox>
@@ -815,29 +798,19 @@
 
   <binding id="install" extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
     <content>
-      <xul:vbox flex="1">
-        <xul:hbox flex="1">
-          <xul:vbox>
-            <xul:stack class="addonIcon-stack">
-              <xul:vbox pack="start" align="start">
-                <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
-              </xul:vbox>
-            </xul:stack>
-          </xul:vbox>
-          <xul:vbox flex="1">
-            <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
-            <xul:hbox class="addon-install-status" xbl:inherits="state"/>
-          </xul:vbox>
-        </xul:hbox>
-        <xul:hbox flex="1" pack="end">
-          <xul:button class="upgradeShow cancelUpgradeButton" label="&cancelUpgrade.label;"
-                  accesskey="&cancelUpgrade.accesskey;" tooltiptext="&cmd.cancelUpgrade.tooltip;"
-                  command="cmd_cancelUpgrade"/>
-          <xul:button class="installShow cancelInstallButton" label="&cancelInstall.label;"
-                  accesskey="&cancelInstall.accesskey;" tooltiptext="&cmd.cancelInstall.tooltip;"
-                  command="cmd_cancelInstall"/>
-        </xul:hbox>
-      </xul:vbox>
+      <xul:hbox flex="1">
+        <xul:vbox>
+          <xul:stack class="addonIcon-stack">
+            <xul:vbox pack="start" align="start">
+              <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
+            </xul:vbox>
+          </xul:stack>
+        </xul:vbox>
+        <xul:vbox flex="1">
+          <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
+          <xul:hbox class="addon-install-status" xbl:inherits="state"/>
+        </xul:vbox>
+      </xul:hbox>
     </content>
   </binding>
 
@@ -902,6 +875,115 @@
         </xul:vbox>
       </xul:hbox>
     </content>  
+  </binding>
+
+  <binding id="search-textbox" extends="xul:box">
+    <resources>
+      <stylesheet src="chrome://global/skin/textbox.css"/>
+    </resources>
+
+    <content align="center">
+      <xul:textbox class="plain"
+                   xbl:inherits="emptytext,onfocus,onblur,spellcheck,value,maxlength,disabled,size,readonly,tabindex,accesskey"/>
+      <xul:button class="searchbox-search" xbl:inherits="disabled" oncommand="this.parentNode.startSearch()"/>
+      <xul:button class="searchbox-cancel" xbl:inherits="disabled" hidden="true" oncommand="this.parentNode.clearSearch()"/>
+    </content>
+
+    <implementation>
+      <field name="textbox">
+        document.getAnonymousNodes(this)[0];
+      </field>
+
+      <field name="_searchButton">
+        document.getAnonymousElementByAttribute(this, "class", "searchbox-search");
+      </field>
+
+      <field name="_cancelButton">
+        document.getAnonymousElementByAttribute(this, "class", "searchbox-cancel");
+      </field>
+
+      <property name="value" onget="return this.textbox.value">
+        <setter>
+          this.textbox.value = val;
+          this.setAttribute("value", val);
+          this._cancelButton.hidden = !val;
+          this._searchButton.hidden = !!val;
+        </setter>
+      </property>
+
+      <property name="disabled" onget="return this.textbox.disabled">
+        <setter>
+          if (val)
+            this.setAttribute("disabled", "true");
+          else
+            this.removeAttribute("disabled");
+        </setter>
+      </property>
+
+      <constructor>
+        if (this.value) {
+          this._cancelButton.hidden = false;
+          this._searchButton.hidden = true;
+        }
+      </constructor>
+
+      <method name="startSearch">
+        <body>
+          if (this.value) {
+            this._cancelButton.hidden = false;
+            this._searchButton.hidden = true;
+          }
+          this.setAttribute("value", this.value);
+        </body>
+      </method>
+
+      <method name="clearSearch">
+        <body>
+          this.value = "";
+          this.setAttribute("value", "");
+          this._cancelButton.hidden = true;
+          this._searchButton.hidden = false;
+          this.focus();
+        </body>
+      </method>
+
+      <method name="_dispatchCommandEvent">
+        <parameter name="aEvent"/>
+        <body>
+          var event = document.createEvent("commandevent");
+          event.initCommandEvent("command", true, true, window, null,
+                                 false, false, false, false, aEvent);
+          this.dispatchEvent(event);
+        </body>
+      </method>
+    </implementation>
+    
+    <handlers>
+      <handler event="focus" phase="capturing">
+        if (event.originalTarget == this)
+          this.textbox.focus(); // Forward focus to actual textbox
+      </handler>
+
+      <handler event="keypress" keycode="VK_ENTER">
+        if (event.originalTarget == this.textbox.inputField) {
+          this.startSearch();
+          this._dispatchCommandEvent(event);
+        }
+      </handler>
+
+      <handler event="keypress" keycode="VK_RETURN">
+        if (event.originalTarget == this.textbox.inputField) {
+          this.startSearch();
+          this._dispatchCommandEvent(event);
+        }
+      </handler>
+
+      <handler event="input">
+        this._cancelButton.hidden = true;
+        this._searchButton.hidden = false;
+      </handler>
+
+    </handlers>
   </binding>
 
 <!-- based on preferences.xml paneButton -->

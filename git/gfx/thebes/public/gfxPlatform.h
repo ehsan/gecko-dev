@@ -42,11 +42,8 @@
 #include "prtypes.h"
 #include "nsVoidArray.h"
 
-#include "nsIObserver.h"
-
 #include "gfxTypes.h"
 #include "gfxASurface.h"
-#include "gfxColor.h"
 
 #ifdef XP_OS2
 #undef OS2EMX_PLAIN_CHAR
@@ -56,13 +53,8 @@ typedef void* cmsHPROFILE;
 typedef void* cmsHTRANSFORM;
 
 class gfxImageSurface;
-class gfxFont;
 class gfxFontGroup;
 struct gfxFontStyle;
-class gfxUserFontSet;
-struct gfxDownloadedFontData;
-class gfxFontEntry;
-class nsIURI;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
@@ -107,13 +99,6 @@ enum eFontPrefLang {
     eFontPrefLang_AllCount    = 32
 };
 
-enum eCMSMode {
-    eCMSMode_Off          = 0,     // No color management
-    eCMSMode_All          = 1,     // Color manage everything
-    eCMSMode_TaggedOnly   = 2,     // Color manage tagged Images Only
-    eCMSMode_AllCount     = 3
-};
-
 // when searching through pref langs, max number of pref langs
 const PRUint32 kMaxLenPrefLangList = 32;
 
@@ -135,6 +120,16 @@ public:
      * Clean up static objects to shut down thebes.
      */
     static void Shutdown();
+
+    /**
+     * Return PR_TRUE if we're to use Glitz for acceleration.
+     */
+    static PRBool UseGlitz();
+
+    /**
+     * Force the glitz state to on or off
+     */
+    static void SetUseGlitz(PRBool use);
 
     /**
      * Create an offscreen surface of the given dimensions
@@ -188,30 +183,7 @@ public:
      * Create the appropriate platform font group
      */
     virtual gfxFontGroup *CreateFontGroup(const nsAString& aFamilies,
-                                          const gfxFontStyle *aStyle,
-                                          gfxUserFontSet *aUserFontSet) = 0;
-                                          
-                                          
-    /**
-     * Look up a local platform font using the full font face name (needed to support @font-face src local() )
-     */
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName) { return nsnull; }
-
-    /**
-     * Activate a platform font (needed to support @font-face src url() )
-     *
-     * Note: MakePlatformFont implementation is responsible for removing font file data, since data may need to 
-     * persist beyond this call.
-     */
-    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData) { return nsnull; }
-
-    /**
-     * Whether to allow downloadable fonts via @font-face rules
-     */
-    virtual PRBool DownloadableFontsEnabled();
-
-    // check whether format is supported on a platform or not (if unclear, returns true)
-    virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags) { return PR_FALSE; }
+                                          const gfxFontStyle *aStyle) = 0;
 
     void GetPrefFonts(const char *aLangGroup, nsString& array, PRBool aAppendUnicode = PR_TRUE);
 
@@ -241,36 +213,12 @@ public:
     /**
      * Are we going to try color management?
      */
-    static eCMSMode GetCMSMode();
-
-    /**
-     * Determines the rendering intent for color management.
-     *
-     * If the value in the pref gfx.color_management.rendering_intent is a
-     * valid rendering intent as defined in modules/lcms/include/lcms.h, that
-     * value is returned. Otherwise, -1 is returned and the embedded intent
-     * should be used.
-     *
-     * See bug 444014 for details.
-     */
-    static int GetRenderingIntent();
-
-    /**
-     * Convert a pixel using a cms transform in an endian-aware manner.
-     *
-     * Sets 'out' to 'in' if transform is NULL.
-     */
-    static void TransformPixel(const gfxRGBA& in, gfxRGBA& out, cmsHTRANSFORM transform);
+    static PRBool IsCMSEnabled();
 
     /**
      * Return the output device ICC profile.
      */
     static cmsHPROFILE GetCMSOutputProfile();
-
-    /**
-     * Return the sRGB ICC profile.
-     */
-    static cmsHPROFILE GetCMSsRGBProfile();
 
     /**
      * Return sRGB -> output device transform.
@@ -293,8 +241,6 @@ protected:
 
 private:
     virtual cmsHPROFILE GetPlatformCMSOutputProfile();
-
-    nsCOMPtr<nsIObserver> overrideObserver;
 };
 
 #endif /* GFX_PLATFORM_H */

@@ -73,43 +73,14 @@ struct RuleProcessorData {
   // NOTE: not |virtual|
   ~RuleProcessorData();
 
-  // This should be used for all heap-allocation of RuleProcessorData
-  static RuleProcessorData* Create(nsPresContext* aPresContext,
-                                   nsIContent* aContent, 
-                                   nsRuleWalker* aRuleWalker,
-                                   nsCompatibility aCompat)
-  {
-    if (NS_LIKELY(aPresContext)) {
-      return new (aPresContext) RuleProcessorData(aPresContext, aContent,
-                                                  aRuleWalker, &aCompat);
-    }
-
-    return new RuleProcessorData(aPresContext, aContent, aRuleWalker,
-                                 &aCompat);
-  }
-  
-  void Destroy() {
-    nsPresContext * pc = mPresContext;
-    if (NS_LIKELY(pc)) {
-      this->~RuleProcessorData();
-      pc->FreeToShell(sizeof(RuleProcessorData), this);
-      return;
-    }
-    delete this;
-  }
-
-  // For placement new
-  void* operator new(size_t sz, RuleProcessorData* aSlot) CPP_THROW_NEW {
-    return aSlot;
-  }
-private:
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
     return aContext->AllocateFromShell(sz);
   }
-  void* operator new(size_t sz) CPP_THROW_NEW {
-    return ::operator new(sz);
+  void Destroy(nsPresContext* aContext) {
+    this->~RuleProcessorData();
+    aContext->FreeToShell(sizeof(RuleProcessorData), this);
   }
-public:
+
   const nsString* GetLang();
 
   // Returns a 1-based index of the child in its parent.  If the child
@@ -144,7 +115,7 @@ public:
   RuleProcessorData* mParentData;
 
 protected:
-  nsString *mLanguage; // NULL means we haven't found out the language yet
+  nsAutoString *mLanguage; // NULL means we haven't found out the language yet
 
   // This node's index for :nth-child(), :nth-last-child(),
   // :nth-of-type(), :nth-last-of-type().  If -2, needs to be computed.
@@ -161,7 +132,6 @@ struct ElementRuleProcessorData : public RuleProcessorData {
                            nsRuleWalker* aRuleWalker)
   : RuleProcessorData(aPresContext,aContent,aRuleWalker)
   {
-    NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aContent, "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
   }
@@ -175,7 +145,6 @@ struct PseudoRuleProcessorData : public RuleProcessorData {
                           nsRuleWalker* aRuleWalker)
   : RuleProcessorData(aPresContext, aParentContent, aRuleWalker)
   {
-    NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aPseudoTag, "null pointer");
     NS_PRECONDITION(aRuleWalker, "null pointer");
     mPseudoTag = aPseudoTag;
@@ -193,7 +162,6 @@ struct StateRuleProcessorData : public RuleProcessorData {
     : RuleProcessorData(aPresContext, aContent, nsnull),
       mStateMask(aStateMask)
   {
-    NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aContent, "null pointer");
   }
   const PRInt32 mStateMask; // |HasStateDependentStyle| for which state(s)?
@@ -211,7 +179,6 @@ struct AttributeRuleProcessorData : public RuleProcessorData {
       mModType(aModType),
       mStateMask(aStateMask)
   {
-    NS_PRECONDITION(aPresContext, "null pointer");
     NS_PRECONDITION(aContent, "null pointer");
   }
   nsIAtom* mAttribute; // |HasAttributeDependentStyle| for which attribute?
@@ -273,14 +240,6 @@ public:
    */
   NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
                                         nsReStyleHint* aResult) = 0;
-
-  /**
-   * Do any processing that needs to happen as a result of a change in
-   * the characteristics of the medium, and return whether this rule
-   * processor's rules have changed (e.g., because of media queries).
-   */
-  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
-                                   PRBool* aRulesChanged) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIStyleRuleProcessor,

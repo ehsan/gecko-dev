@@ -97,7 +97,7 @@
 #elif defined(_WIN32) || defined(XP_OS2) || defined(WINCE)
 
 #ifdef __WATCOMC__
-#define HAVE_VA_LIST_AS_ARRAY 1
+#define HAVE_VA_LIST_AS_ARRAY
 #endif
 
 #define IS_LITTLE_ENDIAN 1

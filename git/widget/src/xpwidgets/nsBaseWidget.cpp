@@ -95,6 +95,7 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
+, mMouseListener(nsnull)
 , mEventListener(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
@@ -262,6 +263,7 @@ NS_METHOD nsBaseWidget::Destroy()
     parent->RemoveChild(this);
   }
   // disconnect listeners.
+  NS_IF_RELEASE(mMouseListener);
   NS_IF_RELEASE(mEventListener);
 
   return NS_OK;
@@ -287,25 +289,6 @@ NS_IMETHODIMP nsBaseWidget::SetParent(nsIWidget* aNewParent)
 nsIWidget* nsBaseWidget::GetParent(void)
 {
   return nsnull;
-}
-
-//-------------------------------------------------------------------------
-//
-// Get this nsBaseWidget top level widget
-//
-//-------------------------------------------------------------------------
-nsIWidget* nsBaseWidget::GetTopLevelWidget(PRInt32* aLevelsUp)
-{
-  nsIWidget *topLevelWidget, *widget = this;
-  if (aLevelsUp)
-    *aLevelsUp = -1;
-  while (widget) {
-    topLevelWidget = widget;
-    widget = widget->GetParent();
-    if (aLevelsUp)
-      ++*aLevelsUp;
-  }
-  return topLevelWidget;
 }
 
 //-------------------------------------------------------------------------
@@ -561,11 +544,13 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-void nsBaseWidget::SetTransparencyMode(nsTransparencyMode aMode) {
+NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
-  return eTransparencyOpaque;
+NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
+  aTransparent = PR_FALSE;
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -723,12 +708,25 @@ NS_METHOD nsBaseWidget::SetBorderStyle(nsBorderStyle aBorderStyle)
 
 
 /**
-* Sets the event listener for a widget
+* Processes a mouse pressed event
+*
+**/
+NS_METHOD nsBaseWidget::AddMouseListener(nsIMouseListener * aListener)
+{
+  NS_PRECONDITION(mMouseListener == nsnull, "Null mouse listener");
+  NS_IF_RELEASE(mMouseListener);
+  NS_ADDREF(aListener);
+  mMouseListener = aListener;
+  return NS_OK;
+}
+
+/**
+* Processes a mouse pressed event
 *
 **/
 NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
 {
-  NS_PRECONDITION(mEventListener == nsnull, "Null event listener");
+  NS_PRECONDITION(mEventListener == nsnull, "Null mouse listener");
   NS_IF_RELEASE(mEventListener);
   NS_ADDREF(aListener);
   mEventListener = aListener;
@@ -862,12 +860,6 @@ NS_IMETHODIMP
 nsBaseWidget::SetWindowTitlebarColor(nscolor aColor, PRBool aActive)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-PRBool
-nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
-{
-  return PR_FALSE;
 }
 
 

@@ -105,8 +105,8 @@ nsMIMEHeaderParamImpl::GetParameter(const nsACString& aHeaderVal,
     {
         nsCAutoString str2;
         nsCOMPtr<nsIUTF8ConverterService> 
-          cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
-        if (cvtUTF8 &&
+          cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv));
+        if (NS_SUCCEEDED(rv) &&
             NS_SUCCEEDED(cvtUTF8->ConvertStringToUTF8(str1, 
                 PromiseFlatCString(aFallbackCharset).get(), PR_FALSE, str2))) {
           CopyUTF8toUTF16(str2, aResult);
@@ -410,12 +410,13 @@ nsMIMEHeaderParamImpl::DecodeParameter(const nsACString& aParamValue,
                                        nsACString& aResult)
 {
   aResult.Truncate();
+  nsresult rv;  
   // If aCharset is given, aParamValue was obtained from RFC2231 
   // encoding and we're pretty sure that it's in aCharset.
   if (aCharset && *aCharset)
   {
-    nsCOMPtr<nsIUTF8ConverterService> cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
-    if (cvtUTF8)
+    nsCOMPtr<nsIUTF8ConverterService> cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv));
+    if (NS_SUCCEEDED(rv)) 
       // skip ASCIIness/UTF8ness test if aCharset is 7bit non-ascii charset.
       return cvtUTF8->ConvertStringToUTF8(aParamValue, aCharset,
           IS_7BIT_NON_ASCII_CHARSET(aCharset), aResult);
@@ -446,8 +447,8 @@ nsMIMEHeaderParamImpl::DecodeParameter(const nsACString& aParamValue,
   nsCAutoString decoded;
 
   // Try RFC 2047 encoding, instead.
-  nsresult rv = DecodeRFC2047Header(unQuoted.get(), aDefaultCharset, 
-                                    aOverrideCharset, PR_TRUE, decoded);
+  rv = DecodeRFC2047Header(unQuoted.get(), aDefaultCharset, 
+                           aOverrideCharset, PR_TRUE, decoded);
   
   if (NS_SUCCEEDED(rv) && !decoded.IsEmpty())
     aResult = decoded;
@@ -591,11 +592,12 @@ void CopyRawHeader(const char *aInput, PRUint32 aLen,
   PRBool skipCheck = (c == 0x1B || c == '~') && 
                      IS_7BIT_NON_ASCII_CHARSET(aDefaultCharset);
 
+  nsresult rv;
   // If not UTF-8, treat as default charset
   nsCOMPtr<nsIUTF8ConverterService> 
-    cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
+    cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv));
   nsCAutoString utf8Text;
-  if (cvtUTF8 &&
+  if (NS_SUCCEEDED(rv) &&
       NS_SUCCEEDED(
       cvtUTF8->ConvertStringToUTF8(Substring(aInput, aInput + aLen), 
       aDefaultCharset, skipCheck, utf8Text))) {
@@ -720,11 +722,12 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
     }
 
     {
+      nsresult rv;
       nsCOMPtr<nsIUTF8ConverterService> 
-        cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
+        cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv));
       nsCAutoString utf8Text;
       // skip ASCIIness/UTF8ness test if aCharset is 7bit non-ascii charset.
-      if (cvtUTF8 &&
+      if (NS_SUCCEEDED(rv) && 
           NS_SUCCEEDED(
             cvtUTF8->ConvertStringToUTF8(nsDependentCString(decodedText),
             charset, IS_7BIT_NON_ASCII_CHARSET(charset), utf8Text))) {

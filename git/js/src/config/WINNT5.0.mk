@@ -42,7 +42,6 @@
 #
 
 CC = cl
-CXX = cl
 
 RANLIB = echo
 

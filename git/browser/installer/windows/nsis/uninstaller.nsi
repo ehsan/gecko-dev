@@ -48,8 +48,6 @@ SetDatablockOptimize on
 SetCompress off
 CRCCheck on
 
-RequestExecutionLevel user
-
 !addplugindir ./
 
 ; USE_UAC_PLUGIN is temporary until Thunderbird has been updated to use the UAC plugin
@@ -67,13 +65,25 @@ Var TmpVal
 !include MUI.nsh
 !include TextFunc.nsh
 !include WinMessages.nsh
-!include WinVer.nsh
 !include WordFunc.nsh
+
+; WinVer.nsh was added in the same release that RequestExecutionLevel so check
+; if ___WINVER__NSH___ is defined to determine if RequestExecutionLevel is
+; available.
+!include /NONFATAL WinVer.nsh
+!ifdef ___WINVER__NSH___
+  RequestExecutionLevel user
+!else
+  !warning "Installer will be created without Vista compatibility.$\n            \
+            Upgrade your NSIS installation to at least version 2.22 to resolve."
+!endif
 
 !insertmacro StrFilter
 !insertmacro WordReplace
 
 !insertmacro un.GetParent
+!insertmacro un.LineFind
+!insertmacro un.TrimNewLines
 
 ; The following includes are custom.
 !include branding.nsi
@@ -85,7 +95,6 @@ Var TmpVal
 ; This is named BrandShortName helper because we use this for software update
 ; post update cleanup.
 VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
-VIAddVersionKey "OriginalFilename" "helper.exe"
 
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
@@ -157,7 +166,7 @@ ShowUnInstDetails nevershow
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.leaveWelcome
 !insertmacro MUI_UNPAGE_WELCOME
 
-; Custom Uninstall Confirm Page
+; Uninstall Confirm Page
 UninstPage custom un.preConfirm un.leaveConfirm
 
 ; Remove Files Page
@@ -409,67 +418,7 @@ Function un.preConfirm
     ${un.ChangeMUIHeaderImage} "$PLUGINSDIR\modern-header.bmp"
   ${EndIf}
 
-  ; Setup the unconfirm.ini file for the Custom Uninstall Confirm Page
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "5"
-
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Type   "label"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Text   "$(UN_CONFIRM_UNINSTALLED_FROM)"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Left   "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Top    "5"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Bottom "15"
-
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Type   "text"
-  ; The contents of this control must be set as follows in the pre function
-  ; ${MUI_INSTALLOPTIONS_READ} $1 "unconfirm.ini" "Field 2" "HWND"
-  ; SendMessage $1 ${WM_SETTEXT} 0 "STR:$INSTDIR"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" State  ""
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Left   "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Top    "17"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Bottom "30"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" flags  "READONLY"
-
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Type   "checkbox"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Text   "$(UN_REMOVE_PROFILES)"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Left   "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Top    "40"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Bottom "50"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" State  "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" flags  "NOTIFY"
-
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Type   "text"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" State   "$(UN_REMOVE_PROFILES_DESC)"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Left   "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Top    "52"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Bottom "120"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" flags  "MULTILINE|READONLY"
-
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Type   "label"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Text   "$(UN_CONFIRM_CLICK)"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Left   "0"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Top    "130"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Bottom "150"
-
-  ${If} "$TmpVal" == "true"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Type   "label"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Text   "$(SUMMARY_REBOOT_REQUIRED_UNINSTALL)"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Left   "0"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Right  "-1"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Top    "35"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Bottom "45"
-
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "6"
-
-    ; To insert this control reset Top / Bottom for controls below this one
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Top    "55"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Bottom "65"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Top    "67"
-  ${EndIf}
-
+  !insertmacro un.createUnConfirmINI
   !insertmacro MUI_HEADER_TEXT "$(UN_CONFIRM_PAGE_TITLE)" "$(UN_CONFIRM_PAGE_SUBTITLE)"
   ; The Summary custom page has a textbox that will automatically receive
   ; focus. This sets the focus to the Install button instead.

@@ -41,7 +41,7 @@ topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
 VPATH   = @srcdir@
 
-include $(topsrcdir)/config/config.mk
+include $(DEPTH)/config/autoconf.mk
 
 # These component dirs are built for all apps (including suite)
 
@@ -53,6 +53,12 @@ DIRS += \
         contentprefs \
         microformats \
         places \
+        $(NULL)
+
+# These component dirs are built only for XUL apps
+
+ifdef MOZ_XUL_APP
+DIRS += \
 	apppicker \
 	filepicker \
 	console \
@@ -84,25 +90,18 @@ ifdef MOZ_VIEW_SOURCE
 DIRS +=	viewsource
 endif
 
-ifndef MOZ_SUITE
-ifndef MOZ_THUNDERBIRD
-DIRS +=	search
-endif
-endif
-
-ifdef MOZ_XUL
-DIRS += \
-	autocomplete \
-	$(NULL)
-endif
-
-ifndef MOZ_THUNDERBIRD
+ifdef MOZ_THUNDERBIRD
+DIRS += autocomplete/public
+else
 DIRS +=	\
 	cookie \
 	$(NULL)
 
 ifdef MOZ_XUL
-DIRS += satchel
+DIRS += \
+	autocomplete \
+	satchel \
+	$(NULL)
 endif # MOZ_XUL
 
 ifdef MOZ_SUITE
@@ -110,14 +109,18 @@ ifdef MOZ_SUITE
 DIRS += passwordmgr/public
 else
 DIRS += passwordmgr
+ifndef MOZ_PLACES
+DIRS +=	history
+endif # MOZ_PLACES
 endif # MOZ_SUITE
 endif # MOZ_THUNDERBIRD
 
-ifndef SUITE_USING_XPFE_DM
+ifndef MOZ_SUITE
+# XXX Suite doesn't want these just yet
 ifdef MOZ_RDF
 DIRS +=	downloads
 endif
-endif # SUITE_USING_XPFE_DM
+endif # MOZ_SUITE
 
 ifdef MOZ_URL_CLASSIFIER
 DIRS += url-classifier
@@ -130,6 +133,8 @@ DIRS += \
 	$(NULL)
 
 EXTRA_PP_COMPONENTS = nsDefaultCLH.js
+
+endif # MOZ_XUL_APP
 
 ifeq ($(MOZ_BUILD_APP),camino)
 DIRS += autocomplete/public

@@ -164,8 +164,8 @@ nsTableRowFrame::Init(nsIContent*      aContent,
   // Let the base class do its initialization
   rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
-  NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW == GetStyleDisplay()->mDisplay,
-               "wrong display on table row frame");
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
 
   if (aPrevInFlow) {
     // Set the row index
@@ -345,7 +345,7 @@ nsTableRowFrame::DidResize()
   desiredSize.width = mRect.width;
   desiredSize.height = mRect.height;
   desiredSize.mOverflowArea = nsRect(0, 0, desiredSize.width,
-                                     desiredSize.height);
+                                      desiredSize.height);
 
   while (childFrame) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
@@ -684,7 +684,7 @@ CalcAvailWidth(nsTableFrame&     aTableFrame,
     else {
       aColAvailWidth += colWidth;
     }
-    if ((spanX > 0) && aTableFrame.ColumnHasCellSpacingBefore(colIndex + spanX)) {
+    if ((spanX > 0) && (aTableFrame.GetNumCellsOriginatingInCol(colIndex + spanX) > 0)) {
       cellSpacing += aCellSpacingX;
     }
   }
@@ -723,7 +723,7 @@ GetSpaceBetween(PRInt32       aPrevColIndex,
         if (!isCollapsed)
           space += aTableFrame.GetColumnWidth(colX);
       }
-      if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colX)) {
+      if (!isCollapsed && (aTableFrame.GetNumCellsOriginatingInCol(colX) > 0)) {
         space += aCellSpacingX;
       }
     }
@@ -747,7 +747,7 @@ GetSpaceBetween(PRInt32       aPrevColIndex,
         if (!isCollapsed)
           space += aTableFrame.GetColumnWidth(colX);
       }
-      if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colX)) {
+      if (!isCollapsed && (aTableFrame.GetNumCellsOriginatingInCol(colX) > 0)) {
         space += aCellSpacingX;
       }
     }
@@ -1064,7 +1064,7 @@ nsTableRowFrame::Reflow(nsPresContext*          aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aDesiredSize);
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -1242,7 +1242,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
             const nsStyleVisibility* nextColVis =
               nextColFrame->GetStyleVisibility();
             if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
-                tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
+                (tableFrame->GetNumCellsOriginatingInCol(colX + colIncrement) > 0)) {
               cRect.width += cellSpacingX;
             }
           }

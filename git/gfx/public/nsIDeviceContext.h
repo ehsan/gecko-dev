@@ -52,7 +52,6 @@ class nsIFontMetrics;
 class nsIWidget;
 class nsIDeviceContextSpec;
 class nsIAtom;
-class gfxUserFontSet;
 
 struct nsFont;
 
@@ -331,23 +330,19 @@ public:
    * @param aFont font description to obtain metrics for
    * @param aLangGroup the language group of the document
    * @param aMetrics out parameter for font metrics
-   * @param aUserFontSet user font set
    * @return error status
    */
   NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                            nsIFontMetrics*& aMetrics, 
-                            gfxUserFontSet *aUserFontSet = nsnull) = 0;
+                            nsIFontMetrics*& aMetrics) = 0;
 
   /**
    * Get the nsIFontMetrics that describe the properties of
    * an nsFont.
    * @param aFont font description to obtain metrics for
    * @param aMetrics out parameter for font metrics
-   * @param aUserFontSet user font set
    * @return error status
    */
-  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics, 
-                            gfxUserFontSet *aUserFontSet = nsnull) = 0;
+  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics) = 0;
 
   /**
    * Check to see if a particular named font exists.

@@ -56,7 +56,7 @@ class nsPlaintextEditor;
  * stack based helper class for batching a collection of txns inside a 
  * placeholder txn.
  */
-class NS_STACK_CLASS nsAutoPlaceHolderBatch
+class nsAutoPlaceHolderBatch
 {
   private:
     nsCOMPtr<nsIEditor> mEd;
@@ -82,7 +82,7 @@ class nsAutoEditBatch : public nsAutoPlaceHolderBatch
  * stack based helper class for saving/restoring selection.  Note that this
  * assumes that the nodes involved are still around afterwards!
  */
-class NS_STACK_CLASS nsAutoSelectionReset
+class nsAutoSelectionReset
 {
   private:
     /** ref-counted reference to the selection that we are supposed to restore */
@@ -103,7 +103,7 @@ class NS_STACK_CLASS nsAutoSelectionReset
 /***************************************************************************
  * stack based helper class for StartOperation()/EndOperation() sandwich
  */
-class NS_STACK_CLASS nsAutoRules
+class nsAutoRules
 {
   public:
   
@@ -134,7 +134,7 @@ class NS_STACK_CLASS nsAutoRules
  * stack based helper class for turning off active selection adjustment
  * by low level transactions
  */
-class NS_STACK_CLASS nsAutoTxnsConserveSelection
+class nsAutoTxnsConserveSelection
 {
   public:
   
@@ -163,7 +163,7 @@ class NS_STACK_CLASS nsAutoTxnsConserveSelection
 /***************************************************************************
  * stack based helper class for batching reflow and paint requests.
  */
-class NS_STACK_CLASS nsAutoUpdateViewBatch
+class nsAutoUpdateViewBatch
 {
   public:
   
@@ -201,7 +201,7 @@ class nsBoolDomIterFunctor
     virtual PRBool operator()(nsIDOMNode* aNode)=0;
 };
 
-class NS_STACK_CLASS nsDOMIterator
+class nsDOMIterator
 {
   public:
     nsDOMIterator();
@@ -239,7 +239,7 @@ class nsTrivialFunctor : public nsBoolDomIterFunctor
 /******************************************************************************
  * general dom point utility struct
  *****************************************************************************/
-struct NS_STACK_CLASS DOMPoint
+struct DOMPoint
 {
   nsCOMPtr<nsIDOMNode> node;
   PRInt32 offset;
@@ -274,6 +274,11 @@ class nsISimpleEnumerator;
 class nsEditorHookUtils
 {
   public:
+    static PRBool   DoAllowDragHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent);
+    static PRBool   DoDragHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent,
+                                    nsITransferable *aTrans);
+    static PRBool   DoAllowDropHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent,
+                                    nsIDragSession *aSession);
     static PRBool   DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aEvent,
                                     nsITransferable *aTrans);
   private:

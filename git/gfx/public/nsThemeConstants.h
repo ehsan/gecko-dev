@@ -153,6 +153,10 @@
 #define NS_THEME_SCROLLBAR_THUMB_HORIZONTAL                88
 #define NS_THEME_SCROLLBAR_THUMB_VERTICAL                  89
 
+// The gripper that goes on the thumb
+#define NS_THEME_SCROLLBAR_GRIPPER_HORIZONTAL              90
+#define NS_THEME_SCROLLBAR_GRIPPER_VERTICAL                91
+
 // A textfield or text area
 #define NS_THEME_TEXTFIELD                                 95
 
@@ -234,9 +238,3 @@
 #define NS_THEME_WIN_COMMUNICATIONS_TOOLBOX                221
 #define NS_THEME_WIN_MEDIA_TOOLBOX                         222
 #define NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX               223
-
-// Unified toolbar on the Mac
-#define NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR                   224
-
-// Vista glass
-#define NS_THEME_WIN_GLASS                                 230

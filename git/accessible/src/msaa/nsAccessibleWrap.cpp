@@ -75,8 +75,6 @@ static gAccessibles = 0;
 EXTERN_C GUID CDECL CLSID_Accessible =
 { 0x61044601, 0xa811, 0x4e2b, { 0xbb, 0xba, 0x17, 0xbf, 0xab, 0xd3, 0x29, 0xd7 } };
 
-static const PRInt32 kIEnumVariantDisconnected = -1;
-
 /*
  * Class nsAccessibleWrap
  */
@@ -117,7 +115,7 @@ __try {
       *ppv = static_cast<IEnumVARIANT*>(this);
   } else if (IID_IServiceProvider == iid)
     *ppv = static_cast<IServiceProvider*>(this);
-  else if (IID_IAccessible2 == iid && !gIsIA2Disabled)
+  else if (IID_IAccessible2 == iid)
     *ppv = static_cast<IAccessible2*>(this);
 
   if (NULL == *ppv) {
@@ -158,7 +156,7 @@ STDMETHODIMP nsAccessibleWrap::AccessibleObjectFromWindow(HWND hwnd,
 {
   // open the dll dynamically
   if (!gmAccLib)
-    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
+    gmAccLib =::LoadLibrary("OLEACC.DLL");
 
   if (gmAccLib) {
     if (!gmAccessibleObjectFromWindow)
@@ -334,12 +332,6 @@ __try {
     nsAutoString value;
     if (NS_FAILED(xpAccessible->GetValue(value)))
       return E_FAIL;
-
-    // see bug 438784: Need to expose URL on doc's value attribute.
-    // For this, reverting part of fix for bug 425693 to make this MSAA method 
-    // behave IAccessible2-style.
-    if (value.IsEmpty())
-      return S_FALSE;
 
     *pszValue = ::SysAllocStringLen(value.get(), value.Length());
     if (!*pszValue)
@@ -1088,58 +1080,58 @@ STDMETHODIMP nsAccessibleWrap::put_accValue(
 
 #include "mshtml.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap. IEnumVariant
-
 STDMETHODIMP
-nsAccessibleWrap::Next(ULONG aNumElementsRequested, VARIANT FAR* aPVar,
-                       ULONG FAR* aNumElementsFetched)
+nsAccessibleWrap::Next(ULONG aNumElementsRequested, VARIANT FAR* pvar, ULONG FAR* aNumElementsFetched)
 {
+  // If there are two clients using this at the same time, and they are
+  // each using a different mEnumVariant position it would be bad, because
+  // we have only 1 object and can only keep of mEnumVARIANT position once
+
   // Children already cached via QI to IEnumVARIANT
 __try {
   *aNumElementsFetched = 0;
 
-  if (aNumElementsRequested <= 0 || !aPVar)
-    return E_INVALIDARG;
+  PRInt32 numChildren;
+  GetChildCount(&numChildren);
 
-  if (mEnumVARIANTPosition == kIEnumVariantDisconnected)
-    return CO_E_OBJNOTCONNECTED;
-
-  nsCOMPtr<nsIAccessible> traversedAcc;
-  nsresult rv = GetChildAt(mEnumVARIANTPosition, getter_AddRefs(traversedAcc));
-  if (!traversedAcc)
-    return S_FALSE;
-
-  for (PRUint32 i = 0; i < aNumElementsRequested; i++) {
-    VariantInit(&aPVar[i]);
-
-    aPVar[i].pdispVal = NativeAccessible(traversedAcc);
-    aPVar[i].vt = VT_DISPATCH;
-    (*aNumElementsFetched)++;
-
-    nsCOMPtr<nsIAccessible> nextAcc;
-    traversedAcc->GetNextSibling(getter_AddRefs(nextAcc));
-    if (!nextAcc)
-      break;
-
-    traversedAcc = nextAcc;
+  if (aNumElementsRequested <= 0 || !pvar ||
+      mEnumVARIANTPosition >= numChildren) {
+    return E_FAIL;
   }
 
-  mEnumVARIANTPosition += *aNumElementsFetched;
-  return (*aNumElementsFetched) < aNumElementsRequested ? S_FALSE : S_OK;
+  VARIANT varStart;
+  VariantInit(&varStart);
+  varStart.lVal = CHILDID_SELF;
+  varStart.vt = VT_I4;
 
+  accNavigate(NAVDIR_FIRSTCHILD, varStart, &pvar[0]);
+
+  for (long childIndex = 0; pvar[*aNumElementsFetched].vt == VT_DISPATCH; ++childIndex) {
+    PRBool wasAccessibleFetched = PR_FALSE;
+    nsAccessibleWrap *msaaAccessible =
+      static_cast<nsAccessibleWrap*>(pvar[*aNumElementsFetched].pdispVal);
+    if (!msaaAccessible)
+      break;
+    if (childIndex >= mEnumVARIANTPosition) {
+      if (++*aNumElementsFetched >= aNumElementsRequested)
+        break;
+      wasAccessibleFetched = PR_TRUE;
+    }
+    msaaAccessible->accNavigate(NAVDIR_NEXT, varStart, &pvar[*aNumElementsFetched] );
+    if (!wasAccessibleFetched)
+      msaaAccessible->nsAccessNode::Release(); // this accessible will not be received by the caller
+  }
+
+  mEnumVARIANTPosition += static_cast<PRUint16>(*aNumElementsFetched);
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return NOERROR;
 }
 
 STDMETHODIMP
 nsAccessibleWrap::Skip(ULONG aNumElements)
 {
 __try {
-  if (mEnumVARIANTPosition == kIEnumVariantDisconnected)
-    return CO_E_OBJNOTCONNECTED;
-
-  mEnumVARIANTPosition += aNumElements;
+  mEnumVARIANTPosition += static_cast<PRUint16>(aNumElements);
 
   PRInt32 numChildren;
   GetChildCount(&numChildren);
@@ -1160,26 +1152,8 @@ nsAccessibleWrap::Reset(void)
   return NOERROR;
 }
 
-STDMETHODIMP
-nsAccessibleWrap::Clone(IEnumVARIANT FAR* FAR* ppenum)
-{
-__try {
-  *ppenum = nsnull;
-  
-  nsCOMPtr<nsIArray> childArray;
-  nsresult rv = GetChildren(getter_AddRefs(childArray));
 
-  *ppenum = new AccessibleEnumerator(childArray);
-  if (!*ppenum)
-    return E_OUTOFMEMORY;
-  NS_ADDREF(*ppenum);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return NOERROR;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap. IAccessible2
+// IAccessible2
 
 STDMETHODIMP
 nsAccessibleWrap::get_nRelations(long *aNRelations)
@@ -1584,11 +1558,88 @@ __try {
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  return ConvertToIA2Attributes(attributes, aAttributes);
+  if (!attributes)
+    return S_FALSE;
+
+  nsCOMPtr<nsISimpleEnumerator> propEnum;
+  attributes->Enumerate(getter_AddRefs(propEnum));
+  if (!propEnum)
+    return E_FAIL;
+
+  nsAutoString strAttrs;
+
+  const char kCharsToEscape[] = ":;=,\\";
+
+  PRBool hasMore = PR_FALSE;
+  while (NS_SUCCEEDED(propEnum->HasMoreElements(&hasMore)) && hasMore) {
+    nsCOMPtr<nsISupports> propSupports;
+    propEnum->GetNext(getter_AddRefs(propSupports));
+
+    nsCOMPtr<nsIPropertyElement> propElem(do_QueryInterface(propSupports));
+    if (!propElem)
+      return E_FAIL;
+
+    nsCAutoString name;
+    rv = propElem->GetKey(name);
+    if (NS_FAILED(rv))
+      return GetHRESULT(rv);
+
+    PRUint32 offset = 0;
+    while ((offset = name.FindCharInSet(kCharsToEscape, offset)) != kNotFound) {
+      name.Insert('\\', offset);
+      offset += 2;
+    }
+
+    nsAutoString value;
+    rv = propElem->GetValue(value);
+    if (NS_FAILED(rv))
+      return E_FAIL;
+
+    offset = 0;
+    while ((offset = value.FindCharInSet(kCharsToEscape, offset)) != kNotFound) {
+      value.Insert('\\', offset);
+      offset += 2;
+    }
+
+    AppendUTF8toUTF16(name, strAttrs);
+    strAttrs.Append(':');
+    strAttrs.Append(value);
+    strAttrs.Append(';');
+  }
+
+  if (strAttrs.IsEmpty())
+    return S_FALSE;
+
+  *aAttributes = ::SysAllocStringLen(strAttrs.get(), strAttrs.Length());
+  return *aAttributes ? S_OK : E_OUTOFMEMORY;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
+
+STDMETHODIMP
+nsAccessibleWrap::Clone(IEnumVARIANT FAR* FAR* ppenum)
+{
+__try {
+  // Clone could be bad, the cloned items aren't tracked for shutdown
+  // Then again, as long as the client releases the items in time, we're okay
+  *ppenum = nsnull;
+
+  nsAccessibleWrap *accessibleWrap = new nsAccessibleWrap(mDOMNode, mWeakShell);
+  if (!accessibleWrap)
+    return E_FAIL;
+
+  IAccessible *msaaAccessible = static_cast<IAccessible*>(accessibleWrap);
+  msaaAccessible->AddRef();
+  QueryInterface(IID_IEnumVARIANT, (void**)ppenum);
+  if (*ppenum)
+    (*ppenum)->Skip(mEnumVARIANTPosition); // QI addrefed
+  msaaAccessible->Release();
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return NOERROR;
+}
+
 
 // For IDispatch support
 STDMETHODIMP
@@ -1700,11 +1751,6 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
   // Fire MSAA event for client area window.
   NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
 
-  // If the accessible children are changed then drop the IEnumVariant current
-  // position of the accessible.
-  if (eventType == nsIAccessibleEvent::EVENT_REORDER)
-    UnattachIEnumVariant();
-
   return NS_OK;
 }
 
@@ -1776,69 +1822,6 @@ nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
   return hWnd;
 }
 
-HRESULT
-nsAccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
-                                         BSTR *aIA2Attributes)
-{
-  *aIA2Attributes = NULL;
-
-  // The format is name:value;name:value; with \ for escaping these
-  // characters ":;=,\".
-
-  if (!aAttributes)
-    return S_FALSE;
-
-  nsCOMPtr<nsISimpleEnumerator> propEnum;
-  aAttributes->Enumerate(getter_AddRefs(propEnum));
-  if (!propEnum)
-    return E_FAIL;
-
-  nsAutoString strAttrs;
-
-  const char kCharsToEscape[] = ":;=,\\";
-
-  PRBool hasMore = PR_FALSE;
-  while (NS_SUCCEEDED(propEnum->HasMoreElements(&hasMore)) && hasMore) {
-    nsCOMPtr<nsISupports> propSupports;
-    propEnum->GetNext(getter_AddRefs(propSupports));
-
-    nsCOMPtr<nsIPropertyElement> propElem(do_QueryInterface(propSupports));
-    if (!propElem)
-      return E_FAIL;
-
-    nsCAutoString name;
-    if (NS_FAILED(propElem->GetKey(name)))
-      return E_FAIL;
-
-    PRUint32 offset = 0;
-    while ((offset = name.FindCharInSet(kCharsToEscape, offset)) != kNotFound) {
-      name.Insert('\\', offset);
-      offset += 2;
-    }
-
-    nsAutoString value;
-    if (NS_FAILED(propElem->GetValue(value)))
-      return E_FAIL;
-
-    offset = 0;
-    while ((offset = value.FindCharInSet(kCharsToEscape, offset)) != kNotFound) {
-      value.Insert('\\', offset);
-      offset += 2;
-    }
-
-    AppendUTF8toUTF16(name, strAttrs);
-    strAttrs.Append(':');
-    strAttrs.Append(value);
-    strAttrs.Append(';');
-  }
-
-  if (strAttrs.IsEmpty())
-    return S_FALSE;
-
-  *aIA2Attributes = ::SysAllocStringLen(strAttrs.get(), strAttrs.Length());
-  return *aIA2Attributes ? S_OK : E_OUTOFMEMORY;
-}
-
 IDispatch *nsAccessibleWrap::NativeAccessible(nsIAccessible *aXPAccessible)
 {
   if (!aXPAccessible) {
@@ -1864,12 +1847,6 @@ IDispatch *nsAccessibleWrap::NativeAccessible(nsIAccessible *aXPAccessible)
   return static_cast<IDispatch*>(msaaAccessible);
 }
 
-void
-nsAccessibleWrap::UnattachIEnumVariant()
-{
-  if (mEnumVARIANTPosition > 0)
-    mEnumVARIANTPosition = kIEnumVariantDisconnected;
-}
 
 void nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible)
 {

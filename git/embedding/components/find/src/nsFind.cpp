@@ -73,7 +73,7 @@ static NS_DEFINE_CID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
 static NS_DEFINE_CID(kCPreContentIteratorCID, NS_PRECONTENTITERATOR_CID);
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
-#define CH_SHY ((PRUnichar) 0xAD)
+#define CH_SHY 173
 
 // -----------------------------------------------------------------------
 // nsFindContentIterator is a special iterator that also goes through
@@ -366,7 +366,7 @@ nsFindContentIterator::SetupInnerIterator(nsIContent* aContent)
   if (!aContent) {
     return;
   }
-  NS_ASSERTION(!aContent->IsRootOfNativeAnonymousSubtree(), "invalid call");
+  NS_ASSERTION(!aContent->IsNativeAnonymous(), "invalid call");
 
   nsIDocument* doc = aContent->GetDocument();
   nsIPresShell* shell = doc ? doc->GetPrimaryShell() : nsnull;

@@ -56,6 +56,7 @@
 #include "nsICSSStyleSheet.h"
 #include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
+#include "nsDOMScriptObjectFactory.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
 #include "nsGenericElement.h"  // for nsDOMEventRTTearoff
@@ -82,7 +83,6 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
 #include "nsIFocusEventSuppressor.h"
-#include "nsDOMThreadService.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -110,20 +110,10 @@ PRBool NS_SVGEnabled();
 #include "nsTextServicesDocument.h"
 #endif
 
-#ifdef MOZ_MEDIA
-#include "nsVideoDecoder.h"
-#endif
-
-#ifdef MOZ_OGG
-#include "nsAudioStream.h"
-#include "nsVideoDecoder.h"
-#endif
-
 #include "nsError.h"
 #include "nsTraceRefcnt.h"
 
 #include "nsCycleCollector.h"
-#include "nsJSEnvironment.h"
 
 static nsrefcnt sLayoutStaticRefcnt;
 
@@ -148,7 +138,7 @@ nsLayoutStatics::Initialize()
   nsColorNames::AddRefTable();
   nsGkAtoms::AddRefAtoms();
 
-  nsJSRuntime::Startup();
+  nsDOMScriptObjectFactory::Startup();
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsContentUtils");
@@ -245,23 +235,6 @@ nsLayoutStatics::Initialize()
   }
 #endif
 
-#ifdef MOZ_MEDIA
-  rv = nsVideoDecoder::InitLogger();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsVideoDecoder");
-    return rv;
-  }
-  
-#endif
-
-#ifdef MOZ_OGG
-  rv = nsAudioStream::InitLibrary();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsAudioStream");
-    return rv;
-  }
-#endif
-
   return NS_OK;
 }
 
@@ -279,7 +252,7 @@ nsLayoutStatics::Shutdown()
   nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
   CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::FreeSystemMetrics();
+  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsCSSRendering::Shutdown();
 #ifdef DEBUG
@@ -326,7 +299,6 @@ nsLayoutStatics::Shutdown()
   NS_NameSpaceManagerShutdown();
   nsStyleSet::FreeGlobals();
 
-  nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsTextControlFrame::ShutDown();
@@ -338,13 +310,7 @@ nsLayoutStatics::Shutdown()
   nsTextServicesDocument::Shutdown();
 #endif
 
-  nsDOMThreadService::Shutdown();
-
   NS_ShutdownFocusSuppressor();
-
-#ifdef MOZ_OGG
-  nsAudioStream::ShutdownLibrary();
-#endif
 }
 
 void

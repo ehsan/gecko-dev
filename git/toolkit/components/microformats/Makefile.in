@@ -43,7 +43,7 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS = src
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 DIRS += tests
 endif
 

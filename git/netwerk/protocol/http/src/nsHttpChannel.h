@@ -66,11 +66,8 @@
 #include "nsIInputStream.h"
 #include "nsIProgressEventSink.h"
 #include "nsICachingChannel.h"
-#include "nsICacheSession.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
-#include "nsIApplicationCache.h"
-#include "nsIApplicationCacheContainer.h"
 #include "nsIEncodedChannel.h"
 #include "nsITransport.h"
 #include "nsIUploadChannel.h"
@@ -83,7 +80,6 @@
 #include "nsIProtocolProxyCallback.h"
 #include "nsICancelable.h"
 #include "nsIProxiedChannel.h"
-#include "nsITraceableChannel.h"
 
 class nsHttpResponseHead;
 class nsAHttpConnection;
@@ -107,8 +103,6 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsISupportsPriority
                     , public nsIProtocolProxyCallback
                     , public nsIProxiedChannel
-                    , public nsITraceableChannel
-                    , public nsIApplicationCacheContainer
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -127,8 +121,6 @@ public:
     NS_DECL_NSISUPPORTSPRIORITY
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
     NS_DECL_NSIPROXIEDCHANNEL
-    NS_DECL_NSITRACEABLECHANNEL
-    NS_DECL_NSIAPPLICATIONCACHECONTAINER
 
     nsHttpChannel();
     virtual ~nsHttpChannel();
@@ -169,13 +161,11 @@ private:
     nsresult ProcessNotModified();
     nsresult ProcessRedirection(PRUint32 httpStatus);
     nsresult ProcessAuthentication(PRUint32 httpStatus);
-    nsresult ProcessFallback(PRBool *fallingBack);
     PRBool   ResponseWouldVary();
 
     // redirection specific methods
     void     HandleAsyncRedirect();
     void     HandleAsyncNotModified();
-    void     HandleAsyncFallback();
     nsresult PromptTempRedirect();
     nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, PRBool preserveMethod);
 
@@ -193,7 +183,7 @@ private:
     nsresult CheckCache();
     nsresult ShouldUpdateOfflineCacheEntry(PRBool *shouldCacheForOfflineUse);
     nsresult ReadFromCache();
-    void     CloseCacheEntry(PRBool doomOnFailure);
+    void     CloseCacheEntry();
     void     CloseOfflineCacheEntry();
     nsresult InitCacheEntry();
     nsresult InitOfflineCacheEntry();
@@ -202,9 +192,6 @@ private:
     nsresult FinalizeCacheEntry();
     nsresult InstallCacheListener(PRUint32 offset = 0);
     nsresult InstallOfflineCacheListener();
-
-    // Handle the bogus Content-Encoding Apache sometimes sends
-    void ClearBogusContentEncodingIfNeeded();
 
     // byte range request specific methods
     nsresult SetupByteRangeRequest(PRUint32 partialLen);
@@ -273,8 +260,6 @@ private:
     nsCacheAccessMode                 mOfflineCacheAccess;
     nsCString                         mOfflineCacheClientID;
 
-    nsCOMPtr<nsIApplicationCache>     mApplicationCache;
-
     // auth specific data
     nsISupports                      *mProxyAuthContinuationState;
     nsCString                         mProxyAuthType;
@@ -302,11 +287,6 @@ private:
     // redirection specific data.
     PRUint8                           mRedirectionLimit;
 
-    // If the channel is associated with a cache, and the URI matched
-    // a fallback namespace, this will hold the key for the fallback
-    // cache entry.
-    nsCString                         mFallbackKey;
-
     // state flags
     PRUint32                          mIsPending                : 1;
     PRUint32                          mWasOpened                : 1;
@@ -323,13 +303,6 @@ private:
     PRUint32                          mResuming                 : 1;
     PRUint32                          mInitedCacheEntry         : 1;
     PRUint32                          mCacheForOfflineUse       : 1;
-    // True if mCacheForOfflineUse was set because we were caching
-    // opportunistically.
-    PRUint32                          mCachingOpportunistically : 1;
-    // True if we are loading a fallback cache entry from the
-    // application cache.
-    PRUint32                          mFallbackChannel          : 1;
-    PRUint32                          mTracingEnabled           : 1;
 
     class nsContentEncodings : public nsIUTF8StringEnumerator
     {

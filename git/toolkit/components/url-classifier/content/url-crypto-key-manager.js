@@ -258,11 +258,6 @@ PROT_UrlCryptoKeyManager.prototype.hasKey = function() {
   return this.clientKey_ != null && this.wrappedKey_ != null;
 }
 
-PROT_UrlCryptoKeyManager.prototype.unUrlSafe = function(key)
-{
-    return key ? key.replace("-", "+").replace("_", "/") : "";
-}
-
 /**
  * Set a new key and serialize it to disk.
  *
@@ -278,7 +273,7 @@ PROT_UrlCryptoKeyManager.prototype.replaceKey_ = function(clientKey,
     G_Debug(this, "Replacing " + this.clientKey_ + " with " + clientKey);
 
   this.clientKey_ = clientKey;
-  this.clientKeyArray_ = Array.map(atob(this.unUrlSafe(clientKey)),
+  this.clientKeyArray_ = Array.map(atob(clientKey),
                                    function(c) { return c.charCodeAt(0); });
   this.wrappedKey_ = wrappedKey;
 

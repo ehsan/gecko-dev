@@ -103,9 +103,6 @@ public:
     eDOMEvents_draggesture,
     eDOMEvents_drag,
     eDOMEvents_dragend,
-    eDOMEvents_dragstart,
-    eDOMEvents_dragleave,
-    eDOMEvents_drop,
     eDOMEvents_resize,
     eDOMEvents_scroll,
     eDOMEvents_overflow,
@@ -124,44 +121,21 @@ public:
     eDOMEvents_pageshow,
     eDOMEvents_pagehide,
     eDOMEvents_DOMMouseScroll,
-    eDOMEvents_MozMousePixelScroll,
     eDOMEvents_offline,
     eDOMEvents_online,
     eDOMEvents_copy,
     eDOMEvents_cut,
-    eDOMEvents_paste,
+    eDOMEvents_paste
 #ifdef MOZ_SVG
+   ,
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,
     eDOMEvents_SVGError,
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
-    eDOMEvents_SVGZoom,
+    eDOMEvents_SVGZoom
 #endif // MOZ_SVG
-#ifdef MOZ_MEDIA
-    eDOMEvents_loadstart,
-    eDOMEvents_progress,
-    eDOMEvents_loadedmetadata,
-    eDOMEvents_loadedfirstframe,
-    eDOMEvents_emptied,
-    eDOMEvents_stalled,
-    eDOMEvents_play,
-    eDOMEvents_pause,
-    eDOMEvents_waiting,
-    eDOMEvents_seeking,
-    eDOMEvents_seeked,
-    eDOMEvents_timeupdate,
-    eDOMEvents_ended,
-    eDOMEvents_dataunavailable,
-    eDOMEvents_canshowcurrentframe,
-    eDOMEvents_canplay,
-    eDOMEvents_canplaythrough,
-    eDOMEvents_ratechange,
-    eDOMEvents_durationchange,
-    eDOMEvents_volumechange,
-#endif
-    eDOMEvents_afterpaint
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);

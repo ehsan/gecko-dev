@@ -260,15 +260,15 @@
 
 CSS_PROP_DISPLAY(-moz-appearance, appearance, MozAppearance, Display, mAppearance, eCSSType_Value, kAppearanceKTable)
 CSS_PROP_SHORTHAND(-moz-border-radius, _moz_border_radius, MozBorderRadius)
-CSS_PROP_BORDER(-moz-border-radius-topleft, _moz_border_radius_topLeft, MozBorderRadiusTopleft, Margin, mBorderRadius.mTopLeft, eCSSType_ValuePair, nsnull)
-CSS_PROP_BORDER(-moz-border-radius-topright, _moz_border_radius_topRight, MozBorderRadiusTopright, Margin, mBorderRadius.mTopRight, eCSSType_ValuePair, nsnull)
-CSS_PROP_BORDER(-moz-border-radius-bottomright, _moz_border_radius_bottomRight, MozBorderRadiusBottomright, Margin, mBorderRadius.mBottomRight, eCSSType_ValuePair, nsnull)
-CSS_PROP_BORDER(-moz-border-radius-bottomleft, _moz_border_radius_bottomLeft, MozBorderRadiusBottomleft, Margin, mBorderRadius.mBottomLeft, eCSSType_ValuePair, nsnull)
+CSS_PROP_BORDER(-moz-border-radius-topleft, _moz_border_radius_topLeft, MozBorderRadiusTopleft, Margin, mBorderRadius.mTop, eCSSType_Value, nsnull)
+CSS_PROP_BORDER(-moz-border-radius-topright, _moz_border_radius_topRight, MozBorderRadiusTopright, Margin, mBorderRadius.mRight, eCSSType_Value, nsnull)
+CSS_PROP_BORDER(-moz-border-radius-bottomleft, _moz_border_radius_bottomLeft, MozBorderRadiusBottomleft, Margin, mBorderRadius.mLeft, eCSSType_Value, nsnull)
+CSS_PROP_BORDER(-moz-border-radius-bottomright, _moz_border_radius_bottomRight, MozBorderRadiusBottomright, Margin, mBorderRadius.mBottom, eCSSType_Value, nsnull)
 CSS_PROP_SHORTHAND(-moz-outline-radius, _moz_outline_radius, MozOutlineRadius)
-CSS_PROP_OUTLINE(-moz-outline-radius-topleft, _moz_outline_radius_topLeft, MozOutlineRadiusTopleft, Margin, mOutlineRadius.mTopLeft, eCSSType_ValuePair, nsnull)
-CSS_PROP_OUTLINE(-moz-outline-radius-topright, _moz_outline_radius_topRight, MozOutlineRadiusTopright, Margin, mOutlineRadius.mTopRight, eCSSType_ValuePair, nsnull)
-CSS_PROP_OUTLINE(-moz-outline-radius-bottomright, _moz_outline_radius_bottomRight, MozOutlineRadiusBottomright, Margin, mOutlineRadius.mBottomRight, eCSSType_ValuePair, nsnull)
-CSS_PROP_OUTLINE(-moz-outline-radius-bottomleft, _moz_outline_radius_bottomLeft, MozOutlineRadiusBottomleft, Margin, mOutlineRadius.mBottomLeft, eCSSType_ValuePair, nsnull)
+CSS_PROP_OUTLINE(-moz-outline-radius-topleft, _moz_outline_radius_topLeft, MozOutlineRadiusTopleft, Margin, mOutlineRadius.mTop, eCSSType_Value, nsnull)
+CSS_PROP_OUTLINE(-moz-outline-radius-topright, _moz_outline_radius_topRight, MozOutlineRadiusTopright, Margin, mOutlineRadius.mRight, eCSSType_Value, nsnull)
+CSS_PROP_OUTLINE(-moz-outline-radius-bottomleft, _moz_outline_radius_bottomLeft, MozOutlineRadiusBottomleft, Margin, mOutlineRadius.mLeft, eCSSType_Value, nsnull)
+CSS_PROP_OUTLINE(-moz-outline-radius-bottomright, _moz_outline_radius_bottomRight, MozOutlineRadiusBottomright, Margin, mOutlineRadius.mBottom, eCSSType_Value, nsnull)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_FONT(-x-system-font, _x_system_font, X, Font, mSystemFont, eCSSType_Value, kFontKTable)
 #endif
@@ -276,7 +276,7 @@ CSS_PROP_BACKENDONLY(azimuth, azimuth, Azimuth, Aural, mAzimuth, eCSSType_Value,
 CSS_PROP_SHORTHAND(background, background, Background)
 CSS_PROP_BACKGROUND(background-attachment, background_attachment, BackgroundAttachment, Color, mBackAttachment, eCSSType_Value, kBackgroundAttachmentKTable)
 CSS_PROP_BACKGROUND(-moz-background-clip, _moz_background_clip, MozBackgroundClip, Color, mBackClip, eCSSType_Value, kBackgroundClipKTable)
-CSS_PROP_BACKGROUND(background-color, background_color, BackgroundColor, Color, mBackColor, eCSSType_Value, nsnull)
+CSS_PROP_BACKGROUND(background-color, background_color, BackgroundColor, Color, mBackColor, eCSSType_Value, kBackgroundColorKTable)
 CSS_PROP_BACKGROUND(background-image, background_image, BackgroundImage, Color, mBackImage, eCSSType_Value, nsnull)
 CSS_PROP_BACKGROUND(-moz-background-inline-policy, _moz_background_inline_policy, MozBackgroundInlinePolicy, Color, mBackInlinePolicy, eCSSType_Value, kBackgroundInlinePolicyKTable)
 CSS_PROP_BACKGROUND(-moz-background-origin, _moz_background_origin, MozBackgroundOrigin, Color, mBackOrigin, eCSSType_Value, kBackgroundOriginKTable)
@@ -304,7 +304,6 @@ CSS_PROP_SHORTHAND(-moz-border-end-width, border_end_width, MozBorderEndWidth)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(border-end-width-value, border_end_width_value, X, Margin, mBorderEndWidth, eCSSType_Value, kBorderWidthKTable)
 #endif
-CSS_PROP_BORDER(-moz-border-image, border_image, MozBorderImage, Margin, mBorderImage, eCSSType_Value, kBorderImageKTable)
 CSS_PROP_SHORTHAND(border-left, border_left, BorderLeft)
 CSS_PROP_SHORTHAND(border-left-color, border_left_color, BorderLeftColor)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
@@ -367,7 +366,6 @@ CSS_PROP_BORDER(border-top-style, border_top_style, BorderTopStyle, Margin, mBor
 CSS_PROP_BORDER(border-top-width, border_top_width, BorderTopWidth, Margin, mBorderWidth.mTop, eCSSType_Value, kBorderWidthKTable)
 CSS_PROP_SHORTHAND(border-width, border_width, BorderWidth)
 CSS_PROP_POSITION(bottom, bottom, Bottom, Position, mOffset.mBottom, eCSSType_Value, nsnull)
-CSS_PROP_BORDER(-moz-box-shadow, box_shadow, MozBoxShadow, Margin, mBoxShadow, eCSSType_ValueList, nsnull)
 CSS_PROP_POSITION(-moz-box-sizing, box_sizing, MozBoxSizing, Position, mBoxSizing, eCSSType_Value, kBoxSizingKTable) // XXX bug 3935
 CSS_PROP_TABLEBORDER(caption-side, caption_side, CaptionSide, Table, mCaptionSide, eCSSType_Value, kCaptionSideKTable)
 CSS_PROP_DISPLAY(clear, clear, Clear, Display, mClear, eCSSType_Value, kClearKTable)
@@ -376,13 +374,9 @@ CSS_PROP_COLOR(color, color, Color, Color, mColor, eCSSType_Value, nsnull)
 CSS_PROP_COLUMN(-moz-column-count, _moz_column_count, MozColumnCount, Column, mColumnCount, eCSSType_Value, nsnull)
 CSS_PROP_COLUMN(-moz-column-width, _moz_column_width, MozColumnWidth, Column, mColumnWidth, eCSSType_Value, nsnull)
 CSS_PROP_COLUMN(-moz-column-gap, _moz_column_gap, MozColumnGap, Column, mColumnGap, eCSSType_Value, nsnull)
-CSS_PROP_SHORTHAND(-moz-column-rule, _moz_column_rule, MozColumnRule)
-CSS_PROP_COLUMN(-moz-column-rule-color, _moz_column_rule_color, MozColumnRuleColor, Column, mColumnRuleColor, eCSSType_Value, nsnull)
-CSS_PROP_COLUMN(-moz-column-rule-style, _moz_column_rule_style, MozColumnRuleStyle, Column, mColumnRuleStyle, eCSSType_Value, kBorderStyleKTable)
-CSS_PROP_COLUMN(-moz-column-rule-width, _moz_column_rule_width, MozColumnRuleWidth, Column, mColumnRuleWidth, eCSSType_Value, kBorderWidthKTable)
 CSS_PROP_CONTENT(content, content, Content, Content, mContent, eCSSType_ValueList, kContentKTable)
-CSS_PROP_CONTENT(counter-increment, counter_increment, CounterIncrement, Content, mCounterIncrement, eCSSType_ValuePairList, nsnull) // XXX bug 137285
-CSS_PROP_CONTENT(counter-reset, counter_reset, CounterReset, Content, mCounterReset, eCSSType_ValuePairList, nsnull) // XXX bug 137285
+CSS_PROP_CONTENT(counter-increment, counter_increment, CounterIncrement, Content, mCounterIncrement, eCSSType_CounterData, nsnull) // XXX bug 137285
+CSS_PROP_CONTENT(counter-reset, counter_reset, CounterReset, Content, mCounterReset, eCSSType_CounterData, nsnull) // XXX bug 137285
 CSS_PROP_SHORTHAND(cue, cue, Cue)
 CSS_PROP_BACKENDONLY(cue-after, cue_after, CueAfter, Aural, mCueAfter, eCSSType_Value, nsnull)
 CSS_PROP_BACKENDONLY(cue-before, cue_before, CueBefore, Aural, mCueBefore, eCSSType_Value, nsnull)
@@ -484,7 +478,7 @@ CSS_PROP_BACKENDONLY(pause-before, pause_before, PauseBefore, Aural, mPauseBefor
 CSS_PROP_BACKENDONLY(pitch, pitch, Pitch, Aural, mPitch, eCSSType_Value, kPitchKTable)
 CSS_PROP_BACKENDONLY(pitch-range, pitch_range, PitchRange, Aural, mPitchRange, eCSSType_Value, nsnull)
 CSS_PROP_DISPLAY(position, position, Position, Display, mPosition, eCSSType_Value, kPositionKTable)
-CSS_PROP_QUOTES(quotes, quotes, Quotes, Content, mQuotes, eCSSType_ValuePairList, nsnull)
+CSS_PROP_QUOTES(quotes, quotes, Quotes, Content, mQuotes, eCSSType_Quotes, nsnull)
 CSS_PROP_BACKENDONLY(richness, richness, Richness, Aural, mRichness, eCSSType_Value, nsnull)
 CSS_PROP_POSITION(right, right, Right, Position, mOffset.mRight, eCSSType_Value, nsnull)
 CSS_PROP_BACKENDONLY(size, size, Size, Page, mSize, eCSSType_ValuePair, kPageSizeKTable)
@@ -500,8 +494,6 @@ CSS_PROP_TEXTRESET(text-decoration, text_decoration, TextDecoration, Text, mDeco
 CSS_PROP_TEXT(text-indent, text_indent, TextIndent, Text, mTextIndent, eCSSType_Value, nsnull)
 CSS_PROP_TEXT(text-shadow, text_shadow, TextShadow, Text, mTextShadow, eCSSType_ValueList, nsnull)
 CSS_PROP_TEXT(text-transform, text_transform, TextTransform, Text, mTextTransform, eCSSType_Value, kTextTransformKTable)
-CSS_PROP_DISPLAY(-moz-transform, _moz_transform, MozTransform, Display, mTransform, eCSSType_ValueList, kDisplayKTable)
-CSS_PROP_DISPLAY(-moz-transform-origin, _moz_transform_origin, MozTransformOrigin, Display, mTransformOrigin, eCSSType_ValuePair, kBackgroundPositionKTable)
 CSS_PROP_POSITION(top, top, Top, Position, mOffset.mTop, eCSSType_Value, nsnull)
 CSS_PROP_TEXTRESET(unicode-bidi, unicode_bidi, UnicodeBidi, Text, mUnicodeBidi, eCSSType_Value, kUnicodeBidiKTable)
 CSS_PROP_USERINTERFACE(-moz-user-focus, user_focus, MozUserFocus, UserInterface, mUserFocus, eCSSType_Value, kUserFocusKTable) // XXX bug 3935
@@ -516,7 +508,6 @@ CSS_PROP_TEXT(white-space, white_space, WhiteSpace, Text, mWhiteSpace, eCSSType_
 CSS_PROP_BACKENDONLY(widows, widows, Widows, Breaks, mWidows, eCSSType_Value, nsnull)
 CSS_PROP_POSITION(width, width, Width, Position, mWidth, eCSSType_Value, kWidthKTable)
 CSS_PROP_TEXT(word-spacing, word_spacing, WordSpacing, Text, mWordSpacing, eCSSType_Value, nsnull)
-CSS_PROP_TEXT(word-wrap, word_wrap, WordWrap, Text, mWordWrap, eCSSType_Value, kWordwrapKTable)
 CSS_PROP_POSITION(z-index, z_index, ZIndex, Position, mZIndex, eCSSType_Value, nsnull)
 
 CSS_PROP_XUL(-moz-box-align, box_align, MozBoxAlign, XUL, mBoxAlign, eCSSType_Value, kBoxAlignKTable) // XXX bug 3935

@@ -40,7 +40,7 @@
 #define CKCAPI_H 1
 
 #ifdef DEBUG
-static const char CKCAPI_CVS_ID[] = "@(#) $RCSfile: ckcapi.h,v $ $Revision: 1.3 $ $Date: 2008/08/11 08:14:10 $";
+static const char CKCAPI_CVS_ID[] = "@(#) $RCSfile: ckcapi.h,v $ $Revision: 1.2 $ $Date: 2005/11/15 00:13:58 $";
 #endif /* DEBUG */
 
 #include "nssckmdt.h"
@@ -61,8 +61,8 @@ static const char CKCAPI_CVS_ID[] = "@(#) $RCSfile: ckcapi.h,v $ $Revision: 1.3 
 #include "ckt.h"
 #endif /* CKT_H */
 
-#include "wtypes.h"
-#include "wincrypt.h"
+#include "WTypes.h"
+#include "WinCrypt.h"
 
 /*
  * statically defined raw objects. Allows us to data description objects

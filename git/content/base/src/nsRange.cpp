@@ -56,7 +56,6 @@
 #include "nsIDOMNodeList.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
-#include "nsGenericDOMDataNode.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -398,7 +397,7 @@ nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
     *aResult = cmp;
   }
   else if (nsContentUtils::ComparePoints(mEndParent, mEndOffset,
-                                         parent, aOffset) <= 0) {
+                                         parent, aOffset) == -1) {
     *aResult = 1;
   }
   else {
@@ -790,7 +789,7 @@ nsresult nsRange::SelectNodeContents(nsIDOMNode* aN)
 // start/end points in the future, we can switchover relatively
 // easy.
 
-class NS_STACK_CLASS RangeSubtreeIterator
+class RangeSubtreeIterator
 {
 private:
 
@@ -1099,84 +1098,10 @@ CollapseRangeAfterDelete(nsIDOMRange *aRange)
   return aRange->Collapse(PR_FALSE);
 }
 
-/**
- * Remove a node from the DOM entirely.
- *
- * @param aNode The node to remove.
- */
-static nsresult
-RemoveNode(nsIDOMNode* aNode)
-{
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  nsCOMPtr<nsINode> parent = node->GetNodeParent();
-  return parent ? parent->RemoveChildAt(parent->IndexOf(node), PR_TRUE) : NS_OK;
-}
-
-/**
- * Split a data node into two or three parts.
- *
- * @param aStartNode          The original node we are trying to split,
- *                            and first of three.
- * @param aStartIndex         The index at which to split the first and second
- *                            parts.
- * @param aEndIndex           The index at which to split the second and third
- *                            parts.
- * @param aMiddleNode         The second node of three.
- * @param aEndNode            The third node of three.  May be null to indicate
- *                            aEndIndex doesn't apply.
- * @param aCloneAfterOriginal Set PR_FALSE if the original node should be the
- *                            latter one after split.
- */
-static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
-                              PRUint32 aStartIndex,
-                              PRUint32 aEndIndex,
-                              nsIDOMCharacterData** aMiddleNode,
-                              nsIDOMCharacterData** aEndNode,
-                              PRBool aCloneAfterOriginal = PR_TRUE)
-{
-  nsresult rv;
-  nsCOMPtr<nsINode> node = do_QueryInterface(aStartNode);
-  NS_ENSURE_STATE(node && node->IsNodeOfType(nsINode::eDATA_NODE));
-  nsGenericDOMDataNode* dataNode = static_cast<nsGenericDOMDataNode*>(node.get());
-  // Split the main node, starting with the end.
-  if (aEndNode && aEndIndex > aStartIndex) {
-    nsCOMPtr<nsIContent> newData;
-    rv = dataNode->SplitData(aEndIndex, getter_AddRefs(newData),
-                             aCloneAfterOriginal);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = CallQueryInterface(newData, aEndNode);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  nsCOMPtr<nsIContent> newData;
-  rv = dataNode->SplitData(aStartIndex, getter_AddRefs(newData),
-                           aCloneAfterOriginal);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(newData, aMiddleNode);
-}
-
-nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
+nsresult nsRange::DeleteContents()
 { 
-  if (aFragment) {
-    *aFragment = nsnull;
-  }
-
-  if (IsDetached())
+  if(IsDetached())
     return NS_ERROR_DOM_INVALID_STATE_ERR;
-
-  nsresult rv;
-
-  nsCOMPtr<nsIDocument> doc =
-    do_QueryInterface(mStartParent->GetOwnerDoc());
-  if (!doc) return NS_ERROR_UNEXPECTED;
-
-  // If aFragment isn't null, create a temporary fragment to hold our return.
-  nsCOMPtr<nsIDOMDocumentFragment> retval;
-  if (aFragment) {
-    rv = NS_NewDocumentFragment(getter_AddRefs(retval),
-                                doc->NodeInfoManager());
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   // Batch possible DOMSubtreeModified events.
   mozAutoSubtreeModified subtree(mRoot ? mRoot->GetOwnerDoc(): nsnull, nsnull);
@@ -1194,23 +1119,18 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 
   RangeSubtreeIterator iter;
 
-  rv = iter.Init(this);
-  if (NS_FAILED(rv)) return rv;
+  nsresult res = iter.Init(this);
+  if (NS_FAILED(res)) return res;
 
   if (iter.IsDone())
   {
     // There's nothing for us to delete.
-    rv = CollapseRangeAfterDelete(this);
-    if (NS_SUCCEEDED(rv) && aFragment) {
-      NS_ADDREF(*aFragment = retval);
-    }
-    return rv;
+    return CollapseRangeAfterDelete(this);
   }
 
   // We delete backwards to avoid iterator problems!
 
   iter.Last();
-  nsCOMPtr<nsIDOMNode> lastFragmentNode = nsnull;
 
   PRBool handled = PR_FALSE;
 
@@ -1246,57 +1166,27 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
         if (node == endContainer)
         {
           // This range is completely contained within a single text node.
-          // Delete or extract the data between startOffset and endOffset.
+          // Delete the data between startOffset and endOffset.
 
           if (endOffset > startOffset)
           {
-            nsCOMPtr<nsIDOMCharacterData> cutNode;
-            nsCOMPtr<nsIDOMCharacterData> endNode;
-            rv = SplitDataNode(charData, startOffset, endOffset,
-                               getter_AddRefs(cutNode),
-                               getter_AddRefs(endNode));
-            NS_ENSURE_SUCCESS(rv, rv);
-            nsCOMPtr<nsIDOMNode> returnedNode;
-
-            if (retval) {
-              // Add to fragment.
-              rv = retval->InsertBefore(cutNode, lastFragmentNode,
-                                        getter_AddRefs(returnedNode));
-              NS_ENSURE_SUCCESS(rv, rv);
-              lastFragmentNode = returnedNode;
-            } else {
-              rv = RemoveNode(cutNode);
-              NS_ENSURE_SUCCESS(rv, rv);
-            }
+            res = charData->DeleteData(startOffset, endOffset - startOffset);
+            if (NS_FAILED(res)) return res;
           }
 
           handled = PR_TRUE;
         }
         else
         {
-          // Delete or extract everything after startOffset.
+          // Delete everything after startOffset.
 
-          rv = charData->GetLength(&dataLength);
-          NS_ENSURE_SUCCESS(rv, rv);
+          res = charData->GetLength(&dataLength);
+          if (NS_FAILED(res)) return res;
 
           if (dataLength > (PRUint32)startOffset)
           {
-            nsCOMPtr<nsIDOMCharacterData> cutNode;
-            rv = SplitDataNode(charData, startOffset, dataLength,
-                               getter_AddRefs(cutNode), nsnull);
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            if (retval) {
-              // Add to fragment.
-              nsCOMPtr<nsIDOMNode> returnedNode;
-              rv = retval->InsertBefore(cutNode, lastFragmentNode,
-                                        getter_AddRefs(returnedNode));
-              NS_ENSURE_SUCCESS(rv, rv);
-              lastFragmentNode = returnedNode;
-            } else {
-              rv = RemoveNode(cutNode);
-              NS_ENSURE_SUCCESS(rv, rv);
-            }
+            res = charData->DeleteData(startOffset, dataLength - startOffset);
+            if (NS_FAILED(res)) return res;
           }
 
           handled = PR_TRUE;
@@ -1304,29 +1194,12 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
       }
       else if (node == endContainer)
       {
-        // Delete or extract everything before endOffset.
+        // Delete the data between 0 and endOffset.
 
         if (endOffset > 0)
         {
-          nsCOMPtr<nsIDOMCharacterData> cutNode;
-          /* The Range spec clearly states clones get cut and original nodes
-             remain behind, so use PR_FALSE as the last parameter.
-          */
-          rv = SplitDataNode(charData, endOffset, endOffset,
-                             getter_AddRefs(cutNode), nsnull, PR_FALSE);
-          NS_ENSURE_SUCCESS(rv, rv);
-
-          if (retval) {
-            // Add to fragment.
-            nsCOMPtr<nsIDOMNode> aReturnedNode;
-            rv = retval->InsertBefore(cutNode, lastFragmentNode,
-                                      getter_AddRefs(aReturnedNode));
-            NS_ENSURE_SUCCESS(rv, rv);
-            lastFragmentNode = aReturnedNode;
-          } else {
-            rv = RemoveNode(cutNode);
-            NS_ENSURE_SUCCESS(rv, rv);
-          }
+          res = charData->DeleteData(0, endOffset);
+          if (NS_FAILED(res)) return res;
         }
 
         handled = PR_TRUE;
@@ -1337,16 +1210,14 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
     {
       // node was not handled above, so it must be completely contained
       // within the range. Just remove it from the tree!
-      if (retval) {
-        // Add to fragment.
-        nsCOMPtr<nsIDOMNode> aReturnedNode;
-        rv = retval->InsertBefore(node, lastFragmentNode,
-                                  getter_AddRefs(aReturnedNode));
-        if (NS_FAILED(rv)) return rv;
-        lastFragmentNode = aReturnedNode;
-      } else {
-        rv = RemoveNode(node);
-        if (NS_FAILED(rv)) return rv;
+
+      nsCOMPtr<nsIDOMNode> parent, tmpNode;
+
+      node->GetParentNode(getter_AddRefs(parent));
+
+      if (parent) {
+        res = parent->RemoveChild(node, getter_AddRefs(tmpNode));
+        if (NS_FAILED(res)) return res;
       }
     }
   }
@@ -1361,24 +1232,8 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
   // XXX_kin: range but under the common parent. Need to verify
   // XXX_kin: with the range commitee members that this was the
   // XXX_kin: desired behavior. For now we don't merge anything!
-  // XXX ajvincent Filed as https://bugzilla.mozilla.org/show_bug.cgi?id=401276
 
-  rv = CollapseRangeAfterDelete(this);
-  if (NS_SUCCEEDED(rv) && aFragment) {
-    NS_ADDREF(*aFragment = retval);
-  }
-  return rv;
-}
-
-nsresult nsRange::DeleteContents()
-{
-  return CutContents(nsnull);
-}
-
-nsresult nsRange::ExtractContents(nsIDOMDocumentFragment** aReturn)
-{
-  NS_ENSURE_ARG_POINTER(aReturn);
-  return CutContents(aReturn);
+  return CollapseRangeAfterDelete(this);
 }
 
 NS_IMETHODIMP
@@ -1435,7 +1290,26 @@ nsRange::CompareBoundaryPoints(PRUint16 aHow, nsIDOMRange* aOtherRange,
   return NS_OK;
 }
 
+nsresult nsRange::ExtractContents(nsIDOMDocumentFragment** aReturn)
+{ 
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
 
+  // Batch possible DOMSubtreeModified events.
+  mozAutoSubtreeModified subtree(mRoot ? mRoot->GetOwnerDoc(): nsnull, nsnull);
+
+  // XXX_kin: The spec says that nodes that are completely in the
+  // XXX_kin: range should be moved into the document fragment, not
+  // XXX_kin: copied. This method will have to be rewritten using
+  // XXX_kin: DeleteContents() as a template, with the charData cloning
+  // XXX_kin: code from CloneContents() merged in.
+
+  nsresult res = CloneContents(aReturn);
+  if (NS_FAILED(res))
+    return res;
+  res = DeleteContents();
+  return res; 
+}
 
 static nsresult
 CloneParentsBetween(nsIDOMNode *aAncestor,
@@ -1756,27 +1630,7 @@ nsresult nsRange::InsertNode(nsIDOMNode* aN)
 nsresult nsRange::SurroundContents(nsIDOMNode* aNewParent)
 {
   VALIDATE_ACCESS(aNewParent);
-
-  NS_ENSURE_TRUE(mRoot, NS_ERROR_DOM_INVALID_STATE_ERR);
-  // BAD_BOUNDARYPOINTS_ERR: Raised if the Range partially selects a non-text
-  // node.
-  if (mStartParent != mEndParent) {
-    PRBool startIsText = mStartParent->IsNodeOfType(nsINode::eTEXT);
-    PRBool endIsText = mEndParent->IsNodeOfType(nsINode::eTEXT);
-    nsINode* startGrandParent = mStartParent->GetNodeParent();
-    nsINode* endGrandParent = mEndParent->GetNodeParent();
-    NS_ENSURE_TRUE((startIsText && endIsText &&
-                    startGrandParent &&
-                    startGrandParent == endGrandParent) ||
-                   (startIsText &&
-                    startGrandParent &&
-                    startGrandParent == mEndParent) ||
-                   (endIsText &&
-                    endGrandParent &&
-                    endGrandParent == mStartParent),
-                   NS_ERROR_DOM_RANGE_BAD_BOUNDARYPOINTS_ERR);
-  }
-
+  
   // Extract the contents within the range.
 
   nsCOMPtr<nsIDOMDocumentFragment> docFrag;

@@ -46,7 +46,8 @@ include $(DEPTH)/config/autoconf.mk
 MODULE          = plugin
 LIBRARY_NAME    = npapi
 RESFILE         = npapi.res
-REQUIRES        = plugin \
+REQUIRES        = java \
+                  plugin \
                   $(NULL)
 
 CPPSRCS         = \

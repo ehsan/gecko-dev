@@ -448,7 +448,7 @@ nsFormHistory::OpenDatabase()
                                 getter_AddRefs(mDBFindEntryByName));
   NS_ENSURE_SUCCESS(rv,rv);
 
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("SELECT value FROM moz_formhistory WHERE fieldname=?1 ORDER BY value ASC"),
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("SELECT value FROM moz_formhistory WHERE fieldname=?1"),
                                 getter_AddRefs(mDBGetMatchingField));
   NS_ENSURE_SUCCESS(rv,rv);
 

@@ -153,8 +153,9 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                                 kNameSpaceID_None);
+  doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
+                                      kNameSpaceID_None,
+                                      getter_AddRefs(nodeInfo));
 
   // Create the text content
   NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
@@ -261,11 +262,9 @@ nsFileControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 /**
  * This is called when our browse button is clicked
  */
-NS_IMETHODIMP
-nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
+nsresult 
+nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
 {
-  NS_ASSERTION(mFrame, "We should have been unregistered");
-
   // only allow the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
   nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
@@ -289,7 +288,7 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   nsresult result;
 
   // Get parent nsIDOMWindowInternal object.
-  nsIContent* content = mFrame->GetContent();
+  nsIContent* content = GetContent();
   if (!content)
     return NS_ERROR_FAILURE;
 
@@ -306,12 +305,7 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   if (!filePicker)
     return NS_ERROR_FAILURE;
 
-  nsPIDOMWindow* win = doc->GetWindow();
-  if (!win) {
-    return NS_ERROR_FAILURE;
-  }
-
-  result = filePicker->Init(win, title, nsIFilePicker::modeOpen);
+  result = filePicker->Init(doc->GetWindow(), title, nsIFilePicker::modeOpen);
   if (NS_FAILED(result))
     return result;
 
@@ -320,7 +314,7 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   // Set default directry and filename
   nsAutoString defaultName;
-  mFrame->GetFormProperty(nsGkAtoms::value, defaultName);
+  GetFormProperty(nsGkAtoms::value, defaultName);
 
   nsCOMPtr<nsILocalFile> currentFile = do_CreateInstance("@mozilla.org/file/local;1");
   if (currentFile && !defaultName.IsEmpty()) {
@@ -344,7 +338,7 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   }
 
   // Tell our textframe to remember the currently focused value
-  mFrame->mTextFrame->InitFocusedValue();
+  mTextFrame->InitFocusedValue();
 
   // Open dialog
   PRInt16 mode;
@@ -354,11 +348,8 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   if (mode == nsIFilePicker::returnCancel)
     return NS_OK;
 
-  if (!mFrame) {
-    // The frame got destroyed while the filepicker was up.  Don't do
-    // anything here.
-    // (This listener itself can't be destroyed because the event listener
-    // manager holds a strong reference to us while it fires the event.)
+  if (!mTextFrame) {
+    // We got destroyed while the filepicker was up.  Don't do anything here.
     return NS_OK;
   }
   
@@ -372,16 +363,16 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
       // Tell mTextFrame that this update of the value is a user initiated
       // change. Otherwise it'll think that the value is being set by a script
       // and not fire onchange when it should.
-      PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
-      mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-      nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
+      PRBool oldState = mTextFrame->GetFireChangeEventState();
+      mTextFrame->SetFireChangeEventState(PR_TRUE);
+      nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(mContent);
       if (fileControl) {
         fileControl->SetFileName(unicodePath);
       }
       
-      mFrame->mTextFrame->SetFireChangeEventState(oldState);
+      mTextFrame->SetFireChangeEventState(oldState);
       // May need to fire an onchange here
-      mFrame->mTextFrame->CheckFireOnChange();
+      mTextFrame->CheckFireOnChange();
       return NS_OK;
     }
   }
@@ -624,3 +615,13 @@ NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
 NS_IMPL_ISUPPORTS2(nsFileControlFrame::MouseListener,
                    nsIDOMMouseListener,
                    nsIDOMEventListener)
+
+NS_IMETHODIMP
+nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
+{
+  if (mFrame) {
+    return mFrame->MouseClick(aMouseEvent);
+  }
+
+  return NS_OK;
+}

@@ -389,6 +389,11 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
   mContinueModalLoop = PR_TRUE;
   EnableParent(PR_FALSE);
 
+  nsCOMPtr<nsIAppShellService> appShellService(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
+  if (appShellService)
+      appShellService->TopLevelWindowIsModal(
+                         static_cast<nsIXULWindow*>(this), PR_TRUE);
+
   nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
   if (stack && NS_SUCCEEDED(stack->Push(nsnull))) {
     nsIThread *thread = NS_GetCurrentThread();
@@ -403,6 +408,9 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
 
   mContinueModalLoop = PR_FALSE;
   window->SetModal(PR_FALSE);
+  if (appShellService)
+      appShellService->TopLevelWindowIsModal(
+                         static_cast<nsIXULWindow*>(this), PR_FALSE);
   /*   Note there's no EnableParent(PR_TRUE) here to match the PR_FALSE one
      above. That's done in ExitModalLoop. It's important that the parent
      be re-enabled before this window is made invisible; to do otherwise
@@ -470,31 +478,23 @@ NS_IMETHODIMP nsXULWindow::Destroy()
     mWindow->Show(PR_FALSE);
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  // We need to explicitly set the focus on Windows, but 
-  // only if the parent is visible.
+  // We need to explicitly set the focus on Windows
   nsCOMPtr<nsIBaseWindow> parent(do_QueryReferent(mParentWindow));
   if (parent) {
-    PRBool parentVisible = PR_TRUE;
-    nsCOMPtr<nsIWidget> parentWidget;
-    parent->GetMainWidget(getter_AddRefs(parentWidget));
-    if (parentWidget)
-      parentWidget->IsVisible(parentVisible);
-    if (parentVisible) {
-      nsCOMPtr<nsIBaseWindow> baseHiddenWindow;
-      if (appShell) {
-        nsCOMPtr<nsIXULWindow> hiddenWindow;
-        appShell->GetHiddenWindow(getter_AddRefs(hiddenWindow));
-        if (hiddenWindow)
-          baseHiddenWindow = do_GetInterface(hiddenWindow);
-      }
-      // somebody screwed up somewhere. hiddenwindow shouldn't be anybody's
-      // parent. still, when it happens, skip activating it.
-      if (baseHiddenWindow != parent) {
-        nsCOMPtr<nsIWidget> parentWidget;
-        parent->GetMainWidget(getter_AddRefs(parentWidget));
-        if (parentWidget)
-          parentWidget->PlaceBehind(eZPlacementTop, 0, PR_TRUE);
-      }
+    nsCOMPtr<nsIBaseWindow> baseHiddenWindow;
+    if (appShell) {
+      nsCOMPtr<nsIXULWindow> hiddenWindow;
+      appShell->GetHiddenWindow(getter_AddRefs(hiddenWindow));
+      if (hiddenWindow)
+        baseHiddenWindow = do_GetInterface(hiddenWindow);
+    }
+    // somebody screwed up somewhere. hiddenwindow shouldn't be anybody's
+    // parent. still, when it happens, skip activating it.
+    if (baseHiddenWindow != parent) {
+      nsCOMPtr<nsIWidget> parentWidget;
+      parent->GetMainWidget(getter_AddRefs(parentWidget));
+      if (parentWidget)
+        parentWidget->PlaceBehind(eZPlacementTop, 0, PR_TRUE);
     }
   }
 #endif

@@ -128,9 +128,9 @@ EmbedContextMenuInfo::SetFrameIndex()
     if (currentDoc == mCtxDocument) {
       mCtxFrameNum = i;
       mCtxDomWindow = currentWindow;
-      nsCOMPtr<nsIDOMNSDocument> doc = do_QueryInterface(currentDoc);
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(currentDoc);
       if (doc)
-        doc->GetTitle(mCtxDocTitle);
+        mCtxDocTitle = doc->GetDocumentTitle();
       return NS_OK;
     }
   }
@@ -167,7 +167,11 @@ EmbedContextMenuInfo::GetFormControlType(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);
 	nsIFrame* frame = nsnull;
 #if defined(FIXED_BUG347731) || !defined(MOZ_ENABLE_LIBXUL)
+#ifdef MOZILLA_1_8_BRANCH
+    presShell->GetPrimaryFrameFor(tgContent, &frame);
+#else
     frame = presShell->GetPrimaryFrameFor(tgContent);
+#endif
     if (frame)
       mFormRect = frame->GetScreenRectExternal();
 #endif
@@ -182,7 +186,11 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
   nsresult rv = NS_ERROR_FAILURE;
   nsCOMPtr<nsIContent> targetContent = do_QueryInterface(originalTarget);
   mCtxFormType = 0;
+#ifdef MOZILLA_1_8_BRANCH
+  if (targetContent && targetContent->IsContentOfType(nsIContent::eHTML_FORM_CONTROL)) {
+#else
   if (targetContent && targetContent->IsNodeOfType(nsIContent::eHTML_FORM_CONTROL)) {
+#endif
     nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(targetContent));
     if (formControl) {
       mCtxFormType = formControl->GetType();
@@ -596,7 +604,12 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
   if (mEmbedCtxType & GTK_MOZ_EMBED_CTX_RICHEDIT)
     frame = presShell->GetRootFrame();
   else {
+#ifdef MOZILLA_1_8_BRANCH
+    frame = nsnull;
+    presShell->GetPrimaryFrameFor(tgContent, &frame);
+#else
     frame = presShell->GetPrimaryFrameFor(tgContent);
+#endif
   }
   if (frame) {
     mFormRect = frame->GetScreenRectExternal();

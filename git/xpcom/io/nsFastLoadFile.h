@@ -539,7 +539,7 @@ NS_NewFastLoadFileWriter(nsIObjectOutputStream* *aResult,
  */
 class nsFastLoadFileUpdater
     : public nsFastLoadFileWriter,
-      private nsIFastLoadFileIO
+             nsIFastLoadFileIO
 {
   public:
     nsFastLoadFileUpdater(nsIOutputStream* aOutputStream)

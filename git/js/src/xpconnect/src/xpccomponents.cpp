@@ -2961,7 +2961,7 @@ nsXPCComponents_Utils::ReportError()
 #include "nsNetUtil.h"
 const char kScriptSecurityManagerContractID[] = NS_SCRIPTSECURITYMANAGER_CONTRACTID;
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(PrincipalHolder, nsIScriptObjectPrincipal)
+NS_IMPL_ISUPPORTS1(PrincipalHolder, nsIScriptObjectPrincipal)
 
 nsIPrincipal *
 PrincipalHolder::GetPrincipal()
@@ -2969,7 +2969,7 @@ PrincipalHolder::GetPrincipal()
     return mHoldee;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SandboxDump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
@@ -2988,7 +2988,7 @@ SandboxDump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SandboxDebug(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
 #ifdef DEBUG
@@ -2998,7 +2998,7 @@ SandboxDebug(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 #endif
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SandboxFunForwarder(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                     jsval *rval)
 {
@@ -3015,7 +3015,7 @@ SandboxFunForwarder(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_FALSE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SandboxImport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval)
 {
@@ -3081,20 +3081,20 @@ SandboxImport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_SetReservedSlot(cx, newfunobj, 0, argv[0]);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 sandbox_enumerate(JSContext *cx, JSObject *obj)
 {
     return JS_EnumerateStandardClasses(cx, obj);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 sandbox_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 sandbox_finalize(JSContext *cx, JSObject *obj)
 {
     nsIScriptObjectPrincipal *sop =
@@ -3344,7 +3344,7 @@ public:
     NS_DECL_ISUPPORTS
 
 private:
-    static JSBool ContextHolderOperationCallback(JSContext *cx);
+    static JSBool JS_DLL_CALLBACK ContextHolderOperationCallback(JSContext *cx);
     
     XPCAutoJSContext mJSContext;
     JSContext* mOrigCx;
@@ -3372,7 +3372,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
     }
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 ContextHolder::ContextHolderOperationCallback(JSContext *cx)
 {
     ContextHolder* thisObject =
@@ -3465,8 +3465,13 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
     rv = xpc_EvalInSandbox(cx, sandbox, source, filename.get(), lineNo,
                            PR_FALSE, rval);
 
-    if (NS_SUCCEEDED(rv) && !JS_IsExceptionPending(cx))
-        cc->SetReturnValueWasSet(PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+        if (JS_IsExceptionPending(cx)) {
+            cc->SetExceptionWasThrown(PR_TRUE);
+        } else {
+            cc->SetReturnValueWasSet(PR_TRUE);
+        }
+    }
 
     return rv;
 #endif /* XPCONNECT_STANDALONE */

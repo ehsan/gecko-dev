@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
- *  Robert Strong <robert.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -141,8 +140,6 @@ void LaunchChild(int argc, char **argv);
 // declare it here to avoid including that entire header file.
 #if (__GNUC__ >= 4) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
 extern "C"  __attribute__((visibility("default"))) unsigned int BZ2_crc32Table[256];
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-extern "C" __global unsigned int BZ2_crc32Table[256];
 #else
 extern "C" unsigned int BZ2_crc32Table[256];
 #endif
@@ -1104,7 +1101,8 @@ LaunchWinPostProcess(const WCHAR *appExe)
     L"\0"
   };
 
-  WinLaunchChild(exefullpath, argc, argv, 0);
+  WinLaunchChild(exefullpath, argc, argv, 1);
+  free(argv);
 }
 #endif
 
@@ -1122,7 +1120,7 @@ LaunchCallbackApp(const NS_tchar *workingDir, int argc, NS_tchar **argv)
 #elif defined(XP_MACOSX)
   LaunchChild(argc, argv);
 #elif defined(XP_WIN)
-  WinLaunchChild(argv[0], argc, argv, 0);
+  WinLaunchChild(argv[0], argc, argv, -1);
 #else
 # warning "Need implementaton of LaunchCallbackApp"
 #endif
@@ -1187,120 +1185,32 @@ int NS_main(int argc, NS_tchar **argv)
   // necessary for the parent process to exit before its executable image may
   // be altered.
 
-  if (argc < 2) {
-    fprintf(stderr, "Usage: updater <dir-path> [parent-pid [working-dir callback args...]]\n");
+  if (argc < 3) {
+    fprintf(stderr, "Usage: updater <dir-path> <parent-pid> [working-dir callback args...]\n");
     return 1;
   }
 
-  if (argc > 2 ) {
-    int pid = NS_tatoi(argv[2]);
-    if (pid) {
+  int pid = NS_tatoi(argv[2]);
+  if (pid) {
 #ifdef XP_WIN
-      HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD) pid);
-      // May return NULL if the parent process has already gone away.
-      // Otherwise, wait for the parent process to exit before starting the
-      // update.
-      if (parent) {
-        DWORD result = WaitForSingleObject(parent, 5000);
-        CloseHandle(parent);
-        if (result != WAIT_OBJECT_0)
-          return 1;
-        // The process may be signaled before it releases the executable image.
-        // This is a terrible hack, but it'll have to do for now :-(
-        Sleep(50);
-      }
+    HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD) pid);
+    // May return NULL if the parent process has already gone away.
+    // Otherwise, wait for the parent process to exit before starting the
+    // update.
+    if (parent) {
+      DWORD result = WaitForSingleObject(parent, 5000);
+      CloseHandle(parent);
+      if (result != WAIT_OBJECT_0)
+        return 1;
+      // The process may be signaled before it releases the executable image.
+      // This is a terrible hack, but it'll have to do for now :-(
+      Sleep(50);
+    }
 #else
-      int status;
-      waitpid(pid, &status, 0);
+    int status;
+    waitpid(pid, &status, 0);
 #endif
-    }
   }
-
-#ifdef XP_WIN
-  // Launch a second instance of the updater with the runas verb on Windows
-  // when write access is denied to the installation directory.
-  HANDLE updateLockFileHandle;
-  NS_tchar elevatedLockFilePath[MAXPATHLEN];
-  if (argc > 4) {
-    NS_tchar updateLockFilePath[MAXPATHLEN];
-    NS_tsnprintf(updateLockFilePath, MAXPATHLEN,
-                 NS_T("%s.update_in_progress.lock"), argv[4]);
-
-    // The update_in_progress.lock file should only exist during an update. In
-    // case it exists attempt to remove it and exit if that fails to prevent
-    // simultaneous updates occurring.
-    if (!_waccess(updateLockFilePath, F_OK) &&
-        NS_tremove(updateLockFilePath) != 0) {
-      fprintf(stderr, "Update already in progress! Exiting\n");
-      return 1;
-    }
-
-    updateLockFileHandle = CreateFileW(updateLockFilePath,
-                                       GENERIC_READ | GENERIC_WRITE,
-                                       0,
-                                       NULL,
-                                       OPEN_ALWAYS,
-                                       FILE_FLAG_DELETE_ON_CLOSE,
-                                       NULL);
-
-    NS_tsnprintf(elevatedLockFilePath, MAXPATHLEN,
-                 NS_T("%s/update_elevated.lock"), argv[1]);
-
-    if (updateLockFileHandle == INVALID_HANDLE_VALUE) {
-      if (!_waccess(elevatedLockFilePath, F_OK) &&
-          NS_tremove(elevatedLockFilePath) != 0) {
-        fprintf(stderr, "Update already elevated! Exiting\n");
-        return 1;
-      }
-
-      HANDLE elevatedFileHandle;
-      elevatedFileHandle = CreateFileW(elevatedLockFilePath,
-                                       GENERIC_READ | GENERIC_WRITE,
-                                       0,
-                                       NULL,
-                                       OPEN_ALWAYS,
-                                       FILE_FLAG_DELETE_ON_CLOSE,
-                                       NULL);
-
-      if (elevatedFileHandle == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "Unable to create elevated lock file! Exiting\n");
-        return 1;
-      }
-
-      PRUnichar *cmdLine = MakeCommandLine(argc - 1, argv + 1);
-      if (!cmdLine) {
-        CloseHandle(elevatedFileHandle);
-        return 1;
-      }
-
-      SHELLEXECUTEINFO sinfo;
-      memset(&sinfo, 0, sizeof(SHELLEXECUTEINFO));
-      sinfo.cbSize       = sizeof(SHELLEXECUTEINFO);
-      sinfo.fMask        = SEE_MASK_FLAG_DDEWAIT |
-                           SEE_MASK_FLAG_NO_UI |
-                           SEE_MASK_NOCLOSEPROCESS;
-      sinfo.hwnd         = NULL;
-      sinfo.lpFile       = argv[0];
-      sinfo.lpParameters = cmdLine;
-      sinfo.lpVerb       = L"runas";
-      sinfo.nShow        = SW_SHOWNORMAL;
-
-      BOOL result = ShellExecuteEx(&sinfo);
-      free(cmdLine);
-
-      if (result) {
-        WaitForSingleObject(sinfo.hProcess, INFINITE);
-        CloseHandle(sinfo.hProcess);
-      }
-
-      if (argc > 4)
-        LaunchCallbackApp(argv[3], argc - 4, argv + 4);
-
-      CloseHandle(elevatedFileHandle);
-      return 0;
-    }
-  }
-#endif
 
   gSourcePath = argv[1];
 
@@ -1319,15 +1229,6 @@ int NS_main(int argc, NS_tchar **argv)
 #ifdef XP_WIN
   if (gSucceeded && argc > 4)
     LaunchWinPostProcess(argv[4]);
-
-  if (argc > 4) {
-    CloseHandle(updateLockFileHandle);
-    // If elevated return early and let the process that launched this process
-    // launch the callback application.
-    if (!_waccess(elevatedLockFilePath, F_OK) &&
-        NS_tremove(elevatedLockFilePath) != 0)
-      return 0;
-  }
 #endif
 
   // The callback to execute is given as the last N arguments of our command

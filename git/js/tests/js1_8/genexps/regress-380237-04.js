@@ -78,7 +78,7 @@ needParens("switch (x) { case xx: }");
 needParens("return xx;");
 needParens("yield xx;");
 needParens("for (xx;;) { }");
-needParens("for (;xx;) { }", "function anonymous() {\n    for (;;) {\n    }\n}");
+needParens("for (;xx;) { }");
 needParens("for (;;xx) { }");
 needParens("for (i in xx) { }");
 needParens("throw xx");
@@ -211,7 +211,7 @@ function doesNotNeedParens(pat)
   //    print("Skipping the over-parenthesization test, because I don't know how to test for over-parenthesization when the pattern doesn't have parens snugly around it.")
 }
 
-function needParens(pat, exp)
+function needParens(pat)
 {
   print("Testing " + pat);
 
@@ -242,8 +242,8 @@ function needParens(pat, exp)
   }
   reportCompare(expect, actual, summary + ': needParens ' + ft);
 
-  roundTripTest(f, exp);
-  overParenTest(f, exp);
+  roundTripTest(f);
+  overParenTest(f);
 }
 
 function rejectLHS(pat)
@@ -268,11 +268,9 @@ function rejectLHS(pat)
 }
 
 
-function overParenTest(f, exp)
+function overParenTest(f)
 {
   var uf = "" + f;
-  if (uf == exp)
-    return;
 
   reportCompare(false, uf.indexOf(genexpParened) == -1, summary + 
                 ': overParenTest genexp snugly in parentheses: ' + uf);
@@ -303,7 +301,7 @@ function sanityCheck(pat)
   reportCompare(expect, actual, summary + ': sanityCheck ' + pat);
 }
 
-function roundTripTest(f, exp)
+function roundTripTest(f)
 {
   // Decompile
   var uf = "" + f;
@@ -323,7 +321,7 @@ function roundTripTest(f, exp)
   }
 
   // Decompile again and make sure the decompilations match exactly.
-  expect = exp || uf;
+  expect = uf;
   actual = "" + euf;
   reportCompare(expect, actual, summary + ': roundTripTest no round-trip change');
 }

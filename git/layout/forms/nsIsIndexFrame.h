@@ -117,7 +117,7 @@ protected:
   nsCOMPtr<nsIContent> mPostHr;
 
 private:
-  nsresult UpdatePromptLabel(PRBool aNotify);
+  NS_IMETHOD UpdatePromptLabel();
   nsresult GetInputFrame(nsIFormControlFrame** oFrame);
   void GetInputValue(nsString& oString);
   void SetInputValue(const nsString& aString);

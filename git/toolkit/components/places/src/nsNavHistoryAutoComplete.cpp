@@ -62,7 +62,6 @@
 #include "nsNavHistory.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "nsThreadUtils.h"
 
 #include "mozIStorageService.h"
 #include "mozIStorageConnection.h"
@@ -225,15 +224,6 @@ FindAnywhere(const nsAString &aToken, const nsAString &aTarget)
   return CaseInsensitiveFindInReadable(aToken, aTarget);
 }
 
-/**
- * A local wrapper to case insensitive StringBeginsWith
- */
-inline PRBool
-FindBeginning(const nsAString &aToken, const nsAString &aTarget)
-{
-  return StringBeginsWith(aTarget, aToken, nsCaseInsensitiveStringComparator());
-}
-
 // nsNavHistory::InitAutoComplete
 nsresult
 nsNavHistory::InitAutoComplete()
@@ -262,13 +252,15 @@ nsNavHistory::InitAutoComplete()
 nsresult
 nsNavHistory::CreateAutoCompleteQueries()
 {
-  // Define common pieces of various queries
-  nsCString sqlHead = NS_LITERAL_CSTRING(
-    "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
-      "h.visit_count "
+  nsCString sql = NS_LITERAL_CSTRING(
+    "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(" "
     "FROM moz_places h "
     "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
     "WHERE h.frecency <> 0 ");
+
+  if (mAutoCompleteOnlyTyped)
+    sql += NS_LITERAL_CSTRING("AND h.typed = 1 ");
+
   // NOTE:
   // after migration or clear all private data, we might end up with
   // a lot of places with frecency < 0 (until idle)
@@ -276,32 +268,14 @@ nsNavHistory::CreateAutoCompleteQueries()
   // XXX bug 412736
   // in the case of a frecency tie, break it with h.typed and h.visit_count
   // which is better than nothing.  but this is slow, so not doing it yet.
-  nsCString sqlTail = NS_LITERAL_CSTRING(
+  sql += NS_LITERAL_CSTRING(
     "ORDER BY h.frecency DESC LIMIT ?2 OFFSET ?3");
-
-  nsresult rv = mDBConn->CreateStatement(sqlHead + (mAutoCompleteOnlyTyped ?
-      NS_LITERAL_CSTRING("AND h.typed = 1 ") : EmptyCString()) + sqlTail,
+  nsresult rv = mDBConn->CreateStatement(sql, 
     getter_AddRefs(mDBAutoCompleteQuery));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBConn->CreateStatement(sqlHead +
-      NS_LITERAL_CSTRING("AND h.visit_count > 0 ") + sqlTail,
-    getter_AddRefs(mDBAutoCompleteHistoryQuery));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBConn->CreateStatement(sqlHead +
-      NS_LITERAL_CSTRING("AND bookmark IS NOT NULL ") + sqlTail,
-    getter_AddRefs(mDBAutoCompleteStarQuery));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBConn->CreateStatement(sqlHead +
-      NS_LITERAL_CSTRING("AND tags IS NOT NULL ") + sqlTail,
-    getter_AddRefs(mDBAutoCompleteTagsQuery));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString sql = NS_LITERAL_CSTRING(
+  sql = NS_LITERAL_CSTRING(
     "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
-      "h.visit_count, "
       "ROUND(MAX(((i.input = ?2) + (SUBSTR(i.input, 1, LENGTH(?2)) = ?2)) * "
                 "i.use_count), 1) rank "
     "FROM moz_inputhistory i "
@@ -310,24 +284,6 @@ nsNavHistory::CreateAutoCompleteQueries()
     "GROUP BY i.place_id HAVING rank > 0 "
     "ORDER BY rank DESC, h.frecency DESC");
   rv = mDBConn->CreateStatement(sql, getter_AddRefs(mDBAdaptiveQuery));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  sql = NS_LITERAL_CSTRING(
-    "SELECT REPLACE(s.url, '%s', ?2) search_url, h.title, IFNULL(f.url, "
-      "(SELECT f.url "
-       "FROM moz_places r "
-       "JOIN moz_favicons f ON f.id = r.favicon_id "
-       "WHERE r.rev_host = s.rev_host "
-       "ORDER BY r.frecency DESC LIMIT 1)), "
-      "b.parent, b.title, NULL, h.visit_count "
-    "FROM moz_keywords k "
-    "JOIN moz_bookmarks b ON b.keyword_id = k.id "
-    "JOIN moz_places s ON s.id = b.fk "
-    "LEFT OUTER JOIN moz_places h ON h.url = search_url "
-    "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
-    "WHERE LOWER(k.keyword) = LOWER(?1) "
-    "ORDER BY h.frecency DESC");
-  rv = mDBConn->CreateStatement(sql, getter_AddRefs(mDBKeywordQuery));
   NS_ENSURE_SUCCESS(rv, rv);
 
   sql = NS_LITERAL_CSTRING(
@@ -384,12 +340,6 @@ nsNavHistory::PerformAutoComplete()
   nsresult rv;
   // Only do some extra searches on the first chunk
   if (!mCurrentChunkOffset) {
-    // Only show keywords if there's a search
-    if (mCurrentSearchTokens.Count()) {
-      rv = AutoCompleteKeywordSearch();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     // Get adaptive results first
     rv = AutoCompleteAdaptiveSearch();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -485,7 +435,6 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   // not reusing results, see bug #412730 for details
 
   NS_ENSURE_ARG_POINTER(aListener);
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
   // Lazily init nsITextToSubURI service
   if (!mTextURIService)
@@ -495,15 +444,10 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   PRUint32 prevMatchCount = mCurrentResultURLs.Count();
   nsAutoString prevSearchString(mCurrentSearchString);
 
-  // Keep a copy of the original search for case-sensitive usage
-  mOrigSearchString = aSearchString;
-  // Remove whitespace, see bug #392141 for details
-  mOrigSearchString.Trim(" \r\n\t\b");
   // Copy the input search string for case-insensitive search
-  ToLowerCase(mOrigSearchString, mCurrentSearchString);
-
-  // Fix up the search the same way we fix up the entry url
-  mCurrentSearchString = FixupURIText(mCurrentSearchString);
+  ToLowerCase(aSearchString, mCurrentSearchString);
+  // remove whitespace, see bug #392141 for details
+  mCurrentSearchString.Trim(" \r\n\t\b");
 
   mCurrentListener = aListener;
 
@@ -540,8 +484,7 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
       // search left off, but first we want to create an optimized query that
       // only searches through the urls that were previously found
       nsCString sql = NS_LITERAL_CSTRING(
-        "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
-          "h.visit_count "
+        "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(" "
         "FROM moz_places h "
         "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
         "WHERE h.url IN (");
@@ -591,9 +534,6 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   // Make the array of search tokens from the search string
   GenerateSearchTokens();
 
-  // Figure out if we need to do special searches
-  ProcessTokensForSpecialSearch();
-
   // find all the items that have the "livemark/feedURI" annotation
   // and save off their item ids and URIs. when doing autocomplete, 
   // if a result's parent item id matches a saved item id, the result
@@ -629,8 +569,6 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
 NS_IMETHODIMP
 nsNavHistory::StopSearch()
 {
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-
   if (mAutoCompleteTimer)
     mAutoCompleteTimer->Cancel();
 
@@ -670,75 +608,6 @@ nsNavHistory::AddSearchToken(nsAutoString &aToken)
     mCurrentSearchTokens.AppendString(aToken);
 }
 
-void
-nsNavHistory::ProcessTokensForSpecialSearch()
-{
-  // If any of the special searches are empty, automatically use it
-  mRestrictHistory = mAutoCompleteRestrictHistory.IsEmpty();
-  mRestrictBookmark = mAutoCompleteRestrictBookmark.IsEmpty();
-  mRestrictTag = mAutoCompleteRestrictTag.IsEmpty();
-  mMatchTitle = mAutoCompleteMatchTitle.IsEmpty();
-  mMatchUrl = mAutoCompleteMatchUrl.IsEmpty();
-
-  // Determine which special searches to apply
-  for (PRInt32 i = mCurrentSearchTokens.Count(); --i >= 0; ) {
-    PRBool needToRemove = PR_TRUE;
-    const nsString *token = mCurrentSearchTokens.StringAt(i);
-
-    if (token->Equals(mAutoCompleteRestrictHistory))
-      mRestrictHistory = PR_TRUE;
-    else if (token->Equals(mAutoCompleteRestrictBookmark))
-      mRestrictBookmark = PR_TRUE;
-    else if (token->Equals(mAutoCompleteRestrictTag))
-      mRestrictTag = PR_TRUE;
-    else if (token->Equals(mAutoCompleteMatchTitle))
-      mMatchTitle = PR_TRUE;
-    else if (token->Equals(mAutoCompleteMatchUrl))
-      mMatchUrl = PR_TRUE;
-    else
-      needToRemove = PR_FALSE;
-
-    // Remove the token if it's special search token
-    if (needToRemove)
-      (void)mCurrentSearchTokens.RemoveStringAt(i);
-  }
-
-  // We can use optimized queries for restricts, so check for the most
-  // restrictive query first
-  mDBCurrentQuery = mRestrictTag ? mDBAutoCompleteTagsQuery :
-    mRestrictBookmark ? mDBAutoCompleteStarQuery :
-    mRestrictHistory ? mDBAutoCompleteHistoryQuery :
-    mDBAutoCompleteQuery;
-}
-
-nsresult
-nsNavHistory::AutoCompleteKeywordSearch()
-{
-  mozStorageStatementScoper scope(mDBKeywordQuery);
-
-  // Get the keyword parameters to replace the %s in the keyword search
-  nsCAutoString params;
-  PRInt32 paramPos = mOrigSearchString.FindChar(' ') + 1;
-  // Make sure to escape them as if they were the query in a url, so " " become
-  // "+"; "+" become "%2B"; non-ascii escaped
-  NS_Escape(NS_ConvertUTF16toUTF8(Substring(mOrigSearchString, paramPos)),
-    params, url_XPAlphas);
-
-  // The first search term might be a keyword
-  const nsAString &keyword = Substring(mOrigSearchString, 0,
-    paramPos ? paramPos - 1 : mOrigSearchString.Length());
-  nsresult rv = mDBKeywordQuery->BindStringParameter(0, keyword);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBKeywordQuery->BindUTF8StringParameter(1, params);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = AutoCompleteProcessSearch(mDBKeywordQuery, QUERY_KEYWORD);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 nsresult
 nsNavHistory::AutoCompleteAdaptiveSearch()
 {
@@ -750,7 +619,7 @@ nsNavHistory::AutoCompleteAdaptiveSearch()
   rv = mDBAdaptiveQuery->BindStringParameter(1, mCurrentSearchString);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = AutoCompleteProcessSearch(mDBAdaptiveQuery, QUERY_FILTERED);
+  rv = AutoCompleteProcessSearch(mDBAdaptiveQuery, QUERY_ADAPTIVE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -762,7 +631,7 @@ nsNavHistory::AutoCompletePreviousSearch()
   nsresult rv = mDBPreviousQuery->BindInt32Parameter(0, GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = AutoCompleteProcessSearch(mDBPreviousQuery, QUERY_FILTERED);
+  rv = AutoCompleteProcessSearch(mDBPreviousQuery, QUERY_FULL);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Don't use this query more than once
@@ -783,18 +652,18 @@ nsNavHistory::AutoCompletePreviousSearch()
 nsresult
 nsNavHistory::AutoCompleteFullHistorySearch(PRBool* aHasMoreResults)
 {
-  mozStorageStatementScoper scope(mDBCurrentQuery);
+  mozStorageStatementScoper scope(mDBAutoCompleteQuery);
 
-  nsresult rv = mDBCurrentQuery->BindInt32Parameter(0, GetTagsFolder());
+  nsresult rv = mDBAutoCompleteQuery->BindInt32Parameter(0, GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBCurrentQuery->BindInt32Parameter(1, mAutoCompleteSearchChunkSize);
+  rv = mDBAutoCompleteQuery->BindInt32Parameter(1, mAutoCompleteSearchChunkSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBCurrentQuery->BindInt32Parameter(2, mCurrentChunkOffset);
+  rv = mDBAutoCompleteQuery->BindInt32Parameter(2, mCurrentChunkOffset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = AutoCompleteProcessSearch(mDBCurrentQuery, QUERY_FILTERED, aHasMoreResults);
+  rv = AutoCompleteProcessSearch(mDBAutoCompleteQuery, QUERY_FULL, aHasMoreResults);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -818,20 +687,8 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
     !StartsWithJS(mCurrentSearchString);
 
   // Determine what type of search to try matching tokens against targets
-  PRBool (*tokenMatchesTarget)(const nsAString &, const nsAString &);
-  switch (mCurrentMatchType) {
-    case MATCH_ANYWHERE:
-      tokenMatchesTarget = FindAnywhere;
-      break;
-    case MATCH_BEGINNING:
-      tokenMatchesTarget = FindBeginning;
-      break;
-    case MATCH_BOUNDARY_ANYWHERE:
-    case MATCH_BOUNDARY:
-    default:
-      tokenMatchesTarget = FindOnBoundary;
-      break;
-  }
+  PRBool (*tokenMatchesTarget)(const nsAString &, const nsAString &) =
+    mCurrentMatchType != MATCH_ANYWHERE ? FindOnBoundary : FindAnywhere;
 
   PRBool hasMore = PR_FALSE;
   // Determine the result of the search
@@ -870,9 +727,6 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
       nsAutoString entryTags;
       rv = aQuery->GetString(kAutoCompleteIndex_Tags, entryTags);
       NS_ENSURE_SUCCESS(rv, rv);
-      PRInt32 visitCount = 0;
-      rv = aQuery->GetInt32(kAutoCompleteIndex_VisitCount, &visitCount);
-      NS_ENSURE_SUCCESS(rv, rv);
 
       // Always prefer the bookmark title unless it's empty
       nsAutoString title =
@@ -880,35 +734,17 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
       nsString style;
       switch (aType) {
-        case QUERY_KEYWORD: {
-          // If we don't have a title, then we must have a keyword, so let the
-          // UI know it's a keyword; otherwise, we found an exact page match,
-          // so just show the page like a regular result
-          if (entryTitle.IsEmpty())
-            style = NS_LITERAL_STRING("keyword");
-          else
-            title = entryTitle;
-
-          break;
-        }
-        case QUERY_FILTERED: {
+        case QUERY_FULL: {
           // If we get any results, there's potentially another chunk to proces
           if (aHasMoreResults)
             *aHasMoreResults = PR_TRUE;
-
-          // Keep track of if we've matched all the filter requirements such as
-          // only history items, only bookmarks, only tags. If a given restrict
-          // is active, make sure a corresponding condition is *not* true. If
-          // any are violated, matchAll will be false.
-          PRBool matchAll = !((mRestrictHistory && visitCount == 0) ||
-            (mRestrictBookmark && !parentId) ||
-            (mRestrictTag && entryTags.IsEmpty()));
 
           // Unescape the url to search for unescaped terms
           nsString entryURL = FixupURIText(escapedEntryURL);
 
           // Determine if every token matches either the bookmark title, tags,
           // page title, or page url
+          PRBool matchAll = PR_TRUE;
           for (PRInt32 i = 0; i < mCurrentSearchTokens.Count() && matchAll; i++) {
             const nsString *token = mCurrentSearchTokens.StringAt(i);
 
@@ -916,20 +752,11 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
             PRBool matchTags = (*tokenMatchesTarget)(*token, entryTags);
             // Check if the title matches the search term
             PRBool matchTitle = (*tokenMatchesTarget)(*token, title);
-
-            // Make sure we match something in the title or tags if we have to
-            matchAll = matchTags || matchTitle;
-            if (mMatchTitle && !matchAll)
-              break;
-
             // Check if the url matches the search term
             PRBool matchUrl = (*tokenMatchesTarget)(*token, entryURL);
-            // If we don't match the url when we have to, reset matchAll to
-            // false; otherwise keep track that we did match the current search
-            if (mMatchUrl && !matchUrl)
-              matchAll = PR_FALSE;
-            else
-              matchAll |= matchUrl;
+
+            // True if any of them match; false makes us quit the loop
+            matchAll = matchTags || matchTitle || matchUrl;
           }
 
           // Skip if we don't match all terms in the bookmark, tag, title or url
@@ -949,15 +776,10 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
       // Tags have a special style to show a tag icon; otherwise, style the
       // bookmarks that aren't feed items and feed URIs as bookmark
-      if (style.IsEmpty()) {
-        if (showTags)
-          style = NS_LITERAL_STRING("tag");
-        else if ((parentId && !mLivemarkFeedItemIds.Get(parentId, &dummy)) ||
-                 mLivemarkFeedURIs.Get(escapedEntryURL, &dummy))
-          style = NS_LITERAL_STRING("bookmark");
-        else
-          style = NS_LITERAL_STRING("favicon");
-      }
+      style = showTags ? NS_LITERAL_STRING("tag") : (parentId &&
+        !mLivemarkFeedItemIds.Get(parentId, &dummy)) ||
+        mLivemarkFeedURIs.Get(escapedEntryURL, &dummy) ?
+        NS_LITERAL_STRING("bookmark") : NS_LITERAL_STRING("favicon");
 
       // Get the URI for the favicon
       nsCAutoString faviconSpec;
@@ -991,8 +813,6 @@ NS_IMETHODIMP
 nsNavHistory::OnValueRemoved(nsIAutoCompleteSimpleResult* aResult,
                              const nsAString& aValue, PRBool aRemoveFromDb)
 {
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-
   if (!aRemoveFromDb)
     return NS_OK;
 
@@ -1036,15 +856,6 @@ nsNavHistory::FixupURIText(const nsAString &aURIText)
 {
   // Unescaping utilities expect UTF8 strings
   NS_ConvertUTF16toUTF8 escaped(aURIText);
-
-  // Strip off some prefixes so we don't have to match the exact protocol for
-  // sites. E.g., http://mozilla.org/ can match other mozilla.org pages.
-  if (StringBeginsWith(escaped, NS_LITERAL_CSTRING("https://")))
-    escaped.Cut(0, 8);
-  else if (StringBeginsWith(escaped, NS_LITERAL_CSTRING("http://")))
-    escaped.Cut(0, 7);
-  else if (StringBeginsWith(escaped, NS_LITERAL_CSTRING("ftp://")))
-    escaped.Cut(0, 6);
 
   nsString fixedUp;
   // Use the service if we have it to avoid invalid UTF8 strings

@@ -29,7 +29,6 @@
 #   Pierre Chanial <chanial@noos.fr>
 #   Dean Tessman <dean_tessman@hotmail.com>
 #   Johnathan Nightingale <johnath@mozilla.com>
-#   Dão Gottwald <dao@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,7 +61,6 @@
 
 <window id="main-window"
         xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-        xmlns:svg="http://www.w3.org/2000/svg"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
         contenttitlesetting="true"
@@ -193,7 +191,7 @@
     <!-- Popup for site identity information -->
     <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true"
            onpopupshown="document.getElementById('identity-popup-more-info-button').focus();"
-           onpopuphidden="focusAndSelectUrlBar();" norestorefocus="true" level="top"
+           onpopuphidden="focusAndSelectUrlBar();" norestorefocus="true"
            chromedir="&locale.dir;">
       <hbox id="identity-popup-container" align="top">
         <image id="identity-popup-icon"/>
@@ -219,8 +217,8 @@
             <spacer flex="1"/>
             <button id="identity-popup-more-info-button"
                     label="&identity.moreInfoLinkText;"
-                    onblur="gIdentityHandler.hideIdentityPopup();"
-                    oncommand="gIdentityHandler.handleMoreInfoClick(event);"/>
+                    onblur="getIdentityHandler().hideIdentityPopup();"
+                    oncommand="getIdentityHandler().handleMoreInfoClick(event);"/>
           </hbox>
         </vbox>
       </hbox>
@@ -229,29 +227,6 @@
     <tooltip id="urlTooltip">
       <label crop="center" flex="1"/>
     </tooltip>
-
-    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" noautofocus="true" level="top">
-      <label id="ctrlTab-label" flex="1"/>
-      <svg:svg id="ctrlTab-svgRoot">
-        <svg:defs>
-          <svg:linearGradient id="ctrlTab-fadeGradient" x1="1" y1="1" x2="1" y2="0">
-            <svg:stop id="ctrlTab-fadeGradientBottom" offset="0"/>
-            <svg:stop id="ctrlTab-fadeGradientTop" offset="1"/>
-          </svg:linearGradient>
-          <svg:filter id="ctrlTab-iconShadow">
-            <svg:feOffset result="shadow" in="SourceAlpha" dx="2" dy="-1"/>
-            <svg:feColorMatrix result="transparent-shadow" in="shadow"
-                               values="1 0 0 0   0
-                                       0 1 0 0   0
-                                       0 0 1 0   0
-                                       0 0 0 0.5 0"/>
-            <svg:feBlend in="SourceGraphic" in2="transparent-shadow"/>
-          </svg:filter>
-        </svg:defs>
-        <svg:g id="ctrlTab-container"/>
-        <svg:rect id="ctrlTab-groundFade" fill="url(#ctrlTab-fadeGradient)" width="100%"/>
-      </svg:svg>
-    </panel>
   </popupset>
 
   <!-- bookmarks toolbar tooltip -->
@@ -259,7 +234,7 @@
            onpopupshowing="return BookmarksEventHandler.fillInBTTooltip(document.tooltipNode)">
     <vbox id="btTooltipTextBox" flex="1">
       <label id="btTitleText" class="tooltip-label" />
-      <label id="btUrlText" crop="center" class="tooltip-label" />
+      <label id="btUrlText" class="tooltip-label" />
     </vbox>
   </tooltip>
 
@@ -284,24 +259,28 @@
     <toolbarpalette id="BrowserToolbarPalette">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
-                   context="backForwardMenu">
+                   context="backForwardMenu"
+                   onbroadcast="document.getElementById('back-forward-dropmarker').disabled =
+                                  document.getElementById('Browser:Back').hasAttribute('disabled') &amp;&amp;
+                                  document.getElementById('Browser:Forward').hasAttribute('disabled');">
         <toolbarbutton id="back-button" class="toolbarbutton-1"
                        chromedir="&locale.dir;"
                        label="&backCmd.label;"
-                       command="Browser:BackOrBackDuplicate"
+                       oncommand="BrowserBack(event)"
                        onclick="checkForMiddleClick(this, event);"
-                       tooltiptext="&backButton.tooltip;"/>
+                       tooltiptext="&backButton.tooltip;">
+          <observes element="Browser:Back" attribute="disabled"/>
+        </toolbarbutton>
         <toolbarbutton id="forward-button" class="toolbarbutton-1"
                        chromedir="&locale.dir;"
                        label="&forwardCmd.label;"
-                       command="Browser:ForwardOrForwardDuplicate"
+                       oncommand="BrowserForward(event)"
                        onclick="checkForMiddleClick(this, event);"
-                       tooltiptext="&forwardButton.tooltip;"/>
+                       tooltiptext="&forwardButton.tooltip;">
+          <observes element="Browser:Forward" attribute="disabled"/>
+        </toolbarbutton>
         <toolbarbutton id="back-forward-dropmarker" type="menu" chromedir="&locale.dir;"
-                       disabled="true" tooltiptext="&backForwardMenu.tooltip;"
-                       onbroadcast="if (this.disabled) this.disabled =
-                                      document.getElementById('Browser:Back').hasAttribute('disabled') &amp;&amp;
-                                      document.getElementById('Browser:Forward').hasAttribute('disabled');">
+                       disabled="true" tooltiptext="&backForwardMenu.tooltip;">
           <!-- bug 415444: event.stopPropagation is here for the cloned version of
                this menupopup -->
           <menupopup context=""
@@ -310,15 +289,12 @@
                      onpopupshowing="return FillHistoryMenu(event.target);"
                      oncommand="gotoHistoryIndex(event); event.stopPropagation();"
                      onclick="checkForMiddleClick(this, event);"/>
-          <observes element="Browser:Back" attribute="disabled"/>
-          <observes element="Browser:Forward" attribute="disabled"/>
         </toolbarbutton>
       </toolbaritem>
 
       <toolbarbutton id="reload-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&reloadCmd.label;"
-                     command="Browser:ReloadOrDuplicate"
-                     onclick="checkForMiddleClick(this, event);"
+                     command="Browser:Reload"
                      tooltiptext="&reloadButton.tooltip;"/>
 
       <toolbarbutton id="stop-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
@@ -348,9 +324,9 @@
                  enablehistory="true"
                  maxrows="6"
                  newlines="stripsurroundingwhitespace"
-                 oninput="gBrowser.userTypedValue = this.value;"
-                 ontextentered="this.handleCommand(param);"
-                 ontextreverted="return this.handleRevert();"
+                 oninput="URLBarOnInput(event);"
+                 ontextentered="return handleURLBarCommand(param);"
+                 ontextreverted="return handleURLBarRevert();"
                  pageproxystate="invalid"
                  onsearchbegin="LocationBarHelpers._searchBegin();"
                  onsearchcomplete="LocationBarHelpers._searchComplete();"
@@ -362,8 +338,8 @@
                has focus, otherwise pressing F6 focuses it instead of the location bar -->
           <box id="identity-box" role="button"
                chromedir="&locale.dir;"
-               onclick="gIdentityHandler.handleIdentityButtonEvent(event);"
-               onkeypress="gIdentityHandler.handleIdentityButtonEvent(event);">
+               onclick="getIdentityHandler().handleIdentityButtonEvent(event);"
+               onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
             <hbox align="center">
               <stack id="page-proxy-stack"
                      onclick="PageProxyClickHandler(event);">
@@ -373,7 +349,7 @@
                        ondraggesture="PageProxyDragGesture(event);"
                        onerror="this.removeAttribute('src');"/>
               </stack>
-              <label id="identity-icon-label" crop="center" flex="1"/>
+              <label id="identity-icon-label"/>
             </hbox>
           </box>
           <hbox id="urlbar-icons">
@@ -388,14 +364,19 @@
                          oncommand="return FeedHandler.subscribeToFeed(null, event);"
                          onclick="checkForMiddleClick(this, event);"/>
             </button>
-            <image id="star-button"
+#ifdef MOZ_SAFE_BROWSING
+            <image id="safebrowsing-urlbar-icon" tooltiptext="&safeb.urlbaricon.tooltip;"
+                   level="safe"
                    class="urlbar-icon"
-                   onclick="PlacesStarButton.onClick(event);"/>
-            <image id="go-button"
-                   chromedir="&locale.dir;"
-                   class="urlbar-icon"
-                   tooltiptext="&goEndCap.tooltip;"
-                   onclick="gURLBar.handleCommand(event);"/>
+                   onclick="goDoCommand('safebrowsing-show-warning')"/>
+#endif
+          <image id="star-button"
+                 class="urlbar-icon"
+                 onclick="PlacesStarButton.onClick(event);"/>
+          <image id="go-button" chromedir="&locale.dir;"
+                 class="urlbar-icon"
+                 tooltiptext="&goEndCap.tooltip;"
+                 onclick="handleURLBarCommand(event);"/>
           </hbox>
         </textbox>
       </toolbaritem>
@@ -416,10 +397,8 @@
       </toolbaritem>
 
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;">
-         <hbox id="bookmarksBarContent" flex="1"
-               type="places"
-               place="place:folder=TOOLBAR"
-               context="placesContext"
+         <hbox id="bookmarksBarContent" flex="1" type="places"
+               context="placesContext" asyncinit="true"
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
@@ -445,6 +424,14 @@
                        ondragover="nsDragAndDrop.dragOver(event, bookmarksButtonObserver);"
                        ondragdrop="nsDragAndDrop.drop(event, bookmarksButtonObserver);"
                        ondragexit="nsDragAndDrop.dragExit(event, bookmarksButtonObserver);"/>
+
+        <toolbarbutton id="new-tab-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
+                       label="&tabCmd.label;"
+                       command="cmd_newNavigatorTab"
+                       tooltiptext="&newTabButton.tooltip;"
+                       ondragover="nsDragAndDrop.dragOver(event, newTabButtonObserver);"
+                       ondragdrop="nsDragAndDrop.drop(event, newTabButtonObserver);"
+                       ondragexit="nsDragAndDrop.dragExit(event, newTabButtonObserver);"/>
 
         <toolbarbutton id="new-window-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                        label="&newNavigatorCmd.label;"
@@ -553,7 +540,6 @@
                       tooltiptext="&downloadMonitor2.tooltip;" hidden="true"
                       command="Tools:Downloads"/>
       <statusbarpanel id="security-button" class="statusbarpanel-iconic-text"
-                      hidden="true"
                       ondblclick="if (event.button == 0) displaySecurityInfo();"/>
       <statusbarpanel id="page-report-button" type="menu"
                       class="statusbarpanel-menu-iconic"

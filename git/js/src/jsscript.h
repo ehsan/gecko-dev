@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79 ft=cpp:
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -49,8 +49,8 @@
 JS_BEGIN_EXTERN_C
 
 /*
- * Type of try note associated with each catch or finally block, and also with
- * for-in loops.
+ * Type of try note associated with each catch or finally block or with for-in
+ * loop.
  */
 typedef enum JSTryNoteKind {
     JSTN_CATCH,
@@ -72,22 +72,13 @@ struct JSTryNote {
 
 typedef struct JSTryNoteArray {
     JSTryNote       *vector;    /* array of indexed try notes */
-    uint32          length;     /* count of indexed try notes */
+    uint32          length;     /* count of indexded try notes */
 } JSTryNoteArray;
 
 typedef struct JSObjectArray {
     JSObject        **vector;   /* array of indexed objects */
-    uint32          length;     /* count of indexed objects */
+    uint32          length;     /* count of indexded objects */
 } JSObjectArray;
-
-typedef struct JSUpvarArray {
-    uint32          *vector;    /* array of indexed upvar cookies */
-    uint32          length;     /* count of indexed upvar cookies */
-} JSUpvarArray;
-
-#define MAKE_UPVAR_COOKIE(skip,slot)    ((skip) << 16 | (slot))
-#define UPVAR_FRAME_SKIP(cookie)        ((uint32)(cookie) >> 16)
-#define UPVAR_FRAME_SLOT(cookie)        ((uint16)(cookie))
 
 #define JS_OBJECT_ARRAY_SIZE(length)                                          \
     (offsetof(JSObjectArray, vector) + sizeof(JSObject *) * (length))
@@ -100,42 +91,25 @@ struct JSScript {
     jsbytecode      *code;      /* bytecodes and their immediate operands */
     uint32          length;     /* length of code vector */
     uint16          version;    /* JS version under which script was compiled */
-    uint16          nfixed;     /* number of slots besides stack operands in
-                                   slot array */
+    uint16          ngvars;     /* declared global var/const/function count */
     uint8           objectsOffset;  /* offset to the array of nested function,
                                        block, scope, xml and one-time regexps
                                        objects or 0 if none */
-    uint8           upvarsOffset;   /* offset of the array of display ("up")
-                                       closure vars or 0 if none */
     uint8           regexpsOffset;  /* offset to the array of to-be-cloned
                                        regexps or 0 if none. */
     uint8           trynotesOffset; /* offset to the array of try notes or
                                        0 if none */
-    uint8           flags;      /* see below */
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */
     const char      *filename;  /* source filename or null */
-    uint32          lineno;     /* base line number of script */
-    uint16          nslots;     /* vars plus maximum stack depth */
-    uint16          staticDepth;/* static depth for display maintenance */
+    uintN           lineno;     /* base line number of script */
+    uintN           depth;      /* maximum stack depth in slots */
     JSPrincipals    *principals;/* principals for this script */
-    union {
-        JSObject    *object;    /* optional Script-class object wrapper */
-        JSScript    *nextToGC;  /* next to GC in rt->scriptsToGC list */
-    } u;
+    JSObject        *object;    /* optional Script-class object wrapper */
 #ifdef CHECK_SCRIPT_OWNER
     JSThread        *owner;     /* for thread-safe life-cycle assertions */
 #endif
 };
-
-#define JSSF_NO_SCRIPT_RVAL     0x01    /* no need for result value of last
-                                           expression statement */
-
-static JS_INLINE uintN
-StackDepth(JSScript *script)
-{
-    return script->nslots - script->nfixed;
-}
 
 /* No need to store script->notes now that it is allocated right after code. */
 #define SCRIPT_NOTES(script)    ((jssrcnote*)((script)->code+(script)->length))
@@ -143,10 +117,6 @@ StackDepth(JSScript *script)
 #define JS_SCRIPT_OBJECTS(script)                                             \
     (JS_ASSERT((script)->objectsOffset != 0),                                 \
      (JSObjectArray *)((uint8 *)(script) + (script)->objectsOffset))
-
-#define JS_SCRIPT_UPVARS(script)                                              \
-    (JS_ASSERT((script)->upvarsOffset != 0),                                  \
-     (JSUpvarArray *)((uint8 *)(script) + (script)->upvarsOffset))
 
 #define JS_SCRIPT_REGEXPS(script)                                             \
     (JS_ASSERT((script)->regexpsOffset != 0),                                 \
@@ -257,8 +227,7 @@ js_SweepScriptFilenames(JSRuntime *rt);
  */
 extern JSScript *
 js_NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
-             uint32 nobjects, uint32 nupvars, uint32 nregexps,
-             uint32 ntrynotes);
+             uint32 nobjects, uint32 nregexps, uint32 ntrynotes);
 
 extern JSScript *
 js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);

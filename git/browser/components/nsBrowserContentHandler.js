@@ -64,7 +64,7 @@ const nsIWebNavigationInfo   = Components.interfaces.nsIWebNavigationInfo;
 const nsIBrowserSearchService = Components.interfaces.nsIBrowserSearchService;
 const nsICommandLineValidator = Components.interfaces.nsICommandLineValidator;
 
-const NS_BINDING_ABORTED = Components.results.NS_BINDING_ABORTED;
+const NS_BINDING_ABORTED = 0x804b0002;
 const NS_ERROR_WONT_HANDLE_CONTENT = 0x805d0001;
 const NS_ERROR_ABORT = Components.results.NS_ERROR_ABORT;
 
@@ -176,60 +176,17 @@ function copyPrefOverride() {
   }
 }
 
-// Flag used to indicate that the arguments to openWindow can be passed directly.
-const NO_EXTERNAL_URIS = 1;
-
-function openWindow(parent, url, target, features, args, noExternalArgs) {
+function openWindow(parent, url, target, features, args) {
   var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                          .getService(nsIWindowWatcher);
 
-  if (noExternalArgs == NO_EXTERNAL_URIS) {
-    // Just pass in the defaultArgs directly
-    var argstring;
-    if (args) {
-      argstring = Components.classes["@mozilla.org/supports-string;1"]
+  var argstring;
+  if (args) {
+    argstring = Components.classes["@mozilla.org/supports-string;1"]
                             .createInstance(nsISupportsString);
-      argstring.data = args;
-    }
-
-    return wwatch.openWindow(parent, url, target, features, argstring);
+    argstring.data = args;
   }
-  
-  // Pass an array to avoid the browser "|"-splitting behavior.
-  var argArray = Components.classes["@mozilla.org/supports-array;1"]
-                    .createInstance(Components.interfaces.nsISupportsArray);
-
-  // add args to the arguments array
-  var stringArgs = null;
-  if (args instanceof Array) // array
-    stringArgs = args;
-  else if (args) // string
-    stringArgs = [args];
-
-  if (stringArgs) {
-    // put the URIs into argArray
-    var uriArray = Components.classes["@mozilla.org/supports-array;1"]
-                       .createInstance(Components.interfaces.nsISupportsArray);
-    stringArgs.forEach(function (uri) {
-      var sstring = Components.classes["@mozilla.org/supports-string;1"]
-                              .createInstance(nsISupportsString);
-      sstring.data = uri;
-      uriArray.AppendElement(sstring);
-    });
-    argArray.AppendElement(uriArray);
-  } else {
-    argArray.AppendElement(null);
-  }
-
-  // Pass these as null to ensure that we always trigger the "single URL"
-  // behavior in browser.js's BrowserStartup (which handles the window
-  // arguments)
-  argArray.AppendElement(null); // charset
-  argArray.AppendElement(null); // referer
-  argArray.AppendElement(null); // postData
-  argArray.AppendElement(null); // allowThirdPartyFixup
-
-  return wwatch.openWindow(parent, url, target, features, argArray);
+  return wwatch.openWindow(parent, url, target, features, argstring);
 }
 
 function openPreferences() {
@@ -359,10 +316,9 @@ var nsBrowserContentHandler = {
   /* nsICommandLineHandler */
   handle : function bch_handle(cmdLine) {
     if (cmdLine.handleFlag("browser", false)) {
-      // Passing defaultArgs, so use NO_EXTERNAL_URIS
       openWindow(null, this.chromeURL, "_blank",
                  "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                 this.defaultArgs, NO_EXTERNAL_URIS);
+                 this.defaultArgs);
       cmdLine.preventDefault = true;
     }
 
@@ -423,10 +379,9 @@ var nsBrowserContentHandler = {
           if (remoteParams[0].toLowerCase() != "openbrowser")
             throw NS_ERROR_ABORT;
 
-          // Passing defaultArgs, so use NO_EXTERNAL_URIS
           openWindow(null, this.chromeURL, "_blank",
                      "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                     this.defaultArgs, NO_EXTERNAL_URIS);
+                     this.defaultArgs);
           break;
 
         default:
@@ -487,7 +442,7 @@ var nsBrowserContentHandler = {
         var netutil = Components.classes["@mozilla.org/network/util;1"]
                                 .getService(nsINetUtil);
         if (!netutil.URIChainHasFlags(uri, URI_INHERITS_SECURITY_CONTEXT)) {
-          openWindow(null, uri.spec, "_blank", features);
+          openWindow(null, uri.spec, "_blank", features, "");
           cmdLine.preventDefault = true;
         }
       }
@@ -819,19 +774,23 @@ var nsDefaultCommandLineHandler = {
         }
       }
 
-      var URLlist = urilist.filter(shouldLoadURI).map(function (u) u.spec);
-      if (URLlist.length) {
+      var speclist = [];
+      for (uri in urilist) {
+        if (shouldLoadURI(urilist[uri]))
+          speclist.push(urilist[uri].spec);
+      }
+
+      if (speclist.length) {
         openWindow(null, nsBrowserContentHandler.chromeURL, "_blank",
                    "chrome,dialog=no,all" + nsBrowserContentHandler.getFeatures(cmdLine),
-                   URLlist);
+                   speclist.join("|"));
       }
 
     }
     else if (!cmdLine.preventDefault) {
-      // Passing defaultArgs, so use NO_EXTERNAL_URIS
       openWindow(null, nsBrowserContentHandler.chromeURL, "_blank",
                  "chrome,dialog=no,all" + nsBrowserContentHandler.getFeatures(cmdLine),
-                 nsBrowserContentHandler.defaultArgs, NO_EXTERNAL_URIS);
+                 nsBrowserContentHandler.defaultArgs);
     }
   },
 

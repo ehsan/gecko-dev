@@ -56,7 +56,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_COM void
+NS_COM void 
 NS_MeanAndStdDev(double n, double sumOfValues, double sumOfSquaredValues,
                  double *meanResult, double *stdDevResult)
 {
@@ -199,7 +199,7 @@ static const PLHashAllocOps typesToLogHashAllocOps = {
 class BloatEntry {
 public:
   BloatEntry(const char* className, PRUint32 classSize)
-    : mClassSize(classSize) {
+    : mClassSize(classSize) { 
     mClassName = PL_strdup(className);
     Clear(&mNewStats);
     Clear(&mAllStats);
@@ -307,9 +307,9 @@ public:
                                       -(mNewStats.mDestroys + mAllStats.mDestroys)));
   }
 
-  void DumpTotal(FILE* out) {
+  nsresult DumpTotal(PRUint32 nClasses, FILE* out) {
     mClassSize /= mAllStats.mCreates;
-    Dump(-1, out, nsTraceRefcntImpl::ALL_STATS);
+    return Dump(-1, out, nsTraceRefcntImpl::ALL_STATS);
   }
 
   static PRBool HaveLeaks(nsTraceRefcntStats* stats) {
@@ -317,39 +317,30 @@ public:
             (stats->mCreates != stats->mDestroys));
   }
 
-  PRBool PrintDumpHeader(FILE* out, const char* msg, nsTraceRefcntImpl::StatisticsType type) {
-    fprintf(out, "\n== BloatView: %s\n", msg);
-
-    nsTraceRefcntStats& stats =
-      (type == nsTraceRefcntImpl::NEW_STATS) ? mNewStats : mAllStats;
-    if (gLogLeaksOnly && !HaveLeaks(&stats))
-      return PR_FALSE;
-
+  static nsresult PrintDumpHeader(FILE* out, const char* msg) {
+    fprintf(out, "\n== BloatView: %s\n\n", msg);
+    fprintf(out, 
+        "     |<----------------Class--------------->|<-----Bytes------>|<----------------Objects---------------->|<--------------References-------------->|\n");
     fprintf(out,
-        "\n" \
-        "     |<----------------Class--------------->|<-----Bytes------>|<----------------Objects---------------->|<--------------References-------------->|\n" \
         "                                              Per-Inst   Leaked    Total      Rem      Mean       StdDev     Total      Rem      Mean       StdDev\n");
-
-    this->DumpTotal(out);
-
-    return PR_TRUE;
+    return NS_OK;
   }
 
-  void Dump(PRIntn i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
+  nsresult Dump(PRIntn i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
     nsTraceRefcntStats* stats = (type == nsTraceRefcntImpl::NEW_STATS) ? &mNewStats : &mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(stats)) {
-      return;
+      return NS_OK;
     }
 
     double meanRefs, stddevRefs;
-    NS_MeanAndStdDev(stats->mAddRefs + stats->mReleases,
-                     stats->mRefsOutstandingTotal,
+    NS_MeanAndStdDev(stats->mAddRefs + stats->mReleases, 
+                     stats->mRefsOutstandingTotal, 
                      stats->mRefsOutstandingSquared,
                      &meanRefs, &stddevRefs);
 
     double meanObjs, stddevObjs;
     NS_MeanAndStdDev(stats->mCreates + stats->mDestroys,
-                     stats->mObjsOutstandingTotal,
+                     stats->mObjsOutstandingTotal, 
                      stats->mObjsOutstandingSquared,
                      &meanObjs, &stddevObjs);
 
@@ -370,12 +361,13 @@ public:
               stats->mCreates,
               (stats->mCreates - stats->mDestroys),
               meanObjs,
-              stddevObjs,
+              stddevObjs, 
               stats->mAddRefs,
               (stats->mAddRefs - stats->mReleases),
               meanRefs,
               stddevRefs);
     }
+    return NS_OK;
   }
 
 protected:
@@ -404,7 +396,7 @@ const static PLHashAllocOps bloatViewHashAllocOps = {
 static void
 RecreateBloatView()
 {
-  gBloatView = PL_NewHashTable(256,
+  gBloatView = PL_NewHashTable(256, 
                                PL_HashString,
                                PL_CompareStrings,
                                PL_CompareValues,
@@ -429,8 +421,8 @@ GetBloatEntry(const char* aTypeName, PRUint32 aInstanceSize)
         entry = NULL;
       }
     } else {
-      NS_ASSERTION(aInstanceSize == 0 ||
-                   entry->GetClassSize() == aInstanceSize,
+      NS_ASSERTION(aInstanceSize == 0 || 
+                   entry->GetClassSize() == aInstanceSize, 
                    "bad size recorded");
     }
   }
@@ -461,6 +453,7 @@ static PRIntn PR_CALLBACK DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aInd
 NS_COM nsresult
 nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
 {
+  nsresult rv = NS_OK;
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (gBloatLog == nsnull || gBloatView == nsnull) {
     return NS_ERROR_FAILURE;
@@ -473,9 +466,7 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
 
   PRBool wasLogging = gLogging;
   gLogging = PR_FALSE;  // turn off logging for this method
-
-  BloatEntry total("TOTAL", 0);
-  PL_HashTableEnumerateEntries(gBloatView, BloatEntry::TotalEntries, &total);
+  
   const char* msg;
   if (type == NEW_STATS) {
     if (gLogLeaksOnly)
@@ -489,16 +480,23 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
     else
       msg = "ALL (cumulative) LEAK AND BLOAT STATISTICS";
   }
-  const PRBool leaked = total.PrintDumpHeader(out, msg, type);
+  rv = BloatEntry::PrintDumpHeader(out, msg);
+  if (NS_FAILED(rv)) goto done;
 
-  nsVoidArray entries;
-  PL_HashTableEnumerateEntries(gBloatView, BloatEntry::DumpEntry, &entries);
-  const PRInt32 count = entries.Count();
+  {
+    BloatEntry total("TOTAL", 0);
+    PL_HashTableEnumerateEntries(gBloatView, BloatEntry::TotalEntries, &total);
+    total.DumpTotal(gBloatView->nentries, out);
 
-  if (!gLogLeaksOnly || leaked) {
+    nsVoidArray entries;
+    PL_HashTableEnumerateEntries(gBloatView, BloatEntry::DumpEntry, &entries);
+
+    fprintf(stdout, "nsTraceRefcntImpl::DumpStatistics: %d entries\n",
+           entries.Count());
+
     // Sort the entries alphabetically by classname.
     PRInt32 i, j;
-    for (i = count - 1; i >= 1; --i) {
+    for (i = entries.Count() - 1; i >= 1; --i) {
       for (j = i - 1; j >= 0; --j) {
         BloatEntry* left  = static_cast<BloatEntry*>(entries[i]);
         BloatEntry* right = static_cast<BloatEntry*>(entries[j]);
@@ -511,26 +509,22 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
     }
 
     // Enumerate from back-to-front, so things come out in alpha order
-    for (i = 0; i < count; ++i) {
+    for (i = 0; i < entries.Count(); ++i) {
       BloatEntry* entry = static_cast<BloatEntry*>(entries[i]);
       entry->Dump(i, out, type);
     }
-
-    fprintf(out, "\n");
   }
 
-  fprintf(out, "nsTraceRefcntImpl::DumpStatistics: %d entries\n", count);
-
   if (gSerialNumbers) {
-    fprintf(out, "\nSerial Numbers of Leaked Objects:\n");
+    fprintf(out, "\n\nSerial Numbers of Leaked Objects:\n");
     PL_HashTableEnumerateEntries(gSerialNumbers, DumpSerialNumbers, out);
   }
 
+done:
   gLogging = wasLogging;
   UNLOCK_TRACELOG();
 #endif
-
-  return NS_OK;
+  return rv;
 }
 
 NS_COM void
@@ -624,13 +618,13 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
   if (value) {
     if (nsCRT::strcmp(value, "1") == 0) {
       *result = stdout;
-      fprintf(stdout, "### %s defined -- logging %s to stdout\n",
+      fprintf(stdout, "### %s defined -- logging %s to stdout\n", 
               envVar, msg);
       return PR_TRUE;
     }
     else if (nsCRT::strcmp(value, "2") == 0) {
       *result = stderr;
-      fprintf(stdout, "### %s defined -- logging %s to stderr\n",
+      fprintf(stdout, "### %s defined -- logging %s to stderr\n", 
               envVar, msg);
       return PR_TRUE;
     }
@@ -638,12 +632,12 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
       FILE *stream = ::fopen(value, "w");
       if (stream != NULL) {
         *result = stream;
-        fprintf(stdout, "### %s defined -- logging %s to %s\n",
+        fprintf(stdout, "### %s defined -- logging %s to %s\n", 
                 envVar, msg, value);
         return PR_TRUE;
       }
       else {
-        fprintf(stdout, "### %s defined -- unable to log %s to %s\n",
+        fprintf(stdout, "### %s defined -- unable to log %s to %s\n", 
                 envVar, msg, value);
         return PR_FALSE;
       }
@@ -854,8 +848,8 @@ nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 #include <stdlib.h> // for free()
 #endif // MOZ_DEMANGLE_SYMBOLS
 
-NS_COM void
-nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol,
+NS_COM void 
+nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol, 
                               char * aBuffer,
                               int aBufLen)
 {
@@ -953,10 +947,10 @@ NS_LogAddRef(void* aPtr, nsrefcnt aRefcnt,
       if (gLogToLeaky) {
         (*leakyLogAddRef)(aPtr, aRefcnt - 1, aRefcnt);
       }
-      else {
+      else {        
           // Can't use PR_LOG(), b/c it truncates the line
           fprintf(gRefcntsLog,
-                  "\n<%s> 0x%08X %d AddRef %d\n", aClazz, NS_PTR_TO_INT32(aPtr), serialno, aRefcnt);
+                  "\n<%s> 0x%08X %d AddRef %d\n", aClazz, NS_PTR_TO_INT32(aPtr), serialno, aRefcnt);       
           nsTraceRefcntImpl::WalkTheStack(gRefcntsLog);
           fflush(gRefcntsLog);
       }
@@ -1116,7 +1110,7 @@ NS_LogCOMPtrAddRef(void* aCOMPtr, nsISupports* aObject)
 
   // This is a very indirect way of finding out what the class is
   // of the object being logged.  If we're logging a specific type,
-  // then
+  // then 
   if (!gTypesToLog || !gSerialNumbers) {
     return;
   }
@@ -1157,7 +1151,7 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
 
   // This is a very indirect way of finding out what the class is
   // of the object being logged.  If we're logging a specific type,
-  // then
+  // then 
   if (!gTypesToLog || !gSerialNumbers) {
     return;
   }
@@ -1235,8 +1229,8 @@ NS_IMETHODIMP_(nsrefcnt) nsTraceRefcntImpl::AddRef(void)
   return 2;
 }
 
-NS_IMETHODIMP_(nsrefcnt) nsTraceRefcntImpl::Release(void)
-{
+NS_IMETHODIMP_(nsrefcnt) nsTraceRefcntImpl::Release(void)                                
+{                                                                             
   return 1;
 }
 

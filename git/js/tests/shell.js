@@ -75,7 +75,7 @@ var BUGNUMBER = "";
 /*
  * constant strings
  */
-var GLOBAL = this + '';
+var GLOBAL = "[object global]";
 var PASSED = " PASSED! ";
 var FAILED = " FAILED! ";
 
@@ -160,8 +160,8 @@ TestCase.prototype.dump = function () {
        'result: '      + (this.passed ? 'PASSED':'FAILED') + ' ' +
        'type: '        + this.type + ' ' +
        'description: ' + toPrinted(this.description) + ' ' +
-//       'expected: '    + toPrinted(this.expect) + ' ' +
-//       'actual: '      + toPrinted(this.actual) + ' ' +
+       'expected: '    + toPrinted(this.expect) + ' ' +
+       'actual: '      + toPrinted(this.actual) + ' ' +
        'reason: '      + toPrinted(this.reason) + '\n');
 };
 
@@ -232,45 +232,8 @@ function toPrinted(value)
   {
     value = String(value);
   }
-  value = value.replace(/\\n/g, 'NL')
-               .replace(/\n/g, 'NL')
-               .replace(/\\r/g, 'CR')
-               .replace(/[^\x20-\x7E]+/g, escapeString);
+  value = value.replace(/\\n/g, 'NL').replace(/\n/g, 'NL').replace(/\\r/g, 'CR');
   return value;
-}
-
-function escapeString (str)
-{
-  var a, b, c, d;
-  var len = str.length;
-  var result = "";
-  var digits = ["0", "1", "2", "3", "4", "5", "6", "7",
-                "8", "9", "A", "B", "C", "D", "E", "F"];
-
-  for (var i=0; i<len; i++)
-  {
-    var ch = str.charCodeAt(i);
-
-    a = digits[ch & 0xf];
-    ch >>= 4;
-    b = digits[ch & 0xf];
-    ch >>= 4;
-
-    if (ch)
-    {
-      c = digits[ch & 0xf];
-      ch >>= 4;
-      d = digits[ch & 0xf];
-
-      result += "\\u" + d + c + b + a;
-    }
-    else
-    {
-      result += "\\x" + b + a;
-    }
-  }
-
-  return result;
 }
 
 /*
@@ -282,15 +245,9 @@ function reportCompare (expected, actual, description) {
   var expected_t = typeof expected;
   var actual_t = typeof actual;
   var output = "";
-
-  if (typeof description == "undefined")
-  {
-    description = '';
-  }
-  else if (VERBOSE)
-  {
+   
+  if ((VERBOSE) && (typeof description != "undefined"))
     printStatus ("Comparing '" + description + "'");
-  }
 
   if (expected_t != actual_t)
   {
@@ -314,16 +271,19 @@ function reportCompare (expected, actual, description) {
                  "' matched actual value '" + toPrinted(actual) + "'");
   }
 
+  if (typeof description == "undefined")
+    description = '';
+   
   var testcase = new TestCase(gTestfile, description, expected, actual);
   testcase.reason = output;
-
+ 
   if (testcase.passed)
   {
-    print(PASSED + description);
+    print('PASSED! ' + description);
   }
   else
   {
-    reportFailure (description + " : " + output);
+    reportFailure (output);  
   }
 
   return testcase.passed;
@@ -340,14 +300,8 @@ function reportMatch (expectedRegExp, actual, description) {
   var actual_t = typeof actual;
   var output = "";
 
-  if (typeof description == "undefined")
-  {
-    description = '';
-  }
-  else if (VERBOSE)
-  {
+  if ((VERBOSE) && (typeof description != "undefined"))
     printStatus ("Comparing '" + description + "'");
-  }
 
   if (expected_t != actual_t)
   {
@@ -372,16 +326,19 @@ function reportMatch (expectedRegExp, actual, description) {
                  "' matched actual value '" + toPrinted(actual) + "'");
   }
 
+  if (typeof description == "undefined")
+    description = '';
+
   var testcase = new TestCase(gTestfile, description, true, matches);
   testcase.reason = output;
 
   if (testcase.passed)
   {
-    print(PASSED + description);
+    print('PASSED! ' + description);
   }
   else
   {
-    reportFailure (description + " : " + output);
+    reportFailure (output);
   }
 
   return testcase.passed;
@@ -849,18 +806,6 @@ function jsTestDriverEnd()
     gTestcases[i].dump();
   }
 
-}
-
-function jit(on)
-{
-  if (on && !options().match(/jit/))
-  {
-    options('jit');
-  }
-  else if (!on && options().match(/jit/))
-  {
-    options('jit');
-  }
 }
 
 /*

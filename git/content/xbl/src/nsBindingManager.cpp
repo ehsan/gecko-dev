@@ -77,7 +77,6 @@
 #include "nsDOMCID.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsTHashtable.h"
 
 #include "nsIScriptContext.h"
 #include "nsBindingManager.h"
@@ -92,20 +91,16 @@
   { 0xa29df1f8, 0xaeca, 0x4356, \
     { 0xa8, 0xc2, 0xa7, 0x24, 0xa2, 0x11, 0x73, 0xac } }
 
-class nsAnonymousContentList : public nsIDOMNodeList,
-                               public nsINodeList
+class nsAnonymousContentList : public nsIDOMNodeList
 {
 public:
   nsAnonymousContentList(nsInsertionPointList* aElements);
   virtual ~nsAnonymousContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsAnonymousContentList, nsIDOMNodeList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsAnonymousContentList)
   // nsIDOMNodeList interface
   NS_DECL_NSIDOMNODELIST
-
-  // nsINodeList interface
-  virtual nsINode* GetNodeAt(PRUint32 aIndex);
 
   PRInt32 GetInsertionPointCount() { return mElements->Length(); }
 
@@ -140,12 +135,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAnonymousContentList)
 
 NS_INTERFACE_MAP_BEGIN(nsAnonymousContentList)
-  NS_INTERFACE_MAP_ENTRY(nsINodeList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
-  if (aIID.Equals(NS_GET_IID(nsAnonymousContentList)))
-    foundInterface = static_cast<nsIDOMNodeList*>(this);
-  else
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMNodeList)
+  NS_INTERFACE_MAP_ENTRY(nsAnonymousContentList)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsAnonymousContentList)
 NS_INTERFACE_MAP_END
@@ -180,16 +172,6 @@ nsAnonymousContentList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP    
 nsAnonymousContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsINode* item = GetNodeAt(aIndex);
-  if (!item)
-    return NS_ERROR_FAILURE;
-
-  return CallQueryInterface(item, aReturn);    
-}
-
-nsINode*
-nsAnonymousContentList::GetNodeAt(PRUint32 aIndex)
-{
   PRInt32 cnt = mElements->Length();
   PRUint32 pointCount = 0;
 
@@ -200,11 +182,14 @@ nsAnonymousContentList::GetNodeAt(PRUint32 aIndex)
     pointCount = point->ChildCount();
 
     if (aIndex < pointCount) {
-      return point->ChildAt(aIndex);
+      nsCOMPtr<nsIContent> result = point->ChildAt(aIndex);
+      if (result)
+        return CallQueryInterface(result, aReturn);
+      return NS_ERROR_FAILURE;
     }
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 
 //
@@ -458,10 +443,7 @@ PR_CALLBACK RemoveInsertionParentCB(PLDHashTable* aTable, PLDHashEntryHdr* aEntr
 static void
 RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
 {
-  nsAnonymousContentList* list = nsnull;
-  if (aList) {
-    CallQueryInterface(aList, &list);
-  }
+  nsCOMPtr<nsAnonymousContentList> list = do_QueryInterface(aList);
   if (list) {
     PRInt32 count = list->GetInsertionPointCount();
     for (PRInt32 i = 0; i < count; ++i) {
@@ -473,7 +455,6 @@ RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
 #endif
       currPoint->ClearInsertionParent();
     }
-    NS_RELEASE(list);
   }
 }
 
@@ -990,6 +971,7 @@ nsBindingManager::ProcessAttachedQueue(PRUint32 aSkipSize)
 
   mProcessingAttachedStack = PR_TRUE;
 
+  PRUint32 currentIndex = aSkipSize;
   // Excute constructors. Do this from high index to low
   while (mAttachedStack.Length() > aSkipSize) {
     PRUint32 lastItem = mAttachedStack.Length() - 1;
@@ -1252,7 +1234,8 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
 }
 
 nsresult
-nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
+nsBindingManager::WalkRules(nsStyleSet* aStyleSet,
+                            nsIStyleRuleProcessor::EnumFunc aFunc,
                             RuleProcessorData* aData,
                             PRBool* aCutOffInheritance)
 {
@@ -1280,11 +1263,15 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
       }
     }
 
-    if (content->IsRootOfNativeAnonymousSubtree()) {
-      break; // Deliberately cut off style inheritance here.
+    nsIContent* parent = content->GetBindingParent();
+    if (parent == content) {
+      NS_ASSERTION(content->IsNativeAnonymous(), "Unexpected binding parent");
+                             
+      break; // The anonymous content case is often deliberately hacked to
+             // return itself to cut off style inheritance here.  Do that.
     }
 
-    content = content->GetBindingParent();
+    content = parent;
   } while (content);
 
   // If "content" is non-null that means we cut off inheritance at some point
@@ -1294,63 +1281,6 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
   // Null out the scoped root that we set repeatedly
   aData->mScopedRoot = nsnull;
 
-  return NS_OK;
-}
-
-typedef nsTHashtable<nsVoidPtrHashKey> RuleProcessorSet;
-
-PR_STATIC_CALLBACK(PLDHashOperator)
-EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
-{
-  RuleProcessorSet *set = static_cast<RuleProcessorSet*>(aClosure);
-  for (nsXBLBinding *binding = aBinding; binding;
-       binding = binding->GetBaseBinding()) {
-    nsIStyleRuleProcessor *ruleProc =
-      binding->PrototypeBinding()->GetRuleProcessor();
-    if (ruleProc) {
-      if (!set->IsInitialized() && !set->Init(16))
-        return PL_DHASH_STOP;
-      set->PutEntry(ruleProc);
-    }
-  }
-  return PL_DHASH_NEXT;
-}
-
-struct MediumFeaturesChangedData {
-  nsPresContext *mPresContext;
-  PRBool *mRulesChanged;
-};
-
-PR_STATIC_CALLBACK(PLDHashOperator)
-EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
-{
-  nsIStyleRuleProcessor *ruleProcessor =
-    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
-  MediumFeaturesChangedData *data =
-    static_cast<MediumFeaturesChangedData*>(aClosure);
-
-  PRBool thisChanged = PR_FALSE;
-  ruleProcessor->MediumFeaturesChanged(data->mPresContext, &thisChanged);
-  *data->mRulesChanged = *data->mRulesChanged || thisChanged;
-
-  return PL_DHASH_NEXT;
-}
-
-nsresult
-nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
-                                        PRBool* aRulesChanged)
-{
-  *aRulesChanged = PR_FALSE;
-  if (!mBindingTable.IsInitialized())
-    return NS_OK;
-
-  RuleProcessorSet set;
-  mBindingTable.EnumerateRead(EnumRuleProcessors, &set);
-  if (!set.IsInitialized())
-    return NS_OK;
-
-  MediumFeaturesChangedData data = { aPresContext, aRulesChanged };
-  set.EnumerateEntries(EnumMediumFeaturesChanged, &data);
   return NS_OK;
 }
 
@@ -1526,9 +1456,8 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
     // aChild from the pseudo insertion point it's in.
     if (mContentListTable.ops) {
       nsAnonymousContentList* insertionPointList =
-        static_cast<nsAnonymousContentList*>(
-          static_cast<nsIDOMNodeList*>(LookupObject(mContentListTable,
-                                                    aContainer)));
+        static_cast<nsAnonymousContentList*>(LookupObject(mContentListTable,
+                                                          aContainer));
       if (insertionPointList) {
         RemoveChildFromInsertionPoint(insertionPointList, aChild, PR_TRUE);
       }

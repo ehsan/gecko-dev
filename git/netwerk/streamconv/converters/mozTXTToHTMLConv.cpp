@@ -38,7 +38,6 @@
 #include "mozTXTToHTMLConv.h"
 #include "nsIServiceManager.h"
 #include "nsNetCID.h"
-#include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
@@ -435,7 +434,7 @@ PRBool mozTXTToHTMLConv::ShouldLinkify(const nsCString& aURL)
     return PR_FALSE;
 
   // Is it an external protocol handler? If not, linkify it.
-  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler);
+  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler, &rv);
   if (!externalHandler)
    return PR_TRUE; // handler is built-in, linkify it!
 
@@ -452,15 +451,12 @@ mozTXTToHTMLConv::CheckURLAndCreateHTML(
 {
   // Create *uri from txtURL
   nsCOMPtr<nsIURI> uri;
-  nsresult rv;
-  // Lazily initialize mIOService
+  nsresult rv = NS_OK;
   if (!mIOService)
-  {
-    mIOService = do_GetIOService();
-
-    if (!mIOService)
-      return PR_FALSE;
-  }
+    mIOService = do_GetService(kIOServiceCID, &rv);
+  
+  if (NS_FAILED(rv) || !mIOService)
+    return PR_FALSE;
 
   // See if the url should be linkified.
   NS_ConvertUTF16toUTF8 utf8URL(txtURL);

@@ -95,7 +95,7 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
+  nsIFrame* GetFrameForPoint(const nsPoint& aPoint);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -131,12 +131,8 @@ public:
   // nsSVGOuterSVGFrame methods:
 
   void InvalidateCoveredRegion(nsIFrame *aFrame);
-  // Calls aSVG->UpdateCoveredRegion and returns true if the covered
-  // region actually changed. If it changed, invalidates the old and new
-  // covered regions, taking filters into account, like
-  // InvalidateCoveredRegion.
-  PRBool UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame);
-
+  /* Invalidate takes a nsRect in screen pixel coordinates */
+  void InvalidateRect(nsRect aRect);
   PRBool IsRedrawSuspended();
 
   // nsISVGSVGFrame interface:

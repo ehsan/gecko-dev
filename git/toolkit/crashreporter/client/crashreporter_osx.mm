@@ -60,7 +60,6 @@ static string gURLParameter;
 static string gSendURL;
 static vector<string> gRestartArgs;
 static bool gDidTrySend = false;
-static bool gRTLlayout = false;
 
 #define NSSTR(s) [NSString stringWithUTF8String:(s).c_str()]
 
@@ -119,25 +118,14 @@ static bool RestartApplication()
   [mWindow setTitle:Str(ST_CRASHREPORTERTITLE)];
   [mHeaderLabel setStringValue:Str(ST_CRASHREPORTERHEADER)];
 
-  NSRect viewReportFrame = [mViewReportButton frame];
   [mViewReportButton setTitle:Str(ST_VIEWREPORT)];
   [mViewReportButton sizeToFit];
-  if (gRTLlayout) {
-    // sizeToFit will keep the left side fixed, so realign
-    float oldWidth = viewReportFrame.size.width;
-    viewReportFrame = [mViewReportButton frame];
-    viewReportFrame.origin.x += oldWidth - viewReportFrame.size.width;
-    [mViewReportButton setFrame: viewReportFrame];
-  }
-
   [mSubmitReportButton setTitle:Str(ST_CHECKSUBMIT)];
   [mIncludeURLButton setTitle:Str(ST_CHECKURL)];
   [mEmailMeButton setTitle:Str(ST_CHECKEMAIL)];
   [mViewReportOkButton setTitle:Str(ST_OK)];
 
   [mCommentText setPlaceholder:Str(ST_COMMENTGRAYTEXT)];
-  if (gRTLlayout)
-    [mCommentText toggleBaseWritingDirection:self];
   [[mEmailText cell] setPlaceholderString:Str(ST_EMAILGRAYTEXT)];
 
   if (gQueryParameters.find("URL") != gQueryParameters.end()) {
@@ -351,19 +339,12 @@ static bool RestartApplication()
   [mCloseButton sizeToFit];
   closeFrame = [mCloseButton frame];
   // move close button left if it grew
-  if (!gRTLlayout) {
-    closeFrame.origin.x -= closeFrame.size.width - oldCloseWidth;
-  }
+  closeFrame.origin.x -= closeFrame.size.width - oldCloseWidth;
 
   if (gRestartArgs.size() == 0) {
     [mRestartButton removeFromSuperview];
-    if (!gRTLlayout) {
-      closeFrame.origin.x = restartFrame.origin.x +
-        (restartFrame.size.width - closeFrame.size.width);
-    }
-    else {
-      closeFrame.origin.x = restartFrame.origin.x;
-    }
+    closeFrame.origin.x = restartFrame.origin.x +
+      (restartFrame.size.width - closeFrame.size.width);
     [mCloseButton setFrame: closeFrame];
     [mCloseButton setKeyEquivalent:@"\r"];
   } else {
@@ -372,15 +353,9 @@ static bool RestartApplication()
     float oldRestartWidth = restartFrame.size.width;
     [mRestartButton sizeToFit];
     restartFrame = [mRestartButton frame];
-    if (!gRTLlayout) {
-      // move left by the amount that the button grew
-      restartFrame.origin.x -= restartFrame.size.width - oldRestartWidth;
-      closeFrame.origin.x -= restartFrame.size.width - oldRestartWidth;
-    }
-    else {
-      // shift the close button right in RTL
-      closeFrame.origin.x += restartFrame.size.width - oldRestartWidth;
-    }
+    // move left by the amount that the button grew
+    restartFrame.origin.x -= restartFrame.size.width - oldRestartWidth;
+    closeFrame.origin.x -= restartFrame.size.width - oldRestartWidth;
     [mRestartButton setFrame: restartFrame];
     [mCloseButton setFrame: closeFrame];
     // possibly resize window if both buttons no longer fit
@@ -403,16 +378,9 @@ static bool RestartApplication()
   };
 
   for (int i=0; i<3; i++) {
-    NSRect frame = [checkboxes[i] frame];
     [checkboxes[i] sizeToFit];
-    if (gRTLlayout) {
-      // sizeToFit will keep the left side fixed, so realign
-      float oldWidth = frame.size.width;
-      frame = [checkboxes[i] frame];
-      frame.origin.x += oldWidth - frame.size.width;
-      [checkboxes[i] setFrame: frame];
-    }
     // keep existing spacing on left side, + 20 px spare on right
+    NSRect frame = [checkboxes[i] frame];
     float neededWidth = frame.origin.x + frame.size.width + 20;
     if (neededWidth > windowFrame.size.width) {
       windowFrame.size.width = neededWidth;
@@ -684,7 +652,7 @@ static bool RestartApplication()
   [super drawRect:rect];
   if (mPlaceHolderString && [[self string] isEqualToString:@""] &&
       self != [[self window] firstResponder])
-    [mPlaceHolderString drawInRect:[self frame]];
+    [mPlaceHolderString drawAtPoint:NSMakePoint(0,0)];
 }
 
 - (BOOL)resignFirstResponder
@@ -699,23 +667,14 @@ static bool RestartApplication()
   NSDictionary* txtDict = [NSDictionary
                            dictionaryWithObjectsAndKeys:txtColor,
                            NSForegroundColorAttributeName, nil];
-  mPlaceHolderString = [[NSMutableAttributedString alloc]
+  mPlaceHolderString = [[NSAttributedString alloc]
                        initWithString:placeholder attributes:txtDict];
-  if (gRTLlayout)
-    [mPlaceHolderString setAlignment:NSRightTextAlignment
-     range:NSMakeRange(0, [placeholder length])];
-  
 }
 
 - (void)insertTab:(id)sender
 {
   // don't actually want to insert tabs, just tab to next control
   [[self window] selectNextKeyView:sender];
-}
-
-- (void)insertBacktab:(id)sender
-{
-  [[self window] selectPreviousKeyView:sender];
 }
 
 - (void)setEnabled:(BOOL)enabled
@@ -755,13 +714,7 @@ bool UIInit()
 {
   gMainPool = [[NSAutoreleasePool alloc] init];
   [NSApplication sharedApplication];
-
-  if (gStrings.find("isRTL") != gStrings.end() &&
-      gStrings["isRTL"] == "yes")
-    gRTLlayout = true;
-
-  [NSBundle loadNibNamed:(gRTLlayout ? @"MainMenuRTL" : @"MainMenu")
-                   owner:NSApp];
+  [NSBundle loadNibNamed:@"MainMenu" owner:NSApp];
 
   return true;
 }

@@ -238,25 +238,26 @@ struct JSDHashTable {
  * equal to 0; but note that jsdhash.c code will never call with 0 nbytes).
  */
 typedef void *
-(* JSDHashAllocTable)(JSDHashTable *table, uint32 nbytes);
+(* JS_DLL_CALLBACK JSDHashAllocTable)(JSDHashTable *table, uint32 nbytes);
 
 typedef void
-(* JSDHashFreeTable) (JSDHashTable *table, void *ptr);
+(* JS_DLL_CALLBACK JSDHashFreeTable) (JSDHashTable *table, void *ptr);
 
 /*
  * Compute the hash code for a given key to be looked up, added, or removed
  * from table.  A hash code may have any JSDHashNumber value.
  */
 typedef JSDHashNumber
-(* JSDHashHashKey)   (JSDHashTable *table, const void *key);
+(* JS_DLL_CALLBACK JSDHashHashKey)   (JSDHashTable *table, const void *key);
 
 /*
  * Compare the key identifying entry in table with the provided key parameter.
  * Return JS_TRUE if keys match, JS_FALSE otherwise.
  */
 typedef JSBool
-(* JSDHashMatchEntry)(JSDHashTable *table, const JSDHashEntryHdr *entry,
-                      const void *key);
+(* JS_DLL_CALLBACK JSDHashMatchEntry)(JSDHashTable *table,
+                                      const JSDHashEntryHdr *entry,
+                                      const void *key);
 
 /*
  * Copy the data starting at from to the new entry storage at to.  Do not add
@@ -265,8 +266,9 @@ typedef JSBool
  * any reference-decrementing callback shortly.
  */
 typedef void
-(* JSDHashMoveEntry)(JSDHashTable *table, const JSDHashEntryHdr *from,
-                     JSDHashEntryHdr *to);
+(* JS_DLL_CALLBACK JSDHashMoveEntry)(JSDHashTable *table,
+                                     const JSDHashEntryHdr *from,
+                                     JSDHashEntryHdr *to);
 
 /*
  * Clear the entry and drop any strong references it holds.  This callback is
@@ -274,7 +276,8 @@ typedef void
  * but only if the given key is found in the table.
  */
 typedef void
-(* JSDHashClearEntry)(JSDHashTable *table, JSDHashEntryHdr *entry);
+(* JS_DLL_CALLBACK JSDHashClearEntry)(JSDHashTable *table,
+                                      JSDHashEntryHdr *entry);
 
 /*
  * Called when a table (whether allocated dynamically by itself, or nested in
@@ -282,7 +285,7 @@ typedef void
  * allows table->ops-specific code to finalize table->data.
  */
 typedef void
-(* JSDHashFinalize)  (JSDHashTable *table);
+(* JS_DLL_CALLBACK JSDHashFinalize)  (JSDHashTable *table);
 
 /*
  * Initialize a new entry, apart from keyHash.  This function is called when
@@ -292,8 +295,9 @@ typedef void
  * table.
  */
 typedef JSBool
-(* JSDHashInitEntry)(JSDHashTable *table, JSDHashEntryHdr *entry,
-                     const void *key);
+(* JS_DLL_CALLBACK JSDHashInitEntry)(JSDHashTable *table,
+                                     JSDHashEntryHdr *entry,
+                                     const void *key);
 
 /*
  * Finally, the "vtable" structure for JSDHashTable.  The first eight hooks
@@ -570,8 +574,8 @@ JS_DHashTableRawRemove(JSDHashTable *table, JSDHashEntryHdr *entry);
  * the entry being enumerated, rather than returning JS_DHASH_REMOVE.
  */
 typedef JSDHashOperator
-(* JSDHashEnumerator)(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
-                      void *arg);
+(* JS_DLL_CALLBACK JSDHashEnumerator)(JSDHashTable *table, JSDHashEntryHdr *hdr,
+                                      uint32 number, void *arg);
 
 extern JS_PUBLIC_API(uint32)
 JS_DHashTableEnumerate(JSDHashTable *table, JSDHashEnumerator etor, void *arg);

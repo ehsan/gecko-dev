@@ -111,7 +111,7 @@ PRBool GetJSShGlobal(JSContext *cx, JSObject *obj, nsJSSh** shell)
   return PR_TRUE;
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 {
   // xxx getting the global obj from the cx. will that give us grief?
@@ -132,7 +132,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
   }
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -168,7 +168,7 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -183,7 +183,7 @@ Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -203,7 +203,7 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 FlushEventQueue(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -214,7 +214,7 @@ FlushEventQueue(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rv
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Suspend(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -232,7 +232,7 @@ Suspend(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Resume(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -243,7 +243,7 @@ Resume(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 AddressOf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   if (argc!=1) return JS_FALSE;
@@ -266,7 +266,7 @@ AddressOf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   if (argc!=1) return JS_FALSE;
@@ -299,7 +299,7 @@ SetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -312,7 +312,7 @@ GetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SetContextObj(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -338,7 +338,7 @@ SetContextObj(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 DebugBreak(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -349,7 +349,7 @@ DebugBreak(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetInputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -381,7 +381,7 @@ GetInputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rva
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetOutputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;

@@ -46,6 +46,7 @@
 #include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
 
+
 //mmptemp
 
 static nsEventStatus PR_CALLBACK HandleEvent(nsGUIEvent *aEvent);
@@ -630,7 +631,6 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
     ViewWrapper* wrapper = GetWrapperFor(mWindow);
     NS_IF_RELEASE(wrapper);
     mWindow->SetClientData(nsnull);
-    mWindow->Destroy();
     NS_RELEASE(mWindow);
   }
 
@@ -778,6 +778,7 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
   nsRect brect = GetBounds();
   fprintf(out, "{%d,%d,%d,%d}",
           brect.x, brect.y, brect.width, brect.height);
+  const nsView* v = static_cast<const nsView*>(this);
   fprintf(out, " z=%d vis=%d clientData=%p <\n",
           mZIndex, mVis, mClientData);
   for (nsView* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
@@ -873,16 +874,4 @@ nsIView::SetDeletionObserver(nsWeakView* aDeletionObserver)
     aDeletionObserver->SetPrevious(mDeletionObserver);
   }
   mDeletionObserver = aDeletionObserver;
-}
-
-/* We invalidate the frame on a scroll iff this frame is marked as such or if
- * some parent is.
- */
-PRBool nsIView::NeedsInvalidateFrameOnScroll() const
-{
-  for (const nsIView *currView = this; currView != nsnull; currView = currView->GetParent())
-    if (currView->mVFlags & NS_VIEW_FLAG_INVALIDATE_ON_SCROLL)
-      return PR_TRUE;
-  
-  return PR_FALSE;
 }

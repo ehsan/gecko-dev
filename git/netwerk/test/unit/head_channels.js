@@ -22,7 +22,6 @@ function read_stream(stream, count) {
 }
 
 const CL_EXPECT_FAILURE = 0x1;
-const CL_EXPECT_GZIP = 0x2;
 
 /**
  * A stream listener that calls a callback function with a specified
@@ -52,9 +51,9 @@ ChannelListener.prototype = {
   _contentLen: -1,
 
   QueryInterface: function(iid) {
-    if (iid.equals(Components.interfaces.nsIStreamListener) ||
-        iid.equals(Components.interfaces.nsIRequestObserver) ||
-        iid.equals(Components.interfaces.nsISupports))
+    if (iid.Equals(Components.interfaces.nsIStreamChannelListener) ||
+        iid.Equals(Components.interfaces.nsIRequestObserver) ||
+        iid.Equals(Components.interfaces.nsISupports))
       return this;
     throw Components.results.NS_ERROR_NO_INTERFACE;
   },
@@ -76,7 +75,7 @@ ChannelListener.prototype = {
     if (this._got_onstoprequest)
       do_throw("onDataAvailable after onStopRequest event!");
     if (!request.isPending())
-      do_throw("request reports itself as not pending from onDataAvailable!");
+      do_throw("request reports itself as not pending from onStartRequest!");
     if (this._flags & CL_EXPECT_FAILURE)
       do_throw("Got data despite expecting a failure");
 
@@ -99,9 +98,8 @@ ChannelListener.prototype = {
     if (request.isPending())
       do_throw("request reports itself as pending from onStopRequest!");
     if (!(this._flags & CL_EXPECT_FAILURE) &&
-	!(this._flags & CL_EXPECT_GZIP) &&
-        this._contentLen != -1)
-	do_check_eq(this._buffer.length, this._contentLen)
+        this._contentLen != -1 && this._buffer.length != this._contentLen)
+      do_throw("did not read nsIChannel.contentLength number of bytes!");
 
     this._closure(request, this._buffer, this._closurectx);
   }

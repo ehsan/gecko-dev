@@ -46,12 +46,9 @@
 
 #include "nsBaseWidget.h"
 #include "nsPIWidgetCocoa.h"
-#include "nsAutoPtr.h"
-#include "nsNativeThemeColors.h"
 
 class nsCocoaWindow;
 class nsChildView;
-class nsMenuBarX;
 
 typedef struct _nsCocoaWindowList {
   _nsCocoaWindowList() : prev(NULL), window(NULL) {}
@@ -119,31 +116,6 @@ typedef struct _nsCocoaWindowList {
 - (void)sendToplevelDeactivateEvents;
 @end
 
-struct UnifiedGradientInfo {
-  float titlebarHeight;
-  float toolbarHeight;
-  BOOL windowIsMain;
-  BOOL drawTitlebar; // NO for toolbar, YES for titlebar
-};
-
-// Callback used by the default titlebar and toolbar shading.
-// *aIn == 0 at the top of the titlebar/toolbar, *aIn == 1 at the bottom
-static void unifiedShading(void* aInfo, const float* aIn, float* aOut)
-{
-  UnifiedGradientInfo* info = (UnifiedGradientInfo*)aInfo;
-  // The gradient percentage at the bottom of the titlebar / top of the toolbar
-  float start = info->titlebarHeight / (info->titlebarHeight + info->toolbarHeight - 1);
-  const float startGrey = NativeGreyColorAsFloat(headerStartGrey, info->windowIsMain);
-  const float endGrey = NativeGreyColorAsFloat(headerEndGrey, info->windowIsMain);
-  // *aIn is the gradient percentage of the titlebar or toolbar gradient,
-  // a is the gradient percentage of the whole unified gradient.
-  float a = info->drawTitlebar ? *aIn * start : start + *aIn * (1 - start);
-  float result = (1.0f - a) * startGrey + a * endGrey;
-  aOut[0] = result;
-  aOut[1] = result;
-  aOut[2] = result;
-  aOut[3] = 1.0f;
-}
 
 // NSColor subclass that allows us to draw separate colors both in the titlebar 
 // and for background of the window.
@@ -153,6 +125,7 @@ static void unifiedShading(void* aInfo, const float* aIn, float* aOut)
   NSColor *mInactiveTitlebarColor;
   NSColor *mBackgroundColor;
   NSWindow *mWindow; // [WEAK] (we are owned by the window)
+  float mTitlebarHeight;
 }
 
 - (id)initWithActiveTitlebarColor:(NSColor*)aActiveTitlebarColor
@@ -169,20 +142,17 @@ static void unifiedShading(void* aInfo, const float* aIn, float* aOut)
 - (NSColor*)backgroundColor;
 
 - (NSWindow*)window;
+- (float)titlebarHeight;
 @end
 
 // NSWindow subclass for handling windows with toolbars.
 @interface ToolbarWindow : NSWindow
 {
   TitlebarAndBackgroundColor *mColor;
-  float mUnifiedToolbarHeight;
-  BOOL mSuppressPainting;
 }
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (void)setUnifiedToolbarHeight:(float)aToolbarHeight;
-- (float)unifiedToolbarHeight;
-- (float)titlebarHeight;
-- (BOOL)isPaintingSuppressed;
+- (NSColor*)activeTitlebarColor;
+- (NSColor*)inactiveTitlebarColor;
 // This method is also available on NSWindows (via a category), and is the 
 // preferred way to check the background color of a window.
 - (NSColor*)windowBackgroundColor;
@@ -233,14 +203,15 @@ public:
 
     NS_IMETHOD              Show(PRBool aState);
     virtual nsIWidget*      GetSheetWindowParent(void);
+    NS_IMETHOD              AddMouseListener(nsIMouseListener * aListener);
     NS_IMETHOD              AddEventListener(nsIEventListener * aListener);
     NS_IMETHOD              Enable(PRBool aState);
     NS_IMETHOD              IsEnabled(PRBool *aState);
     NS_IMETHOD              SetModal(PRBool aState);
     NS_IMETHOD              IsVisible(PRBool & aState);
     NS_IMETHOD              SetFocus(PRBool aState=PR_FALSE);
-    NS_IMETHOD              SetMenuBar(void* aMenuBar);
-    virtual nsMenuBarX*     GetMenuBar();
+    NS_IMETHOD              SetMenuBar(nsIMenuBar * aMenuBar);
+    virtual nsIMenuBar*     GetMenuBar();
     NS_IMETHOD              ShowMenuBar(PRBool aShow);
     NS_IMETHOD WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
     NS_IMETHOD ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
@@ -274,12 +245,9 @@ public:
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
-    virtual nsTransparencyMode GetTransparencyMode();
-    virtual void SetTransparencyMode(nsTransparencyMode aMode);
+    NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent);
+    NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
-
-    // dispatch an NS_SIZEMODE event on miniaturize or deminiaturize
-    void DispatchSizeModeEvent(nsSizeMode aSizeMode);
 
     virtual gfxASurface* GetThebesSurface();
 
@@ -307,7 +275,7 @@ protected:
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   NSWindow*            mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]
-  nsRefPtr<nsMenuBarX> mMenuBar;
+  nsCOMPtr<nsIMenuBar> mMenuBar;
   NSWindow*            mSheetWindowParent; // if this is a sheet, this is the NSWindow it's attached to
   nsChildView*         mPopupContentView; // if this is a popup, this is its content widget
 

@@ -21,7 +21,6 @@
  * Contributor(s):
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,92 +37,22 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "gfxFontconfigUtils.h"
-#include "gfxFont.h"
 
-#include <locale.h>
 #include <fontconfig/fontconfig.h>
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
-#include "nsILanguageAtomService.h"
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
 
 /* static */ gfxFontconfigUtils* gfxFontconfigUtils::sUtils = nsnull;
-static nsILanguageAtomService* gLangService = nsnull;
-
-/* static */ void
-gfxFontconfigUtils::Shutdown() {
-    if (sUtils) {
-        delete sUtils;
-        sUtils = nsnull;
-    }
-    NS_IF_RELEASE(gLangService);
-}
-
-/* static */ PRUint8
-gfxFontconfigUtils::GetThebesStyle(FcPattern *aPattern)
-{
-    int slant;
-    if (FcPatternGetInteger(aPattern, FC_SLANT, 0, &slant) == FcResultMatch) {
-        if (slant == FC_SLANT_ITALIC)
-            return FONT_STYLE_ITALIC;
-        if (slant == FC_SLANT_OBLIQUE)
-            return FONT_STYLE_OBLIQUE;
-    }
-
-    return FONT_STYLE_NORMAL;
-}
-
-// OS/2 weight classes were introduced in fontconfig-2.1.93 (2003).
-#ifndef FC_WEIGHT_THIN 
-#define FC_WEIGHT_THIN              0 // 2.1.93
-#define FC_WEIGHT_EXTRALIGHT        40 // 2.1.93
-#define FC_WEIGHT_REGULAR           80 // 2.1.93
-#define FC_WEIGHT_EXTRABOLD         205 // 2.1.93
-#endif
-// book was introduced in fontconfig-2.2.90 (and so fontconfig-2.3.0 in 2005)
-#ifndef FC_WEIGHT_BOOK
-#define FC_WEIGHT_BOOK              75
-#endif
-
-/* static */ PRUint16
-gfxFontconfigUtils::GetThebesWeight(FcPattern *aPattern)
-{
-    int weight;
-    if (FcPatternGetInteger(aPattern, FC_WEIGHT, 0, &weight) != FcResultMatch)
-        return FONT_WEIGHT_NORMAL;
-
-    if (weight <= (FC_WEIGHT_THIN + FC_WEIGHT_EXTRALIGHT) / 2)
-        return 100;
-    if (weight <= (FC_WEIGHT_EXTRALIGHT + FC_WEIGHT_LIGHT) / 2)
-        return 200;
-    if (weight <= (FC_WEIGHT_LIGHT + FC_WEIGHT_BOOK) / 2)
-        return 300;
-    if (weight <= (FC_WEIGHT_REGULAR + FC_WEIGHT_MEDIUM) / 2)
-        // This includes FC_WEIGHT_BOOK
-        return 400;
-    if (weight <= (FC_WEIGHT_MEDIUM + FC_WEIGHT_DEMIBOLD) / 2)
-        return 500;
-    if (weight <= (FC_WEIGHT_DEMIBOLD + FC_WEIGHT_BOLD) / 2)
-        return 600;
-    if (weight <= (FC_WEIGHT_BOLD + FC_WEIGHT_EXTRABOLD) / 2)
-        return 700;
-    if (weight <= (FC_WEIGHT_EXTRABOLD + FC_WEIGHT_BLACK) / 2)
-        return 800;
-    if (weight <= FC_WEIGHT_BLACK)
-        return 900;
-
-    // FC_WEIGHT_EXTRABLACK was introduced in fontconfig-2.4.91 (2007)
-    return 901;
-}
 
 gfxFontconfigUtils::gfxFontconfigUtils()
-    : mLastConfig(NULL)
 {
     mAliasTable.Init(50);
+    UpdateFontListInternal(PR_TRUE);
 }
 
 nsresult
@@ -182,146 +111,69 @@ gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
     return NS_OK;
 }
 
-struct MozLangGroupData {
-    const char *mozLangGroup;
-    const char *defaultLang;
+struct MozGtkLangGroup {
+    const char    *mozLangGroup;
+    const FcChar8 *Lang;
 };
 
-const MozLangGroupData MozLangGroups[] = {
-    { "x-western",      "en" },
-    { "x-central-euro", "pl" },
-    { "x-cyrillic",     "ru" },
-    { "x-baltic",       "lv" },
-    { "x-devanagari",   "hi" },
-    { "x-tamil",        "ta" },
-    { "x-armn",         "hy" },
-    { "x-beng",         "bn" },
-    { "x-cans",         "iu" },
-    { "x-ethi",         "am" },
-    { "x-geor",         "ka" },
-    { "x-gujr",         "gu" },
-    { "x-guru",         "pa" },
-    { "x-khmr",         "km" },
-    { "x-knda",         "kn" },
-    { "x-mlym",         "ml" },
-    { "x-orya",         "or" },
-    { "x-sinh",         "si" },
-    { "x-telu",         "te" },
-    { "x-unicode",      0    },
-    { "x-user-def",     0    }
+const MozGtkLangGroup MozGtkLangGroups[] = {
+    { "x-western",      (const FcChar8 *)"en" },
+    { "x-central-euro", (const FcChar8 *)"pl" },
+    { "x-cyrillic",     (const FcChar8 *)"ru" },
+    { "x-baltic",       (const FcChar8 *)"lv" },
+    { "x-devanagari",   (const FcChar8 *)"hi" },
+    { "x-tamil",        (const FcChar8 *)"ta" },
+    { "x-armn",         (const FcChar8 *)"hy" },
+    { "x-beng",         (const FcChar8 *)"bn" },
+    { "x-cans",         (const FcChar8 *)"iu" },
+    { "x-ethi",         (const FcChar8 *)"am" },
+    { "x-geor",         (const FcChar8 *)"ka" },
+    { "x-gujr",         (const FcChar8 *)"gu" },
+    { "x-guru",         (const FcChar8 *)"pa" },
+    { "x-khmr",         (const FcChar8 *)"km" },
+    { "x-mlym",         (const FcChar8 *)"ml" },
+    { "x-orya",         (const FcChar8 *)"or" },
+    { "x-telu",         (const FcChar8 *)"te" },
+    { "x-knda",         (const FcChar8 *)"kn" },
+    { "x-sinh",         (const FcChar8 *)"si" },
+    { "x-unicode",                       0    },
+    { "x-user-def",                      0    }
 };
 
-static PRBool
-TryLangForGroup(const nsACString& aOSLang, nsIAtom *aLangGroup,
-                nsACString *aFcLang)
+static const MozGtkLangGroup*
+NS_FindFCLangGroup (nsACString &aLangGroup)
 {
-    // Truncate at '.' or '@' from aOSLang, and convert '_' to '-'.
-    // aOSLang is in the form "language[_territory][.codeset][@modifier]".
-    // fontconfig takes languages in the form "language-territory".
-    // nsILanguageAtomService takes languages in the form language-subtag,
-    // where subtag may be a territory.  fontconfig and nsILanguageAtomService
-    // handle case-conversion for us.
-    const char *pos, *end;
-    aOSLang.BeginReading(pos);
-    aOSLang.EndReading(end);
-    aFcLang->Truncate();
-    while (pos < end) {
-        switch (*pos) {
-            case '.':
-            case '@':
-                end = pos;
-                break;
-            case '_':
-                aFcLang->Append('-');
-                break;
-            default:
-                aFcLang->Append(*pos);
-        }
-        ++pos;
-    }
-
-    nsIAtom *atom =
-        gLangService->LookupLanguage(NS_ConvertUTF8toUTF16(*aFcLang));
-
-    return atom == aLangGroup;
-}
-
-/* static */ void
-gfxFontconfigUtils::GetSampleLangForGroup(const nsACString& aLangGroup,
-                                          nsACString *aFcLang)
-{
-    NS_PRECONDITION(aFcLang != nsnull, "aFcLang must not be NULL");
-
-    const MozLangGroupData *langGroup = nsnull;
-
-    for (unsigned int i=0; i < NS_ARRAY_LENGTH(MozLangGroups); ++i) {
-        if (aLangGroup.Equals(MozLangGroups[i].mozLangGroup,
+    for (unsigned int i=0; i < NS_ARRAY_LENGTH(MozGtkLangGroups); ++i) {
+        if (aLangGroup.Equals(MozGtkLangGroups[i].mozLangGroup,
                               nsCaseInsensitiveCStringComparator())) {
-            langGroup = &MozLangGroups[i];
-            break;
+            return &MozGtkLangGroups[i];
         }
     }
 
-    if (!langGroup) {
-        // Not a special mozilla language group.
-        // Use aLangGroup as a language code.
-        aFcLang->Assign(aLangGroup);
-        return;
-    }
-
-    // Check the environment for the users preferred language that corresponds
-    // to this langGroup.
-    if (!gLangService) {
-        CallGetService(NS_LANGUAGEATOMSERVICE_CONTRACTID, &gLangService);
-    }
-
-    if (gLangService) {
-        nsRefPtr<nsIAtom> langGroupAtom = do_GetAtom(langGroup->mozLangGroup);
-
-        const char *languages = getenv("LANGUAGE");
-        if (languages) {
-            const char separator = ':';
-
-            for (const char *pos = languages; PR_TRUE; ++pos) {
-                if (*pos == '\0' || *pos == separator) {
-                    if (languages < pos &&
-                        TryLangForGroup(Substring(languages, pos),
-                                        langGroupAtom, aFcLang))
-                        return;
-
-                    if (*pos == '\0')
-                        break;
-
-                    languages = pos + 1;
-                }
-            }
-        }
-        const char *ctype = setlocale(LC_CTYPE, NULL);
-        if (ctype &&
-            TryLangForGroup(nsDependentCString(ctype), langGroupAtom, aFcLang))
-            return;
-    }
-
-    if (langGroup->defaultLang) {
-        aFcLang->Assign(langGroup->defaultLang);
-    } else {
-        aFcLang->Truncate();
-    }
+    return nsnull;
 }
 
 static void
-AddLangGroup(FcPattern *aPattern, const nsACString& aLangGroup)
+NS_AddLangGroup(FcPattern *aPattern, nsIAtom *aLangGroup)
 {
-    // Translate from mozilla's internal mapping into fontconfig's
-    nsCAutoString lang;
-    gfxFontconfigUtils::GetSampleLangForGroup(aLangGroup, &lang);
+    // Find the FC lang group for this lang group
+    nsCAutoString cname;
+    aLangGroup->ToUTF8String(cname);
 
-    if (!lang.IsEmpty()) {
-        // cast from signed chars used in nsString to unsigned in fontconfig
-        const FcChar8 *fcString = reinterpret_cast<const FcChar8*>(lang.get());
-        // and cast away the const for fontconfig, that will merely make a copy.
-        FcPatternAddString(aPattern, FC_LANG, const_cast<FcChar8*>(fcString));
-    }
+    // see if the lang group needs to be translated from mozilla's
+    // internal mapping into fontconfig's
+    const struct MozGtkLangGroup *langGroup;
+    langGroup = NS_FindFCLangGroup(cname);
+
+    // if there's no lang group, just use the lang group as it was
+    // passed to us
+    //
+    // we're casting away the const here for the strings - should be
+    // safe.
+    if (!langGroup)
+        FcPatternAddString(aPattern, FC_LANG, (FcChar8 *)cname.get());
+    else if (langGroup->Lang)
+        FcPatternAddString(aPattern, FC_LANG, (FcChar8 *)langGroup->Lang);
 }
 
 
@@ -346,7 +198,8 @@ gfxFontconfigUtils::GetFontListInternal(nsCStringArray& aListOfFonts,
 
     // take the pattern and add the lang group to it
     if (aLangGroup && !aLangGroup->IsEmpty()) {
-        AddLangGroup(pat, *aLangGroup);
+        nsCOMPtr<nsIAtom> langAtom = do_GetAtom(*aLangGroup);
+        NS_AddLangGroup(pat, langAtom);
     }
 
     fs = FcFontList(NULL, pat, os);
@@ -395,23 +248,10 @@ gfxFontconfigUtils::UpdateFontList()
 nsresult
 gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
 {
-    if (!aForce) {
-        // This checks periodically according to fontconfig's configured
-        // <rescan> interval.
-        FcInitBringUptoDate();
-    } else if (!FcConfigUptoDate(NULL)) { // check now with aForce
-        mLastConfig = NULL;
-        FcInitReinitialize();
-    }
-
-    // FcInitReinitialize() (used by FcInitBringUptoDate) creates a new config
-    // before destroying the old config, so the only way that we'd miss an
-    // update is if fontconfig did more than one update and the memory for the
-    // most recent config happened to be at the same location as the original
-    // config.
-    FcConfig *currentConfig = FcConfigGetCurrent();
-    if (currentConfig == mLastConfig)
+    if (!aForce && FcConfigUptoDate(NULL))
         return NS_OK;
+
+    FcInitReinitialize();
 
     mFonts.Clear();
     mAliasForSingleFont.Clear();
@@ -439,7 +279,9 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
         return NS_ERROR_FAILURE;
 
     nsXPIDLCString list;
-    prefBranch->GetCharPref("font.alias-list", getter_Copies(list));
+    rv = prefBranch->GetCharPref("font.alias-list", getter_Copies(list));
+    if (NS_FAILED(rv))
+        return NS_OK;
 
     if (!list.IsEmpty()) {
         const char kComma = ',';
@@ -463,6 +305,9 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
         }
     }
 
+    if (mAliasForMultiFonts.Count() == 0)
+        return NS_OK;
+
     for (PRInt32 i = 0; i < mAliasForMultiFonts.Count(); i++) {
         nsRefPtr<gfxFontNameList> fonts = new gfxFontNameList;
         nsCAutoString fontname(*mAliasForMultiFonts.CStringAt(i));
@@ -474,8 +319,6 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
         ToLowerCase(fontname, key);
         mAliasTable.Put(key, fonts);
     }
-
-    mLastConfig = currentConfig;
     return NS_OK;
 }
 
@@ -542,10 +385,6 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
         return NS_OK;
     }
 
-    nsresult rv = UpdateFontListInternal();
-    if (NS_FAILED(rv))
-        return rv;
-
     NS_ConvertUTF16toUTF8 fontname(aFontName);
 
     if (mFonts.IndexOf(fontname) >= 0) {
@@ -561,7 +400,7 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
     FcFontSet *givenFS = NULL;
     nsCStringArray candidates;
     FcFontSet *candidateFS = NULL;
-    rv = NS_ERROR_FAILURE;
+    nsresult rv = NS_ERROR_FAILURE;
 
     pat = FcPatternCreate();
     if (!pat)

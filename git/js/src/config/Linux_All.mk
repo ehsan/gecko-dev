@@ -43,9 +43,8 @@
 
 CC = gcc
 CCC = g++
-LD = g++
 CFLAGS +=  -Wall -Wno-format -MMD
-OS_CFLAGS = -DXP_UNIX -DSVR4 -DSYSV -D_BSD_SOURCE -DPOSIX_SOURCE -DHAVE_LOCALTIME_R -DLINUX
+OS_CFLAGS = -DXP_UNIX -DSVR4 -DSYSV -D_BSD_SOURCE -DPOSIX_SOURCE -DHAVE_LOCALTIME_R
 
 RANLIB = echo
 MKSHLIB = $(LD) -shared $(XMKSHLIBOPTS)
@@ -58,8 +57,7 @@ CPU_ARCH = $(shell uname -m)
 ifneq (x86_64,$(CPU_ARCH))
 ifeq (86,$(findstring 86,$(CPU_ARCH)))
 CPU_ARCH = x86
-OS_CFLAGS += -DX86_LINUX -DAVMPLUS_IA32 -DAVMPLUS_UNIX -DAVMPLUS_LINUX
-NANOJIT_ARCH = i386
+OS_CFLAGS+= -DX86_LINUX
 
 ifeq (gcc, $(CC))
 # if using gcc on x86, check version for opt bug 
@@ -69,19 +67,9 @@ GCC_LIST:=$(sort 2.91.66 $(GCC_VERSION) )
 
 ifeq (2.91.66, $(firstword $(GCC_LIST)))
 CFLAGS+= -DGCC_OPT_BUG
-endif # gcc 2.91.66
-endif # gcc
-endif # 86
-endif # !x86_64
-
-ifeq ($(CPU_ARCH),x86_64)
-OS_CFLAGS += -DAVMPLUS_AMD64 -DAVMPLUS_64BIT -DAVMPLUS_UNIX -DAVMPLUS_LINUX
-NANOJIT_ARCH = i386
 endif
-
-ifeq ($(CPU_ARCH),arm)
-OS_CFLAGS += -DAVMPLUS_ARM -DAVMPLUS_UNIX -DAVMPLUS_LINUX
-NANOJIT_ARCH = ARM
+endif
+endif
 endif
 
 GFX_ARCH = x

@@ -228,6 +228,7 @@ public:
   virtual nsIFrame* GetNextInFlowVirtual() const;
   NS_IMETHOD  SetNextInFlow(nsIFrame*);
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
+  NS_IMETHOD  GetOriginToViewOffset(nsPoint& aOffset, nsIView **aView) const;
   virtual nsIAtom* GetType() const;
   virtual PRBool IsContainingBlock() const;
 #ifdef NS_DEBUG
@@ -238,7 +239,7 @@ public:
   NS_IMETHOD  VerifyTree() const;
 #endif
 
-  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 
@@ -378,13 +379,17 @@ public:
 
   /**
    * Helper method to invalidate portions of a standard container frame if the
-   * desired size indicates that the size has changed (specifically border,
+   * reflow state indicates that the size has changed (specifically border,
    * background and outline).
    * We assume that the difference between the old frame area and the new
    * frame area is invalidated by some other means.
+   * @param aPresContext the presentation context
    * @param aDesiredSize the new size of the frame
+   * @param aReflowState the reflow that was just done on this frame
    */
-  void CheckInvalidateSizeChange(nsHTMLReflowMetrics&     aNewDesiredSize);
+  void CheckInvalidateSizeChange(nsPresContext*          aPresContext,
+                                 nsHTMLReflowMetrics&     aDesiredSize,
+                                 const nsHTMLReflowState& aReflowState);
 
   // Helper function that tests if the frame tree is too deep; if it
   // is it marks the frame as "unflowable" and zeros out the metrics

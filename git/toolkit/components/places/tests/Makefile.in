@@ -48,7 +48,6 @@ MODULE		= test_places
 
 XPCSHELL_TESTS = \
                  autocomplete \
-                 background \
                  bookmarks \
                  queries \
                  unit \
@@ -56,18 +55,18 @@ XPCSHELL_TESTS = \
 
 # Simple MochiTests
 MOCHI_TESTS = mochitest/test_bug_405924.html \
-							mochitest/test_bug_411966.html \
-							$(NULL)
+              $(NULL)
 
 MOCHI_CONTENT = mochitest/prompt_common.js \
-								$(NULL)
+                $(NULL)
 
+ifdef MOZ_MOCHITEST
 DIRS = \
-	chrome \
-	mochitest/bug_411966 \
+  chrome \
 # These tests are disabled for the time being, see bug 416066
-#	browser \
-	$(NULL)
+#  browser \
+  $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk
 

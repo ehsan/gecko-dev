@@ -526,8 +526,6 @@ nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   delete[] mChildInfosAfter;
   mChildInfosBefore = nsnull;
   mChildInfosAfter = nsnull;
-  mChildInfosBeforeCount = 0;
-  mChildInfosAfterCount = 0;
 }
 
 void

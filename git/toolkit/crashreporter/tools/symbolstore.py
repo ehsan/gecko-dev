@@ -158,7 +158,8 @@ class CVSFileInfo(VCSFileInfo):
         if len(parts) > 1:
             # we don't want the extra colon
             return parts[1].replace(":","")
-        return self.root.replace(":","")
+        print >> sys.stderr, "Failed to get CVS Root for %s" % filename
+        return None
 
     def GetRevision(self):
         (path, filename) = os.path.split(self.file)

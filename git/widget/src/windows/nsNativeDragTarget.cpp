@@ -46,7 +46,6 @@
 
 #include "nsIWidget.h"
 #include "nsWindow.h"
-#include "nsClipboard.h"
 
 #if (_MSC_VER == 1100)
 #define INITGUID
@@ -159,11 +158,9 @@ nsNativeDragTarget::GetGeckoDragAction(LPDATAOBJECT pData, DWORD grfKeyState,
 
   // Default is move if we can, in fact drop here,
   // and if the drop source supports a move operation.
-  // If move is not preferred (mMovePreferred is false)
-  // move only when the shift key is down.
-  if (mCanMove && (mMovePreferred || (grfKeyState & MK_SHIFT))) {
-    *aGeckoAction = nsIDragService::DRAGDROP_ACTION_MOVE;
+  if (mCanMove) {
     *pdwEffect    = DROPEFFECT_MOVE;
+    *aGeckoAction = nsIDragService::DRAGDROP_ACTION_MOVE;
   } else {
     *aGeckoAction = nsIDragService::DRAGDROP_ACTION_COPY;
     *pdwEffect    = DROPEFFECT_COPY;
@@ -196,7 +193,7 @@ void
 nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
 {
   nsEventStatus status;
-  nsDragEvent event(PR_TRUE, aEventType, mWindow);
+  nsMouseEvent event(PR_TRUE, aEventType, mWindow, nsMouseEvent::eReal);
 
   nsWindow * win = static_cast<nsWindow *>(mWindow);
   win->InitEvent(event);
@@ -288,20 +285,6 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
 
   // Remember if this operation allows a move.
   mCanMove = (*pdwEffect) & DROPEFFECT_MOVE;
-
-  void* tempOutData = nsnull;
-  PRUint32 tempDataLen = 0;
-  nsresult loadResult = nsClipboard::GetNativeDataOffClipboard(
-      pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), &tempOutData, &tempDataLen);
-  if (NS_SUCCEEDED(loadResult) && tempOutData) {
-    NS_ASSERTION(tempDataLen == 2, "Expected word size");
-    WORD preferredEffect = *((WORD*)tempOutData);
-
-    // Mask effect coming from function call with effect preferred by the source.
-    mMovePreferred = (preferredEffect & DROPEFFECT_MOVE) != 0;
-  }
-  else
-    mMovePreferred = mCanMove;
 
   // Set the native data object into drag service
   //
@@ -420,11 +403,6 @@ nsNativeDragTarget::Drop(LPDATAOBJECT pData,
 
   // Now process the native drag state and then dispatch the event
   ProcessDrag(pData, NS_DRAGDROP_DROP, grfKeyState, aPT, pdwEffect);
-
-  // Let the win drag service know whether this session experienced 
-  // a drop event within the application. Drop will not oocur if the
-  // drop landed outside the app. (used in tab tear off, bug 455884)
-  winDragService->SetDroppedLocal();
 
   // tell the drag service we're done with the session
   serv->EndDragSession(PR_TRUE);

@@ -55,8 +55,8 @@
  */
 char	*progName; /* argv[0] */
 
-/* password data */
-secuPWData  pwdata = { PW_NONE, 0 };
+/* password on command line. Use for build testing only */
+char	*password = NULL;
 
 /* directories or files to exclude in descent */
 PLHashTable *excludeDirs = NULL;
@@ -643,12 +643,12 @@ ProcessOneOpt(OPT_TYPE type, char *arg)
 	enableOCSP = 1;
 	break;
     case PASSWORD_OPT:
-	if (pwdata.data) {
+	if (password) {
 	    PR_fprintf(errorFD, errStrings[DUPLICATE_OPTION_ERR],
 	         				"password (-p)");
 	    warningCount++;
-	    PR_Free(pwdata.data); 
-	    pwdata.data = NULL;
+	    PR_Free(password); 
+	    password = NULL;
 	}
 	if (!arg) {
 	    PR_fprintf(errorFD, errStrings[OPTION_NEEDS_ARG_ERR],
@@ -656,8 +656,7 @@ ProcessOneOpt(OPT_TYPE type, char *arg)
 	    errorCount++;
 	    goto loser;
 	}
-        pwdata.source = PW_PLAINTEXT;
-	pwdata.data = PL_strdup(arg);
+	password = PL_strdup(arg);
 	ate = 1;
 	break;
     case VERIFY_OPT:

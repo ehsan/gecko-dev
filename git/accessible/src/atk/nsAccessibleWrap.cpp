@@ -786,50 +786,13 @@ getRoleCB(AtkObject *aAtkObj)
     return aAtkObj->role;
 }
 
-AtkAttributeSet*
-ConvertToAtkAttributeSet(nsIPersistentProperties* aAttributes)
-{
-    if (!aAttributes)
-        return nsnull;
-
-    AtkAttributeSet *objAttributeSet = nsnull;
-    nsCOMPtr<nsISimpleEnumerator> propEnum;
-    nsresult rv = aAttributes->Enumerate(getter_AddRefs(propEnum));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-
-    PRBool hasMore;
-    while (NS_SUCCEEDED(propEnum->HasMoreElements(&hasMore)) && hasMore) {
-        nsCOMPtr<nsISupports> sup;
-        rv = propEnum->GetNext(getter_AddRefs(sup));
-        NS_ENSURE_SUCCESS(rv, objAttributeSet);
-
-        nsCOMPtr<nsIPropertyElement> propElem(do_QueryInterface(sup));
-        NS_ENSURE_TRUE(propElem, objAttributeSet);
-
-        nsCAutoString name;
-        rv = propElem->GetKey(name);
-        NS_ENSURE_SUCCESS(rv, objAttributeSet);
-
-        nsAutoString value;
-        rv = propElem->GetValue(value);
-        NS_ENSURE_SUCCESS(rv, objAttributeSet);
-
-        AtkAttribute *objAttr = (AtkAttribute *)g_malloc(sizeof(AtkAttribute));
-        objAttr->name = g_strdup(name.get());
-        objAttr->value = g_strdup(NS_ConvertUTF16toUTF8(value).get());
-        objAttributeSet = g_slist_prepend(objAttributeSet, objAttr);
-    }
-
-    //libspi will free it
-    return objAttributeSet;
-}
-
 AtkAttributeSet *
 GetAttributeSet(nsIAccessible* aAccessible)
 {
+    AtkAttributeSet *objAttributeSet = nsnull;
     nsCOMPtr<nsIPersistentProperties> attributes;
     aAccessible->GetAttributes(getter_AddRefs(attributes));
-
+    
     if (attributes) {
         // Deal with attributes that we only need to expose in ATK
         PRUint32 state;
@@ -841,10 +804,33 @@ GetAttributeSet(nsIAccessible* aAccessible)
                                         oldValueUnused);
         }
 
-        return ConvertToAtkAttributeSet(attributes);
+        nsCOMPtr<nsISimpleEnumerator> propEnum;
+        nsresult rv = attributes->Enumerate(getter_AddRefs(propEnum));
+        NS_ENSURE_SUCCESS(rv, nsnull);
+
+        PRBool hasMore;
+        while (NS_SUCCEEDED(propEnum->HasMoreElements(&hasMore)) && hasMore) {
+            nsCOMPtr<nsISupports> sup;
+            rv = propEnum->GetNext(getter_AddRefs(sup));
+            nsCOMPtr<nsIPropertyElement> propElem(do_QueryInterface(sup));
+            NS_ENSURE_TRUE(propElem, nsnull);
+
+            nsCAutoString name;
+            rv = propElem->GetKey(name);
+            NS_ENSURE_SUCCESS(rv, nsnull);
+
+            nsAutoString value;
+            rv = propElem->GetValue(value);
+            NS_ENSURE_SUCCESS(rv, nsnull);
+
+            AtkAttribute *objAttribute = (AtkAttribute *)g_malloc(sizeof(AtkAttribute));
+            objAttribute->name = g_strdup(name.get());
+            objAttribute->value = g_strdup(NS_ConvertUTF16toUTF8(value).get());
+            objAttributeSet = g_slist_prepend(objAttributeSet, objAttribute);
+        }
     }
 
-    return nsnull;
+    return objAttributeSet;
 }
 
 AtkAttributeSet *
@@ -869,9 +855,8 @@ getParentCB(AtkObject *aAtkObj)
         if (NS_FAILED(rv) || !accParent)
             return nsnull;
 
-        AtkObject *parent = nsAccessibleWrap::GetAtkObject(accParent);
-        if (parent)
-            atk_object_set_parent(aAtkObj, parent);
+        atk_object_set_parent(aAtkObj,
+                              nsAccessibleWrap::GetAtkObject(accParent));
     }
     return aAtkObj->accessible_parent;
 }
@@ -1212,13 +1197,6 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
                               caretOffset);
       } break;
 
-    case nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED:
-        MAI_LOG_DEBUG(("\n\nReceived: EVENT_TEXT_ATTRIBUTE_CHANGED\n"));
-
-        g_signal_emit_by_name(atkObj,
-                              "text-attributes-changed");
-        break;
-
     case nsIAccessibleEvent::EVENT_TABLE_MODEL_CHANGED:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TABLE_MODEL_CHANGED\n"));
         g_signal_emit_by_name(atkObj, "model_changed");
@@ -1338,22 +1316,19 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
     case nsIAccessibleEvent::EVENT_WINDOW_ACTIVATE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_ACTIVATED\n"));
-        nsRootAccessible *rootAcc =
-          static_cast<nsRootAccessible *>(accessible.get());
-        rootAcc->mActivated = PR_TRUE;
+        nsDocAccessibleWrap *accDocWrap =
+          static_cast<nsDocAccessibleWrap *>(accessible.get());
+        accDocWrap->mActivated = PR_TRUE;
         guint id = g_signal_lookup ("activate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
-
-        // Always fire a current focus event after activation.
-        rootAcc->FireCurrentFocusEvent();
       } break;
 
     case nsIAccessibleEvent::EVENT_WINDOW_DEACTIVATE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_DEACTIVATED\n"));
-        nsRootAccessible *rootAcc =
-          static_cast<nsRootAccessible *>(accessible.get());
-        rootAcc->mActivated = PR_FALSE;
+        nsDocAccessibleWrap *accDocWrap =
+          static_cast<nsDocAccessibleWrap *>(accessible.get());
+        accDocWrap->mActivated = PR_FALSE;
         guint id = g_signal_lookup ("deactivate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
       } break;

@@ -43,9 +43,8 @@
 
 #include "nscore.h"
 #include "nsCOMPtr.h"
+#include "nsISVGValue.h"
 #include "nsRect.h"
-#include "gfxContext.h"
-#include "nsIRenderingContext.h"
 
 class nsIDocument;
 class nsPresContext;
@@ -62,6 +61,7 @@ class nsIURI;
 class nsSVGOuterSVGFrame;
 class nsIPresShell;
 class nsIDOMSVGAnimatedPreserveAspectRatio;
+class nsISVGValueObserver;
 class nsIAtom;
 class nsSVGLength2;
 class nsSVGElement;
@@ -70,6 +70,7 @@ class nsAttrValue;
 class gfxContext;
 class gfxASurface;
 class gfxPattern;
+class nsIRenderingContext;
 class gfxImageSurface;
 struct gfxRect;
 struct gfxMatrix;
@@ -86,14 +87,23 @@ class nsISVGChildFrame;
 // SVG Frame state bits
 #define NS_STATE_IS_OUTER_SVG         0x00100000
 
-#define NS_STATE_SVG_HAS_MARKERS      0x00200000
+#define NS_STATE_SVG_CLIPPED          0x00200000
+#define NS_STATE_SVG_FILTERED         0x00400000
+#define NS_STATE_SVG_MASKED           0x00800000
 
-#define NS_STATE_SVG_DIRTY            0x00400000
+#define NS_STATE_SVG_HAS_MARKERS      0x01000000
+
+#define NS_STATE_SVG_DIRTY            0x02000000
+
+/* Do we have a paint server for fill with a valid URL? */
+#define NS_STATE_SVG_FILL_PSERVER     0x04000000
+/* Do we have a paint server for stroke with a valid URL? */
+#define NS_STATE_SVG_STROKE_PSERVER   0x08000000
+/* Do we have any paint servers with valid URLs? */
+#define NS_STATE_SVG_PSERVER_MASK     0x0c000000
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00800000
-
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x01000000
+#define NS_STATE_SVG_NONDISPLAY_CHILD 0x10000000
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -123,33 +133,24 @@ class nsISVGChildFrame;
  */
 PRBool NS_SVGEnabled();
 
-// GRRR WINDOWS HATE HATE HATE
-#undef CLIP_MASK
-
 class nsSVGRenderState
 {
 public:
   enum RenderMode { NORMAL, CLIP, CLIP_MASK };
 
-  /**
-   * Render SVG to a legacy rendering context
-   */
   nsSVGRenderState(nsIRenderingContext *aContext);
-  /**
-   * Render SVG to a temporary surface
-   */
-  nsSVGRenderState(gfxASurface *aSurface);
+  nsSVGRenderState(gfxContext *aContext);
 
-  nsIRenderingContext *GetRenderingContext(nsIFrame *aFrame);
+  nsIRenderingContext *GetRenderingContext() { return mRenderingContext; }
   gfxContext *GetGfxContext() { return mGfxContext; }
 
   void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
   RenderMode GetRenderMode() { return mRenderMode; }
 
 private:
-  RenderMode                    mRenderMode;
-  nsCOMPtr<nsIRenderingContext> mRenderingContext;
-  nsRefPtr<gfxContext>          mGfxContext;
+  RenderMode           mRenderMode;
+  nsIRenderingContext *mRenderingContext;
+  gfxContext          *mGfxContext;
 };
 
 class nsAutoSVGRenderMode
@@ -187,37 +188,36 @@ public:
    * Get a font-size (em) of an nsIContent
    */
   static float GetFontSize(nsIContent *aContent);
-  static float GetFontSize(nsIFrame *aFrame);
+
   /*
    * Get an x-height of of an nsIContent
    */
   static float GetFontXHeight(nsIContent *aContent);
-  static float GetFontXHeight(nsIFrame *aFrame);
 
   /*
    * Converts image data from premultipled to unpremultiplied alpha
    */
   static void UnPremultiplyImageDataAlpha(PRUint8 *data, 
                                           PRInt32 stride, 
-                                          const nsIntRect &rect);
+                                          const nsRect &rect);
   /*
    * Converts image data from unpremultipled to premultiplied alpha
    */
   static void PremultiplyImageDataAlpha(PRUint8 *data, 
                                         PRInt32 stride, 
-                                        const nsIntRect &rect);
+                                        const nsRect &rect);
   /*
    * Converts image data from premultiplied sRGB to Linear RGB
    */
   static void ConvertImageDataToLinearRGB(PRUint8 *data, 
                                           PRInt32 stride, 
-                                          const nsIntRect &rect);
+                                          const nsRect &rect);
   /*
    * Converts image data from LinearRGB to premultiplied sRGB
    */
   static void ConvertImageDataFromLinearRGB(PRUint8 *data, 
                                             PRInt32 stride, 
-                                            const nsIntRect &rect);
+                                            const nsRect &rect);
 
   /*
    * Report a localized error message to the error console.
@@ -259,14 +259,11 @@ public:
    */
   static nsresult GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval);
 
-  /**
+  /*
    * Figures out the worst case invalidation area for a frame, taking
    * filters into account.
-   * @param aRect the area in app units that needs to be invalidated in aFrame
-   * @return the rect in app units that should be invalidated, taking
-   * filters into account. Will return aRect when no filters are present.
    */
-  static nsRect FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect);
+  static nsRect FindFilterInvalidation(nsIFrame *aFrame);
 
   /*
    * Update the filter invalidation region for this frame, if relevant.
@@ -286,28 +283,17 @@ public:
   /* enum for specifying coordinate direction for ObjectSpace/UserSpace */
   enum ctxDirection { X, Y, XY };
 
-  /**
-   * Computes sqrt((aWidth^2 + aHeight^2)/2);
-   */
-  static double ComputeNormalizedHypotenuse(double aWidth, double aHeight);
-
   /* Computes the input length in terms of object space coordinates.
      Input: rect - bounding box
             length - length to be converted
   */
-  static float ObjectSpace(nsIDOMSVGRect *aRect, const nsSVGLength2 *aLength);
+  static float ObjectSpace(nsIDOMSVGRect *aRect, nsSVGLength2 *aLength);
 
   /* Computes the input length in terms of user space coordinates.
      Input: content - object to be used for determining user space
-     Input: length - length to be converted
-  */
-  static float UserSpace(nsSVGElement *aSVGElement, const nsSVGLength2 *aLength);
-
-  /* Computes the input length in terms of user space coordinates.
-     Input: aFrame - object to be used for determining user space
             length - length to be converted
   */
-  static float UserSpace(nsIFrame *aFrame, const nsSVGLength2 *aLength);
+  static float UserSpace(nsSVGElement *aSVGElement, nsSVGLength2 *aLength);
 
   /* Tranforms point by the matrix.  In/out: x,y */
   static void
@@ -324,7 +310,7 @@ public:
 
   /**
    * Get the covered region for a frame. Return null if it's not an SVG frame.
-   * @param aRect gets a rectangle in app units
+   * @param aRect gets a rectangle in *pixels*
    * @return the outer SVG frame which aRect is relative to
    */
   static nsIFrame*
@@ -339,22 +325,30 @@ public:
                       nsIDOMSVGAnimatedPreserveAspectRatio *aPreserveAspectRatio,
                       PRBool aIgnoreAlign = PR_FALSE);
 
-  /* Paint SVG frame with SVG effects - aDirtyRect is the area being
-   * redrawn, in device pixel coordinates relative to the outer svg */
+  /* Paint frame with SVG effects - aDirtyRect is the area being
+   * redrawn, in frame offset pixel coordinates */
   static void
   PaintChildWithEffects(nsSVGRenderState *aContext,
-                        nsIntRect *aDirtyRect,
+                        nsRect *aDirtyRect,
                         nsIFrame *aFrame);
 
-  /* Hit testing - check if point hits the clipPath of indicated
-   * frame.  Returns true if no clipPath set. */
-  static PRBool
-  HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint);
-  
-  /* Hit testing - check if point hits any children of frame. */
+  /* Style change for effects (filter/clip/mask/opacity) - call when
+   * the frame's style has changed to make sure the effects properties
+   * stay in sync. */
+  static void
+  StyleEffects(nsIFrame *aFrame);
 
-  static nsIFrame *
-  HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint);
+  /* Hit testing - check if point hits the clipPath of indicated
+   * frame.  (x,y) are specified in device pixels relative to the
+   * origin of the outer svg frame.  Returns true if no clipPath
+   * set. */
+  static PRBool
+  HitTestClip(nsIFrame *aFrame, float x, float y);
+
+  /* Hit testing - check if point hits any children of frame. */
+  
+  static void
+  HitTestChildren(nsIFrame *aFrame, float x, float y, nsIFrame **aResult);
 
   /* Add observation of an nsISVGValue to an nsISVGValueObserver */
   static void
@@ -366,8 +360,7 @@ public:
 
   /*
    * Returns the CanvasTM of the indicated frame, whether it's a
-   * child SVG frame, container SVG frame, or a regular frame.
-   * For regular frames, we just return an identity matrix.
+   * child or container SVG frame.
    */
   static already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM(nsIFrame *aFrame);
 
@@ -384,13 +377,12 @@ public:
   GetCoveredRegion(const nsFrameList &aFrames);
 
   /*
-   * Convert a rect from device pixel units to app pixel units by inflation.
+   * Inflate a floating-point rect to a nsRect
    */
   static nsRect
-  ToAppPixelRect(nsPresContext *aPresContext,
-                 double xmin, double ymin, double xmax, double ymax);
+  ToBoundingPixelRect(double xmin, double ymin, double xmax, double ymax);
   static nsRect
-  ToAppPixelRect(nsPresContext *aPresContext, const gfxRect& rect);
+  ToBoundingPixelRect(const gfxRect& rect);
 
   /*
    * Convert a surface size to an integer for use by thebes
@@ -437,18 +429,6 @@ public:
                           nsIDOMSVGMatrix *aCTM, float aX, float aY,
                           float aWidth, float aHeight);
 
-  /**
-   * If aIn can be represented exactly using an nsIntRect (i.e. integer-aligned edges and
-   * coordinates in the PRInt32 range) then we set aOut to that rectangle, otherwise
-   * return failure.
-   */
-  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
-
-  /**
-   * Restricts aRect to pixels that intersect aGfxRect.
-   */
-  static void ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect);
-
   /* Using group opacity instead of fill or stroke opacity on a
    * geometry object seems to be a common authoring mistake.  If we're
    * not applying filters and not both stroking and filling, we can
@@ -465,26 +445,7 @@ public:
   static already_AddRefed<nsIDOMSVGMatrix>
   AdjustMatrixForUnits(nsIDOMSVGMatrix *aMatrix,
                        nsSVGEnum *aUnits,
-                       nsIFrame *aFrame);
-
-  /**
-   * Get bounding-box for aFrame. Matrix propagation is disabled so the
-   * bounding box is computed in terms of aFrame's own user space.
-   */
-  static already_AddRefed<nsIDOMSVGRect>
-  GetBBox(nsIFrame *aFrame);
-  /**
-   * Compute a rectangle in userSpaceOnUse or objectBoundingBoxUnits.
-   * @param aXYWH pointer to 4 consecutive nsSVGLength2 objects containing
-   * the x, y, width and height values in that order
-   * @param aBBox the bounding box of the object the rect is relative to;
-   * may be null if aUnits is not SVG_UNIT_TYPE_OBJECTBOUNDINGBOX
-   * @param aFrame the object in which to interpret user-space units;
-   * may be null if aUnits is SVG_UNIT_TYPE_OBJECTBOUNDINGBOX
-   */
-  static gfxRect
-  GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH, nsIDOMSVGRect *aBBox,
-                  nsIFrame *aFrame);
+                       nsISVGChildFrame *aFrame);
 
 #ifdef DEBUG
   static void
