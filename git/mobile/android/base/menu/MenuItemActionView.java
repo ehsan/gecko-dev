@@ -68,9 +68,24 @@ public class MenuItemActionView extends LinearLayout
         if (item == null)
             return;
 
-        mMenuItem.initialize(item);
-        mMenuButton.initialize(item);
+        setTitle(item.getTitle());
+        setIcon(item.getIcon());
         setEnabled(item.isEnabled());
+    }
+
+    private void setIcon(Drawable icon) {
+        mMenuItem.setIcon(icon);
+        mMenuButton.setIcon(icon);
+    }
+
+    private void setIcon(int icon) {
+        mMenuItem.setIcon(icon);
+        mMenuButton.setIcon(icon);
+    }
+
+    private void setTitle(CharSequence title) {
+        mMenuItem.setTitle(title);
+        mMenuButton.setTitle(title);
     }
 
     @Override

@@ -57,8 +57,7 @@ function testFirstWithScope() {
 
   is(withEnums[0].querySelector(".name").getAttribute("value"), "this",
     "Should have the right property name for 'this'.");
-  is(withEnums[0].querySelector(".value").getAttribute("value"),
-    "Window \u2192 doc_with-frame.html",
+  is(withEnums[0].querySelector(".value").getAttribute("value"), "Window",
     "Should have the right property value for 'this'.");
   ok(withEnums[0].querySelector(".value").className.contains("token-other"),
     "Should have the right token class for 'this'.");
@@ -132,7 +131,7 @@ function testSecondWithScope() {
 
   is(secondWithScope.get("random").target.querySelector(".name").getAttribute("value"), "random",
     "Should have the right property name for 'random'.");
-  is(secondWithScope.get("random").target.querySelector(".value").getAttribute("value"), "random()",
+  is(secondWithScope.get("random").target.querySelector(".value").getAttribute("value"), "Function",
     "Should have the right property value for 'random'.");
   ok(secondWithScope.get("random").target.querySelector(".value").className.contains("token-other"),
     "Should have the right token class for 'random'.");

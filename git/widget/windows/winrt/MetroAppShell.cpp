@@ -12,7 +12,6 @@
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/AutoRestore.h"
-#include "mozilla/TimeStamp.h"
 #include "WinUtils.h"
 #include "nsIAppStartup.h"
 #include "nsToolkitCompsCID.h"
@@ -50,7 +49,6 @@ static ComPtr<ICoreWindowStatic> sCoreStatic;
 static bool sIsDispatching = false;
 static bool sShouldPurgeThreadQueue = false;
 static bool sBlockNativeEvents = false;
-static TimeStamp sPurgeThreadQueueStart;
 
 MetroAppShell::~MetroAppShell()
 {
@@ -285,7 +283,6 @@ MetroAppShell::DispatchAllGeckoEvents()
   NS_ASSERTION(NS_IsMainThread(), "DispatchAllGeckoEvents should be called on the main thread");
 
   sShouldPurgeThreadQueue = false;
-  sPurgeThreadQueueStart = TimeStamp::Now();
 
   sBlockNativeEvents = true;
   nsIThread *thread = NS_GetCurrentThread();
@@ -344,11 +341,7 @@ MetroAppShell::ProcessNextNativeEvent(bool mayWait)
   // to dispatch pending input in DispatchAllGeckoEvents since a native
   // event may be a UIA Automation call coming in to check focus.
   if (sBlockNativeEvents) {
-    if ((TimeStamp::Now() - sPurgeThreadQueueStart).ToMilliseconds()
-        < PURGE_MAX_TIMEOUT) {
-      return false;
-    }
-    sBlockNativeEvents = false;
+    return false;
   }
 
   if (ProcessOneNativeEventIfPresent()) {

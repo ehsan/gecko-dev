@@ -1928,10 +1928,7 @@ Breakpoints.prototype = {
       let disabledPromise = this._disabled.get(identifier);
       if (disabledPromise) {
         disabledPromise.then(({ conditionalExpression: previousValue }) => {
-          // Setting a falsy conditional expression is redundant.
-          if (previousValue) {
-            aBreakpointClient.conditionalExpression = previousValue;
-          }
+          aBreakpointClient.conditionalExpression = previousValue;
         });
         this._disabled.delete(identifier);
       }

@@ -30,15 +30,13 @@ function testPause() {
 
   gDebugger.gThreadClient.addOneTimeListener("paused", () => {
     gToolbox.selectTool("webconsole").then(() => {
-      ok(gToolboxTab.hasAttribute("highlighted") &&
-         gToolboxTab.getAttribute("highlighted") == "true",
+      ok(gToolboxTab.classList.contains("highlighted"),
         "The highlighted class is present");
       ok(!gToolboxTab.hasAttribute("selected") ||
           gToolboxTab.getAttribute("selected") != "true",
         "The tab is not selected");
     }).then(() => gToolbox.selectTool("jsdebugger")).then(() => {
-      ok(gToolboxTab.hasAttribute("highlighted") &&
-         gToolboxTab.getAttribute("highlighted") == "true",
+      ok(gToolboxTab.classList.contains("highlighted"),
         "The highlighted class is present");
       ok(gToolboxTab.hasAttribute("selected") &&
          gToolboxTab.getAttribute("selected") == "true",

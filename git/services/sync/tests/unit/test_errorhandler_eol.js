@@ -44,7 +44,7 @@ function sync_httpd_setup(infoHandler) {
 }
 
 function setUp(server) {
-  yield configureIdentity({username: "johndoe"});
+  setBasicCredentials("johndoe", "ilovejane", "aabcdeabcdeabcdeabcdeabcde");
   Service.serverURL = server.baseURI + "/";
   Service.clusterURL = server.baseURI + "/";
   new FakeCryptoService();
@@ -66,42 +66,39 @@ function do_check_hard_eol(eh, start) {
   do_check_true(Status.eol);
 }
 
-add_identity_test(this, function test_200_hard() {
+add_test(function test_200_hard() {
   let eh = Service.errorHandler;
   let start = Date.now();
   let server = sync_httpd_setup(handler200("hard-eol"));
-  yield setUp(server);
+  setUp(server);
 
-  let deferred = Promise.defer();
   let obs = function (subject, topic, data) {
     Svc.Obs.remove("weave:eol", obs);
     do_check_eq("hard-eol", subject.code);
     do_check_hard_eol(eh, start);
     do_check_eq(Service.scheduler.eolInterval, Service.scheduler.syncInterval);
     eh.clearServerAlerts();
-    server.stop(deferred.resolve);
+    server.stop(run_next_test);
   };
 
   Svc.Obs.add("weave:eol", obs);
   Service._fetchInfo();
   Service.scheduler.adjustSyncInterval();   // As if we failed or succeeded in syncing.
-  yield deferred.promise;
 });
 
-add_identity_test(this, function test_513_hard() {
+add_test(function test_513_hard() {
   let eh = Service.errorHandler;
   let start = Date.now();
   let server = sync_httpd_setup(handler513);
-  yield setUp(server);
+  setUp(server);
 
-  let deferred = Promise.defer();
   let obs = function (subject, topic, data) {
     Svc.Obs.remove("weave:eol", obs);
     do_check_eq("hard-eol", subject.code);
     do_check_hard_eol(eh, start);
     do_check_eq(Service.scheduler.eolInterval, Service.scheduler.syncInterval);
     eh.clearServerAlerts();
-    server.stop(deferred.resolve);
+    server.stop(run_next_test);
   };
 
   Svc.Obs.add("weave:eol", obs);
@@ -111,27 +108,24 @@ add_identity_test(this, function test_513_hard() {
   } catch (ex) {
     // Because fetchInfo will fail on a 513.
   }
-  yield deferred.promise;
 });
 
-add_identity_test(this, function test_200_soft() {
+add_test(function test_200_soft() {
   let eh = Service.errorHandler;
   let start = Date.now();
   let server = sync_httpd_setup(handler200("soft-eol"));
-  yield setUp(server);
+  setUp(server);
 
-  let deferred = Promise.defer();
   let obs = function (subject, topic, data) {
     Svc.Obs.remove("weave:eol", obs);
     do_check_eq("soft-eol", subject.code);
     do_check_soft_eol(eh, start);
     do_check_eq(Service.scheduler.singleDeviceInterval, Service.scheduler.syncInterval);
     eh.clearServerAlerts();
-    server.stop(deferred.resolve);
+    server.stop(run_next_test);
   };
 
   Svc.Obs.add("weave:eol", obs);
   Service._fetchInfo();
   Service.scheduler.adjustSyncInterval();   // As if we failed or succeeded in syncing.
-  yield deferred.promise;
 });
