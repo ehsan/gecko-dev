@@ -807,38 +807,38 @@ void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
 }
 
 
-nsTransparencyMode nsCocoaWindow::GetTransparencyMode()
+NS_IMETHODIMP nsCocoaWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  return [mWindow isOpaque] ? eTransparencyOpaque : eTransparencyTransparent;
+  aTransparent = ![mWindow isOpaque];   
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 // This is called from nsMenuPopupFrame when making a popup transparent.
-// For other window types, nsChildView::SetTransparencyMode is used.
-void nsCocoaWindow::SetTransparencyMode(nsTransparencyMode aMode)
+// For other window types, nsChildView::SetHasTransparentBackground is used.
+NS_IMETHODIMP nsCocoaWindow::SetHasTransparentBackground(PRBool aTransparent)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  BOOL isTransparent = aMode == eTransparencyTransparent;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   BOOL currentTransparency = ![mWindow isOpaque];
-  if (isTransparent != currentTransparency) {
+  if (aTransparent != currentTransparency) {
     // Take care of window transparency
-    MakeBackgroundTransparent(isTransparent);
+    MakeBackgroundTransparent(aTransparent);
     // Make sure our content view is also transparent
     if (mPopupContentView) {
       ChildView *childView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
       if (childView) {
-        [childView setTransparent:isTransparent];
+        [childView setTransparent:aTransparent];
       }
     }
   }
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -1336,7 +1336,7 @@ NS_IMETHODIMP nsCocoaWindow::SetWindowTitlebarColor(nscolor aColor, PRBool aActi
     // to match the system appearance lame, so probably we just shouldn't color 
     // correct chrome.
     cmsHTRANSFORM transform = NULL;
-    if ((gfxPlatform::GetCMSMode() == eCMSMode_All) && (transform = gfxPlatform::GetCMSRGBATransform()))
+    if (gfxPlatform::IsCMSEnabled() && (transform = gfxPlatform::GetCMSRGBATransform()))
       cmsDoTransform(transform, &aColor, &aColor, 1);
 
     [(ToolbarWindow*)mWindow setTitlebarColor:[NSColor colorWithDeviceRed:NS_GET_R(aColor)/255.0

@@ -50,12 +50,9 @@ REQUIRES	= xpcom \
 
 CPPSRCS         = \
 		TestGtkEmbed.cpp \
-		TestGtkEmbedNotebook.cpp
-
-ifdef MOZ_X11
-CPPSRCS +=	TestGtkEmbedSocket.cpp \
+		TestGtkEmbedNotebook.cpp \
+		TestGtkEmbedSocket.cpp \
 		TestGtkEmbedChild.cpp
-endif
 
 SIMPLE_PROGRAMS = $(CPPSRCS:.cpp=)
 

@@ -68,6 +68,7 @@ endif
 
 DIRS = \
         find \
+        filepicker \
         $(NULL)
 
 ifdef MOZ_RDF
