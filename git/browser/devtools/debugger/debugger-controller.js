@@ -11,7 +11,6 @@ const Cu = Components.utils;
 
 const FRAME_STEP_CACHE_DURATION = 100; // ms
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
-const SCRIPTS_URL_MAX_LENGTH = 64; // chars
 const SYNTAX_HIGHLIGHT_MAX_FILE_SIZE = 1048576; // 1 MB in bytes
 
 Cu.import("resource:///modules/source-editor.jsm");
@@ -436,7 +435,6 @@ StackFrames.prototype = {
       this.exception = aPacket.why.exception;
     }
     this.activeThread.fillFrames(this.pageSize);
-    DebuggerView.editor.focus();
   },
 
   /**
@@ -1090,12 +1088,7 @@ SourceScripts.prototype = {
    *         The simplified label.
    */
   getScriptLabel: function SS_getScriptLabel(aUrl, aHref) {
-    let label = this._trimUrl(aUrl);
-    if (label.length > SCRIPTS_URL_MAX_LENGTH) {
-      let ellipsis = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString);
-      label = label.substring(0, SCRIPTS_URL_MAX_LENGTH) + ellipsis.data;
-    }
-    return this._labelsCache[aUrl] || (this._labelsCache[aUrl] = label);
+    return this._labelsCache[aUrl] || (this._labelsCache[aUrl] = this._trimUrl(aUrl));
   },
 
   /**
