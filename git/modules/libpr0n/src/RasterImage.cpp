@@ -2497,10 +2497,6 @@ RasterImage::Draw(gfxContext *aContext,
     mFrameDecodeFlags = DECODE_FLAGS_DEFAULT;
   }
 
-  if (!mDecoded) {
-      mDrawStartTime = TimeStamp::Now();
-  }
-
   // If a synchronous draw is requested, flush anything that might be sitting around
   if (aFlags & FLAG_SYNC_DECODE) {
     nsresult rv = SyncDecode();
@@ -2519,12 +2515,6 @@ RasterImage::Draw(gfxContext *aContext,
 
   frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage);
 
-  if (mDecoded && !mDrawStartTime.IsNull()) {
-      TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;
-      Telemetry::Accumulate(Telemetry::IMAGE_DECODE_ON_DRAW_LATENCY, PRInt32(drawLatency.ToMicroseconds()));
-      // clear the value of mDrawStartTime
-      mDrawStartTime = TimeStamp();
-  }
   return NS_OK;
 }
 
@@ -2719,7 +2709,6 @@ imgDecodeWorker::Run()
 
   // Loop control
   bool haveMoreData = true;
-  PRInt32 chunkCount = 0;
   TimeStamp start = TimeStamp::Now();
   TimeStamp deadline = start + TimeDuration::FromMilliseconds(gMaxMSBeforeYield);
 
@@ -2731,7 +2720,6 @@ imgDecodeWorker::Run()
          (TimeStamp::Now() < deadline)) {
 
     // Decode a chunk of data
-    chunkCount++;
     rv = image->DecodeSomeData(maxBytes);
     if (NS_FAILED(rv)) {
       image->DoError();
@@ -2744,10 +2732,8 @@ imgDecodeWorker::Run()
   }
 
   TimeDuration decodeLatency = TimeStamp::Now() - start;
-  if (chunkCount) {
-      Telemetry::Accumulate(Telemetry::IMAGE_DECODE_LATENCY, PRInt32(decodeLatency.ToMicroseconds()));
-      Telemetry::Accumulate(Telemetry::IMAGE_DECODE_CHUNKS, chunkCount);
-  }
+  Telemetry::Accumulate(Telemetry::IMAGE_DECODE_LATENCY, PRInt32(decodeLatency.ToMicroseconds()));
+
   // accumulate the total decode time
   mDecodeTime += decodeLatency;
 

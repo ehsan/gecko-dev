@@ -1,6 +1,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Test for SMIL when things change after an animation is frozen</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="smilTestUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -129,7 +130,7 @@ function testBaseValueChange()
   is(gCircle.cx.animVal.value, 70,
      "Checking animated cx after anim ends & after changing base val");
 
-  anim.parentNode.removeChild(anim); // clean up
+  removeElement(anim); // clean up
   runNextTest();
 }
 
@@ -153,7 +154,7 @@ function testCurrentColorChange_final()
 
   // Clean up
   gCircle.removeAttribute("color");
-  gCircle.firstChild.parentNode.removeChild(gCircle.firstChild);
+  removeElement(gCircle.firstChild);
 
   // Kick off next test
   runNextTest();
@@ -181,7 +182,7 @@ function testCurrentColorChangeUsingStyle_final()
 
   // Clean up
   gCircle.removeAttribute("style");
-  gCircle.firstChild.parentNode.removeChild(gCircle.firstChild);
+  removeElement(gCircle.firstChild);
   runNextTest();
 }
 
@@ -204,7 +205,7 @@ function testInheritChange_final() {
      "Checking animated fill=inherit after anim ends and parent val changes");
 
   gCircleParent.removeAttribute("fill");
-  gCircle.firstChild.parentNode.removeChild(gCircle.firstChild);
+  removeElement(gCircle.firstChild);
   runNextTest();
 }
 
@@ -228,7 +229,7 @@ function testInheritChangeUsingStyle_final() {
      + "(using style attr)");
 
   gCircleParent.removeAttribute("style");
-  gCircle.firstChild.parentNode.removeChild(gCircle.firstChild);
+  removeElement(gCircle.firstChild);
   runNextTest();
 }
 

@@ -253,7 +253,7 @@ public: // NOT in nsIViewManager, so private to the view module
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 
-  PRUint32 AppUnitsPerDevPixel() const
+  PRInt32 AppUnitsPerDevPixel() const
   {
     return mContext->AppUnitsPerDevPixel();
   }

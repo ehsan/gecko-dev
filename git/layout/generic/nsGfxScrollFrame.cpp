@@ -2585,11 +2585,12 @@ void nsGfxScrollFrameInner::CurPosAttributeChanged(nsIContent* aContent)
 
   nsRect scrolledRect = GetScrolledRect();
 
-  nsPoint current = GetScrollPosition() - scrolledRect.TopLeft();
   nsPoint dest;
-  dest.x = GetCoordAttribute(mHScrollbarBox, nsGkAtoms::curpos, current.x) +
+  dest.x = GetCoordAttribute(mHScrollbarBox, nsGkAtoms::curpos,
+                             -scrolledRect.x) +
            scrolledRect.x;
-  dest.y = GetCoordAttribute(mVScrollbarBox, nsGkAtoms::curpos, current.y) +
+  dest.y = GetCoordAttribute(mVScrollbarBox, nsGkAtoms::curpos,
+                             -scrolledRect.y) +
            scrolledRect.y;
 
   // If we have an async scroll pending don't stomp on that by calling ScrollTo.
