@@ -14,6 +14,7 @@
 
 class nsIContent;
 class nsIAtom;
+class nsSupportsHashtable;
 class nsXBLPrototypeResources;
 class nsXBLPrototypeBinding;
 struct nsXBLResource;

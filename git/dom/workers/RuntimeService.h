@@ -37,11 +37,11 @@ private:
   {
     WorkerPrivate* mWorkerPrivate;
     nsCString mScriptSpec;
-    nsCString mName;
+    nsString mName;
 
     SharedWorkerInfo(WorkerPrivate* aWorkerPrivate,
                      const nsACString& aScriptSpec,
-                     const nsACString& aName)
+                     const nsAString& aName)
     : mWorkerPrivate(aWorkerPrivate), mScriptSpec(aScriptSpec), mName(aName)
     { }
   };
@@ -144,7 +144,7 @@ public:
   nsresult
   CreateSharedWorker(const GlobalObject& aGlobal,
                      const nsAString& aScriptURL,
-                     const nsACString& aName,
+                     const nsAString& aName,
                      SharedWorker** aSharedWorker);
 
   void

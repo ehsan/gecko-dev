@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Pref="media.webspeech.recognition.enable"]
+[PrefControlled]
 interface SpeechRecognitionResult {
     readonly attribute unsigned long length;
     getter SpeechRecognitionAlternative item(unsigned long index);

@@ -293,11 +293,9 @@ ContentClientRemoteBuffer::Updated(const nsIntRegion& aRegionToDraw,
                                                aDidSelfCopy);
 
   MOZ_ASSERT(mTextureClient);
+  mForwarder->UseTexture(this, mTextureClient);
   if (mTextureClientOnWhite) {
-    mForwarder->UseComponentAlphaTextures(this, mTextureClient,
-                                          mTextureClientOnWhite);
-  } else {
-    mForwarder->UseTexture(this, mTextureClient);
+    mForwarder->UseTexture(this, mTextureClientOnWhite);
   }
   mForwarder->UpdateTextureRegion(this,
                                   ThebesBufferData(BufferRect(),

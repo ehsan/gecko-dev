@@ -84,15 +84,17 @@ public:
    */
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual nsresult StealFrame(nsIFrame* aChild, bool aForceNormal) MOZ_OVERRIDE
+  virtual nsresult StealFrame(nsPresContext* aPresContext,
+                              nsIFrame*      aChild,
+                              bool           aForceNormal) MOZ_OVERRIDE
   {
     NS_ASSERTION(!aForceNormal, "No-one should be passing this in here");
 
     // nsCanvasFrame keeps overflow container continuations of its child
     // frame in main child list
-    nsresult rv = nsContainerFrame::StealFrame(aChild, true);
+    nsresult rv = nsContainerFrame::StealFrame(aPresContext, aChild, true);
     if (NS_FAILED(rv)) {
-      rv = nsContainerFrame::StealFrame(aChild);
+      rv = nsContainerFrame::StealFrame(aPresContext, aChild);
     }
     return rv;
   }

@@ -2139,6 +2139,8 @@ class CGConstructorEnabled(CGAbstractMethod):
         if func:
             assert isinstance(func, list) and len(func) == 1
             conditions.append("%s(aCx, aObj)" % func[0])
+        if iface.getExtendedAttribute("PrefControlled"):
+            conditions.append("%s::PrefEnabled()" % self.descriptor.nativeType)
         availableIn = getAvailableInTestFunc(iface)
         if availableIn:
             conditions.append("%s(aCx, aObj)" % availableIn)
@@ -5234,7 +5236,6 @@ if (!${obj}) {
                                  'jsvalHandle': 'args.rval()',
                                  'returnsNewObject': returnsNewObject,
                                  'successCode': successCode,
-                                 'obj' : "reflector" if setSlot else "obj",
                                  }
         try:
             wrapCode = CGGeneric(wrapForType(self.returnType, self.descriptor,
@@ -9046,7 +9047,7 @@ class CGDictionary(CGThing):
     def base(self):
         if self.dictionary.parent:
             return self.makeClassName(self.dictionary.parent)
-        return "DictionaryBase"
+        return "MainThreadDictionaryBase"
 
     def initMethod(self):
         body = (

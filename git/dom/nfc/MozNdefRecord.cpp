@@ -6,8 +6,8 @@
 
 /* Copyright © 2013 Deutsche Telekom, Inc. */
 
-#include "MozNDEFRecord.h"
-#include "mozilla/dom/MozNDEFRecordBinding.h"
+#include "MozNdefRecord.h"
+#include "mozilla/dom/MozNdefRecordBinding.h"
 #include "mozilla/HoldDropJSObjects.h"
 #include "nsContentUtils.h"
 
@@ -16,40 +16,40 @@ namespace mozilla {
 namespace dom {
 
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(MozNDEFRecord)
+NS_IMPL_CYCLE_COLLECTION_CLASS(MozNdefRecord)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(MozNDEFRecord)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(MozNdefRecord)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(MozNDEFRecord)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(MozNdefRecord)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(MozNDEFRecord)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(MozNdefRecord)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mType)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mId)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mPayload)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(MozNDEFRecord)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(MozNDEFRecord)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(MozNDEFRecord)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(MozNdefRecord)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(MozNdefRecord)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(MozNdefRecord)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
 void
-MozNDEFRecord::HoldData()
+MozNdefRecord::HoldData()
 {
   mozilla::HoldJSObjects(this);
 }
 
 void
-MozNDEFRecord::DropData()
+MozNdefRecord::DropData()
 {
   if (mType) {
     mType = nullptr;
@@ -64,8 +64,8 @@ MozNDEFRecord::DropData()
 }
 
 /* static */
-already_AddRefed<MozNDEFRecord>
-MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
+already_AddRefed<MozNdefRecord>
+MozNdefRecord::Constructor(const GlobalObject& aGlobal,
                            uint8_t aTnf, const Uint8Array& aType,
                            const Uint8Array& aId, const Uint8Array& aPayload,
                            ErrorResult& aRv)
@@ -76,7 +76,7 @@ MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsRefPtr<MozNDEFRecord> ndefrecord = new MozNDEFRecord(aGlobal.GetContext(),
+  nsRefPtr<MozNdefRecord> ndefrecord = new MozNdefRecord(aGlobal.GetContext(),
                                                          win, aTnf, aType, aId,
                                                          aPayload);
   if (!ndefrecord) {
@@ -86,7 +86,7 @@ MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
   return ndefrecord.forget();
 }
 
-MozNDEFRecord::MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
+MozNdefRecord::MozNdefRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
                              uint8_t aTnf, const Uint8Array& aType,
                              const Uint8Array& aId, const Uint8Array& aPayload)
   : mTnf(aTnf)
@@ -101,15 +101,15 @@ MozNDEFRecord::MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
   HoldData();
 }
 
-MozNDEFRecord::~MozNDEFRecord()
+MozNdefRecord::~MozNdefRecord()
 {
   DropData();
 }
 
 JSObject*
-MozNDEFRecord::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+MozNdefRecord::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return MozNDEFRecordBinding::Wrap(aCx, aScope, this);
+  return MozNdefRecordBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

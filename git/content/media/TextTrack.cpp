@@ -17,9 +17,10 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_5(TextTrack,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_6(TextTrack,
                                      nsDOMEventTargetHelper,
                                      mParent,
+                                     mMediaElement,
                                      mCueList,
                                      mActiveCueList,
                                      mRegionList,
@@ -37,26 +38,21 @@ TextTrack::TextTrack(nsISupports* aParent)
   SetIsDOMBinding();
 }
 
-TextTrack::TextTrack(nsISupports* aParent,
-                     TextTrackKind aKind,
-                     const nsAString& aLabel,
-                     const nsAString& aLanguage)
+TextTrack::TextTrack(nsISupports* aParent, HTMLMediaElement* aMediaElement)
   : mParent(aParent)
+  , mMediaElement(aMediaElement)
 {
   SetDefaultSettings();
-  mKind = aKind;
-  mLabel = aLabel;
-  mLanguage = aLanguage;
   SetIsDOMBinding();
 }
 
 TextTrack::TextTrack(nsISupports* aParent,
-                     TextTrackList* aTextTrackList,
+                     HTMLMediaElement* aMediaElement,
                      TextTrackKind aKind,
                      const nsAString& aLabel,
                      const nsAString& aLanguage)
   : mParent(aParent)
-  , mTextTrackList(aTextTrackList)
+  , mMediaElement(aMediaElement)
 {
   SetDefaultSettings();
   mKind = aKind;
@@ -89,8 +85,8 @@ TextTrack::SetMode(TextTrackMode aValue)
 {
   if (mMode != aValue) {
     mMode = aValue;
-    if (mTextTrackList) {
-      mTextTrackList->CreateAndDispatchChangeEvent();
+    if (mMediaElement) {
+      mMediaElement->TextTracks()->CreateAndDispatchChangeEvent();
     }
   }
 }
@@ -99,11 +95,8 @@ void
 TextTrack::AddCue(TextTrackCue& aCue)
 {
   mCueList->AddCue(aCue);
-  if (mTextTrackList) {
-    HTMLMediaElement* mediaElement = mTextTrackList->GetMediaElement();
-    if (mediaElement) {
-      mediaElement->AddCue(aCue);
-    }
+  if (mMediaElement) {
+    mMediaElement->AddCue(aCue);
   }
   SetDirty();
 }
@@ -148,12 +141,7 @@ TextTrack::RemoveRegion(const TextTrackRegion& aRegion, ErrorResult& aRv)
 void
 TextTrack::UpdateActiveCueList()
 {
-  if (mMode == TextTrackMode::Disabled || !mTextTrackList) {
-    return;
-  }
-
-  HTMLMediaElement* mediaElement = mTextTrackList->GetMediaElement();
-  if (!mediaElement) {
+  if (mMode == TextTrackMode::Disabled || !mMediaElement) {
     return;
   }
 
@@ -166,7 +154,7 @@ TextTrack::UpdateActiveCueList()
     mActiveCueList->RemoveAll();
   }
 
-  double playbackTime = mediaElement->CurrentTime();
+  double playbackTime = mMediaElement->CurrentTime();
   // Remove all the cues from the active cue list whose end times now occur
   // earlier then the current playback time.
   for (uint32_t i = mActiveCueList->Length(); i > 0; i--) {
@@ -209,15 +197,9 @@ void
 TextTrack::SetReadyState(uint16_t aState)
 {
   mReadyState = aState;
-
-  if (!mTextTrackList) {
-    return;
-  }
-
-  HTMLMediaElement* mediaElement = mTextTrackList->GetMediaElement();
-  if (mediaElement && (mReadyState == HTMLTrackElement::READY_STATE_LOADED ||
+  if (mMediaElement && (mReadyState == HTMLTrackElement::READY_STATE_LOADED ||
       mReadyState == HTMLTrackElement::READY_STATE_ERROR)) {
-    mediaElement->RemoveTextTrack(this, true);
+    mMediaElement->RemoveTextTrack(this, true);
   }
 }
 

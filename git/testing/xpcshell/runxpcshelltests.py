@@ -969,7 +969,9 @@ class XPCShellTests(object):
 
         # We try to find the node executable in the path given to us by the user in
         # the MOZ_NODE_PATH environment variable
-        localPath = os.getenv('MOZ_NODE_PATH', None)
+        # localPath = os.getenv('MOZ_NODE_PATH', None)
+        # Temporarily, we use the node binary in this directory
+        localPath = os.path.join(os.path.split(os.path.abspath(__file__))[0], 'node')
         if localPath and os.path.exists(localPath) and os.path.isfile(localPath):
             nodeBin = localPath
 
@@ -991,7 +993,7 @@ class XPCShellTests(object):
                         # tell us it's started
                         msg = process.stdout.readline()
                         if 'server listening' in msg:
-                            nodeMozInfo['hasNode'] = True
+                            nodeMozInfo['hasNode'] = True  # Todo: refactor this
                     except OSError, e:
                         # This occurs if the subprocess couldn't be started
                         self.log.error('Could not run %s server: %s' % (name, str(e)))

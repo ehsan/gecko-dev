@@ -312,12 +312,6 @@ struct OpUseTexture {
   PTexture texture;
 };
 
-struct OpUseComponentAlphaTextures {
-  PCompositable compositable;
-  PTexture textureOnBlack;
-  PTexture textureOnWhite;
-};
-
 union MaybeRegion {
   nsIntRegion;
   null_t;
@@ -344,7 +338,6 @@ union CompositableOperation {
 
   OpUpdateTexture;
   OpUseTexture;
-  OpUseComponentAlphaTextures;
 };
 
 // A unit of a changeset; a set of these comprise a changeset

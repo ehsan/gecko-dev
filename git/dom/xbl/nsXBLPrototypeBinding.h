@@ -22,8 +22,10 @@
 class nsIAtom;
 class nsIContent;
 class nsIDocument;
+class nsSupportsHashtable;
 class nsXBLProtoImplField;
 class nsXBLBinding;
+class nsCSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class

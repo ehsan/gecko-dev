@@ -871,7 +871,6 @@ NS_ShutdownNativeCharsetUtils()
 #elif defined(XP_WIN)
 
 #include <windows.h>
-#include "nsString.h"
 #include "nsAString.h"
 #include "nsReadableUtils.h"
 
@@ -902,7 +901,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
 
         char16_t *result = out_iter.get();
 
-        ::MultiByteToWideChar(CP_ACP, 0, buf, inputLen, wwc(result), resultLen);
+        ::MultiByteToWideChar(CP_ACP, 0, buf, inputLen, result, resultLen);
     }
     return NS_OK;
 }
@@ -948,7 +947,7 @@ NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
 int32_t 
 NS_ConvertAtoW(const char *aStrInA, int aBufferSize, char16_t *aStrOutW)
 {
-    return MultiByteToWideChar(CP_ACP, 0, aStrInA, -1, wwc(aStrOutW), aBufferSize);
+    return MultiByteToWideChar(CP_ACP, 0, aStrInA, -1, aStrOutW, aBufferSize);
 }
 
 int32_t 

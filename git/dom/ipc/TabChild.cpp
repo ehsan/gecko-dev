@@ -2108,7 +2108,7 @@ bool
 TabChild::DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* actor)
 {
   OfflineCacheUpdateChild* offlineCacheUpdate = static_cast<OfflineCacheUpdateChild*>(actor);
-  NS_RELEASE(offlineCacheUpdate);
+  delete offlineCacheUpdate;
   return true;
 }
 

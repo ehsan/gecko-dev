@@ -54,7 +54,7 @@ public:
     return mParent;
   }
 
-  static bool PrefEnabled(JSContext* aCx = nullptr, JSObject* aGlobal = nullptr);
+  static bool PrefEnabled();
 
   uint32_t Length() const
   {
@@ -118,7 +118,7 @@ public:
                       nsDOMTouchList* aChangedTouches,
                       mozilla::ErrorResult& aRv);
 
-  static bool PrefEnabled(JSContext* aCx = nullptr, JSObject* aGlobal = nullptr);
+  static bool PrefEnabled();
 protected:
   nsRefPtr<nsDOMTouchList> mTouches;
   nsRefPtr<nsDOMTouchList> mTargetTouches;

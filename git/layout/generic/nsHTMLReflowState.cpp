@@ -59,10 +59,9 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
   , mBlockDelta(0)
   , mReflowDepth(0)
 {
+  NS_PRECONDITION(aPresContext, "no pres context");
   NS_PRECONDITION(aRenderingContext, "no rendering context");
-  MOZ_ASSERT(aPresContext, "no pres context");
-  MOZ_ASSERT(aFrame, "no frame");
-  MOZ_ASSERT(aPresContext == aFrame->PresContext(), "wrong pres context");
+  NS_PRECONDITION(aFrame, "no frame");
   parentReflowState = nullptr;
   AvailableWidth() = aAvailableSpace.width;
   AvailableHeight() = aAvailableSpace.height;
@@ -160,9 +159,8 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   , mReflowDepth(aParentReflowState.mReflowDepth + 1)
   , mFlags(aParentReflowState.mFlags)
 {
-  MOZ_ASSERT(aPresContext, "no pres context");
-  MOZ_ASSERT(aFrame, "no frame");
-  MOZ_ASSERT(aPresContext == aFrame->PresContext(), "wrong pres context");
+  NS_PRECONDITION(aPresContext, "no pres context");
+  NS_PRECONDITION(aFrame, "no frame");
   NS_PRECONDITION((aContainingBlockWidth == -1) ==
                     (aContainingBlockHeight == -1),
                   "cb width and height should only be non-default together");
@@ -896,7 +894,7 @@ nsHTMLReflowState::ApplyRelativePositioning(nsIFrame* aFrame,
   } else if (NS_STYLE_POSITION_STICKY == display->mPosition &&
              !aFrame->GetNextContinuation() &&
              !aFrame->GetPrevContinuation() &&
-             !(aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT)) {
+             !(aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
     // Sticky positioning for elements with multiple frames needs to be
     // computed all at once. We can't safely do that here because we might be
     // partway through (re)positioning the frames, so leave it until the scroll
@@ -994,7 +992,7 @@ GetIntrinsicSizeFor(nsIFrame* aFrame, nsSize& aIntrinsicSize, nsIAtom* aFrameTyp
 
 /**
  * aInsideBoxSizing returns the part of the horizontal padding, border,
- * and margin that goes inside the edge given by box-sizing;
+ * and margin that goes inside the edge given by -moz-box-sizing;
  * aOutsideBoxSizing returns the rest.
  */
 void
@@ -2263,7 +2261,7 @@ nsCSSOffsetState::InitOffsets(nscoord aHorizontalPercentBasis,
       // border-collapsed tables don't use any of their padding, and
       // only part of their border.  We need to do this here before we
       // try to do anything like handling 'auto' widths,
-      // 'box-sizing', or 'auto' margins.
+      // '-moz-box-sizing', or 'auto' margins.
       ComputedPhysicalPadding().SizeTo(0,0,0,0);
       ComputedPhysicalBorderPadding() = tableFrame->GetIncludedOuterBCBorder();
     }

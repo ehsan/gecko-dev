@@ -36,6 +36,9 @@ class SharedWorker MOZ_FINAL : public nsDOMEventTargetHelper
   bool mSuspended;
 
 public:
+  static bool
+  PrefEnabled();
+
   static already_AddRefed<SharedWorker>
   Constructor(const GlobalObject& aGlobal, JSContext* aCx,
               const nsAString& aScriptURL, const Optional<nsAString>& aName,

@@ -1157,6 +1157,7 @@ NS_IMPL_ISUPPORTS3(nsOfflineCacheUpdate,
 
 nsOfflineCacheUpdate::nsOfflineCacheUpdate()
     : mState(STATE_UNINITIALIZED)
+    , mOwner(nullptr)
     , mAddedItems(false)
     , mPartialUpdate(false)
     , mOnlyCheckUpdate(false)
@@ -1985,7 +1986,7 @@ void
 nsOfflineCacheUpdate::SetOwner(nsOfflineCacheUpdateOwner *aOwner)
 {
     NS_ASSERTION(!mOwner, "Tried to set cache update owner twice.");
-    mOwner = aOwner->asWeakPtr();
+    mOwner = aOwner;
 }
 
 bool
@@ -2106,9 +2107,7 @@ nsOfflineCacheUpdate::FinishNoNotify()
 
     if (mOwner) {
         rv = mOwner->UpdateFinished(this);
-        // mozilla::WeakPtr is missing some key features, like setting it to
-        // null explicitly.
-        mOwner = mozilla::WeakPtr<nsOfflineCacheUpdateOwner>();
+        mOwner = nullptr;
     }
 
     return rv;

@@ -345,7 +345,7 @@ private:
     GetReporterNameAndDescription(path, perms, name, description, &kind);
 
     while (true) {
-      size_t pss = 0;
+      size_t pss;
       nsresult rv = ParseMapBody(aFile, aProcessName, name, description,
                                  aHandleReport, aData, &pss);
       if (NS_FAILED(rv))

@@ -116,8 +116,6 @@ public:
   virtual TextureHost* GetAsTextureHost() MOZ_OVERRIDE;
 
   virtual void UseTextureHost(TextureHost* aTexture) MOZ_OVERRIDE;
-  virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
-                                         TextureHost* aTextureOnWhite) MOZ_OVERRIDE;
 
   virtual void SetPaintWillResample(bool aResample) { mPaintWillResample = aResample; }
 

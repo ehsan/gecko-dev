@@ -21,6 +21,7 @@ enum ChannelInterpretation {
     "discrete"
 };
 
+[PrefControlled]
 interface AudioNode : EventTarget {
 
     [Throws]
