@@ -77,7 +77,6 @@ TypeFallbackICSpew(JSContext *cx, ICTypeMonitor_Fallback *stub, const char *fmt,
 #define TypeFallbackICSpew(...)
 #endif
 
-
 ICFallbackStub *
 ICEntry::fallbackStub() const
 {
@@ -239,11 +238,6 @@ ICStub::trace(JSTracer *trc)
       case ICStub::TypeUpdate_TypeObject: {
         ICTypeUpdate_TypeObject *updateStub = toTypeUpdate_TypeObject();
         MarkTypeObject(trc, &updateStub->type(), "baseline-update-typeobject");
-        break;
-      }
-      case ICStub::Profiler_PushFunction: {
-        ICProfiler_PushFunction *pushFunStub = toProfiler_PushFunction();
-        MarkScript(trc, &pushFunStub->script(), "baseline-profilerpushfunction-stub-script");
         break;
       }
       case ICStub::GetName_Global: {
@@ -551,29 +545,6 @@ ICStubCompiler::leaveStubFrame(MacroAssembler &masm, bool calledIntoIon)
 {
     JS_ASSERT(entersStubFrame_);
     EmitLeaveStubFrame(masm, calledIntoIon);
-}
- 
-void
-ICStubCompiler::guardProfilingEnabled(MacroAssembler &masm, Register scratch, Label *skip)
-{
-    // This should only be called from the following stubs.
-    JS_ASSERT(kind == ICStub::Call_Scripted || kind == ICStub::Call_AnyScripted ||
-              kind == ICStub::Call_Native   || kind == ICStub::GetProp_CallScripted ||
-              kind == ICStub::SetProp_CallScripted);
-
-    // Guard on bit in frame that indicates if the SPS frame was pushed in the first
-    // place.  This code is expected to be called from within a stub that has already
-    // entered a stub frame.
-    JS_ASSERT(entersStubFrame_);
-    masm.loadPtr(Address(BaselineFrameReg, 0), scratch);
-    masm.branchTest32(Assembler::Zero,
-                      Address(scratch, BaselineFrame::reverseOffsetOfFlags()),
-                      Imm32(BaselineFrame::HAS_PUSHED_SPS_FRAME),
-                      skip);
-
-    // Check if profiling is enabled
-    uint32_t *enabledAddr = cx->runtime->spsProfiler.addressOfEnabled();
-    masm.branch32(Assembler::Equal, AbsoluteAddress(enabledAddr), Imm32(0), skip);
 }
 
 //
@@ -884,100 +855,6 @@ ICUseCount_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     // No jitcode available, do nothing.
     masm.bind(&noCompiledCode);
     EmitReturnFromIC(masm);
-    return true;
-}
-
-//
-// ICProfile_Fallback
-//
-
-static bool
-DoProfilerFallback(JSContext *cx, BaselineFrame *frame, ICProfiler_Fallback *stub)
-{
-    RootedScript script(cx, frame->script());
-    RootedFunction func(cx, frame->maybeFun());
-    ICEntry *icEntry = stub->icEntry();
-
-    FallbackICSpew(cx, stub, "Profiler");
-
-    SPSProfiler *profiler = &cx->runtime->spsProfiler;
-
-    // Manually enter SPS this time.
-    JS_ASSERT(profiler->enabled());
-    if (!cx->runtime->spsProfiler.enter(cx, script, func))
-        return false;
-    frame->setPushedSPSFrame();
-
-    // Unlink any existing PushFunction stub (which may hold stale 'const char *' to
-    // the profile string.
-    JS_ASSERT_IF(icEntry->firstStub() != stub,
-                 icEntry->firstStub()->isProfiler_PushFunction() &&
-                 icEntry->firstStub()->next() == stub);
-    stub->unlinkStubsWithKind(cx, ICStub::Profiler_PushFunction);
-    JS_ASSERT(icEntry->firstStub() == stub);
-
-    // Generate the string to use to identify this stack frame.
-    const char *string = profiler->profileString(cx, script, func);
-    if (string == NULL)
-        return false;
-
-    IonSpew(IonSpew_BaselineIC, "  Generating Profiler_PushFunction stub for %s:%d",
-            script->filename(), script->lineno);
-
-    // Create a new optimized stub.
-    ICProfiler_PushFunction::Compiler compiler(cx, string, script);
-    ICStub *optStub = compiler.getStub(compiler.getStubSpace(script));
-    if (!optStub)
-        return false;
-    stub->addNewStub(optStub);
-
-    return true;
-}
-
-typedef bool (*DoProfilerFallbackFn)(JSContext *, BaselineFrame *frame, ICProfiler_Fallback *);
-static const VMFunction DoProfilerFallbackInfo =
-    FunctionInfo<DoProfilerFallbackFn>(DoProfilerFallback);
-
-bool
-ICProfiler_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
-{
-    EmitRestoreTailCallReg(masm);
-
-    masm.push(BaselineStubReg);         // Push stub.
-    masm.pushBaselineFramePtr(BaselineFrameReg, R0.scratchReg()); // Push frame.
-
-    return tailCallVM(DoProfilerFallbackInfo, masm);
-}
-
-bool
-ICProfiler_PushFunction::Compiler::generateStubCode(MacroAssembler &masm)
-{
-
-    Register scratch = R0.scratchReg();
-    Register scratch2 = R1.scratchReg();
-
-    // Profiling should be enabled if we ever reach here.
-#ifdef DEBUG
-    Label spsEnabled;
-    uint32_t *enabledAddr = cx->runtime->spsProfiler.addressOfEnabled();
-    masm.branch32(Assembler::NotEqual, AbsoluteAddress(enabledAddr), Imm32(0), &spsEnabled);
-    masm.breakpoint();
-    masm.bind(&spsEnabled);
-#endif
-
-    // Push SPS entry.
-    masm.spsPushFrame(&cx->runtime->spsProfiler,
-                      Address(BaselineStubReg, ICProfiler_PushFunction::offsetOfStr()),
-                      Address(BaselineStubReg, ICProfiler_PushFunction::offsetOfScript()),
-                      scratch,
-                      scratch2);
-
-    // Mark frame as having profiler entry pushed.
-    Address flagsOffset(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags());
-    masm.or32(Imm32(BaselineFrame::HAS_PUSHED_SPS_FRAME), flagsOffset);
-
-    EmitReturnFromIC(masm);
-
     return true;
 }
 
@@ -4600,9 +4477,9 @@ TryAttachLengthStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub
 }
 
 static bool
-TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
-                           ICGetProp_Fallback *stub, HandlePropertyName name,
-                           HandleValue val, HandleValue res, bool *attached)
+TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub,
+                           HandlePropertyName name, HandleValue val, HandleValue res,
+                           bool *attached)
 {
     JS_ASSERT(!*attached);
 
@@ -4649,8 +4526,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
                     (obj == holder) ? "direct" : "prototype",
                     callee->nonLazyScript()->filename(), callee->nonLazyScript()->lineno);
 
-        ICGetProp_CallScripted::Compiler compiler(cx, monitorStub, obj, holder, callee,
-                                                  pc - script->code);
+        ICGetProp_CallScripted::Compiler compiler(cx, monitorStub, obj, holder, callee);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
@@ -4762,7 +4638,7 @@ DoGetPropFallback(JSContext *cx, BaselineFrame *frame, ICGetProp_Fallback *stub,
             return true;
     }
 
-    if (!TryAttachNativeGetPropStub(cx, script, pc, stub, name, val, res, &attached))
+    if (!TryAttachNativeGetPropStub(cx, script, stub, name, val, res, &attached))
         return false;
     if (attached)
         return true;
@@ -5025,28 +4901,6 @@ ICGetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
     }
 
     masm.bind(&noUnderflow);
-
-    // If needed, update SPS Profiler frame entry.  At this point, callee and scratch can
-    // be clobbered.
-    {
-        Label skipProfilerUpdate;
-
-        // Need to avoid using ArgumentsRectifierReg and code register.
-        GeneralRegisterSet availRegs = availableGeneralRegs(0);
-        availRegs.take(ArgumentsRectifierReg);
-        availRegs.take(code);
-        Register scratch = availRegs.takeAny();
-        Register pcIdx = availRegs.takeAny();
-
-        // Check if profiling is enabled.
-        guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
-
-        // Update profiling entry before leaving function.
-        masm.load32(Address(BaselineStubReg, ICGetProp_CallScripted::offsetOfPCOffset()), pcIdx);
-        masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
-
-        masm.bind(&skipProfilerUpdate);
-    }
     masm.callIon(code);
 
     leaveStubFrame(masm, true);
@@ -5070,7 +4924,7 @@ ICGetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
 
 // Attach an optimized stub for a SETPROP/SETGNAME/SETNAME op.
 static bool
-TryAttachSetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICSetProp_Fallback *stub,
+TryAttachSetPropStub(JSContext *cx, HandleScript script, ICSetProp_Fallback *stub,
                      HandleObject obj, HandleShape oldShape, uint32_t oldSlots,
                      HandlePropertyName name, HandleId id, HandleValue rhs, bool *attached)
 {
@@ -5134,7 +4988,7 @@ TryAttachSetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICSetPr
                     (obj == holder) ? "direct" : "prototype",
                     callee->nonLazyScript()->filename(), callee->nonLazyScript()->lineno);
 
-        ICSetProp_CallScripted::Compiler compiler(cx, obj, holder, callee, pc - script->code);
+        ICSetProp_CallScripted::Compiler compiler(cx, obj, holder, callee);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
@@ -5191,11 +5045,8 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
     }
 
     bool attached = false;
-    if (!TryAttachSetPropStub(cx, script, pc, stub, obj, oldShape, oldSlots, name, id, rhs,
-         &attached))
-    {
+    if (!TryAttachSetPropStub(cx, script, stub, obj, oldShape, oldSlots, name, id, rhs, &attached))
         return false;
-    }
     if (attached)
         return true;
 
@@ -5444,28 +5295,6 @@ ICSetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
     }
 
     masm.bind(&noUnderflow);
-
-    // If needed, update SPS Profiler frame entry.  At this point, callee and scratch can
-    // be clobbered.
-    {
-        Label skipProfilerUpdate;
-
-        // Need to avoid using ArgumentsRectifierReg and code register.
-        GeneralRegisterSet availRegs = availableGeneralRegs(0);
-        availRegs.take(ArgumentsRectifierReg);
-        availRegs.take(code);
-        Register scratch = availRegs.takeAny();
-        Register pcIdx = availRegs.takeAny();
-
-        // Check if profiling is enabled.
-        guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
-
-        // Update profiling entry before leaving function.
-        masm.load32(Address(BaselineStubReg, ICSetProp_CallScripted::offsetOfPCOffset()), pcIdx);
-        masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
-
-        masm.bind(&skipProfilerUpdate);
-    }
     masm.callIon(code);
 
     leaveStubFrame(masm, true);
@@ -5494,8 +5323,8 @@ ICSetProp_CallScripted::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsbytecode *pc,
-                  JSOp op, uint32_t argc, Value *vp, bool constructing, bool useNewType)
+TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, JSOp op,
+                  uint32_t argc, Value *vp, bool constructing, bool useNewType)
 {
     if (useNewType || op == JSOP_EVAL)
         return true;
@@ -5537,7 +5366,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
                     constructing ? "yes" : "no");
 
             ICCallScriptedCompiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
-                                            constructing, pc - script->code);
+                                            constructing);
             ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
             if (!newStub)
                 return false;
@@ -5555,7 +5384,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
                 fun.get(), fun->nonLazyScript()->filename(), fun->nonLazyScript()->lineno,
                 constructing ? "yes" : "no");
         ICCallScriptedCompiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
-                                        calleeScript, constructing, pc - script->code);
+                                        calleeScript, constructing);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
@@ -5577,7 +5406,7 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, jsb
         IonSpew(IonSpew_BaselineIC, "  Generating Call_Native stub (fun=%p, cons=%s)", fun.get(),
                 constructing ? "yes" : "no");
         ICCall_Native::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
-                                         fun, constructing, pc - script->code);
+                                         fun, constructing);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
@@ -5643,12 +5472,8 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub, uint3
         newType = types::UseNewType(cx, script, pc);
 
     // Try attaching a call stub.
-    if (!TryAttachCallStub(cx, stub, script, pc, op, argc, vp, constructing, newType))
+    if (!TryAttachCallStub(cx, stub, script, op, argc, vp, constructing, newType))
         return false;
-
-    // Maybe update PC in profiler entry before leaving this script by call.
-    if (cx->runtime->spsProfiler.enabled() && frame->hasPushedSPSFrame())
-        cx->runtime->spsProfiler.updatePC(script, pc);
 
     if (!MaybeCloneFunctionAtCallsite(cx, &callee, script, pc))
         return false;
@@ -5967,32 +5792,6 @@ ICCallScriptedCompiler::generateStubCode(MacroAssembler &masm)
     }
 
     masm.bind(&noUnderflow);
-
-    // If needed, update SPS Profiler frame entry before and after call.
-    {
-        Label skipProfilerUpdate;
-
-        // Need to avoid using ArgumentsRectifierReg and code register.
-        GeneralRegisterSet availRegs = availableGeneralRegs(0);
-        availRegs.take(ArgumentsRectifierReg);
-        availRegs.take(code);
-        Register scratch = availRegs.takeAny();
-        Register pcIdx = availRegs.takeAny();
-
-        // Check if profiling is enabled.
-        guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
-
-        // Update profiling entry before leaving function.
-        JS_ASSERT(kind == ICStub::Call_Scripted || kind == ICStub::Call_AnyScripted);
-        if (kind == ICStub::Call_Scripted)
-            masm.load32(Address(BaselineStubReg, ICCall_Scripted::offsetOfPCOffset()), pcIdx);
-        else
-            masm.load32(Address(BaselineStubReg, ICCall_AnyScripted::offsetOfPCOffset()), pcIdx);
-        masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
-
-        masm.bind(&skipProfilerUpdate);
-    }
-    // Do call
     masm.callIon(code);
 
     // If this is a constructing call, and the callee returns a non-object, replace it with
@@ -6088,18 +5887,6 @@ ICCall_Native::Compiler::generateStubCode(MacroAssembler &masm)
     masm.push(BaselineTailCallReg);
     masm.enterFakeExitFrame();
 
-    // If needed, update SPS Profiler frame entry.  At this point, BaselineTailCallReg
-    // and scratch can be clobbered.
-    {
-        Label skipProfilerUpdate;
-        Register pcIdx = BaselineTailCallReg;
-        guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
-
-        masm.load32(Address(BaselineStubReg, ICCall_Native::offsetOfPCOffset()), pcIdx);
-        masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
-
-        masm.bind(&skipProfilerUpdate);
-    }
     // Execute call.
     masm.setupUnalignedABICall(3, scratch);
     masm.loadJSContext(scratch);

@@ -114,10 +114,9 @@ BaselineCompiler::compile()
         return Method_Error;
 
     prologueOffset_.fixup(&masm);
-    spsPushToggleOffset_.fixup(&masm);
+    uint32_t prologueOffset = uint32_t(prologueOffset_.offset());
 
-    BaselineScript *baselineScript = BaselineScript::New(cx, prologueOffset_.offset(),
-                                                         spsPushToggleOffset_.offset(),
+    BaselineScript *baselineScript = BaselineScript::New(cx, prologueOffset,
                                                          icEntries_.length(),
                                                          pcMappingIndexEntries.length(),
                                                          pcEntries.length());
@@ -158,10 +157,6 @@ BaselineCompiler::compile()
     // All barriers are emitted off-by-default, toggle them on if needed.
     if (cx->zone()->needsBarrier())
         baselineScript->toggleBarriers(true);
-
-    // All SPS instrumentation is emitted toggled off.  Toggle them on if needed.
-    if (cx->runtime->spsProfiler.enabled())
-        baselineScript->toggleSPS(true);
 
     return Method_Compiled;
 }
@@ -233,9 +228,6 @@ BaselineCompiler::emitPrologue()
     if (!emitArgumentTypeChecks())
         return false;
 
-    if (!emitSPSPush())
-        return false;
-
     return true;
 }
 
@@ -243,9 +235,6 @@ bool
 BaselineCompiler::emitEpilogue()
 {
     masm.bind(return_);
-
-    // Pop SPS frame if necessary
-    emitSPSPop();
 
     masm.mov(BaselineFrameReg, BaselineStackReg);
     masm.pop(BaselineFrameReg);
@@ -475,35 +464,6 @@ BaselineCompiler::emitDebugTrap()
         return false;
 
     return true;
-}
-
-bool
-BaselineCompiler::emitSPSPush()
-{
-    // Enter the IC, guarded by a toggled jump (initially disabled).
-    Label noPush;
-    CodeOffsetLabel toggleOffset = masm.toggledJump(&noPush);
-    JS_ASSERT(frame.numUnsyncedSlots() == 0);
-    ICProfiler_Fallback::Compiler compiler(cx);
-    if (!emitNonOpIC(compiler.getStub(&stubSpace_)))
-        return false;
-    masm.bind(&noPush);
-
-    // Store the start offset in the appropriate location.
-    JS_ASSERT(spsPushToggleOffset_.offset() == 0);
-    spsPushToggleOffset_ = toggleOffset;
-    return true;
-}
-
-void
-BaselineCompiler::emitSPSPop()
-{
-    // If profiler entry was pushed on this frame, pop it.
-    Label noPop;
-    masm.branchTest32(Assembler::Zero, frame.addressOfFlags(),
-                      Imm32(BaselineFrame::HAS_PUSHED_SPS_FRAME), &noPop);
-    masm.spsPopFrame(&cx->runtime->spsProfiler, R1.scratchReg());
-    masm.bind(&noPop);
 }
 
 MethodStatus

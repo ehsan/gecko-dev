@@ -193,15 +193,12 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitNonOpIC(ICStub *stub) {
         return emitIC(stub, false);
     }
-
     bool emitStackCheck();
     bool emitInterruptCheck();
     bool emitUseCountIncrement();
     bool emitArgumentTypeChecks();
     bool emitDebugPrologue();
     bool emitDebugTrap();
-    bool emitSPSPush();
-    void emitSPSPop();
 
     bool initScopeChain();
 
