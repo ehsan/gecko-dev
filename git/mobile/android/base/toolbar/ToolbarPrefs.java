@@ -5,13 +5,10 @@
 
 package org.mozilla.gecko.toolbar;
 
-import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.util.ThreadUtils;
-
-import android.content.Context;
 
 class ToolbarPrefs {
     private static final String PREF_AUTOCOMPLETE_ENABLED = "browser.urlbar.autocomplete.enabled";
@@ -43,8 +40,8 @@ class ToolbarPrefs {
         return enableAutocomplete;
     }
 
-    boolean shouldShowUrl(final Context context) {
-        return showUrl || NewTabletUI.isEnabled(context);
+    boolean shouldShowUrl() {
+        return showUrl;
     }
 
     boolean shouldTrimUrls() {
