@@ -101,13 +101,11 @@ function runOMTATest(aTestFunction, aOnSkip) {
         // We only call this when we know it will fail as otherwise in the
         // regular success case we will end up inflating the "passed tests"
         // count by 1
-        ok(isWorking, "OMTA should work");
+        ok(isWorking, "OMTA is working as expected");
         aOnSkip();
       }
     } else {
-      todo(isWorking,
-           "OMTA should ideally work, though we don't expect it to work on " +
-           "this platform/configuration");
+      todo(isWorking, "OMTA is working");
       aOnSkip();
     }
   }).catch(function(err) {

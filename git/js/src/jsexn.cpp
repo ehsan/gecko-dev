@@ -216,13 +216,13 @@ struct SuppressErrorsGuard
 
     explicit SuppressErrorsGuard(JSContext *cx)
       : cx(cx),
-        prevReporter(JS_SetErrorReporter(cx->runtime(), nullptr)),
+        prevReporter(JS_SetErrorReporter(cx, nullptr)),
         prevState(cx)
     {}
 
     ~SuppressErrorsGuard()
     {
-        JS_SetErrorReporter(cx->runtime(), prevReporter);
+        JS_SetErrorReporter(cx, prevReporter);
     }
 };
 

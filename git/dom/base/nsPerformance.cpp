@@ -19,7 +19,6 @@
 #include "mozilla/dom/PerformanceNavigationBinding.h"
 #include "mozilla/TimeStamp.h"
 #include "nsThreadUtils.h"
-#include "nsILoadInfo.h"
 
 using namespace mozilla;
 
@@ -36,8 +35,7 @@ nsPerformanceTiming::nsPerformanceTiming(nsPerformance* aPerformance,
     mChannel(aChannel),
     mFetchStart(0.0),
     mZeroTime(aZeroTime),
-    mTimingAllowed(true),
-    mReportCrossOriginRedirect(true)
+    mReportCrossOriginResources(true)
 {
   MOZ_ASSERT(aPerformance, "Parent performance object should be provided");
   SetIsDOMBinding();
@@ -45,10 +43,7 @@ nsPerformanceTiming::nsPerformanceTiming(nsPerformance* aPerformance,
   // is being used for the navigation timing (document) and has a non-null
   // value for the resource timing (any resources within the page).
   if (aHttpChannel) {
-    mTimingAllowed = CheckAllowedOrigin(aHttpChannel);
-    bool redirectsPassCheck = false;
-    mChannel->GetAllRedirectsPassTimingAllowCheck(&redirectsPassCheck);
-    mReportCrossOriginRedirect = mTimingAllowed && redirectsPassCheck;
+    CheckRedirectCrossOrigin(aHttpChannel);
   }
 }
 
@@ -80,31 +75,34 @@ nsPerformanceTiming::FetchStart()
   return static_cast<int64_t>(FetchStartHighRes());
 }
 
-bool
-nsPerformanceTiming::CheckAllowedOrigin(nsIHttpChannel* aResourceChannel)
+// This method will implement the timing allow check algorithm
+// http://w3c-test.org/webperf/specs/ResourceTiming/#timing-allow-check
+// https://bugzilla.mozilla.org/show_bug.cgi?id=936814
+void
+nsPerformanceTiming::CheckRedirectCrossOrigin(nsIHttpChannel* aResourceChannel)
 {
   if (!IsInitialized()) {
-    return false;
+    return;
   }
-
-  // Check that the current document passes the ckeck.
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  aResourceChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-  if (!loadInfo) {
-    return false;
+  uint16_t redirectCount;
+  mChannel->GetRedirectCount(&redirectCount);
+  if (redirectCount == 0) {
+    return;
   }
-  nsCOMPtr<nsIPrincipal> principal = loadInfo->LoadingPrincipal();
-
-  // Check if the resource is either same origin as the page that started
-  // the load, or if the response contains the proper Timing-Allow-Origin
-  // header with the domain of the page that started the load.
-  return mChannel->TimingAllowCheck(principal);
+  nsCOMPtr<nsIURI> resourceURI, referrerURI;
+  aResourceChannel->GetReferrer(getter_AddRefs(referrerURI));
+  aResourceChannel->GetURI(getter_AddRefs(resourceURI));
+  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+  nsresult rv = ssm->CheckSameOriginURI(resourceURI, referrerURI, false);
+  if (!NS_SUCCEEDED(rv)) {
+    mReportCrossOriginResources = false;
+  }
 }
 
 bool
-nsPerformanceTiming::TimingAllowed() const
+nsPerformanceTiming::IsSameOriginAsReferral() const
 {
-  return mTimingAllowed;
+  return mReportCrossOriginResources;
 }
 
 uint16_t
@@ -121,21 +119,6 @@ nsPerformanceTiming::GetRedirectCount() const
   uint16_t redirectCount;
   mChannel->GetRedirectCount(&redirectCount);
   return redirectCount;
-}
-
-bool
-nsPerformanceTiming::ShouldReportCrossOriginRedirect() const
-{
-  if (!nsContentUtils::IsPerformanceTimingEnabled() || !IsInitialized()) {
-    return false;
-  }
-
-  // If the redirect count is 0, or if one of the cross-origin
-  // redirects doesn't have the proper Timing-Allow-Origin header,
-  // then RedirectStart and RedirectEnd will be set to zero
-  uint16_t redirectCount;
-  mChannel->GetRedirectCount(&redirectCount);
-  return (redirectCount != 0) && mReportCrossOriginRedirect;
 }
 
 /**
