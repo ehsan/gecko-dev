@@ -807,18 +807,12 @@ namespace mozilla {
 
 bool ProcessNextEvent()
 {
-    if (!nsAppShell::gAppShell) {
-        return false;
-    }
-
     return nsAppShell::gAppShell->ProcessNextNativeEvent(true) ? true : false;
 }
 
 void NotifyEvent()
 {
-    if (nsAppShell::gAppShell) {
-        nsAppShell::gAppShell->NotifyNativeEvent();
-    }
+    nsAppShell::gAppShell->NotifyNativeEvent();
 }
 
 }

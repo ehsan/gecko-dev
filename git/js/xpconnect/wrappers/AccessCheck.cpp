@@ -328,19 +328,10 @@ ExposedPropertiesOnly::check(JSContext *cx, HandleObject wrapper, HandleId id, W
     if (id == JSID_VOID)
         return true;
 
-    Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, wrappedObject, exposedPropsId, &desc))
+    RootedValue exposedProps(cx);
+    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, &exposedProps))
         return false;
 
-    if (!desc.object())
-        return false;
-
-    if (desc.hasGetterOrSetter()) {
-        EnterAndThrow(cx, wrapper, "__exposedProps__ must be a value property");
-        return false;
-    }
-
-    RootedValue exposedProps(cx, desc.value());
     if (exposedProps.isNullOrUndefined())
         return false;
 
@@ -358,6 +349,7 @@ ExposedPropertiesOnly::check(JSContext *cx, HandleObject wrapper, HandleId id, W
 
     Access access = NO_ACCESS;
 
+    Rooted<JSPropertyDescriptor> desc(cx);
     if (!JS_GetPropertyDescriptorById(cx, hallpass, id, &desc)) {
         return false; // Error
     }

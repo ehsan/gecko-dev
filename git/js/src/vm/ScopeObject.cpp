@@ -1734,7 +1734,8 @@ class DebugScopeProxy : public BaseProxyHandler
                                      JS_PROPERTYOP_SETTER(desc.setter()));
     }
 
-    bool ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const
+    bool getScopePropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props,
+                               unsigned flags) const
     {
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
 
@@ -1751,7 +1752,7 @@ class DebugScopeProxy : public BaseProxyHandler
         // issue, and punch a hole through to the with object target.
         Rooted<JSObject*> target(cx, (scope->is<DynamicWithObject>()
                                       ? &scope->as<DynamicWithObject>().object() : scope));
-        if (!GetPropertyKeys(cx, target, JSITER_OWNONLY, &props))
+        if (!GetPropertyKeys(cx, target, flags, &props))
             return false;
 
         /*
@@ -1769,9 +1770,14 @@ class DebugScopeProxy : public BaseProxyHandler
         return true;
     }
 
-    bool enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const MOZ_OVERRIDE
+    bool ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const MOZ_OVERRIDE
     {
-        return BaseProxyHandler::enumerate(cx, proxy, objp);
+        return getScopePropertyNames(cx, proxy, props, JSITER_OWNONLY);
+    }
+
+    bool getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const MOZ_OVERRIDE
+    {
+        return getScopePropertyNames(cx, proxy, props, 0);
     }
 
     bool has(JSContext *cx, HandleObject proxy, HandleId id_, bool *bp) const MOZ_OVERRIDE

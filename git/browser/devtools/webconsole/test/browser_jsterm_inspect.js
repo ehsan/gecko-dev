@@ -5,24 +5,31 @@
 
 // Check that the inspect() jsterm helper function works.
 
-const TEST_URI = "data:text/html;charset=utf8,<p>hello bug 869981";
+function test()
+{
+  const TEST_URI = "data:text/html;charset=utf8,<p>hello bug 869981";
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 
-  let hud = yield openConsole();
-  let jsterm = hud.jsterm;
+  function consoleOpened(hud)
+  {
+    content.wrappedJSObject.testProp = "testValue";
 
-  jsterm.execute("testProp = 'testValue'");
+    hud.jsterm.once("variablesview-fetched", onObjFetch);
+    hud.jsterm.execute("inspect(window)");
+  }
 
-  let fetched = jsterm.once("variablesview-fetched");
-  jsterm.execute("inspect(window)");
-  let variable = yield fetched;
+  function onObjFetch(aEvent, aVar)
+  {
+    ok(aVar._variablesView, "variables view object");
 
-  ok(variable._variablesView, "variables view object");
-
-  yield findVariableViewProperties(variable, [
-    { name: "testProp", value: "testValue" },
-    { name: "document", value: /HTMLDocument \u2192 data:/ },
-  ], { webconsole: hud });
-});
+    findVariableViewProperties(aVar, [
+      { name: "testProp", value: "testValue" },
+      { name: "document", value: /HTMLDocument \u2192 data:/ },
+    ], { webconsole: hud }).then(finishTest);
+  }
+}

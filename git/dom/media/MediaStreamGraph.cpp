@@ -2242,6 +2242,7 @@ MediaStream::SetTrackEnabled(TrackID aTrackID, bool aEnabled)
 void
 MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment, MediaSegment* aRawSegment)
 {
+  // mMutex must be owned here if this is a SourceMediaStream
   if (!mDisabledTrackIDs.Contains(aTrackID)) {
     return;
   }

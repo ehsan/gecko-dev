@@ -8,7 +8,7 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-consoleiframes.html";
 
-const expectedMessages = [
+let expectedMessages = [
   {
     text: "main file",
     category: CATEGORY_WEBDEV,
@@ -35,7 +35,7 @@ const expectedMessages = [
 // other in the sequence of messages (depending on timing). If they do not, then
 // they will be displayed in the console output independently, as separate
 // messages. This is why we need to match any of the following two rules.
-const expectedMessagesAny = [
+let expectedMessagesAny = [
   {
     name: "iframe 1 (count: 2)",
     text: "iframe 1",
@@ -55,9 +55,12 @@ const expectedMessagesAny = [
 function test()
 {
   expectUncaughtException();
-  loadTab(TEST_URI).then(() => {
-    openConsole().then(consoleOpened);
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    info("open web console");
+    openConsole(null, consoleOpened);
+  }, true);
 }
 
 function consoleOpened(hud)
@@ -74,7 +77,7 @@ function consoleOpened(hud)
       messages: expectedMessagesAny,
       matchCondition: "any",
     }).then(() => {
-      closeConsole().then(onWebConsoleClose);
+      closeConsole(null, onWebConsoleClose);
     });
   });
 }
@@ -98,7 +101,7 @@ function onBrowserConsoleOpen(hud)
       messages: expectedMessagesAny,
       matchCondition: "any",
     }).then(() => {
-      closeConsole().then(finishTest);
+      closeConsole(null, finishTest);
     });
   });
 }

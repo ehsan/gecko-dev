@@ -9,17 +9,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
                                    "nsIClipboardHelper");
 let WebConsoleUtils = require("devtools/toolkit/webconsole/utils").Utils;
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  yield consoleOpened(hud);
-});
-
 function consoleOpened(HUD) {
-  let deferred = promise.defer();
-
   let jsterm = HUD.jsterm;
   let stringToCopy = "foobazbarBug642615";
 
@@ -109,7 +99,7 @@ function consoleOpened(HUD) {
       ok(!jsterm.completeNode.value, "no completion value after paste (ctrl-v)");
 
       // using executeSoon() to get out of the webconsole event loop.
-      executeSoon(deferred.resolve);
+      executeSoon(finishTest);
     });
 
     // Get out of the webconsole event loop.
@@ -122,6 +112,12 @@ function consoleOpened(HUD) {
   jsterm.once("autocomplete-updated", onCompletionValue);
 
   EventUtils.synthesizeKey("u", {});
+}
 
-  return deferred.promise;
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 }

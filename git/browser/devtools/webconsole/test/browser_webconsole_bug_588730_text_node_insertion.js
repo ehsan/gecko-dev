@@ -7,20 +7,17 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-"use strict";
-
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  yield testTextNodeInsertion(hud);
-});
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testTextNodeInsertion);
+  }, true);
+}
 
 // Test for bug 588730: Adding a text node to an existing label element causes
 // warnings
 function testTextNodeInsertion(hud) {
-  let deferred = promise.defer();
   let outputNode = hud.outputNode;
 
   let label = document.createElementNS(
@@ -46,8 +43,7 @@ function testTextNodeInsertion(hud) {
     Services.console.unregisterListener(listener);
     ok(!error, "no error when adding text nodes as children of labels");
 
-    return deferred.resolve();
+    finishTest();
   });
-  return deferred.promise;
 }
 

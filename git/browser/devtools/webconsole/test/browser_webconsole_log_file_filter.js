@@ -9,30 +9,26 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 let hud;
 
-"use strict";
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  hud = yield openConsole();
-  yield consoleOpened();
-
-  testLiveFilteringOnSearchStrings();
-
-  hud = null;
-});
-
-function consoleOpened() {
+function consoleOpened(aHud) {
+  hud = aHud;
   let console = content.console;
   console.log("sentinel log");
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "sentinel log",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG
     }],
-  })
+  }).then(testLiveFilteringOnSearchStrings);
 }
 
 function testLiveFilteringOnSearchStrings() {
@@ -55,6 +51,8 @@ function testLiveFilteringOnSearchStrings() {
   setStringFilter("");
   is(countMessageNodes(), 4, "show all log nodes on setting filter string " +
       "as \"\".");
+
+  finishTest();
 }
 
 function countMessageNodes() {

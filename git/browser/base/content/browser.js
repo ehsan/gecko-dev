@@ -205,20 +205,20 @@ let gInitialPages = [
 ];
 
 #include browser-addons.js
-#include browser-ctrlTab.js
 #include browser-customization.js
 #include browser-devedition.js
 #include browser-feeds.js
 #include browser-fullScreen.js
 #include browser-fullZoom.js
-#include browser-gestureSupport.js
 #include browser-loop.js
 #include browser-places.js
 #include browser-plugins.js
 #include browser-safebrowsing.js
 #include browser-social.js
+#include browser-tabPreviews.js
 #include browser-tabview.js
 #include browser-thumbnails.js
+#include browser-gestureSupport.js
 
 #ifdef MOZ_DATA_REPORTING
 #include browser-data-submission-info-bar.js
@@ -401,6 +401,33 @@ const gSessionHistoryObserver = {
       gURLBar.editor.transactionManager.clear()
     }
   }
+};
+
+const gGatherTelemetryObserver = {
+  observe: function(subject, topic, data) {
+    if (topic != "gather-telemetry") {
+      return;
+    }
+
+    let engine;
+    try {
+      engine = Services.search.defaultEngine;
+    } catch (e) {}
+    let name;
+
+    if (!engine) {
+      name = "NONE";
+    } else if (engine.identifier) {
+      name = engine.identifier;
+    } else if (engine.name) {
+      name = "other-" + engine.name;
+    } else {
+      name = "UNDEFINED";
+    }
+
+    let engines = Services.telemetry.getKeyedHistogramById("SEARCH_DEFAULT_ENGINE");
+    engines.add(name, true)
+  },
 };
 
 /**
@@ -1186,6 +1213,7 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
+    Services.obs.addObserver(gGatherTelemetryObserver, "gather-telemetry", false);
     window.messageManager.addMessageListener("Browser:URIFixup", gKeywordURIFixup);
     window.messageManager.addMessageListener("Browser:LoadURI", RedirectLoad);
 
@@ -1506,6 +1534,7 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-blocked");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
+      Services.obs.removeObserver(gGatherTelemetryObserver, "gather-telemetry");
       window.messageManager.removeMessageListener("Browser:URIFixup", gKeywordURIFixup);
       window.messageManager.removeMessageListener("Browser:LoadURI", RedirectLoad);
 
@@ -6970,7 +6999,7 @@ var gIdentityHandler = {
 
     // Chrome URIs however get special treatment. Some chrome URIs are
     // whitelisted to provide a positive security signal to the user.
-    let whitelist = /^about:(accounts|addons|app-manager|config|crashes|customizing|downloads|healthreport|home|license|newaddon|permissions|preferences|privatebrowsing|rights|sessionrestore|support|welcomeback)/i;
+    let whitelist = /^about:(accounts|addons|app-manager|config|crashes|customizing|healthreport|home|license|newaddon|permissions|preferences|privatebrowsing|rights|sessionrestore|support|welcomeback)/i;
     let isChromeUI = uri.schemeIs("about") && whitelist.test(uri.spec);
     if (isChromeUI) {
       this.setMode(this.IDENTITY_MODE_CHROMEUI);
@@ -7463,10 +7492,8 @@ let gRemoteTabsUI = {
  *        This object also allows:
  *        - 'ignoreFragment' property to be set to true to exclude fragment-portion
  *        matching when comparing URIs.
- *        - 'ignoreQueryString' property to be set to true to exclude query string
- *        matching when comparing URIs.
  *        - 'replaceQueryString' property to be set to true to exclude query string
- *        matching when comparing URIs and overwrite the initial query string with
+ *        matching when comparing URIs and ovewrite the initial query string with
  *        the one from the new URI.
  * @return True if an existing tab was found, false otherwise
  */
@@ -7478,13 +7505,11 @@ function switchToTabHavingURI(aURI, aOpenNew, aOpenParams={}) {
   ]);
 
   let ignoreFragment = aOpenParams.ignoreFragment;
-  let ignoreQueryString = aOpenParams.ignoreQueryString;
   let replaceQueryString = aOpenParams.replaceQueryString;
 
-  // These properties are only used by switchToTabHavingURI and should
+  // This property is only used by switchToTabHavingURI and should
   // not be used as a parameter for the new load.
   delete aOpenParams.ignoreFragment;
-  delete aOpenParams.ignoreQueryString;
 
   // This will switch to the tab in aWindow having aURI, if present.
   function switchIfURIInWindow(aWindow) {
@@ -7513,14 +7538,12 @@ function switchToTabHavingURI(aURI, aOpenNew, aOpenParams={}) {
         }
         return true;
       }
-      if (ignoreQueryString || replaceQueryString) {
+      if (replaceQueryString) {
         if (browser.currentURI.spec.split("?")[0] == aURI.spec.split("?")[0]) {
           // Focus the matching window & tab
           aWindow.focus();
           aWindow.gBrowser.tabContainer.selectedIndex = i;
-          if (replaceQueryString) {
-            browser.loadURI(aURI.spec);
-          }
+          browser.loadURI(aURI.spec);
           return true;
         }
       }

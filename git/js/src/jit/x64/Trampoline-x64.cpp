@@ -823,11 +823,11 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
 }
 
 JitCode *
-JitRuntime::generateExceptionTailStub(JSContext *cx, void *handler)
+JitRuntime::generateExceptionTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 
-    masm.handleFailureWithHandlerTail(handler);
+    masm.handleFailureWithHandlerTail();
 
     Linker linker(masm);
     JitCode *code = linker.newCode<NoGC>(cx, OTHER_CODE);

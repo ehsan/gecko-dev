@@ -102,7 +102,7 @@
       <richlistitem id="category-search"
                     class="category"
                     value="paneSearch"
-                    helpTopic="prefs-search"
+                    helpTopic="prefs-main"
                     tooltiptext="&paneSearch.title;"
                     align="center">
         <image class="category-icon"/>

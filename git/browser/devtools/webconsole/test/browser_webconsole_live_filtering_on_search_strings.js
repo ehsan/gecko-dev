@@ -5,74 +5,84 @@
 
 // Tests that the text filter box works.
 
-"use strict";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-let test = asyncTest(function*() {
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
-  hud.jsterm.clearOutput();
+let hud;
 
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
+
+function consoleOpened(aHud) {
+  hud = aHud;
+  hud.jsterm.clearOutput();
   let console = content.console;
 
   for (let i = 0; i < 50; i++) {
     console.log("http://www.example.com/ " + i);
   }
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "http://www.example.com/ 49",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  })
+  }).then(testLiveFilteringOnSearchStrings);
+}
 
+function testLiveFilteringOnSearchStrings() {
   is(hud.outputNode.children.length, 50, "number of messages");
 
-  setStringFilter(hud, "http");
-  isnot(countMessageNodes(hud), 0, "the log nodes are not hidden when the " +
+  setStringFilter("http");
+  isnot(countMessageNodes(), 0, "the log nodes are not hidden when the " +
     "search string is set to \"http\"");
 
-  setStringFilter(hud, "hxxp");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when the search " +
+  setStringFilter("hxxp");
+  is(countMessageNodes(), 0, "the log nodes are hidden when the search " +
     "string is set to \"hxxp\"");
 
-  setStringFilter(hud, "ht tp");
-  isnot(countMessageNodes(hud), 0, "the log nodes are not hidden when the " +
+  setStringFilter("ht tp");
+  isnot(countMessageNodes(), 0, "the log nodes are not hidden when the " +
     "search string is set to \"ht tp\"");
 
-  setStringFilter(hud, " zzzz   zzzz ");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when the search " +
+  setStringFilter(" zzzz   zzzz ");
+  is(countMessageNodes(), 0, "the log nodes are hidden when the search " +
     "string is set to \" zzzz   zzzz \"");
 
-  setStringFilter(hud, "");
-  isnot(countMessageNodes(hud), 0, "the log nodes are not hidden when the " +
+  setStringFilter("");
+  isnot(countMessageNodes(), 0, "the log nodes are not hidden when the " +
     "search string is removed");
 
-  setStringFilter(hud, "\u9f2c");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when searching " +
+  setStringFilter("\u9f2c");
+  is(countMessageNodes(), 0, "the log nodes are hidden when searching " +
     "for weasels");
 
-  setStringFilter(hud, "\u0007");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when searching for " +
+  setStringFilter("\u0007");
+  is(countMessageNodes(), 0, "the log nodes are hidden when searching for " +
     "the bell character");
 
-  setStringFilter(hud, '"foo"');
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when searching for " +
+  setStringFilter('"foo"');
+  is(countMessageNodes(), 0, "the log nodes are hidden when searching for " +
     'the string "foo"');
 
-  setStringFilter(hud, "'foo'");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when searching for " +
+  setStringFilter("'foo'");
+  is(countMessageNodes(), 0, "the log nodes are hidden when searching for " +
     "the string 'foo'");
 
-  setStringFilter(hud, "foo\"bar'baz\"boo'");
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when searching for " +
+  setStringFilter("foo\"bar'baz\"boo'");
+  is(countMessageNodes(), 0, "the log nodes are hidden when searching for " +
     "the string \"foo\"bar'baz\"boo'\"");
-});
 
-function countMessageNodes(hud) {
+  finishTest();
+}
+
+function countMessageNodes() {
   let outputNode = hud.outputNode;
 
   let messageNodes = outputNode.querySelectorAll(".message");
@@ -88,7 +98,7 @@ function countMessageNodes(hud) {
   return displayedMessageNodes;
 }
 
-function setStringFilter(hud, aValue)
+function setStringFilter(aValue)
 {
   hud.ui.filterBox.value = aValue;
   hud.ui.adjustVisibilityOnSearchStringChange();

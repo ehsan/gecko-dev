@@ -160,21 +160,11 @@ public:
       if (aKeyRange->IsOnly()) {
         Assign(LoggingString(aKeyRange->Lower()));
       } else {
-        if (aKeyRange->LowerOpen()) {
-          Assign(kOpenParen);
-        } else {
-          Assign(kOpenBracket);
-        }
-
+        Assign(aKeyRange->LowerOpen() ? kOpenParen : kOpenBracket);
         Append(LoggingString(aKeyRange->Lower()));
         AppendLiteral(", ");
         Append(LoggingString(aKeyRange->Upper()));
-
-        if (aKeyRange->UpperOpen()) {
-          Append(kCloseParen);
-        } else {
-          Append(kCloseBracket);
-        }
+        Append(aKeyRange->UpperOpen() ? kCloseParen : kCloseBracket);
       }
     } else {
       AssignLiteral("<undefined>");

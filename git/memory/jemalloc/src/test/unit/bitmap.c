@@ -1,11 +1,17 @@
 #include "test/jemalloc_test.h"
 
+#if (LG_BITMAP_MAXBITS > 12)
+#  define MAXBITS	4500
+#else
+#  define MAXBITS	(1U << LG_BITMAP_MAXBITS)
+#endif
+
 TEST_BEGIN(test_bitmap_size)
 {
 	size_t i, prev_size;
 
 	prev_size = 0;
-	for (i = 1; i <= BITMAP_MAXBITS; i++) {
+	for (i = 1; i <= MAXBITS; i++) {
 		size_t size = bitmap_size(i);
 		assert_true(size >= prev_size,
 		    "Bitmap size is smaller than expected");
@@ -18,7 +24,7 @@ TEST_BEGIN(test_bitmap_init)
 {
 	size_t i;
 
-	for (i = 1; i <= BITMAP_MAXBITS; i++) {
+	for (i = 1; i <= MAXBITS; i++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, i);
 		{
@@ -41,7 +47,7 @@ TEST_BEGIN(test_bitmap_set)
 {
 	size_t i;
 
-	for (i = 1; i <= BITMAP_MAXBITS; i++) {
+	for (i = 1; i <= MAXBITS; i++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, i);
 		{
@@ -64,7 +70,7 @@ TEST_BEGIN(test_bitmap_unset)
 {
 	size_t i;
 
-	for (i = 1; i <= BITMAP_MAXBITS; i++) {
+	for (i = 1; i <= MAXBITS; i++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, i);
 		{
@@ -93,7 +99,7 @@ TEST_BEGIN(test_bitmap_sfu)
 {
 	size_t i;
 
-	for (i = 1; i <= BITMAP_MAXBITS; i++) {
+	for (i = 1; i <= MAXBITS; i++) {
 		bitmap_info_t binfo;
 		bitmap_info_init(&binfo, i);
 		{

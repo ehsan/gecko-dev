@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TEST_URI = "data:text/html;charset=utf-8,Web Console test for splitting";
-
 function test()
 {
   // Test is slow on Linux EC2 instances - Bug 962931
@@ -15,7 +13,11 @@ function test()
   let Toolbox = devtools.Toolbox;
   let toolbox;
 
-  loadTab(TEST_URI).then(testConsoleLoadOnDifferentPanel);
+  addTab("data:text/html;charset=utf-8,Web Console test for splitting");
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    testConsoleLoadOnDifferentPanel()
+  }, true);
 
   function testConsoleLoadOnDifferentPanel()
   {

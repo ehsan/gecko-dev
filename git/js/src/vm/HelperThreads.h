@@ -21,6 +21,7 @@
 
 #include "frontend/TokenStream.h"
 #include "jit/Ion.h"
+#include "vm/Compression.h"
 
 namespace js {
 
@@ -271,10 +272,8 @@ class GlobalHelperThreadState
 static inline GlobalHelperThreadState &
 HelperThreadState()
 {
-    extern GlobalHelperThreadState *gHelperThreadState;
-
-    MOZ_ASSERT(gHelperThreadState);
-    return *gHelperThreadState;
+    extern GlobalHelperThreadState gHelperThreadState;
+    return gHelperThreadState;
 }
 
 /* Individual helper thread, one allocated per core. */
@@ -308,6 +307,12 @@ struct HelperThread
     /* Any source being compressed on this thread. */
     SourceCompressionTask *compressionTask;
 
+    /*
+     * Compressor that is used for servicing SourceCompressionTasks on this
+     * thread.
+     */
+    Compressor sourceCompressor;
+
     /* Any GC state for background sweeping or allocating being performed. */
     GCHelperState *gcHelperState;
 
@@ -338,17 +343,9 @@ struct HelperThread
 
 /* Methods for interacting with helper threads. */
 
-// Create data structures used by helper threads.
-bool
-CreateHelperThreadsState();
-
-// Destroy data structures used by helper threads.
-void
-DestroyHelperThreadsState();
-
 // Initialize helper threads unless already initialized.
 void
-EnsureHelperThreadsInitialized();
+EnsureHelperThreadsInitialized(ExclusiveContext *cx);
 
 // This allows the JS shell to override GetCPUCount() when passed the
 // --thread-count=N option.
@@ -543,7 +540,7 @@ struct SourceCompressionTask
         complete();
     }
 
-    ResultType work();
+    ResultType work(Compressor &comp);
     bool complete();
     void abort() { abort_ = true; }
     bool active() const { return !!ss; }

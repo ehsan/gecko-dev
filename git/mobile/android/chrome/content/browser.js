@@ -109,14 +109,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "SharedPreferences",
 XPCOMUtils.defineLazyModuleGetter(this, "Notifications",
                                   "resource://gre/modules/Notifications.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ReaderMode",
-                                  "resource://gre/modules/ReaderMode.jsm");
-
 // Lazily-loaded browser scripts:
 [
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
   ["InputWidgetHelper", "chrome://browser/content/InputWidgetHelper.js"],
-  ["AboutReader", "chrome://global/content/reader/aboutReader.js"],
+  ["AboutReader", "chrome://browser/content/aboutReader.js"],
   ["MasterPassword", "chrome://browser/content/MasterPassword.js"],
   ["PluginHelper", "chrome://browser/content/PluginHelper.js"],
   ["OfflineApps", "chrome://browser/content/OfflineApps.js"],
@@ -4285,7 +4282,7 @@ Tab.prototype = {
         Reader.updatePageAction(this);
 
         // Once document is fully loaded, parse it
-        ReaderMode.parseDocumentFromBrowser(this.browser).then(article => {
+        Reader.parseDocumentFromTab(this).then(article => {
           // The loaded page may have changed while we were parsing the document. 
           // Make sure we've got the current one.
           let currentURL = this.browser.currentURI.specIgnoringRef;

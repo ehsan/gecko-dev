@@ -8,36 +8,25 @@
 // different lines of code, or from different severities, etc.
 // See bugs 720180 and 800510.
 
-"use strict";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-repeated-messages.html";
-const PREF = "devtools.webconsole.persistlog";
 
-let test = asyncTest(function* () {
+function test() {
+  const PREF = "devtools.webconsole.persistlog";
   Services.prefs.setBoolPref(PREF, true);
+  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
 
-  let { browser } = yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  yield consoleOpened(hud);
-
-  let loaded = loadBrowser(browser);
-  BrowserReload();
-  yield loaded;
-
-  yield testCSSRepeats(hud);
-  yield testCSSRepeatsAfterReload(hud);
-  yield testConsoleRepeats(hud);
-
-  Services.prefs.clearUserPref(PREF);
-});
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
 function consoleOpened(hud) {
   // Check that css warnings are not coalesced if they come from different lines.
   info("waiting for 2 css warnings");
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       name: "two css warnings",
@@ -45,30 +34,35 @@ function consoleOpened(hud) {
       count: 2,
       repeats: 1,
     }],
-  });
+  }).then(testCSSRepeats.bind(null, hud));
 }
 
 function testCSSRepeats(hud) {
-  info("wait for repeats after page reload");
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
 
-  return waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "two css warnings, repeated twice",
-      category: CATEGORY_CSS,
-      repeats: 2,
-      count: 2,
-    }],
-  });
+    info("wait for repeats after page reload");
+
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        name: "two css warnings, repeated twice",
+        category: CATEGORY_CSS,
+        repeats: 2,
+        count: 2,
+      }],
+    }).then(testCSSRepeatsAfterReload.bind(null, hud));
+  }, true);
+  content.location.reload();
 }
 
 function testCSSRepeatsAfterReload(hud) {
   hud.jsterm.clearOutput(true);
-  hud.jsterm.execute("testConsole()");
+  content.wrappedJSObject.testConsole();
 
   info("wait for repeats with the console API");
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [
       {
@@ -90,18 +84,17 @@ function testCSSRepeatsAfterReload(hud) {
         repeats: 1,
       },
     ],
-  })
+  }).then(testConsoleRepeats.bind(null, hud));
 }
 
 function testConsoleRepeats(hud) {
   hud.jsterm.clearOutput(true);
   hud.jsterm.execute("undefined");
-
   content.console.log("undefined");
 
   info("make sure console API messages are not coalesced with jsterm output");
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [
       {
@@ -121,5 +114,5 @@ function testConsoleRepeats(hud) {
         repeats: 1,
       },
     ],
-  });
+  }).then(finishTest);
 }

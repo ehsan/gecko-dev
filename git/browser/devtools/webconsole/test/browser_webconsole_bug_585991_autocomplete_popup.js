@@ -5,18 +5,15 @@
 
 const TEST_URI = "data:text/html;charset=utf-8,<p>bug 585991 - autocomplete popup test";
 
-"use strict";
-
-let test = asyncTest(function*() {
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
-
-  yield consoleOpened(hud);
-});
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
 function consoleOpened(HUD) {
-  let deferred = promise.defer();
-
   let items = [
     {label: "item0", value: "value0"},
     {label: "item1", value: "value1"},
@@ -109,11 +106,9 @@ function consoleOpened(HUD) {
        "no aria-activedescendant");
 
     popup.hidePopup();
-    deferred.resolve();
+    finishTest();
   }, false);
 
   popup.openPopup();
-
-  return deferred.promise;
 }
 

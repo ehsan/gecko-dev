@@ -8,8 +8,6 @@
 #include <utils/Log.h>
 
 #include "GrallocImages.h"
-#include "mozilla/layers/GrallocTextureClient.h"
-#include "mozilla/layers/ImageBridgeChild.h"
 #include "VideoUtils.h"
 #include "ScreenOrientation.h"
 
@@ -29,8 +27,6 @@ extern PRLogModuleInfo* GetMediaManagerLog();
 #define LOG(msg)
 #define LOGFRAME(msg)
 #endif
-
-#define WEBRTC_GONK_VIDEO_SOURCE_POOL_BUFFERS 10
 
 // We are subclassed from CameraControlListener, which implements a
 // threadsafe reference-count for us.
@@ -258,9 +254,6 @@ MediaEngineGonkVideoSource::AllocImpl() {
     // to explicitly remove this--destroying the CameraControl object
     // in DeallocImpl() will do that for us.
     mCameraControl->AddListener(this);
-    mTextureClientAllocator =
-      new layers::TextureClientRecycleAllocator(layers::ImageBridgeChild::GetSingleton());
-    mTextureClientAllocator->SetMaxPoolSize(WEBRTC_GONK_VIDEO_SOURCE_POOL_BUFFERS);
   }
   mCallbackMonitor.Notify();
 }
@@ -270,7 +263,6 @@ MediaEngineGonkVideoSource::DeallocImpl() {
   MOZ_ASSERT(NS_IsMainThread());
 
   mCameraControl = nullptr;
-  mTextureClientAllocator = nullptr;
 }
 
 // The same algorithm from bug 840244
@@ -586,16 +578,14 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
   layers::GrallocImage *nativeImage = static_cast<layers::GrallocImage*>(aImage);
   android::sp<android::GraphicBuffer> graphicBuffer = nativeImage->GetGraphicBuffer();
   void *pMem = nullptr;
-  // Bug 1109957 size will be wrong if width or height are odd
   uint32_t size = aWidth * aHeight * 3 / 2;
-  MOZ_ASSERT(!(aWidth & 1) && !(aHeight & 1));
 
   graphicBuffer->lock(android::GraphicBuffer::USAGE_SW_READ_MASK, &pMem);
 
   uint8_t* srcPtr = static_cast<uint8_t*>(pMem);
   // Create a video frame and append it to the track.
-  ImageFormat format = ImageFormat::GRALLOC_PLANAR_YCBCR;
-  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(format);
+  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
+  layers::PlanarYCbCrImage* videoImage = static_cast<layers::PlanarYCbCrImage*>(image.get());
 
   uint32_t dstWidth;
   uint32_t dstHeight;
@@ -609,48 +599,35 @@ MediaEngineGonkVideoSource::RotateImage(layers::Image* aImage, uint32_t aWidth, 
   }
 
   uint32_t half_width = dstWidth / 2;
-
-  layers::GrallocImage* videoImage = static_cast<layers::GrallocImage*>(image.get());
-  MOZ_ASSERT(mTextureClientAllocator);
-  RefPtr<layers::TextureClient> textureClient
-    = mTextureClientAllocator->CreateOrRecycleForDrawing(gfx::SurfaceFormat::YUV,
-                                                         gfx::IntSize(dstWidth, dstHeight),
-                                                         gfx::BackendType::NONE,
-                                                         layers::TextureFlags::DEFAULT,
-                                                         layers::ALLOC_DISALLOW_BUFFERTEXTURECLIENT);
-  if (!textureClient) {
-    return;
-  }
-  RefPtr<layers::GrallocTextureClientOGL> grallocTextureClient =
-    static_cast<layers::GrallocTextureClientOGL*>(textureClient.get());
-
-  android::sp<android::GraphicBuffer> destBuffer = grallocTextureClient->GetGraphicBuffer();
-
-  void* destMem = nullptr;
-  destBuffer->lock(android::GraphicBuffer::USAGE_SW_WRITE_OFTEN, &destMem);
-  uint8_t* dstPtr = static_cast<uint8_t*>(destMem);
-
-  int32_t yStride = destBuffer->getStride();
-  // Align to 16 bytes boundary
-  int32_t uvStride = ((yStride / 2) + 15) & ~0x0F;
-
+  uint8_t* dstPtr = videoImage->AllocateAndGetNewBuffer(size);
   libyuv::ConvertToI420(srcPtr, size,
-                        dstPtr, yStride,
-                        dstPtr + (yStride * dstHeight + (uvStride * dstHeight / 2)), uvStride,
-                        dstPtr + (yStride * dstHeight), uvStride,
+                        dstPtr, dstWidth,
+                        dstPtr + (dstWidth * dstHeight), half_width,
+                        dstPtr + (dstWidth * dstHeight * 5 / 4), half_width,
                         0, 0,
                         aWidth, aHeight,
                         aWidth, aHeight,
                         static_cast<libyuv::RotationMode>(mRotation),
-                        libyuv::FOURCC_NV21);
-  destBuffer->unlock();
+                        ConvertPixelFormatToFOURCC(graphicBuffer->getPixelFormat()));
   graphicBuffer->unlock();
 
-  layers::GrallocImage::GrallocData data;
+  const uint8_t lumaBpp = 8;
+  const uint8_t chromaBpp = 4;
 
-  data.mPicSize = gfx::IntSize(dstWidth, dstHeight);
-  data.mGraphicBuffer = textureClient;
-  videoImage->SetData(data);
+  layers::PlanarYCbCrData data;
+  data.mYChannel = dstPtr;
+  data.mYSize = IntSize(dstWidth, dstHeight);
+  data.mYStride = dstWidth * lumaBpp / 8;
+  data.mCbCrStride = dstWidth * chromaBpp / 8;
+  data.mCbChannel = dstPtr + dstHeight * data.mYStride;
+  data.mCrChannel = data.mCbChannel +( dstHeight * data.mCbCrStride / 2);
+  data.mCbCrSize = IntSize(dstWidth / 2, dstHeight / 2);
+  data.mPicX = 0;
+  data.mPicY = 0;
+  data.mPicSize = IntSize(dstWidth, dstHeight);
+  data.mStereoMode = StereoMode::MONO;
+
+  videoImage->SetDataNoCopy(data);
 
   // implicitly releases last image
   mImage = image.forget();

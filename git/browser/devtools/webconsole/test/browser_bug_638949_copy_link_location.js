@@ -3,103 +3,116 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Test for the "Copy link location" context menu item shown when you right
-// click network requests in the output.
+const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/" +
+  "test/test-console.html?_date=" + Date.now();
+const COMMAND_NAME = "consoleCmd_copyURL";
+const CONTEXT_MENU_ID = "#menu_copyURL";
 
-"use strict";
+let HUD = null;
+let output = null;
+let menu = null;
 
-let test = asyncTest(function* () {
-  const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/" +
-    "test/test-console.html?_date=" + Date.now();
-  const COMMAND_NAME = "consoleCmd_copyURL";
-  const CONTEXT_MENU_ID = "#menu_copyURL";
-
+function test() {
+  let originalNetPref = Services.prefs.getBoolPref("devtools.webconsole.filter.networkinfo");
   registerCleanupFunction(() => {
-    Services.prefs.clearUserPref("devtools.webconsole.filter.networkinfo");
+    Services.prefs.setBoolPref("devtools.webconsole.filter.networkinfo", originalNetPref);
+    HUD = output = menu = null;
   });
 
   Services.prefs.setBoolPref("devtools.webconsole.filter.networkinfo", true);
 
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
-  let output = hud.outputNode;
-  let menu = hud.iframeWindow.document.getElementById("output-contextmenu");
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
 
-  hud.jsterm.clearOutput();
+    openConsole(null, function (aHud) {
+      HUD = aHud;
+      output = aHud.outputNode;
+      menu = HUD.iframeWindow.document.getElementById("output-contextmenu");
+
+      executeSoon(testWithoutNetActivity);
+    });
+  }, true);
+}
+
+// Return whether "Copy Link Location" command is enabled or not.
+function isEnabled() {
+  let controller = top.document.commandDispatcher
+                   .getControllerForCommand(COMMAND_NAME);
+  return controller && controller.isCommandEnabled(COMMAND_NAME);
+}
+
+function testWithoutNetActivity() {
+  HUD.jsterm.clearOutput();
   content.console.log("bug 638949");
 
   // Test that the "Copy Link Location" command is disabled for non-network
   // messages.
-  let [result] = yield waitForMessages({
-    webconsole: hud,
+  waitForMessages({
+    webconsole: HUD,
     messages: [{
       text: "bug 638949",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(onConsoleMessage);
+}
 
+function onConsoleMessage(aResults) {
   output.focus();
-  let message = [...result.matched][0];
+  let message = [...aResults[0].matched][0];
 
   goUpdateCommand(COMMAND_NAME);
-  ok(!isEnabled(), COMMAND_NAME + " is disabled");
+  ok(!isEnabled(), COMMAND_NAME + "is disabled");
 
   // Test that the "Copy Link Location" menu item is hidden for non-network
   // messages.
   message.scrollIntoView();
-
-  yield waitForContextMenu(menu, message, () => {
+  waitForContextMenu(menu, message, () => {
     let isHidden = menu.querySelector(CONTEXT_MENU_ID).hidden;
     ok(isHidden, CONTEXT_MENU_ID + " is hidden");
-  });
+  }, testWithNetActivity);
+}
 
-  hud.jsterm.clearOutput();
+function testWithNetActivity() {
+  HUD.jsterm.clearOutput();
   content.location.reload(); // Reloading will produce network logging
 
   // Test that the "Copy Link Location" command is enabled and works
   // as expected for any network-related message.
   // This command should copy only the URL.
-  [result] = yield waitForMessages({
-    webconsole: hud,
+  waitForMessages({
+    webconsole: HUD,
     messages: [{
       text: "test-console.html",
       category: CATEGORY_NETWORK,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(onNetworkMessage);
+}
 
+function onNetworkMessage(aResults) {
   output.focus();
-  message = [...result.matched][0];
-  hud.ui.output.selectMessage(message);
+  let message = [...aResults[0].matched][0];
+  HUD.ui.output.selectMessage(message);
 
   goUpdateCommand(COMMAND_NAME);
   ok(isEnabled(), COMMAND_NAME + " is enabled");
 
   info("expected clipboard value: " + message.url);
 
-  let deferred = promise.defer();
-
   waitForClipboard((aData) => { return aData.trim() == message.url; },
-    () => { goDoCommand(COMMAND_NAME); },
-    () => { deferred.resolve(null); },
-    () => { deferred.reject(null); });
+    () => { goDoCommand(COMMAND_NAME) },
+    testMenuWithNetActivity, testMenuWithNetActivity);
 
-  yield deferred.promise;
-
-  // Test that the "Copy Link Location" menu item is visible for network-related
-  // messages.
-  message.scrollIntoView();
-
-  yield waitForContextMenu(menu, message, () => {
-    let isVisible = !menu.querySelector(CONTEXT_MENU_ID).hidden;
-    ok(isVisible, CONTEXT_MENU_ID + " is visible");
-  });
-
-  // Return whether "Copy Link Location" command is enabled or not.
-  function isEnabled() {
-    let controller = top.document.commandDispatcher
-                     .getControllerForCommand(COMMAND_NAME);
-    return controller && controller.isCommandEnabled(COMMAND_NAME);
+  function testMenuWithNetActivity() {
+    // Test that the "Copy Link Location" menu item is visible for network-related
+    // messages.
+    message.scrollIntoView();
+    waitForContextMenu(menu, message, () => {
+      let isVisible = !menu.querySelector(CONTEXT_MENU_ID).hidden;
+      ok(isVisible, CONTEXT_MENU_ID + " is visible");
+    }, finishTest);
   }
-});
+}
+
