@@ -263,9 +263,6 @@ gfxPattern::GetPattern(mozilla::gfx::DrawTarget *aTarget)
       }
       break;
     }
-  default:
-    /* Reassure the compiler we are handling all the enum values.  */
-    break;
   }
 
   new (mColorPattern.addr()) ColorPattern(Color(0, 0, 0, 0));
@@ -325,9 +322,9 @@ gfxPattern::IsOpaque()
           return true;
         }
       }
-    default:
-      return false;
     }
+
+    return false;
   }
 
   if (mSourceSurface->GetFormat() == FORMAT_B8G8R8X8) {

@@ -425,11 +425,9 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
 bool
 nsSVGUtils::EstablishesViewport(nsIContent *aContent)
 {
-  // Although SVG 1.1 states that <image> is an element that establishes a
-  // viewport, this is really only for the document it references, not
-  // for any child content, which is what this function is used for.
   return aContent && aContent->IsSVG() &&
            (aContent->Tag() == nsGkAtoms::svg ||
+            aContent->Tag() == nsGkAtoms::image ||
             aContent->Tag() == nsGkAtoms::foreignObject ||
             aContent->Tag() == nsGkAtoms::symbol);
 }
@@ -597,13 +595,6 @@ nsSVGUtils::InvalidateCoveredRegion(nsIFrame *aFrame)
 {
   if (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return;
-
-  if (aFrame->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED) {
-    aFrame->AddStateBits(NS_STATE_SVG_DIRTY);
-    return;
-  }
-
-  aFrame->RemoveStateBits(NS_STATE_SVG_DIRTY);
 
   nsSVGOuterSVGFrame* outerSVGFrame = GetOuterSVGFrame(aFrame);
   NS_ASSERTION(outerSVGFrame, "no outer svg frame");

@@ -292,10 +292,6 @@ struct WeakMapTracer {
 extern JS_FRIEND_API(void)
 TraceWeakMaps(WeakMapTracer *trc);
 
-extern JS_FRIEND_API(bool)
-GCThingIsMarkedGray(void *thing);
-
-
 /*
  * Shadow declarations of JS internal structures, for access by inline access
  * functions below. Do not use these structures in any other way. When adding

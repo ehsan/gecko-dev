@@ -38,6 +38,7 @@
 #include "nsIServiceManager.h"
 
 #include "nsLocalFile.h" // includes platform-specific headers
+#include "nsLocalFileUnicode.h"
 
 #include "nsString.h"
 #include "nsCOMPtr.h"

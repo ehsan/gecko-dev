@@ -66,7 +66,6 @@
 #include "gc/Barrier.h"
 #include "js/TemplateLib.h"
 #include "vm/GlobalObject.h"
-#include "vm/RegExpStatics.h"
 
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
@@ -77,7 +76,6 @@
 
 #include "gc/Barrier-inl.h"
 #include "vm/String-inl.h"
-#include "vm/RegExpStatics-inl.h"
 
 inline bool
 JSObject::hasPrivate() const
@@ -938,7 +936,6 @@ inline bool JSObject::isNumber() const { return hasClass(&js::NumberClass); }
 inline bool JSObject::isObject() const { return hasClass(&js::ObjectClass); }
 inline bool JSObject::isPrimitive() const { return isNumber() || isString() || isBoolean(); }
 inline bool JSObject::isRegExp() const { return hasClass(&js::RegExpClass); }
-inline bool JSObject::isRegExpStatics() const { return hasClass(&js::RegExpStaticsClass); }
 inline bool JSObject::isScope() const { return isCall() || isDeclEnv() || isNestedScope(); }
 inline bool JSObject::isStaticBlock() const { return isBlock() && !getProto(); }
 inline bool JSObject::isStopIteration() const { return hasClass(&js::StopIterationClass); }
@@ -1211,43 +1208,31 @@ JSObject::sizeOfThis() const
 }
 
 inline size_t
-JSObject::computedSizeOfThisSlotsElements() const
+JSObject::computedSizeOfIncludingThis() const
 {
-    size_t n = sizeOfThis();
-
-    if (hasDynamicSlots())
-        n += numDynamicSlots() * sizeof(js::Value);
-
-    if (hasDynamicElements())
-        n += (js::ObjectElements::VALUES_PER_HEADER + getElementsHeader()->capacity) *
-             sizeof(js::Value);
-
-    return n;
+    size_t slotsSize, elementsSize;
+    sizeOfExcludingThis(NULL, &slotsSize, &elementsSize);
+    return sizeOfThis() + slotsSize + elementsSize;
 }
 
 inline void
 JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
-                              size_t *slotsSize, size_t *elementsSize,
-                              size_t *miscSize) const
+                              size_t *slotsSize, size_t *elementsSize) const
 {
-    *slotsSize = 0;
     if (hasDynamicSlots()) {
-        *slotsSize += mallocSizeOf(slots);
+        size_t computedSize = numDynamicSlots() * sizeof(js::Value);
+        *slotsSize = mallocSizeOf ? mallocSizeOf(slots) : computedSize;
+    } else {
+        *slotsSize = 0;
     }
-
-    *elementsSize = 0;
     if (hasDynamicElements()) {
-        *elementsSize += mallocSizeOf(getElementsHeader());
-    }
-
-    /* Other things may be measured in the future if DMD indicates it is worthwhile. */
-    *miscSize = 0;
-    if (isFunction()) {
-        *miscSize += toFunction()->sizeOfMisc(mallocSizeOf);
-    } else if (isArguments()) {
-        *miscSize += asArguments().sizeOfMisc(mallocSizeOf);
-    } else if (isRegExpStatics()) {
-        *miscSize += js::SizeOfRegExpStaticsData(this, mallocSizeOf);
+        size_t computedSize =
+            (js::ObjectElements::VALUES_PER_HEADER +
+             getElementsHeader()->capacity) * sizeof(js::Value);
+        *elementsSize =
+            mallocSizeOf ? mallocSizeOf(getElementsHeader()) : computedSize;
+    } else {
+        *elementsSize = 0;
     }
 }
 
