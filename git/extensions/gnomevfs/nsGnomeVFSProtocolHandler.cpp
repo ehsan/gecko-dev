@@ -423,9 +423,7 @@ nsGnomeVFSInputStream::DoOpen()
   //     throws hands up in the air and moves on...)
 
   GnomeVFSFileInfo info = {0};
-  rv = gnome_vfs_get_file_info(mSpec.get(), &info, GnomeVFSFileInfoOptions(
-                               GNOME_VFS_FILE_INFO_DEFAULT |
-                               GNOME_VFS_FILE_INFO_FOLLOW_LINKS));
+  rv = gnome_vfs_get_file_info(mSpec.get(), &info, GNOME_VFS_FILE_INFO_DEFAULT);
   if (rv == GNOME_VFS_OK)
   {
     if (info.type == GNOME_VFS_FILE_TYPE_DIRECTORY)
