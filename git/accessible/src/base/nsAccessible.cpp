@@ -2030,12 +2030,9 @@ nsAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   if (mRoleMapEntry) {
-
-    // We only force the readonly bit off if we have a real mapping for the aria
-    // role. This preserves the ability for screen readers to use readonly
-    // (primarily on the document) as the hint for creating a virtual buffer.
-    if (mRoleMapEntry->role != nsIAccessibleRole::ROLE_NOTHING)
-      *aState &= ~nsIAccessibleStates::STATE_READONLY;
+    // Once an ARIA role is used, default to not-readonly. This can be overridden
+    // by aria-readonly, or if the ARIA role is mapped to readonly by default
+    *aState &= ~nsIAccessibleStates::STATE_READONLY;
 
     if (content->HasAttr(kNameSpaceID_None, content->GetIDAttributeName())) {
       // If has a role & ID and aria-activedescendant on the container, assume focusable

@@ -60,7 +60,7 @@
 #include "nsString.h"
 #include "nsIDragService.h"
 
-#include "npapi.h"
+#include "nsplugindefs.h"
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
@@ -130,7 +130,7 @@ enum {
   nsChildView* mGeckoChild;
 
   BOOL mIsPluginView;
-  NPEventModel mPluginEventModel;
+  BOOL mSendCarbonPluginEvents; // true if we should send carbon events to plugins
 
   // The following variables are only valid during key down event processing.
   // Their current usage needs to be fixed to avoid problems with nested event

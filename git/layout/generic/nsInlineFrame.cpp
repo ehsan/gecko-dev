@@ -40,7 +40,6 @@
 #include "nsCOMPtr.h"
 #include "nsInlineFrame.h"
 #include "nsBlockFrame.h"
-#include "nsPlaceholderFrame.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsStyleContext.h"
@@ -714,12 +713,10 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
       }
     }
   }
-  else if (!NS_FRAME_IS_FULLY_COMPLETE(aStatus)) {
+  else if (NS_FRAME_IS_NOT_COMPLETE(aStatus)) {
     if (nsGkAtoms::placeholderFrame == aFrame->GetType()) {
       nsBlockReflowState* blockRS = lineLayout->mBlockRS;
-      nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aFrame);
-      rv = blockRS->mBlock->SplitFloat(*blockRS, placeholder->GetOutOfFlowFrame(),
-                                       aStatus);
+      blockRS->mBlock->SplitPlaceholder(*blockRS, aFrame);
       // Allow the parent to continue reflowing
       aStatus = NS_FRAME_COMPLETE;
     }

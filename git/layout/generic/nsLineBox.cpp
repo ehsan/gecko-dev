@@ -140,17 +140,21 @@ ListFloats(FILE* out, PRInt32 aIndent, const nsFloatCacheList& aFloats)
   nsFloatCache* fc = aFloats.Head();
   while (fc) {
     nsFrame::IndentBy(out, aIndent);
-    nsIFrame* frame = fc->mFloat;
-    fprintf(out, "floatframe@%p ", static_cast<void*>(frame));
-    if (frame) {
-      nsAutoString frameName;
-      frame->GetFrameName(frameName);
-      fputs(NS_LossyConvertUTF16toASCII(frameName).get(), out);
+    nsPlaceholderFrame* ph = fc->mPlaceholder;
+    if (ph) {
+      fprintf(out, "placeholder@%p ", static_cast<void*>(ph));
+      nsIFrame* frame = ph->GetOutOfFlowFrame();
+      if (frame) {
+        nsAutoString frameName;
+        frame->GetFrameName(frameName);
+        fputs(NS_LossyConvertUTF16toASCII(frameName).get(), out);
+      }
+
+      if (!frame) {
+        fputs("\n###!!! NULL out-of-flow frame", out);
+      }
+      fprintf(out, "\n");
     }
-    else {
-      fputs("\n###!!! NULL out-of-flow frame", out);
-    }
-    fprintf(out, "\n");
     fc = fc->Next();
   }
 }
@@ -832,7 +836,7 @@ nsFloatCacheList::Find(nsIFrame* aOutOfFlowFrame)
 {
   nsFloatCache* fc = mHead;
   while (fc) {
-    if (fc->mFloat == aOutOfFlowFrame) {
+    if (fc->mPlaceholder->GetOutOfFlowFrame() == aOutOfFlowFrame) {
       break;
     }
     fc = fc->Next();
@@ -909,10 +913,8 @@ nsFloatCacheFreeList::DeleteAll()
 }
 
 nsFloatCache*
-nsFloatCacheFreeList::Alloc(nsIFrame* aFloat)
+nsFloatCacheFreeList::Alloc()
 {
-  NS_PRECONDITION(aFloat->GetStateBits() & NS_FRAME_OUT_OF_FLOW,
-                  "This is a float cache, why isn't the frame out-of-flow?");
   nsFloatCache* fc = mHead;
   if (mHead) {
     if (mHead == mTail) {
@@ -926,7 +928,6 @@ nsFloatCacheFreeList::Alloc(nsIFrame* aFloat)
   else {
     fc = new nsFloatCache();
   }
-  fc->mFloat = aFloat;
   return fc;
 }
 
@@ -949,7 +950,7 @@ nsFloatCacheFreeList::Append(nsFloatCache* aFloat)
 //----------------------------------------------------------------------
 
 nsFloatCache::nsFloatCache()
-  : mFloat(nsnull),
+  : mPlaceholder(nsnull),
     mNext(nsnull)
 {
   MOZ_COUNT_CTOR(nsFloatCache);

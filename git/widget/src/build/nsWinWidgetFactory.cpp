@@ -75,11 +75,6 @@
 #include "nsPrintSession.h"
 #endif
 
-#ifdef WINCE_WINDOWS_MOBILE
-#include "nsAccelerometerCE.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAccelerometerWin)
-#endif
-
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(ChildWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
@@ -174,13 +169,6 @@ static const nsModuleComponentInfo components[] =
     NS_BIDIKEYBOARD_CID,
     "@mozilla.org/widget/bidikeyboard;1",
     nsBidiKeyboardConstructor },
-#endif
-
-#ifdef WINCE_WINDOWS_MOBILE
-  { "Accelerometer",
-    NS_ACCELEROMETER_CID,
-    NS_ACCELEROMETER_CONTRACTID,
-    nsAccelerometerWinConstructor },
 #endif
 
 #ifdef NS_PRINTING
