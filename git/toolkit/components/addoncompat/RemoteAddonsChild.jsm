@@ -7,16 +7,9 @@ this.EXPORTED_SYMBOLS = ["RemoteAddonsChild"];
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
-                                  "resource://gre/modules/BrowserUtils.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this, "SystemPrincipal",
-                                   "@mozilla.org/systemprincipal;1", "nsIPrincipal");
 
 // Similar to Python. Returns dict[key] if it exists. Otherwise,
 // sets dict[key] to default_ and returns default_.
@@ -119,9 +112,9 @@ let ContentPolicyChild = {
 
   track: function(path, count) {
     let catMan = Cc["@mozilla.org/categorymanager;1"].getService(Ci.nsICategoryManager);
-    if (count == 1) {
+    if (count) {
       catMan.addCategoryEntry("content-policy", this._contractID, this._contractID, false, true);
-    } else if (count == 0) {
+    } else {
       catMan.deleteCategoryEntry("content-policy", this._contractID, false);
     }
   },
@@ -155,158 +148,6 @@ let ContentPolicyChild = {
   },
 };
 
-// This is a shim channel whose only purpose is to return some string
-// data from an about: protocol handler.
-function AboutProtocolChannel(data, uri, originalURI, contentType)
-{
-  let stream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
-  stream.setData(data, data.length);
-  this._stream = stream;
-
-  this.URI = BrowserUtils.makeURI(uri);
-  this.originalURI = BrowserUtils.makeURI(originalURI);
-  this.contentType = contentType;
-}
-
-AboutProtocolChannel.prototype = {
-  contentCharset: "utf-8",
-  contentLength: 0,
-  owner: SystemPrincipal,
-  securityInfo: null,
-  notificationCallbacks: null,
-  loadFlags: 0,
-  loadGroup: null,
-  name: null,
-  status: Cr.NS_OK,
-
-  asyncOpen: function(listener, context) {
-    let runnable = {
-      run: () => {
-        try {
-          listener.onStartRequest(this, context);
-        } catch(e) {}
-        try {
-          listener.onDataAvailable(this, context, this._stream, 0, this._stream.available());
-        } catch(e) {}
-        try {
-          listener.onStopRequest(this, context, Cr.NS_OK);
-        } catch(e) {}
-      }
-    };
-    Services.tm.currentThread.dispatch(runnable, Ci.nsIEventTarget.DISPATCH_NORMAL);
-  },
-
-  open: function() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  isPending: function() {
-    return false;
-  },
-
-  cancel: function() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  suspend: function() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  resume: function() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannel, Ci.nsIRequest])
-};
-
-// This shim protocol handler is used when content fetches an about: URL.
-function AboutProtocolInstance(contractID)
-{
-  this._contractID = contractID;
-  this._uriFlags = null;
-}
-
-AboutProtocolInstance.prototype = {
-  createInstance: function(outer, iid) {
-    if (outer != null) {
-      throw Cr.NS_ERROR_NO_AGGREGATION;
-    }
-
-    return this.QueryInterface(iid);
-  },
-
-  getURIFlags: function(uri) {
-    // Cache the result to avoid the extra IPC.
-    if (this._uriFlags !== undefined) {
-      return this._uriFlags;
-    }
-
-    let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
-               .getService(Ci.nsISyncMessageSender);
-
-    var rval = cpmm.sendRpcMessage("Addons:AboutProtocol:GetURIFlags", {
-      uri: uri.spec,
-      contractID: this._contractID
-    });
-
-    if (rval.length != 1) {
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
-    this._uriFlags = rval[0];
-    return this._uriFlags;
-  },
-
-  // We take some shortcuts here. Ideally, we would return a CPOW that
-  // wraps the add-on's nsIChannel. However, many of the methods
-  // related to nsIChannel are marked [noscript], so they're not
-  // available to CPOWs. Consequently, the parent simply reads all the
-  // data out of the add-on's channel and returns that as a string. We
-  // create a new AboutProtocolChannel whose only purpose is to return
-  // the string data via an nsIStringInputStream.
-  newChannel: function(uri) {
-    let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
-               .getService(Ci.nsISyncMessageSender);
-
-    var rval = cpmm.sendRpcMessage("Addons:AboutProtocol:NewChannel", {
-      uri: uri.spec,
-      contractID: this._contractID
-    });
-
-    if (rval.length != 1) {
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
-    let {data, uri, originalURI, contentType} = rval[0];
-    return new AboutProtocolChannel(data, uri, originalURI, contentType);
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory, Ci.nsIAboutModule])
-};
-
-let AboutProtocolChild = {
-  _classDescription: "Addon shim about: protocol handler",
-  _classID: Components.ID("8d56a310-0c80-11e4-9191-0800200c9a66"),
-
-  init: function() {
-    this._instances = {};
-    NotificationTracker.watch("about-protocol", (path, count) => this.track(path, count));
-  },
-
-  track: function(path, count) {
-    let contractID = path[1];
-    let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
-    if (count == 1) {
-      let instance = new AboutProtocolInstance(contractID);
-      this._instances[contractID] = instance;
-      registrar.registerFactory(this._classID, this._classDescription, contractID, instance);
-    } else if (count == 0) {
-      delete this._instances[contractID];
-      registerFactory.unregisterFactory(this._classID, this);
-    }
-  },
-};
-
 // This code registers observers in the child whenever an add-on in
 // the parent asks for notifications on the given topic.
 let ObserverChild = {
@@ -316,9 +157,9 @@ let ObserverChild = {
 
   track: function(path, count) {
     let topic = path[1];
-    if (count == 1) {
+    if (count) {
       Services.obs.addObserver(this, topic, false);
-    } else if (count == 0) {
+    } else {
       Services.obs.removeObserver(this, topic);
     }
   },
@@ -347,9 +188,9 @@ EventTargetChild.prototype = {
   track: function(path, count) {
     let eventType = path[1];
     let useCapture = path[2];
-    if (count == 1) {
+    if (count) {
       this._childGlobal.addEventListener(eventType, this, useCapture, true);
-    } else if (count == 0) {
+    } else {
       this._childGlobal.removeEventListener(eventType, this, useCapture);
     }
   },
@@ -412,7 +253,6 @@ let RemoteAddonsChild = {
   makeReady: function() {
     NotificationTracker.init();
     ContentPolicyChild.init();
-    AboutProtocolChild.init();
     ObserverChild.init();
   },
 

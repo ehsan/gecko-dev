@@ -11,8 +11,6 @@
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
 #include "nsICrashService.h"
-#include "mozilla/SyncRunnable.h"
-#include "nsThreadUtils.h"
 #endif
 
 using namespace base;
@@ -116,7 +114,6 @@ CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
             type = NS_LITERAL_CSTRING("content");
             break;
         case GeckoProcessType_Plugin:
-        case GeckoProcessType_GMPlugin:
             type = NS_LITERAL_CSTRING("plugin");
             break;
         default:
@@ -138,30 +135,14 @@ CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
     if (!ret)
         NS_WARNING("problem appending child data to .extra");
 
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    class NotifyOnMainThread : public nsRunnable
-    {
-    public:
-        NotifyOnMainThread(CrashReporterParent* aCR)
-            : mCR(aCR)
-        { }
+    NotifyCrashService();
 
-        NS_IMETHOD Run() {
-            mCR->NotifyCrashService();
-            return NS_OK;
-        }
-    private:
-        CrashReporterParent* mCR;
-    };
-    SyncRunnable::DispatchToThread(mainThread, new NotifyOnMainThread(this));
     return ret;
 }
 
 void
 CrashReporterParent::NotifyCrashService()
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     nsCOMPtr<nsICrashService> crashService =
         do_GetService("@mozilla.org/crashservice;1");
     if (!crashService) {
