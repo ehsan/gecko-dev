@@ -55,17 +55,15 @@ li.container {
 
 .expander {
   position: absolute;
-  top: 5px;
+  -moz-appearance: treetwisty;
+  top: 0;
   left: 0;
   width: 14px;
   height: 14px;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-image: url("chrome://global/skin/tree/twisty-clsd.png");
 }
 
 .expander[expanded] {
-  background-image: url("chrome://global/skin/tree/twisty-open.png");
+  -moz-appearance: treetwistyopen;
 }
 
 .styleinspector-propertyeditor {

@@ -427,9 +427,8 @@ TestRunner.testFinished = function(tests) {
         if (TestRunner.currentTestURL != TestRunner.getLoadedTestURL()) {
             TestRunner.error("TEST-UNEXPECTED-FAIL | " +
                              TestRunner.currentTestURL +
-                             " | " + TestRunner.getLoadedTestURL() +
-                             " finished in a non-clean fashion, probably" +
-                             " because it didn't call SimpleTest.finish()");
+                             " | finished in a non-clean fashion (in " +
+                             TestRunner.getLoadedTestURL() + ")");
             tests.push({ result: false });
         }
 

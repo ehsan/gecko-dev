@@ -10,9 +10,7 @@
 # bootstrap support. It does this through various means, including fetching
 # content from the upstream source repository.
 
-# If we add unicode_literals, optparse breaks on Python 2.6.1 (which is needed
-# to support OS X 10.6).
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import os
 import shutil
