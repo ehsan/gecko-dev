@@ -108,9 +108,8 @@ struct JSString {
 #define JSSTRFLAG_PREFIX            JSSTRING_BIT(JS_BITS_PER_WORD - 2)
 #define JSSTRFLAG_MUTABLE           JSSTRFLAG_PREFIX
 #define JSSTRFLAG_ATOMIZED          JSSTRING_BIT(JS_BITS_PER_WORD - 3)
-#define JSSTRFLAG_DEFLATED          JSSTRING_BIT(JS_BITS_PER_WORD - 4)
 
-#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 4)
+#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 3)
 #define JSSTRING_LENGTH_MASK        JSSTRING_BITMASK(JSSTRING_LENGTH_BITS)
 
 /* Universal JSString type inquiry and accessor macros. */
@@ -132,13 +131,6 @@ struct JSString {
 #define JSSTRING_LENGTH(str)        (JSSTRING_IS_DEPENDENT(str)               \
                                      ? JSSTRDEP_LENGTH(str)                   \
                                      : JSFLATSTR_LENGTH(str))
-
-JS_STATIC_ASSERT(sizeof(size_t) == sizeof(jsword));
-
-#define JSSTRING_IS_DEFLATED(str)   ((str)->length & JSSTRFLAG_DEFLATED)
-
-#define JSSTRING_SET_DEFLATED(str)  js_AtomicSetMask((jsword*)&(str)->length, \
-                                                     JSSTRFLAG_DEFLATED);
 
 #define JSSTRING_CHARS_AND_LENGTH(str, chars_, length_)                       \
     ((void)(JSSTRING_IS_DEPENDENT(str)                                        \
@@ -190,10 +182,8 @@ JS_STATIC_ASSERT(sizeof(size_t) == sizeof(jsword));
  * with the atomized bit set.
  */
 #define JSFLATSTR_SET_ATOMIZED(str)                                           \
-    JS_BEGIN_MACRO                                                            \
-        JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str));        \
-        js_AtomicSetMask((jsword*) &(str)->length, JSSTRFLAG_ATOMIZED);       \
-    JS_END_MACRO
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str)),    \
+            (str)->length |= JSSTRFLAG_ATOMIZED))
 
 #define JSFLATSTR_SET_MUTABLE(str)                                            \
     ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_ATOMIZED(str)),   \
