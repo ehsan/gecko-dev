@@ -58,7 +58,6 @@ public:
   bool IsUnmountRequested() const     { return CanBeMounted() && mUnmountRequested; }
   bool IsSharing() const              { return mIsSharing; }
   bool IsFormatting() const           { return mIsFormatting; }
-  bool IsUnmounting() const           { return mIsUnmounting; }
 
   void SetSharingEnabled(bool aSharingEnabled);
   void SetFormatRequested(bool aFormatRequested);
@@ -89,7 +88,6 @@ private:
 
   void SetIsSharing(bool aIsSharing);
   void SetIsFormatting(bool aIsFormatting);
-  void SetIsUnmounting(bool aIsUnmounting);
   void SetState(STATE aNewState);
   void SetMediaPresent(bool aMediaPresent);
   void SetMountPoint(const nsCSubstring& aMountPoint);
@@ -114,7 +112,6 @@ private:
   bool              mCanBeShared;
   bool              mIsSharing;
   bool              mIsFormatting;
-  bool              mIsUnmounting;
   uint32_t          mId;                // Unique ID (used by MTP)
 
   static EventObserverList mEventObserverList;

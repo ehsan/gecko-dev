@@ -108,7 +108,8 @@ describe("loop.conversation", function() {
     beforeEach(function() {
       client = new loop.Client();
       conversation = new loop.shared.models.ConversationModel({}, {
-        sdk: {}
+        sdk: {},
+        pendingCallTimeout: 1000,
       });
       sandbox.spy(conversation, "setIncomingSessionData");
       sandbox.stub(conversation, "setOutgoingSessionData");

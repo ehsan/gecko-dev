@@ -56,8 +56,7 @@ nsVolume::nsVolume(const Volume* aVolume)
     mIsFake(false),
     mIsMediaPresent(aVolume->MediaPresent()),
     mIsSharing(aVolume->IsSharing()),
-    mIsFormatting(aVolume->IsFormatting()),
-    mIsUnmounting(aVolume->IsUnmounting())
+    mIsFormatting(aVolume->IsFormatting())
 {
 }
 
@@ -111,42 +110,30 @@ bool nsVolume::Equals(nsIVolume* aVolume)
     return false;
   }
 
-  bool isUnmounting;
-  aVolume->GetIsUnmounting(&isUnmounting);
-  if (mIsUnmounting != isUnmounting) {
-    return false;
-  }
-
   return true;
 }
 
-NS_IMETHODIMP nsVolume::GetIsMediaPresent(bool* aIsMediaPresent)
+NS_IMETHODIMP nsVolume::GetIsMediaPresent(bool *aIsMediaPresent)
 {
   *aIsMediaPresent = mIsMediaPresent;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolume::GetIsMountLocked(bool* aIsMountLocked)
+NS_IMETHODIMP nsVolume::GetIsMountLocked(bool *aIsMountLocked)
 {
   *aIsMountLocked = mMountLocked;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolume::GetIsSharing(bool* aIsSharing)
+NS_IMETHODIMP nsVolume::GetIsSharing(bool *aIsSharing)
 {
   *aIsSharing = mIsSharing;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolume::GetIsFormatting(bool* aIsFormatting)
+NS_IMETHODIMP nsVolume::GetIsFormatting(bool *aIsFormatting)
 {
   *aIsFormatting = mIsFormatting;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsVolume::GetIsUnmounting(bool* aIsUnmounting)
-{
-  *aIsUnmounting = mIsUnmounting;
   return NS_OK;
 }
 
@@ -275,11 +262,11 @@ nsVolume::LogState() const
 {
   if (mState == nsIVolume::STATE_MOUNTED) {
     LOG("nsVolume: %s state %s @ '%s' gen %d locked %d fake %d "
-        "media %d sharing %d formatting %d unmounting %d",
+        "media %d sharing %d formatting %d",
         NameStr().get(), StateStr(), MountPointStr().get(),
         MountGeneration(), (int)IsMountLocked(), (int)IsFake(),
         (int)IsMediaPresent(), (int)IsSharing(),
-        (int)IsFormatting(), (int)IsUnmounting());
+        (int)IsFormatting());
     return;
   }
 
@@ -297,7 +284,6 @@ void nsVolume::Set(nsIVolume* aVolume)
   aVolume->GetIsMediaPresent(&mIsMediaPresent);
   aVolume->GetIsSharing(&mIsSharing);
   aVolume->GetIsFormatting(&mIsFormatting);
-  aVolume->GetIsUnmounting(&mIsUnmounting);
 
   int32_t volMountGeneration;
   aVolume->GetMountGeneration(&volMountGeneration);

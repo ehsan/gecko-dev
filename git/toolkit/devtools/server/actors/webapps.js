@@ -4,7 +4,10 @@
 
 "use strict";
 
-let {Cu, Cc, Ci} = require("chrome");
+let Cu = Components.utils;
+let Cc = Components.classes;
+let Ci = Components.interfaces;
+let CC = Components.Constructor;
 
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -13,22 +16,7 @@ Cu.import("resource://gre/modules/FileUtils.jsm");
 
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
-let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-let { ActorPool } = require("devtools/server/actors/common");
-let { DebuggerServer } = require("devtools/server/main");
-let Services = require("Services");
-
-let AppFramesMock = null;
-
-exports.setAppFramesMock = function (mock) {
-  AppFramesMock = mock;
-}
-
 DevToolsUtils.defineLazyGetter(this, "AppFrames", () => {
-  // Offer a way for unit test to provide a mock
-  if (AppFramesMock) {
-    return AppFramesMock;
-  }
   try {
     return Cu.import("resource://gre/modules/AppFrames.jsm", {}).AppFrames;
   } catch(e) {}
@@ -530,11 +518,11 @@ WebappsActor.prototype = {
           // frame script. That will flush the jar cache for this app and allow
           // loading fresh updated resources if we reload its document.
           let FlushFrameScript = function (path) {
-            let jar = Cc["@mozilla.org/file/local;1"]
-                        .createInstance(Ci.nsILocalFile);
+            let jar = Components.classes["@mozilla.org/file/local;1"]
+                                .createInstance(Components.interfaces.nsILocalFile);
             jar.initWithPath(path);
-            let obs = Cc["@mozilla.org/observer-service;1"]
-                        .getService(Ci.nsIObserverService);
+            let obs = Components.classes["@mozilla.org/observer-service;1"]
+                                .getService(Components.interfaces.nsIObserverService);
             obs.notifyObservers(jar, "flush-cache-entry", null);
           };
           for each (let frame in self._appFrames()) {
@@ -1050,4 +1038,4 @@ WebappsActor.prototype.requestTypes = {
   "getIconAsDataURL": WebappsActor.prototype.getIconAsDataURL
 };
 
-exports.WebappsActor = WebappsActor;
+DebuggerServer.addGlobalActor(WebappsActor, "webappsActor");

@@ -7,6 +7,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Chat",
 
 let openChatOrig = Chat.open;
 
+const loopServiceModule = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
+
 add_test(function test_openChatWindow_on_notification() {
   Services.prefs.setCharPref("loop.seenToS", "unseen");
 

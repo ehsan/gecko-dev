@@ -16,37 +16,15 @@ struct EnumerateCallsResponse
   // empty.
 };
 
-struct DialResponseError
+struct DialResponse
 {
-  nsString name;
-};
-
-struct DialResponseCallSuccess
-{
-  uint32_t callIndex;
-  nsString number;
-};
-
-struct DialResponseMMISuccess
-{
-  nsString statusMessage;
-  AdditionalInformation additionalInformation;
-};
-
-struct DialResponseMMIError
-{
-  nsString name;
-  AdditionalInformation additionalInformation;
+  // empty.
 };
 
 union IPCTelephonyResponse
 {
   EnumerateCallsResponse;
-  // dial
-  DialResponseError;
-  DialResponseCallSuccess;
-  DialResponseMMISuccess;
-  DialResponseMMIError;
+  DialResponse;
 };
 
 protocol PTelephonyRequest
@@ -56,7 +34,9 @@ protocol PTelephonyRequest
 child:
   NotifyEnumerateCallState(uint32_t aClientId, IPCCallStateData aData);
 
-  NotifyDialMMI(nsString aServiceCode);
+  NotifyDialError(nsString aError);
+
+  NotifyDialSuccess(uint32_t aCallIndex, nsString aNumber);
 
   /**
    * Sent when the asynchronous request has completed.
