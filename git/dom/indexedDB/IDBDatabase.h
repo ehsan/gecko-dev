@@ -41,12 +41,12 @@
 #define mozilla_dom_indexeddb_idbdatabase_h__
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
-#include "mozilla/dom/indexedDB/FileManager.h"
 
 #include "nsIIDBDatabase.h"
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
+#include "nsDOMLists.h"
 #include "nsIDocument.h"
 
 class nsIScriptContext;
@@ -78,8 +78,7 @@ public:
   Create(nsIScriptContext* aScriptContext,
          nsPIDOMWindow* aOwner,
          already_AddRefed<DatabaseInfo> aDatabaseInfo,
-         const nsACString& aASCIIOrigin,
-         FileManager* aFileManager);
+         const nsACString& aASCIIOrigin);
 
   // nsIDOMEventTarget
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -142,11 +141,6 @@ public:
   void EnterSetVersionTransaction();
   void ExitSetVersionTransaction();
 
-  FileManager* Manager() const
-  {
-    return mFileManager;
-  }
-
 private:
   IDBDatabase();
   ~IDBDatabase();
@@ -163,8 +157,6 @@ private:
   bool mRegistered;
   bool mClosed;
   bool mRunningVersionChange;
-
-  nsRefPtr<FileManager> mFileManager;
 
   // Only touched on the main thread.
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;

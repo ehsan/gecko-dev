@@ -56,8 +56,6 @@ CPPSRCS = \
   CheckPermissionsHelper.cpp \
   CheckQuotaHelper.cpp \
   DatabaseInfo.cpp \
-  FileInfo.cpp \
-  FileManager.cpp \
   IDBCursor.cpp \
   IDBDatabase.cpp \
   IDBEvents.cpp \
@@ -87,12 +85,9 @@ EXPORTS_mozilla/dom/indexedDB = \
   IDBFactory.h \
   Key.h \
   LazyIdleThread.h \
-  FileManager.h \
-  FileInfo.h \
   $(NULL)
 
 LOCAL_INCLUDES = \
-  -I$(topsrcdir)/db/sqlite3/src \
   -I$(topsrcdir)/xpcom/build \
   -I$(topsrcdir)/dom/base \
   -I$(topsrcdir)/dom/src/storage \
