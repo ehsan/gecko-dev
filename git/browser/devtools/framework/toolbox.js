@@ -555,7 +555,7 @@ Toolbox.prototype = {
     this._pickerButton.className = "command-button command-button-invertable";
     this._pickerButton.setAttribute("tooltiptext", toolboxStrings("pickButton.tooltip"));
 
-    let container = this.doc.querySelector("#toolbox-picker-container");
+    let container = this.doc.querySelector("#toolbox-buttons");
     container.appendChild(this._pickerButton);
 
     this._togglePicker = this.highlighterUtils.togglePicker.bind(this.highlighterUtils);
@@ -690,29 +690,21 @@ Toolbox.prototype = {
       vbox.id = "toolbox-panel-" + id;
     }
 
-    if (id === "options") {
-      // Options panel is special.  It doesn't belong in the same container as
-      // the other tabs.
-      let optionTabContainer = this.doc.getElementById("toolbox-option-container");
-      optionTabContainer.appendChild(radio);
+    // If there is no tab yet, or the ordinal to be added is the largest one.
+    if (tabs.childNodes.length == 0 ||
+        +tabs.lastChild.getAttribute("ordinal") <= toolDefinition.ordinal) {
+      tabs.appendChild(radio);
       deck.appendChild(vbox);
     } else {
-      // If there is no tab yet, or the ordinal to be added is the largest one.
-      if (tabs.childNodes.length == 0 ||
-          tabs.lastChild.getAttribute("ordinal") <= toolDefinition.ordinal) {
-        tabs.appendChild(radio);
-        deck.appendChild(vbox);
-      } else {
-        // else, iterate over all the tabs to get the correct location.
-        Array.some(tabs.childNodes, (node, i) => {
-          if (+node.getAttribute("ordinal") > toolDefinition.ordinal) {
-            tabs.insertBefore(radio, node);
-            deck.insertBefore(vbox, deck.childNodes[i]);
-            return true;
-          }
-          return false;
-        });
-      }
+      // else, iterate over all the tabs to get the correct location.
+      Array.some(tabs.childNodes, (node, i) => {
+        if (+node.getAttribute("ordinal") > toolDefinition.ordinal) {
+          tabs.insertBefore(radio, node);
+          deck.insertBefore(vbox, deck.childNodes[i]);
+          return true;
+        }
+        return false;
+      });
     }
 
     this._addKeysToWindow();
@@ -813,15 +805,6 @@ Toolbox.prototype = {
     let tab = this.doc.getElementById("toolbox-tab-" + id);
     tab.setAttribute("selected", "true");
 
-    // If options is selected, the separator between it and the
-    // command buttons should be hidden.
-    let sep = this.doc.getElementById("toolbox-controls-separator");
-    if (id === "options") {
-      sep.setAttribute("invisible", "true");
-    } else {
-      sep.removeAttribute("invisible");
-    }
-
     if (this.currentToolId == id) {
       // re-focus tool to get key events again
       this.focusTool(id);
@@ -848,13 +831,20 @@ Toolbox.prototype = {
     let tabstrip = this.doc.getElementById("toolbox-tabs");
 
     // select the right tab, making 0th index the default tab if right tab not
-    // found.
-    tabstrip.selectedItem = tab || tabstrip.childNodes[0];
+    // found
+    let index = 0;
+    let tabs = tabstrip.childNodes;
+    for (let i = 0; i < tabs.length; i++) {
+      if (tabs[i] === tab) {
+        index = i;
+        break;
+      }
+    }
+    tabstrip.selectedItem = tab;
 
     // and select the right iframe
     let deck = this.doc.getElementById("toolbox-deck");
-    let panel = this.doc.getElementById("toolbox-panel-" + id);
-    deck.selectedPanel = panel;
+    deck.selectedIndex = index;
 
     this.currentToolId = id;
     this._refreshConsoleDisplay();
@@ -917,10 +907,8 @@ Toolbox.prototype = {
    * Loads the tool next to the currently selected tool.
    */
   selectNextTool: function() {
-    let tools = this.doc.querySelectorAll(".devtools-tab");
     let selected = this.doc.querySelector(".devtools-tab[selected]");
-    let nextIndex = [...tools].indexOf(selected) + 1;
-    let next = tools[nextIndex] || tools[0];
+    let next = selected.nextSibling || selected.parentNode.firstChild;
     let tool = next.getAttribute("toolid");
     return this.selectTool(tool);
   },
@@ -929,11 +917,9 @@ Toolbox.prototype = {
    * Loads the tool just left to the currently selected tool.
    */
   selectPreviousTool: function() {
-    let tools = this.doc.querySelectorAll(".devtools-tab");
     let selected = this.doc.querySelector(".devtools-tab[selected]");
-    let prevIndex = [...tools].indexOf(selected) - 1;
-    let prev = tools[prevIndex] || tools[tools.length - 1];
-    let tool = prev.getAttribute("toolid");
+    let previous = selected.previousSibling || selected.parentNode.lastChild;
+    let tool = previous.getAttribute("toolid");
     return this.selectTool(tool);
   },
 

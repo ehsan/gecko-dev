@@ -15,8 +15,6 @@ function send_test_message(type) {
     intArray: [2, 3],
     double: 0.5,
     doubleArray: [1.5, 2.5],
-    null: null,
-    emptyString: "",
     string: "foo",
     stringArray: ["bar", "baz"],
   }

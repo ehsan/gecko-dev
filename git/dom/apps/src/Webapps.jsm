@@ -353,7 +353,7 @@ this.DOMApplicationRegistry = {
     });
   },
 
-  updatePermissionsForApp: function(aId, aIsPreinstalled) {
+  updatePermissionsForApp: function(aId) {
     if (!this.webapps[aId]) {
       return;
     }
@@ -367,8 +367,7 @@ this.DOMApplicationRegistry = {
         PermissionsInstaller.installPermissions({
           manifest: data.manifest,
           manifestURL: this.webapps[aId].manifestURL,
-          origin: this.webapps[aId].origin,
-          isPreinstalled: aIsPreinstalled
+          origin: this.webapps[aId].origin
         }, true, function() {
           debug("Error installing permissions for " + aId);
         });
@@ -394,22 +393,19 @@ this.DOMApplicationRegistry = {
   installPreinstalledApp: function installPreinstalledApp(aId) {
 #ifdef MOZ_WIDGET_GONK
     let app = this.webapps[aId];
-    let baseDir, isPreinstalled = false;
+    let baseDir;
     try {
       baseDir = FileUtils.getDir("coreAppsDir", ["webapps", aId], false);
       if (!baseDir.exists()) {
-        return isPreinstalled;
+        return;
       } else if (!baseDir.directoryEntries.hasMoreElements()) {
         debug("Error: Core app in " + baseDir.path + " is empty");
-        return isPreinstalled;
+        return;
       }
     } catch(e) {
       // In ENG builds, we don't have apps in coreAppsDir.
-      return isPreinstalled;
+      return;
     }
-
-    // Beyond this point we know it's really a preinstalled app.
-    isPreinstalled = true;
 
     let filesToMove;
     let isPackage;
@@ -422,7 +418,7 @@ this.DOMApplicationRegistry = {
       let appFile = baseDir.clone();
       appFile.append("application.zip");
       if (appFile.exists()) {
-        return isPreinstalled;
+        return;
       }
 
       isPackage = false;
@@ -453,7 +449,7 @@ this.DOMApplicationRegistry = {
     app.basePath = OS.Path.dirname(this.appsFile);
 
     if (!isPackage) {
-      return isPreinstalled;
+      return;
     }
 
     app.origin = "app://" + aId;
@@ -485,7 +481,6 @@ this.DOMApplicationRegistry = {
     } finally {
       zipReader.close();
     }
-    return isPreinstalled;
 #endif
   },
 
@@ -594,13 +589,13 @@ this.DOMApplicationRegistry = {
 
         // At first run, install preloaded apps and set up their permissions.
         for (let id in this.webapps) {
-          let isPreinstalled = this.installPreinstalledApp(id);
+          this.installPreinstalledApp(id);
           this.removeIfHttpsDuplicate(id);
           if (!this.webapps[id]) {
             continue;
           }
           this.updateOfflineCacheForApp(id);
-          this.updatePermissionsForApp(id, isPreinstalled);
+          this.updatePermissionsForApp(id);
         }
         // Need to update the persisted list of apps since
         // installPreinstalledApp() removes the ones failing to install.

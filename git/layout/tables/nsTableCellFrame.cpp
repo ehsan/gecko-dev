@@ -240,29 +240,31 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-#ifdef DEBUG
-void
+
+nsresult
 nsTableCellFrame::AppendFrames(ChildListID     aListID,
                                nsFrameList&    aFrameList)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_PRECONDITION(false, "unsupported operation");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+nsresult
 nsTableCellFrame::InsertFrames(ChildListID     aListID,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_PRECONDITION(false, "unsupported operation");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+nsresult
 nsTableCellFrame::RemoveFrame(ChildListID     aListID,
                               nsIFrame*       aOldFrame)
 {
-  MOZ_CRASH("unsupported operation");
+  NS_PRECONDITION(false, "unsupported operation");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
-#endif
 
 void nsTableCellFrame::SetColIndex(int32_t aColIndex)
 {

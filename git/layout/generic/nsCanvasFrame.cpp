@@ -82,49 +82,85 @@ nsCanvasFrame::SetHasFocus(bool aHasFocus)
   return NS_OK;
 }
 
-#ifdef DEBUG
-void
+nsresult
 nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {
   NS_ASSERTION(aListID != kPrincipalList ||
                aChildList.IsEmpty() || aChildList.OnlyChild(),
                "Primary child list can have at most one frame in it");
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  return nsContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
-void
+nsresult
 nsCanvasFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
-  MOZ_ASSERT(mFrames.IsEmpty(), "already have a child frame");
-  MOZ_ASSERT(aFrameList.FirstChild() == aFrameList.LastChild(),
-             "Only one principal child frame allowed");
+  NS_ASSERTION(aListID == kPrincipalList ||
+               aListID == kAbsoluteList, "unexpected child list ID");
+  NS_PRECONDITION(aListID != kAbsoluteList ||
+                  mFrames.IsEmpty(), "already have a child frame");
+  if (aListID != kPrincipalList) {
+    // We only support the Principal and Absolute child lists.
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (!mFrames.IsEmpty()) {
+    // We only allow a single principal child frame.
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // Insert the new frames
+  NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
+               "Only one principal child frame allowed");
+#ifdef DEBUG
   nsFrame::VerifyDirtyBitSet(aFrameList);
-  nsContainerFrame::AppendFrames(aListID, aFrameList);
+#endif
+  mFrames.AppendFrames(nullptr, aFrameList);
+
+  PresContext()->PresShell()->
+    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                     NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  return NS_OK;
 }
 
-void
+nsresult
 nsCanvasFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   // Because we only support a single child frame inserting is the same
   // as appending
-  MOZ_ASSERT(!aPrevFrame, "unexpected previous sibling frame");
-  AppendFrames(aListID, aFrameList);
+  NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
+  if (aPrevFrame)
+    return NS_ERROR_UNEXPECTED;
+
+  return AppendFrames(aListID, aFrameList);
 }
 
-void
+nsresult
 nsCanvasFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
-  MOZ_ASSERT(aOldFrame == mFrames.FirstChild(), "unknown aOldFrame");
-  nsContainerFrame::RemoveFrame(aListID, aOldFrame);
+  NS_ASSERTION(aListID == kPrincipalList ||
+               aListID == kAbsoluteList, "unexpected child list ID");
+  if (aListID != kPrincipalList && aListID != kAbsoluteList) {
+    // We only support the Principal and Absolute child lists.
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (aOldFrame != mFrames.FirstChild())
+    return NS_ERROR_FAILURE;
+
+  // Remove the frame and destroy it
+  mFrames.DestroyFrame(aOldFrame);
+
+  PresContext()->PresShell()->
+    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                     NS_FRAME_HAS_DIRTY_CHILDREN);
+  return NS_OK;
 }
-#endif
 
 nsRect nsCanvasFrame::CanvasArea() const
 {

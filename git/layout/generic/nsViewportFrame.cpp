@@ -43,6 +43,17 @@ ViewportFrame::Init(nsIContent*       aContent,
   }
 }
 
+nsresult
+ViewportFrame::SetInitialChildList(ChildListID     aListID,
+                                   nsFrameList&    aChildList)
+{
+  // See which child list to add the frames to
+#ifdef DEBUG
+  nsFrame::VerifyDirtyBitSet(aChildList);
+#endif
+  return nsContainerFrame::SetInitialChildList(aListID, aChildList);
+}
+
 void
 ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -59,42 +70,37 @@ ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
 }
 
-#ifdef DEBUG
-void
-ViewportFrame::SetInitialChildList(ChildListID     aListID,
-                                   nsFrameList&    aChildList)
-{
-  nsFrame::VerifyDirtyBitSet(aChildList);
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
-}
-
-void
+nsresult
 ViewportFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-  NS_ASSERTION(GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
-  nsContainerFrame::AppendFrames(aListID, aFrameList);
+  NS_ASSERTION(aListID == kPrincipalList ||
+               aListID == GetAbsoluteListID(), "unexpected child list");
+  NS_ASSERTION(aListID != GetAbsoluteListID() ||
+               GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
+  return nsContainerFrame::AppendFrames(aListID, aFrameList);
 }
 
-void
+nsresult
 ViewportFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-  NS_ASSERTION(GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
-  nsContainerFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  NS_ASSERTION(aListID == kPrincipalList ||
+               aListID == GetAbsoluteListID(), "unexpected child list");
+  NS_ASSERTION(aListID != GetAbsoluteListID() ||
+               GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
+  return nsContainerFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
-void
+nsresult
 ViewportFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-  nsContainerFrame::RemoveFrame(aListID, aOldFrame);
+  NS_ASSERTION(aListID == kPrincipalList ||
+               aListID == GetAbsoluteListID(), "unexpected child list");
+  return nsContainerFrame::RemoveFrame(aListID, aOldFrame);
 }
-#endif
 
 /* virtual */ nscoord
 ViewportFrame::GetMinWidth(nsRenderingContext *aRenderingContext)

@@ -1054,7 +1054,7 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
     mChunks.Put(aIndex, chunk);
     mCachedChunks.Remove(aIndex);
     chunk->mFile = this;
-    chunk->mActiveChunk = true;
+    chunk->mRemovingChunk = false;
 
     MOZ_ASSERT(chunk->IsReady());
 
@@ -1084,7 +1084,6 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
 
     chunk = new CacheFileChunk(this, aIndex);
     mChunks.Put(aIndex, chunk);
-    chunk->mActiveChunk = true;
 
     LOG(("CacheFile::GetChunkLocked() - Reading newly created chunk %p from "
          "the disk [this=%p]", chunk.get(), this));
@@ -1115,7 +1114,6 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
       // this listener is going to write to the chunk
       chunk = new CacheFileChunk(this, aIndex);
       mChunks.Put(aIndex, chunk);
-      chunk->mActiveChunk = true;
 
       LOG(("CacheFile::GetChunkLocked() - Created new empty chunk %p [this=%p]",
            chunk.get(), this));
@@ -1300,7 +1298,7 @@ CacheFile::MustKeepCachedChunk(uint32_t aIndex)
 }
 
 nsresult
-CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
+CacheFile::RemoveChunk(CacheFileChunk *aChunk)
 {
   nsresult rv;
 
@@ -1310,7 +1308,7 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
   {
     CacheFileAutoLock lock(this);
 
-    LOG(("CacheFile::DeactivateChunk() [this=%p, chunk=%p, idx=%u]",
+    LOG(("CacheFile::RemoveChunk() [this=%p, chunk=%p, idx=%u]",
          this, aChunk, aChunk->Index()));
 
     MOZ_ASSERT(mReady);
@@ -1319,8 +1317,8 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
                (!mHandle && !mMemoryOnly && mOpeningFile));
 
     if (aChunk->mRefCnt != 2) {
-      LOG(("CacheFile::DeactivateChunk() - Chunk is still used [this=%p, "
-           "chunk=%p, refcnt=%d]", this, aChunk, aChunk->mRefCnt.get()));
+      LOG(("CacheFile::RemoveChunk() - Chunk is still used [this=%p, chunk=%p, "
+           "refcnt=%d]", this, aChunk, aChunk->mRefCnt.get()));
 
       // somebody got the reference before the lock was acquired
       return NS_OK;
@@ -1342,7 +1340,7 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
 
     if (NS_FAILED(mStatus)) {
       // Don't write any chunk to disk since this entry will be doomed
-      LOG(("CacheFile::DeactivateChunk() - Releasing chunk because of status "
+      LOG(("CacheFile::RemoveChunk() - Releasing chunk because of status "
            "[this=%p, chunk=%p, mStatus=0x%08x]", this, chunk.get(), mStatus));
 
       RemoveChunkInternal(chunk, false);
@@ -1350,14 +1348,14 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
     }
 
     if (chunk->IsDirty() && !mMemoryOnly && !mOpeningFile) {
-      LOG(("CacheFile::DeactivateChunk() - Writing dirty chunk to the disk "
+      LOG(("CacheFile::RemoveChunk() - Writing dirty chunk to the disk "
            "[this=%p]", this));
 
       mDataIsDirty = true;
 
       rv = chunk->Write(mHandle, this);
       if (NS_FAILED(rv)) {
-        LOG(("CacheFile::DeactivateChunk() - CacheFileChunk::Write() failed "
+        LOG(("CacheFile::RemoveChunk() - CacheFileChunk::Write() failed "
              "synchronously. Removing it. [this=%p, chunk=%p, rv=0x%08x]",
              this, chunk.get(), rv));
 
@@ -1367,17 +1365,18 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
         CacheFileIOManager::DoomFile(mHandle, nullptr);
         return rv;
       }
+      else {
+        // Chunk will be removed in OnChunkWritten if it is still unused
 
-      // Chunk will be removed in OnChunkWritten if it is still unused
-
-      // chunk needs to be released under the lock to be able to rely on
-      // CacheFileChunk::mRefCnt in CacheFile::OnChunkWritten()
-      chunk = nullptr;
-      return NS_OK;
+        // chunk needs to be released under the lock to be able to rely on
+        // CacheFileChunk::mRefCnt in CacheFile::OnChunkWritten()
+        chunk = nullptr;
+        return NS_OK;
+      }
     }
 
     bool keepChunk = ShouldCacheChunk(aChunk->Index());
-    LOG(("CacheFile::DeactivateChunk() - %s unused chunk [this=%p, chunk=%p]",
+    LOG(("CacheFile::RemoveChunk() - %s unused chunk [this=%p, chunk=%p]",
          keepChunk ? "Caching" : "Releasing", this, chunk.get()));
 
     RemoveChunkInternal(chunk, keepChunk);
@@ -1392,9 +1391,7 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
 void
 CacheFile::RemoveChunkInternal(CacheFileChunk *aChunk, bool aCacheChunk)
 {
-  AssertOwnsLock();
-
-  aChunk->mActiveChunk = false;
+  aChunk->mRemovingChunk = true;
   ReleaseOutsideLock(static_cast<CacheFileChunkListener *>(
                        aChunk->mFile.forget().take()));
 
@@ -1741,7 +1738,7 @@ CacheFile::WriteAllCachedChunks(const uint32_t& aIdx,
 
   file->mChunks.Put(aIdx, aChunk);
   aChunk->mFile = file;
-  aChunk->mActiveChunk = true;
+  aChunk->mRemovingChunk = false;
 
   MOZ_ASSERT(aChunk->IsReady());
 

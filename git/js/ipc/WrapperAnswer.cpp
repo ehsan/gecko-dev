@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WrapperAnswer.h"
-#include "JavaScriptLogging.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "nsContentUtils.h"
@@ -72,8 +71,6 @@ WrapperAnswer::AnswerPreventExtensions(const ObjectId &objId, ReturnStatus *rs)
     if (!JS_PreventExtensions(cx, obj))
         return fail(cx, rs);
 
-    LOG("%s.preventExtensions()", ReceiverObj(objId));
-
     return ok(rs);
 }
 
@@ -101,8 +98,6 @@ WrapperAnswer::AnswerGetPropertyDescriptor(const ObjectId &objId, const nsString
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.getPropertyDescriptor(%s)", ReceiverObj(objId), id);
 
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
@@ -136,8 +131,6 @@ WrapperAnswer::AnswerGetOwnPropertyDescriptor(const ObjectId &objId, const nsStr
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.getOwnPropertyDescriptor(%s)", ReceiverObj(objId), id);
-
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
@@ -167,8 +160,6 @@ WrapperAnswer::AnswerDefineProperty(const ObjectId &objId, const nsString &id,
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("define %s[%s]", ReceiverObj(objId), id);
 
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
@@ -208,8 +199,6 @@ WrapperAnswer::AnswerDelete(const ObjectId &objId, const nsString &id, ReturnSta
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("delete %s[%s]", ReceiverObj(objId), id);
-
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
@@ -233,8 +222,6 @@ WrapperAnswer::AnswerHas(const ObjectId &objId, const nsString &id, ReturnStatus
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.has(%s)", ReceiverObj(objId), id);
 
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
@@ -261,8 +248,6 @@ WrapperAnswer::AnswerHasOwn(const ObjectId &objId, const nsString &id, ReturnSta
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.hasOwn(%s)", ReceiverObj(objId), id);
 
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
@@ -308,8 +293,6 @@ WrapperAnswer::AnswerGet(const ObjectId &objId, const ObjectId &receiverId, cons
     if (!toVariant(cx, val, result))
         return fail(cx, rs);
 
-    LOG("get %s.%s = %s", ReceiverObj(objId), id, OutVariant(*result));
-
     return ok(rs);
 }
 
@@ -334,8 +317,6 @@ WrapperAnswer::AnswerSet(const ObjectId &objId, const ObjectId &receiverId, cons
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("set %s[%s] = %s", ReceiverObj(objId), id, InVariant(value));
 
     RootedId internedId(cx);
     if (!convertGeckoStringToId(cx, id, &internedId))
@@ -369,8 +350,6 @@ WrapperAnswer::AnswerIsExtensible(const ObjectId &objId, ReturnStatus *rs, bool 
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.isExtensible()", ReceiverObj(objId));
 
     bool extensible;
     if (!JS_IsExtensible(cx, obj, &extensible))
@@ -474,8 +453,6 @@ WrapperAnswer::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv, 
         outparams->ReplaceElementAt(i, JSParam(variant));
     }
 
-    LOG("%s.call(%s) = %s", ReceiverObj(objId), argv, OutVariant(*result));
-
     return ok(rs);
 }
 
@@ -495,8 +472,6 @@ WrapperAnswer::AnswerObjectClassIs(const ObjectId &objId, const uint32_t &classV
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.objectClassIs()", ReceiverObj(objId));
-
     *result = js_ObjectClassIs(cx, obj, (js::ESClassValue)classValue);
     return true;
 }
@@ -515,8 +490,6 @@ WrapperAnswer::AnswerClassName(const ObjectId &objId, nsString *name)
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.className()", ReceiverObj(objId));
-
     *name = NS_ConvertASCIItoUTF16(js_ObjectClassName(cx, obj));
     return true;
 }
@@ -533,8 +506,6 @@ WrapperAnswer::AnswerGetPropertyNames(const ObjectId &objId, const uint32_t &fla
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.getPropertyNames()", ReceiverObj(objId));
 
     AutoIdVector props(cx);
     if (!js::GetPropertyNames(cx, obj, flags, &props))
@@ -566,8 +537,6 @@ WrapperAnswer::AnswerInstanceOf(const ObjectId &objId, const JSIID &iid, ReturnS
 
     JSAutoCompartment comp(cx, obj);
 
-    LOG("%s.instanceOf()", ReceiverObj(objId));
-
     nsID nsiid;
     ConvertID(iid, &nsiid);
 
@@ -593,8 +562,6 @@ WrapperAnswer::AnswerDOMInstanceOf(const ObjectId &objId, const int &prototypeID
         return fail(cx, rs);
 
     JSAutoCompartment comp(cx, obj);
-
-    LOG("%s.domInstanceOf()", ReceiverObj(objId));
 
     bool tmp;
     if (!mozilla::dom::InterfaceHasInstance(cx, prototypeID, depth, obj, &tmp))

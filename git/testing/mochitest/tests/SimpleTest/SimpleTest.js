@@ -697,7 +697,9 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     SimpleTest.waitForFocus_started = false;
     expectBlankPage = !!expectBlankPage;
 
-    var childTargetWindow = SpecialPowers.getFocusedElementForWindow(targetWindow, true);
+    var childTargetWindow = {};
+    SpecialPowers.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
+    childTargetWindow = childTargetWindow.value;
 
     function info(msg) {
         SimpleTest.info(msg);
@@ -748,9 +750,10 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     }
 
     // Check if the desired window is already focused.
-    var focusedChildWindow = null;
+    var focusedChildWindow = { };
     if (SpecialPowers.activeWindow()) {
-        focusedChildWindow = SpecialPowers.getFocusedElementForWindow(SpecialPowers.activeWindow(), true);
+        SpecialPowers.getFocusedElementForWindow(SpecialPowers.activeWindow(), true, focusedChildWindow);
+        focusedChildWindow = focusedChildWindow.value;
     }
 
     // If this is a child frame, ensure that the frame is focused.

@@ -1129,18 +1129,6 @@ var gBrowserInit = {
       }
     }, 10000);
 
-    // Load the Login Manager data from disk off the main thread, some time
-    // after startup.  If the data is required before the timeout, for example
-    // because a restored page contains a password field, it will be loaded on
-    // the main thread, and this initialization request will be ignored.
-    setTimeout(function() {
-      try {
-        Services.logins;
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }, 3000);
-
     // The object handling the downloads indicator is also initialized here in the
     // delayed startup function, but the actual indicator element is not loaded
     // unless there are downloads to be displayed.
@@ -6961,7 +6949,7 @@ var TabContextMenu = {
     for (let menuItem of menuItems)
       menuItem.disabled = disabled;
 
-#ifdef E10S_TESTING_ONLY
+#ifdef NIGHTLY_BUILD
     menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-remote");
     for (let menuItem of menuItems)
       menuItem.hidden = !gMultiProcessBrowser;

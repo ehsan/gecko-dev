@@ -43,6 +43,17 @@ nsFieldSetFrame::GetType() const
   return nsGkAtoms::fieldSetFrame;
 }
 
+#ifdef DEBUG
+nsresult
+nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
+                                     nsFrameList&   aChildList)
+{
+  nsresult rv = nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  MOZ_ASSERT(GetInner());
+  return rv;
+}
+#endif
+
 nsRect
 nsFieldSetFrame::VisualBorderRectRelativeToSelf() const
 {
@@ -545,36 +556,30 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
 }
 
-#ifdef DEBUG
-void
-nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
-                                     nsFrameList&   aChildList)
-{
-  nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
-  MOZ_ASSERT(GetInner());
-}
-void
+nsresult
 nsFieldSetFrame::AppendFrames(ChildListID    aListID,
                               nsFrameList&   aFrameList)
 {
   MOZ_CRASH("nsFieldSetFrame::AppendFrames not supported");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+nsresult
 nsFieldSetFrame::InsertFrames(ChildListID    aListID,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
 {
   MOZ_CRASH("nsFieldSetFrame::InsertFrames not supported");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+nsresult
 nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
                              nsIFrame*      aOldFrame)
 {
   MOZ_CRASH("nsFieldSetFrame::RemoveFrame not supported");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
-#endif
 
 #ifdef ACCESSIBILITY
 a11y::AccType

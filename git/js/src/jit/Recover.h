@@ -25,7 +25,6 @@ namespace jit {
     _(Rsh)                                      \
     _(Ursh)                                     \
     _(Add)                                      \
-    _(Sub)                                      \
     _(NewObject)                                \
     _(NewDerivedTypedObject)
 
@@ -174,21 +173,6 @@ class RAdd MOZ_FINAL : public RInstruction
 
   public:
     RINSTRUCTION_HEADER_(Add)
-
-    virtual uint32_t numOperands() const {
-        return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RSub MOZ_FINAL : public RInstruction
-{
-  private:
-    bool isFloatOperation_;
-
-  public:
-    RINSTRUCTION_HEADER_(Sub)
 
     virtual uint32_t numOperands() const {
         return 2;

@@ -68,7 +68,6 @@ class CacheFileChunk : public CacheFileIOListener
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
-  bool DispatchRelease();
 
   CacheFileChunk(CacheFile *aFile, uint32_t aIndex);
 
@@ -129,10 +128,7 @@ private:
   EState   mState;
   nsresult mStatus;
   bool     mIsDirty;
-  bool     mActiveChunk; // Is true iff the chunk is in CacheFile::mChunks.
-                         // Adding/removing chunk to/from mChunks as well as
-                         // changing this member happens under the CacheFile's
-                         // lock.
+  bool     mRemovingChunk;
   uint32_t mDataSize;
 
   char    *mBuf;

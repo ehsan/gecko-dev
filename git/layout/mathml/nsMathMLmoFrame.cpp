@@ -922,13 +922,17 @@ nsMathMLmoFrame::TransmitAutomaticData()
   return NS_OK;
 }
 
-void
+nsresult
 nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
                                      nsFrameList&    aChildList)
 {
   // First, let the parent class do its work
-  nsMathMLTokenFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsMathMLTokenFrame::SetInitialChildList(aListID, aChildList);
+  if (NS_FAILED(rv))
+    return rv;
+
   ProcessTextData();
+  return rv;
 }
 
 void

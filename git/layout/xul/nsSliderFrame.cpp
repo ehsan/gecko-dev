@@ -91,36 +91,42 @@ nsSliderFrame::Init(nsIContent*       aContent,
   mCurPos = GetCurrentPosition(aContent);
 }
 
-void
+nsresult
 nsSliderFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
-  nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
   if (mFrames.IsEmpty())
     RemoveListener();
+
+  return rv;
 }
 
-void
+nsresult
 nsSliderFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   bool wasEmpty = mFrames.IsEmpty();
-  nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
   if (wasEmpty)
     AddListener();
+
+  return rv;
 }
 
-void
+nsresult
 nsSliderFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
   // if we have no children and on was added then make sure we add the
   // listener
   bool wasEmpty = mFrames.IsEmpty();
-  nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
   if (wasEmpty)
     AddListener();
+
+  return rv;
 }
 
 int32_t
@@ -658,10 +664,11 @@ nsSliderFrame::CurrentPositionChanged()
   else
      newThumbRect.y = clientRect.y + NSToCoordRound(pos * mRatio);
 
+#ifdef MOZ_WIDGET_GONK
   // avoid putting the scroll thumb at subpixel positions which cause needless invalidations
   nscoord appUnitsPerPixel = PresContext()->AppUnitsPerDevPixel();
   newThumbRect = newThumbRect.ToNearestPixels(appUnitsPerPixel).ToAppUnits(appUnitsPerPixel);
-
+#endif
   // set the rect
   thumbFrame->SetRect(newThumbRect);
 
@@ -789,12 +796,15 @@ nsSliderFrame::GetType() const
   return nsGkAtoms::sliderFrame;
 }
 
-void
+nsresult
 nsSliderFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {
-  nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult r = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+
   AddListener();
+
+  return r;
 }
 
 nsresult

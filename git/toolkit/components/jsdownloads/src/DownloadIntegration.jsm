@@ -500,13 +500,11 @@ this.DownloadIntegration = {
     }
     let hash;
     let sigInfo;
-    let channelRedirects;
     try {
       hash = aDownload.saver.getSha256Hash();
       sigInfo = aDownload.saver.getSignatureInfo();
-      channelRedirects = aDownload.saver.getRedirects();
     } catch (ex) {
-      // Bail if DownloadSaver doesn't have a hash or signature info.
+      // Bail if DownloadSaver doesn't have a hash.
       return Promise.resolve(false);
     }
     if (!hash || !sigInfo) {
@@ -522,8 +520,7 @@ this.DownloadIntegration = {
       referrerURI: aReferrer,
       fileSize: aDownload.currentBytes,
       sha256Hash: hash,
-      signatureInfo: sigInfo,
-      redirects: channelRedirects },
+      signatureInfo: sigInfo },
       function onComplete(aShouldBlock, aRv) {
         deferred.resolve(aShouldBlock);
       });

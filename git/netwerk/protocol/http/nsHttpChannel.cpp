@@ -613,7 +613,7 @@ nsHttpChannel::RetrieveSSLOptions()
     if (!IsHTTPS() || mPrivateBrowsing)
         return;
 
-    nsIPrincipal *principal = GetPrincipal(true);
+    nsIPrincipal *principal = GetPrincipal();
     if (!principal)
         return;
 
@@ -1172,7 +1172,7 @@ nsHttpChannel::ProcessSSLInformation()
 
     int16_t kea = ssl->GetKEAUsed();
 
-    nsIPrincipal *principal = GetPrincipal(true);
+    nsIPrincipal *principal = GetPrincipal();
     if (!principal)
         return;
 
@@ -4235,8 +4235,7 @@ nsHttpChannel::ContinueProcessRedirection(nsresult rv)
 {
     AutoRedirectVetoNotifier notifier(this);
 
-    LOG(("nsHttpChannel::ContinueProcessRedirection [rv=%x,this=%p]\n", rv,
-         this));
+    LOG(("ContinueProcessRedirection [rv=%x]\n", rv));
     if (NS_FAILED(rv))
         return rv;
 
@@ -6131,6 +6130,30 @@ nsHttpChannel::UpdateAggregateCallbacks()
                                            getter_AddRefs(callbacks));
     mTransaction->SetSecurityCallbacks(callbacks);
 }
+
+nsIPrincipal *
+nsHttpChannel::GetPrincipal()
+{
+    if (mPrincipal)
+        return mPrincipal;
+
+    nsIScriptSecurityManager *securityManager =
+        nsContentUtils::GetSecurityManager();
+
+    if (!securityManager)
+        return nullptr;
+
+    securityManager->GetChannelPrincipal(this, getter_AddRefs(mPrincipal));
+    if (!mPrincipal)
+        return nullptr;
+
+    // principals with unknown app ids do not work with the permission manager
+    if (mPrincipal->GetUnknownAppId())
+        mPrincipal = nullptr;
+
+    return mPrincipal;
+}
+
 
 NS_IMETHODIMP
 nsHttpChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)

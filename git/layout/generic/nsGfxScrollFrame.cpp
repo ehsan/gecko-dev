@@ -116,25 +116,27 @@ nsHTMLScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-void
+nsresult
 nsHTMLScrollFrame::SetInitialChildList(ChildListID  aListID,
                                        nsFrameList& aChildList)
 {
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsContainerFrame::SetInitialChildList(aListID, aChildList);
   mHelper.ReloadChildFrames();
+  return rv;
 }
 
 
-void
+nsresult
 nsHTMLScrollFrame::AppendFrames(ChildListID  aListID,
                                 nsFrameList& aFrameList)
 {
   NS_ASSERTION(aListID == kPrincipalList, "Only main list supported");
   mFrames.AppendFrames(nullptr, aFrameList);
   mHelper.ReloadChildFrames();
+  return NS_OK;
 }
 
-void
+nsresult
 nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
                                 nsIFrame* aPrevFrame,
                                 nsFrameList& aFrameList)
@@ -144,15 +146,17 @@ nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
                "inserting after sibling frame with different parent");
   mFrames.InsertFrames(nullptr, aPrevFrame, aFrameList);
   mHelper.ReloadChildFrames();
+  return NS_OK;
 }
 
-void
+nsresult
 nsHTMLScrollFrame::RemoveFrame(ChildListID aListID,
                                nsIFrame* aOldFrame)
 {
   NS_ASSERTION(aListID == kPrincipalList, "Only main list supported");
   mFrames.DestroyFrame(aOldFrame);
   mHelper.ReloadChildFrames();
+  return NS_OK;
 }
 
 nsSplittableType
@@ -1060,38 +1064,42 @@ nsXULScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
-void
+nsresult
 nsXULScrollFrame::SetInitialChildList(ChildListID     aListID,
                                       nsFrameList&    aChildList)
 {
-  nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsBoxFrame::SetInitialChildList(aListID, aChildList);
   mHelper.ReloadChildFrames();
+  return rv;
 }
 
 
-void
+nsresult
 nsXULScrollFrame::AppendFrames(ChildListID     aListID,
                                nsFrameList&    aFrameList)
 {
-  nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
   mHelper.ReloadChildFrames();
+  return rv;
 }
 
-void
+nsresult
 nsXULScrollFrame::InsertFrames(ChildListID     aListID,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
-  nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
   mHelper.ReloadChildFrames();
+  return rv;
 }
 
-void
+nsresult
 nsXULScrollFrame::RemoveFrame(ChildListID     aListID,
                               nsIFrame*       aOldFrame)
 {
-  nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
   mHelper.ReloadChildFrames();
+  return rv;
 }
 
 nsSplittableType
@@ -2175,7 +2183,7 @@ void
 ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                                            const nsRect&           aDirtyRect,
                                            const nsDisplayListSet& aLists,
-                                           bool                    aCreateLayer,
+                                           bool&                   aCreateLayer,
                                            bool                    aPositioned)
 {
   nsITheme* theme = mOuter->PresContext()->GetTheme();
@@ -2430,9 +2438,9 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
   }
 
-  // We put non-overlay scrollbars in their own layers when this is the root
-  // scroll frame and we are a toplevel content document. In this situation,
-  // the scrollbar(s) would normally be assigned their own layer anyway, since
+  // We put scrollbars in their own layers when this is the root scroll
+  // frame and we are a toplevel content document. In this situation, the
+  // scrollbar(s) would normally be assigned their own layer anyway, since
   // they're not scrolled with the rest of the document. But when both
   // scrollbars are visible, the layer's visible rectangle would be the size
   // of the viewport, so most layer implementations would create a layer buffer
@@ -2467,9 +2475,16 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     mOuter->BuildDisplayListForChild(aBuilder, mScrolledFrame,
                                      aDirtyRect, aLists);
 
+#ifdef MOZ_WIDGET_GONK
+    // TODO: only layerize the overlay scrollbars if this scrollframe can be
+    // panned asynchronously. For now just always layerize on B2G because.
+    // that's where we want the layerized scrollbars
+    createLayersForScrollbars = true;
+#endif
     if (addScrollBars) {
       // Add overlay scrollbars.
-      AppendScrollPartsTo(aBuilder, aDirtyRect, aLists, true, true);
+      AppendScrollPartsTo(aBuilder, aDirtyRect, aLists, createLayersForScrollbars,
+                          true);
     }
 
     return;
@@ -2670,9 +2685,14 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     scrolledContent.BorderBackground()->AppendNewToBottom(layerItem);
   }
   // Now display overlay scrollbars and the resizer, if we have one.
-  // Always create layers for these, so that we don't create a giant layer
-  // covering the whole scrollport if both scrollbars are visible.
-  AppendScrollPartsTo(aBuilder, aDirtyRect, scrolledContent, true, true);
+#ifdef MOZ_WIDGET_GONK
+  // TODO: only layerize the overlay scrollbars if this scrollframe can be
+  // panned asynchronously. For now just always layerize on B2G because.
+  // that's where we want the layerized scrollbars
+  createLayersForScrollbars = true;
+#endif
+  AppendScrollPartsTo(aBuilder, aDirtyRect, scrolledContent,
+                      createLayersForScrollbars, true);
   scrolledContent.MoveTo(aLists);
 }
 

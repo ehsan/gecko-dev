@@ -26,7 +26,7 @@ public:
        nsContainerFrame* aParent,
        nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE;
 
