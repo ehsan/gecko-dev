@@ -298,7 +298,6 @@ function add_connection_test(aHost, aExpectedResult,
       aBeforeConnect();
     }
     connectTo(aHost).then(function(conn) {
-      do_print("handling " + aHost);
       do_check_eq(conn.result, aExpectedResult);
       if (aWithSecurityInfo) {
         aWithSecurityInfo(conn.transport.securityInfo

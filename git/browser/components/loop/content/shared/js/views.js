@@ -203,9 +203,8 @@ loop.shared.views = (function(_, OT, l10n) {
     // height set to "auto" to fix video layout on Google Chrome
     // @see https://bugzilla.mozilla.org/show_bug.cgi?id=991122
     publisherConfig: {
-      insertMode: "append",
       width: "100%",
-      height: "100%",
+      height: "auto",
       style: {
         bugDisplayMode: "off",
         buttonDisplayMode: "off",
@@ -255,7 +254,7 @@ loop.shared.views = (function(_, OT, l10n) {
      * @param  {StreamEvent} event
      */
     _streamCreated: function(event) {
-      var incoming = this.getDOMNode().querySelector(".remote");
+      var incoming = this.getDOMNode().querySelector(".incoming");
       event.streams.forEach(function(stream) {
         if (stream.connection.connectionId !==
             this.props.model.session.connection.connectionId) {
@@ -273,7 +272,7 @@ loop.shared.views = (function(_, OT, l10n) {
      * @param  {SessionConnectEvent} event
      */
     startPublishing: function(event) {
-      var outgoing = this.getDOMNode().querySelector(".local");
+      var outgoing = this.getDOMNode().querySelector(".outgoing");
 
       // XXX move this into its StreamingVideo component?
       this.publisher = this.props.sdk.initPublisher(
@@ -336,10 +335,8 @@ loop.shared.views = (function(_, OT, l10n) {
                                publishStream:this.publishStream,
                                hangup:this.hangup} ),
           React.DOM.div( {className:"media nested"}, 
-            React.DOM.div( {className:"video_wrapper remote_wrapper"}, 
-              React.DOM.div( {className:"video_inner remote"})
-            ),
-            React.DOM.div( {className:"local"})
+            React.DOM.div( {className:"remote"}, React.DOM.div( {className:"incoming"})),
+            React.DOM.div( {className:"local"}, React.DOM.div( {className:"outgoing"}))
           )
         )
       );

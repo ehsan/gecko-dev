@@ -1070,7 +1070,7 @@ XrayResolveMethod(JSContext* cx, JS::Handle<JSObject*> wrapper,
                   JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
                   const Prefable<const JSFunctionSpec>* methods,
                   jsid* methodIds,
-                  const JSFunctionSpec* methodSpecs,
+                  const JSFunctionSpec* methodsSpecs,
                   JS::MutableHandle<JSPropertyDescriptor> desc)
 {
   const Prefable<const JSFunctionSpec>* method;
@@ -1078,10 +1078,10 @@ XrayResolveMethod(JSContext* cx, JS::Handle<JSObject*> wrapper,
     if (method->isEnabled(cx, obj)) {
       // Set i to be the index into our full list of ids/specs that we're
       // looking at now.
-      size_t i = method->specs - methodSpecs;
+      size_t i = method->specs - methodsSpecs;
       for ( ; methodIds[i] != JSID_VOID; ++i) {
         if (id == methodIds[i]) {
-          const JSFunctionSpec& methodSpec = methodSpecs[i];
+          const JSFunctionSpec& methodSpec = methodsSpecs[i];
           JSFunction *fun;
           if (methodSpec.selfHostedName) {
             fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
@@ -1160,19 +1160,19 @@ XrayResolveProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
 {
   const Prefable<const JSFunctionSpec>* methods;
   jsid* methodIds;
-  const JSFunctionSpec* methodSpecs;
+  const JSFunctionSpec* methodsSpecs;
   if (type == eInterface) {
     methods = nativeProperties->staticMethods;
     methodIds = nativeProperties->staticMethodIds;
-    methodSpecs = nativeProperties->staticMethodSpecs;
+    methodsSpecs = nativeProperties->staticMethodsSpecs;
   } else {
     methods = nativeProperties->methods;
     methodIds = nativeProperties->methodIds;
-    methodSpecs = nativeProperties->methodSpecs;
+    methodsSpecs = nativeProperties->methodsSpecs;
   }
   if (methods) {
     if (!XrayResolveMethod(cx, wrapper, obj, id, methods, methodIds,
-                           methodSpecs, desc)) {
+                           methodsSpecs, desc)) {
       return false;
     }
     if (desc.object()) {
@@ -1340,23 +1340,22 @@ XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
   return handler->defineProperty(cx, wrapper, id, desc, defined);
 }
 
-template<typename SpecType>
 bool
-XrayEnumerateAttributesOrMethods(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                                 JS::Handle<JSObject*> obj,
-                                 const Prefable<const SpecType>* list,
-                                 jsid* ids, const SpecType* specList,
-                                 unsigned flags, JS::AutoIdVector& props)
+XrayEnumerateAttributes(JSContext* cx, JS::Handle<JSObject*> wrapper,
+                        JS::Handle<JSObject*> obj,
+                        const Prefable<const JSPropertySpec>* attributes,
+                        jsid* attributeIds, const JSPropertySpec* attributeSpecs,
+                        unsigned flags, JS::AutoIdVector& props)
 {
-  for (; list->specs; ++list) {
-    if (list->isEnabled(cx, obj)) {
+  for (; attributes->specs; ++attributes) {
+    if (attributes->isEnabled(cx, obj)) {
       // Set i to be the index into our full list of ids/specs that we're
       // looking at now.
-      size_t i = list->specs - specList;
-      for ( ; ids[i] != JSID_VOID; ++i) {
+      size_t i = attributes->specs - attributeSpecs;
+      for ( ; attributeIds[i] != JSID_VOID; ++i) {
         if (((flags & JSITER_HIDDEN) ||
-             (specList[i].flags & JSPROP_ENUMERATE)) &&
-            !props.append(ids[i])) {
+             (attributeSpecs[i].flags & JSPROP_ENUMERATE)) &&
+            !props.append(attributeIds[i])) {
           return false;
         }
       }
@@ -1365,18 +1364,6 @@ XrayEnumerateAttributesOrMethods(JSContext* cx, JS::Handle<JSObject*> wrapper,
   return true;
 }
 
-#define ENUMERATE_IF_DEFINED(fieldName) {                                     \
-  if (nativeProperties->fieldName##s &&                                       \
-      !XrayEnumerateAttributesOrMethods(cx, wrapper, obj,                     \
-                                        nativeProperties->fieldName##s,       \
-                                        nativeProperties->fieldName##Ids,     \
-                                        nativeProperties->fieldName##Specs,   \
-                                        flags, props)) {                      \
-    return false;                                                             \
-  }                                                                           \
-}
-
-
 bool
 XrayEnumerateProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
                         JS::Handle<JSObject*> obj,
@@ -1384,16 +1371,62 @@ XrayEnumerateProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
                         DOMObjectType type,
                         const NativeProperties* nativeProperties)
 {
-  if (type == eInstance) {
-    ENUMERATE_IF_DEFINED(unforgeableMethod);
-    ENUMERATE_IF_DEFINED(unforgeableAttribute);
-  } else if (type == eInterface) {
-    ENUMERATE_IF_DEFINED(staticMethod);
-    ENUMERATE_IF_DEFINED(staticAttribute);
+  const Prefable<const JSFunctionSpec>* methods;
+  jsid* methodIds;
+  const JSFunctionSpec* methodsSpecs;
+  if (type == eInterface) {
+    methods = nativeProperties->staticMethods;
+    methodIds = nativeProperties->staticMethodIds;
+    methodsSpecs = nativeProperties->staticMethodsSpecs;
   } else {
-    MOZ_ASSERT(type == eInterfacePrototype);
-    ENUMERATE_IF_DEFINED(method);
-    ENUMERATE_IF_DEFINED(attribute);
+    methods = nativeProperties->methods;
+    methodIds = nativeProperties->methodIds;
+    methodsSpecs = nativeProperties->methodsSpecs;
+  }
+  if (methods) {
+    const Prefable<const JSFunctionSpec>* method;
+    for (method = methods; method->specs; ++method) {
+      if (method->isEnabled(cx, obj)) {
+        // Set i to be the index into our full list of ids/specs that we're
+        // looking at now.
+        size_t i = method->specs - methodsSpecs;
+        for ( ; methodIds[i] != JSID_VOID; ++i) {
+          if (((flags & JSITER_HIDDEN) ||
+               (methodsSpecs[i].flags & JSPROP_ENUMERATE)) &&
+              !props.append(methodIds[i])) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  if (type == eInterface) {
+    if (nativeProperties->staticAttributes &&
+        !XrayEnumerateAttributes(cx, wrapper, obj,
+                                 nativeProperties->staticAttributes,
+                                 nativeProperties->staticAttributeIds,
+                                 nativeProperties->staticAttributeSpecs,
+                                 flags, props)) {
+      return false;
+    }
+  } else {
+    if (nativeProperties->attributes &&
+        !XrayEnumerateAttributes(cx, wrapper, obj,
+                                 nativeProperties->attributes,
+                                 nativeProperties->attributeIds,
+                                 nativeProperties->attributeSpecs,
+                                 flags, props)) {
+      return false;
+    }
+    if (nativeProperties->unforgeableAttributes &&
+        !XrayEnumerateAttributes(cx, wrapper, obj,
+                                 nativeProperties->unforgeableAttributes,
+                                 nativeProperties->unforgeableAttributeIds,
+                                 nativeProperties->unforgeableAttributeSpecs,
+                                 flags, props)) {
+      return false;
+    }
   }
 
   if (nativeProperties->constants) {
@@ -1414,8 +1447,6 @@ XrayEnumerateProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
 
   return true;
 }
-
-#undef ENUMERATE_IF_DEFINED
 
 bool
 XrayEnumerateNativeProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
@@ -1468,12 +1499,6 @@ XrayEnumerateProperties(JSContext* cx, JS::Handle<JSObject*> wrapper,
     if (nativePropertyHooks->mEnumerateOwnProperties &&
         !nativePropertyHooks->mEnumerateOwnProperties(cx, wrapper, obj,
                                                       props)) {
-      return false;
-    }
-
-    // Handle Unforgeable properties.
-    if (!XrayEnumerateNativeProperties(cx, wrapper, nativePropertyHooks, type,
-                                       obj, flags, props)) {
       return false;
     }
 
