@@ -138,12 +138,22 @@ public:
   static nsIAtom* GetARIAToken(mozilla::dom::Element* aElement, nsIAtom* aAttr);
 
   /**
+   * Return document accessible for the given presshell.
+   */
+  static nsDocAccessible* GetDocAccessibleFor(const nsIPresShell* aPresShell)
+  {
+    return aPresShell ?
+      GetAccService()->GetDocAccessible(aPresShell->GetDocument()) : nsnull;
+  }
+
+  /**
    * Return document accessible for the given DOM node.
    */
   static nsDocAccessible *GetDocAccessibleFor(nsINode *aNode)
   {
     nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
-    return GetAccService()->GetDocAccessible(presShell);
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
   }
 
   /**
@@ -154,7 +164,8 @@ public:
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
     nsCOMPtr<nsIPresShell> presShell;
     docShell->GetPresShell(getter_AddRefs(presShell));
-    return GetAccService()->GetDocAccessible(presShell);
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
   }
 
   /**
@@ -237,6 +248,16 @@ public:
    * @param aAccessNode  the accessible
    */
   static nsIntPoint GetScreenCoordsForParent(nsAccessNode *aAccessNode);
+
+  /**
+   * Get the role map entry for a given DOM node. This will use the first
+   * ARIA role if the role attribute provides a space delimited list of roles.
+   *
+   * @param aNode  [in] the DOM node to get the role map entry for
+   * @return        a pointer to the role map entry for the ARIA role, or nsnull
+   *                if none
+   */
+  static nsRoleMapEntry *GetRoleMapEntry(nsINode *aNode);
 
   /**
    * Return the role of the given accessible.

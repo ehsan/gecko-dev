@@ -61,7 +61,6 @@ WebGLProgram::UpdateInfo()
 {
     mIdentifierMap = nsnull;
     mIdentifierReverseMap = nsnull;
-    mUniformInfoMap = nsnull;
 
     mAttribMaxNameLength = 0;
 

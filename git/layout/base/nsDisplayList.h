@@ -791,13 +791,6 @@ public:
   }
 
   /**
-   * Appends the underlying frames of all display items that have been
-   * merged into this one (excluding  this item's own underlying frame)
-   * to aFrames.
-   */
-  virtual void GetMergedFrames(nsTArray<nsIFrame*>* aFrames) {}
-
-  /**
    * During the visibility computation and after TryMerge, display lists may
    * return true here to flatten themselves away, removing them. This
    * flattening is distinctly different from FlattenTo, which occurs before
@@ -1719,10 +1712,6 @@ public:
     NS_WARNING("This list should already have been flattened!!!");
     return false;
   }
-  virtual void GetMergedFrames(nsTArray<nsIFrame*>* aFrames)
-  {
-    aFrames->AppendElements(mMergedFrames);
-  }
   NS_DISPLAY_DECL_NAME("WrapList", TYPE_WRAP_LIST)
 
   virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder);
@@ -1759,17 +1748,8 @@ protected:
     mList.AppendToBottom(&aOther->mList);
     mBounds.UnionRect(mBounds, aOther->mBounds);
   }
-  void MergeFromTrackingMergedFrames(nsDisplayWrapList* aOther)
-  {
-    MergeFrom(aOther);
-    mMergedFrames.AppendElement(aOther->mFrame);
-    mMergedFrames.MoveElementsFrom(aOther->mMergedFrames);
-  }
 
   nsDisplayList mList;
-  // The frames from items that have been merged into this item, excluding
-  // this item's own frame.
-  nsTArray<nsIFrame*> mMergedFrames;
   nsRect mBounds;
 };
 

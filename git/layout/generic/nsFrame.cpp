@@ -121,13 +121,11 @@
 #include "nsSVGEffects.h"
 #include "nsChangeHint.h"
 #include "nsDeckFrame.h"
-#include "nsTableFrame.h"
 
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
 #include "CSSCalc.h"
 #include "nsAbsoluteContainingBlock.h"
-#include "nsFontInflationData.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
@@ -538,16 +536,8 @@ nsFrame::Init(nsIContent*      aContent,
 #endif
       ) {
     if (IsFontSizeInflationContainer(this, disp)) {
-      AddStateBits(NS_FRAME_FONT_INFLATION_CONTAINER);
-      if (!GetParent() ||
-          // I'd use NS_FRAME_OUT_OF_FLOW, but it's not set yet.
-          disp->IsFloating() || disp->IsAbsolutelyPositioned()) {
-        AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
-      }
+      mState |= NS_FRAME_FONT_INFLATION_CONTAINER;
     }
-    NS_ASSERTION(GetParent() ||
-                 (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER),
-                 "root frame should always be a container");
   }
 
   DidSetStyleContext(nsnull);
@@ -1446,8 +1436,8 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return NS_OK;
 
-  nsCSSShadowArray* shadows = GetStyleBorder()->mBoxShadow;
-  if (shadows && shadows->HasShadowWithInset(false)) {
+  bool hasBoxShadow = GetStyleBorder()->mBoxShadow != nsnull;
+  if (hasBoxShadow) {
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
         nsDisplayBoxShadowOuter(aBuilder, this));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1458,7 +1448,7 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
     DisplayBackgroundUnconditional(aBuilder, aLists, aForceBackground, &bg);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (shadows && shadows->HasShadowWithInset(true)) {
+  if (hasBoxShadow) {
     rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
         nsDisplayBoxShadowInner(aBuilder, this));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2165,17 +2155,13 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // Genuine stacking contexts, and positioned pseudo-stacking-contexts,
     // go in this level.
-    if (!list.IsEmpty()) {
-      rv = aLists.PositionedDescendants()->AppendNewToTop(new (aBuilder)
-          nsDisplayWrapList(aBuilder, child, &list));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = aLists.PositionedDescendants()->AppendNewToTop(new (aBuilder)
+        nsDisplayWrapList(aBuilder, child, &list));
+    NS_ENSURE_SUCCESS(rv, rv);
   } else if (disp->IsFloating()) {
-    if (!list.IsEmpty()) {
-      rv = aLists.Floats()->AppendNewToTop(new (aBuilder)
-          nsDisplayWrapList(aBuilder, child, &list));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = aLists.Floats()->AppendNewToTop(new (aBuilder)
+        nsDisplayWrapList(aBuilder, child, &list));
+    NS_ENSURE_SUCCESS(rv, rv);
   } else {
     aLists.Content()->AppendToTop(&list);
   }
@@ -3518,10 +3504,6 @@ nsFrame::MarkIntrinsicWidthsDirty()
     SizeNeedsRecalc(metrics->mBlockMinSize);
     CoordNeedsRecalc(metrics->mFlex);
     CoordNeedsRecalc(metrics->mAscent);
-  }
-
-  if (GetStateBits() & NS_FRAME_FONT_INFLATION_FLOW_ROOT) {
-    nsFontInflationData::MarkFontInflationDataTextDirty(this);
   }
 }
 

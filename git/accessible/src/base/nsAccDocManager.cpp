@@ -41,7 +41,6 @@
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsApplicationAccessible.h"
-#include "nsARIAMap.h"
 #include "nsRootAccessibleWrap.h"
 #include "States.h"
 
@@ -403,7 +402,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
     docAcc->Shutdown();
     return nsnull;
   }
-  docAcc->SetRoleMapEntry(aria::GetRoleMap(aDocument));
+  docAcc->SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aDocument));
 
   // Bind the document to the tree.
   if (isRootDoc) {

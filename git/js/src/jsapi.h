@@ -2871,9 +2871,6 @@ JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForScopeChain(JSContext *cx);
 
-extern JS_PUBLIC_API(JSObject *)
-JS_GetScriptedGlobal(JSContext *cx);
-
 /*
  * Initialize the 'Reflect' object on a global object.
  */

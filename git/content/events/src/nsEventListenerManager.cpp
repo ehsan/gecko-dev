@@ -88,6 +88,7 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsJSEnvironment.h"
 #include "xpcpublic.h"
+#include "sampler.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
@@ -835,6 +836,7 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
                                             nsEventStatus* aEventStatus,
                                             nsCxPusher* aPusher)
 {
+  SAMPLE_LABEL("nsEventListenerManager", "HandleEventInternal");
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;

@@ -554,13 +554,13 @@ nsHTMLTableAccessible::Caption()
   return child && child->Role() == roles::CAPTION ? child : nsnull;
 }
 
-void
-nsHTMLTableAccessible::Summary(nsString& aSummary)
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetSummary(nsAString &aSummary)
 {
   nsCOMPtr<nsIDOMHTMLTableElement> table(do_QueryInterface(mContent));
-  
-  if (table)
-    table->GetSummary(aSummary);
+  NS_ENSURE_TRUE(table, NS_ERROR_FAILURE);
+
+  return table->GetSummary(aSummary);
 }
 
 NS_IMETHODIMP

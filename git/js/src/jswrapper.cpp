@@ -112,11 +112,7 @@ js::IsCrossCompartmentWrapper(const JSObject *wrapper)
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
 }
 
-AbstractWrapper::AbstractWrapper() : ProxyHandler(&sWrapperFamily)
-{
-}
-
-Wrapper::Wrapper(unsigned flags) : mFlags(flags)
+Wrapper::Wrapper(unsigned flags) : ProxyHandler(&sWrapperFamily), mFlags(flags)
 {
 }
 
@@ -138,8 +134,8 @@ Wrapper::~Wrapper()
 #define GET(action) CHECKED(action, GET)
 
 bool
-AbstractWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                                       PropertyDescriptor *desc)
+Wrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
+                               PropertyDescriptor *desc)
 {
     desc->obj = NULL; // default result if we refuse to perform this action
     CHECKED(JS_GetPropertyDescriptorById(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED, desc),
@@ -162,8 +158,8 @@ GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, unsigned flags, 
 }
 
 bool
-AbstractWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                                          PropertyDescriptor *desc)
+Wrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
+                                  PropertyDescriptor *desc)
 {
     desc->obj = NULL; // default result if we refuse to perform this action
     CHECKED(GetOwnPropertyDescriptor(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED, desc),
@@ -171,14 +167,14 @@ AbstractWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid
 }
 
 bool
-AbstractWrapper::defineProperty(JSContext *cx, JSObject *wrapper, jsid id, PropertyDescriptor *desc)
+Wrapper::defineProperty(JSContext *cx, JSObject *wrapper, jsid id, PropertyDescriptor *desc)
 {
     SET(JS_DefinePropertyById(cx, wrappedObject(wrapper), id, desc->value,
                               desc->getter, desc->setter, desc->attrs));
 }
 
 bool
-AbstractWrapper::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+Wrapper::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     // if we refuse to perform this action, props remains empty
     jsid id = JSID_VOID;
@@ -193,7 +189,7 @@ ValueToBoolean(Value *vp, bool *bp)
 }
 
 bool
-AbstractWrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
+Wrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 {
     *bp = true; // default result if we refuse to perform this action
     Value v;
@@ -202,7 +198,7 @@ AbstractWrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 }
 
 bool
-AbstractWrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+Wrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     // if we refuse to perform this action, props remains empty
     static jsid id = JSID_VOID;
@@ -210,7 +206,7 @@ AbstractWrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props
 }
 
 bool
-AbstractWrapper::fix(JSContext *cx, JSObject *wrapper, Value *vp)
+Wrapper::fix(JSContext *cx, JSObject *wrapper, Value *vp)
 {
     vp->setUndefined();
     return true;
@@ -389,26 +385,26 @@ Wrapper::trace(JSTracer *trc, JSObject *wrapper)
 }
 
 JSObject *
-AbstractWrapper::wrappedObject(const JSObject *wrapper)
+Wrapper::wrappedObject(const JSObject *wrapper)
 {
     return GetProxyPrivate(wrapper).toObjectOrNull();
 }
 
 Wrapper *
-AbstractWrapper::wrapperHandler(const JSObject *wrapper)
+Wrapper::wrapperHandler(const JSObject *wrapper)
 {
     return static_cast<Wrapper *>(GetProxyHandler(wrapper));
 }
 
 bool
-AbstractWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
+Wrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
 {
     *bp = true;
     return true;
 }
 
 void
-AbstractWrapper::leave(JSContext *cx, JSObject *wrapper)
+Wrapper::leave(JSContext *cx, JSObject *wrapper)
 {
 }
 

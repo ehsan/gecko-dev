@@ -7,23 +7,34 @@
 #ifndef COMPILER_PREPROCESSOR_PREPROCESSOR_H_
 #define COMPILER_PREPROCESSOR_PREPROCESSOR_H_
 
-#include "Lexer.h"
-#include "pp_utils.h"
+#include "common/angleutils.h"
+#include "Token.h"
 
 namespace pp
 {
 
+class Context;
+
 class Preprocessor
 {
   public:
-    Preprocessor() { }
+    Preprocessor();
+    ~Preprocessor();
 
-    bool init(int count, const char* const string[], const int length[]);
-    int lex(Token* token);
+    bool init();
+
+    bool process(int count, const char* const string[], const int length[]);
+    TokenIterator begin() const { return mTokens.begin(); }
+    TokenIterator end() const { return mTokens.end(); }
 
   private:
-    PP_DISALLOW_COPY_AND_ASSIGN(Preprocessor);
-    Lexer mLexer;
+    DISALLOW_COPY_AND_ASSIGN(Preprocessor);
+
+    // Reset to initialized state.
+    void reset();
+
+    Context* mContext;
+    TokenVector mTokens;  // Output.
 };
 
 }  // namespace pp

@@ -492,16 +492,14 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         private RenderContext mPageContext, mScreenContext;
         // Whether a layer was updated.
         private boolean mUpdated;
-        private final Rect mPageRect;
 
         public Frame(RenderContext pageContext, RenderContext screenContext) {
             mPageContext = pageContext;
             mScreenContext = screenContext;
-            mPageRect = getPageRect();
         }
 
         private void setScissorRect() {
-            Rect scissorRect = transformToScissorRect(mPageRect);
+            Rect scissorRect = transformToScissorRect(getPageRect());
             GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
             GLES20.glScissor(scissorRect.left, scissorRect.top,
                              scissorRect.width(), scissorRect.height());
@@ -552,12 +550,13 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawBackground() {
             /* Draw the background. */
-            mBackgroundLayer.setMask(mPageRect);
+            mBackgroundLayer.setMask(getPageRect());
             mBackgroundLayer.draw(mScreenContext);
 
             /* Draw the drop shadow, if we need to. */
-            RectF untransformedPageRect = new RectF(0.0f, 0.0f, mPageRect.width(),
-                                                    mPageRect.height());
+            Rect pageRect = getPageRect();
+            RectF untransformedPageRect = new RectF(0.0f, 0.0f, pageRect.width(),
+                                                    pageRect.height());
             if (!untransformedPageRect.contains(mView.getController().getViewport()))
                 mShadowLayer.draw(mPageContext);
 
@@ -590,6 +589,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawForeground() {
+            Rect pageRect = getPageRect();
             LayerController controller = mView.getController();
 
             /* Draw any extra layers that were added (likely plugins) */
@@ -607,11 +607,11 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
             /* Draw the vertical scrollbar. */
             IntSize screenSize = new IntSize(controller.getViewportSize());
-            if (mPageRect.height() > screenSize.height)
+            if (pageRect.height() > screenSize.height)
                 mVertScrollLayer.draw(mPageContext);
 
             /* Draw the horizontal scrollbar. */
-            if (mPageRect.width() > screenSize.width)
+            if (pageRect.width() > screenSize.width)
                 mHorizScrollLayer.draw(mPageContext);
 
             /* Measure how much of the screen is checkerboarding */

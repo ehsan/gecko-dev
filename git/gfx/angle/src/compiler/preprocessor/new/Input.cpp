@@ -6,8 +6,9 @@
 
 #include "Input.h"
 
-#include <cassert>
 #include <cstdio>
+
+#include "compiler/debug.h"
 
 namespace pp
 {
@@ -21,13 +22,13 @@ Input::Input(int count, const char* const string[], const int length[])
       mError(kErrorNone),
       mState(kStateInitial)
 {
-    assert(mCount >= 0);
+    ASSERT(mCount >= 0);
     switchToNextString();
 }
 
 bool Input::eof() const
 {
-    assert(mIndex <= mCount);
+    ASSERT(mIndex <= mCount);
     return mIndex == mCount;
 }
 
@@ -95,7 +96,7 @@ int Input::read(char* buf, int bufSize)
             break;
 
           default:
-            assert(false);
+            ASSERT(false);
             break;
         }
     }
@@ -113,7 +114,7 @@ int Input::getChar()
     // Switch to next string if the current one is fully read.
     int length = stringLength(mIndex);
     // We never read from empty string.
-    assert(length != 0);
+    ASSERT(length != 0);
     if (((length < 0) && (str[mSize] == '\0')) ||
         ((length > 0) && (mSize == length)))
         switchToNextString();
@@ -136,7 +137,7 @@ int Input::peekChar()
 
 void Input::switchToNextString()
 {
-    assert(mIndex < mCount);
+    ASSERT(mIndex < mCount);
 
     mSize = 0;
     do
@@ -147,7 +148,7 @@ void Input::switchToNextString()
 
 bool Input::isStringEmpty(int index)
 {
-    assert(index < mCount);
+    ASSERT(index < mCount);
 
     const char* str = mString[mIndex];
     int length = stringLength(mIndex);
@@ -156,7 +157,7 @@ bool Input::isStringEmpty(int index)
 
 int Input::stringLength(int index)
 {
-    assert(index < mCount);
+    ASSERT(index < mCount);
     return mLength ? mLength[index] : -1;
 }
 

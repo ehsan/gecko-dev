@@ -216,9 +216,10 @@ doCrypto(JNIEnv* jenv, const char *path, const char *value, char** result, bool 
         goto done;
       }
 
-      *result = (char *)malloc(reply.len+1);
-      strncpy(*result, (char *)reply.data, reply.len);
+      *result = (char *)malloc(reply.len);
       (*result)[reply.len] = '\0';
+      strncpy(*result, (char *)reply.data, reply.len);
+      //asprintf(result, "%s", (char *)reply.data);
 
       LOG("decoded %i letters %s\n", reply.len, *result);
       free(request.data);
@@ -243,7 +244,7 @@ encode(const unsigned char *data, PRInt32 dataLen, char **_retval)
     rv = SECFailure;
 
   if (rv == SECSuccess) {
-    *_retval = (char *)malloc(strlen(encoded)+1);
+    *_retval = (char *)malloc(strlen(encoded));
     strcpy(*_retval, encoded);
   }
 

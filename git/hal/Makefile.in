@@ -117,11 +117,7 @@ CPPSRCS += \
 endif
 
 ifneq (gonk,$(MOZ_WIDGET_TOOLKIT)) #{
-CPPSRCS += \
-  FallbackLights.cpp  \
-  FallbackTime.cpp \
-  FallbackWakeLocks.cpp \
-  $(NULL)
+CPPSRCS += FallbackLights.cpp FallbackTime.cpp
 endif #}
 
 # Screen Orientation backend

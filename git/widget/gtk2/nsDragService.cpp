@@ -268,19 +268,7 @@ OnSourceGrabEventAfter(GtkWidget *widget, GdkEvent *event, gpointer user_data)
 
     if (sMotionEventTimerID) {
         g_source_remove(sMotionEventTimerID);
-        sMotionEventTimerID = 0;
     }
-
-    // If there is no longer a grab on the widget, then the drag motion is
-    // over (though the data may not be fetched yet).
-    if (gtk_grab_get_current() != widget)
-        return;
-
-    // Update the cursor position.  The last of these recorded gets used for
-    // the NS_DRAGDROP_END event.
-    nsDragService *dragService = static_cast<nsDragService*>(user_data);
-    dragService->
-        SetDragEndPoint(nsIntPoint(event->motion.x_root, event->motion.y_root));
 
     MotionEventData *data = new MotionEventData(widget, event);
 
@@ -364,10 +352,8 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
             // Only motion events are required but connect to
             // "event-after" as this is never blocked by other handlers.
             g_signal_connect(mGrabWidget, "event-after",
-                             G_CALLBACK(OnSourceGrabEventAfter), this);
+                             G_CALLBACK(OnSourceGrabEventAfter), NULL);
         }
-        // We don't have a drag end point yet.
-        mEndDragPoint = nsIntPoint(-1, -1);
     }
     else {
         rv = NS_ERROR_FAILURE;
@@ -443,7 +429,7 @@ nsDragService::EndDragSession(bool aDoneDrag)
 
     if (mGrabWidget) {
         g_signal_handlers_disconnect_by_func(mGrabWidget,
-             FuncToGpointer(OnSourceGrabEventAfter), this);
+             FuncToGpointer(OnSourceGrabEventAfter), NULL);
         g_object_unref(mGrabWidget);
         mGrabWidget = NULL;
 
@@ -547,15 +533,6 @@ NS_IMETHODIMP
 nsDragService::GetNumDropItems(PRUint32 * aNumItems)
 {
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::GetNumDropItems"));
-
-    if (!mTargetWidget) {
-        PR_LOG(sDragLm, PR_LOG_DEBUG,
-               ("*** warning: GetNumDropItems \
-               called without a valid target widget!\n"));
-        *aNumItems = 0;
-        return NS_OK;
-    }
-
     bool isList = IsTargetContextList();
     if (isList)
         mSourceDataItems->Count(aNumItems);
@@ -583,18 +560,12 @@ nsDragService::GetData(nsITransferable * aTransferable,
     if (!aTransferable)
         return NS_ERROR_INVALID_ARG;
 
-    if (!mTargetWidget) {
-        PR_LOG(sDragLm, PR_LOG_DEBUG,
-               ("*** warning: GetData \
-               called without a valid target widget!\n"));
-        return NS_ERROR_FAILURE;
-    }
-
     // get flavor list that includes all acceptable flavors (including
     // ones obtained through conversion). Flavors are nsISupportsStrings
     // so that they can be seen from JS.
+    nsresult rv = NS_ERROR_FAILURE;
     nsCOMPtr<nsISupportsArray> flavorList;
-    nsresult rv = aTransferable->FlavorsTransferableCanImport(
+    rv = aTransferable->FlavorsTransferableCanImport(
                         getter_AddRefs(flavorList));
     if (NS_FAILED(rv))
         return rv;
@@ -893,10 +864,10 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
     *_retval = false;
 
     // check to make sure that we have a drag object set, here
-    if (!mTargetWidget) {
+    if (!mTargetDragContext) {
         PR_LOG(sDragLm, PR_LOG_DEBUG,
                ("*** warning: IsDataFlavorSupported \
-               called without a valid target widget!\n"));
+               called without a valid drag context!\n"));
         return NS_OK;
     }
 
@@ -1017,6 +988,8 @@ nsDragService::TargetSetLastContext(GtkWidget      *aWidget,
 NS_IMETHODIMP
 nsDragService::TargetStartDragMotion(void)
 {
+    PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::TargetStartDragMotion"));
+    mCanDrop = false;
     return NS_OK;
 }
 
@@ -1088,6 +1061,9 @@ bool
 nsDragService::IsTargetContextList(void)
 {
     bool retval = false;
+
+    if (!mTargetDragContext)
+        return retval;
 
     // gMimeListType drags only work for drags within a single process.
     // The gtk_drag_get_source_widget() function will return NULL if the
@@ -1352,14 +1328,11 @@ nsDragService::SourceEndDragSession(GdkDragContext *aContext,
     if (!mDoingDrag)
         return; // EndDragSession() was already called on drop or drag-failed
 
-    if (mEndDragPoint.x < 0) {
-        // We don't have a drag end point, so guess
-        gint x, y;
-        GdkDisplay* display = gdk_display_get_default();
-        if (display) {
-            gdk_display_get_pointer(display, NULL, &x, &y, NULL);
-            SetDragEndPoint(nsIntPoint(x, y));
-        }
+    gint x, y;
+    GdkDisplay* display = gdk_display_get_default();
+    if (display) {
+      gdk_display_get_pointer(display, NULL, &x, &y, NULL);
+      SetDragEndPoint(nsIntPoint(x, y));
     }
 
     // Either the drag was aborted or the drop occurred outside the app.

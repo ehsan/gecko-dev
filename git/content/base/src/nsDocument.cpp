@@ -1442,21 +1442,12 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   
   NS_ENSURE_STATE(!mScriptObject || scriptHandlingObject);
 
-  nsCOMPtr<nsIDOMDocument> document;
-
-  rv = nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
-                                      mDocumentURI, mBaseURI, 
-                                      mOwner->NodePrincipal(),
-                                      scriptHandlingObject,
+  return nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
+                                        mDocumentURI, mBaseURI,
+                                        mOwner->NodePrincipal(),
+                                        scriptHandlingObject,
                                         DocumentFlavorLegacyGuess,
-                                      getter_AddRefs(document));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(document);
-  doc->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
-
-  document.forget(aReturn);
-  return NS_OK;
+                                        aReturn);
 }
 
 NS_IMETHODIMP
@@ -1527,8 +1518,6 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
   NS_ENSURE_SUCCESS(rv, rv);
   rv = root->AppendChildTo(body, false);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  doc->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
 
   document.forget(aReturn);
 
@@ -2377,8 +2366,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
   }
 #endif
 
-  MOZ_ASSERT(GetReadyStateEnum() == nsIDocument::READYSTATE_UNINITIALIZED,
-             "Bad readyState");
   SetReadyStateInternal(READYSTATE_LOADING);
 
   if (nsCRT::strcmp(kLoadAsData, aCommand) == 0) {
@@ -7659,12 +7646,6 @@ void
 nsDocument::SetReadyStateInternal(ReadyState rs)
 {
   mReadyState = rs;
-  if (rs == READYSTATE_UNINITIALIZED) {
-    // Transition back to uninitialized happens only to keep assertions happy
-    // right before readyState transitions to something else. Make this
-    // transition undetectable by Web content.
-    return;
-  }
   if (mTiming) {
     switch (rs) {
       case READYSTATE_LOADING:

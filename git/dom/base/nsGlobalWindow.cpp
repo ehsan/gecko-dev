@@ -5979,7 +5979,23 @@ JSObject* nsGlobalWindow::CallerGlobal()
     return nsnull;
   }
 
-  return JS_GetScriptedGlobal(cx);
+  JSObject *scope = nsnull;
+  JSStackFrame *fp = nsnull;
+  JS_FrameIterator(cx, &fp);
+  if (fp) {
+    while (!JS_IsScriptFrame(cx, fp)) {
+      if (!JS_FrameIterator(cx, &fp))
+        break;
+    }
+
+    if (fp)
+      scope = JS_GetGlobalForFrame(fp);
+  }
+
+  if (!scope)
+    scope = JS_GetGlobalForScopeChain(cx);
+
+  return scope;
 }
 
 nsGlobalWindow*

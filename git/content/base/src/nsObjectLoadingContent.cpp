@@ -677,14 +677,12 @@ nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI*
 
   if (fullPageMode) {
     nsCOMPtr<nsIStreamListener> stream;
-    rv = pluginHost->InstantiateFullPagePluginInstance(aMimeType, aURI, this,
-                                                       getter_AddRefs(mInstanceOwner), getter_AddRefs(stream));
+    rv = pluginHost->InstantiateFullPagePlugin(aMimeType, aURI, this, getter_AddRefs(mInstanceOwner), getter_AddRefs(stream));
     if (NS_SUCCEEDED(rv)) {
       pDoc->SetStreamListener(stream);
     }
   } else {
-    rv = pluginHost->InstantiateEmbeddedPluginInstance(aMimeType, aURI, this,
-                                                       getter_AddRefs(mInstanceOwner));
+    rv = pluginHost->InstantiateEmbeddedPlugin(aMimeType, aURI, this, getter_AddRefs(mInstanceOwner));
   }
 
   if (appShell) {

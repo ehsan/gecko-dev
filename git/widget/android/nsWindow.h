@@ -187,8 +187,6 @@ public:
     static void ScheduleComposite();
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition();
-
-    virtual bool WidgetPaintsBackground() { return true; }
 #endif
 
 protected:

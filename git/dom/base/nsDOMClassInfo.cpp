@@ -1834,13 +1834,21 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
     return;
   }
 
-  unsigned lineno = 0;
-  JSScript *script;
+  JSStackFrame *fp, *iterator = nsnull;
+  fp = ::JS_FrameIterator(cx, &iterator);
+  PRUint32 lineno = 0;
   nsAutoString sourcefile;
-
-  if (JS_DescribeScriptedCaller(cx, &script, &lineno)) {
-    if (const char *filename = ::JS_GetScriptFilename(cx, script)) {
-      CopyUTF8toUTF16(nsDependentCString(filename), sourcefile);
+  if (fp) {
+    JSScript* script = ::JS_GetFrameScript(cx, fp);
+    if (script) {
+      const char* filename = ::JS_GetScriptFilename(cx, script);
+      if (filename) {
+        CopyUTF8toUTF16(nsDependentCString(filename), sourcefile);
+      }
+      jsbytecode* pc = ::JS_GetFramePC(cx, fp);
+      if (pc) {
+        lineno = ::JS_PCToLineNumber(cx, script, pc);
+      }
     }
   }
 

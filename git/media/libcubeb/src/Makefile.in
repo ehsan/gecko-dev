@@ -45,19 +45,13 @@ include $(DEPTH)/config/autoconf.mk
 MODULE          = cubeb
 LIBRARY_NAME    = cubeb
 FORCE_STATIC_LIB= 1
-ifeq ($(OS_TARGET),WINNT)
+ifeq (WINNT,$(OS_TARGET))
 VISIBILITY_FLAGS =
 endif
 
-ifeq ($(OS_TARGET),WINNT)
+ifeq (WINNT,$(OS_TARGET))
 CSRCS           = \
                 cubeb_winmm.c \
-                $(NULL)
-endif
-
-ifeq ($(OS_TARGET),Darwin)
-CSRCS           = \
-                cubeb_audiounit.c \
                 $(NULL)
 endif
 

@@ -177,11 +177,13 @@ public class SurfaceTextureLayer extends Layer implements SurfaceTexture.OnFrame
     }
 
     @Override
-    protected void performUpdates(RenderContext context) {
+    protected boolean performUpdates(RenderContext context) {
         super.performUpdates(context);
 
         mInverted = mNewInverted;
         mBlend = mNewBlend;
+
+        return true;
     }
 
     private static boolean ensureProgram() {

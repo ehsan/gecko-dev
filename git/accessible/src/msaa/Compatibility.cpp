@@ -80,7 +80,7 @@ IsModuleVersionLessThan(HMODULE aModuleHandle, DWORD aMajor, DWORD aMinor)
 // Compatibility
 ////////////////////////////////////////////////////////////////////////////////
 
-PRUint32 Compatibility::sConsumers = Compatibility::UNKNOWN;
+PRUint32 Compatibility::sMode = Compatibility::NoCompatibilityMode;
 
 void
 Compatibility::Init()
@@ -88,53 +88,47 @@ Compatibility::Init()
   // Note we collect some AT statistics/telemetry here for convenience.
 
   HMODULE jawsHandle = ::GetModuleHandleW(L"jhook");
-  if (jawsHandle)
-    sConsumers |= (IsModuleVersionLessThan(jawsHandle, 8, 2173)) ?
-                   OLDJAWS : JAWS;
+  if (jawsHandle) {
+    sMode |= JAWSMode;
+    // IA2 off mode for JAWS versions below 8.0.2173.
+    if (IsModuleVersionLessThan(jawsHandle, 8, 2173)) {
+      sMode |= IA2OffMode;
+      statistics::A11yConsumers(OLDJAWS);
+    } else {
+      statistics::A11yConsumers(JAWS);
+    }
+  }
 
-  if (::GetModuleHandleW(L"gwm32inc"))
-    sConsumers |= WE;
-
-  if (::GetModuleHandleW(L"dolwinhk"))
-    sConsumers |= DOLPHIN;
+  if (::GetModuleHandleW(L"gwm32inc")) {
+    sMode |= WEMode;
+    statistics::A11yConsumers(WE);
+  }
+  if (::GetModuleHandleW(L"dolwinhk")) {
+    sMode |= DolphinMode;
+    statistics::A11yConsumers(DOLPHIN);
+  }
 
   if (::GetModuleHandleW(L"STSA32"))
-    sConsumers |= SEROTEK;
+    statistics::A11yConsumers(SEROTEK);
 
   if (::GetModuleHandleW(L"nvdaHelperRemote"))
-    sConsumers |= NVDA;
+    statistics::A11yConsumers(NVDA);
 
   if (::GetModuleHandleW(L"OsmHooks"))
-    sConsumers |= COBRA;
+    statistics::A11yConsumers(COBRA);
 
   if (::GetModuleHandleW(L"WebFinderRemote"))
-    sConsumers |= ZOOMTEXT;
+    statistics::A11yConsumers(ZOOMTEXT);
 
   if (::GetModuleHandleW(L"Kazahook"))
-    sConsumers |= KAZAGURU;
+    statistics::A11yConsumers(KAZAGURU);
 
   if (::GetModuleHandleW(L"TextExtractorImpl32") ||
       ::GetModuleHandleW(L"TextExtractorImpl64"))
-    sConsumers |= YOUDAO;
-
-  if (::GetModuleHandleW(L"uiautomation"))
-    sConsumers |= UIAUTOMATION;
-
-  // If we have a known consumer remove the unknown bit.
-  if (sConsumers != Compatibility::UNKNOWN)
-    sConsumers ^= Compatibility::UNKNOWN;
-
-  // Gather telemetry
-  PRUint32 temp = sConsumers;
-  for (int i = 0; temp; i++) {
-    if (temp & 0x1)
-      statistics::A11yConsumers(i);
-
-    temp >>= 1;
-  }
+    statistics::A11yConsumers(YOUDAO);
 
   // Turn off new tab switching for Jaws and WE.
-  if (sConsumers & (JAWS | OLDJAWS | WE)) {
+  if (sMode & JAWSMode || sMode & WEMode) {
     // Check to see if the pref for disallowing CtrlTab is already set. If so,
     // bail out (respect the user settings). If not, set it.
     if (!Preferences::HasUserValue("browser.ctrlTab.disallowForScreenReaders"))

@@ -45,7 +45,12 @@ private:
     // Built-in functions.
     //
     enum TBuiltInFunction {
-        TFunctionCos1 = 0,  // float cos(float);
+        TFunctionAtan1_1 = 0,  // float atan(float, float);
+        TFunctionAtan2_2,  // vec2 atan(vec2, vec2);
+        TFunctionAtan3_3,  // vec3 atan(vec3, vec2);
+        TFunctionAtan4_4,  // vec4 atan(vec4, vec2);
+
+        TFunctionCos1,  // float cos(float);
         TFunctionCos2,  // vec2 cos(vec2);
         TFunctionCos3,  // vec3 cos(vec3);
         TFunctionCos4,  // vec4 cos(vec4);
@@ -64,6 +69,11 @@ private:
         TFunctionLength2,  // float length(vec2);
         TFunctionLength3,  // float length(vec3);
         TFunctionLength4,  // float length(vec4);
+
+        TFunctionMod1_1,  // float mod(float, float);
+        TFunctionMod2_2,  // vec2 mod(vec2, vec2);
+        TFunctionMod3_3,  // vec3 mod(vec3, vec3);
+        TFunctionMod4_4,  // vec4 mod(vec4, vec4);
 
         TFunctionNormalize1,  // float normalize(float);
         TFunctionNormalize2,  // vec2 normalize(vec2);

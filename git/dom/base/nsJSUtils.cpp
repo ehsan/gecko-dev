@@ -67,17 +67,35 @@ JSBool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
                               PRUint32* aLineno)
 {
+  // Get the current filename and line number
+  JSStackFrame* frame = nsnull;
   JSScript* script = nsnull;
-  unsigned lineno = 0;
+  do {
+    frame = ::JS_FrameIterator(aContext, &frame);
 
-  if (!JS_DescribeScriptedCaller(aContext, &script, &lineno)) {
-    return JS_FALSE;
+    if (frame) {
+      script = ::JS_GetFrameScript(aContext, frame);
+    }
+  } while (frame && !script);
+
+  if (script) {
+    const char* filename = ::JS_GetScriptFilename(aContext, script);
+
+    if (filename) {
+      PRUint32 lineno = 0;
+      jsbytecode* bytecode = ::JS_GetFramePC(aContext, frame);
+
+      if (bytecode) {
+        lineno = ::JS_PCToLineNumber(aContext, script, bytecode);
+      }
+
+      *aFilename = filename;
+      *aLineno = lineno;
+      return JS_TRUE;
+    }
   }
 
-  *aFilename = ::JS_GetScriptFilename(aContext, script);
-  *aLineno = lineno;
-
-  return JS_TRUE;
+  return JS_FALSE;
 }
 
 nsIScriptGlobalObject *

@@ -254,7 +254,21 @@ GetPrincipal(JSObject *obj)
 bool
 AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
 {
-    JSObject *scope = JS_GetScriptedGlobal(cx);
+    JSObject *scope = nsnull;
+    JSStackFrame *fp = nsnull;
+    JS_FrameIterator(cx, &fp);
+    if (fp) {
+        while (!JS_IsScriptFrame(cx, fp)) {
+            if (!JS_FrameIterator(cx, &fp))
+                break;
+        }
+
+        if (fp)
+            scope = JS_GetGlobalForFrame(fp);
+    }
+
+    if (!scope)
+        scope = JS_GetGlobalForScopeChain(cx);
 
     nsIPrincipal *subject;
     nsIPrincipal *object;
@@ -350,15 +364,18 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         return false;
     }
 
-    JSScript *script = nsnull;
     if (!fp) {
-        if (!JS_DescribeScriptedCaller(cx, &script, nsnull)) {
+        if (!JS_FrameIterator(cx, &fp)) {
             // No code at all is running. So we must be arriving here as the result
             // of C++ code asking us to do something. Allow access.
             return true;
         }
-    } else if (JS_IsScriptFrame(cx, fp)) {
-        script = JS_GetFrameScript(cx, fp);
+
+        // Some code is running, we can't make the assumption, as above, but we
+        // can't use a native frame, so clear fp.
+        fp = NULL;
+    } else if (!JS_IsScriptFrame(cx, fp)) {
+        fp = NULL;
     }
 
     bool privileged;
@@ -371,8 +388,8 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
     // cloned into a less privileged context.
     static const char prefix[] = "chrome://global/";
     const char *filename;
-    if (script &&
-        (filename = JS_GetScriptFilename(cx, script)) &&
+    if (fp &&
+        (filename = JS_GetScriptFilename(cx, JS_GetFrameScript(cx, fp))) &&
         !strncmp(filename, prefix, ArrayLength(prefix) - 1)) {
         return true;
     }

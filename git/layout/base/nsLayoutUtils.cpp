@@ -104,7 +104,6 @@
 #include "nsDataHashtable.h"
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
-#include "nsFontInflationData.h"
 
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
@@ -134,7 +133,6 @@ typedef FrameMetrics::ViewID ViewID;
 
 static PRUint32 sFontSizeInflationEmPerLine;
 static PRUint32 sFontSizeInflationMinTwips;
-/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationLineThreshold;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
 
@@ -3993,10 +3991,6 @@ nsLayoutUtils::GetRectDifferenceStrips(const nsRect& aR1, const nsRect& aR2,
 nsDeviceContext*
 nsLayoutUtils::GetDeviceContextForScreenInfo(nsPIDOMWindow* aWindow)
 {
-  if (!aWindow) {
-    return nsnull;
-  }
-
   nsCOMPtr<nsIDocShell> docShell = aWindow->GetDocShell();
   while (docShell) {
     // Now make sure our size is up to date.  That will mean that the device
@@ -4454,8 +4448,6 @@ nsLayoutUtils::Initialize()
                                         "font.size.inflation.emPerLine");
   mozilla::Preferences::AddUintVarCache(&sFontSizeInflationMinTwips,
                                         "font.size.inflation.minTwips");
-  mozilla::Preferences::AddUintVarCache(&sFontSizeInflationLineThreshold,
-                                        "font.size.inflation.lineThreshold");
 }
 
 /* static */
@@ -4713,14 +4705,6 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
   return (1.0f / ratio) + (1.0f / 3.0f);
 }
 
-static inline bool
-InflationDataSaysEnabled(const nsIFrame *aFrame)
-{
-  nsFontInflationData *data =
-    nsFontInflationData::FindFontInflationDataFor(aFrame);
-  return data && data->InflationEnabled();
-}
-
 static bool
 ShouldInflateFontsForContainer(const nsIFrame *aFrame)
 {
@@ -4737,8 +4721,7 @@ ShouldInflateFontsForContainer(const nsIFrame *aFrame)
          !(aFrame->GetStateBits() & NS_FRAME_IN_CONSTRAINED_HEIGHT) &&
          // We also want to disable font inflation for containers that have
          // preformatted text.
-         styleText->WhiteSpaceCanWrap() &&
-         InflationDataSaysEnabled(aFrame);
+         styleText->WhiteSpaceCanWrap();
 }
 
 nscoord

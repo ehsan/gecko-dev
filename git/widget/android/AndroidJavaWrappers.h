@@ -609,7 +609,7 @@ public:
 class nsJNIString : public nsString
 {
 public:
-    nsJNIString(jstring jstr, JNIEnv *jenv);
+    nsJNIString(jstring jstr, JNIEnv *jenv = NULL);
 };
 
 }

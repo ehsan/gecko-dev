@@ -233,8 +233,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
-        endTransaction();
+        try {
+            mOpacity = Math.max(mOpacity - FADE_AMOUNT, 0.0f);
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 
@@ -248,8 +251,11 @@ public class ScrollbarLayer extends TileLayer {
             return false;
         }
         beginTransaction(); // called on compositor thread
-        mOpacity = 1.0f;
-        endTransaction();
+        try {
+            mOpacity = 1.0f;
+        } finally {
+            endTransaction();
+        }
         return true;
     }
 

@@ -70,8 +70,6 @@
 #include "ForceDiscreteGPUHelperCGL.h"
 #endif
 
-#include "angle/ShaderLang.h"
-
 /* 
  * Minimum value constants defined in 6.2 State Tables of OpenGL ES - 2.0.25
  *   https://bugzilla.mozilla.org/show_bug.cgi?id=686732
@@ -1660,46 +1658,6 @@ struct WebGLMappedIdentifier {
     WebGLMappedIdentifier(const nsACString& o, const nsACString& m) : original(o), mapped(m) {}
 };
 
-struct WebGLUniformInfo {
-    PRUint32 arraySize;
-    bool isArray;
-    ShDataType type;
-
-    WebGLUniformInfo(PRUint32 s = 0, bool a = false, ShDataType t = SH_NONE)
-        : arraySize(s), isArray(a), type(t) {}
-
-    int ElementSize() const {
-        switch (type) {
-            case SH_INT:
-            case SH_FLOAT:
-            case SH_BOOL:
-            case SH_SAMPLER_2D:
-            case SH_SAMPLER_CUBE:
-                return 1;
-            case SH_INT_VEC2:
-            case SH_FLOAT_VEC2:
-            case SH_BOOL_VEC2:
-                return 2;
-            case SH_INT_VEC3:
-            case SH_FLOAT_VEC3:
-            case SH_BOOL_VEC3:
-                return 3;
-            case SH_INT_VEC4:
-            case SH_FLOAT_VEC4:
-            case SH_BOOL_VEC4:
-            case SH_FLOAT_MAT2:
-                return 4;
-            case SH_FLOAT_MAT3:
-                return 9;
-            case SH_FLOAT_MAT4:
-                return 16;
-            default:
-                NS_ABORT(); // should never get here
-                return 0;
-        }
-    }
-};
-
 class WebGLShader MOZ_FINAL
     : public nsIWebGLShader
     , public WebGLRefCountedObject<WebGLShader>
@@ -1775,7 +1733,6 @@ protected:
     WebGLMonotonicHandle mMonotonicHandle;
     nsTArray<WebGLMappedIdentifier> mAttributes;
     nsTArray<WebGLMappedIdentifier> mUniforms;
-    nsTArray<WebGLUniformInfo> mUniformInfos;
     int mAttribMaxNameLength;
 };
 
@@ -1808,8 +1765,7 @@ static bool SplitLastSquareBracket(nsACString& string, nsCString& bracketPart)
     return true;
 }
 
-typedef nsDataHashtable<nsCStringHashKey, nsCString> CStringMap;
-typedef nsDataHashtable<nsCStringHashKey, WebGLUniformInfo> CStringToUniformInfoMap;
+typedef nsDataHashtable<nsCStringHashKey, nsCString> CStringHash;
 
 class WebGLProgram MOZ_FINAL
     : public nsIWebGLProgram
@@ -1911,7 +1867,7 @@ public:
     void MapIdentifier(const nsACString& name, nsCString *mappedName) {
         if (!mIdentifierMap) {
             // if the identifier map doesn't exist yet, build it now
-            mIdentifierMap = new CStringMap;
+            mIdentifierMap = new CStringHash;
             mIdentifierMap->Init();
             for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
                 for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
@@ -1959,7 +1915,7 @@ public:
     void ReverseMapIdentifier(const nsACString& name, nsCString *reverseMappedName) {
         if (!mIdentifierReverseMap) {
             // if the identifier reverse map doesn't exist yet, build it now
-            mIdentifierReverseMap = new CStringMap;
+            mIdentifierReverseMap = new CStringHash;
             mIdentifierReverseMap->Init();
             for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
                 for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
@@ -2001,44 +1957,6 @@ public:
         reverseMappedName->Assign(name);
     }
 
-    /* Returns the uniform array size (or 1 if the uniform is not an array) of
-     * the uniform with given mapped identifier.
-     *
-     * Note: the input string |name| is the mapped identifier, not the original identifier.
-     */
-    WebGLUniformInfo GetUniformInfoForMappedIdentifier(const nsACString& name) {
-        if (!mUniformInfoMap) {
-            // if the identifier-to-array-size map doesn't exist yet, build it now
-            mUniformInfoMap = new CStringToUniformInfoMap;
-            mUniformInfoMap->Init();
-            for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
-                for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
-                    const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
-                    const WebGLUniformInfo& info = mAttachedShaders[i]->mUniformInfos[j];
-                    mUniformInfoMap->Put(uniform.mapped, info);
-                }
-            }
-        }
-
-        nsCString mutableName(name);
-        nsCString bracketPart;
-        bool hadBracketPart = SplitLastSquareBracket(mutableName, bracketPart);
-        // if there is a bracket, we're either an array or an entry in an array.
-        if (hadBracketPart)
-            mutableName.AppendLiteral("[0]");
-
-        WebGLUniformInfo info;
-        mUniformInfoMap->Get(mutableName, &info);
-        // we don't check if that Get failed, as if it did, it left info with default values
-
-        // if there is a bracket and it's not [0], then we're not an array, we're just an entry in an array
-        if (hadBracketPart && !bracketPart.EqualsLiteral("[0]")) {
-            info.isArray = false;
-            info.arraySize = 1;
-        }
-        return info;
-    }
-
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLPROGRAM
 
@@ -2053,8 +1971,7 @@ protected:
     // post-link data
     std::vector<bool> mAttribsInUse;
     WebGLMonotonicHandle mMonotonicHandle;
-    nsAutoPtr<CStringMap> mIdentifierMap, mIdentifierReverseMap;
-    nsAutoPtr<CStringToUniformInfoMap> mUniformInfoMap;
+    nsAutoPtr<CStringHash> mIdentifierMap, mIdentifierReverseMap;
     int mAttribMaxNameLength;
 };
 
@@ -2565,14 +2482,12 @@ class WebGLUniformLocation MOZ_FINAL
     , public WebGLRefCountedObject<WebGLUniformLocation>
 {
 public:
-    WebGLUniformLocation(WebGLContext *context, WebGLProgram *program, GLint location, const WebGLUniformInfo& info)
+    WebGLUniformLocation(WebGLContext *context, WebGLProgram *program, GLint location)
         : WebGLContextBoundObject(context)
         , mProgram(program)
         , mProgramGeneration(program->Generation())
         , mLocation(location)
-        , mInfo(info)
     {
-        mElementSize = info.ElementSize();
         mMonotonicHandle = mContext->mUniformLocations.AppendElement(this);
     }
 
@@ -2585,12 +2500,9 @@ public:
         mContext->mUniformLocations.RemoveElement(mMonotonicHandle);
     }
 
-    const WebGLUniformInfo &Info() const { return mInfo; }
-
     WebGLProgram *Program() const { return mProgram; }
     GLint Location() const { return mLocation; }
     PRUint32 ProgramGeneration() const { return mProgramGeneration; }
-    int ElementSize() const { return mElementSize; }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLUNIFORMLOCATION
@@ -2601,8 +2513,6 @@ protected:
 
     PRUint32 mProgramGeneration;
     GLint mLocation;
-    WebGLUniformInfo mInfo;
-    int mElementSize;
     WebGLMonotonicHandle mMonotonicHandle;
     friend class WebGLProgram;
 };

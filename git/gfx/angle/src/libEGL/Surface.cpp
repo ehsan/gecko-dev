@@ -253,7 +253,7 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
         result = device->CreateAdditionalSwapChain(&presentParameters, &mSwapChain);
     } else {
         HANDLE *pShareHandle = NULL;
-        if (mDisplay->shareHandleSupported()) {
+        if (mDisplay->isD3d9ExDevice()) {
             pShareHandle = &mShareHandle;
         }
 

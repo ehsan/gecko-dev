@@ -4109,9 +4109,16 @@ nsContentUtils::CreateDocument(const nsAString& aNamespaceURI,
                                DocumentFlavor aFlavor,
                                nsIDOMDocument** aResult)
 {
-  return NS_NewDOMDocument(aResult, aNamespaceURI, aQualifiedName,
-                           aDoctype, aDocumentURI, aBaseURI, aPrincipal,
-                           true, aEventObject, aFlavor);
+  nsresult rv = NS_NewDOMDocument(aResult, aNamespaceURI, aQualifiedName,
+                                  aDoctype, aDocumentURI, aBaseURI, aPrincipal,
+                                  true, aEventObject, aFlavor);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(*aResult);
+  
+  // created documents are immediately "complete" (ready to use)
+  document->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
+  return NS_OK;
 }
 
 /* static */
@@ -5725,15 +5732,18 @@ nsContentUtils::CanAccessNativeAnon()
     sSecurityManager->GetCxSubjectPrincipalAndFrame(cx, &fp);
   NS_ENSURE_TRUE(principal, false);
 
-  JSScript *script = nsnull;
   if (!fp) {
-    if (!JS_DescribeScriptedCaller(cx, &script, nsnull)) {
+    if (!JS_FrameIterator(cx, &fp)) {
       // No code at all is running. So we must be arriving here as the result
       // of C++ code asking us to do something. Allow access.
       return true;
     }
-  } else if (JS_IsScriptFrame(cx, fp)) {
-    script = JS_GetFrameScript(cx, fp);
+
+    // Some code is running, we can't make the assumption, as above, but we
+    // can't use a native frame, so clear fp.
+    fp = nsnull;
+  } else if (!JS_IsScriptFrame(cx, fp)) {
+    fp = nsnull;
   }
 
   bool privileged;
@@ -5747,8 +5757,8 @@ nsContentUtils::CanAccessNativeAnon()
   // if they've been cloned into less privileged contexts.
   static const char prefix[] = "chrome://global/";
   const char *filename;
-  if (script &&
-      (filename = JS_GetScriptFilename(cx, script)) &&
+  if (fp && JS_IsScriptFrame(cx, fp) &&
+      (filename = JS_GetScriptFilename(cx, JS_GetFrameScript(cx, fp))) &&
       !strncmp(filename, prefix, ArrayLength(prefix) - 1)) {
     return true;
   }

@@ -155,9 +155,9 @@ public:
     CollectOldLayers();
   }
 
-  void AddInvalidThebesContent(const nsIntRegion& aRegion)
+  void SetInvalidThebesContent(const nsIntRegion& aRegion)
   {
-    mInvalidThebesContent.Or(mInvalidThebesContent, aRegion);
+    mInvalidThebesContent = aRegion;
   }
   void SetInvalidateAllThebesContent()
   {
@@ -206,8 +206,6 @@ public:
     return aRect.ScaleToInsidePixels(mParameters.mXScale, mParameters.mYScale,
                                      mAppUnitsPerDevPixel);
   }
-
-  const FrameLayerBuilder::ContainerParameters& ScaleParameters() { return mParameters; };
 
 protected:
   /**
@@ -502,8 +500,6 @@ FrameLayerBuilder::Init(nsDisplayListBuilder* aBuilder)
 bool
 FrameLayerBuilder::DisplayItemDataEntry::HasNonEmptyContainerLayer()
 {
-  if (mIsSharingContainerLayer)
-    return true;
   for (PRUint32 i = 0; i < mData.Length(); ++i) {
     if (mData[i].mLayer->GetType() == Layer::TYPE_CONTAINER &&
         mData[i].mLayerState != LAYER_ACTIVE_EMPTY)
@@ -1195,7 +1191,7 @@ ContainerState::ThebesLayerData::Accumulate(ContainerState* aState,
   /* Mark as available for conversion to image layer if this is a nsDisplayImage and
    * we are the first visible item in the ThebesLayerData object.
    */
-  if (mVisibleRegion.IsEmpty() && aItem->GetType() == nsDisplayItem::TYPE_IMAGE) {
+  if (aItem->GetType() == nsDisplayItem::TYPE_IMAGE && mVisibleRegion.IsEmpty()) {
     mImage = static_cast<nsDisplayImage*>(aItem);
     mImageClip = aClip;
   } else {
@@ -1833,40 +1829,6 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   return result;
 }
 
-static void
-ApplyThebesLayerInvalidation(nsDisplayListBuilder* aBuilder,
-                             nsIFrame* aContainerFrame,
-                             nsDisplayItem* aContainerItem,
-                             ContainerState& aState,
-                             nsPoint* aCurrentOffset)
-{
-  FrameProperties props = aContainerFrame->Properties();
-  nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
-    (props.Get(ThebesLayerLastPaintOffsetProperty()));
-  *aCurrentOffset = aContainerItem ? aContainerItem->ToReferenceFrame()
-    : aBuilder->ToReferenceFrame(aContainerFrame);
-
-  nsRegion* invalidThebesContent = static_cast<nsRegion*>
-    (props.Get(ThebesLayerInvalidRegionProperty()));
-  if (invalidThebesContent) {
-    nsPoint offset = offsetAtLastPaint ? *offsetAtLastPaint : *aCurrentOffset;
-    invalidThebesContent->MoveBy(offset);
-    const FrameLayerBuilder::ContainerParameters& scaleParameters = aState.ScaleParameters();
-    aState.AddInvalidThebesContent(invalidThebesContent->
-      ScaleToOutsidePixels(scaleParameters.mXScale, scaleParameters.mYScale,
-                           aState.GetAppUnitsPerDevPixel()));
-    // We have to preserve the current contents of invalidThebesContent
-    // because there might be multiple container layers for the same
-    // frame and we need to invalidate the ThebesLayer children of all
-    // of them.
-    invalidThebesContent->MoveBy(-offset);
-  } else {
-    // The region was deleted to indicate that everything should be
-    // invalidated.
-    aState.SetInvalidateAllThebesContent();
-  }
-}
-
 already_AddRefed<ContainerLayer>
 FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
                                           LayerManager* aManager,
@@ -1876,6 +1838,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
                                           const ContainerParameters& aParameters,
                                           const gfx3DMatrix* aTransform)
 {
+  FrameProperties props = aContainerFrame->Properties();
   PRUint32 containerDisplayItemKey =
     aContainerItem ? aContainerItem->GetPerFrameKey() : 0;
   NS_ASSERTION(aContainerFrame, "Container display items here should have a frame");
@@ -1930,27 +1893,30 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
       entry->mData.AppendElement(
           DisplayItemData(containerLayer, containerDisplayItemKey, LAYER_ACTIVE));
     }
-    nsPoint currentOffset;
-    ApplyThebesLayerInvalidation(aBuilder, aContainerFrame, aContainerItem, state,
-                                 &currentOffset);
-    SetHasContainerLayer(aContainerFrame, currentOffset);
 
-    nsAutoTArray<nsIFrame*,4> mergedFrames;
-    if (aContainerItem) {
-      aContainerItem->GetMergedFrames(&mergedFrames);
+    nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
+      (props.Get(ThebesLayerLastPaintOffsetProperty()));
+    nsPoint currentOffset = aBuilder->ToReferenceFrame(aContainerFrame);
+
+    nsRegion* invalidThebesContent(static_cast<nsRegion*>
+      (props.Get(ThebesLayerInvalidRegionProperty())));
+    if (invalidThebesContent) {
+      nsPoint offset = offsetAtLastPaint ? *offsetAtLastPaint : currentOffset;
+      invalidThebesContent->MoveBy(offset);
+      state.SetInvalidThebesContent(invalidThebesContent->
+        ScaleToOutsidePixels(scaleParameters.mXScale, scaleParameters.mYScale,
+                             state.GetAppUnitsPerDevPixel()));
+      // We have to preserve the current contents of invalidThebesContent
+      // because there might be multiple container layers for the same
+      // frame and we need to invalidate the ThebesLayer children of all
+      // of them.
+      invalidThebesContent->MoveBy(-offset);
+    } else {
+      // The region was deleted to indicate that everything should be
+      // invalidated.
+      state.SetInvalidateAllThebesContent();
     }
-    for (PRUint32 i = 0; i < mergedFrames.Length(); ++i) {
-      nsIFrame* mergedFrame = mergedFrames[i];
-      DisplayItemDataEntry* entry = mNewDisplayItemData.PutEntry(mergedFrame);
-      if (entry) {
-        // Ensure that UpdateDisplayItemDataForFrame recognizes that we
-        // still have a container layer associated with this frame.
-        entry->mIsSharingContainerLayer = true;
-      }
-      ApplyThebesLayerInvalidation(aBuilder, mergedFrame, nsnull, state,
-                                   &currentOffset);
-      SetHasContainerLayer(mergedFrame, currentOffset);
-    }
+    SetHasContainerLayer(aContainerFrame, currentOffset);
   }
 
   Clip clip;

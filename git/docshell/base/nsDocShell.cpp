@@ -9726,12 +9726,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
             }
         }
 
-        if (mCurrentURI) {
-            mCurrentURI->Equals(newURI, &equalURIs);
-        }
-        else {
-            equalURIs = false;
-        }
+        mCurrentURI->Equals(newURI, &equalURIs);
 
     } // end of same-origin check
 
