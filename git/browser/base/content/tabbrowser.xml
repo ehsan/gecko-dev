@@ -3565,10 +3565,8 @@
 
         // these offsets are only used in dragend, but we need to free them here
         // as well
-        if (draggedTab) {
-          delete draggedTab._dragOffsetX;
-          delete draggedTab._dragOffsetY;
-        }
+        delete draggedTab._dragOffsetX;
+        delete draggedTab._dragOffsetY;
       ]]></handler>
 
       <handler event="dragend"><![CDATA[
