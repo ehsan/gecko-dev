@@ -384,7 +384,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   }
 
   AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(GetOwner()))) {
+  if (NS_WARN_IF(!jsapi.InitUsingWin(GetOwner()))) {
     return NS_ERROR_FAILURE;
   }
   JSContext* cx = jsapi.cx();

@@ -384,10 +384,6 @@ const nsHTMLElement gHTMLElements[] = {
     /*parent,leaf*/ kSpecial, true
   },
   {
-    /*tag*/         eHTMLTag_picture,
-    /*parent,leaf*/ kSpecial, false
-  },
-  {
     /*tag*/         eHTMLTag_plaintext,
     /*parent,leaf*/ kExtensions, false
   },

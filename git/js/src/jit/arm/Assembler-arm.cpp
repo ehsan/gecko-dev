@@ -190,14 +190,16 @@ jit::VFPRegister::encode()
 
     switch (kind) {
       case Double:
-        return VFPRegIndexSplit(code_ & 0xf , code_ >> 4);
+        return VFPRegIndexSplit(_code &0xf , _code >> 4);
       case Single:
-        return VFPRegIndexSplit(code_ >> 1, code_ & 1);
+        return VFPRegIndexSplit(_code >> 1, _code & 1);
       default:
         // vfp register treated as an integer, NOT a gpr
-        return VFPRegIndexSplit(code_ >> 1, code_ & 1);
+        return VFPRegIndexSplit(_code >> 1, _code & 1);
     }
 }
+
+VFPRegister js::jit::NoVFPRegister(true);
 
 bool
 InstDTR::isTHIS(const Instruction &i)
@@ -1183,62 +1185,64 @@ BOffImm::getDest(Instruction *src)
 
 //VFPRegister implementation
 VFPRegister
-VFPRegister::doubleOverlay(unsigned int which) const
+VFPRegister::doubleOverlay() const
 {
     JS_ASSERT(!_isInvalid);
-    if (kind != Double)
-        return VFPRegister(code_ >> 1, Double);
+    if (kind != Double) {
+        JS_ASSERT(_code % 2 == 0);
+        return VFPRegister(_code >> 1, Double);
+    }
     return *this;
 }
 VFPRegister
-VFPRegister::singleOverlay(unsigned int which) const
+VFPRegister::singleOverlay() const
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
         // There are no corresponding float registers for d16-d31
-        JS_ASSERT(code_ < 16);
-        JS_ASSERT(which < 2);
-        return VFPRegister((code_ << 1) + which, Single);
+        JS_ASSERT(_code < 16);
+        return VFPRegister(_code << 1, Single);
     }
-    JS_ASSERT(which == 0);
-    return VFPRegister(code_, Single);
+
+    JS_ASSERT(_code % 2 == 0);
+    return VFPRegister(_code, Single);
 }
 
 VFPRegister
-VFPRegister::sintOverlay(unsigned int which) const
+VFPRegister::sintOverlay() const
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
         // There are no corresponding float registers for d16-d31
-        JS_ASSERT(code_ < 16);
-        JS_ASSERT(which < 2);
-        return VFPRegister((code_ << 1) + which, Int);
+        JS_ASSERT(_code < 16);
+        return VFPRegister(_code << 1, Int);
     }
-    JS_ASSERT(which == 0);
-    return VFPRegister(code_, Int);
+
+    JS_ASSERT(_code % 2 == 0);
+    return VFPRegister(_code, Int);
 }
 VFPRegister
-VFPRegister::uintOverlay(unsigned int which) const
+VFPRegister::uintOverlay() const
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
         // There are no corresponding float registers for d16-d31
-        JS_ASSERT(code_ < 16);
-        JS_ASSERT(which < 2);
-        return VFPRegister((code_ << 1) + which, UInt);
+        JS_ASSERT(_code < 16);
+        return VFPRegister(_code << 1, UInt);
     }
-    JS_ASSERT(which == 0);
-    return VFPRegister(code_, UInt);
+
+    JS_ASSERT(_code % 2 == 0);
+    return VFPRegister(_code, UInt);
 }
 
 bool
-VFPRegister::isInvalid() const
+VFPRegister::isInvalid()
 {
     return _isInvalid;
 }
 
 bool
-VFPRegister::isMissing() const
+VFPRegister::isMissing()
 {
     JS_ASSERT(!_isInvalid);
     return _isMissing;

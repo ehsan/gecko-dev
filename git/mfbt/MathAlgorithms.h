@@ -188,12 +188,6 @@ CountPopulation32(uint32_t aValue)
   x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
   return (((x + (x >> 4)) & 0xf0f0f0f) * 0x1010101) >> 24;
 }
-inline uint_fast8_t
-CountPopulation64(uint64_t aValue)
-{
-  return uint_fast8_t(CountPopulation32(aValue & 0xffffffff) +
-                      CountPopulation32(aValue >> 32));
-}
 
 inline uint_fast8_t
 CountLeadingZeroes64(uint64_t aValue)
@@ -260,12 +254,6 @@ CountPopulation32(uint32_t aValue)
 }
 
 inline uint_fast8_t
-CountPopulation64(uint64_t aValue)
-{
-  return __builtin_popcountll(aValue);
-}
-
-inline uint_fast8_t
 CountLeadingZeroes64(uint64_t aValue)
 {
   return __builtin_clzll(aValue);
@@ -282,7 +270,6 @@ CountTrailingZeroes64(uint64_t aValue)
 inline uint_fast8_t CountLeadingZeroes32(uint32_t aValue) MOZ_DELETE;
 inline uint_fast8_t CountTrailingZeroes32(uint32_t aValue) MOZ_DELETE;
 inline uint_fast8_t CountPopulation32(uint32_t aValue) MOZ_DELETE;
-inline uint_fast8_t CountPopulation64(uint64_t aValue) MOZ_DELETE;
 inline uint_fast8_t CountLeadingZeroes64(uint64_t aValue) MOZ_DELETE;
 inline uint_fast8_t CountTrailingZeroes64(uint64_t aValue) MOZ_DELETE;
 #endif
@@ -332,13 +319,6 @@ inline uint_fast8_t
 CountPopulation32(uint32_t aValue)
 {
   return detail::CountPopulation32(aValue);
-}
-
-/** Analogous to CoutPopulation32, but for 64-bit numbers */
-inline uint_fast8_t
-CountPopulation64(uint64_t aValue)
-{
-  return detail::CountPopulation64(aValue);
 }
 
 /** Analogous to CountLeadingZeroes32, but for 64-bit numbers. */

@@ -136,7 +136,6 @@ private:
 
   BluetoothHfpManager();
   bool Init();
-  void Cleanup();
 
   void HandleShutdown();
   void HandleVolumeChanged(const nsAString& aData);

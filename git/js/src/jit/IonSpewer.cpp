@@ -425,15 +425,5 @@ jit::DisableChannel(IonSpewChannel channel)
     LoggingBits &= ~(1 << uint32_t(channel));
 }
 
-IonSpewFunction::IonSpewFunction(MIRGraph *graph, JS::HandleScript function)
-{
-    IonSpewNewFunction(graph, function);
-}
-
-IonSpewFunction::~IonSpewFunction()
-{
-    IonSpewEndFunction();
-}
-
 #endif /* DEBUG */
 

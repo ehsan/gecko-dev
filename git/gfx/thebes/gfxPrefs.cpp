@@ -11,7 +11,6 @@
 using namespace mozilla;
 
 gfxPrefs* gfxPrefs::sInstance = nullptr;
-bool gfxPrefs::sInstanceHasBeenDestroyed = false;
 
 void
 gfxPrefs::DestroySingleton()
@@ -19,9 +18,7 @@ gfxPrefs::DestroySingleton()
   if (sInstance) {
     delete sInstance;
     sInstance = nullptr;
-    sInstanceHasBeenDestroyed = true;
   }
-  MOZ_ASSERT(!SingletonExists());
 }
 
 bool

@@ -736,7 +736,7 @@ JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Double:
         if (cx->runtime()->jitSupportsFloatingPoint)
-            masm.Pop(ReturnDoubleReg);
+            masm.Pop(ReturnFloatReg);
         else
             masm.assumeUnreachable("Unable to pop to float reg, with no FP support.");
         break;

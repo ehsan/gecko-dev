@@ -442,6 +442,14 @@ function loadTab(args)
   radioGroup.focus();
 }
 
+function onClickMore()
+{
+  var radioGrp = document.getElementById("viewGroup");
+  var radioElt = document.getElementById("securityTab");
+  radioGrp.selectedItem = radioElt;
+  showTab('security');
+}
+
 function toggleGroupbox(id)
 {
   var elt = document.getElementById(id);

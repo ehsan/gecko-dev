@@ -3573,12 +3573,12 @@ StoreDenseElement(MacroAssembler &masm, ConstantOrRegister value, Register eleme
     masm.bind(&convert);
     if (reg.hasValue()) {
         masm.branchTestInt32(Assembler::NotEqual, reg.valueReg(), &storeValue);
-        masm.int32ValueToDouble(reg.valueReg(), ScratchDoubleReg);
-        masm.storeDouble(ScratchDoubleReg, target);
+        masm.int32ValueToDouble(reg.valueReg(), ScratchFloatReg);
+        masm.storeDouble(ScratchFloatReg, target);
     } else {
         JS_ASSERT(reg.type() == MIRType_Int32);
-        masm.convertInt32ToDouble(reg.typedReg().gpr(), ScratchDoubleReg);
-        masm.storeDouble(ScratchDoubleReg, target);
+        masm.convertInt32ToDouble(reg.typedReg().gpr(), ScratchFloatReg);
+        masm.storeDouble(ScratchFloatReg, target);
     }
 
     masm.bind(&done);
@@ -3702,8 +3702,7 @@ static bool
 GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
                              HandleTypedArrayObject tarr, Register object,
                              ValueOperand indexVal, ConstantOrRegister value,
-                             Register tempUnbox, Register temp, FloatRegister tempDouble,
-                             FloatRegister tempFloat32)
+                             Register tempUnbox, Register temp, FloatRegister tempFloat)
 {
     Label failures, done, popObjectAndFail;
 
@@ -3732,22 +3731,18 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     BaseIndex target(elements, index, ScaleFromElemWidth(width));
 
     if (arrayType == ScalarTypeDescr::TYPE_FLOAT32) {
-        FloatRegister ftemp;
         if (LIRGenerator::allowFloat32Optimizations()) {
-            JS_ASSERT(tempFloat32 != InvalidFloatReg);
-            if (!masm.convertConstantOrRegisterToFloat(cx, value, tempFloat32, &failures))
+            if (!masm.convertConstantOrRegisterToFloat(cx, value, tempFloat, &failures))
                 return false;
-            ftemp = tempFloat32;
         } else {
-            if (!masm.convertConstantOrRegisterToDouble(cx, value, tempDouble, &failures))
+            if (!masm.convertConstantOrRegisterToDouble(cx, value, tempFloat, &failures))
                 return false;
-            ftemp = tempDouble;
         }
-        masm.storeToTypedFloatArray(arrayType, ftemp, target);
+        masm.storeToTypedFloatArray(arrayType, tempFloat, target);
     } else if (arrayType == ScalarTypeDescr::TYPE_FLOAT64) {
-        if (!masm.convertConstantOrRegisterToDouble(cx, value, tempDouble, &failures))
+        if (!masm.convertConstantOrRegisterToDouble(cx, value, tempFloat, &failures))
             return false;
-        masm.storeToTypedFloatArray(arrayType, tempDouble, target);
+        masm.storeToTypedFloatArray(arrayType, tempFloat, target);
     } else {
         // On x86 we only have 6 registers available to use, so reuse the object
         // register to compute the intermediate value to store and restore it
@@ -3755,13 +3750,13 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
         masm.push(object);
 
         if (arrayType == ScalarTypeDescr::TYPE_UINT8_CLAMPED) {
-            if (!masm.clampConstantOrRegisterToUint8(cx, value, tempDouble, object,
+            if (!masm.clampConstantOrRegisterToUint8(cx, value, tempFloat, object,
                                                      &popObjectAndFail))
             {
                 return false;
             }
         } else {
-            if (!masm.truncateConstantOrRegisterToInt32(cx, value, tempDouble, object,
+            if (!masm.truncateConstantOrRegisterToInt32(cx, value, tempFloat, object,
                                                         &popObjectAndFail))
             {
                 return false;
@@ -3794,7 +3789,7 @@ SetElementIC::attachTypedArrayElement(JSContext *cx, HandleScript outerScript, I
     RepatchStubAppender attacher(*this);
     if (!GenerateSetTypedArrayElement(cx, masm, attacher, tarr,
                                       object(), index(), value(),
-                                      tempToUnboxIndex(), temp(), tempDouble(), tempFloat32()))
+                                      tempToUnboxIndex(), temp(), tempFloat()))
     {
         return false;
     }
@@ -3865,7 +3860,7 @@ SetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
     DispatchStubPrepender attacher(*this);
     if (!GenerateSetTypedArrayElement(cx, masm, attacher, tarr,
                                       object(), index(), value(),
-                                      tempToUnboxIndex(), temp(), tempDouble(), tempFloat32()))
+                                      tempToUnboxIndex(), temp(), tempFloat()))
     {
         return false;
     }

@@ -6628,6 +6628,7 @@ var gIdentityHandler = {
     switch (newMode) {
     case this.IDENTITY_MODE_DOMAIN_VERIFIED:
       host = this.getEffectiveHost();
+      owner = gNavigatorBundle.getString("identity.ownerUnknown2");
       verifier = this._identityBox.tooltipText;
       break;
     case this.IDENTITY_MODE_IDENTIFIED: {

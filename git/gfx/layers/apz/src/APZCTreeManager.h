@@ -25,7 +25,6 @@ class gfx3DMatrix;
 
 namespace mozilla {
 class InputData;
-class MultiTouchInput;
 
 namespace layers {
 
@@ -330,9 +329,9 @@ private:
                                          bool* aOutInOverscrolledApzc);
   already_AddRefed<AsyncPanZoomController> CommonAncestor(AsyncPanZoomController* aApzc1, AsyncPanZoomController* aApzc2);
   already_AddRefed<AsyncPanZoomController> RootAPZCForLayersId(AsyncPanZoomController* aApzc);
-  already_AddRefed<AsyncPanZoomController> GetTouchInputBlockAPZC(const MultiTouchInput& aEvent,
+  already_AddRefed<AsyncPanZoomController> GetTouchInputBlockAPZC(const WidgetTouchEvent& aEvent,
                                                                   bool* aOutInOverscrolledApzc);
-  nsEventStatus ProcessTouchInput(MultiTouchInput& aInput,
+  nsEventStatus ProcessTouchEvent(WidgetTouchEvent& touchEvent,
                                   ScrollableLayerGuid* aOutTargetGuid);
   nsEventStatus ProcessEvent(WidgetInputEvent& inputEvent,
                              ScrollableLayerGuid* aOutTargetGuid);

@@ -149,10 +149,10 @@ LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
 #endif
         break;
       case MIRType_Float32:
-        lir->setDef(0, LDefinition(vreg, LDefinition::FLOAT32, LFloatReg(ReturnFloat32Reg)));
+        lir->setDef(0, LDefinition(vreg, LDefinition::FLOAT32, LFloatReg(ReturnFloatReg)));
         break;
       case MIRType_Double:
-        lir->setDef(0, LDefinition(vreg, LDefinition::DOUBLE, LFloatReg(ReturnDoubleReg)));
+        lir->setDef(0, LDefinition(vreg, LDefinition::DOUBLE, LFloatReg(ReturnFloatReg)));
         break;
       default:
         LDefinition::Type type = LDefinition::TypeFrom(mir->type());

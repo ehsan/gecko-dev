@@ -3,6 +3,8 @@
  */
 
 #ifdef XP_WIN
+#pragma comment(lib, "wintrust.lib")
+#pragma comment(lib, "crypt32.lib")
 # include <windows.h>
 # include <wintrust.h>
 # include <tlhelp32.h>
