@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Myk Melez <myk@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,28 +40,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
-
-// The following constants determine when Weave will automatically sync data.
-
-// An interval of one minute, initial threshold of 100, and step of 5 means
-// that we'll try to sync each engine 21 times, once per minute, at
-// consecutively lower thresholds (from 100 down to 5 in steps of 5 and then
-// one more time with the threshold set to the minimum 1) before resetting
-// the engine's threshold to the initial value and repeating the cycle
-// until at some point the engine's score exceeds the threshold, at which point
-// we'll sync it, reset its threshold to the initial value, rinse, and repeat.
-
-// How long we wait between sync checks.
-const SCHEDULED_SYNC_INTERVAL = 60 * 1000; // one minute
-
-// INITIAL_THRESHOLD represents the value an engine's score has to exceed
-// in order for us to sync it the first time we start up (and the first time
-// we do a sync check after having synced the engine or reset the threshold).
-const INITIAL_THRESHOLD = 100;
-
-// THRESHOLD_DECREMENT_STEP is the amount by which we decrement an engine's
-// threshold each time we do a sync check and don't sync that engine.
-const THRESHOLD_DECREMENT_STEP = 5;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/log4moz.js");
@@ -131,6 +108,8 @@ function WeaveSvc() {
     this._log.info("Weave Sync disabled");
     return;
   }
+
+  this._setSchedule(this.schedule);
 }
 WeaveSvc.prototype = {
 
@@ -138,7 +117,6 @@ WeaveSvc.prototype = {
   _lock: Wrap.lock,
   _localLock: Wrap.localLock,
   _osPrefix: "weave:service:",
-  _loggedIn: false,
 
   __os: null,
   get _os() {
@@ -196,7 +174,7 @@ WeaveSvc.prototype = {
       return 0; // manual/off
     return Utils.prefs.getIntPref("schedule");
   },
-  
+
   onWindowOpened: function Weave__onWindowOpened() {
     if (!this._startupFinished) {
       if (Utils.prefs.getBoolPref("autoconnect") &&
@@ -231,7 +209,7 @@ WeaveSvc.prototype = {
     this._scheduleTimer = Cc["@mozilla.org/timer;1"].
       createInstance(Ci.nsITimer);
     let listener = new Utils.EventListener(Utils.bind2(this, this._onSchedule));
-    this._scheduleTimer.initWithCallback(listener, SCHEDULED_SYNC_INTERVAL,
+    this._scheduleTimer.initWithCallback(listener, 1800000, // 30 min
                                          this._scheduleTimer.TYPE_REPEATING_SLACK);
     this._log.info("Weave scheduler enabled");
   },
@@ -247,7 +225,7 @@ WeaveSvc.prototype = {
   _onSchedule: function WeaveSync__onSchedule() {
     if (this.enabled) {
       this._log.info("Running scheduled sync");
-      this._lock(this._notify("sync", this._syncAsNeeded)).async(this);
+      this.sync();
     }
   },
 
@@ -464,14 +442,11 @@ WeaveSvc.prototype = {
 
     this._loggedIn = true;
 
-    this._setSchedule(this.schedule);
-
     self.done(true);
   },
 
   logout: function WeaveSync_logout() {
     this._log.info("Logging out");
-    this._disableSchedule();
     this._loggedIn = false;
     ID.get('WeaveID').setTempPassword(null); // clear cached password
     ID.get('WeaveCryptoID').setTempPassword(null); // and passphrase
@@ -504,8 +479,6 @@ WeaveSvc.prototype = {
     let names = yield;
 
     for (let i = 0; i < names.length; i++) {
-      if (names[i].match(/\.htaccess$/))
-        continue;
       DAV.DELETE(names[i], self.cb);
       let resp = yield;
       this._log.debug(resp.status);
@@ -517,7 +490,6 @@ WeaveSvc.prototype = {
   sync: function WeaveSync_sync(onComplete) {
     this._lock(this._notify("sync", this._sync)).async(this, onComplete);
   },
-
   _sync: function WeaveSync__sync() {
     let self = yield;
 
@@ -532,88 +504,18 @@ WeaveSvc.prototype = {
 
     let engines = Engines.getAll();
     for (let i = 0; i < engines.length; i++) {
-      if (!engines[i].enabled)
-        continue;
-      this._notify(engines[i].name + "-engine:sync",
-                   this._syncEngine, engines[i]).async(this, self.cb);
-      yield;
-      if (engines[i].name == "bookmarks") { // FIXME
-        Engines.get("bookmarks").syncMounts(self.cb);
+      if (engines[i].enabled) {
+        this._notify(engines[i].name + "-engine:sync",
+                     this._syncEngine, engines[i]).async(this, self.cb);
         yield;
       }
     }
   },
-
-  // The values that engine scores must meet or exceed before we sync them
-  // as needed.  These are engine-specific, as different kinds of data change
-  // at different rates, so we store them in a hash indexed by engine name.
-  _syncThresholds: {},
-
-  _syncAsNeeded: function WeaveSync__syncAsNeeded() {
-    let self = yield;
-
-    if (!this._loggedIn)
-      throw "Can't sync: Not logged in";
-
-    this._versionCheck.async(this, self.cb);
-    yield;
-
-    this._keyCheck.async(this, self.cb);
-    yield;
-
-    let engines = Engines.getAll();
-    for each (let engine in engines) {
-      if (!engine.enabled)
-        continue;
-
-      if (!(engine.name in this._syncThresholds))
-        this._syncThresholds[engine.name] = INITIAL_THRESHOLD;
-
-      let score = engine._tracker.score;
-      if (score >= this._syncThresholds[engine.name]) {
-        this._log.debug(engine.name + " score " + score +
-                        " reaches threshold " +
-                        this._syncThresholds[engine.name] + "; syncing");
-        this._notify(engine.name + "-engine:sync",
-                     this._syncEngine, engine).async(this, self.cb);
-        yield;
-
-        // Reset the engine's threshold to the initial value.
-        // Note: we do this after syncing the engine so that we'll try again
-        // next time around if syncing fails for some reason.  The upside
-        // of this approach is that we'll sync again as soon as possible;
-        // but the downside is that if the error is caused by the server being
-        // overloaded, we'll contribute to the problem by trying to sync
-        // repeatedly at the maximum rate.
-        this._syncThresholds[engine.name] = INITIAL_THRESHOLD;
-
-        if (engine.name == "bookmarks") { // FIXME
-          Engines.get("bookmarks").syncMounts(self.cb);
-          yield;
-        }
-      }
-      else {
-        this._log.debug(engine.name + " score " + score +
-                        " does not reach threshold " +
-                        this._syncThresholds[engine.name] + "; not syncing");
-
-        // Decrement the threshold by the standard amount, and if this puts it
-        // at or below zero, then set it to 1, the lowest possible value, where
-        // it'll stay until there's something to sync (whereupon we'll sync it,
-        // reset the threshold to the initial value, and start over again).
-        this._syncThresholds[engine.name] -= THRESHOLD_DECREMENT_STEP;
-        if (this._syncThresholds[engine.name] <= 0)
-          this._syncThresholds[engine.name] = 1;
-      }
-    }
-  },
-
   _syncEngine: function WeaveSvc__syncEngine(engine) {
     let self = yield;
     try {
       engine.sync(self.cb);
       yield;
-      engine._tracker.resetScore();
     } catch(e) {
       this._log.error(Utils.exceptionStr(e));
       if (e.trace)
@@ -667,19 +569,19 @@ WeaveSvc.prototype = {
        to indicate whether sharing succeeded or failed.
        Implementation, as well as the interpretation of what 'guid' means,
        is left up to the engine for the specific dataType. */
-
-    // TODO who is listening for the share-bookmarks message?
+    
     let messageName = "share-" + dataType;
-    // so for instance, if dataType is "bookmarks" then a message
-    // "share-bookmarks" will be sent out to any observers who are listening
-    // for it.
+    /* so for instance, if dataType is "bookmarks" then a message
+     "share-bookmarks" will be sent out to any observers who are listening
+     for it.  As far as I know, there aren't currently any listeners for
+     "share-bookmarks" but we'll send it out just in case. */
     this._lock(this._notify(messageName,
                             this._shareData,
                             dataType,
                             guid,
                             username)).async(this, onComplete);
   },
-  _shareBookmarks: function WeaveSync__shareBookmarks(dataType,
+  _shareBookmarks: function WeaveSync__shareBookmarks(dataType, 
                                                       guid,
                                                       username) {
     let self = yield;

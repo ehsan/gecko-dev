@@ -63,6 +63,7 @@ function DAVCollection(baseURL, defaultPrefix) {
   this.baseURL = baseURL;
   this.defaultPrefix = defaultPrefix;
   this._identity = 'DAV:default';
+  this._authProvider = new DummyAuthProvider();
   this._log = Log4Moz.Service.getLogger("Service.DAV");
   this._log.level =
     Log4Moz.Level[Utils.prefs.getCharPref("log.logger.service.dav")];
@@ -123,14 +124,14 @@ DAVCollection.prototype = {
 
     path = this._defaultPrefix + path;
 
-    let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
+    let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+    request = request.QueryInterface(Ci.nsIDOMEventTarget);
 
-    let xhrCb = self.cb;
-
-    request.onload = new Utils.EventListener(xhrCb, "load");
-    request.onerror = new Utils.EventListener(xhrCb, "error");
-    request.mozBackgroundRequest = true;
+    request.addEventListener("load", new Utils.EventListener(self.cb, "load"), false);
+    request.addEventListener("error", new Utils.EventListener(self.cb, "error"), false);
+    request = request.QueryInterface(Ci.nsIXMLHttpRequest);
     request.open(op, this._baseURL + path, true);
+
 
     // Force cache validation
     let channel = request.channel;
@@ -148,10 +149,15 @@ DAVCollection.prototype = {
       request.setRequestHeader(key, headers[key]);
     }
 
+    this._authProvider._authFailed = false;
+    request.channel.notificationCallbacks = this._authProvider;
+
     request.send(data);
     let event = yield;
     ret = event.target;
 
+    if (this._authProvider._authFailed)
+      this._log.warn("_makeRequest: authentication failed");
     if (ret.status < 200 || ret.status >= 300)
       this._log.warn("_makeRequest: got status " + ret.status);
 
@@ -221,11 +227,6 @@ DAVCollection.prototype = {
   GET: function DC_GET(path, onComplete) {
     return this._makeRequest.async(this, onComplete, "GET", path,
                                    this._defaultHeaders);
-  },
-
-  POST: function DC_POST(path, data, onComplete) {
-    return this._makeRequest.async(this, onComplete, "POST", path,
-                                   this._defaultHeaders, data);
   },
 
   PUT: function DC_PUT(path, data, onComplete) {
@@ -309,7 +310,8 @@ DAVCollection.prototype = {
     this.GET("", self.cb);
     let resp = yield;
 
-    if (resp.status < 200 || resp.status >= 300) {
+    if (this._authProvider._authFailed ||
+        resp.status < 200 || resp.status >= 300) {
       self.done(false);
       yield;
     }
@@ -331,7 +333,8 @@ DAVCollection.prototype = {
                   "</D:propfind>", self.cb);
     let resp = yield;
 
-    if (resp.status < 200 || resp.status >= 300) {
+    if (this._authProvider._authFailed ||
+        resp.status < 200 || resp.status >= 300) {
       self.done(false);
       yield;
     }
@@ -367,7 +370,8 @@ DAVCollection.prototype = {
               "</D:lockinfo>", self.cb);
     let resp = yield;
 
-    if (resp.status < 200 || resp.status >= 300) {
+    if (this._authProvider._authFailed ||
+        resp.status < 200 || resp.status >= 300) {
       self.done();
       yield;
     }
@@ -405,12 +409,13 @@ DAVCollection.prototype = {
     this.UNLOCK("lock", self.cb);
     let resp = yield;
 
-    if (resp.status < 200 || resp.status >= 300) {
+    if (this._authProvider._authFailed ||
+        resp.status < 200 || resp.status >= 300) {
       self.done(false);
       yield;
     }
 
-    delete DAVLocks['default'];
+    delete DAVLocks['default']
     this._log.trace("Lock released (or we didn't have one)");
     self.done(true);
   },
@@ -439,5 +444,156 @@ DAVCollection.prototype = {
     else
       this._log.trace("No lock released");
     self.done(unlocked);
+  }
+};
+
+
+/*
+ * Auth provider object
+ * Taken from nsMicrosummaryService.js and massaged slightly
+ */
+
+function DummyAuthProvider() {}
+DummyAuthProvider.prototype = {
+  // Implement notification callback interfaces so we can suppress UI
+  // and abort loads for bad SSL certs and HTTP authorization requests.
+
+  // Interfaces this component implements.
+  interfaces: [Ci.nsIBadCertListener,
+               Ci.nsIAuthPromptProvider,
+               Ci.nsIAuthPrompt,
+               Ci.nsIPrompt,
+               Ci.nsIProgressEventSink,
+               Ci.nsIInterfaceRequestor,
+               Ci.nsISupports],
+
+  // Auth requests appear to succeed when we cancel them (since the server
+  // redirects us to a "you're not authorized" page), so we have to set a flag
+  // to let the load handler know to treat the load as a failure.
+  get _authFailed()         { return this.__authFailed; },
+  set _authFailed(newValue) { return this.__authFailed = newValue },
+
+  // nsISupports
+
+  QueryInterface: function DAP_QueryInterface(iid) {
+    if (!this.interfaces.some( function(v) { return iid.equals(v) } ))
+      throw Cr.NS_ERROR_NO_INTERFACE;
+
+    // nsIAuthPrompt and nsIPrompt need separate implementations because
+    // their method signatures conflict.  The other interfaces we implement
+    // within DummyAuthProvider itself.
+    switch(iid) {
+    case Ci.nsIAuthPrompt:
+      return this.authPrompt;
+    case Ci.nsIPrompt:
+      return this.prompt;
+    default:
+      return this;
+    }
+  },
+
+  // nsIInterfaceRequestor
+
+  getInterface: function DAP_getInterface(iid) {
+    return this.QueryInterface(iid);
+  },
+
+  // nsIBadCertListener
+
+  // Suppress UI and abort secure loads from servers with bad SSL certificates.
+
+  confirmUnknownIssuer: function DAP_confirmUnknownIssuer(socketInfo, cert, certAddType) {
+    return false;
+  },
+
+  confirmMismatchDomain: function DAP_confirmMismatchDomain(socketInfo, targetURL, cert) {
+    return false;
+  },
+
+  confirmCertExpired: function DAP_confirmCertExpired(socketInfo, cert) {
+    return false;
+  },
+
+  notifyCrlNextupdate: function DAP_notifyCrlNextupdate(socketInfo, targetURL, cert) {
+  },
+
+  // nsIAuthPromptProvider
+
+  getAuthPrompt: function(aPromptReason, aIID) {
+    this._authFailed = true;
+    throw Cr.NS_ERROR_NOT_AVAILABLE;
+  },
+
+  // HTTP always requests nsIAuthPromptProvider first, so it never needs
+  // nsIAuthPrompt, but not all channels use nsIAuthPromptProvider, so we
+  // implement nsIAuthPrompt too.
+
+  // nsIAuthPrompt
+
+  get authPrompt() {
+    var resource = this;
+    return {
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrompt]),
+      prompt: function(dialogTitle, text, passwordRealm, savePassword, defaultText, result) {
+        resource._authFailed = true;
+        return false;
+      },
+      promptUsernameAndPassword: function(dialogTitle, text, passwordRealm, savePassword, user, pwd) {
+        resource._authFailed = true;
+        return false;
+      },
+      promptPassword: function(dialogTitle, text, passwordRealm, savePassword, pwd) {
+        resource._authFailed = true;
+        return false;
+      }
+    };
+  },
+
+  // nsIPrompt
+
+  get prompt() {
+    var resource = this;
+    return {
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrompt]),
+      alert: function(dialogTitle, text) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      alertCheck: function(dialogTitle, text, checkMessage, checkValue) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      confirm: function(dialogTitle, text) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      confirmCheck: function(dialogTitle, text, checkMessage, checkValue) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      confirmEx: function(dialogTitle, text, buttonFlags, button0Title, button1Title, button2Title, checkMsg, checkValue) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      prompt: function(dialogTitle, text, value, checkMsg, checkValue) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      },
+      promptPassword: function(dialogTitle, text, password, checkMsg, checkValue) {
+        resource._authFailed = true;
+        return false;
+      },
+      promptUsernameAndPassword: function(dialogTitle, text, username, password, checkMsg, checkValue) {
+        resource._authFailed = true;
+        return false;
+      },
+      select: function(dialogTitle, text, count, selectList, outSelection) {
+        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+      }
+    };
+  },
+
+  // nsIProgressEventSink
+
+  onProgress: function DAP_onProgress(aRequest, aContext,
+                                      aProgress, aProgressMax) {
+  },
+
+  onStatus: function DAP_onStatus(aRequest, aContext,
+                                  aStatus, aStatusArg) {
   }
 };
