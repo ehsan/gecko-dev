@@ -179,7 +179,7 @@ struct BytecodeEmitter
 
     bool isAliasedName(ParseNode *pn);
 
-    MOZ_ALWAYS_INLINE
+    JS_ALWAYS_INLINE
     bool makeAtomIndex(JSAtom *atom, jsatomid *indexp) {
         AtomIndexAddPtr p = atomIndices->lookupForAdd(atom);
         if (p) {

@@ -166,16 +166,13 @@ class ProcessedStack;
 /**
  * Record the main thread's call stack after it hangs.
  *
- * @param aDuration - Approximate duration of main thread hang, in seconds
- * @param aStack - Array of PCs from the hung call stack
- * @param aSystemUptime - System uptime at the time of the hang, in minutes
- * @param aFirefoxUptime - Firefox uptime at the time of the hang, in minutes
+ * @param duration - Approximate duration of main thread hang in seconds
+ * @param callStack - Array of PCs from the hung call stack
+ * @param moduleMap - Array of info about modules in memory (for symbolication)
  */
 #if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t aDuration,
-                      ProcessedStack &aStack,
-                      int32_t aSystemUptime,
-                      int32_t aFirefoxUptime);
+void RecordChromeHang(uint32_t duration,
+                      ProcessedStack &aStack);
 #endif
 
 class ThreadHangStats;

@@ -383,7 +383,7 @@ LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
 
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
-    mRoot->ComputeEffectiveTransforms(Matrix4x4());
+    mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
 
 #ifdef MOZ_LAYERS_HAVE_LOG
     MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
@@ -859,11 +859,12 @@ LayerD3D10::LoadMaskTexture()
       return SHADER_NO_MASK;
     }
 
-    Matrix maskTransform;
-    Matrix4x4 effectiveTransform = maskLayer->GetEffectiveTransform();
+    gfxMatrix maskTransform;
+    gfx3DMatrix effectiveTransform;
+    gfx::To3DMatrix(maskLayer->GetEffectiveTransform(), effectiveTransform);
     bool maskIs2D = effectiveTransform.CanDraw2D(&maskTransform);
     NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
-    Rect bounds = Rect(Point(), Size(size));
+    gfxRect bounds = gfxRect(gfxPoint(), ThebesIntSize(size));
     bounds = maskTransform.TransformBounds(bounds);
 
     effect()->GetVariableByName("vMaskQuad")->AsVector()->SetFloatVector(

@@ -39,7 +39,7 @@ class SpecialId;
 // to #include jsfun.h.
 extern JS_FRIEND_DATA(const js::Class* const) FunctionClassPtr;
 
-static MOZ_ALWAYS_INLINE jsid
+static JS_ALWAYS_INLINE jsid
 SPECIALID_TO_JSID(const SpecialId &sid);
 
 /*
@@ -58,7 +58,7 @@ class SpecialId
     uintptr_t bits_;
 
     /* Needs access to raw bits. */
-    friend MOZ_ALWAYS_INLINE jsid SPECIALID_TO_JSID(const SpecialId &sid);
+    friend JS_ALWAYS_INLINE jsid SPECIALID_TO_JSID(const SpecialId &sid);
     friend class PropertyId;
 
     static const uintptr_t TYPE_VOID = JSID_TYPE_VOID;
@@ -113,7 +113,7 @@ class SpecialId
     }
 };
 
-static MOZ_ALWAYS_INLINE jsid
+static JS_ALWAYS_INLINE jsid
 SPECIALID_TO_JSID(const SpecialId &sid)
 {
     jsid id;
@@ -124,13 +124,13 @@ SPECIALID_TO_JSID(const SpecialId &sid)
     return id;
 }
 
-static MOZ_ALWAYS_INLINE bool
+static JS_ALWAYS_INLINE bool
 JSID_IS_SPECIAL(jsid id)
 {
     return JSID_IS_OBJECT(id) || JSID_IS_EMPTY(id) || JSID_IS_VOID(id);
 }
 
-static MOZ_ALWAYS_INLINE SpecialId
+static JS_ALWAYS_INLINE SpecialId
 JSID_TO_SPECIALID(jsid id)
 {
     JS_ASSERT(JSID_IS_SPECIAL(id));
@@ -635,13 +635,13 @@ JS_STATIC_ASSERT(offsetof(JSClass, hasInstance) == offsetof(Class, hasInstance))
 JS_STATIC_ASSERT(offsetof(JSClass, trace) == offsetof(Class, trace));
 JS_STATIC_ASSERT(sizeof(JSClass) == sizeof(Class));
 
-static MOZ_ALWAYS_INLINE const JSClass *
+static JS_ALWAYS_INLINE const JSClass *
 Jsvalify(const Class *c)
 {
     return (const JSClass *)c;
 }
 
-static MOZ_ALWAYS_INLINE const Class *
+static JS_ALWAYS_INLINE const Class *
 Valueify(const JSClass *c)
 {
     return (const Class *)c;

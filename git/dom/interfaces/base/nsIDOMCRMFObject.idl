@@ -5,12 +5,8 @@
 
 #include "domstubs.idl"
 
-interface nsIDOMCRMFObject;
-interface nsIDOMWindow;
-
-[uuid(c25ecf08-3f46-4420-bee4-8505792fd63a)]
-interface nsIDOMCrypto : nsISupports
+[scriptable, uuid(16da46c0-208d-11d4-8a7c-006008c844c3)]
+interface nsIDOMCRMFObject : nsISupports
 {
-  [notxpcom] void init(in nsIDOMWindow window);
-  attribute boolean         enableSmartCardEvents;
+  readonly attribute DOMString        request;
 };

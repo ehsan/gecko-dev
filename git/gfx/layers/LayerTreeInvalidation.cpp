@@ -111,6 +111,7 @@ struct LayerPropertiesBase : public LayerProperties
     , mMaskLayer(nullptr)
     , mVisibleRegion(aLayer->GetVisibleRegion())
     , mInvalidRegion(aLayer->GetInvalidRegion())
+    , mTransform(aLayer->GetTransform())
     , mOpacity(aLayer->GetOpacity())
     , mUseClipRect(!!aLayer->GetClipRect())
   {
@@ -121,7 +122,6 @@ struct LayerPropertiesBase : public LayerProperties
     if (mUseClipRect) {
       mClipRect = *aLayer->GetClipRect();
     }
-    gfx::To3DMatrix(aLayer->GetTransform(), mTransform);
   }
   LayerPropertiesBase()
     : mLayer(nullptr)
@@ -141,9 +141,7 @@ struct LayerPropertiesBase : public LayerProperties
 
   nsIntRegion ComputeChange(NotifySubDocInvalidationFunc aCallback)
   {
-    gfx3DMatrix transform;
-    gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    bool transformChanged = !mTransform.FuzzyEqual(transform);
+    bool transformChanged = !mTransform.FuzzyEqual(mLayer->GetTransform());
     Layer* otherMask = mLayer->GetMaskLayer();
     const nsIntRect* otherClip = mLayer->GetClipRect();
     nsIntRegion result;
@@ -191,9 +189,7 @@ struct LayerPropertiesBase : public LayerProperties
 
   nsIntRect NewTransformedBounds()
   {
-    gfx3DMatrix transform;
-    gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    return TransformRect(mLayer->GetVisibleRegion().GetBounds(), transform);
+    return TransformRect(mLayer->GetVisibleRegion().GetBounds(), mLayer->GetTransform());
   }
 
   nsIntRect OldTransformedBounds()
@@ -275,9 +271,7 @@ struct ContainerLayerProperties : public LayerPropertiesBase
         invalidateChildsCurrentArea = true;
       }
       if (invalidateChildsCurrentArea) {
-        gfx3DMatrix transform;
-        gfx::To3DMatrix(child->GetTransform(), transform);
-        AddTransformedRegion(result, child->GetVisibleRegion(), transform);
+        AddTransformedRegion(result, child->GetVisibleRegion(), child->GetTransform());
         if (aCallback) {
           NotifySubdocumentInvalidationRecursive(child, aCallback);
         } else {
@@ -296,9 +290,7 @@ struct ContainerLayerProperties : public LayerPropertiesBase
       aCallback(container, result);
     }
 
-    gfx3DMatrix transform;
-    gfx::To3DMatrix(mLayer->GetTransform(), transform);
-    return TransformRegion(result, transform);
+    return TransformRegion(result, mLayer->GetTransform());
   }
 
   // The old list of children:
@@ -414,9 +406,7 @@ LayerPropertiesBase::ComputeDifferences(Layer* aRoot, NotifySubDocInvalidationFu
     } else {
       ClearInvalidations(aRoot);
     }
-    gfx3DMatrix transform;
-    gfx::To3DMatrix(aRoot->GetTransform(), transform);
-    nsIntRect result = TransformRect(aRoot->GetVisibleRegion().GetBounds(), transform);
+    nsIntRect result = TransformRect(aRoot->GetVisibleRegion().GetBounds(), aRoot->GetTransform());
     result = result.Union(OldTransformedBounds());
     return result;
   } else {

@@ -489,7 +489,7 @@ LayerTransactionParent::RecvGetTransform(PLayerParent* aParent,
   // from the shadow transform by undoing the translations in
   // AsyncCompositionManager::SampleValue.
   Layer* layer = cast(aParent)->AsLayer();
-  gfx::To3DMatrix(layer->AsLayerComposite()->GetShadowTransform(), *aTransform);
+  *aTransform = layer->AsLayerComposite()->GetShadowTransform();
   if (ContainerLayer* c = layer->AsContainerLayer()) {
     aTransform->ScalePost(1.0f/c->GetInheritedXScale(),
                           1.0f/c->GetInheritedYScale(),

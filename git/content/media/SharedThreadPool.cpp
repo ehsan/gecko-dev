@@ -15,7 +15,7 @@
 
 #ifdef XP_WIN
 // Required to init MSCOM by MSCOMInitThreadPoolListener.
-#include <objbase.h>
+#include <Objbase.h>
 #endif
 
 namespace mozilla {

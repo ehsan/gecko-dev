@@ -4738,7 +4738,7 @@ JS_DecompileFunctionBody(JSContext *cx, HandleFunction fun, unsigned indent)
     return FunctionToString(cx, fun, true, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
-MOZ_NEVER_INLINE JS_PUBLIC_API(bool)
+JS_NEVER_INLINE JS_PUBLIC_API(bool)
 JS_ExecuteScript(JSContext *cx, JSObject *objArg, JSScript *scriptArg, jsval *rval)
 {
     RootedObject obj(cx, objArg);
@@ -5967,7 +5967,7 @@ JS_GetCurrentThread()
 #endif
 }
 
-extern MOZ_NEVER_INLINE JS_PUBLIC_API(void)
+extern JS_NEVER_INLINE JS_PUBLIC_API(void)
 JS_AbortIfWrongThread(JSRuntime *rt)
 {
     if (!CurrentThreadCanAccessRuntime(rt))

@@ -61,7 +61,7 @@ class TestAPZCContainerLayer : public ContainerLayer {
     {}
   void RemoveChild(Layer* aChild) {}
   void InsertAfter(Layer* aChild, Layer* aAfter) {}
-  void ComputeEffectiveTransforms(const Matrix4x4& aTransformToSurface) {}
+  void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) {}
   void RepositionChild(Layer* aChild, Layer* aAfter) {}
 };
 
@@ -815,8 +815,8 @@ TEST(APZCTreeManager, HitTesting2) {
   gfx3DMatrix transformToGecko;
 
   // Set a CSS transform on one of the layers.
-  Matrix4x4 transform;
-  transform = transform * Matrix4x4().Scale(2, 1, 1);
+  gfx3DMatrix transform;
+  transform.ScalePost(2, 1, 1);
   layers[2]->SetBaseTransform(transform);
 
   // Make some other layers scrollable.
