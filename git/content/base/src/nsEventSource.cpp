@@ -32,7 +32,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
-#include "nsDOMClassInfoID.h"
 
 using namespace mozilla;
 

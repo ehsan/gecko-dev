@@ -113,7 +113,7 @@ function test()
 
     executeSoon(function() {
       contextMenu.hidePopup();
-      closeDebuggerAndFinish();
+      gDebugger.DebuggerController.activeThread.resume(finish);
     });
   }
 

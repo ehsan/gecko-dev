@@ -6,7 +6,6 @@
 #include "nsDOMContactChangeEvent.h"
 #include "nsContentUtils.h"
 #include "DictionaryHelpers.h"
-#include "nsDOMClassInfoID.h"
 
 DOMCI_DATA(MozContactChangeEvent, nsDOMMozContactChangeEvent)
 

@@ -49,22 +49,24 @@ function testAddBreakpoint()
 
 function testResume()
 {
-  let thread = gDebugger.DebuggerController.activeThread;
-  thread.addOneTimeListener("resumed", function() {
-    thread.addOneTimeListener("paused", function() {
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function test() {
+    gDebugger.DebuggerController.activeThread.addOneTimeListener("paused", function test() {
       executeSoon(testBreakpointHit);
-    });
+    }, false);
 
     EventUtils.sendMouseEvent({ type: "click" },
-      content.document.querySelector("button"));
+      content.document.querySelector("button"),
+      content.window);
 
   });
 
-  thread.resume();
+  gDebugger.DebuggerController.activeThread.resume();
 }
 
 function testBreakpointHit()
 {
+  var frames = gDebugger.DebuggerView.StackFrames._frames;
+
   is(gDebugger.DebuggerController.activeThread.state, "paused",
     "The breakpoint was hit.");
 
@@ -74,14 +76,10 @@ function testBreakpointHit()
 function resumeAndFinish() {
   let thread = gDebugger.DebuggerController.activeThread;
   thread.addOneTimeListener("paused", function test(aEvent, aPacket) {
-    thread.addOneTimeListener("resumed", function() {
-      executeSoon(closeDebuggerAndFinish);
-    });
-
     is(aPacket.why.type, "debuggerStatement", "Execution has advanced to the next line.");
     isnot(aPacket.why.type, "breakpoint", "No ghost breakpoint was hit.");
-    thread.resume();
 
+    closeDebuggerAndFinish();
   });
 
   thread.resume();

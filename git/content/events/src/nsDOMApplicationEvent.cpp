@@ -6,7 +6,6 @@
 #include "nsDOMApplicationEvent.h"
 #include "nsContentUtils.h"
 #include "DictionaryHelpers.h"
-#include "nsDOMClassInfoID.h"
  
 DOMCI_DATA(MozApplicationEvent, nsDOMMozApplicationEvent)
 
