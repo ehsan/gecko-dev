@@ -45,8 +45,6 @@
 #include "PluginScriptableObjectParent.h"
 #include "PluginScriptableObjectChild.h"
 
-using mozilla::ipc::RPCChannel;
-
 namespace {
 
 class DeferNPObjectReleaseRunnable : public nsRunnable
@@ -77,16 +75,6 @@ DeferNPObjectReleaseRunnable::Run()
 
 namespace mozilla {
 namespace plugins {
-
-RPCChannel::RacyRPCPolicy
-MediateRace(const RPCChannel::Message& parent,
-            const RPCChannel::Message& child)
-{
-  // our code relies on the frame list not changing during paints
-  bool isPaint = (PPluginInstance::Msg_Paint__ID == parent.type());
-
-  return isPaint ? RPCChannel::RRPParentWins : RPCChannel::RRPChildWins;
-}
 
 PRLogModuleInfo* gPluginLog = PR_NewLogModule("IPCPlugins");
 

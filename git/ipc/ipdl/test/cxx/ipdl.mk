@@ -17,7 +17,6 @@ IPDLSRCS =					\
   PTestRacyRPCReplies.ipdl			\
   PTestRPCErrorCleanup.ipdl			\
   PTestRPCRaces.ipdl				\
-  PTestRPCShutdownRace.ipdl			\
   PTestSanity.ipdl				\
   PTestShmem.ipdl				\
   PTestShutdown.ipdl				\

@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_GTK2
-#include <glib.h>
-#endif
-
 #include "base/process_util.h"
 
 #include "mozilla/ipc/SyncChannel.h"
@@ -49,6 +45,7 @@
 #include "nsContentUtils.h"
 #include "nsCRT.h"
 #include "nsNPAPIPlugin.h"
+#include "nsThreadUtils.h"
 
 using base::KillProcess;
 
@@ -68,6 +65,24 @@ struct RunnableMethodTraits<mozilla::plugins::PluginModuleParent>
     typedef mozilla::plugins::PluginModuleParent Class;
     static void RetainCallee(Class* obj) { }
     static void ReleaseCallee(Class* obj) { }
+};
+
+class PluginCrashed : public nsRunnable
+{
+public:
+    PluginCrashed(nsNPAPIPlugin* plugin,
+                  const nsString& dumpID)
+        : mDumpID(dumpID),
+          mPlugin(plugin) { }
+
+    NS_IMETHOD Run() {
+        mPlugin->PluginCrashed(mDumpID);
+        return NS_OK;
+    }
+
+private:
+    nsNPAPIPlugin* mPlugin;
+    nsString mDumpID;
 };
 
 // static
@@ -94,7 +109,6 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     , mNPNIface(NULL)
     , mPlugin(NULL)
     , mProcessStartTime(time(NULL))
-    , mPluginCrashedTask(NULL)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
 
@@ -107,13 +121,6 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
 
 PluginModuleParent::~PluginModuleParent()
 {
-    NS_ASSERTION(OkToCleanup(), "unsafe destruction");
-
-    if (mPluginCrashedTask) {
-        mPluginCrashedTask->Cancel();
-        mPluginCrashedTask = 0;
-    }
-
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
         NPError err;
@@ -259,11 +266,12 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
     switch (why) {
     case AbnormalShutdown: {
         nsCOMPtr<nsIFile> dump;
+        nsAutoString dumpID;
         if (GetMinidump(getter_AddRefs(dump))) {
             WriteExtraDataForMinidump(dump);
-            if (NS_SUCCEEDED(dump->GetLeafName(mDumpID))) {
-                mDumpID.Replace(mDumpID.Length() - 4, 4,
-                                NS_LITERAL_STRING(""));
+            if (NS_SUCCEEDED(dump->GetLeafName(dumpID))) {
+                dumpID.Replace(dumpID.Length() - 4, 4,
+                               NS_LITERAL_STRING(""));
             }
         }
         else {
@@ -274,9 +282,9 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
         // Defer the PluginCrashed method so that we don't re-enter
         // and potentially modify the actor child list while enumerating it.
         if (mPlugin) {
-            mPluginCrashedTask = NewRunnableMethod(
-                this, &PluginModuleParent::NotifyPluginCrashed);
-            MessageLoop::current()->PostTask(FROM_HERE, mPluginCrashedTask);
+            nsCOMPtr<nsIRunnable> r =
+                new PluginCrashed(mPlugin, dumpID);
+            NS_DispatchToMainThread(r);
         }
         break;
     }
@@ -287,24 +295,6 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
     default:
         NS_ERROR("Unexpected shutdown reason for toplevel actor.");
     }
-}
-
-void
-PluginModuleParent::NotifyPluginCrashed()
-{
-    // MessageLoop owns this
-    mPluginCrashedTask = NULL;
-
-    if (!OkToCleanup()) {
-        // there's still plugin code on the C++ stack.  try again
-        mPluginCrashedTask = NewRunnableMethod(
-            this, &PluginModuleParent::NotifyPluginCrashed);
-        MessageLoop::current()->PostTask(FROM_HERE, mPluginCrashedTask);
-        return;
-    }
-
-    if (mPlugin)
-        mPlugin->PluginCrashed(mDumpID);
 }
 
 PPluginInstanceParent*
@@ -878,12 +868,17 @@ PluginModuleParent::AnswerProcessSomeEvents()
 {
     PLUGIN_LOG_DEBUG(("Spinning mini nested loop ..."));
 
-    int i = 0;
-    for (; i < kMaxChancesToProcessEvents; ++i)
-        if (!g_main_context_iteration(NULL, FALSE))
-            break;
+    // XXX it would seem sensical to make the condition be
+    // |NS_HasPendingEvents() && i < kMaxEventsToProcess|.  The
+    // problem is, the native appshell is just an observer of our
+    // nsThread, and processes native events as a side effect of
+    // nsThread::ProcessNextEvent().  Since native events are the ones
+    // we really care about here, we need to go straight to
+    // NS_ProcessNextEvent().
+    for (int i = 0; i < kMaxChancesToProcessEvents; ++i)
+        NS_ProcessNextEvent(nsnull, PR_FALSE);
 
-    PLUGIN_LOG_DEBUG(("... quitting mini nested loop; processed %i tasks", i));
+    PLUGIN_LOG_DEBUG(("... quitting mini nested loop"));
 
     return true;
 }

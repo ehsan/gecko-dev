@@ -87,13 +87,6 @@ protected:
     virtual bool
     AnswerNPP_HandleEvent(const NPRemoteEvent& event, int16_t* handled);
 
-    NS_OVERRIDE
-    virtual bool
-    AnswerPaint(const NPRemoteEvent& event, int16_t* handled)
-    {
-        return AnswerNPP_HandleEvent(event, handled);
-    }
-
     virtual bool
     AnswerNPP_Destroy(NPError* result);
 

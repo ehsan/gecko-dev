@@ -1895,11 +1895,15 @@ NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
     nsCOMPtr<nsIPluginInstanceOwner> owner;
     rv = instance->GetOwner(getter_AddRefs(owner));
     if (owner) {
-      if ((0 == PL_strcmp(target, "newwindow")) ||
-          (0 == PL_strcmp(target, "_new"))) {
-        target = "_blank";
-      } else if (0 == PL_strcmp(target, "_current")) {
+      if (!target) {
         target = "_self";
+      } else {
+        if ((0 == PL_strcmp(target, "newwindow")) ||
+            (0 == PL_strcmp(target, "_new"))) {
+          target = "_blank";
+        } else if (0 == PL_strcmp(target, "_current")) {
+          target = "_self";
+        }
       }
       rv = owner->GetURL(url, target, postStream,
                          (void*)postHeaders, postHeadersLength);
