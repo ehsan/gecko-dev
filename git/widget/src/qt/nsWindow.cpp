@@ -109,8 +109,6 @@
 #include "qx11info_x11.h"
 #endif
 
-#include <QtCore/QDebug>
-
 #include <execinfo.h>
 
 #include "mozqwidget.h"
@@ -318,7 +316,6 @@ nsWindow::Destroy(void)
         mMozQWidget->deleteLater();
     }
 
-    mMozQWidget = nsnull;
     mDrawingArea = nsnull;
 
     OnDestroy();
@@ -1969,12 +1966,6 @@ nsWindow::ConvertBorderStyles(nsBorderStyle aStyle)
     }
 */
     return w;
-}
-
-void nsWindow::QWidgetDestroyed()
-{
-    mDrawingArea = nsnull;
-    mMozQWidget = nsnull;
 }
 
 NS_IMETHODIMP

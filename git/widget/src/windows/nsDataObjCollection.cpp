@@ -215,12 +215,26 @@ STDMETHODIMP nsDataObjCollection::EnumFormatEtc(DWORD dwDir, LPENUMFORMATETC *pp
 {
   PRNTDEBUG("nsDataObjCollection::EnumFormatEtc\n");
 
-  if (dwDir == DATADIR_GET) {
-    // Clone addref's the new enumerator.
-    return m_enumFE->Clone(ppEnum);
-  }
+  switch (dwDir) {
+    case DATADIR_GET:
+      m_enumFE->Clone(ppEnum);
+      break;
+    case DATADIR_SET:
+      // fall through
+    default:
+      *ppEnum = NULL;
+  } // switch
 
-  return E_NOTIMPL;
+  // Since a new one has been created, 
+  // we will ref count the new clone here 
+  // before giving it back
+  if (NULL == *ppEnum)
+    return ResultFromScode(E_FAIL);
+  else
+    (*ppEnum)->AddRef();
+
+  return NOERROR;
+
 }
 
 //-----------------------------------------------------

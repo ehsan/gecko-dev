@@ -2291,11 +2291,8 @@ TraceRecorder::adjustCallerTypes(Fragment* f)
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots,
         LIns* i = get(vp);
         bool isPromote = isPromoteInt(i);
-        if (isPromote && *m == JSVAL_DOUBLE) {
+        if (isPromote && *m == JSVAL_DOUBLE)
             lir->insStorei(get(vp), lirbuf->state, nativeGlobalOffset(vp));
-            /* Aggressively undo speculation so the inner tree will compile if this fails. */
-            oracle.markGlobalSlotUndemotable(cx, gslots[n]);
-        }
         JS_ASSERT(!(!isPromote && *m == JSVAL_INT));
         ++m;
     );
@@ -10796,19 +10793,6 @@ TraceRecorder::record_JSOP_LOOP()
 {
     return JSRS_CONTINUE;
 }
-
-#define DBG_STUB(OP)                                                          \
-    JS_REQUIRES_STACK JSRecordingStatus                                       \
-    TraceRecorder::record_##OP()                                              \
-    {                                                                         \
-        ABORT_TRACE("can't trace " #OP);                                      \
-    }
-
-DBG_STUB(JSOP_GETUPVAR_DBG)
-DBG_STUB(JSOP_CALLUPVAR_DBG)
-DBG_STUB(JSOP_DEFFUN_DBGFC)
-DBG_STUB(JSOP_DEFLOCALFUN_DBGFC)
-DBG_STUB(JSOP_LAMBDA_DBGFC)
 
 #ifdef JS_JIT_SPEW
 /* Prints information about entry typemaps and unstable exits for all peers at a PC */
