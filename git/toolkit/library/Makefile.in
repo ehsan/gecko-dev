@@ -304,7 +304,6 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 COMPONENT_LIBS += widget_android
-STATIC_LIBS += skia_npapi
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)

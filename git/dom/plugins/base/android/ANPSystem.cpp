@@ -52,14 +52,8 @@
 const char*
 anp_system_getApplicationDataDirectory()
 {
-  static char *dir = NULL;
-
-  if (!dir) {
-    dir = getenv("ANDROID_PLUGIN_DATADIR");
-  }
-
-  LOG("getApplicationDataDirectory return %s", dir);
-  return dir;
+  LOG("getApplicationDataDirectory return /data/data/org.mozilla.%s", MOZ_APP_NAME);
+  return "/data/data/org.mozilla." MOZ_APP_NAME;
 }
 
 jclass anp_system_loadJavaClass(NPP instance, const char* className)

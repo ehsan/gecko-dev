@@ -233,50 +233,30 @@ public:
 
     bool GetAccessibilityEnabled();
 
-    class AutoLocalJNIFrame {
-    public:
-        AutoLocalJNIFrame(int nEntries = 128)
-            : mEntries(nEntries)
-            , mJNIEnv(JNI())
-        {
-            Push();
+    struct AutoLocalJNIFrame {
+        AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
+            // Make sure there is enough space to store a local ref to the
+            // exception.  I am not completely sure this is needed, but does
+            // not hurt.
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries + 1);
         }
-
-        AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 128)
-            : mEntries(nEntries)
-            , mJNIEnv(aJNIEnv ? aJNIEnv : JNI())
-        {
-            Push();
-        }
-
         // Note! Calling Purge makes all previous local refs created in
         // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
         // any local refs that you need to keep around in global refs!
         void Purge() {
-            mJNIEnv->PopLocalFrame(NULL);
-            Push();
+            AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
-
         ~AutoLocalJNIFrame() {
-            jthrowable exception = mJNIEnv->ExceptionOccurred();
+            jthrowable exception =
+                AndroidBridge::Bridge()->JNI()->ExceptionOccurred();
             if (exception) {
-                mJNIEnv->ExceptionDescribe();
-                mJNIEnv->ExceptionClear();
+                AndroidBridge::Bridge()->JNI()->ExceptionDescribe();
+                AndroidBridge::Bridge()->JNI()->ExceptionClear();
             }
-
-            mJNIEnv->PopLocalFrame(NULL);
+            AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
         }
-
-    private:
-        void Push() {
-            // Make sure there is enough space to store a local ref to the
-            // exception.  I am not completely sure this is needed, but does
-            // not hurt.
-            mJNIEnv->PushLocalFrame(mEntries + 1);
-        }
-
         int mEntries;
-        JNIEnv* mJNIEnv;
     };
 
     /* See GLHelpers.java as to why this is needed */

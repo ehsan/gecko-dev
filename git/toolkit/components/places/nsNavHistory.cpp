@@ -720,10 +720,10 @@ nsNavHistory::FindLastVisit(nsIURI* aURI,
 bool nsNavHistory::IsURIStringVisited(const nsACString& aURIString)
 {
   nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-    "SELECT 1 "
+    "SELECT h.id "
     "FROM moz_places h "
     "WHERE url = ?1 "
-      "AND last_visit_date NOTNULL "
+      "AND EXISTS(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
   );
   NS_ENSURE_TRUE(stmt, false);
   mozStorageStatementScoper scoper(stmt);

@@ -1,4 +1,3 @@
-#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -12,14 +11,14 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is the Open Web Apps.
 #
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
+# The Initial Developer of the Original Code is Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2004
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#   Fabrice Desré <fabrice@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,47 +34,24 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
+DEPTH     = ../../..
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= plugin
-LIBRARY_NAME	= gkpluginandroid_s
+MODULE = openwebapps
 
-LIBXUL_LIBRARY   = 1
-FORCE_STATIC_LIB = 1
-EXPORT_LIBRARY = 1
+XPIDLSRCS = OpenWebapps.idl
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
-
-EXPORTS = \
-  android_npapi.h \
+EXTRA_COMPONENTS += \
+  OpenWebapps.js \
+  OpenWebapps.manifest \
   $(NULL)
 
-CPPSRCS += ANPAudio.cpp    \
-           ANPCanvas.cpp   \
-           ANPEvent.cpp    \
-           ANPMatrix.cpp   \
-           ANPPath.cpp     \
-           ANPSystem.cpp   \
-           ANPWindow.cpp   \
-           ANPBitmap.cpp   \
-           ANPLog.cpp      \
-           ANPPaint.cpp    \
-           ANPSurface.cpp  \
-           ANPTypeface.cpp \
-           $(NULL)
-
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/dom/plugins/base \
-  $(MOZ_CAIRO_CFLAGS) \
+EXTRA_JS_MODULES = \
+  OpenWebapps.jsm \
   $(NULL)
-
-DEFINES += -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"'
 
 include $(topsrcdir)/config/rules.mk
-

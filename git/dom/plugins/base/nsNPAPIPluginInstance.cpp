@@ -65,13 +65,17 @@
 #include "ANPBase.h"
 #include <android/log.h>
 #include "android_npapi.h"
-#include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "AndroidBridge.h"
 #endif
 
 using namespace mozilla;
 using namespace mozilla::plugins::parent;
+
+#ifdef MOZ_WIDGET_ANDROID
+#include <map>
+static std::map<void*, nsNPAPIPluginInstance*> sSurfaceMap;
+#endif
 
 static NS_DEFINE_IID(kIOutputStreamIID, NS_IOUTPUTSTREAM_IID);
 static NS_DEFINE_IID(kIPluginStreamListenerIID, NS_IPLUGINSTREAMLISTENER_IID);
@@ -89,6 +93,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
 #endif
 #ifdef MOZ_WIDGET_ANDROID
     mSurface(nsnull),
+    mTargetSurface(nsnull),
     mDrawingModel(0),
 #endif
     mRunning(NOT_STARTED),
@@ -123,6 +128,10 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
       mUsePluginLayersPref = useLayersPref;
   }
 
+#ifdef MOZ_WIDGET_ANDROID
+  mTargetSurfaceLock = new Mutex("nsNPAPIPluginInstance::SurfaceLock");
+#endif
+
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
 }
 
@@ -134,6 +143,22 @@ nsNPAPIPluginInstance::~nsNPAPIPluginInstance()
     PR_Free((void *)mMIMEType);
     mMIMEType = nsnull;
   }
+
+#ifdef MOZ_WIDGET_ANDROID
+  if (mSurface) {
+    sSurfaceMap.erase(mSurface);
+  }
+
+  if (mTargetSurface) {
+    delete mTargetSurface;
+    mTargetSurface = nsnull;
+  }
+
+  if (mTargetSurfaceLock) {
+    delete mTargetSurfaceLock;
+    mTargetSurfaceLock = nsnull;
+  }
+#endif
 }
 
 void
@@ -735,25 +760,40 @@ void nsNPAPIPluginInstance::SetDrawingModel(PRUint32 aModel)
 {
   mDrawingModel = aModel;
 }
+
 class SurfaceGetter : public nsRunnable {
 public:
-  SurfaceGetter(nsNPAPIPluginInstance* aInstance, NPPluginFuncs* aPluginFunctions, NPP_t aNPP) : 
-    mInstance(aInstance), mPluginFunctions(aPluginFunctions), mNPP(aNPP) {
+  SurfaceGetter(NPPluginFuncs* aPluginFunctions, NPP_t aNPP) : 
+    mHaveSurface(false), mPluginFunctions(aPluginFunctions), mNPP(aNPP) {
+    mLock = new Mutex("SurfaceGetter::Lock");
+    mCondVar = new CondVar(*mLock, "SurfaceGetter::CondVar");
+    
   }
   ~SurfaceGetter() {
+    delete mLock;
+    delete mCondVar;
   }
   nsresult Run() {
-    void* surface;
-    (*mPluginFunctions->getvalue)(&mNPP, kJavaSurface_ANPGetValue, &surface);
-    mInstance->SetJavaSurface(surface);
+    MutexAutoLock lock(*mLock);
+    (*mPluginFunctions->getvalue)(&mNPP, kJavaSurface_ANPGetValue, &mSurface);
+    mHaveSurface = true;
+    mCondVar->Notify();
     return NS_OK;
   }
-  void RequestSurface() {
-    mozilla::AndroidBridge::Bridge()->PostToJavaThread(this);
+  void* GetSurface() {
+    MutexAutoLock lock(*mLock);
+    mHaveSurface = false;
+    AndroidBridge::Bridge()->PostToJavaThread(this);
+    while (!mHaveSurface)
+      mCondVar->Wait();
+    return mSurface;
   }
 private:
-  nsNPAPIPluginInstance* mInstance;
   NPP_t mNPP;
+  void* mSurface;
+  Mutex* mLock;
+  CondVar* mCondVar;
+  bool mHaveSurface;
   NPPluginFuncs* mPluginFunctions;
 };
 
@@ -763,22 +803,64 @@ void* nsNPAPIPluginInstance::GetJavaSurface()
   if (mDrawingModel != kSurface_ANPDrawingModel)
     return nsnull;
   
+  if (mSurface)
+    return mSurface;
+
+  nsCOMPtr<SurfaceGetter> sg = new SurfaceGetter(mPlugin->PluginFuncs(), mNPP);
+  mSurface = sg->GetSurface();
+  sSurfaceMap[mSurface] = this;
   return mSurface;
 }
 
-void nsNPAPIPluginInstance::SetJavaSurface(void* aSurface)
+gfxImageSurface*
+nsNPAPIPluginInstance::LockTargetSurface()
 {
-  mSurface = aSurface;
+  mTargetSurfaceLock->Lock();
+  return mTargetSurface;
 }
 
-void nsNPAPIPluginInstance::RequestJavaSurface()
+gfxImageSurface*
+nsNPAPIPluginInstance::LockTargetSurface(PRUint32 aWidth, PRUint32 aHeight, gfxImageFormat aFormat,
+                                         NPRect* aRect)
 {
-  if (mSurfaceGetter.get())
-    return;
+  mTargetSurfaceLock->Lock();
+  if (!mTargetSurface ||
+      mTargetSurface->Width() != aWidth ||
+      mTargetSurface->Height() != aHeight ||
+      mTargetSurface->Format() != aFormat) {
 
-  mSurfaceGetter = new SurfaceGetter(this, mPlugin->PluginFuncs(), mNPP);
+    if (mTargetSurface) {
+      delete mTargetSurface;
+    }
 
-  ((SurfaceGetter*)mSurfaceGetter.get())->RequestSurface();
+    mTargetSurface = new gfxImageSurface(gfxIntSize(aWidth, aHeight), aFormat);
+  }
+
+  mTargetLockRect = *aRect;
+
+  return mTargetSurface;
+}
+
+void
+nsNPAPIPluginInstance::InvalidateTargetRect()
+{
+    InvalidateRect(&mTargetLockRect);
+}
+
+void
+nsNPAPIPluginInstance::UnlockTargetSurface(bool aInvalidate)
+{
+  mTargetSurfaceLock->Unlock();
+
+  if (aInvalidate) {
+    NS_DispatchToMainThread(NS_NewRunnableMethod(this, &nsNPAPIPluginInstance::InvalidateTargetRect));
+  }
+}
+
+nsNPAPIPluginInstance*
+nsNPAPIPluginInstance::FindByJavaSurface(void* aJavaSurface)
+{
+  return sSurfaceMap[aJavaSurface];
 }
 
 #endif

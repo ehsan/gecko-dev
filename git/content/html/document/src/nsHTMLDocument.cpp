@@ -1293,9 +1293,11 @@ nsHTMLDocument::GetURL(nsAString& aURL)
 }
 
 nsIContent*
-nsHTMLDocument::GetBody()
+nsHTMLDocument::GetBody(nsresult *aResult)
 {
   Element* body = GetBodyElement();
+
+  *aResult = NS_OK;
 
   if (body) {
     // There is a body element, return that as the body.
@@ -1315,9 +1317,10 @@ nsHTMLDocument::GetBody(nsIDOMHTMLElement** aBody)
 {
   *aBody = nsnull;
 
-  nsIContent *body = GetBody();
+  nsresult rv;
+  nsIContent *body = GetBody(&rv);
 
-  return body ? CallQueryInterface(body, aBody) : NS_OK;
+  return body ? CallQueryInterface(body, aBody) : rv;
 }
 
 NS_IMETHODIMP
