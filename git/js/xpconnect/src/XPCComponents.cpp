@@ -2784,16 +2784,9 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
 
         uint32_t column = err->uctokenptr - err->uclinebuf;
 
-        const PRUnichar* ucmessage =
-            static_cast<const PRUnichar*>(err->ucmessage);
-        const PRUnichar* uclinebuf =
-            static_cast<const PRUnichar*>(err->uclinebuf);
-
         nsresult rv = scripterr->InitWithWindowID(
-                ucmessage ? nsDependentString(ucmessage) : EmptyString(),
-                fileUni,
-                uclinebuf ? nsDependentString(uclinebuf) : EmptyString(),
-                err->lineno,
+                static_cast<const PRUnichar*>(err->ucmessage), fileUni.get(),
+                static_cast<const PRUnichar*>(err->uclinebuf), err->lineno,
                 column, err->flags, "XPConnect JavaScript", innerWindowID);
         NS_ENSURE_SUCCESS(rv, NS_OK);
 
@@ -2824,9 +2817,9 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
         return NS_OK;
 
     nsresult rv = scripterr->InitWithWindowID(
-            nsDependentString(static_cast<const PRUnichar *>(msgchars)),
-            NS_ConvertUTF8toUTF16(fileName),
-            EmptyString(), lineNo, 0, 0, "XPConnect JavaScript", innerWindowID);
+            reinterpret_cast<const PRUnichar *>(msgchars),
+            NS_ConvertUTF8toUTF16(fileName).get(),
+            nullptr, lineNo, 0, 0, "XPConnect JavaScript", innerWindowID);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
     console->LogMessage(scripterr);

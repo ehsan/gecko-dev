@@ -91,9 +91,9 @@ nsScriptError::GetCategory(char **result) {
 }
 
 NS_IMETHODIMP
-nsScriptError::Init(const nsAString& message,
-                    const nsAString& sourceName,
-                    const nsAString& sourceLine,
+nsScriptError::Init(const PRUnichar *message,
+                    const PRUnichar *sourceName,
+                    const PRUnichar *sourceLine,
                     uint32_t lineNumber,
                     uint32_t columnNumber,
                     uint32_t flags,
@@ -104,9 +104,9 @@ nsScriptError::Init(const nsAString& message,
 }
 
 NS_IMETHODIMP
-nsScriptError::InitWithWindowID(const nsAString& message,
-                                const nsAString& sourceName,
-                                const nsAString& sourceLine,
+nsScriptError::InitWithWindowID(const PRUnichar *message,
+                                const PRUnichar *sourceName,
+                                const PRUnichar *sourceLine,
                                 uint32_t lineNumber,
                                 uint32_t columnNumber,
                                 uint32_t flags,

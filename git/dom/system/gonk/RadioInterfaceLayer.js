@@ -34,7 +34,6 @@ const nsIRadioInterfaceLayer = Ci.nsIRadioInterfaceLayer;
 
 const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
 const kSmsReceivedObserverTopic          = "sms-received";
-const kSmsSentObserverTopic              = "sms-sent";
 const kSmsDeliveredObserverTopic         = "sms-delivered";
 const kMozSettingsChangedObserverTopic   = "mozsettings-changed";
 const kSysMsgListenerReadyObserverTopic  = "system-message-listener-ready";
@@ -1019,8 +1018,6 @@ RadioInterfaceLayer.prototype = {
     }
 
     gSmsRequestManager.notifySmsSent(options.requestId, sms);
-
-    Services.obs.notifyObservers(options.sms, kSmsSentObserverTopic, null);
   },
 
   handleSmsDelivered: function handleSmsDelivered(message) {
