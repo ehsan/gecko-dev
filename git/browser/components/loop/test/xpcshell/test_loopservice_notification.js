@@ -7,8 +7,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Chat",
 
 let openChatOrig = Chat.open;
 
-const loopServiceModule = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
-
 add_test(function test_openChatWindow_on_notification() {
   Services.prefs.setCharPref("loop.seenToS", "unseen");
 
@@ -18,17 +16,12 @@ add_test(function test_openChatWindow_on_notification() {
       opened = true;
     };
 
-    let savedHawkClient = loopServiceModule.gHawkClient;
-    loopServiceModule.gHawkClient = {request: hawkGetCallsRequest};
-
     mockPushHandler.notify(1);
 
     do_check_true(opened, "should open a chat window");
 
     do_check_eq(Services.prefs.getCharPref("loop.seenToS"), "seen",
                 "should set the pref to 'seen'");
-
-    loopServiceModule.gHawkClient = savedHawkClient;
 
     run_next_test();
   });

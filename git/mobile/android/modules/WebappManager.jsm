@@ -29,9 +29,6 @@ XPCOMUtils.defineLazyGetter(this, "Strings", function() {
   return Services.strings.createBundle("chrome://browser/locale/webapp.properties");
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "ParentalControls",
-  "@mozilla.org/parental-controls-service;1", "nsIParentalControlsService");
-
 /**
  * Get the formatted plural form of a string.  Escapes semicolons in arguments
  * to provide to the formatter before formatting the string, then unescapes them
@@ -92,26 +89,13 @@ this.WebappManager = {
   },
 
   _installApk: function(aMessage, aMessageManager) { return Task.spawn((function*() {
-    if (!ParentalControls.isAllowed(ParentalControls.INSTALL_APPS)) {
-      aMessage.error = Strings.GetStringFromName("webappsDisabled"),
+    if (this.inGuestSession()) {
+      aMessage.error = Strings.GetStringFromName("webappsDisabledInGuest"),
       aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
       return;
     }
 
     let filePath;
-
-
-    let appName = aMessage.app.manifest ? aMessage.app.manifest.name
-                                        : aMessage.app.updateManifest.name;
-
-    let downloadingNotification = this._notify({
-      title: Strings.GetStringFromName("retrievingTitle"),
-      message: Strings.formatStringFromName("retrievingMessage", [appName], 1),
-      icon: "drawable://alert_download_animation",
-      // TODO: make this a determinate progress indicator once we can determine
-      // the sizes of the APKs and observe their progress - bug 970210.
-      progress: NaN,
-    });
 
     try {
       filePath = yield this._downloadApk(aMessage.app.manifestURL);
@@ -120,8 +104,6 @@ this.WebappManager = {
       aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
       debug("error downloading APK: " + ex);
       return;
-    } finally {
-      downloadingNotification.cancel();
     }
 
     Messaging.sendRequestForResult({
@@ -173,7 +155,6 @@ this.WebappManager = {
         deferred.reject(message);
       }
     }
-
 
     // Trigger the download.
     worker.postMessage({ url: generatorUrl.spec, path: file.path });
@@ -279,6 +260,10 @@ this.WebappManager = {
     }
 
   }),
+
+  inGuestSession: function() {
+    return Services.wm.getMostRecentWindow("navigator:browser").BrowserApp.isGuest;
+  },
 
   autoInstall: function(aData) {
     debug("autoInstall " + aData.manifestURL);
@@ -536,7 +521,7 @@ this.WebappManager = {
       message: getFormattedPluralForm("retrievingUpdateMessage", [downloadingNames], aApps.length),
       icon: "drawable://alert_download_animation",
       // TODO: make this a determinate progress indicator once we can determine
-      // the sizes of the APKs and observe their progress - bug 970210.
+      // the sizes of the APKs and observe their progress.
       progress: NaN,
     });
 

@@ -196,19 +196,20 @@ this.FxAccountsManager = {
               }
             );
           }
-          // ... otherwise, the account was deleted, so ask for Sign In/Up
-          return this._localSignOut().then(
-            () => {
-              return this._uiRequest(UI_REQUEST_SIGN_IN_FLOW, aAudience,
-                                     aPrincipal);
-            },
-            (reason) => {
-              // reject primary problem, not signout failure
-              log.error("Signing out in response to server error threw: " +
-                        reason);
-              return this._error(reason);
-            }
-          );
+        }
+      );
+
+      // Otherwise, the account was deleted, so ask for Sign In/Up
+      return this._localSignOut().then(
+        () => {
+          return this._uiRequest(UI_REQUEST_SIGN_IN_FLOW, aAudience,
+                                 aPrincipal);
+        },
+        (reason) => {
+          // reject primary problem, not signout failure
+          log.error("Signing out in response to server error threw: " +
+                    reason);
+          return this._error(reason);
         }
       );
     }

@@ -935,8 +935,8 @@ Search.prototype = {
     // If actions are enabled and the page is open, add only the switch-to-tab
     // result.  Otherwise, add the normal result.
     let [url, action] = this._enableActions && openPageCount > 0 ?
-                        ["moz-action:switchtab," + escapedURL, "switchtab"] :
-                        [escapedURL, null];
+                        ["moz-action:switchtab," + escapedURL, "action "] :
+                        [escapedURL, ""];
 
     // Always prefer the bookmark title unless it is empty
     let title = bookmarkTitle || historyTitle;
@@ -986,7 +986,7 @@ Search.prototype = {
     }
 
     if (action)
-      match.style = "action " + action;
+      match.style = "action " + match.style;
 
     match.value = url;
     match.comment = title;
