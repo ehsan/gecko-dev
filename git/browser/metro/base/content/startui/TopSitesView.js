@@ -167,12 +167,9 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
       let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
       if (yield OS.File.exists(filepath)) {
         aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
-        // use the setter when available to update the backgroundImage value
-        if ('backgroundImage' in aTileNode &&
-            aTileNode.backgroundImage != aSite.backgroundImage) {
+        if ('backgroundImage' in aTileNode) {
           aTileNode.backgroundImage = aSite.backgroundImage;
         } else {
-          // just update the attribute for when the node gets the binding applied
           aTileNode.setAttribute("customImage", aSite.backgroundImage);
         }
       }
