@@ -233,18 +233,28 @@ function getSelectionHandler() {
 }
 
 function ok(one, msg) {
-  return Messaging.sendRequestForResult({
-    type: "Robocop:testSelectionHandler",
-    result: one,
-    msg: msg
+  return new Promise(function(resolve, reject) {
+    sendMessageToJava({
+      type: "Robocop:testSelectionHandler",
+      result: one,
+      msg: msg
+    },
+    function (res, err) {
+      (err) ? reject(err) : resolve(res);
+    });
   });
 }
 
 function is(one, two, msg) {
-  return Messaging.sendRequestForResult({
-    type: "Robocop:testSelectionHandler",
-    result: one === two,
-    msg: msg + " : " + one + " === " + two
+  return new Promise(function(resolve, reject) {
+    sendMessageToJava({
+      type: "Robocop:testSelectionHandler",
+      result: one === two,
+      msg: msg + " : " + one + " === " + two
+    },
+    function (res, err) {
+      (err) ? reject(err) : resolve(res);
+    });
   });
 }
 

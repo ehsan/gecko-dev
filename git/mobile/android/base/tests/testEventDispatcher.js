@@ -32,11 +32,20 @@ function send_test_message(type) {
 }
 
 function send_message_for_response(type, response) {
-  Messaging.sendRequestForResult({
+  sendMessageToJava({
     type: type,
     response: response,
-  }).then(result => do_check_eq(result, response),
-          error => do_check_eq(error, response));
+  }, (success, error) => {
+    if (response === "success") {
+      do_check_eq(success, response);
+      do_check_eq(error, null);
+    } else if (response === "error") {
+      do_check_eq(success, null);
+      do_check_eq(error, response);
+    } else {
+      do_throw("Unexpected response: " + response);
+    }
+  });
 }
 
 function finish_test() {

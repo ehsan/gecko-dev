@@ -150,6 +150,24 @@ var addon10 = {
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
+
+/*
+ * Trigger an AddonManager background update check
+ *
+ * @param  aCallback
+ *         Callback to call once the background update is complete
+ */
+function trigger_background_update(aCallback) {
+  Services.obs.addObserver({
+    observe: function(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(this, "addons-background-update-complete");
+      do_execute_soon(aCallback);
+    }
+  }, "addons-background-update-complete", false);
+
+  gInternalManager.notify(null);
+}
+
 function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
@@ -167,7 +185,7 @@ function run_test() {
 
   startupManager();
 
-  AddonManagerInternal.backgroundUpdateCheck().then(run_test_1);
+  trigger_background_update(run_test_1);
 }
 
 function end_test() {

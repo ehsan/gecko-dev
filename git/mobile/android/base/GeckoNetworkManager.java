@@ -39,12 +39,6 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
 
     static private final GeckoNetworkManager sInstance = new GeckoNetworkManager();
 
-    public static void destroy() {
-        if (sInstance != null) {
-            sInstance.onDestroy();
-        }
-    }
-
     // Connection Type defined in Network Information API v3.
     private enum ConnectionType {
         CELLULAR(0),
@@ -64,14 +58,6 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
     private enum InfoType {
         MCC,
         MNC
-    }
-
-    private GeckoNetworkManager() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "Wifi:Enable");
-    }
-
-    private void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, "Wifi:Enable");
     }
 
     private ConnectionType mConnectionType = ConnectionType.NONE;
@@ -110,6 +96,8 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
         if (mShouldNotify) {
             startListening();
         }
+
+        EventDispatcher.getInstance().registerGeckoThreadListener((NativeEventListener)this, "Wifi:Enable");
     }
 
     private void startListening() {
@@ -129,6 +117,8 @@ public class GeckoNetworkManager extends BroadcastReceiver implements NativeEven
         if (mShouldNotify) {
             stopListening();
         }
+
+        EventDispatcher.getInstance().unregisterGeckoThreadListener((NativeEventListener)this, "Wifi:Enable");
     }
 
     @Override

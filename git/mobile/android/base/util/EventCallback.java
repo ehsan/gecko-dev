@@ -26,4 +26,9 @@ public interface EventCallback {
      *                 JSONObject#put(String, Object).
      */
     public void sendError(Object response);
+
+    /**
+     * Cancels the request, preventing any Gecko-side callbacks from being executed.
+     */
+    public void sendCancel();
 }

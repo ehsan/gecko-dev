@@ -50,8 +50,6 @@ add_task(function test_initialize_starts_timer() {
 
 function run_test()
 {
-  setupFakeLoopServer();
-
   // Override MozLoopService's initializeTimer, so that we can verify the timeout is called
   // correctly.
   MozLoopService.initializeTimerFunc = function() {

@@ -300,13 +300,8 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
   get _hasEventListeners() {
     let parsers = this._eventParsers;
     for (let [,{hasListeners}] of parsers) {
-      try {
-        if (hasListeners && hasListeners(this.rawNode)) {
-          return true;
-        }
-      } catch(e) {
-        // An object attached to the node looked like a listener but wasn't...
-        // do nothing.
+      if (hasListeners && hasListeners(this.rawNode)) {
+        return true;
       }
     }
     return false;
@@ -346,23 +341,18 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
     let events = [];
 
     for (let [,{getListeners, normalizeHandler}] of parsers) {
-      try {
-        let eventInfos = getListeners(node);
+      let eventInfos = getListeners(node);
 
-        if (!eventInfos) {
-          continue;
+      if (!eventInfos) {
+        continue;
+      }
+
+      for (let eventInfo of eventInfos) {
+        if (normalizeHandler) {
+          eventInfo.normalizeHandler = normalizeHandler;
         }
 
-        for (let eventInfo of eventInfos) {
-          if (normalizeHandler) {
-            eventInfo.normalizeHandler = normalizeHandler;
-          }
-
-          this.processHandlerForEvent(node, events, dbg, eventInfo);
-        }
-      } catch(e) {
-        // An object attached to the node looked like a listener but wasn't...
-        // do nothing.
+        this.processHandlerForEvent(node, events, dbg, eventInfo);
       }
     }
 

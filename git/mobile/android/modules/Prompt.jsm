@@ -171,7 +171,7 @@ Prompt.prototype = {
   },
 
   _innerShow: function() {
-    Messaging.sendRequestForResult(this.msg).then((data) => {
+    sendMessageToJava(this.msg, (data) => {
       if (this.callback)
         this.callback(data);
     });

@@ -89,8 +89,6 @@ function test_getLoopBoolPref_not_found()
 
 function run_test()
 {
-  setupFakeLoopServer();
-
   test_getLoopCharPref();
   test_getLoopCharPref_not_found();
   test_getLoopCharPref_non_coercible_type();

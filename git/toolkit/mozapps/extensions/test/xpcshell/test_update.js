@@ -384,7 +384,9 @@ function run_test_6() {
     "onDownloadEnded"
   ], continue_test_6);
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event to cause a background update and wait for the magic to
+  // happen
+  gInternalManager.notify(null);
 }
 
 function continue_test_6(install) {
@@ -482,7 +484,9 @@ function run_test_7() {
       "onExternalInstall"
     ], check_test_7);
 
-    AddonManagerInternal.backgroundUpdateCheck();
+    // Fake a timer event to cause a background update and wait for the magic to
+    // happen
+    gInternalManager.notify(null);
   });
 }
 
@@ -548,7 +552,9 @@ function run_test_7_cache() {
       "onExternalInstall"
     ], check_test_7_cache);
 
-    AddonManagerInternal.backgroundUpdateCheck();
+    // Fake a timer event to cause a background update and wait for the magic to
+    // happen
+    gInternalManager.notify(null);
   });
 }
 
@@ -978,7 +984,8 @@ function run_test_14() {
       },
     });
 
-    AddonManagerInternal.backgroundUpdateCheck();
+    // Fake a timer event
+    gInternalManager.notify(null);
   });
 }
 
@@ -1076,7 +1083,8 @@ function run_test_15() {
       },
     });
 
-    AddonManagerInternal.backgroundUpdateCheck();
+    // Fake a timer event
+    gInternalManager.notify(null);
   });
 }
 
@@ -1174,8 +1182,8 @@ function run_test_17() {
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS_PERFORMANCE,
                              "http://localhost:" + gPort + "/data/test_update.xml");
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
-
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 // Tests that compatibility updates are applied to addons when the updated

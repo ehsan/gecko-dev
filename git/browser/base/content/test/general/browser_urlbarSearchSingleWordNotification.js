@@ -15,10 +15,8 @@ function promiseNotificationForTab(aBrowser, value, expected, tab=aBrowser.selec
   let deferred = Promise.defer();
   let notificationBox = aBrowser.getNotificationBox(tab.linkedBrowser);
   if (expected) {
-    info("Waiting for " + value + " notification");
     let checkForNotification = function() {
       if (notificationBox.getNotificationWithValue(value)) {
-        info("Saw the notification");
         notificationObserver.disconnect();
         notificationObserver = null;
         deferred.resolve();
@@ -50,13 +48,12 @@ function* runURLBarSearchTest(valueToOpen, expectSearch, expectNotification, aWi
     expectedURI = Services.search.defaultEngine.getSubmission(valueToOpen, null, "keyword").uri.spec;
   }
   aWindow.gURLBar.focus();
-  let docLoadPromise = waitForDocLoadAndStopIt(expectedURI, aWindow.gBrowser.selectedBrowser);
+  let docLoadPromise = waitForDocLoadAndStopIt(expectedURI, aWindow.gBrowser);
   EventUtils.synthesizeKey("VK_RETURN", {}, aWindow);
 
-  yield Promise.all([
-    docLoadPromise,
-    promiseNotificationForTab(aWindow.gBrowser, "keyword-uri-fixup", expectNotification)
-  ]);
+  yield docLoadPromise;
+
+  yield promiseNotificationForTab(aWindow.gBrowser, "keyword-uri-fixup", expectNotification);
 }
 
 add_task(function* test_navigate_full_domain() {
@@ -91,7 +88,7 @@ function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
 
     let notificationBox = browser.getNotificationBox(tab.linkedBrowser);
     let notification = notificationBox.getNotificationWithValue("keyword-uri-fixup");
-    let docLoadPromise = waitForDocLoadAndStopIt("http://" + hostName + "/", tab.linkedBrowser);
+    let docLoadPromise = waitForDocLoadAndStopIt("http://" + hostName + "/", browser);
     notification.querySelector(".notification-button-default").click();
 
     // check pref value
