@@ -697,11 +697,11 @@ Telephony::NotifyError(uint32_t aServiceId,
 NS_IMETHODIMP
 Telephony::NotifyCdmaCallWaiting(uint32_t aServiceId, const nsAString& aNumber)
 {
-  MOZ_ASSERT(mCalls.Length() == 1);
+  MOZ_ASSERT(mActiveCall &&
+             mActiveCall->ServiceId() == aServiceId &&
+             mActiveCall->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED);
 
-  nsRefPtr<TelephonyCall> callToNotify = mCalls[0];
-  MOZ_ASSERT(callToNotify && callToNotify->ServiceId() == aServiceId);
-
+  nsRefPtr<TelephonyCall> callToNotify = mActiveCall;
   callToNotify->UpdateSecondNumber(aNumber);
   DispatchCallEvent(NS_LITERAL_STRING("callschanged"), callToNotify);
   return NS_OK;

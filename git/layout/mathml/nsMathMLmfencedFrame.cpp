@@ -101,7 +101,8 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 
   //////////////  
   // see if the opening fence is there ...
-  if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::open, value)) {
+  if (!GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::open,
+                    value)) {
     value = char16_t('('); // default as per the MathML REC
   } else {
     value.CompressWhitespace();
@@ -116,7 +117,8 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 
   //////////////
   // see if the closing fence is there ...
-  if(!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::close, value)) {
+  if(!GetAttribute(mContent, mPresentationData.mstyle,
+                    nsGkAtoms::close, value)) {
     value = char16_t(')'); // default as per the MathML REC
   } else {
     value.CompressWhitespace();
@@ -131,7 +133,8 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 
   //////////////
   // see if separators are there ...
-  if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::separators_, value)) {
+  if (!GetAttribute(mContent, mPresentationData.mstyle, 
+                    nsGkAtoms::separators_, value)) {
     value = char16_t(','); // default as per the MathML REC
   } else {
     value.StripWhitespace();

@@ -73,9 +73,6 @@ class MetroInput : public Microsoft::WRL::RuntimeClass<IInspectable>
   InspectableClass(L"MetroInput", BaseTrust);
 
 private:
-  typedef mozilla::layers::AllowedTouchBehavior AllowedTouchBehavior;
-  typedef uint32_t TouchBehaviorFlags;
-
   // Devices
   typedef ABI::Windows::Devices::Input::PointerDeviceType PointerDeviceType;
 
@@ -188,13 +185,6 @@ private:
   uint16_t ProcessInputTypeForGesture(IEdgeGestureEventArgs* aArgs);
   bool ShouldDeliverInputToRecognizer();
 
-  // Returns array of allowed touch behaviors  for touch points of given TouchEvent.
-  // Note: event argument should be transformed via apzc before supplying to this method.
-  void GetAllowedTouchBehavior(WidgetTouchEvent* aTransformedEvent, nsTArray<TouchBehaviorFlags>& aOutBehaviors);
-
-  // Checks whether any touch behavior is allowed.
-  bool IsTouchBehaviorForbidden(const nsTArray<TouchBehaviorFlags>& aTouchBehaviors);
-
   // The W3C spec states that "whether preventDefault has been called" should
   // be tracked on a per-touchpoint basis, but it also states that touchstart
   // and touchmove events can contain multiple changed points.  At the time of
@@ -222,7 +212,6 @@ private:
   bool mApzConsumingTouch;
   bool mCancelable;
   bool mRecognizerWantsEvents;
-
   nsTArray<uint32_t> mCanceledIds;
 
   // In the old Win32 way of doing things, we would receive a WM_TOUCH event
@@ -288,9 +277,6 @@ private:
   // Async event callbacks
   void DeliverNextQueuedEventIgnoreStatus();
   void DeliverNextQueuedTouchEvent();
-
-  void HandleFirstTouchStartEvent(WidgetTouchEvent* aEvent);
-  void HandleFirstTouchMoveEvent(WidgetTouchEvent* aEvent);
 
   // Sync event dispatching
   void DispatchEventIgnoreStatus(WidgetGUIEvent* aEvent);

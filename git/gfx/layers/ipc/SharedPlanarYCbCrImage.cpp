@@ -75,13 +75,13 @@ SharedPlanarYCbCrImage::GetBuffer()
 }
 
 already_AddRefed<gfxASurface>
-SharedPlanarYCbCrImage::DeprecatedGetAsSurface()
+SharedPlanarYCbCrImage::GetAsSurface()
 {
   if (!mTextureClient->IsAllocated()) {
     NS_WARNING("Can't get as surface");
     return nullptr;
   }
-  return PlanarYCbCrImage::DeprecatedGetAsSurface();
+  return PlanarYCbCrImage::GetAsSurface();
 }
 
 void

@@ -4995,7 +4995,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
     return result;
 
   mozilla::gfx::IntSize size;
-  nsRefPtr<gfxASurface> surf = container->DeprecatedGetCurrentAsSurface(&size);
+  nsRefPtr<gfxASurface> surf = container->GetCurrentAsSurface(&size);
   if (!surf)
     return result;
 

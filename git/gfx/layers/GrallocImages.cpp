@@ -197,7 +197,7 @@ ConvertYVU420SPToRGB565(void *aYData, uint32_t aYStride,
 }
 
 already_AddRefed<gfxASurface>
-GrallocImage::DeprecatedGetAsSurface()
+GrallocImage::GetAsSurface()
 {
   android::sp<GraphicBuffer> graphicBuffer =
     GrallocBufferActor::GetFrom(GetSurfaceDescriptor());

@@ -32,8 +32,6 @@ enum
 
 #undef NS_DEFINE_VK
 
-#define kLatestSeqno UINT32_MAX
-
 namespace mozilla {
 
 namespace dom {
@@ -168,25 +166,18 @@ private:
   friend class plugins::PPluginInstanceChild;
 
   WidgetTextEvent()
-    : mSeqno(kLatestSeqno)
-    , rangeCount(0)
-    , rangeArray(nullptr)
-    , isChar(false)
   {
   }
 
 public:
-  uint32_t mSeqno;
+  uint32_t seqno;
 
 public:
   virtual WidgetTextEvent* AsTextEvent() MOZ_OVERRIDE { return this; }
 
-  WidgetTextEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget)
-    : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_TEXT_EVENT)
-    , mSeqno(kLatestSeqno)
-    , rangeCount(0)
-    , rangeArray(nullptr)
-    , isChar(false)
+  WidgetTextEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
+    WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_TEXT_EVENT),
+    rangeCount(0), rangeArray(nullptr), isChar(false)
   {
   }
 
@@ -226,12 +217,11 @@ private:
   friend class mozilla::dom::PBrowserChild;
 
   WidgetCompositionEvent()
-    : mSeqno(kLatestSeqno)
   {
   }
 
 public:
-  uint32_t mSeqno;
+  uint32_t seqno;
 
 public:
   virtual WidgetCompositionEvent* AsCompositionEvent() MOZ_OVERRIDE
@@ -240,9 +230,8 @@ public:
   }
 
   WidgetCompositionEvent(bool aIsTrusted, uint32_t aMessage,
-                         nsIWidget* aWidget)
-    : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_COMPOSITION_EVENT)
-    , mSeqno(kLatestSeqno)
+                         nsIWidget* aWidget) :
+    WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_COMPOSITION_EVENT)
   {
     // XXX compositionstart is cancelable in draft of DOM3 Events.
     //     However, it doesn't make sense for us, we cannot cancel composition
@@ -387,18 +376,12 @@ private:
   friend class mozilla::dom::PBrowserChild;
 
   WidgetSelectionEvent()
-    : mSeqno(kLatestSeqno)
-    , mOffset(0)
-    , mLength(0)
-    , mReversed(false)
-    , mExpandToClusterBoundary(true)
-    , mSucceeded(false)
   {
     MOZ_CRASH("WidgetSelectionEvent is created without proper arguments");
   }
 
 public:
-  uint32_t mSeqno;
+  uint32_t seqno;
 
 public:
   virtual WidgetSelectionEvent* AsSelectionEvent() MOZ_OVERRIDE
@@ -406,14 +389,9 @@ public:
     return this;
   }
 
-  WidgetSelectionEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget)
-    : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_SELECTION_EVENT)
-    , mSeqno(kLatestSeqno)
-    , mOffset(0)
-    , mLength(0)
-    , mReversed(false)
-    , mExpandToClusterBoundary(true)
-    , mSucceeded(false)
+  WidgetSelectionEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
+    WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_SELECTION_EVENT),
+    mExpandToClusterBoundary(true), mSucceeded(false)
   {
   }
 

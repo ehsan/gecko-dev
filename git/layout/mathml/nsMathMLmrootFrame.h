@@ -48,12 +48,6 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  uint8_t
-  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE
-  {
-    return (aFrame && aFrame == mFrames.LastChild()) ? 2 : 0;
-  }
-
 protected:
   nsMathMLmrootFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmrootFrame();

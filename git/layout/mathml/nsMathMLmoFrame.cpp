@@ -255,14 +255,16 @@ nsMathMLmoFrame::ProcessOperatorData()
       mEmbellishData.flags |= NS_MATHML_EMBELLISH_MOVABLELIMITS;
 
     // see if the accent attribute is there
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accent_, value);
+    GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::accent_,
+                 value);
     if (value.EqualsLiteral("true"))
       mEmbellishData.flags |= NS_MATHML_EMBELLISH_ACCENT;
     else if (value.EqualsLiteral("false"))
       mEmbellishData.flags &= ~NS_MATHML_EMBELLISH_ACCENT;
 
     // see if the movablelimits attribute is there
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::movablelimits_, value);
+    GetAttribute(mContent, mPresentationData.mstyle,
+                 nsGkAtoms::movablelimits_, value);
     if (value.EqualsLiteral("true"))
       mEmbellishData.flags |= NS_MATHML_EMBELLISH_MOVABLELIMITS;
     else if (value.EqualsLiteral("false"))
@@ -315,7 +317,8 @@ nsMathMLmoFrame::ProcessOperatorData()
 
     // find our form
     form = NS_MATHML_OPERATOR_FORM_INFIX;
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::form, value);
+    GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::form,
+                 value);
     if (!value.IsEmpty()) {
       if (value.EqualsLiteral("prefix"))
         form = NS_MATHML_OPERATOR_FORM_PREFIX;
@@ -392,7 +395,8 @@ nsMathMLmoFrame::ProcessOperatorData()
   // which is not necessarily the default one.
   //
   nscoord leadingSpace = mEmbellishData.leadingSpace;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::lspace_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::lspace_,
+               value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
@@ -418,7 +422,8 @@ nsMathMLmoFrame::ProcessOperatorData()
   // which is not necessarily the default one.
   //
   nscoord trailingSpace = mEmbellishData.trailingSpace;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rspace_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::rspace_,
+               value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
@@ -454,29 +459,34 @@ nsMathMLmoFrame::ProcessOperatorData()
   // special: accent and movablelimits are handled above,
   // don't process them here
 
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::stretchy_, value);
+  GetAttribute(mContent, mPresentationData.mstyle,
+               nsGkAtoms::stretchy_, value);
   if (value.EqualsLiteral("false")) {
     mFlags &= ~NS_MATHML_OPERATOR_STRETCHY;
   } else if (value.EqualsLiteral("true")) {
     mFlags |= NS_MATHML_OPERATOR_STRETCHY;
   }
   if (NS_MATHML_OPERATOR_IS_FENCE(mFlags)) {
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::fence_, value);
+    GetAttribute(mContent, mPresentationData.mstyle,
+                 nsGkAtoms::fence_, value);
     if (value.EqualsLiteral("false"))
       mFlags &= ~NS_MATHML_OPERATOR_FENCE;
   }
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::largeop_, value);
+  GetAttribute(mContent, mPresentationData.mstyle,
+               nsGkAtoms::largeop_, value);
   if (value.EqualsLiteral("false")) {
     mFlags &= ~NS_MATHML_OPERATOR_LARGEOP;
   } else if (value.EqualsLiteral("true")) {
     mFlags |= NS_MATHML_OPERATOR_LARGEOP;
   }
   if (NS_MATHML_OPERATOR_IS_SEPARATOR(mFlags)) {
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::separator_, value);
+    GetAttribute(mContent, mPresentationData.mstyle,
+                 nsGkAtoms::separator_, value);
     if (value.EqualsLiteral("false"))
       mFlags &= ~NS_MATHML_OPERATOR_SEPARATOR;
   }
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::symmetric_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::symmetric_,
+               value);
   if (value.EqualsLiteral("false"))
     mFlags &= ~NS_MATHML_OPERATOR_SYMMETRIC;
   else if (value.EqualsLiteral("true"))
@@ -496,7 +506,8 @@ nsMathMLmoFrame::ProcessOperatorData()
   // normal size.
   //
   mMinSize = 0;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::minsize_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::minsize_,
+               value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,
@@ -528,7 +539,8 @@ nsMathMLmoFrame::ProcessOperatorData()
   // normal size.
   //
   mMaxSize = NS_MATHML_OPERATOR_SIZE_INFINITY;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::maxsize_, value);
+  GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::maxsize_,
+               value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,

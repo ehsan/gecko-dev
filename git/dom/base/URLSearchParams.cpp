@@ -301,6 +301,13 @@ URLSearchParams::Delete(const nsAString& aName)
   NotifyObserver();
 }
 
+uint32_t
+URLSearchParams::Size()
+{
+  Validate();
+  return mSearchParams.Count();
+}
+
 void
 URLSearchParams::DeleteAll()
 {
@@ -341,7 +348,7 @@ public:
 };
 
 void
-URLSearchParams::Serialize(nsAString& aValue) const
+URLSearchParams::Serialize(nsAString& aValue)
 {
   MOZ_ASSERT(mValid);
 

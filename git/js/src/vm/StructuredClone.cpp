@@ -809,8 +809,7 @@ JSStructuredCloneWriter::writeTypedArray(HandleObject obj)
         return false;
 
     // Write out the ArrayBuffer tag and contents
-    RootedValue val(context(), TypedArrayObject::bufferValue(tarr));
-    if (!startWrite(val))
+    if (!startWrite(TypedArrayObject::bufferValue(tarr)))
         return false;
 
     return out.write(tarr->byteOffset());
