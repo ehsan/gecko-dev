@@ -95,7 +95,7 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
   nsPresShellIterator iter(aDocument);
   nsCOMPtr<nsIPresShell> shell;
   while ((shell = iter.GetNextShell())) {
-    nsIFrame *frame = aContent->GetPrimaryFrame();
+    nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
     if (!frame) {
       continue;
     }

@@ -396,9 +396,8 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
   if (!IsNodeOfType(eCONTENT))
     return nsnull;
 
-  NS_ASSERTION(GetCurrentDoc() == aPresShell->GetDocument(),
-               "Wrong document somewhere");
-  nsIFrame* frame = static_cast<nsIContent*>(this)->GetPrimaryFrame();
+  nsIFrame* frame =
+    aPresShell->GetPrimaryFrameFor(static_cast<nsIContent*>(this));
   if (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION) {
     // This node should be a descendant of input/textarea editor.
     nsIContent* content = GetTextEditorRootContent();
@@ -3204,6 +3203,24 @@ nsGenericElement::IsNodeOfType(PRUint32 aFlags) const
 
 //----------------------------------------------------------------------
 
+// virtual
+void
+nsGenericElement::SetMayHaveFrame(PRBool aMayHaveFrame)
+{
+  if (aMayHaveFrame) {
+    SetFlags(NODE_MAY_HAVE_FRAME);
+  } else {
+    UnsetFlags(NODE_MAY_HAVE_FRAME);
+  }
+}
+
+// virtual
+PRBool
+nsGenericElement::MayHaveFrame() const
+{
+  return HasFlag(NODE_MAY_HAVE_FRAME);
+}
+
 PRUint32
 nsGenericElement::GetScriptTypeID() const
 {
@@ -3472,6 +3489,17 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
 }
 
 nsIFrame*
+nsGenericElement::GetPrimaryFrame()
+{
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) {
+    return nsnull;
+  }
+
+  return GetPrimaryFrameFor(this, doc);
+}
+
+nsIFrame*
 nsGenericElement::GetPrimaryFrame(mozFlushType aType)
 {
   nsIDocument* doc = GetCurrentDoc();
@@ -3483,7 +3511,21 @@ nsGenericElement::GetPrimaryFrame(mozFlushType aType)
   // information
   doc->FlushPendingNotifications(aType);
 
-  return GetPrimaryFrame();
+  return GetPrimaryFrameFor(this, doc);
+}
+
+/* static */
+nsIFrame*
+nsGenericElement::GetPrimaryFrameFor(nsIContent* aContent,
+                                     nsIDocument* aDocument)
+{
+  // Get presentation shell 0
+  nsIPresShell *presShell = aDocument->GetPrimaryShell();
+  if (!presShell) {
+    return nsnull;
+  }
+
+  return presShell->GetPrimaryFrameFor(aContent);
 }
 
 void

@@ -2321,6 +2321,11 @@ nsHTMLDocument::GetBodySize(PRInt32* aWidth,
 
   FlushPendingNotifications(Flush_Layout);
 
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
+  
+  if (!shell)
+    return NS_OK;
+
   // Find the <body> element: this is what we'll want to use for the
   // document's width and height values.
   nsIContent* body = GetBodyContent();
@@ -2329,7 +2334,7 @@ nsHTMLDocument::GetBodySize(PRInt32* aWidth,
   }
 
   // Now grab its frame
-  nsIFrame* frame = body->GetPrimaryFrame();
+  nsIFrame* frame = shell->GetPrimaryFrameFor(body);
   if (!frame)
     return NS_OK;
   

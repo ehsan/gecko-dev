@@ -185,7 +185,8 @@ nsScrollbarFrame::GetScrollbarMediator()
 {
   if (!mScrollbarMediator)
     return nsnull;
-  nsIFrame* f = mScrollbarMediator->GetPrimaryFrame();
+  nsIFrame* f =
+    PresContext()->PresShell()->GetPrimaryFrameFor(mScrollbarMediator);
   if (!f)
     return nsnull;
 

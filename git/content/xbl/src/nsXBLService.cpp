@@ -215,7 +215,7 @@ public:
     // will happen.
     nsIPresShell *shell = doc->GetPrimaryShell();
     if (shell) {
-      nsIFrame* childFrame = mBoundElement->GetPrimaryFrame();
+      nsIFrame* childFrame = shell->GetPrimaryFrameFor(mBoundElement);
       if (!childFrame) {
         // Check to see if it's in the undisplayed content map.
         nsStyleContext* sc =

@@ -389,7 +389,7 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIDOMNode *aNode)
   if (!content)
     return nsnull;
 
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
     return nsnull;
 

@@ -1113,31 +1113,28 @@ AssertEq(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 GC(JSContext *cx, uintN argc, jsval *vp)
 {
-    size_t preBytes = cx->runtime->gcBytes;
+    JSRuntime *rt;
+    uint32 preBytes;
+
+    rt = cx->runtime;
+    preBytes = rt->gcBytes;
     JS_GC(cx);
 
     char buf[256];
     JS_snprintf(buf, sizeof(buf), "before %lu, after %lu, break %08lx\n",
-                (unsigned long)preBytes, (unsigned long)cx->runtime->gcBytes,
+                (unsigned long)preBytes, (unsigned long)rt->gcBytes,
 #ifdef HAVE_SBRK
                 (unsigned long)sbrk(0)
 #else
                 0
 #endif
                 );
-    *vp = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, buf));
-    return true;
-}
-
 #ifdef JS_GCMETER
-static JSBool
-GCStats(JSContext *cx, uintN argc, jsval *vp)
-{
-    js_DumpGCStats(cx->runtime, stdout);
-    *vp = JSVAL_VOID;
-    return true;
-}
+    js_DumpGCStats(rt, stdout);
 #endif
+    *vp = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, buf));
+    return JS_TRUE;
+}
 
 static JSBool
 GCParameter(JSContext *cx, uintN argc, jsval *vp)
@@ -3712,9 +3709,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("quit",           Quit,           0,0,0),
     JS_FN("assertEq",       AssertEq,       2,0),
     JS_FN("gc",             ::GC,           0,0),
-#ifdef JS_GCMETER
-    JS_FN("gcstats",        GCStats,        0,0),
-#endif
     JS_FN("gcparam",        GCParameter,    2,0),
     JS_FN("countHeap",      CountHeap,      0,0),
 #ifdef JS_GC_ZEAL
@@ -3800,9 +3794,6 @@ static const char *const shell_help_messages[] = {
 "  Throw if the first two arguments are not the same (both +0 or both -0,\n"
 "  both NaN, or non-zero and ===)",
 "gc()                     Run the garbage collector",
-#ifdef JS_GCMETER
-"gcstats()                Print garbage collector statistics",
-#endif
 "gcparam(name, value)\n"
 "  Wrapper for JS_SetGCParameter. The name must be either 'maxBytes' or\n"
 "  'maxMallocBytes' and the value must be convertable to a positive uint32",

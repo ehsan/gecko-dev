@@ -696,7 +696,9 @@ nsXULTooltipListener::GetTooltipFor(nsIContent* aTarget, nsIContent** aTooltip)
   // Submenus can't be used as tooltips, see bug 288763.
   nsIContent* parent = tooltip->GetParent();
   if (parent) {
-    nsIFrame* frame = parent->GetPrimaryFrame();
+    nsIDocument* doc = parent->GetCurrentDoc();
+    nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
+    nsIFrame* frame = presShell ? presShell->GetPrimaryFrameFor(parent) : nsnull;
     if (frame && frame->GetType() == nsGkAtoms::menuFrame) {
       NS_WARNING("Menu cannot be used as a tooltip");
       return NS_ERROR_FAILURE;

@@ -1328,7 +1328,7 @@ nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
 
   nsCOMPtr<nsIContent> child(do_QueryInterface(aChild));
 
-  nsIFrame* kid = child->GetPrimaryFrame();
+  nsIFrame* kid = PresContext()->PresShell()->GetPrimaryFrameFor(child);
   if (kid && kid->GetType() == nsGkAtoms::menuFrame)
     mPopupFrame->ChangeMenuItem(static_cast<nsMenuFrame *>(kid), PR_FALSE);
   return NS_OK;

@@ -126,7 +126,7 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   tcBoxObj->GetY(&tcY);
 
   // Dispatch mouse events.
-  nsIFrame* tcFrame = tcContent->GetPrimaryFrame();
+  nsIFrame* tcFrame = presShell->GetPrimaryFrameFor(tcContent);  
   nsIFrame* rootFrame = presShell->GetRootFrame();
 
   nsPoint offset;
@@ -152,7 +152,7 @@ nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
                                 nsIPresShell *aPresShell,
                                 nsIContent *aContent)
 {
-  nsIFrame *frame = aContent->GetPrimaryFrame();
+  nsIFrame *frame = aPresShell->GetPrimaryFrameFor(aContent);
   if (!frame)
     return PR_FALSE;
 
@@ -511,11 +511,15 @@ nsCoreUtils::GetDocShellTreeItemFor(nsIDOMNode *aNode)
 nsIFrame*
 nsCoreUtils::GetFrameFor(nsIDOMElement *aElm)
 {
+  nsCOMPtr<nsIPresShell> shell = GetPresShellFor(aElm);
+  if (!shell)
+    return nsnull;
+  
   nsCOMPtr<nsIContent> content(do_QueryInterface(aElm));
   if (!content)
     return nsnull;
   
-  return content->GetPrimaryFrame();
+  return shell->GetPrimaryFrameFor(content);
 }
 
 PRBool

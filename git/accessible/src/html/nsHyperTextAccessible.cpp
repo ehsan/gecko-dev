@@ -592,7 +592,9 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
     // We want the "skipped" offset into the text (rendered text without the extra whitespace)
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     NS_ASSERTION(content, "No nsIContent for dom node");
-    nsIFrame *frame = content->GetPrimaryFrame();
+    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
     NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
     nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &addTextOffset);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2139,7 +2141,10 @@ nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame *aFrame,
     nsCOMPtr<nsIContent> content(aFrame->GetContent());
     NS_ENSURE_STATE(content);
 
-    nsIFrame *primaryFrame = content->GetPrimaryFrame();
+    nsCOMPtr<nsIPresShell> shell(GetPresShell());
+    NS_ENSURE_STATE(shell);
+
+    nsIFrame *primaryFrame = shell->GetPrimaryFrameFor(content);
     nsresult rv = RenderedToContentOffset(primaryFrame, aOffset, aNodeOffset);
     NS_ENSURE_SUCCESS(rv, rv);
 

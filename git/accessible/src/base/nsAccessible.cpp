@@ -1248,7 +1248,7 @@ nsAccessible::TakeFocus()
       if (ancestorContent) {
         nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
         if (presShell) {
-          nsIFrame *frame = ancestorContent->GetPrimaryFrame();
+          nsIFrame *frame = presShell->GetPrimaryFrameFor(ancestorContent);
           if (frame && frame->IsFocusable()) {
 
             content = ancestorContent;            
@@ -3049,7 +3049,6 @@ nsAccessible::CacheChildren()
   // Seed the frame hint early while we're still on a container node.
   // This is better than doing the GetPrimaryFrameFor() later on
   // a text node, because text nodes aren't in the frame map.
-  // XXXbz is this code still needed?
   walker.mState.frame = GetFrame();
 
   walker.GetFirstChild();
@@ -3205,7 +3204,7 @@ PRBool nsAccessible::CheckVisibilityInParentChain(nsIDocument* aDocument, nsIVie
         if (!shell) {
           return PR_FALSE;
         }
-        nsIFrame* frame = content->GetPrimaryFrame();
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
         while (frame != nsnull && !frame->HasView()) {
           frame = frame->GetParent();
         }

@@ -90,7 +90,7 @@ nsSVGRenderingObserver::GetReferencedFrame()
     nsIDocument* doc = mElement.get()->GetCurrentDoc();
     nsIPresShell* shell = doc ? doc->GetPrimaryShell() : nsnull;
     if (shell && !shell->FrameManager()->IsDestroyingFrames()) {
-      nsIFrame* frame = mElement.get()->GetPrimaryFrame();
+      nsIFrame* frame = shell->GetPrimaryFrameFor(mElement.get());
       if (frame) {
         mReferencedFrame = frame;
         mReferencedFramePresShell = shell;

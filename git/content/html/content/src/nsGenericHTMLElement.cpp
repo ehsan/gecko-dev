@@ -1245,14 +1245,17 @@ nsGenericHTMLElement::GetAttributeMappingFunction() const
   return &MapCommonAttributesInto;
 }
 
+// static
 nsIFormControlFrame*
-nsGenericHTMLElement::GetFormControlFrame(PRBool aFlushFrames)
+nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
+                                             nsIDocument* aDocument,
+                                             PRBool aFlushContent)
 {
-  if (aFlushFrames && IsInDoc()) {
+  if (aFlushContent) {
     // Cause a flush of the frames, so we get up-to-date frame information
-    GetCurrentDoc()->FlushPendingNotifications(Flush_Frames);
+    aDocument->FlushPendingNotifications(Flush_Frames);
   }
-  nsIFrame* frame = GetPrimaryFrame();
+  nsIFrame* frame = GetPrimaryFrameFor(aContent, aDocument);
   if (frame) {
     nsIFormControlFrame* form_frame = do_QueryFrame(frame);
     if (form_frame) {
