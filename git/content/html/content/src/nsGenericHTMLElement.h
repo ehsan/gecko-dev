@@ -774,7 +774,6 @@ protected:
   // Used by A, AREA, LINK, and STYLE.
   already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
 
-private:
   /**
    * Returns whether this element is an editable root. There are two types of
    * editable roots:
@@ -787,6 +786,7 @@ private:
    */
   PRBool IsEditableRoot() const;
 
+private:
   void ChangeEditableState(PRInt32 aChange);
 };
 
@@ -864,14 +864,14 @@ public:
    * @note Classes redefining this method should not call ContentStatesChanged
    * but they should pass aStates instead.
    */
-  virtual void FieldSetDisabledChanged(PRInt32 aStates);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
 
-  void FieldSetFirstLegendChanged() {
+  void FieldSetFirstLegendChanged(PRBool aNotify) {
     UpdateFieldSet();
 
     // The disabled state may have change because the element might not be in
     // the first legend anymore.
-    FieldSetDisabledChanged(0);
+    FieldSetDisabledChanged(0, aNotify);
   }
 
   /**
@@ -1121,7 +1121,7 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
  * SetAttr methods.
  */
 #define NS_IMPL_INT_ATTR(_class, _method, _atom)                    \
-  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, -1)
+  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0)
 
 #define NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
   NS_IMETHODIMP                                                           \

@@ -429,6 +429,8 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
     case NS_THEME_WINDOW_BUTTON_RESTORE:
     case NS_THEME_WINDOW_BUTTON_BOX:
     case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
+    case NS_THEME_WIN_GLASS:
+    case NS_THEME_WIN_BORDERLESS_GLASS:
       return nsUXThemeData::GetTheme(eUXWindowFrame);
   }
   return NULL;
@@ -1090,6 +1092,8 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       return NS_OK;
     case NS_THEME_WINDOW_BUTTON_BOX:
     case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
+    case NS_THEME_WIN_GLASS:
+    case NS_THEME_WIN_BORDERLESS_GLASS:
       aPart = -1;
       aState = 0;
       return NS_OK;
@@ -1113,6 +1117,37 @@ nsNativeThemeWin::DrawWidgetBackground(nsIRenderingContext* aContext,
 
   if (!nsUXThemeData::drawThemeBG)
     return NS_ERROR_FAILURE;    
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  // ^^ without the right sdk, assume xp theming and fall through.
+  if (nsUXThemeData::CheckForCompositor()) {
+    switch (aWidgetType) {
+      case NS_THEME_WINDOW_TITLEBAR:
+      case NS_THEME_WINDOW_TITLEBAR_MAXIMIZED:
+      case NS_THEME_WINDOW_FRAME_LEFT:
+      case NS_THEME_WINDOW_FRAME_RIGHT:
+      case NS_THEME_WINDOW_FRAME_BOTTOM:
+        // Nothing to draw, these areas are glass. Minimum dimensions
+        // should be set, so xul content should be layed out correctly.
+        return NS_OK;
+      break;
+      case NS_THEME_WINDOW_BUTTON_CLOSE:
+      case NS_THEME_WINDOW_BUTTON_MINIMIZE:
+      case NS_THEME_WINDOW_BUTTON_MAXIMIZE:
+      case NS_THEME_WINDOW_BUTTON_RESTORE:
+        // Not conventional bitmaps, can't be retrieved. If we fall
+        // through here and call the theme library we'll get aero
+        // basic bitmaps. 
+        return NS_OK;
+      break;
+      case NS_THEME_WIN_GLASS:
+      case NS_THEME_WIN_BORDERLESS_GLASS:
+        // Nothing to draw, this is the glass background.
+        return NS_OK;
+      break;
+    }
+  }
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 
   PRInt32 part, state;
   nsresult rv = GetThemePartAndState(aFrame, aWidgetType, part, state);
@@ -1143,32 +1178,6 @@ nsNativeThemeWin::DrawWidgetBackground(nsIRenderingContext* aContext,
     dr.size.height += 2.0;
   }
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  // ^^ without the right sdk, assume xp theming and fall through.
-  if (nsUXThemeData::CheckForCompositor()) {
-    switch (aWidgetType) {
-      case NS_THEME_WINDOW_TITLEBAR:
-      case NS_THEME_WINDOW_TITLEBAR_MAXIMIZED:
-      case NS_THEME_WINDOW_FRAME_LEFT:
-      case NS_THEME_WINDOW_FRAME_RIGHT:
-      case NS_THEME_WINDOW_FRAME_BOTTOM:
-        // Nothing to draw, these areas are glass. Minimum dimensions
-        // should be set, so xul content should be layed out correctly.
-        return NS_OK;
-      break;
-      case NS_THEME_WINDOW_BUTTON_CLOSE:
-      case NS_THEME_WINDOW_BUTTON_MINIMIZE:
-      case NS_THEME_WINDOW_BUTTON_MAXIMIZE:
-      case NS_THEME_WINDOW_BUTTON_RESTORE:
-        // Not conventional bitmaps, can't be retrieved. If we fall
-        // through here and call the theme library we'll get aero
-        // basic bitmaps. 
-        return NS_OK;
-      break;
-    }
-  }
-#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    
   nsRefPtr<gfxContext> ctx = aContext->ThebesContext();
 
   gfxWindowsNativeDrawing nativeDrawing(ctx, dr, GetWidgetNativeDrawingFlags(aWidgetType));
@@ -1418,6 +1427,42 @@ RENDER_AGAIN:
       nsUXThemeData::drawThemeBG(theme, hdc, gripPart, state, &widgetRect, &clipRect);
     }
   }
+  else if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX ||
+           aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED)
+  {
+    // The caption buttons are drawn by the DWM, we just need to clear the area where they
+    // are because we might have drawn something above them (like a background-image).
+    ctx->Save();
+    ctx->ResetClip();
+    ctx->Translate(dr.pos);
+
+    // Create a rounded rectangle to follow the buttons' look.
+    gfxRect buttonbox1(0.0, 0.0, dr.size.width, dr.size.height - 2.0);
+    gfxRect buttonbox2(1.0, dr.size.height - 2.0, dr.size.width - 1.0, 1.0);
+    gfxRect buttonbox3(2.0, dr.size.height - 1.0, dr.size.width - 3.0, 1.0);
+
+    gfxContext::GraphicsOperator currentOp = ctx->CurrentOperator();
+    ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
+
+   // Each rectangle is drawn individually because OPERATOR_CLEAR takes
+   // the fallback path to cairo_d2d_acquire_dest if the area to fill
+   // is a complex region.
+    ctx->NewPath();
+    ctx->Rectangle(buttonbox1, PR_TRUE);
+    ctx->Fill();
+
+    ctx->NewPath();
+    ctx->Rectangle(buttonbox2, PR_TRUE);
+    ctx->Fill();
+
+    ctx->NewPath();
+    ctx->Rectangle(buttonbox3, PR_TRUE);
+    ctx->Fill();
+
+    ctx->Restore();
+    ctx->SetOperator(currentOp);
+  }
+
 
   nativeDrawing.EndNativeDrawing();
 
@@ -1453,7 +1498,8 @@ nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext,
       aWidgetType == NS_THEME_MENUITEM || aWidgetType == NS_THEME_CHECKMENUITEM ||
       aWidgetType == NS_THEME_RADIOMENUITEM || aWidgetType == NS_THEME_MENUPOPUP ||
       aWidgetType == NS_THEME_MENUIMAGE || aWidgetType == NS_THEME_MENUITEMTEXT ||
-      aWidgetType == NS_THEME_TOOLBAR_SEPARATOR)
+      aWidgetType == NS_THEME_TOOLBAR_SEPARATOR ||
+      aWidgetType == NS_THEME_WIN_GLASS || aWidgetType == NS_THEME_WIN_BORDERLESS_GLASS)
     return NS_OK; // Don't worry about it.
 
   if (!nsUXThemeData::getThemeContentRect)
@@ -1733,6 +1779,8 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
     case NS_THEME_LISTBOX:
     case NS_THEME_TREEVIEW:
     case NS_THEME_MENUITEMTEXT:
+    case NS_THEME_WIN_GLASS:
+    case NS_THEME_WIN_BORDERLESS_GLASS:
       return NS_OK; // Don't worry about it.
   }
 
@@ -1881,6 +1929,19 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
       *aIsOverridable = PR_FALSE;
       return NS_OK;
 
+    case NS_THEME_WINDOW_BUTTON_BOX:
+    case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
+      QueryForButtonData(aFrame);
+      aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx;
+      aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy
+                        - GetSystemMetrics(SM_CYFRAME);
+      if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED) {
+        aResult->width += 1;
+        aResult->height -= 2;
+      }
+      *aIsOverridable = PR_FALSE;
+      return NS_OK;
+
     case NS_THEME_WINDOW_FRAME_LEFT:
     case NS_THEME_WINDOW_FRAME_RIGHT:
     case NS_THEME_WINDOW_FRAME_BOTTOM:
@@ -1941,7 +2002,9 @@ nsNativeThemeWin::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
       aWidgetType == NS_THEME_TOOLTIP ||
       aWidgetType == NS_THEME_TAB_PANELS ||
       aWidgetType == NS_THEME_TAB_PANEL ||
-      aWidgetType == NS_THEME_TOOLBAR_SEPARATOR) {
+      aWidgetType == NS_THEME_TOOLBAR_SEPARATOR ||
+      aWidgetType == NS_THEME_WIN_GLASS ||
+      aWidgetType == NS_THEME_WIN_BORDERLESS_GLASS) {
     *aShouldRepaint = PR_FALSE;
     return NS_OK;
   }
@@ -2069,6 +2132,9 @@ nsNativeThemeWin::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
     // true across all Windows themes! If it's not true, we should
     // paint an opaque background for them to make it true!
     return eOpaque;
+  case NS_THEME_WIN_GLASS:
+  case NS_THEME_WIN_BORDERLESS_GLASS:
+    return eTransparent;
   }
 
   HANDLE theme = GetTheme(aWidgetType);

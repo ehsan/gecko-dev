@@ -54,46 +54,19 @@
 namespace mozilla {
 namespace net {
 
-class ChildChannelEvent
-{
- public:
-  ChildChannelEvent() { MOZ_COUNT_CTOR(Callback); }
-  virtual ~ChildChannelEvent() { MOZ_COUNT_DTOR(Callback); }
-  virtual void Run() = 0;
-};
-
-// Ensures any incoming IPDL msgs are queued during its lifetime, and flushes
-// the queue when it goes out of scope.
-class AutoEventEnqueuer 
-{
-public:
-  AutoEventEnqueuer(HttpChannelChild* channel) : mChannel(channel) 
-  {
-    mChannel->BeginEventQueueing();
-  }
-  ~AutoEventEnqueuer() 
-  { 
-    mChannel->EndEventQueueing();
-    mChannel->FlushEventQueue(); 
-  }
-private:
-    HttpChannelChild *mChannel;
-};
-
-
 //-----------------------------------------------------------------------------
 // HttpChannelChild
 //-----------------------------------------------------------------------------
 
 HttpChannelChild::HttpChannelChild()
-  : mIsFromCache(PR_FALSE)
+  : ChannelEventQueue<HttpChannelChild>(this)
+  , mIsFromCache(PR_FALSE)
   , mCacheEntryAvailable(PR_FALSE)
   , mCacheExpirationTime(nsICache::NO_EXPIRATION_TIME)
   , mSendResumeAt(false)
   , mSuspendCount(0)
   , mIPCOpen(false)
   , mKeptAlive(false)
-  , mQueuePhase(PHASE_UNQUEUED)
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
 }
@@ -169,44 +142,7 @@ HttpChannelChild::ReleaseIPDLReference()
   Release();
 }
 
-void
-HttpChannelChild::FlushEventQueue()
-{
-  NS_ABORT_IF_FALSE(mQueuePhase != PHASE_UNQUEUED,
-                    "Queue flushing should not occur if PHASE_UNQUEUED");
-  
-  // Queue already being flushed, or the channel's suspended.
-  if (mQueuePhase != PHASE_FINISHED_QUEUEING || mSuspendCount)
-    return;
-  
-  if (mEventQueue.Length() > 0) {
-    // It is possible for new callbacks to be enqueued as we are
-    // flushing the queue, so the queue must not be cleared until
-    // all callbacks have run.
-    mQueuePhase = PHASE_FLUSHING;
-    
-    nsRefPtr<HttpChannelChild> kungFuDeathGrip(this);
-    PRUint32 i;
-    for (i = 0; i < mEventQueue.Length(); i++) {
-      mEventQueue[i]->Run();
-      // If the callback ended up suspending us, abort all further flushing.
-      if (mSuspendCount)
-        break;
-    }
-    // We will always want to remove at least one finished callback.
-    if (i < mEventQueue.Length())
-      i++;
-
-    mEventQueue.RemoveElementsAt(0, i);
-  }
-
-  if (mSuspendCount)
-    mQueuePhase = PHASE_QUEUEING;
-  else
-    mQueuePhase = PHASE_UNQUEUED;
-}
-
-class StartRequestEvent : public ChildChannelEvent
+class StartRequestEvent : public ChannelEvent
 {
  public:
   StartRequestEvent(HttpChannelChild* child,
@@ -320,7 +256,7 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
     Cancel(rv);
 }
 
-class DataAvailableEvent : public ChildChannelEvent
+class DataAvailableEvent : public ChannelEvent
 {
  public:
   DataAvailableEvent(HttpChannelChild* child,
@@ -388,7 +324,7 @@ HttpChannelChild::OnDataAvailable(const nsCString& data,
   }
 }
 
-class StopRequestEvent : public ChildChannelEvent
+class StopRequestEvent : public ChannelEvent
 {
  public:
   StopRequestEvent(HttpChannelChild* child,
@@ -450,7 +386,7 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
   }
 }
 
-class ProgressEvent : public ChildChannelEvent
+class ProgressEvent : public ChannelEvent
 {
  public:
   ProgressEvent(HttpChannelChild* child,
@@ -505,7 +441,7 @@ HttpChannelChild::OnProgress(const PRUint64& progress,
   }
 }
 
-class StatusEvent : public ChildChannelEvent
+class StatusEvent : public ChannelEvent
 {
  public:
   StatusEvent(HttpChannelChild* child,
@@ -557,7 +493,7 @@ HttpChannelChild::OnStatus(const nsresult& status,
   }
 }
 
-class CancelEvent : public ChildChannelEvent
+class CancelEvent : public ChannelEvent
 {
  public:
   CancelEvent(HttpChannelChild* child, const nsresult& status)
@@ -608,7 +544,33 @@ HttpChannelChild::OnCancel(const nsresult& status)
     PHttpChannelChild::Send__delete__(this);
 }
 
-class Redirect1Event : public ChildChannelEvent
+class DeleteSelfEvent : public ChannelEvent
+{
+ public:
+  DeleteSelfEvent(HttpChannelChild* child) : mChild(child) {}
+  void Run() { mChild->DeleteSelf(); }
+ private:
+  HttpChannelChild* mChild;
+};
+
+bool
+HttpChannelChild::RecvDeleteSelf()
+{
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new DeleteSelfEvent(this));
+  } else {
+    DeleteSelf();
+  }
+  return true;
+}
+
+void
+HttpChannelChild::DeleteSelf()
+{
+  Send__delete__(this);
+}
+
+class Redirect1Event : public ChannelEvent
 {
  public:
   Redirect1Event(HttpChannelChild* child,
@@ -664,9 +626,8 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
     newHttpChannelChild->HttpBaseChannel::Init(uri, mCaps,
                                                mConnectionInfo->ProxyInfo());
   if (NS_FAILED(rv)) {
-    // Cancel the channel and veto the redirect.
-    Cancel(rv);
-    SendRedirect2Result(rv, mRedirectChannelChild->mRequestHeaders);
+    // Veto redirect.  nsHttpChannel decides to cancel or continue. 
+    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
     return;
   }
 
@@ -677,9 +638,8 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
   PRBool preserveMethod = (mResponseHead->Status() == 307);
   rv = SetupReplacementChannel(uri, newHttpChannelChild, preserveMethod);
   if (NS_FAILED(rv)) {
-    // Cancel the channel and veto the redirect.
-    Cancel(rv);
-    SendRedirect2Result(rv, mRedirectChannelChild->mRequestHeaders);
+    // Veto redirect.  nsHttpChannel decides to cancel or continue.
+    SendRedirect2Verify(rv, newHttpChannelChild->mRequestHeaders);
     return;
   }
 
@@ -692,7 +652,7 @@ HttpChannelChild::Redirect1Begin(PHttpChannelChild* newChannel,
     OnRedirectVerifyCallback(rv);
 }
 
-class Redirect3Event : public ChildChannelEvent
+class Redirect3Event : public ChannelEvent
 {
  public:
   Redirect3Event(HttpChannelChild* child) : mChild(child) {}
@@ -725,7 +685,10 @@ HttpChannelChild::Redirect3Complete()
   rv = mRedirectChannelChild->CompleteRedirectSetup(mListener, 
                                                     mListenerContext);
   if (NS_FAILED(rv))
-    Cancel(rv);
+    NS_WARNING("CompleteRedirectSetup failed, HttpChannelChild already open?");
+
+  // Release ref to new channel.
+  mRedirectChannelChild = nsnull;
 }
 
 nsresult
@@ -737,8 +700,12 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
-  // notify "http-on-modify-request" observers
-  gHttpHandler->OnModifyRequest(this);
+  /*
+   * No need to check for cancel: we don't get here if nsHttpChannel canceled
+   * before AsyncOpen(); if it's canceled after that, OnStart/Stop will just
+   * get called with error code as usual.  So just setup mListener and make the
+   * channel reflect AsyncOpen'ed state.
+   */
 
   mIsPending = PR_TRUE;
   mWasOpened = PR_TRUE;
@@ -767,7 +734,12 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
   // Must not be called until after redirect observers called.
   mRedirectChannelChild->SetOriginalURI(mRedirectOriginalURI);
 
-  return SendRedirect2Result(result, mRedirectChannelChild->mRequestHeaders);
+  // After we verify redirect, nsHttpChannel may hit the network: must give
+  // "http-on-modify-request" observers the chance to cancel before that.
+  if (NS_SUCCEEDED(result))
+    gHttpHandler->OnModifyRequest(mRedirectChannelChild);
+
+  return SendRedirect2Verify(result, mRedirectChannelChild->mRequestHeaders);
 }
 
 //-----------------------------------------------------------------------------
