@@ -111,9 +111,7 @@ class nsHashKey;
 #define NS_UI_EVENT                       28
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
-#ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT                32
-#endif // MOZ_SMIL
 
 #define NS_QUERY_CONTENT_EVENT            33
 
@@ -163,6 +161,8 @@ class nsHashKey;
 #define NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS 0x20000
 
 #define NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS 0x40000
+
+#define NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY 0x80000
 
 #define NS_EVENT_CAPTURE_MASK             (~(NS_EVENT_FLAG_BUBBLE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
 #define NS_EVENT_BUBBLE_MASK              (~(NS_EVENT_FLAG_CAPTURE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
@@ -508,12 +508,10 @@ class nsHashKey;
 #define NS_ANIMATION_END             (NS_ANIMATION_EVENT_START + 1)
 #define NS_ANIMATION_ITERATION       (NS_ANIMATION_EVENT_START + 2)
 
-#ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT_START     4300
 #define NS_SMIL_BEGIN                (NS_SMIL_TIME_EVENT_START)
 #define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
 #define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
-#endif // MOZ_SMIL
 
 #define NS_MOZTOUCH_EVENT_START      4400
 #define NS_MOZTOUCH_DOWN             (NS_MOZTOUCH_EVENT_START)
@@ -547,6 +545,7 @@ class nsHashKey;
 // Fullscreen DOM API
 #define NS_FULL_SCREEN_START         5100
 #define NS_FULLSCREENCHANGE          (NS_FULL_SCREEN_START)
+#define NS_FULLSCREENERROR           (NS_FULL_SCREEN_START + 1)
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -719,7 +718,7 @@ public:
   nsZLevelEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_ZLEVEL_EVENT),
       mPlacement(nsWindowZTop), mReqBelow(nsnull), mActualBelow(nsnull),
-      mImmediate(PR_FALSE), mAdjusted(PR_FALSE)
+      mImmediate(false), mAdjusted(false)
   {
   }
 
@@ -739,7 +738,7 @@ class nsPaintEvent : public nsGUIEvent
 public:
   nsPaintEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_PAINT_EVENT),
-      willSendDidPaint(PR_FALSE)
+      willSendDidPaint(false)
   {
   }
 
@@ -800,7 +799,7 @@ protected:
   nsInputEvent(bool isTrusted, PRUint32 msg, nsIWidget *w,
                PRUint8 structType)
     : nsGUIEvent(isTrusted, msg, w, structType),
-      isShift(PR_FALSE), isControl(PR_FALSE), isAlt(PR_FALSE), isMeta(PR_FALSE)
+      isShift(false), isControl(false), isAlt(false), isMeta(false)
   {
   }
 
@@ -811,17 +810,17 @@ protected:
 public:
   nsInputEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_INPUT_EVENT),
-      isShift(PR_FALSE), isControl(PR_FALSE), isAlt(PR_FALSE), isMeta(PR_FALSE)
+      isShift(false), isControl(false), isAlt(false), isMeta(false)
   {
   }
 
-  /// PR_TRUE indicates the shift key is down
+  /// true indicates the shift key is down
   bool            isShift;        
-  /// PR_TRUE indicates the control key is down
+  /// true indicates the control key is down
   bool            isControl;      
-  /// PR_TRUE indicates the alt key is down
+  /// true indicates the alt key is down
   bool            isAlt;          
-  /// PR_TRUE indicates the meta key is down (or, on Mac, the Command key)
+  /// true indicates the meta key is down (or, on Mac, the Command key)
   bool            isMeta;
 };
 
@@ -878,7 +877,7 @@ protected:
   nsMouseEvent(bool isTrusted, PRUint32 msg, nsIWidget *w,
                PRUint8 structType, reasonType aReason)
     : nsMouseEvent_base(isTrusted, msg, w, structType),
-      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      acceptActivation(false), ignoreRootScrollFrame(false),
       reason(aReason), context(eNormal), exit(eChild), clickCount(0)
   {
     switch (msg) {
@@ -899,7 +898,7 @@ public:
   nsMouseEvent(bool isTrusted, PRUint32 msg, nsIWidget *w,
                reasonType aReason, contextType aContext = eNormal)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_EVENT),
-      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      acceptActivation(false), ignoreRootScrollFrame(false),
       reason(aReason), context(aContext), exit(eChild), clickCount(0)
   {
     switch (msg) {
@@ -951,7 +950,7 @@ class nsDragEvent : public nsMouseEvent
 public:
   nsDragEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal),
-      userCancelled(PR_FALSE)
+      userCancelled(false)
   {
     if (msg == NS_DRAGDROP_EXIT_SYNTH ||
         msg == NS_DRAGDROP_LEAVE_SYNTH ||
@@ -1058,7 +1057,7 @@ struct nsTextRangeStyle
   {
     mDefinedStyles = DEFINED_NONE;
     mLineStyle = LINESTYLE_NONE;
-    mIsBoldLine = PR_FALSE;
+    mIsBoldLine = false;
     mForegroundColor = mBackgroundColor = mUnderlineColor = NS_RGBA(0, 0, 0, 0);
   }
 
@@ -1093,20 +1092,20 @@ struct nsTextRangeStyle
   bool Equals(const nsTextRangeStyle& aOther)
   {
     if (mDefinedStyles != aOther.mDefinedStyles)
-      return PR_FALSE;
+      return false;
     if (IsLineStyleDefined() && (mLineStyle != aOther.mLineStyle ||
                                  !mIsBoldLine != !aOther.mIsBoldLine))
-      return PR_FALSE;
+      return false;
     if (IsForegroundColorDefined() &&
         (mForegroundColor != aOther.mForegroundColor))
-      return PR_FALSE;
+      return false;
     if (IsBackgroundColorDefined() &&
         (mBackgroundColor != aOther.mBackgroundColor))
-      return PR_FALSE;
+      return false;
     if (IsUnderlineColorDefined() &&
         (mUnderlineColor != aOther.mUnderlineColor))
-      return PR_FALSE;
-    return PR_TRUE;
+      return false;
+    return true;
   }
 
   bool operator !=(const nsTextRangeStyle &aOther)
@@ -1162,7 +1161,7 @@ public:
 public:
   nsTextEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
-      rangeCount(0), rangeArray(nsnull), isChar(PR_FALSE)
+      rangeCount(0), rangeArray(nsnull), isChar(false)
   {
   }
 
@@ -1314,7 +1313,7 @@ public:
   nsGestureNotifyEvent(bool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget):
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_GESTURENOTIFY_EVENT),
     panDirection(ePanNone),
-    displayPanFeedback(PR_FALSE)
+    displayPanFeedback(false)
   {
   }
 };
@@ -1334,7 +1333,7 @@ private:
 public:
   nsQueryContentEvent(bool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_QUERY_CONTENT_EVENT),
-    mSucceeded(PR_FALSE), mWasAsync(PR_FALSE)
+    mSucceeded(false), mWasAsync(false)
   {
   }
 
@@ -1440,8 +1439,8 @@ class nsFocusEvent : public nsEvent
 public:
   nsFocusEvent(bool isTrusted, PRUint32 msg)
     : nsEvent(isTrusted, msg, NS_FOCUS_EVENT),
-      fromRaise(PR_FALSE),
-      isRefocus(PR_FALSE)
+      fromRaise(false),
+      isRefocus(false)
   {
   }
 
@@ -1465,7 +1464,7 @@ public:
 public:
   nsSelectionEvent(bool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),
-    mExpandToClusterBoundary(PR_TRUE), mSucceeded(PR_FALSE)
+    mExpandToClusterBoundary(true), mSucceeded(false)
   {
   }
 
@@ -1483,7 +1482,7 @@ public:
                         bool aOnlyEnabledCheck = false) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_CONTENT_COMMAND_EVENT),
     mOnlyEnabledCheck(bool(aOnlyEnabledCheck)),
-    mSucceeded(PR_FALSE), mIsEnabled(PR_FALSE)
+    mSucceeded(false), mIsEnabled(false)
   {
   }
 
@@ -1500,7 +1499,7 @@ public:
 
   struct ScrollInfo {
     ScrollInfo() :
-      mAmount(0), mUnit(eCmdScrollUnit_Line), mIsHorizontal(PR_FALSE)
+      mAmount(0), mUnit(eCmdScrollUnit_Line), mIsHorizontal(false)
     {
     }
 
@@ -1657,7 +1656,7 @@ class nsPluginEvent : public nsGUIEvent
 public:
   nsPluginEvent(bool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsGUIEvent(isTrusted, msg, w, NS_PLUGIN_EVENT),
-      retargetToFocusedDocument(PR_FALSE)
+      retargetToFocusedDocument(false)
   {
   }
 

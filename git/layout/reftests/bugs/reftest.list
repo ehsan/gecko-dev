@@ -1599,6 +1599,9 @@ fails-if(!haveTestPlugin) == 599476.html 599476-ref.html
 == 604737.html 604737-ref.html
 == 605138-1.html 605138-1-ref.html
 == 605157-1.xhtml 605157-1-ref.xhtml
+== 608756-1a.html 608756-1-ref.html
+== 608756-1b.html 608756-1-ref.html
+== 608756-2.html 608756-2-ref.html
 == 609272-1.html 609272-1-ref.html
 == 608636-1.html 608636-1-ref.html
 needs-focus == 613433-1.html 613433-1-ref.html
@@ -1646,7 +1649,7 @@ random == 637597-1.html 637597-1-ref.html # bug 637597 was never really fixed!
 == 641770-1.html 641770-1-ref.html
 == 641856-1.html 641856-1-ref.html
 == 645491-1.html 645491-1-ref.html
-== 652301-1a.html 652301-1-ref.html
+needs-focus == 652301-1a.html 652301-1-ref.html
 == 652301-1b.html 652301-1-ref.html
 == 645768-1.html 645768-1-ref.html
 fails-if(layersGPUAccelerated&&cocoaWidget) == 650228-1.html 650228-1-ref.html # Quartz alpha blending doesn't match GL alpha blending
@@ -1666,3 +1669,5 @@ fails-if(layersGPUAccelerated&&cocoaWidget) == 654950-1.html 654950-1-ref.html #
 == 670467-1.html 670467-1-ref.html
 == 670467-2.html 670467-2-ref.html
 != 691087-1.html 691087-1-ref.html
+== 691571-1.html 691571-1-ref.html
+== 696739-1.html 696739-1-ref.html

@@ -39,13 +39,17 @@
 #include <OpenGL/OpenGL.h>
 #include <OpenGL/CGLRenderers.h>
 
+#include "mozilla/Util.h"
+
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsToolkit.h"
+#include "mozilla/Preferences.h"
 
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
+#import <Cocoa/Cocoa.h>
 
 #if defined(MOZ_CRASHREPORTER)
 #include "nsExceptionHandler.h"
@@ -53,6 +57,14 @@
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
 #endif
 
+#define MAC_OS_X_VERSION_MASK       0x0000FFFF
+#define MAC_OS_X_VERSION_MAJOR_MASK 0x0000FFF0
+#define MAC_OS_X_VERSION_10_4_HEX   0x00001040 // Not supported
+#define MAC_OS_X_VERSION_10_5_HEX   0x00001050
+#define MAC_OS_X_VERSION_10_6_HEX   0x00001060
+#define MAC_OS_X_VERSION_10_7_HEX   0x00001070
+
+using namespace mozilla;
 using namespace mozilla::widget;
 
 GfxInfo::GfxInfo()
@@ -108,7 +120,7 @@ IsATIRadeonX1000(PRUint32 aVendorID, PRUint32 aDeviceID)
   if (aVendorID == 0x1002) {
     // this list is from the ATIRadeonX1000.kext Info.plist
     PRUint32 devices[] = {0x7187, 0x7210, 0x71DE, 0x7146, 0x7142, 0x7109, 0x71C5, 0x71C0, 0x7240, 0x7249, 0x7291};
-    for (size_t i = 0; i < NS_ARRAY_LENGTH(devices); i++) {
+    for (size_t i = 0; i < ArrayLength(devices); i++) {
       if (aDeviceID == devices[i])
         return true;
     }
@@ -135,7 +147,7 @@ GfxInfo::Init()
   if (CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) != kCGLNoError)
     return rv;
 
-  rendererCount = (GLint) NS_MIN(rendererCount, (GLint) NS_ARRAY_LENGTH(mRendererIDs));
+  rendererCount = (GLint) NS_MIN(rendererCount, (GLint) ArrayLength(mRendererIDs));
   for (GLint i = 0; i < rendererCount; i++) {
     GLint prop = 0;
 
@@ -174,7 +186,15 @@ GfxInfo::GetD2DEnabled(bool *aEnabled)
 NS_IMETHODIMP
 GfxInfo::GetAzureEnabled(bool *aEnabled)
 {
-  return NS_ERROR_FAILURE;
+  bool azure = false;
+  nsresult rv = mozilla::Preferences::GetBool("gfx.canvas.azure.enabled", &azure);
+  
+  if (NS_SUCCEEDED(rv) && azure) {
+    *aEnabled = true;
+  } else {
+    *aEnabled = false;
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -327,10 +347,53 @@ GfxInfo::AddCrashReportAnnotations()
 #endif
 }
 
+static GfxDriverInfo gDriverInfo[] = {
+  // We don't support checking driver versions on Mac.
+  #define IMPLEMENT_MAC_DRIVER_BLOCKLIST(os, vendor, device, features, blockOn) \
+    GfxDriverInfo(os, vendor, device, features, blockOn,                        \
+                  DRIVER_UNKNOWN_COMPARISON, V(0,0,0,0), ""),
+
+  // Example use of macro.
+  //IMPLEMENT_MAC_DRIVER_BLOCKLIST(DRIVER_OS_OS_X_10_7,
+  //  GfxDriverInfo::vendorATI, GfxDriverInfo::allDevices,
+  //  GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_OS_VERSION)
+
+  // Block all ATI cards from using MSAA, except for two devices that have
+  // special exceptions in the GetFeatureStatusImpl() function.
+  IMPLEMENT_MAC_DRIVER_BLOCKLIST(DRIVER_OS_ALL,
+    GfxDriverInfo::vendorATI, GfxDriverInfo::allDevices,
+    nsIGfxInfo::FEATURE_WEBGL_MSAA, nsIGfxInfo::FEATURE_BLOCKED_OS_VERSION)
+
+  GfxDriverInfo()
+};
+
+const GfxDriverInfo*
+GfxInfo::GetGfxDriverInfo()
+{
+  return &gDriverInfo[0];
+}
+
+static OperatingSystem
+OSXVersionToOperatingSystem(PRUint32 aOSXVersion)
+{
+  switch (aOSXVersion & MAC_OS_X_VERSION_MAJOR_MASK) {
+    case MAC_OS_X_VERSION_10_5_HEX:
+      return DRIVER_OS_OS_X_10_5;
+    case MAC_OS_X_VERSION_10_6_HEX:
+      return DRIVER_OS_OS_X_10_6;
+    case MAC_OS_X_VERSION_10_7_HEX:
+      return DRIVER_OS_OS_X_10_7;
+  }
+
+  return DRIVER_OS_UNKNOWN;
+}
+
 nsresult
-GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
+GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, 
+                              PRInt32* aStatus,
                               nsAString& aSuggestedDriverVersion,
-                              GfxDriverInfo* aDriverInfo /* = nsnull */)
+                              GfxDriverInfo* aDriverInfo /* = nsnull */,
+                              OperatingSystem* aOS /* = nsnull */)
 {
   NS_ENSURE_ARG_POINTER(aStatus);
 
@@ -338,11 +401,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
 
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 
-  // For now, we don't implement the downloaded blacklist.
-  if (aDriverInfo) {
-    *aStatus = status;
-    return NS_OK;
-  }
+  OperatingSystem os = OSXVersionToOperatingSystem(nsToolkit::OSXVersion());
 
   // Many WebGL issues on 10.5, especially:
   //   * bug 631258: WebGL shader paints using textures belonging to other processes on Mac OS 10.5
@@ -370,7 +429,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
     // Therefore we need to explicitly blacklist non-OpenGL2 hardware, which could result in a software renderer
     // being used.
 
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mRendererIDs); ++i) {
+    for (PRUint32 i = 0; i < ArrayLength(mRendererIDs); ++i) {
       switch (mRendererIDs[i]) {
         case kCGLRendererATIRage128ID: // non-programmable
         case kCGLRendererATIRadeonID: // non-programmable
@@ -413,6 +472,19 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
       status = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
   }
 
+  if (aFeature == nsIGfxInfo::FEATURE_WEBGL_MSAA) {
+    // Blacklist all ATI cards on OSX, except for
+    // 0x6760 and 0x9488
+    if (mAdapterVendorID == GfxDriverInfo::vendorATI && 
+          (mAdapterDeviceID == 0x6760 || mAdapterDeviceID == 0x9488)) {
+      *aStatus = nsIGfxInfo::FEATURE_NO_INFO;
+      return NS_OK;
+    }
+  }
+
+  if (aOS)
+    *aOS = os;
   *aStatus = status;
-  return NS_OK;
+
+  return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
 }

@@ -337,6 +337,7 @@ public:
   NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
                                            bool aFlushOnHoverChange);
   NS_IMETHOD_(void) ClearMouseCapture(nsIView* aView);
+  NS_IMETHOD_(bool) IsVisible();
 
   // caret handling
   virtual NS_HIDDEN_(already_AddRefed<nsCaret>) GetCaret() const;
@@ -596,10 +597,10 @@ protected:
   {
     nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
     if (frameSelection) {
-      frameSelection->SetMouseDownState(PR_FALSE);
+      frameSelection->SetMouseDownState(false);
     }
     if (gCaptureInfo.mContent &&
-        gCaptureInfo.mContent->GetOwnerDoc() == mDocument) {
+        gCaptureInfo.mContent->OwnerDoc() == mDocument) {
       SetCapturingContent(nsnull, 0);
     }
   }
@@ -897,6 +898,8 @@ public:
 
     return result;
   }
+
+  PRUint64 ComputeTextRunMemoryUsed();
 
   class MemoryReporter : public nsIMemoryMultiReporter
   {

@@ -243,7 +243,7 @@ const void* nsStyleContext::GetStyleData(nsStyleStructID aSID)
   const void* cachedData = GetCachedStyleData(aSID);
   if (cachedData)
     return cachedData; // We have computed data stored on this node in the context tree.
-  return mRuleNode->GetStyleData(aSID, this, PR_TRUE); // Our rule node will take care of it for us.
+  return mRuleNode->GetStyleData(aSID, this, true); // Our rule node will take care of it for us.
 }
 
 // This is an evil evil function, since it forces you to alloc your own separate copy of
@@ -374,10 +374,17 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
         disp->mDisplay != NS_STYLE_DISPLAY_TABLE) {
       nsStyleDisplay *mutable_display = static_cast<nsStyleDisplay*>
                                                    (GetUniqueStyleData(eStyleStruct_Display));
+      // If we're in this code, then mOriginalDisplay doesn't matter
+      // for purposes of the cascade (because this nsStyleDisplay
+      // isn't living in the ruletree anyway), and for determining
+      // hypothetical boxes it's better to have mOriginalDisplay
+      // matching mDisplay here.
       if (mutable_display->mDisplay == NS_STYLE_DISPLAY_INLINE_TABLE)
-        mutable_display->mDisplay = NS_STYLE_DISPLAY_TABLE;
+        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
+          NS_STYLE_DISPLAY_TABLE;
       else
-        mutable_display->mDisplay = NS_STYLE_DISPLAY_BLOCK;
+        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
+          NS_STYLE_DISPLAY_BLOCK;
     }
   }
 
@@ -513,7 +520,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     if (PeekStyleColor()) {
       if (thisVis->GetStyleColor()->mColor !=
           otherVis->GetStyleColor()->mColor) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -521,7 +528,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     if (!change && PeekStyleBackground()) {
       if (thisVis->GetStyleBackground()->mBackgroundColor !=
           otherVis->GetStyleBackground()->mBackgroundColor) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -535,7 +542,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
         thisVisBorder->GetBorderColor(side, thisColor, thisFG);
         otherVisBorder->GetBorderColor(side, otherColor, otherFG);
         if (thisFG != otherFG || (!thisFG && thisColor != otherColor)) {
-          change = PR_TRUE;
+          change = true;
           break;
         }
       }
@@ -552,7 +559,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
           (haveColor = thisVisOutline->GetOutlineColor(thisColor)) != 
             otherVisOutline->GetOutlineColor(otherColor) ||
           (haveColor && thisColor != otherColor)) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -563,7 +570,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       if (thisVisColumn->mColumnRuleColor != otherVisColumn->mColumnRuleColor ||
           thisVisColumn->mColumnRuleColorIsForeground !=
             otherVisColumn->mColumnRuleColorIsForeground) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -579,7 +586,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
                                             otherVisDecColorIsFG);
       if (thisVisDecColorIsFG != otherVisDecColorIsFG ||
           (!thisVisDecColorIsFG && thisVisDecColor != otherVisDecColor)) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -589,7 +596,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       const nsStyleSVG *otherVisSVG = otherVis->GetStyleSVG();
       if (thisVisSVG->mFill != otherVisSVG->mFill ||
           thisVisSVG->mStroke != otherVisSVG->mStroke) {
-        change = PR_TRUE;
+        change = true;
       }
     }
 
@@ -771,7 +778,7 @@ nsStyleContext::CombineVisitedColors(nscolor *aColors, bool aLinkIsVisited)
     // unvisited style rather than using the (meaningless) color
     // components of the visited style along with a potentially
     // non-transparent alpha value.
-    aLinkIsVisited = PR_FALSE;
+    aLinkIsVisited = false;
   }
 
   // NOTE: We want this code to have as little timing dependence as

@@ -114,7 +114,7 @@ extern bool EnsureNSSInitialized(EnsureNSSOperator op);
 class PSMContentDownloader : public nsIStreamListener
 {
 public:
-  PSMContentDownloader() {NS_ASSERTION(PR_FALSE, "don't use this constructor."); }
+  PSMContentDownloader() {NS_ASSERTION(false, "don't use this constructor."); }
   PSMContentDownloader(PRUint32 type);
   virtual ~PSMContentDownloader();
   void setSilentDownload(bool flag);
@@ -147,6 +147,8 @@ class nsNSSComponent;
 class NS_NO_VTABLE nsINSSComponent : public nsISupports {
  public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INSSCOMPONENT_IID)
+
+  NS_IMETHOD ShowAlertFromStringBundle(const char * messageID) = 0;
 
   NS_IMETHOD GetPIPNSSBundleString(const char *name,
                                    nsAString &outString) = 0;
@@ -262,6 +264,10 @@ public:
 
   NS_METHOD Init();
 
+  static nsresult GetNewPrompter(nsIPrompt ** result);
+  static nsresult ShowAlertWithConstructedString(const nsString & message);
+  NS_IMETHOD ShowAlertFromStringBundle(const char * messageID);
+
   NS_IMETHOD GetPIPNSSBundleString(const char *name,
                                    nsAString &outString);
   NS_IMETHOD PIPBundleFormatStringFromName(const char *name,
@@ -303,14 +309,6 @@ private:
   void TryCFM2MachOMigration(nsIFile *cfmPath, nsIFile *machoPath);
 #endif
   
-  enum AlertIdentifier {
-    ai_nss_init_problem, 
-    ai_sockets_still_active, 
-    ai_crypto_ui_active,
-    ai_incomplete_logout
-  };
-  
-  void ShowAlert(AlertIdentifier ai);
   void InstallLoadableRoots();
   void UnloadLoadableRoots();
   void LaunchSmartCardThreads();
@@ -403,7 +401,7 @@ class nsPSMInitPanic
 private:
   static bool isPanic;
 public:
-  static void SetPanic() {isPanic = PR_TRUE;}
+  static void SetPanic() {isPanic = true;}
   static bool GetPanic() {return isPanic;}
 };
 

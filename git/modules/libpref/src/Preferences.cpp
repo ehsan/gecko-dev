@@ -38,6 +38,9 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/dom/ContentChild.h"
+
+#include "mozilla/Util.h"
+
 #include "nsXULAppAPI.h"
 
 #include "mozilla/Preferences.h"
@@ -124,7 +127,7 @@ public:
     return const_cast<ValueObserverHashKey*>(this);
   }
 
-  enum { ALLOW_MEMMOVE = PR_TRUE };
+  enum { ALLOW_MEMMOVE = true };
 
   nsCString mPrefName;
   PrefChangedFunc mCallback;
@@ -200,7 +203,7 @@ Preferences::GetInstanceForService()
 
   NS_ENSURE_TRUE(!sShutdown, nsnull);
 
-  InitStaticMembers(PR_TRUE);
+  InitStaticMembers(true);
   NS_IF_ADDREF(sPreferences);
   return sPreferences;
 }
@@ -223,9 +226,9 @@ Preferences::InitStaticMembers(bool aForService)
     return sPreferences != nsnull;
   }
 
-  sRootBranch = new nsPrefBranch("", PR_FALSE);
+  sRootBranch = new nsPrefBranch("", false);
   NS_ADDREF(sRootBranch);
-  sDefaultRootBranch = new nsPrefBranch("", PR_TRUE);
+  sDefaultRootBranch = new nsPrefBranch("", true);
   NS_ADDREF(sDefaultRootBranch);
 
   sPreferences = new Preferences();
@@ -234,7 +237,7 @@ Preferences::InitStaticMembers(bool aForService)
   if (NS_FAILED(sPreferences->Init())) {
     // The singleton instance will delete sRootBranch and sDefaultRootBranch.
     NS_RELEASE(sPreferences);
-    return PR_FALSE;
+    return false;
   }
 
   gCacheData = new nsTArray<nsAutoPtr<CacheData> >();
@@ -242,7 +245,7 @@ Preferences::InitStaticMembers(bool aForService)
   gObserverTable = new nsRefPtrHashtable<ValueObserverHashKey, ValueObserver>();
   gObserverTable->Init();
 
-  return PR_TRUE;
+  return true;
 }
 
 // static
@@ -250,7 +253,7 @@ void
 Preferences::Shutdown()
 {
   if (!sShutdown ) {
-    sShutdown = PR_TRUE; // Don't create the singleton instance after here.
+    sShutdown = true; // Don't create the singleton instance after here.
 
     // Don't set NULL to sPreferences here.  The instance may be grabbed by
     // other modules.  The utility methods of Preferences should be available
@@ -300,7 +303,6 @@ NS_IMPL_THREADSAFE_RELEASE(Preferences)
 NS_INTERFACE_MAP_BEGIN(Preferences)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefService)
     NS_INTERFACE_MAP_ENTRY(nsIPrefService)
-    NS_INTERFACE_MAP_ENTRY(nsIPrefServiceInternal)
     NS_INTERFACE_MAP_ENTRY(nsIObserver)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch2)
@@ -332,7 +334,7 @@ Preferences::Init()
     // Store the array
     nsTArray<PrefTuple>::size_type index = array.Length();
     while (index-- > 0) {
-      pref_SetPrefTuple(array[index], PR_TRUE);
+      pref_SetPrefTuple(array[index], true);
     }
     return NS_OK;
   }
@@ -357,12 +359,12 @@ Preferences::Init()
   if (!observerService)
     return NS_ERROR_FAILURE;
 
-  rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
+  rv = observerService->AddObserver(this, "profile-before-change", true);
 
   if (NS_SUCCEEDED(rv))
-    rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
+    rv = observerService->AddObserver(this, "profile-do-change", true);
 
-  observerService->AddObserver(this, "load-extension-defaults", PR_TRUE);
+  observerService->AddObserver(this, "load-extension-defaults", true);
 
   return(rv);
 }
@@ -379,7 +381,7 @@ Preferences::Observe(nsISupports *aSubject, const char *aTopic,
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
     if (!nsCRT::strcmp(someData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
       if (mCurrentFile) {
-        mCurrentFile->Remove(PR_FALSE);
+        mCurrentFile->Remove(false);
         mCurrentFile = nsnull;
       }
     } else {
@@ -460,9 +462,8 @@ Preferences::SavePrefFile(nsIFile *aFile)
   return SavePrefFileInternal(aFile);
 }
 
-/* part of nsIPrefServiceInternal */
-NS_IMETHODIMP
-Preferences::ReadExtensionPrefs(nsILocalFile *aFile)
+nsresult
+Preferences::ReadExtensionPrefs(nsIFile *aFile)
 {
   nsresult rv;
   nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
@@ -510,47 +511,35 @@ Preferences::ReadExtensionPrefs(nsILocalFile *aFile)
   return rv;
 }
 
-NS_IMETHODIMP
-Preferences::PrefHasUserValue(const nsACString& aPrefName, bool* aHasValue)
-{
-  *aHasValue = PREF_HasUserPref(aPrefName.BeginReading());
-  return NS_OK;
-}
-
-NS_IMETHODIMP
+void
 Preferences::SetPreference(const PrefTuple *aPref)
 {
-  return pref_SetPrefTuple(*aPref, PR_TRUE);
+  pref_SetPrefTuple(*aPref, true);
 }
 
-NS_IMETHODIMP
-Preferences::ClearContentPref(const nsACString& aPrefName)
+void
+Preferences::ClearContentPref(const char *aPref)
 {
-  return PREF_ClearUserPref(aPrefName.BeginReading());
+  PREF_ClearUserPref(aPref);
 }
 
-NS_IMETHODIMP
-Preferences::MirrorPreference(const nsACString& aPrefName, PrefTuple *aPref)
+bool
+Preferences::MirrorPreference(const char *aPref, PrefTuple *aTuple)
 {
-  PrefHashEntry *pref = pref_HashTableLookup(PromiseFlatCString(aPrefName).get());
+  PrefHashEntry *entry = pref_HashTableLookup(aPref);
+  if (!entry)
+    return false;
 
-  if (!pref)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  pref_GetTupleFromEntry(pref, aPref);
-
-  return NS_OK;
+  pref_GetTupleFromEntry(entry, aTuple);
+  return true;
 }
 
-NS_IMETHODIMP
+void
 Preferences::MirrorPreferences(nsTArray<PrefTuple,
                                         nsTArrayInfallibleAllocator> *aArray)
 {
   aArray->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
-
   PL_DHashTableEnumerate(&gHashTable, pref_MirrorPrefs, aArray);
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -560,7 +549,7 @@ Preferences::GetBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
 
   if ((nsnull != aPrefRoot) && (*aPrefRoot != '\0')) {
     // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-    nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, PR_FALSE);
+    nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, false);
     if (!prefBranch)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -580,7 +569,7 @@ Preferences::GetDefaultBranch(const char *aPrefRoot, nsIPrefBranch **_retval)
   }
 
   // TODO: - cache this stuff and allow consumers to share branches (hold weak references I think)
-  nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, PR_TRUE);
+  nsPrefBranch* prefBranch = new nsPrefBranch(aPrefRoot, true);
   if (!prefBranch)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -663,7 +652,7 @@ Preferences::MakeBackupPrefFile(nsIFile *aFile)
   bool exists = false;
   newFile->Exists(&exists);
   if (exists) {
-    rv = newFile->Remove(PR_FALSE);
+    rv = newFile->Remove(false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   rv = aFile->CopyTo(nsnull, newFilename);
@@ -801,7 +790,7 @@ Preferences::WritePrefFile(nsIFile* aFile)
     }
   }
 
-  gDirty = PR_FALSE;
+  gDirty = false;
   return NS_OK;
 }
 
@@ -904,7 +893,7 @@ pref_LoadPrefsInDir(nsIFile* aDir, char const *const *aSpecialFiles, PRUint32 aS
       // separate out special files
       for (PRUint32 i = 0; i < aSpecialFilesCount; ++i) {
         if (leafName.Equals(nsDependentCString(aSpecialFiles[i]))) {
-          shouldParse = PR_FALSE;
+          shouldParse = false;
           // special files should be process in order; we put them into
           // the array by index; this can make the array sparse
           specialFiles.ReplaceObjectAt(prefFile, i);
@@ -1089,7 +1078,7 @@ static nsresult pref_InitInitialObjects()
 #endif
   };
 
-  rv = pref_LoadPrefsInDir(defaultPrefDir, specialFiles, NS_ARRAY_LENGTH(specialFiles));
+  rv = pref_LoadPrefsInDir(defaultPrefDir, specialFiles, ArrayLength(specialFiles));
   if (NS_FAILED(rv))
     NS_WARNING("Error parsing application default preferences.");
 
@@ -1322,11 +1311,11 @@ Preferences::ClearUser(const char* aPref)
 bool
 Preferences::HasUserValue(const char* aPref)
 {
-  NS_ENSURE_TRUE(InitStaticMembers(), PR_FALSE);
+  NS_ENSURE_TRUE(InitStaticMembers(), false);
   bool hasUserValue;
   nsresult rv = sRootBranch->PrefHasUserValue(aPref, &hasUserValue);
   if (NS_FAILED(rv)) {
-    return PR_FALSE;
+    return false;
   }
   return hasUserValue;
 }
@@ -1337,7 +1326,7 @@ Preferences::AddStrongObserver(nsIObserver* aObserver,
                                const char* aPref)
 {
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
-  return sRootBranch->AddObserver(aPref, aObserver, PR_FALSE);
+  return sRootBranch->AddObserver(aPref, aObserver, false);
 }
 
 // static
@@ -1346,7 +1335,7 @@ Preferences::AddWeakObserver(nsIObserver* aObserver,
                              const char* aPref)
 {
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
-  return sRootBranch->AddObserver(aPref, aObserver, PR_TRUE);
+  return sRootBranch->AddObserver(aPref, aObserver, true);
 }
 
 // static

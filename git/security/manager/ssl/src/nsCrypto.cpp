@@ -73,7 +73,6 @@
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
-#include "nsIProxyObjectManager.h"
 #include "nsIJSContextStack.h"
 #include "jsapi.h"
 #include "jsdbgapi.h"
@@ -104,8 +103,8 @@ NSSCleanupAutoPtrClass(SECKEYPrivateKey, SECKEY_DestroyPrivateKey)
 NSSCleanupAutoPtrClass(PK11SlotInfo, PK11_FreeSlot)
 NSSCleanupAutoPtrClass(CERTCertNicknames, CERT_FreeNicknames)
 NSSCleanupAutoPtrClass(PK11SymKey, PK11_FreeSymKey)
-NSSCleanupAutoPtrClass_WithParam(PK11Context, PK11_DestroyContext, TrueParam, PR_TRUE)
-NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, PR_TRUE)
+NSSCleanupAutoPtrClass_WithParam(PK11Context, PK11_DestroyContext, TrueParam, true)
+NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, true)
 
 #include "nsNSSShutDown.h"
 #include "nsNSSCertHelper.h"
@@ -157,13 +156,13 @@ bool isECKeyGenType(nsKeyGenType kgt)
     case ecSign:
     case ecNonrepudiation:
     case ecSignNonrepudiation:
-      return PR_TRUE;
+      return true;
     
     default:
       break;
   }
 
-  return PR_FALSE;
+  return false;
 }
 
 typedef struct nsKeyPairInfoStr {
@@ -270,7 +269,7 @@ NS_IMPL_ISUPPORTS0(nsCryptoRunArgs)
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 nsCrypto::nsCrypto() :
-  mEnableSmartCardEvents(PR_FALSE)
+  mEnableSmartCardEvents(false)
 {
 }
 
@@ -436,7 +435,7 @@ bool getNextNameValueFromECKeygenParamString(char *input,
                                                char *&next_call)
 {
   if (!input || !*input)
-    return PR_FALSE;
+    return false;
 
   // we allow leading ; and leading space in front of each name value pair
 
@@ -452,7 +451,7 @@ bool getNextNameValueFromECKeygenParamString(char *input,
     ++input;
 
   if (*input != '=')
-    return PR_FALSE;
+    return false;
 
   name_len = input - name;
   ++input;
@@ -465,7 +464,7 @@ bool getNextNameValueFromECKeygenParamString(char *input,
   value_len = input - value;
   next_call = input;
 
-  return PR_TRUE;
+  return true;
 }
 
 //Take the string passed into us via crypto.generateCRMFRequest
@@ -667,7 +666,7 @@ nsFreeKeyGenParams(CK_MECHANISM_TYPE keyGenMechanism, void *params)
     nsMemory::Free(params);
     break;
   case CKM_EC_KEY_PAIR_GEN:
-    SECITEM_FreeItem(reinterpret_cast<SECItem*>(params), PR_TRUE);
+    SECITEM_FreeItem(reinterpret_cast<SECItem*>(params), true);
     break;
   case CKM_DSA_KEY_PAIR_GEN:
     PK11_PQG_DestroyParams(static_cast<PQGParams*>(params));
@@ -707,7 +706,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
   if (NS_FAILED(rv))
     return rv;
 
-  if (PK11_Authenticate(slot, PR_TRUE, uiCxt) != SECSuccess)
+  if (PK11_Authenticate(slot, true, uiCxt) != SECSuccess)
     return NS_ERROR_FAILURE;
  
 
@@ -730,11 +729,11 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
   if (willEscrow && !PK11_IsInternal(slot)) {
     intSlot = PK11_GetInternalSlot();
     NS_ASSERTION(intSlot,"Couldn't get the internal slot");
-    isPerm = PR_FALSE;
+    isPerm = false;
     origSlot = slot;
     slot = intSlot;
   } else {
-    isPerm = PR_TRUE;
+    isPerm = true;
   }
 
   rv = getNSSDialogs((void**)&dialogs,
@@ -796,7 +795,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
     SECKEYPrivateKey *newPrivKey = PK11_LoadPrivKey(origSlot, 
                                                     keyPairInfo->privKey,
                                                     keyPairInfo->pubKey,
-                                                    PR_TRUE, PR_TRUE);
+                                                    true, true);
     SECKEYPrivateKeyCleaner pkCleaner(newPrivKey);
 
     if (!newPrivKey)
@@ -840,8 +839,8 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
  *    from the keytype associted with the keyPairInfo, and pass it back to
  *    the caller so that subsequence key generations can use the same slot. 
  *  willEscrow
- *    If PR_TRUE, then that means we will try to escrow the generated
- *    private key when building the CRMF request.  If PR_FALSE, then
+ *    If true, then that means we will try to escrow the generated
+ *    private key when building the CRMF request.  If false, then
  *    we will not try to escrow the private key.
  *
  * NOTES:
@@ -1038,7 +1037,7 @@ nsSetRegToken(CRMFCertRequest *certReq, char *regToken)
       return NS_ERROR_FAILURE;
 
     SECStatus srv = CRMF_CertRequestSetRegTokenControl(certReq, derEncoded);
-    SECITEM_FreeItem(derEncoded,PR_TRUE);
+    SECITEM_FreeItem(derEncoded,true);
     if (srv != SECSuccess)
       return NS_ERROR_FAILURE;
   }
@@ -1066,7 +1065,7 @@ nsSetAuthenticator(CRMFCertRequest *certReq, char *authenticator)
 
     SECStatus srv = CRMF_CertRequestSetAuthenticatorControl(certReq, 
                                                             derEncoded);
-    SECITEM_FreeItem(derEncoded, PR_TRUE);
+    SECITEM_FreeItem(derEncoded, true);
     if (srv != SECSuccess)
       return NS_ERROR_FAILURE;
   }
@@ -1128,7 +1127,7 @@ nsSetKeyUsageExtension(CRMFCertRequest *crmfReq,
   if (encodedExt == nsnull) {
     goto loser;
   }
-  ext = CRMF_CreateCertExtension(SEC_OID_X509_KEY_USAGE, PR_TRUE, encodedExt);
+  ext = CRMF_CreateCertExtension(SEC_OID_X509_KEY_USAGE, true, encodedExt);
   if (ext == nsnull) {
       goto loser;
   }
@@ -1140,14 +1139,14 @@ nsSetKeyUsageExtension(CRMFCertRequest *crmfReq,
       goto loser;
   }
   CRMF_DestroyCertExtension(ext);
-  SECITEM_FreeItem(encodedExt, PR_TRUE);
+  SECITEM_FreeItem(encodedExt, true);
   return NS_OK;
  loser:
   if (ext) {
     CRMF_DestroyCertExtension(ext);
   }
   if (encodedExt) {
-      SECITEM_FreeItem(encodedExt, PR_TRUE);
+      SECITEM_FreeItem(encodedExt, true);
   }
   return NS_ERROR_FAILURE;
 }
@@ -1627,7 +1626,7 @@ nsSetProofOfPossession(CRMFCertReqMsg *certReqMsg,
   {
     case rsaEnc:
     case ecEnc:
-      isEncryptionOnlyCertRequest = PR_TRUE;
+      isEncryptionOnlyCertRequest = true;
       break;
     
     case rsaSign:
@@ -1663,18 +1662,18 @@ nsSetProofOfPossession(CRMFCertReqMsg *certReqMsg,
       keyInfo->ecPopCert && 
       keyInfo->ecPopPubKey)
   {
-    gotDHMACParameters = PR_TRUE;
+    gotDHMACParameters = true;
   }
   
   if (isEncryptionOnlyCertRequest)
   {
     if (escrowEncryptionOnlyCert)
-      return nsSetKeyEnciphermentPOP(certReqMsg, PR_TRUE); // escrowed
+      return nsSetKeyEnciphermentPOP(certReqMsg, true); // escrowed
     
     if (gotDHMACParameters)
       return nsSet_EC_DHMAC_ProofOfPossession(certReqMsg, keyInfo, certReq);
     
-    return nsSetKeyEnciphermentPOP(certReqMsg, PR_FALSE); // not escrowed
+    return nsSetKeyEnciphermentPOP(certReqMsg, false); // not escrowed
   }
   
   // !isEncryptionOnlyCertRequest
@@ -1730,7 +1729,7 @@ nsEncodeCertReqMessages(CRMFCertReqMsg **certReqMsgs)
 
   if (CRMF_EncodeCertReqMessages(certReqMsgs, nsCRMFEncoderItemStore, dest)
       != SECSuccess) {
-    SECITEM_FreeItem(dest, PR_TRUE);
+    SECITEM_FreeItem(dest, true);
     return nsnull;
   }
   return dest;
@@ -1781,7 +1780,7 @@ nsCreateReqFromKeyPairs(nsKeyPairInfo *keyids, PRInt32 numRequests,
   nsFreeCertReqMessages(certReqMsgs, numRequests);
 
   retString = NSSBase64_EncodeItem (nsnull, nsnull, 0, encodedReq);
-  SECITEM_FreeItem(encodedReq, PR_TRUE);
+  SECITEM_FreeItem(encodedReq, true);
   return retString;
 loser:
   nsFreeCertReqMessages(certReqMsgs,numRequests);
@@ -1912,8 +1911,8 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
       return NS_ERROR_FAILURE;
     }
     CERTCertificate *cert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
-                                                    &certDer, nsnull, PR_FALSE,
-                                                    PR_TRUE);
+                                                    &certDer, nsnull, false,
+                                                    true);
     if (!cert)
       return NS_ERROR_FAILURE;
 
@@ -1934,7 +1933,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     {
       nsPSMUITracker tracker;
       if (tracker.isUIForbidden()) {
-        okay = PR_FALSE;
+        okay = false;
       }
       else {
         dialogs->ConfirmKeyEscrow(nssCert, &okay);
@@ -1942,7 +1941,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     }
     if (!okay)
       return NS_OK;
-    willEscrow = PR_TRUE;
+    willEscrow = true;
   }
   nsCOMPtr<nsIInterfaceRequestor> uiCxt = new PipUIContext;
   PRInt32 numRequests = (argc - 5)/3;
@@ -2060,27 +2059,12 @@ nsP12Runnable::~nsP12Runnable()
 }
 
 
-//Quick helper function to alert users.
-void
-alertUser(const PRUnichar *message)
-{
-  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
-  nsCOMPtr<nsIPrompt> prompter;
-  if (wwatch)
-    wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
-
-  if (prompter) {
-    nsPSMUITracker tracker;
-    if (!tracker.isUIForbidden()) {
-      prompter->Alert(0, message);
-    }
-  }
-}
-
 //Implementation that backs cert(s) into a PKCS12 file
 NS_IMETHODIMP
 nsP12Runnable::Run()
 {
+  NS_ASSERTION(NS_IsMainThread(), "nsP12Runnable dispatched to the wrong thread");
+
   nsNSSShutDownPreventionLock locker;
   NS_ASSERTION(mCertArr, "certArr is NULL while trying to back up");
 
@@ -2103,7 +2087,7 @@ nsP12Runnable::Run()
   nssComponent->GetPIPNSSBundleString("ForcedBackup3", temp);
 
   final.Append(temp.get());
-  alertUser(final.get());
+  nsNSSComponent::ShowAlertWithConstructedString(final);
 
   nsCOMPtr<nsIFilePicker> filePicker = 
                         do_CreateInstance("@mozilla.org/filepicker;1", &rv);
@@ -2231,7 +2215,7 @@ nsCertAlreadyExists(SECItem *derCert)
       //bogus cruft, so delete it.
       SEC_DeletePermCertificate(cert);
     } else if (cert->isperm) {
-      retVal = PR_TRUE;
+      retVal = true;
     }
     CERT_DestroyCertificate(cert);
   }
@@ -2310,7 +2294,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
     // If this is NULL, chances are we're gonna fail really soon,
     // but let's try to keep going just in case.
     if (!certArr)
-      aDoForcedBackup = PR_FALSE;
+      aDoForcedBackup = false;
 
     memset(certArr, 0, sizeof(nsIX509Cert*)*numResponses);
   }
@@ -2610,17 +2594,6 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIFormSigningDialog> proxied_fsd;
-  nsresult rv = NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
-                                     NS_GET_IID(nsIFormSigningDialog), 
-                                     fsd, NS_PROXY_SYNC,
-                                     getter_AddRefs(proxied_fsd));
-  if (NS_FAILED(rv)) {
-    aResult.Append(internalError);
-
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIDocument> document;
   GetDocumentFromContext(cx, getter_AddRefs(document));
   if (!document) {
@@ -2636,6 +2609,8 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
 
     return NS_OK;
   }
+
+  nsresult rv;
 
   nsCString host;
   rv = uri->GetHost(host);
@@ -2712,11 +2687,11 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     // Throw up the form signing confirmation dialog and get back the index
     // of the selected cert.
     PRInt32 selectedIndex = -1;
-    rv = proxied_fsd->ConfirmSignText(uiContext, utf16Host, aStringToSign,
-                                      const_cast<const PRUnichar**>(certNicknameList.get()),
-                                      const_cast<const PRUnichar**>(certDetailsList),
-                                      certsToUse, &selectedIndex, password,
-                                      &canceled);
+    rv = fsd->ConfirmSignText(uiContext, utf16Host, aStringToSign,
+                              const_cast<const PRUnichar**>(certNicknameList.get()),
+                              const_cast<const PRUnichar**>(certDetailsList),
+                              certsToUse, &selectedIndex, password,
+                              &canceled);
     if (NS_FAILED(rv) || canceled) {
       break; // out of tryAgain loop
     }
@@ -2930,10 +2905,8 @@ confirm_user(const PRUnichar *message)
 {
   PRInt32 buttonPressed = 1; // If the user exits by clicking the close box, assume No (button 1)
 
-  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
   nsCOMPtr<nsIPrompt> prompter;
-  if (wwatch)
-    wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
+  (void) nsNSSComponent::GetNewPrompter(getter_AddRefs(prompter));
 
   if (prompter) {
     nsPSMUITracker tracker;

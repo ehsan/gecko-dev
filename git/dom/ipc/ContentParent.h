@@ -135,6 +135,9 @@ private:
                                                const NativeThreadId& tid,
                                                const PRUint32& processType);
 
+    NS_OVERRIDE virtual PHalParent* AllocPHal();
+    NS_OVERRIDE virtual bool DeallocPHal(PHalParent*);
+
     virtual PMemoryReportRequestParent* AllocPMemoryReportRequest();
     virtual bool DeallocPMemoryReportRequest(PMemoryReportRequestParent* actor);
 
@@ -238,7 +241,7 @@ private:
     nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
     bool mIsAlive;
-    nsCOMPtr<nsIPrefServiceInternal> mPrefService;
+    nsCOMPtr<nsIPrefService> mPrefService;
 
     bool mSendPermissionUpdates;
 

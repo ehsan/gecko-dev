@@ -45,7 +45,7 @@
 #define nsContentList_h___
 
 #include "nsISupports.h"
-#include "nsCOMArray.h"
+#include "nsTArray.h"
 #include "nsString.h"
 #include "nsIHTMLCollection.h"
 #include "nsIDOMNodeList.h"
@@ -84,6 +84,11 @@ class Element;
 class nsBaseContentList : public nsINodeList
 {
 public:
+  nsBaseContentList()
+  {
+    // Mark ourselves as a proxy
+    SetIsProxy();
+  }
   virtual ~nsBaseContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -92,16 +97,18 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   
   PRUint32 Length() const { 
-    return mElements.Count();
+    return mElements.Length();
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsINodeList)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsBaseContentList)
 
-  void AppendElement(nsIContent *aContent);
+  void AppendElement(nsIContent *aContent)
+  {
+    mElements.AppendElement(aContent);
+  }
   void MaybeAppendElement(nsIContent* aContent)
   {
     if (aContent)
@@ -114,19 +121,28 @@ public:
    * @param aContent Element to insert, must not be null
    * @param aIndex Index to insert the element at.
    */
-  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex);
+  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex)
+  {
+    NS_ASSERTION(aContent, "Element to insert must not be null");
+    mElements.InsertElementAt(aIndex, aContent);
+  }
 
-  void RemoveElement(nsIContent *aContent); 
+  void RemoveElement(nsIContent *aContent)
+  {
+    mElements.RemoveElement(aContent);
+  }
 
   void Reset() {
     mElements.Clear();
   }
 
-
   virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
 
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                               bool *triedToWrap) = 0;
+
 protected:
-  nsCOMArray<nsIContent> mElements;
+  nsTArray< nsCOMPtr<nsIContent> > mElements;
 };
 
 
@@ -146,6 +162,8 @@ public:
   {
     return mRoot;
   }
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                               bool *triedToWrap);
 
 private:
   // This has to be a strong reference, the root might go away before the list.
@@ -276,22 +294,20 @@ public:
                 bool aFuncMayDependOnAttr = true);
   virtual ~nsContentList();
 
+  // nsWrapperCache
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                               bool *triedToWrap);
+
   // nsIDOMHTMLCollection
   NS_DECL_NSIDOMHTMLCOLLECTION
 
   // nsBaseContentList overrides
   virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   virtual nsINode* GetParentObject()
   {
     return mRootNode;
   }
-
-  // nsIHTMLCollection
-  // GetNodeAt already declared as part of nsINodeList
-  virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache);
 
   // nsContentList public methods
   NS_HIDDEN_(PRUint32) Length(bool aDoFlush);
@@ -365,9 +381,9 @@ protected:
   /**
    * @param  aContainer a content node which must be a descendant of
    *         mRootNode
-   * @return PR_TRUE if children or descendants of aContainer could match our
+   * @return true if children or descendants of aContainer could match our
    *                 criterion.
-   *         PR_FALSE otherwise.
+   *         false otherwise.
    */
   bool MayContainRelevantNodes(nsINode* aContainer)
   {

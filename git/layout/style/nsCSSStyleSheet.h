@@ -51,6 +51,8 @@
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsCOMArray.h"
+#include "nsTArray.h"
+#include "nsString.h"
 
 class nsXMLNameSpaceMap;
 class nsCSSRuleProcessor;
@@ -245,8 +247,8 @@ public:
   };
   EnsureUniqueInnerResult EnsureUniqueInner();
 
-  // Append all of this sheet's child sheets to aArray.  Return PR_TRUE
-  // on success and PR_FALSE on allocation failure.
+  // Append all of this sheet's child sheets to aArray.  Return true
+  // on success and false on allocation failure.
   bool AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
 
   bool UseForPresentation(nsPresContext* aPresContext,

@@ -210,6 +210,23 @@ body[dir="rtl"] #newAddons > div:not(.loading) {
   position: absolute;
 }
 
+#newAddons {
+  margin-bottom: 0;
+}
+
+/* Make sure the button and list match up nicely */
+#newAddons[showlist] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+  margin: 0 -2px 0 0;
+}
+
+#newAddonsList {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 body[dir="ltr"] {
   left: 4px;
 }
@@ -243,6 +260,18 @@ body[dir="rtl"] {
   display: inline-block;
   margin: 0;
 }
+
+#sync-setup {
+  font-size: 18px;
+  margin-top: 24px;
+  text-align: center;
+}
+
+#syncSetupSync,
+#syncPairDevice {
+  text-decoration: underline; 
+  color: blue; 
+} 
 
 /* Lightbox for Aurora */
 #lightbox {

@@ -103,7 +103,7 @@ AccEvent::GetDocAccessible()
 {
   nsINode *node = GetNode();
   if (node)
-    return GetAccService()->GetDocAccessible(node->GetOwnerDoc());
+    return GetAccService()->GetDocAccessible(node->OwnerDoc());
 
   return nsnull;
 }
@@ -161,7 +161,7 @@ AccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
 #endif
 
   if (aIsFromUserInput != eAutoDetect) {
-    mIsFromUserInput = aIsFromUserInput == eFromUserInput ? PR_TRUE : PR_FALSE;
+    mIsFromUserInput = aIsFromUserInput == eFromUserInput ? true : false;
     return;
   }
 
@@ -327,6 +327,28 @@ AccCaretMoveEvent::CreateXPCOMObject()
   nsAccEvent* event = new nsAccCaretMoveEvent(this);
   NS_IF_ADDREF(event);
   return event;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// AccSelChangeEvent
+////////////////////////////////////////////////////////////////////////////////
+
+AccSelChangeEvent::
+  AccSelChangeEvent(nsAccessible* aWidget, nsAccessible* aItem,
+                    SelChangeType aSelChangeType) :
+    AccEvent(0, aItem, eAutoDetect, eCoalesceSelectionChange),
+    mWidget(aWidget), mItem(aItem), mSelChangeType(aSelChangeType),
+    mPreceedingCount(0), mPackedEvent(nsnull)
+{
+  if (aSelChangeType == eSelectionAdd) {
+    if (mWidget->GetSelectedItem(1))
+      mEventType = nsIAccessibleEvent::EVENT_SELECTION_ADD;
+    else
+      mEventType = nsIAccessibleEvent::EVENT_SELECTION;
+  } else {
+    mEventType = nsIAccessibleEvent::EVENT_SELECTION_REMOVE;
+  }
 }
 
 

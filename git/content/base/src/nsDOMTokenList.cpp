@@ -123,16 +123,6 @@ nsDOMTokenList::CheckToken(const nsAString& aStr)
   return NS_OK;
 }
 
-bool
-nsDOMTokenList::ContainsInternal(const nsAttrValue* aAttr,
-                                 const nsAString& aToken)
-{
-  NS_ABORT_IF_FALSE(aAttr, "Need an attribute");
-
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(aToken);
-  return aAttr->Contains(atom, eCaseMatters);
-}
-
 NS_IMETHODIMP
 nsDOMTokenList::Contains(const nsAString& aToken, bool* aResult)
 {
@@ -141,11 +131,11 @@ nsDOMTokenList::Contains(const nsAString& aToken, bool* aResult)
 
   const nsAttrValue* attr = GetParsedAttr();
   if (!attr) {
-    *aResult = PR_FALSE;
+    *aResult = false;
     return NS_OK;
   }
 
-  *aResult = ContainsInternal(attr, aToken);
+  *aResult = attr->Contains(aToken);
 
   return NS_OK;
 }
@@ -171,7 +161,7 @@ nsDOMTokenList::AddInternal(const nsAttrValue* aAttr,
   } else {
     resultStr.Append(aToken);
   }
-  mElement->SetAttr(kNameSpaceID_None, mAttrAtom, resultStr, PR_TRUE);
+  mElement->SetAttr(kNameSpaceID_None, mAttrAtom, resultStr, true);
 }
 
 NS_IMETHODIMP
@@ -182,7 +172,7 @@ nsDOMTokenList::Add(const nsAString& aToken)
 
   const nsAttrValue* attr = GetParsedAttr();
 
-  if (attr && ContainsInternal(attr, aToken)) {
+  if (attr && attr->Contains(aToken)) {
     return NS_OK;
   }
 
@@ -235,7 +225,7 @@ nsDOMTokenList::RemoveInternal(const nsAttrValue* aAttr,
         ++iter;
       }
       copyStart = iter;
-      lastTokenRemoved = PR_TRUE;
+      lastTokenRemoved = true;
 
     } else {
 
@@ -244,13 +234,13 @@ nsDOMTokenList::RemoveInternal(const nsAttrValue* aAttr,
           output.CharAt(output.Length() - 1)), "Invalid last output token");
         output.Append(PRUnichar(' '));
       }
-      lastTokenRemoved = PR_FALSE;
+      lastTokenRemoved = false;
       output.Append(Substring(copyStart, iter));
       copyStart = iter;
     }
   }
 
-  mElement->SetAttr(kNameSpaceID_None, mAttrAtom, output, PR_TRUE);
+  mElement->SetAttr(kNameSpaceID_None, mAttrAtom, output, true);
 }
 
 NS_IMETHODIMP
@@ -264,7 +254,7 @@ nsDOMTokenList::Remove(const nsAString& aToken)
     return NS_OK;
   }
 
-  if (!ContainsInternal(attr, aToken)) {
+  if (!attr->Contains(aToken)) {
     return NS_OK;
   }
 
@@ -281,12 +271,12 @@ nsDOMTokenList::Toggle(const nsAString& aToken, bool* aResult)
 
   const nsAttrValue* attr = GetParsedAttr();
 
-  if (attr && ContainsInternal(attr, aToken)) {
+  if (attr && attr->Contains(aToken)) {
     RemoveInternal(attr, aToken);
-    *aResult = PR_FALSE;
+    *aResult = false;
   } else {
     AddInternal(attr, aToken);
-    *aResult = PR_TRUE;
+    *aResult = true;
   }
 
   return NS_OK;

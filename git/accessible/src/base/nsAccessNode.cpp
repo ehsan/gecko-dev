@@ -54,7 +54,7 @@
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -106,7 +106,7 @@ nsAccessNode::
   mContent(aContent), mWeakShell(aShell)
 {
 #ifdef DEBUG_A11Y
-  mIsInitialized = PR_FALSE;
+  mIsInitialized = false;
 #endif
 }
 
@@ -138,7 +138,7 @@ nsAccessNode::IsDefunct() const
 bool
 nsAccessNode::Init()
 {
-  return PR_TRUE;
+  return true;
 }
 
 
@@ -201,7 +201,7 @@ void nsAccessNode::InitXPAccessibility()
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 
-  NotifyA11yInitOrShutdown(PR_TRUE);
+  NotifyA11yInitOrShutdown(true);
 }
 
 // nsAccessNode protected static
@@ -235,7 +235,7 @@ void nsAccessNode::ShutdownXPAccessibility()
     NS_RELEASE(gApplicationAccessible);
   }
 
-  NotifyA11yInitOrShutdown(PR_FALSE);
+  NotifyA11yInitOrShutdown(false);
 }
 
 already_AddRefed<nsIPresShell>
@@ -262,7 +262,7 @@ nsDocAccessible *
 nsAccessNode::GetDocAccessible() const
 {
   return mContent ?
-    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc()) : nsnull;
+    GetAccService()->GetDocAccessible(mContent->OwnerDoc()) : nsnull;
 }
 
 nsRootAccessible*
@@ -337,10 +337,10 @@ nsAccessNode::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
 
-  nsCOMPtr<nsIDOMNSHTMLElement> domNSElement(do_QueryInterface(mContent));
-  NS_ENSURE_TRUE(domNSElement, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mContent);
+  NS_ENSURE_TRUE(htmlElement, NS_ERROR_NULL_POINTER);
 
-  return domNSElement->GetInnerHTML(aInnerHTML);
+  return htmlElement->GetInnerHTML(aInnerHTML);
 }
 
 NS_IMETHODIMP
@@ -437,7 +437,7 @@ nsAccessNode::GetCurrentFocus()
   nsCOMPtr<nsIDOMElement> focusedElement;
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm)
-    fm->GetFocusedElementForWindow(win, PR_TRUE, getter_AddRefs(focusedWindow),
+    fm->GetFocusedElementForWindow(win, true, getter_AddRefs(focusedWindow),
                                    getter_AddRefs(focusedElement));
 
   nsINode *focusedNode = nsnull;
@@ -465,10 +465,8 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
-    nsIDocument *doc = mContent->GetOwnerDoc();
-    if (doc) {
-      doc->GetHeaderData(nsGkAtoms::headerContentLanguage, aLanguage);
-    }
+    mContent->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
+                                        aLanguage);
   }
  
   return NS_OK;

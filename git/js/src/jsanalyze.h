@@ -45,9 +45,9 @@
 #include "jscntxt.h"
 #include "jsinfer.h"
 #include "jsscript.h"
-#include "jstl.h"
 
 #include "ds/LifoAlloc.h"
+#include "js/TemplateLib.h"
 
 struct JSScript;
 
@@ -149,12 +149,6 @@ class Bytecode
     uint32 stackDepth;
 
   private:
-    /*
-     * The set of locals defined at this point. This does not include locals which
-     * were unconditionally defined at an earlier point in the script.
-     */
-    uint32 defineCount;
-    uint32 *defineArray;
 
     union {
         /* If this is a JOF_TYPESET opcode, index into the observed types for the op. */
@@ -204,22 +198,6 @@ class Bytecode
 
     /* Any type barriers in place at this bytecode. */
     types::TypeBarrier *typeBarriers;
-
-    /* --------- Helpers --------- */
-
-    bool mergeDefines(JSContext *cx, ScriptAnalysis *script, bool initial,
-                      uint32 newDepth, uint32 *newArray, uint32 newCount);
-
-    /* Whether a local variable is in the define set at this bytecode. */
-    bool isDefined(uint32 slot)
-    {
-        JS_ASSERT(analyzed);
-        for (unsigned i = 0; i < defineCount; i++) {
-            if (defineArray[i] == slot)
-                return true;
-        }
-        return false;
-    }
 };
 
 static inline unsigned
@@ -524,8 +502,9 @@ struct Lifetime
 };
 
 /* Basic information for a loop. */
-struct LoopAnalysis
+class LoopAnalysis
 {
+  public:
     /* Any loop this one is nested in. */
     LoopAnalysis *parent;
 
@@ -847,10 +826,12 @@ SSAValue::phiTypes() const
     return &u.phi.node->types;
 }
 
-struct SSAUseChain
+class SSAUseChain
 {
+  public:
     bool popped : 1;
     uint32 offset : 31;
+    /* FIXME: Assert that only the proper arm of this union is accessed. */
     union {
         uint32 which;
         SSAPhiNode *phi;
@@ -860,8 +841,9 @@ struct SSAUseChain
     SSAUseChain() { PodZero(this); }
 };
 
-struct SlotValue
+class SlotValue
 {
+  public:
     uint32 slot;
     SSAValue value;
     SlotValue(uint32 slot, const SSAValue &value) : slot(slot), value(value) {}
@@ -903,12 +885,6 @@ class ScriptAnalysis
     bool canTrackVars:1;
 
     uint32 numReturnSites_;
-
-    /* Offsets at which each local becomes unconditionally defined, or a value below. */
-    uint32 *definedLocals;
-
-    static const uint32 LOCAL_USE_BEFORE_DEF = uint32(-1);
-    static const uint32 LOCAL_CONDITIONALLY_DEFINED = uint32(-2);
 
     /* --------- Lifetime analysis --------- */
 
@@ -1143,21 +1119,6 @@ class ScriptAnalysis
 
     /* Accessors for local variable information. */
 
-    bool localHasUseBeforeDef(uint32 local) {
-        JS_ASSERT(!failed());
-        return slotEscapes(LocalSlot(script, local)) ||
-            definedLocals[local] == LOCAL_USE_BEFORE_DEF;
-    }
-
-    /* These return true for variables that may have a use before def. */
-    bool localDefined(uint32 local, uint32 offset) {
-        return localHasUseBeforeDef(local) || (definedLocals[local] <= offset) ||
-            getCode(offset).isDefined(local);
-    }
-    bool localDefined(uint32 local, jsbytecode *pc) {
-        return localDefined(local, pc - script->code);
-    }
-
     /*
      * Escaping slots include all slots that can be accessed in ways other than
      * through the corresponding LOCAL/ARG opcode. This includes all closed
@@ -1217,8 +1178,7 @@ class ScriptAnalysis
     /* Bytecode helpers */
     inline bool addJump(JSContext *cx, unsigned offset,
                         unsigned *currentOffset, unsigned *forwardJump,
-                        unsigned stackDepth, uint32 *defineArray, unsigned defineCount);
-    inline void setLocal(uint32 local, uint32 offset);
+                        unsigned stackDepth);
     void checkAliasedName(JSContext *cx, jsbytecode *pc);
 
     /* Lifetime helpers */
@@ -1259,23 +1219,29 @@ class ScriptAnalysis
 };
 
 /* Protect analysis structures from GC while they are being used. */
-struct AutoEnterAnalysis
+class AutoEnterAnalysis
 {
-    JSContext *cx;
+    JSCompartment *compartment;
     bool oldActiveAnalysis;
     bool left;
 
-    AutoEnterAnalysis(JSContext *cx)
-        : cx(cx), oldActiveAnalysis(cx->compartment->activeAnalysis), left(false)
+    void construct(JSCompartment *compartment)
     {
-        cx->compartment->activeAnalysis = true;
+        this->compartment = compartment;
+        oldActiveAnalysis = compartment->activeAnalysis;
+        compartment->activeAnalysis = true;
+        left = false;
     }
+
+  public:
+    AutoEnterAnalysis(JSContext *cx) { construct(cx->compartment); }
+    AutoEnterAnalysis(JSCompartment *compartment) { construct(compartment); }
 
     void leave()
     {
         if (!left) {
             left = true;
-            cx->compartment->activeAnalysis = oldActiveAnalysis;
+            compartment->activeAnalysis = oldActiveAnalysis;
         }
     }
 

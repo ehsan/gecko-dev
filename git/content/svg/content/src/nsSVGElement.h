@@ -51,10 +51,8 @@
 #include "nsStyledElement.h"
 #include "mozilla/css/StyleRule.h"
 
-#ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
 #include "nsSMILAnimationController.h"
-#endif
 
 class nsSVGSVGElement;
 class nsSVGLength2;
@@ -68,7 +66,6 @@ class nsSVGEnum;
 struct nsSVGEnumMapping;
 class nsSVGViewBox;
 class nsSVGString;
-class nsSVGClass;
 struct gfxMatrix;
 namespace mozilla {
 class SVGAnimatedNumberList;
@@ -197,7 +194,6 @@ public:
   virtual void DidAnimatePathSegList();
   virtual void DidAnimateTransformList();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
-  virtual void DidAnimateClass();
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
@@ -222,14 +218,9 @@ public:
     return nsnull;
   }
 
-#ifdef MOZ_SMIL
   virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName);
   void AnimationNeedsResample();
   void FlushAnimations();
-#else
-  void AnimationNeedsResample() { /* do nothing */ }
-  void FlushAnimations() { /* do nothing */ }
-#endif
 
   virtual void RecompileScriptEventListeners();
 
@@ -259,10 +250,8 @@ protected:
   virtual bool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
-#ifdef MOZ_SMIL
   void UpdateAnimatedContentStyleRule();
   mozilla::css::StyleRule* GetAnimatedContentStyleRule();
-#endif // MOZ_SMIL
 
   static nsIAtom* GetEventNameForAttr(nsIAtom* aAttr);
 
@@ -514,11 +503,13 @@ protected:
   virtual NumberListAttributesInfo GetNumberListInfo();
   virtual LengthListAttributesInfo GetLengthListInfo();
   virtual StringAttributesInfo GetStringInfo();
-  virtual nsSVGClass *GetClass();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 
 private:
+  void UnsetAttrInternal(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                         bool aNotify);
+
   nsRefPtr<mozilla::css::StyleRule> mContentStyleRule;
 };
 

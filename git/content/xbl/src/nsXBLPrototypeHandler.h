@@ -88,6 +88,9 @@ public:
   // This constructor is used only by XUL key handlers (e.g., <key>)
   nsXBLPrototypeHandler(nsIContent* aKeyElement);
 
+  // This constructor is used for handlers loaded from the cache
+  nsXBLPrototypeHandler(nsXBLPrototypeBinding* aBinding);
+
   ~nsXBLPrototypeHandler();
 
   // if aCharCode is not zero, it is used instead of the charCode of aKeyEvent.
@@ -100,7 +103,7 @@ public:
                                 bool aIgnoreShiftKey = false)
   {
     if (aEventType != mEventName)
-      return PR_FALSE;
+      return false;
 
     return KeyEventMatched(aEvent, aCharCode, aIgnoreShiftKey);
   }
@@ -110,7 +113,7 @@ public:
                                   nsIDOMMouseEvent* aEvent)
   {
     if (aEventType != mEventName)
-      return PR_FALSE;
+      return false;
 
     return MouseEventMatched(aEvent);
   }
@@ -151,16 +154,26 @@ public:
   }
 
   // This returns a valid value only if HasAllowUntrustedEventsAttr returns
-  // PR_TRUE.
+  // true.
   bool AllowUntrustedEvents()
   {
     return (mType & NS_HANDLER_ALLOW_UNTRUSTED) != 0;
   }
 
+  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
+  nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);
+
 public:
   static PRUint32 gRefCnt;
   
 protected:
+  void Init() {
+    ++gRefCnt;
+    if (gRefCnt == 1)
+      // Get the primary accelerator key.
+      InitAccessKeys();
+  }
+
   already_AddRefed<nsIController> GetController(nsIDOMEventTarget* aTarget);
   
   inline PRInt32 GetMatchingKeyCode(const nsAString& aKeyName);

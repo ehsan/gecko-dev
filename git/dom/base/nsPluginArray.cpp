@@ -38,19 +38,22 @@
 
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
-#include "nsGlobalWindow.h"
+#include "Navigator.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMMimeType.h"
 #include "nsIPluginHost.h"
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
-#include "nsDOMClassInfo.h"
+#include "nsDOMClassInfoID.h"
 #include "nsPluginError.h"
 #include "nsContentUtils.h"
 #include "nsPluginHost.h"
 
-nsPluginArray::nsPluginArray(nsNavigator* navigator,
+using namespace mozilla;
+using namespace mozilla::dom;
+
+nsPluginArray::nsPluginArray(Navigator* navigator,
                              nsIDocShell *aDocShell)
 {
   nsresult rv;
@@ -100,7 +103,7 @@ nsPluginArray::AllowPlugins()
   bool allowPlugins = false;
   if (mDocShell)
     if (NS_FAILED(mDocShell->GetAllowPlugins(&allowPlugins)))
-      allowPlugins = PR_FALSE;
+      allowPlugins = false;
 
   return allowPlugins;
 }

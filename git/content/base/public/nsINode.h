@@ -50,6 +50,14 @@
 #include "nsDOMString.h"
 #include "jspubtd.h"
 #include "nsDOMMemoryReporter.h"
+#include "nsIVariant.h"
+
+// Including 'windows.h' will #define GetClassInfo to something else.
+#ifdef XP_WIN
+#ifdef GetClassInfo
+#undef GetClassInfo
+#endif
+#endif
 
 class nsIContent;
 class nsIDocument;
@@ -69,7 +77,6 @@ class nsChildContentList;
 class nsNodeWeakReference;
 class nsNodeSupportsWeakRefTearoff;
 class nsIEditor;
-class nsIVariant;
 class nsIDOMUserDataHandler;
 class nsAttrAndChildArray;
 class nsXPCClassInfo;
@@ -277,14 +284,12 @@ private:
 // 0 is global.
 #define DOM_USER_DATA         1
 #define DOM_USER_DATA_HANDLER 2
-#ifdef MOZ_SMIL
 #define SMIL_MAPPED_ATTR_ANIMVAL 3
-#endif // MOZ_SMIL
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xb59269fe, 0x7f60, 0x4672, \
-  { 0x8e, 0x56, 0x01, 0x84, 0xb2, 0x58, 0x14, 0xb0 } }
+{ 0x20d16be2, 0x3c58, 0x4099, \
+  { 0xbf, 0xa6, 0xd0, 0xe7, 0x6b, 0xb1, 0x3d, 0xc5 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -415,7 +420,7 @@ public:
    * nsIDocument GetOwnerDocument returns the document itself.  For nsIContent
    * implementations the two are the same.
    */
-  nsIDocument *GetOwnerDoc() const
+  nsIDocument *OwnerDoc() const
   {
     return mNodeInfo->GetDocument();
   }
@@ -438,7 +443,7 @@ public:
    */
   nsIDocument *GetCurrentDoc() const
   {
-    return IsInDoc() ? GetOwnerDoc() : nsnull;
+    return IsInDoc() ? OwnerDoc() : nsnull;
   }
 
   /**
@@ -461,12 +466,12 @@ public:
   nsINode*
   InsertBefore(nsINode *aNewChild, nsINode *aRefChild, nsresult *aReturn)
   {
-    return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
+    return ReplaceOrInsertBefore(false, aNewChild, aRefChild, aReturn);
   }
   nsINode*
   ReplaceChild(nsINode *aNewChild, nsINode *aOldChild, nsresult *aReturn)
   {
-    return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
+    return ReplaceOrInsertBefore(true, aNewChild, aOldChild, aReturn);
   }
   nsINode*
   AppendChild(nsINode *aNewChild, nsresult *aReturn)
@@ -578,8 +583,8 @@ public:
    * @param aValue         new value of property.
    * @param aDtor          destructor function to be used when this property
    *                       is destroyed.
-   * @param aTransfer      if PR_TRUE the property will not be deleted when the
-   *                       ownerDocument of the node changes, if PR_FALSE it
+   * @param aTransfer      if true the property will not be deleted when the
+   *                       ownerDocument of the node changes, if false it
    *                       will be deleted.
    *
    * @return NS_PROPTABLE_PROP_OVERWRITTEN (success value) if the property
@@ -604,8 +609,8 @@ public:
    * @param aValue          new value of property.
    * @param aDtor           destructor function to be used when this property
    *                        is destroyed.
-   * @param aTransfer       if PR_TRUE the property will not be deleted when the
-   *                        ownerDocument of the node changes, if PR_FALSE it
+   * @param aTransfer       if true the property will not be deleted when the
+   *                        ownerDocument of the node changes, if false it
    *                        will be deleted.
    * @param aOldValue [out] previous value of property.
    *
@@ -782,7 +787,7 @@ public:
   /**
    * Checks if a node has the same ownerDocument as this one. Note that this
    * actually compares nodeinfo managers because nodes always have one, even
-   * when they don't have an ownerDocument. If this function returns PR_TRUE
+   * when they don't have an ownerDocument. If this function returns true
    * it doesn't mean that the nodes actually have an ownerDocument.
    *
    * @param aOther Other node to check
@@ -897,16 +902,16 @@ public:
   }
 
   /**
-   * Returns PR_TRUE if |this| or any of its ancestors is native anonymous.
+   * Returns true if |this| or any of its ancestors is native anonymous.
    */
   bool IsInNativeAnonymousSubtree() const
   {
 #ifdef DEBUG
     if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
-      return PR_TRUE;
+      return true;
     }
     CheckNotNativeAnonymous();
-    return PR_FALSE;
+    return false;
 #else
     return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
 #endif
@@ -1051,9 +1056,6 @@ public:
   nsresult CompareDocumentPosition(nsIDOMNode* aOther,
                                    PRUint16* aReturn);
 
-  nsresult IsSameNode(nsIDOMNode* aOther,
-                      bool* aReturn);
-
   nsresult LookupPrefix(const nsAString& aNamespaceURI, nsAString& aPrefix);
   nsresult IsDefaultNamespace(const nsAString& aNamespaceURI, bool* aResult)
   {
@@ -1080,7 +1082,7 @@ public:
    */
   nsIContent* GetNextNode(const nsINode* aRoot = nsnull) const
   {
-    return GetNextNodeImpl(aRoot, PR_FALSE);
+    return GetNextNodeImpl(aRoot, false);
   }
 
   /**
@@ -1092,7 +1094,7 @@ public:
    */
   nsIContent* GetNextNonChildNode(const nsINode* aRoot = nsnull) const
   {
-    return GetNextNodeImpl(aRoot, PR_TRUE);
+    return GetNextNodeImpl(aRoot, true);
   }
 
   /**
@@ -1352,6 +1354,7 @@ protected:
   nsresult doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                            bool aNotify, nsAttrAndChildArray& aChildArray);
 
+public:
   /* Event stuff that documents and elements share.  This needs to be
      NS_IMETHOD because some subclasses implement DOM methods with
      this exact name and signature and then the calling convention
@@ -1370,6 +1373,7 @@ protected:
 #undef TOUCH_EVENT
 #undef EVENT  
 
+protected:
   static void Trace(nsINode *tmp, TraceCallback cb, void *closure);
   static bool Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb);
   static void Unlink(nsINode *tmp);

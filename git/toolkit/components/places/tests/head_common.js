@@ -35,6 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const CURRENT_SCHEMA_VERSION = 12;
+
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
@@ -52,6 +54,8 @@ const TRANSITION_DOWNLOAD = Ci.nsINavHistoryService.TRANSITION_DOWNLOAD;
 // This error icon must stay in sync with FAVICON_ERRORPAGE_URL in
 // nsIFaviconService.idl, aboutCertError.xhtml and netError.xhtml.
 const FAVICON_ERRORPAGE_URL = "chrome://global/skin/icons/warning-16.png";
+
+const TITLE_LENGTH_MAX = 4096;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -145,7 +149,7 @@ function readInputStreamData(aStream) {
     bistream.setInputStream(aStream);
     let expectedData = [];
     let avail;
-    while (avail = bistream.available()) {
+    while ((avail = bistream.available())) {
       expectedData = expectedData.concat(bistream.readByteArray(avail));
     }
     return expectedData;

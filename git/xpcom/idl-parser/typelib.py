@@ -39,6 +39,8 @@
 
 """Generate an XPIDL typelib for the IDL files specified on the command line"""
 
+import os
+import sys
 import xpidl, xpt
 
 # A map of xpidl.py types to xpt.py types
@@ -283,7 +285,7 @@ if __name__ == '__main__':
     o.add_option('--regen', action='store_true', dest='regen', default=False,
                  help="Regenerate IDL Parser cache")
     options, args = o.parse_args()
-    file, = args
+    file = args[0] if args else None
 
     if options.cachedir is not None:
         if not os.path.isdir(options.cachedir):

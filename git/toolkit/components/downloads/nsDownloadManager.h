@@ -59,6 +59,7 @@
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
 #include "nsITimer.h"
+#include "nsString.h"
 
 #include "mozStorageHelper.h"
 #include "nsAutoPtr.h"
@@ -90,7 +91,7 @@ public:
   virtual ~nsDownloadManager();
   nsDownloadManager() :
       mDBType(DATABASE_DISK)
-    , mInPrivateBrowsing(PR_FALSE)
+    , mInPrivateBrowsing(false)
 #ifdef DOWNLOAD_SCANNER
     , mScanner(nsnull)
 #endif

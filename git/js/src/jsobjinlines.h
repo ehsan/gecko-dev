@@ -52,7 +52,6 @@
 #include "jspropertytree.h"
 #include "jsproxy.h"
 #include "jsscope.h"
-#include "jsstaticcheck.h"
 #include "jstypedarray.h"
 #include "jsxml.h"
 #include "jswrapper.h"
@@ -71,7 +70,6 @@
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
-#include "jsprobes.h"
 #include "jsscopeinlines.h"
 
 inline bool
@@ -128,11 +126,58 @@ JSObject::unbrand(JSContext *cx)
 }
 
 inline JSBool
-JSObject::setAttributes(JSContext *cx, jsid id, uintN *attrsp)
+JSObject::setGeneric(JSContext *cx, jsid id, js::Value *vp, JSBool strict)
+{
+    if (getOps()->setGeneric)
+        return nonNativeSetProperty(cx, id, vp, strict);
+    return js_SetPropertyHelper(cx, this, id, 0, vp, strict);
+}
+
+inline JSBool
+JSObject::setProperty(JSContext *cx, js::PropertyName *name, js::Value *vp, JSBool strict)
+{
+    return setGeneric(cx, ATOM_TO_JSID(name), vp, strict);
+}
+
+inline JSBool
+JSObject::setElement(JSContext *cx, uint32 index, js::Value *vp, JSBool strict)
+{
+    if (getOps()->setElement)
+        return nonNativeSetElement(cx, index, vp, strict);
+    return js_SetElementHelper(cx, this, index, 0, vp, strict);
+}
+
+inline JSBool
+JSObject::setSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp, JSBool strict)
+{
+    return setGeneric(cx, SPECIALID_TO_JSID(sid), vp, strict);
+}
+
+inline JSBool
+JSObject::setGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
 {
     js::types::MarkTypePropertyConfigured(cx, this, id);
-    js::AttributesOp op = getOps()->setAttributes;
+    js::GenericAttributesOp op = getOps()->setGenericAttributes;
     return (op ? op : js_SetAttributes)(cx, this, id, attrsp);
+}
+
+inline JSBool
+JSObject::setPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
+{
+    return setGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
+}
+
+inline JSBool
+JSObject::setElementAttributes(JSContext *cx, uint32 index, uintN *attrsp)
+{
+    js::ElementAttributesOp op = getOps()->setElementAttributes;
+    return (op ? op : js_SetElementAttributes)(cx, this, index, attrsp);
+}
+
+inline JSBool
+JSObject::setSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
+{
+    return setGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 inline JSBool
@@ -168,13 +213,34 @@ JSObject::getProperty(JSContext *cx, js::PropertyName *name, js::Value *vp)
 }
 
 inline JSBool
-JSObject::deleteProperty(JSContext *cx, jsid id, js::Value *rval, JSBool strict)
+JSObject::deleteGeneric(JSContext *cx, jsid id, js::Value *rval, JSBool strict)
 {
     js::types::AddTypePropertyId(cx, this, id,
                                  js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, this, id);
-    js::DeleteIdOp op = getOps()->deleteProperty;
+    js::DeleteGenericOp op = getOps()->deleteGeneric;
     return (op ? op : js_DeleteProperty)(cx, this, id, rval, strict);
+}
+
+inline JSBool
+JSObject::deleteProperty(JSContext *cx, js::PropertyName *name, js::Value *rval, JSBool strict)
+{
+    return deleteGeneric(cx, ATOM_TO_JSID(name), rval, strict);
+}
+
+inline JSBool
+JSObject::deleteElement(JSContext *cx, uint32 index, js::Value *rval, JSBool strict)
+{
+    jsid id;
+    if (!js::IndexToId(cx, index, &id))
+        return false;
+    return deleteGeneric(cx, id, rval, strict);
+}
+
+inline JSBool
+JSObject::deleteSpecial(JSContext *cx, js::SpecialId sid, js::Value *rval, JSBool strict)
+{
+    return deleteGeneric(cx, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 inline void
@@ -526,7 +592,8 @@ inline void
 JSObject::copyDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(isDenseArray());
-    copySlotRange(dstStart, src, count);
+    JS_ASSERT(dstStart + count <= capacity);
+    memcpy(slots + dstStart, src, count * sizeof(js::Value));
 }
 
 inline void
@@ -920,7 +987,7 @@ JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, uintN flags)
     JSObject *pobj;
     JSProperty *prop;
     JSAutoResolveFlags rf(cx, flags);
-    if (!lookupProperty(cx, id, &pobj, &prop))
+    if (!lookupGeneric(cx, id, &pobj, &prop))
         return false;
     *foundp = !!prop;
     return true;
@@ -1105,6 +1172,57 @@ JSObject::setSharedNonNativeMap()
 }
 
 inline JSBool
+JSObject::lookupGeneric(JSContext *cx, jsid id, JSObject **objp, JSProperty **propp)
+{
+    js::LookupGenericOp op = getOps()->lookupGeneric;
+    return (op ? op : js_LookupProperty)(cx, this, id, objp, propp);
+}
+
+inline JSBool
+JSObject::lookupProperty(JSContext *cx, js::PropertyName *name, JSObject **objp, JSProperty **propp)
+{
+    return lookupGeneric(cx, ATOM_TO_JSID(name), objp, propp);
+}
+
+inline JSBool
+JSObject::defineGeneric(JSContext *cx, jsid id, const js::Value &value,
+                        JSPropertyOp getter /* = JS_PropertyStub */,
+                        JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
+                        uintN attrs /* = JSPROP_ENUMERATE */)
+{
+    js::DefineGenericOp op = getOps()->defineGeneric;
+    return (op ? op : js_DefineProperty)(cx, this, id, &value, getter, setter, attrs);
+}
+
+inline JSBool
+JSObject::defineProperty(JSContext *cx, js::PropertyName *name, const js::Value &value,
+                        JSPropertyOp getter /* = JS_PropertyStub */,
+                        JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
+                        uintN attrs /* = JSPROP_ENUMERATE */)
+{
+    return defineGeneric(cx, ATOM_TO_JSID(name), value, getter, setter, attrs);
+}
+
+inline JSBool
+JSObject::defineElement(JSContext *cx, uint32 index, const js::Value &value,
+                        JSPropertyOp getter /* = JS_PropertyStub */,
+                        JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
+                        uintN attrs /* = JSPROP_ENUMERATE */)
+{
+    js::DefineElementOp op = getOps()->defineElement;
+    return (op ? op : js_DefineElement)(cx, this, index, &value, getter, setter, attrs);
+}
+
+inline JSBool
+JSObject::defineSpecial(JSContext *cx, js::SpecialId sid, const js::Value &value,
+                        JSPropertyOp getter /* = JS_PropertyStub */,
+                        JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
+                        uintN attrs /* = JSPROP_ENUMERATE */)
+{
+    return defineGeneric(cx, SPECIALID_TO_JSID(sid), value, getter, setter, attrs);
+}
+
+inline JSBool
 JSObject::lookupElement(JSContext *cx, uint32 index, JSObject **objp, JSProperty **propp)
 {
     js::LookupElementOp op = getOps()->lookupElement;
@@ -1112,8 +1230,18 @@ JSObject::lookupElement(JSContext *cx, uint32 index, JSObject **objp, JSProperty
 }
 
 inline JSBool
+JSObject::lookupSpecial(JSContext *cx, js::SpecialId sid, JSObject **objp, JSProperty **propp)
+{
+    return lookupGeneric(cx, SPECIALID_TO_JSID(sid), objp, propp);
+}
+
+inline JSBool
 JSObject::getElement(JSContext *cx, JSObject *receiver, uint32 index, js::Value *vp)
 {
+    js::ElementIdOp op = getOps()->getElement;
+    if (op)
+        return op(cx, this, receiver, index, vp);
+
     jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
@@ -1123,25 +1251,72 @@ JSObject::getElement(JSContext *cx, JSObject *receiver, uint32 index, js::Value 
 inline JSBool
 JSObject::getElement(JSContext *cx, uint32 index, js::Value *vp)
 {
-    jsid id;
-    if (!js::IndexToId(cx, index, &id))
-        return false;
-    return getGeneric(cx, id, vp);
+    return getElement(cx, this, index, vp);
 }
 
 inline JSBool
-JSObject::deleteElement(JSContext *cx, uint32 index, js::Value *rval, JSBool strict)
+JSObject::getElementIfPresent(JSContext *cx, JSObject *receiver, uint32 index, js::Value *vp,
+                              bool *present)
 {
+    js::ElementIfPresentOp op = getOps()->getElementIfPresent;
+    if (op)
+        return op(cx, this, receiver, index, vp, present);
+
+    /* For now, do the index-to-id conversion just once, then use
+     * lookupGeneric/getGeneric.  Once lookupElement and getElement stop both
+     * doing index-to-id conversions, we can use those here.
+     */
     jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
-    return deleteProperty(cx, id, rval, strict);
+
+    JSObject *obj2;
+    JSProperty *prop;
+    if (!lookupGeneric(cx, id, &obj2, &prop))
+        return false;
+
+    if (!prop) {
+        *present = false;
+        js::Debug_SetValueRangeToCrashOnTouch(vp, 1);
+        return true;
+    }
+
+    *present = true;
+    return getGeneric(cx, receiver, id, vp);
 }
 
 inline JSBool
 JSObject::getSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp)
 {
     return getGeneric(cx, SPECIALID_TO_JSID(sid), vp);
+}
+
+inline JSBool
+JSObject::getGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
+{
+    js::GenericAttributesOp op = getOps()->getGenericAttributes;
+    return (op ? op : js_GetAttributes)(cx, this, id, attrsp);    
+}
+
+inline JSBool
+JSObject::getPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
+{
+    return getGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
+}
+
+inline JSBool
+JSObject::getElementAttributes(JSContext *cx, uint32 index, uintN *attrsp)
+{
+    jsid id;
+    if (!js::IndexToId(cx, index, &id))
+        return false;
+    return getGenericAttributes(cx, id, attrsp);
+}
+
+inline JSBool
+JSObject::getSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
+{
+    return getGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 inline bool
@@ -1327,6 +1502,13 @@ NewNativeClassInstance(JSContext *cx, Class *clasp, JSObject *proto, JSObject *p
 {
     gc::AllocKind kind = gc::GetGCObjectKind(JSCLASS_RESERVED_SLOTS(clasp));
     return NewNativeClassInstance(cx, clasp, proto, parent, kind);
+}
+
+inline GlobalObject *
+GetCurrentGlobal(JSContext *cx)
+{
+    JSObject *scopeChain = (cx->hasfp()) ? &cx->fp()->scopeChain() : cx->globalObject;
+    return scopeChain ? scopeChain->getGlobal() : NULL;
 }
 
 bool
@@ -1781,6 +1963,29 @@ ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
       case ESClass_Boolean: return obj.isBoolean();
     }
     JS_NOT_REACHED("bad classValue");
+    return false;
+}
+
+static JS_ALWAYS_INLINE bool
+ValueIsSpecial(JSObject *obj, Value *propval, SpecialId *sidp, JSContext *cx)
+{
+    if (!propval->isObject())
+        return false;
+
+#if JS_HAS_XML_SUPPORT
+    if (obj->isXML()) {
+        *sidp = SpecialId(propval->toObject());
+        return true;
+    }
+
+    JSObject &propobj = propval->toObject();
+    JSAtom *name;
+    if (propobj.isQName() && GetLocalNameFromFunctionQName(&propobj, &name, cx)) {
+        propval->setString(name);
+        return false;
+    }
+#endif
+
     return false;
 }
 

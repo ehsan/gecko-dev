@@ -90,8 +90,8 @@ pref("ui.scrollbarsCanOverlapContent", 1);
 pref("ui.click_hold_context_menus", true);
 
 /* cache prefs */
-pref("browser.cache.disk.enable", false);
-pref("browser.cache.disk.capacity", 0); // kilobytes
+pref("browser.cache.disk.enable", true);
+pref("browser.cache.disk.capacity", 10240); // kilobytes
 pref("browser.cache.disk.smart_size.enabled", false);
 pref("browser.cache.disk.smart_size.first_run", false);
 
@@ -375,9 +375,7 @@ pref("privacy.item.geolocation", true);
 pref("privacy.item.siteSettings", true);
 pref("privacy.item.syncAccount", true);
 
-#ifdef MOZ_PLATFORM_MAEMO
 pref("plugins.force.wmode", "opaque");
-#endif
 
 // URL to the Learn More link XXX this is the firefox one.  Bug 495578 fixes this.
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
@@ -437,10 +435,14 @@ pref("browser.ui.touch.weight.visited", 120); // percentage
 // plugins
 #if MOZ_PLATFORM_MAEMO == 6
 pref("plugin.disable", false);
+pref("dom.ipc.plugins.enabled", true);
+#elifdef ANDROID
+pref("plugin.disable", false);
+pref("dom.ipc.plugins.enabled", false);
 #else
 pref("plugin.disable", true);
-#endif
 pref("dom.ipc.plugins.enabled", true);
+#endif
 
 // process priority
 // higher values give content process less CPU time
@@ -608,8 +610,8 @@ pref("image.mem.min_discard_timeout_ms", 10000);
 
 // enable touch events interfaces
 pref("dom.w3c_touch_events.enabled", true);
-pref("dom.w3c_touch_events.safetyX", 0); // escape borders in units of 1/240"
-pref("dom.w3c_touch_events.safetyY", 120); // escape borders in units of 1/240"
+pref("dom.w3c_touch_events.safetyX", 5); // escape borders in units of 1/240"
+pref("dom.w3c_touch_events.safetyY", 20); // escape borders in units of 1/240"
 
 #ifdef MOZ_SAFE_BROWSING
 // Safe browsing does nothing unless this pref is set
@@ -664,7 +666,7 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 // True if this is the first time we are showing about:firstrun
 pref("browser.firstrun.show.uidiscovery", true);
-pref("browser.firstrun.show.localepicker", true);
+pref("browser.firstrun.show.localepicker", false);
 
 // True if you always want dump() to work
 //

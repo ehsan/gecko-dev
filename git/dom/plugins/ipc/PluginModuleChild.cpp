@@ -44,6 +44,10 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
+
+/* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
+#include "mozilla/Util.h"
+
 #include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
@@ -81,6 +85,7 @@
 #include "PluginUtilsOSX.h"
 #endif
 
+using namespace mozilla;
 using namespace mozilla::plugins;
 using mozilla::dom::CrashReporterChild;
 using mozilla::dom::PCrashReporterChild;
@@ -132,7 +137,7 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-    mUserAgent.SetIsVoid(PR_TRUE);
+    mUserAgent.SetIsVoid(true);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -193,7 +198,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     mPluginFilename = aPluginFilename.c_str();
     nsCOMPtr<nsILocalFile> localFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
-                    PR_TRUE,
+                    true,
                     getter_AddRefs(localFile));
 
     bool exists;
@@ -1903,7 +1908,7 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 
   if (!sBrowserHwnd) {
       PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
+      if (GetClassNameW(hWnd, szClass, ArrayLength(szClass)) &&
           !wcscmp(szClass, kMozillaWindowClass)) {
           sBrowserHwnd = hWnd;
       }
@@ -1981,6 +1986,16 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
     NS_NAMED_LITERAL_CSTRING(quicktime, "npqtplugin");
     if (FindInReadable(quicktime, mPluginFilename)) {
       mQuirks |= QUIRK_QUICKTIME_AVOID_SETWINDOW;
+    }
+#endif
+
+#ifdef XP_MACOSX
+    // Whitelist Flash and Quicktime to support offline renderer
+    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
+    NS_NAMED_LITERAL_CSTRING(quicktime, "QuickTime Plugin.plugin");
+    if (FindInReadable(flash, aMimeType) ||
+        FindInReadable(quicktime, mPluginFilename)) {
+        mQuirks |= QUIRK_ALLOW_OFFLINE_RENDERER;
     }
 #endif
 }
@@ -2251,7 +2266,7 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
     PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
     if (!ident) {
         nsCString voidString;
-        voidString.SetIsVoid(PR_TRUE);
+        voidString.SetIsVoid(true);
 
         ident = new PluginIdentifierChildInt(aIntId);
         self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);

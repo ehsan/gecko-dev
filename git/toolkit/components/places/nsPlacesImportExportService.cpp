@@ -98,7 +98,6 @@
 #include "nsUnicharUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsIPrefService.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIHTMLContentSink.h"
 #include "nsIParser.h"
@@ -144,9 +143,6 @@ static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 #define RESTORE_NSIOBSERVER_DATA NS_LITERAL_STRING("html")
 #define RESTORE_INITIAL_NSIOBSERVER_DATA NS_LITERAL_STRING("html-initial")
 
-// Maximum number of backups to retain.
-#define BROWSER_BOOKMARKS_MAX_BACKUPS_PREF  "browser.bookmarks.max_backups"
-
 // define to get debugging messages on console about import/export
 //#define DEBUG_IMPORT
 //#define DEBUG_EXPORT
@@ -168,7 +164,7 @@ public:
       mContainerID(aID),
       mContainerNesting(0),
       mLastContainerType(Container_Normal),
-      mInDescription(PR_FALSE),
+      mInDescription(false),
       mPreviousId(0),
       mPreviousDateAdded(0),
       mPreviousLastModifiedDate(0)
@@ -369,7 +365,7 @@ public:
   NS_IMETHOD BeginContext(PRInt32 aPosition) { return NS_OK; }
   NS_IMETHOD EndContext(PRInt32 aPosition) { return NS_OK; }
   NS_IMETHOD IsEnabled(PRInt32 aTag, bool* aReturn)
-    { *aReturn = PR_TRUE; return NS_OK; }
+    { *aReturn = true; return NS_OK; }
   NS_IMETHOD DidProcessTokens() { return NS_OK; }
   NS_IMETHOD WillProcessAToken() { return NS_OK; }
   NS_IMETHOD DidProcessAToken() { return NS_OK; }
@@ -520,7 +516,7 @@ BookmarkContentSink::OpenContainer(const nsIParserNode& aNode)
       HandleContainerBegin(aNode);
       break;
     case eHTMLTag_dd:
-      CurFrame().mInDescription = PR_TRUE;
+      CurFrame().mInDescription = true;
       break;
   }
   return NS_OK;
@@ -576,7 +572,7 @@ BookmarkContentSink::CloseContainer(const nsHTMLTag aTag)
         NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "SetItemLastModified failed");
       }
     }
-    frame.mInDescription = PR_FALSE;
+    frame.mInDescription = false;
   }
 
   switch (aTag) {
@@ -1126,14 +1122,14 @@ BookmarkContentSink::NewFrame()
       rv = mBookmarksService->GetBookmarksMenuFolder(&ourID);
       NS_ENSURE_SUCCESS(rv, rv);
       if (mAllowRootChanges)
-        updateFolder = PR_TRUE;
+        updateFolder = true;
       break;
     case BookmarkImportFrame::Container_Unfiled:
       // unfiled bookmarks folder
       rv = mBookmarksService->GetUnfiledBookmarksFolder(&ourID);
       NS_ENSURE_SUCCESS(rv, rv);
       if (mAllowRootChanges)
-        updateFolder = PR_TRUE;
+        updateFolder = true;
       break;
     case BookmarkImportFrame::Container_Toolbar:
       // get toolbar folder
@@ -2013,7 +2009,7 @@ nsPlacesImportExportService::WriteContainerContents(nsINavHistoryResultNode* aFo
   nsCOMPtr<nsINavHistoryContainerResultNode> folderNode = do_QueryInterface(aFolder, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = folderNode->SetContainerOpen(PR_TRUE);
+  rv = folderNode->SetContainerOpen(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 childCount = 0;
@@ -2096,7 +2092,7 @@ nsPlacesImportExportService::ImportHTMLFromFile(nsILocalFile* aFile,
 
   // this version is exposed on the interface and disallows changing of roots
   nsresult rv = ImportHTMLFromFileInternal(aFile,
-                                           PR_FALSE,
+                                           false,
                                            0,
                                            aIsInitialImport);
 
@@ -2123,7 +2119,7 @@ nsPlacesImportExportService::ImportHTMLFromURI(nsIURI* aURI,
 
   // this version is exposed on the interface and disallows changing of roots
   nsresult rv = ImportHTMLFromURIInternal(aURI,
-                                          PR_FALSE,
+                                          false,
                                           0,
                                           aIsInitialImport);
 
@@ -2153,7 +2149,7 @@ nsPlacesImportExportService::ImportHTMLFromFileToFolder(nsILocalFile* aFile,
 
   // this version is exposed on the interface and disallows changing of roots
   nsresult rv = ImportHTMLFromFileInternal(aFile,
-                                           PR_FALSE,
+                                           false,
                                            aFolderId,
                                            aIsInitialImport);
 
@@ -2417,12 +2413,12 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
   rv = result->GetRoot(getter_AddRefs(rootNode));
   NS_ENSURE_SUCCESS(rv, rv);
   // Write it out only if it's not empty.
-  rv = rootNode->SetContainerOpen(PR_TRUE);
+  rv = rootNode->SetContainerOpen(true);
   NS_ENSURE_SUCCESS(rv, rv);
   PRUint32 childCount = 0;
   rv = rootNode->GetChildCount(&childCount);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = rootNode->SetContainerOpen(PR_FALSE);
+  rv = rootNode->SetContainerOpen(false);
   NS_ENSURE_SUCCESS(rv, rv);
   if (childCount) {
     rv = WriteContainer(rootNode, nsDependentCString(kIndent), strm);
@@ -2441,12 +2437,12 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
   rv = result->GetRoot(getter_AddRefs(rootNode));
   NS_ENSURE_SUCCESS(rv, rv);
   // Write it out only if it's not empty.
-  rv = rootNode->SetContainerOpen(PR_TRUE);
+  rv = rootNode->SetContainerOpen(true);
   NS_ENSURE_SUCCESS(rv, rv);
   childCount = 0;
   rootNode->GetChildCount(&childCount);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = rootNode->SetContainerOpen(PR_FALSE);
+  rv = rootNode->SetContainerOpen(false);
   NS_ENSURE_SUCCESS(rv, rv);
   if (childCount) {
     rv = WriteContainer(rootNode, nsDependentCString(kIndent), strm);
@@ -2475,9 +2471,6 @@ NS_IMETHODIMP
 nsPlacesImportExportService::BackupBookmarksFile()
 {
   nsresult rv = EnsureServiceState();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // get bookmarks file

@@ -56,7 +56,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIInputStream.h"
 #include "nsDetectionConfident.h"
-#include "nsHtml5UTF16Buffer.h"
+#include "nsHtml5OwningUTF16Buffer.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
@@ -182,7 +182,7 @@ class nsHtml5Parser : public nsIParser,
      *
      * @param   aSourceBuffer the argument of document.write (empty for .close())
      * @param   aKey a key unique to the script element that caused this call
-     * @param   aContentType ignored (for interface compat only)
+     * @param   aContentType "text/html" for HTML mode, else text/plain mode
      * @param   aLastCall true if .close() false if .write()
      * @param   aMode ignored (for interface compat only)
      */
@@ -246,8 +246,11 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Marks the HTML5 parser as not a script-created parser: Prepares the 
      * parser to be able to read a stream.
+     *
+     * @param aCommand the parser command (Yeah, this is bad API design. Let's
+     * make this better when retiring nsIParser)
      */
-    virtual void MarkAsNotScriptCreated();
+    virtual void MarkAsNotScriptCreated(const char* aCommand);
 
     /**
      * True if this is a script-created HTML5 parser.
@@ -354,6 +357,8 @@ class nsHtml5Parser : public nsIParser,
      */
     bool                          mDocumentClosed;
 
+    bool                          mInDocumentWrite;
+
     // Gecko integration
     void*                         mRootContextKey;
 
@@ -361,13 +366,13 @@ class nsHtml5Parser : public nsIParser,
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
+    nsRefPtr<nsHtml5OwningUTF16Buffer>  mFirstBuffer;
 
     /**
-     * The last buffer in the pending UTF-16 buffer queue
+     * The last buffer in the pending UTF-16 buffer queue. Always points
+     * to a sentinel object with nsnull as its parser key.
      */
-    nsHtml5UTF16Buffer*           mLastBuffer; // weak ref; always points to
-                      // a buffer of the size NS_HTML5_PARSER_READ_BUFFER_SIZE
+    nsHtml5OwningUTF16Buffer* mLastBuffer; // weak ref;
 
     /**
      * The tree operation executor

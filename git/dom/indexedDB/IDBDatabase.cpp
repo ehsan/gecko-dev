@@ -72,24 +72,6 @@ mozilla::Mutex* gPromptHelpersMutex = nsnull;
 // Protected by gPromptHelpersMutex.
 nsTArray<nsRefPtr<CheckQuotaHelper> >* gPromptHelpers = nsnull;
 
-class SetVersionHelper : public AsyncConnectionHelper
-{
-public:
-  SetVersionHelper(IDBTransaction* aTransaction,
-                   IDBRequest* aRequest,
-                   const nsAString& aVersion)
-  : AsyncConnectionHelper(aTransaction, aRequest), mVersion(aVersion)
-  { }
-
-  nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            jsval* aVal);
-
-private:
-  // In-params
-  nsString mVersion;
-};
-
 class CreateObjectStoreHelper : public AsyncConnectionHelper
 {
 public:
@@ -146,20 +128,10 @@ private:
 };
 
 NS_STACK_CLASS
-class AutoFree
-{
-public:
-  AutoFree(void* aPtr) : mPtr(aPtr) { }
-  ~AutoFree() { NS_Free(mPtr); }
-private:
-  void* mPtr;
-};
-
-NS_STACK_CLASS
 class AutoRemoveObjectStore
 {
 public:
-  AutoRemoveObjectStore(PRUint32 aId, const nsAString& aName)
+  AutoRemoveObjectStore(nsIAtom* aId, const nsAString& aName)
   : mId(aId), mName(aName)
   { }
 
@@ -176,78 +148,9 @@ public:
   }
 
 private:
-  PRUint32 mId;
+  nsCOMPtr<nsIAtom> mId;
   nsString mName;
 };
-
-inline
-nsresult
-ConvertVariantToStringArray(nsIVariant* aVariant,
-                            nsTArray<nsString>& aStringArray)
-{
-#ifdef DEBUG
-  PRUint16 type;
-  NS_ASSERTION(NS_SUCCEEDED(aVariant->GetDataType(&type)) &&
-               type == nsIDataType::VTYPE_ARRAY, "Bad arg!");
-#endif
-
-  PRUint16 valueType;
-  nsIID iid;
-  PRUint32 valueCount;
-  void* rawArray;
-
-  nsresult rv = aVariant->GetAsArray(&valueType, &iid, &valueCount, &rawArray);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AutoFree af(rawArray);
-
-  // Just delete anything that we don't expect and return.
-  if (valueType != nsIDataType::VTYPE_WCHAR_STR) {
-    switch (valueType) {
-      case nsIDataType::VTYPE_ID:
-      case nsIDataType::VTYPE_CHAR_STR: {
-        char** charArray = reinterpret_cast<char**>(rawArray);
-        for (PRUint32 index = 0; index < valueCount; index++) {
-          if (charArray[index]) {
-            NS_Free(charArray[index]);
-          }
-        }
-      } break;
-
-      case nsIDataType::VTYPE_INTERFACE:
-      case nsIDataType::VTYPE_INTERFACE_IS: {
-        nsISupports** supportsArray = reinterpret_cast<nsISupports**>(rawArray);
-        for (PRUint32 index = 0; index < valueCount; index++) {
-          NS_IF_RELEASE(supportsArray[index]);
-        }
-      } break;
-
-      default: {
-        // The other types are primitives that do not need to be freed.
-      }
-    }
-
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  PRUnichar** strings = reinterpret_cast<PRUnichar**>(rawArray);
-
-  for (PRUint32 index = 0; index < valueCount; index++) {
-    nsString* newString = aStringArray.AppendElement();
-
-    if (!newString) {
-      NS_ERROR("Out of memory?");
-      for (; index < valueCount; index++) {
-        NS_Free(strings[index]);
-      }
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    newString->Adopt(strings[index], -1);
-  }
-
-  return NS_OK;
-}
 
 } // anonymous namespace
 
@@ -447,6 +350,30 @@ IDBDatabase::IsClosed()
 }
 
 void
+IDBDatabase::EnterSetVersionTransaction()
+{
+  DatabaseInfo* dbInfo;
+  if (!DatabaseInfo::Get(mDatabaseId, &dbInfo)) {
+    NS_ERROR("This should never fail!");
+  }
+
+  NS_ASSERTION(!dbInfo->runningVersionChange, "How did that happen?");
+  dbInfo->runningVersionChange = true;
+}
+
+void
+IDBDatabase::ExitSetVersionTransaction()
+{
+  DatabaseInfo* dbInfo;
+  if (!DatabaseInfo::Get(mDatabaseId, &dbInfo)) {
+    NS_ERROR("This should never fail!");
+  }
+
+  NS_ASSERTION(dbInfo->runningVersionChange, "How did that happen?");
+  dbInfo->runningVersionChange = false;
+}
+
+void
 IDBDatabase::OnUnlink()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -502,14 +429,14 @@ IDBDatabase::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-IDBDatabase::GetVersion(nsAString& aVersion)
+IDBDatabase::GetVersion(PRUint64* aVersion)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   DatabaseInfo* info;
   if (!DatabaseInfo::Get(mDatabaseId, &info)) {
     NS_ERROR("This should never fail!");
   }
-  aVersion.Assign(info->version);
+  *aVersion = info->version;
   return NS_OK;
 }
 
@@ -688,51 +615,8 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName)
 }
 
 NS_IMETHODIMP
-IDBDatabase::SetVersion(const nsAString& aVersion,
-                        JSContext* aCx,
-                        nsIIDBRequest** _retval)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (mClosed) {
-    // XXX Update spec for a real error code here.
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-  }
-
-  DatabaseInfo* info;
-  if (!DatabaseInfo::Get(mDatabaseId, &info)) {
-    NS_ERROR("This should never fail!");
-  }
-
-  // Lock the whole database.
-  nsTArray<nsString> storesToOpen;
-  nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(this, storesToOpen, IDBTransaction::VERSION_CHANGE,
-                           kDefaultDatabaseTimeoutSeconds, true);
-  NS_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsRefPtr<IDBVersionChangeRequest> request =
-    IDBVersionChangeRequest::Create(static_cast<nsIDOMEventTarget*>(this),
-                                    ScriptContext(), Owner(), transaction);
-  NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsRefPtr<SetVersionHelper> helper =
-    new SetVersionHelper(transaction, request, aVersion);
-
-  IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
-  NS_ASSERTION(mgr, "This should never be null!");
-
-  nsresult rv = mgr->SetDatabaseVersion(this, request, aVersion, helper);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  request.forget(_retval);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-IDBDatabase::Transaction(nsIVariant* aStoreNames,
+IDBDatabase::Transaction(const jsval& aStoreNames,
                          PRUint16 aMode,
-                         PRUint32 aTimeout,
                          JSContext* aCx,
                          PRUint8 aOptionalArgCount,
                          nsIIDBTransaction** _retval)
@@ -747,6 +631,15 @@ IDBDatabase::Transaction(nsIVariant* aStoreNames,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
+  DatabaseInfo* info;
+  if (!DatabaseInfo::Get(mDatabaseId, &info)) {
+    NS_ERROR("This should never fail!");
+  }
+
+  if (info->runningVersionChange) {
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+  }
+
   if (aOptionalArgCount) {
     if (aMode != nsIIDBTransaction::READ_WRITE &&
         aMode != nsIIDBTransaction::READ_ONLY) {
@@ -757,106 +650,102 @@ IDBDatabase::Transaction(nsIVariant* aStoreNames,
     aMode = nsIIDBTransaction::READ_ONLY;
   }
 
-  if (aOptionalArgCount <= 1) {
-    aTimeout = kDefaultDatabaseTimeoutSeconds;
-  }
-
-  PRUint16 type;
-  nsresult rv = aStoreNames->GetDataType(&type);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  DatabaseInfo* info;
-  if (!DatabaseInfo::Get(mDatabaseId, &info)) {
-    NS_ERROR("This should never fail!");
-  }
-
+  nsresult rv;
   nsTArray<nsString> storesToOpen;
 
-  switch (type) {
-    case nsIDataType::VTYPE_VOID:
-    case nsIDataType::VTYPE_EMPTY:
-    case nsIDataType::VTYPE_EMPTY_ARRAY: {
-      // Empty, request all object stores
-      if (!info->GetObjectStoreNames(storesToOpen)) {
-        NS_WARNING("Out of memory?");
+  if (!JSVAL_IS_PRIMITIVE(aStoreNames)) {
+    JSObject* obj = JSVAL_TO_OBJECT(aStoreNames);
+
+    // See if this is a JS array.
+    if (JS_IsArrayObject(aCx, obj)) {
+      jsuint length;
+      if (!JS_GetArrayLength(aCx, obj, &length)) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
-    } break;
 
-    case nsIDataType::VTYPE_WSTRING_SIZE_IS: {
-      // Single name
-      nsString name;
-      rv = aStoreNames->GetAsAString(name);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      if (!info->ContainsStoreName(name)) {
-        return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+      if (!length) {
+        return NS_ERROR_DOM_INVALID_ACCESS_ERR;
       }
 
-      if (!storesToOpen.AppendElement(name)) {
-        NS_WARNING("Out of memory?");
-        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      }
-    } break;
+      storesToOpen.SetCapacity(length);
 
-    case nsIDataType::VTYPE_ARRAY: {
-      nsTArray<nsString> names;
-      rv = ConvertVariantToStringArray(aStoreNames, names);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      PRUint32 nameCount = names.Length();
-      for (PRUint32 nameIndex = 0; nameIndex < nameCount; nameIndex++) {
-        nsString& name = names[nameIndex];
-
-        if (!info->ContainsStoreName(name)) {
-          return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
-        }
-
-        if (!storesToOpen.AppendElement(name)) {
-          NS_WARNING("Out of memory?");
+      for (jsuint index = 0; index < length; index++) {
+        jsval val;
+        JSString* jsstr;
+        nsDependentJSString str;
+        if (!JS_GetElement(aCx, obj, index, &val) ||
+            !(jsstr = JS_ValueToString(aCx, val)) ||
+            !str.init(aCx, jsstr)) {
           return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
         }
-      }
-      NS_ASSERTION(nameCount == storesToOpen.Length(), "Should have bailed!");
-    } break;
 
-    case nsIDataType::VTYPE_INTERFACE:
-    case nsIDataType::VTYPE_INTERFACE_IS: {
-      nsCOMPtr<nsISupports> supports;
-      nsID *iid;
-      rv = aStoreNames->GetAsInterface(&iid, getter_AddRefs(supports));
+        storesToOpen.AppendElement(str);
+      }
+
+      NS_ASSERTION(!storesToOpen.IsEmpty(),
+                   "Must have something here or else code below will "
+                   "misbehave!");
+    }
+    else {
+      // Perhaps some kind of wrapped object?
+      nsIXPConnect* xpc = nsContentUtils::XPConnect();
+      NS_ASSERTION(xpc, "This should never be null!");
+
+      nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+      rv = xpc->GetWrappedNativeOfJSObject(aCx, obj, getter_AddRefs(wrapper));
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      NS_Free(iid);
+      if (wrapper) {
+        nsISupports* wrappedObject = wrapper->Native();
+        NS_ENSURE_TRUE(wrappedObject, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      nsCOMPtr<nsIDOMDOMStringList> stringList(do_QueryInterface(supports));
-      if (!stringList) {
-        // We don't support anything other than nsIDOMDOMStringList.
-        return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
-      }
+        // We only accept DOMStringList.
+        nsCOMPtr<nsIDOMDOMStringList> list = do_QueryInterface(wrappedObject);
+        if (list) {
+          PRUint32 length;
+          rv = list->GetLength(&length);
+          NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      PRUint32 stringCount;
-      rv = stringList->GetLength(&stringCount);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+          if (!length) {
+            return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+          }
 
-      for (PRUint32 stringIndex = 0; stringIndex < stringCount; stringIndex++) {
-        nsString name;
-        rv = stringList->Item(stringIndex, name);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+          storesToOpen.SetCapacity(length);
 
-        if (!info->ContainsStoreName(name)) {
-          return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+          for (PRUint32 index = 0; index < length; index++) {
+            nsString* item = storesToOpen.AppendElement();
+            NS_ASSERTION(item, "This should never fail!");
+
+            rv = list->Item(index, *item);
+            NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+          }
+
+          NS_ASSERTION(!storesToOpen.IsEmpty(),
+                       "Must have something here or else code below will "
+                       "misbehave!");
         }
-
-        if (!storesToOpen.AppendElement(name)) {
-          NS_WARNING("Out of memory?");
-          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-        }
       }
-    } break;
+    }
+  }
 
-    default:
-      return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+  // If our list is empty here then the argument must have been an object that
+  // we don't support or a primitive. Either way we convert to a string.
+  if (storesToOpen.IsEmpty()) {
+    JSString* jsstr;
+    nsDependentJSString str;
+    if (!(jsstr = JS_ValueToString(aCx, aStoreNames)) ||
+        !str.init(aCx, jsstr)) {
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    storesToOpen.AppendElement(str);
+  }
+
+  // Now check to make sure the object store names we collected actually exist.
+  for (PRUint32 index = 0; index < storesToOpen.Length(); index++) {
+    if (!info->ContainsStoreName(storesToOpen[index])) {
+      return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+    }
   }
 
   nsRefPtr<IDBTransaction> transaction =
@@ -929,47 +818,6 @@ IDBDatabase::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-
-  return NS_OK;
-}
-
-nsresult
-SetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
-{
-  NS_PRECONDITION(aConnection, "Passing a null connection!");
-
-  nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-    "UPDATE database "
-    "SET version = :version"
-  ), getter_AddRefs(stmt));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  rv = stmt->BindStringByName(NS_LITERAL_CSTRING("version"), mVersion);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (NS_FAILED(stmt->Execute())) {
-    return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
-  }
-
-  return NS_OK;
-}
-
-nsresult
-SetVersionHelper::GetSuccessResult(JSContext* aCx,
-                                   jsval* aVal)
-{
-  DatabaseInfo* info;
-  if (!DatabaseInfo::Get(mDatabase->Id(), &info)) {
-    NS_ERROR("This should never fail!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-  info->version = mVersion;
-
-  nsresult rv = WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMEventTarget*,
-                                                  mTransaction),
-                           aVal);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

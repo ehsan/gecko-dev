@@ -46,7 +46,6 @@
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
-#include "nsIPrompt.h"
 #include "nsIDOMWindow.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIComponentManager.h"
@@ -110,7 +109,7 @@ nsNSSDialogs::SetPassword(nsIInterfaceRequestor *ctx,
 {
   nsresult rv;
 
-  *_canceled = PR_FALSE;
+  *_canceled = false;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
@@ -134,7 +133,7 @@ nsNSSDialogs::SetPassword(nsIInterfaceRequestor *ctx,
   rv = block->GetInt(1, &status);
   if (NS_FAILED(rv)) return rv;
 
-  *_canceled = (status == 0)?PR_TRUE:PR_FALSE;
+  *_canceled = (status == 0)?true:false;
 
   return rv;
 }
@@ -146,7 +145,7 @@ nsNSSDialogs::GetPassword(nsIInterfaceRequestor *ctx,
                           bool* _canceled)
 {
   nsresult rv;
-  *_canceled = PR_FALSE;
+  *_canceled = false;
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
   nsCOMPtr<nsIDialogParamBlock> block = 
@@ -164,7 +163,7 @@ nsNSSDialogs::GetPassword(nsIInterfaceRequestor *ctx,
   PRInt32 status;
   rv = block->GetInt(1, &status);
   if (NS_FAILED(rv)) return rv;
-  *_canceled = (status == 0) ? PR_TRUE : PR_FALSE;
+  *_canceled = (status == 0) ? true : false;
   if (!*_canceled) {
     // retrieve the password
     rv = block->GetString(2, _password);
@@ -189,7 +188,7 @@ nsNSSDialogs::CrlImportStatusDialog(nsIInterfaceRequestor *ctx, nsICRLInfo *crl)
   rv = nsNSSDialogHelper::openDialog(nsnull,
                              "chrome://pippki/content/crlImportDialog.xul",
                              block,
-                             PR_FALSE);
+                             false);
   return NS_OK;
 }
 
@@ -201,7 +200,7 @@ nsNSSDialogs::ConfirmDownloadCACert(nsIInterfaceRequestor *ctx,
 {
   nsresult rv;
 
-  *_retval = PR_TRUE;
+  *_retval = true;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
@@ -239,7 +238,7 @@ nsNSSDialogs::ConfirmDownloadCACert(nsIInterfaceRequestor *ctx,
   *_trust |= (email) ? nsIX509CertDB::TRUSTED_EMAIL : 0;
   *_trust |= (objsign) ? nsIX509CertDB::TRUSTED_OBJSIGN : 0;
 
-  *_retval = (status == 0)?PR_FALSE:PR_TRUE;
+  *_retval = (status == 0)?false:true;
 
   return rv;
 }
@@ -272,7 +271,7 @@ nsNSSDialogs::ChooseCertificate(nsIInterfaceRequestor *ctx, const PRUnichar *cn,
   nsresult rv;
   PRUint32 i;
 
-  *canceled = PR_FALSE;
+  *canceled = false;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
@@ -323,7 +322,7 @@ nsNSSDialogs::ChooseCertificate(nsIInterfaceRequestor *ctx, const PRUnichar *cn,
     }
   }
 
-  *canceled = (status == 0)?PR_TRUE:PR_FALSE;
+  *canceled = (status == 0)?true:false;
   if (!*canceled) {
     // retrieve the nickname
     rv = block->GetInt(1, selectedIndex);
@@ -343,7 +342,7 @@ nsNSSDialogs::PickCertificate(nsIInterfaceRequestor *ctx,
   nsresult rv;
   PRUint32 i;
 
-  *canceled = PR_FALSE;
+  *canceled = false;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
@@ -380,7 +379,7 @@ nsNSSDialogs::PickCertificate(nsIInterfaceRequestor *ctx,
   rv = block->GetInt(0, &status);
   if (NS_FAILED(rv)) return rv;
 
-  *canceled = (status == 0)?PR_TRUE:PR_FALSE;
+  *canceled = (status == 0)?true:false;
   if (!*canceled) {
     rv = block->GetInt(1, selectedIndex);
   }
@@ -394,7 +393,7 @@ nsNSSDialogs::SetPKCS12FilePassword(nsIInterfaceRequestor *ctx,
                                     bool *_retval)
 {
   nsresult rv;
-  *_retval = PR_TRUE;
+  *_retval = true;
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
   nsCOMPtr<nsIDialogParamBlock> block =
@@ -409,7 +408,7 @@ nsNSSDialogs::SetPKCS12FilePassword(nsIInterfaceRequestor *ctx,
   PRInt32 status;
   rv = block->GetInt(1, &status);
   if (NS_FAILED(rv)) return rv;
-  *_retval = (status == 0) ? PR_FALSE : PR_TRUE;
+  *_retval = (status == 0) ? false : true;
   if (*_retval) {
     // retrieve the password
     PRUnichar *pw;
@@ -428,7 +427,7 @@ nsNSSDialogs::GetPKCS12FilePassword(nsIInterfaceRequestor *ctx,
                                     bool *_retval)
 {
   nsresult rv;
-  *_retval = PR_TRUE;
+  *_retval = true;
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
   nsCOMPtr<nsIDialogParamBlock> block =
@@ -443,7 +442,7 @@ nsNSSDialogs::GetPKCS12FilePassword(nsIInterfaceRequestor *ctx,
   PRInt32 status;
   rv = block->GetInt(1, &status);
   if (NS_FAILED(rv)) return rv;
-  *_retval = (status == 0) ? PR_FALSE : PR_TRUE;
+  *_retval = (status == 0) ? false : true;
   if (*_retval) {
     // retrieve the password
     PRUnichar *pw;
@@ -478,7 +477,7 @@ nsNSSDialogs::ViewCert(nsIInterfaceRequestor *ctx,
   rv = nsNSSDialogHelper::openDialog(parent,
                                      "chrome://pippki/content/certViewer.xul",
                                      block,
-                                     PR_FALSE);
+                                     false);
   return rv;
 }
 
@@ -501,7 +500,7 @@ nsNSSDialogs::ChooseToken(nsIInterfaceRequestor *aCtx, const PRUnichar **aTokenL
   nsresult rv;
   PRUint32 i;
 
-  *aCanceled = PR_FALSE;
+  *aCanceled = false;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(aCtx);
@@ -530,7 +529,7 @@ nsNSSDialogs::ChooseToken(nsIInterfaceRequestor *aCtx, const PRUnichar **aTokenL
   rv = block->GetInt(0, &status);
   if (NS_FAILED(rv)) return rv;
 
-  *aCanceled = (status == 0)?PR_TRUE:PR_FALSE;
+  *aCanceled = (status == 0)?true:false;
   if (!*aCanceled) {
     // retrieve the nickname
     rv = block->GetString(0, aTokenChosen);
@@ -543,7 +542,7 @@ NS_IMETHODIMP
 nsNSSDialogs::ConfirmKeyEscrow(nsIX509Cert *escrowAuthority, bool *_retval)
                                      
 {
-  *_retval = PR_FALSE;
+  *_retval = false;
 
   nsresult rv;
 
@@ -568,7 +567,7 @@ nsNSSDialogs::ConfirmKeyEscrow(nsIX509Cert *escrowAuthority, bool *_retval)
   rv = dlgParamBlock->GetInt(1, &status);
  
   if (status) {
-    *_retval = PR_TRUE;
+    *_retval = true;
   } 
   return rv;
 }

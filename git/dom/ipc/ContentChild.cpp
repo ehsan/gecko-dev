@@ -52,13 +52,15 @@
 #include "AudioChild.h"
 #endif
 
+#include "mozilla/dom/ExternalHelperAppChild.h"
+#include "mozilla/dom/PCrashReporterChild.h"
+#include "mozilla/dom/StorageChild.h"
+#include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/ipc/TestShellChild.h"
-#include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
-#include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/StorageChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
+#include "mozilla/net/NeckoChild.h"
+#include "mozilla/Preferences.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -67,13 +69,13 @@
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
-#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
 #include "nsJSEnvironment.h"
+#include "SandboxHal.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -109,6 +111,7 @@
 #include "nsIAccessibilityService.h"
 #endif
 
+using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
@@ -440,6 +443,19 @@ ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
     return true;
 }
 
+PHalChild*
+ContentChild::AllocPHal()
+{
+    return CreateHalChild();
+}
+
+bool
+ContentChild::DeallocPHal(PHalChild* aHal)
+{
+    delete aHal;
+    return true;
+}
+
 PTestShellChild*
 ContentChild::AllocPTestShell()
 {
@@ -622,24 +638,14 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 bool
 ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
 {
-    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->SetPreference(&aPref);
-
+    Preferences::SetPreference(&aPref);
     return true;
 }
 
 bool
 ContentChild::RecvClearUserPreference(const nsCString& aPrefName)
 {
-    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->ClearContentPref(aPrefName);
-
+    Preferences::ClearContentPref(aPrefName.get());
     return true;
 }
 
@@ -677,7 +683,7 @@ ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
+                        aMsg, false, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -786,6 +792,14 @@ ContentChild::RecvCycleCollect()
 {
     nsJSContext::GarbageCollectNow();
     nsJSContext::CycleCollectNow();
+    return true;
+}
+
+bool
+ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
+{
+    mAppInfo.version.Assign(version);
+    mAppInfo.buildID.Assign(buildID);
     return true;
 }
 

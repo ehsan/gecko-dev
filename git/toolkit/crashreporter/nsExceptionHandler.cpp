@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+  /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -38,6 +38,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/dom/CrashReporterChild.h"
+#include "mozilla/Services.h"
+#include "nsIObserverService.h"
+#include "mozilla/Util.h"
+
 #include "nsXULAppAPI.h"
 
 #include "nsExceptionHandler.h"
@@ -114,8 +118,7 @@ CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
 
 using google_breakpad::CrashGenerationServer;
 using google_breakpad::ClientInfo;
-using mozilla::Mutex;
-using mozilla::MutexAutoLock;
+using namespace mozilla;
 using mozilla::dom::CrashReporterChild;
 using mozilla::dom::PCrashReporterChild;
 
@@ -302,13 +305,13 @@ my_timetostring(time_t t, char* buffer, size_t buffer_length)
 static void
 CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
-  NS_NewLocalFile(nsDependentString(path.c_str()), PR_FALSE, file);
+  NS_NewLocalFile(nsDependentString(path.c_str()), false, file);
 }
 #else
 static void
 CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
-  NS_NewNativeLocalFile(nsDependentCString(path.c_str()), PR_FALSE, file);
+  NS_NewNativeLocalFile(nsDependentCString(path.c_str()), false, file);
 }
 #endif
 
@@ -704,7 +707,7 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   }
 
   // Set spawn attributes.
-  size_t attr_count = NS_ARRAY_LENGTH(pref_cpu_types);
+  size_t attr_count = ArrayLength(pref_cpu_types);
   size_t attr_ocount = 0;
   if (posix_spawnattr_setbinpref_np(&spawnattr,
                                     attr_count,
@@ -1439,7 +1442,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
                     NS_ConvertUTF8toUTF16(regPath),
                     nsIWindowsRegKey::ACCESS_QUERY_VALUE);
   if (NS_FAILED(rv)) {
-    *aSubmitReports = PR_TRUE;
+    *aSubmitReports = true;
     return NS_OK;
   }
   
@@ -1464,7 +1467,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
       rv = NS_ERROR_FAILURE;
   }
   else {
-    *aSubmitReports = PR_TRUE;
+    *aSubmitReports = true;
     Boolean keyExistsAndHasValidFormat = false;
     Boolean prefValue = ::CFPreferencesGetAppBooleanValue(CFSTR("submitReport"),
                                                           reporterClientAppID,
@@ -1490,7 +1493,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
   if (!exists) {
     if (!writePref) {
         // If reading the pref, default to true if .ini doesn't exist.
-        *aSubmitReports = PR_TRUE;
+        *aSubmitReports = true;
         return NS_OK;
     }
     // Create the file so the INI processor can write to it.
@@ -1530,11 +1533,11 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
 
   // Default to "true" if the pref can't be found.
   if (NS_FAILED(rv))
-    *aSubmitReports = PR_TRUE;
+    *aSubmitReports = true;
   else if (submitReportValue.EqualsASCII("0"))
-    *aSubmitReports = PR_FALSE;
+    *aSubmitReports = false;
   else
-    *aSubmitReports = PR_TRUE;
+    *aSubmitReports = true;
 
   return NS_OK;
 #else
@@ -1549,7 +1552,21 @@ nsresult GetSubmitReports(bool* aSubmitReports)
 
 nsresult SetSubmitReports(bool aSubmitReports)
 {
-    return PrefSubmitReports(&aSubmitReports, true);
+    nsresult rv;
+
+    nsCOMPtr<nsIObserverService> obsServ =
+      mozilla::services::GetObserverService();
+    if (!obsServ) {
+      return NS_ERROR_FAILURE;
+    }
+
+    rv = PrefSubmitReports(&aSubmitReports, true);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
+    obsServ->NotifyObservers(nsnull, "submit-reports-pref-changed", nsnull);
+    return NS_OK;
 }
 
 // The "pending" dir is Crash Reports/pending, from which minidumps
@@ -1823,7 +1840,7 @@ OnChildProcessDumpRequested(void* aContext,
 
   if (!WriteExtraForMinidump(minidump,
                              Blacklist(kSubprocessBlacklist,
-                                       NS_ARRAY_LENGTH(kSubprocessBlacklist)),
+                                       ArrayLength(kSubprocessBlacklist)),
                              getter_AddRefs(extraFile)))
     return;
 
@@ -2175,7 +2192,7 @@ CreatePairedMinidumps(ProcessHandle childPid,
   nsCOMPtr<nsILocalFile> childMinidump;
   nsCOMPtr<nsILocalFile> childExtra;
   Blacklist childBlacklist(kSubprocessBlacklist,
-                           NS_ARRAY_LENGTH(kSubprocessBlacklist));
+                           ArrayLength(kSubprocessBlacklist));
   PairedDumpContext childCtx =
     { &childMinidump, &childExtra, childBlacklist };
   if (!google_breakpad::ExceptionHandler::WriteMinidumpForChild(

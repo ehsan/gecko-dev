@@ -38,10 +38,8 @@
 #include "DOMSVGPointList.h"
 #include "nsSVGElement.h"
 #include "nsSVGAttrTearoffTable.h"
-#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGPointListSMILType.h"
-#endif // MOZ_SMIL
 
 // See the comments in this file's header!
 
@@ -177,7 +175,6 @@ SVGAnimatedPointList::ClearAnimValue(nsSVGElement *aElement)
   aElement->DidAnimatePointList();
 }
 
-#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedPointList::ToSMILAttr(nsSVGElement *aElement)
 {
@@ -198,7 +195,7 @@ SVGAnimatedPointList::
     list->SetInfo(mElement);
     aValue.Swap(val);
   }
-  aPreventCachingOfSandwich = PR_FALSE;
+  aPreventCachingOfSandwich = false;
   return rv;
 }
 
@@ -239,6 +236,5 @@ SVGAnimatedPointList::SMILAnimatedPointList::ClearAnimValue()
     mVal->ClearAnimValue(mElement);
   }
 }
-#endif // MOZ_SMIL
 
 } // namespace mozilla

@@ -53,7 +53,7 @@
 using namespace mozilla;
 
 // static
-bool nsHtml5Module::sEnabled = false;
+bool nsHtml5Module::sEnabled = true;
 bool nsHtml5Module::sOffMainThread = true;
 nsIThread* nsHtml5Module::sStreamParserThread = nsnull;
 nsIThread* nsHtml5Module::sMainThread = nsnull;
@@ -62,7 +62,6 @@ nsIThread* nsHtml5Module::sMainThread = nsnull;
 void
 nsHtml5Module::InitializeStatics()
 {
-  Preferences::AddBoolVarCache(&sEnabled, "html5.parser.enable");
   Preferences::AddBoolVarCache(&sOffMainThread, "html5.offmainthread");
   nsHtml5Atoms::AddRefAtoms();
   nsHtml5AttributeName::initializeStatics();
@@ -76,7 +75,7 @@ nsHtml5Module::InitializeStatics()
   nsHtml5UTF16Buffer::initializeStatics();
   nsHtml5StreamParser::InitializeStatics();
 #ifdef DEBUG
-  sNsHtml5ModuleInitialized = PR_TRUE;
+  sNsHtml5ModuleInitialized = true;
 #endif
 }
 
@@ -85,7 +84,7 @@ void
 nsHtml5Module::ReleaseStatics()
 {
 #ifdef DEBUG
-  sNsHtml5ModuleInitialized = PR_FALSE;
+  sNsHtml5ModuleInitialized = false;
 #endif
   nsHtml5AttributeName::releaseStatics();
   nsHtml5ElementName::releaseStatics();
@@ -154,7 +153,7 @@ nsHtml5Module::GetStreamParserThread()
       NS_ASSERTION(os, "do_GetService failed");
       os->AddObserver(new nsHtml5ParserThreadTerminator(sStreamParserThread), 
                       "xpcom-shutdown-threads",
-                      PR_FALSE);
+                      false);
     }
     return sStreamParserThread;
   }

@@ -636,6 +636,10 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
         break;
       }
 
+// The remoted audio stream does not block writes when the other end's buffers
+// are full, so this sleep is necessary to stop the audio thread spinning its
+// wheels.  When bug 695612 is fixed, this block of code can be removed.
+#if defined(REMOTE_AUDIO)
       PRInt64 audioAhead = mAudioEndTime - GetMediaTime();
       if (audioAhead > AMPLE_AUDIO_USECS &&
           framesWritten > minWriteFrames)
@@ -653,6 +657,7 @@ void nsBuiltinDecoderStateMachine::AudioLoop()
         // that packet, but before realising there's no more packets.
         mon.NotifyAll();
       }
+#endif
     }
   }
   if (mReader->mAudioQueue.AtEndOfStream() &&

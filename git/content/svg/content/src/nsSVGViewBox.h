@@ -71,7 +71,7 @@ public:
   const nsSVGViewBoxRect& GetBaseValue() const
     { return mBaseVal; }
   void SetBaseValue(float aX, float aY, float aWidth, float aHeight,
-                    nsSVGElement *aSVGElement, bool aDoSetAttr);
+                    nsSVGElement *aSVGElement);
 
   const nsSVGViewBoxRect& GetAnimValue() const
     { return mAnimVal ? *mAnimVal : mBaseVal; }
@@ -79,16 +79,13 @@ public:
                     nsSVGElement *aSVGElement);
 
   nsresult SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement,
-                              bool aDoSetAttr);
+                              nsSVGElement *aSVGElement);
   void GetBaseValueString(nsAString& aValue) const;
 
   nsresult ToDOMAnimatedRect(nsIDOMSVGAnimatedRect **aResult,
                              nsSVGElement *aSVGElement);
-#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
-#endif // MOZ_SMIL
   
 private:
 
@@ -137,33 +134,25 @@ private:
     // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetX(float *aX)
     {
-#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
-#endif
       *aX = mVal->GetAnimValue().x;
       return NS_OK;
     }
     NS_IMETHOD GetY(float *aY)
     {
-#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
-#endif
       *aY = mVal->GetAnimValue().y;
       return NS_OK;
     }
     NS_IMETHOD GetWidth(float *aWidth)
     {
-#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
-#endif
       *aWidth = mVal->GetAnimValue().width;
       return NS_OK;
     }
     NS_IMETHOD GetHeight(float *aHeight)
     {
-#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
-#endif
       *aHeight = mVal->GetAnimValue().height;
       return NS_OK;
     }
@@ -194,7 +183,6 @@ public:
     NS_IMETHOD GetAnimVal(nsIDOMSVGRect **aResult);
   };
 
-#ifdef MOZ_SMIL
   struct SMILViewBox : public nsISMILAttr
   {
   public:
@@ -216,7 +204,6 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
-#endif // MOZ_SMIL
 };
 
 #endif // __NS_SVGVIEWBOX_H__

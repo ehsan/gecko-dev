@@ -88,6 +88,8 @@ class JS_FRIEND_API(ProxyHandler) {
     virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
     virtual void finalize(JSContext *cx, JSObject *proxy);
     virtual void trace(JSTracer *trc, JSObject *proxy);
+    virtual bool getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
+                                     JSUint32 index, Value *vp, bool *present);
 
     virtual bool isOuterWindow() {
         return false;
@@ -120,6 +122,8 @@ class Proxy {
     static bool has(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
     static bool hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
     static bool get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, Value *vp);
+    static bool getElementIfPresent(JSContext *cx, JSObject *proxy, JSObject *receiver,
+                                    uint32 index, Value *vp, bool *present);
     static bool set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, bool strict,
                     Value *vp);
     static bool keys(JSContext *cx, JSObject *proxy, AutoIdVector &props);
@@ -159,8 +163,8 @@ const uint32 JSSLOT_PROXY_HANDLER = 0;
 const uint32 JSSLOT_PROXY_PRIVATE = 1;
 const uint32 JSSLOT_PROXY_EXTRA   = 2;
 /* Function proxies only. */
-const uint32 JSSLOT_PROXY_CALL = 3;
-const uint32 JSSLOT_PROXY_CONSTRUCT = 4;
+const uint32 JSSLOT_PROXY_CALL = 4;
+const uint32 JSSLOT_PROXY_CONSTRUCT = 5;
 
 inline ProxyHandler *
 GetProxyHandler(const JSObject *obj)
@@ -184,17 +188,18 @@ SetProxyPrivate(JSObject *obj, const Value &priv)
 }
 
 inline const Value &
-GetProxyExtra(const JSObject *obj)
+GetProxyExtra(const JSObject *obj, size_t n)
 {
     JS_ASSERT(IsProxy(obj));
-    return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA);
+    return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n);
 }
 
 inline void
-SetProxyExtra(JSObject *obj, const Value &extra)
+SetProxyExtra(JSObject *obj, size_t n, const Value &extra)
 {
     JS_ASSERT(IsProxy(obj));
-    SetReservedSlot(obj, JSSLOT_PROXY_EXTRA, extra);
+    JS_ASSERT(n <= 1);
+    SetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n, extra);
 }
 
 JS_FRIEND_API(JSObject *)

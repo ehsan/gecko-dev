@@ -180,6 +180,12 @@ public:
    * array which contains the given atom.
    */
   bool Contains(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const;
+  /**
+   * Returns true if this AttrValue is an atom equal to the given
+   * string, or is an array of atoms which contains the given string.
+   * This always does a case-sensitive comparison.
+   */
+  bool Contains(const nsAString& aValue) const;
 
   void ParseAtom(const nsAString& aValue);
   void ParseAtomArray(const nsAString& aValue);
@@ -366,7 +372,7 @@ private:
   bool EnsureEmptyMiscContainer();
   bool EnsureEmptyAtomArray();
   nsStringBuffer* GetStringBuffer(const nsAString& aValue) const;
-  // aStrict is set PR_TRUE if stringifying the return value equals with
+  // aStrict is set true if stringifying the return value equals with
   // aValue.
   PRInt32 StringToInteger(const nsAString& aValue,
                           bool* aStrict,
@@ -453,9 +459,9 @@ nsAttrValue::GetIntMarginValue(nsIntMargin& aMargin) const
   NS_PRECONDITION(Type() == eIntMarginValue, "wrong type");
   nsIntMargin* m = GetMiscContainer()->mIntMargin;
   if (!m)
-    return PR_FALSE;
+    return false;
   aMargin = *m;
-  return PR_TRUE;
+  return true;
 }
 
 inline nsAttrValue::ValueBaseType

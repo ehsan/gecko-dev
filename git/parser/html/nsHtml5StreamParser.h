@@ -46,7 +46,7 @@
 #include "nsHtml5MetaScanner.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5TreeOpExecutor.h"
-#include "nsHtml5UTF16Buffer.h"
+#include "nsHtml5OwningUTF16Buffer.h"
 #include "nsIInputStream.h"
 #include "nsICharsetAlias.h"
 #include "mozilla/Mutex.h"
@@ -59,6 +59,28 @@ class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
 #define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
+
+enum eParserMode {
+  /**
+   * Parse a document normally as HTML.
+   */
+  NORMAL,
+
+  /**
+   * View document as HTML source.
+   */
+  VIEW_SOURCE_HTML,
+
+  /**
+   * View document as XML source
+   */
+  VIEW_SOURCE_XML,
+
+  /**
+   * View document as plain text
+   */
+  PLAIN_TEXT
+};
 
 enum eBomState {
   /**
@@ -118,7 +140,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
     static void InitializeStatics();
 
     nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
-                        nsHtml5Parser* aOwner);
+                        nsHtml5Parser* aOwner,
+                        eParserMode aMode);
                         
     virtual ~nsHtml5StreamParser();
 
@@ -180,10 +203,17 @@ class nsHtml5StreamParser : public nsIStreamListener,
 
     void Terminate() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mTerminated = PR_TRUE;
+      mTerminated = true;
     }
     
     void DropTimer();
+
+    /**
+     * Sets mCharset and mCharsetSource appropriately for the XML View Source
+     * case if aEncoding names a supported rough ASCII superset and sets
+     * the mCharset and mCharsetSource to the UTF-8 default otherwise.
+     */
+    void SetEncodingFromExpat(const PRUnichar* aEncoding);
 
   private:
 
@@ -195,6 +225,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
     }
 #endif
 
+    void MarkAsBroken();
+
     /**
      * Marks the stream parser as interrupted. If you ever add calls to this
      * method, be sure to review Uninterrupt usage very, very carefully to
@@ -203,7 +235,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void Interrupt() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mInterrupted = PR_TRUE;
+      mInterrupted = true;
     }
 
     void Uninterrupt() {
@@ -211,7 +243,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
       mTokenizerMutex.AssertCurrentThreadOwns();
       // Not acquiring mTerminatedMutex because mTokenizerMutex is already
       // held at this point and is already stronger.
-      mInterrupted = PR_FALSE;      
+      mInterrupted = false;      
     }
 
     /**
@@ -325,6 +357,16 @@ class nsHtml5StreamParser : public nsIStreamListener,
                                   const char* aDecoderCharsetName);
 
     /**
+     * Become confident or resolve and encoding name to its preferred form.
+     * @param aEncoding the value of an internal encoding decl. Acts as an
+     *                  out param, too, when the method returns true.
+     * @return true if the parser needs to start using the new value of
+     *         aEncoding and false if the parser became confident or if
+     *         the encoding name did not specify a usable encoding
+     */
+    bool PreferredForInternalEncodingDecl(nsACString& aEncoding);
+
+    /**
      * Callback for mFlushTimer.
      */
     static void TimerCallback(nsITimer* aTimer, void* aClosure);
@@ -383,12 +425,12 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
+    nsRefPtr<nsHtml5OwningUTF16Buffer> mFirstBuffer;
 
     /**
      * The last buffer in the pending UTF-16 buffer queue
      */
-    nsHtml5UTF16Buffer*           mLastBuffer; // weak ref; always points to
+    nsHtml5OwningUTF16Buffer*     mLastBuffer; // weak ref; always points to
                       // a buffer of the size NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE
 
     /**
@@ -492,6 +534,11 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * False initially and true after the timer has fired at least once.
      */
     bool                          mFlushTimerEverFired;
+
+    /**
+     * Whether the parser is doing a normal parse, view source or plain text.
+     */
+    eParserMode                   mMode;
 
     /**
      * The pref html5.flushtimer.initialdelay: Time in milliseconds between

@@ -81,8 +81,26 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_SCRIPTABLE NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
+    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
+  }
+  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
+    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
+  }
+  NS_SCRIPTABLE NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLElement::GetDraggable(aDraggable);
+  }
+  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
 
+  // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
 
   // nsIScriptElement
@@ -96,8 +114,6 @@ public:
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
 
-  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
-  virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
   virtual nsresult DoneAddingChildren(bool aHaveNotified);
   virtual bool IsDoneAddingChildren();
 
@@ -194,14 +210,14 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 NS_IMETHODIMP
 nsHTMLScriptElement::GetText(nsAString& aValue)
 {
-  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aValue);
+  nsContentUtils::GetNodeTextContent(this, false, aValue);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLScriptElement::SetText(const nsAString& aValue)
 {
-  return nsContentUtils::SetNodeTextContent(this, aValue, PR_TRUE);
+  return nsContentUtils::SetNodeTextContent(this, aValue, true);
 }
 
 
@@ -216,7 +232,7 @@ nsresult
 nsHTMLScriptElement::GetAsync(bool* aValue)
 {
   if (mForceAsync) {
-    *aValue = PR_TRUE;
+    *aValue = true;
     return NS_OK;
   }
   return GetBoolAttr(nsGkAtoms::async, aValue);
@@ -225,7 +241,7 @@ nsHTMLScriptElement::GetAsync(bool* aValue)
 nsresult
 nsHTMLScriptElement::SetAsync(bool aValue)
 {
-  mForceAsync = PR_FALSE;
+  mForceAsync = false;
   return SetBoolAttr(nsGkAtoms::async, aValue);
 }
 
@@ -234,7 +250,7 @@ nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, bool aNotify)
 {
   if (nsGkAtoms::async == aName && kNameSpaceID_None == aNamespaceID) {
-    mForceAsync = PR_FALSE;
+    mForceAsync = false;
   }
   return nsGenericHTMLElement::AfterSetAttr(aNamespaceID, aName, aValue,
                                             aNotify);
@@ -243,20 +259,20 @@ nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 nsresult
 nsHTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)
 {
-  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
+  nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
   return NS_OK;
 }
 
 nsresult
 nsHTMLScriptElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  return nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
+  return nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
 }
 
 nsresult
 nsHTMLScriptElement::DoneAddingChildren(bool aHaveNotified)
 {
-  mDoneAddingChildren = PR_TRUE;
+  mDoneAddingChildren = true;
   nsresult rv = MaybeProcessScript();
   if (!mAlreadyStarted) {
     // Need to lose parser-insertedness here to allow another script to cause
@@ -307,7 +323,7 @@ nsHTMLScriptElement::FreezeUriAsyncDefer()
     GetSrc(src);
     NS_NewURI(getter_AddRefs(mUri), src);
     // At this point mUri will be null for invalid URLs.
-    mExternal = PR_TRUE;
+    mExternal = true;
 
     bool defer, async;
     GetAsync(&async);
@@ -317,7 +333,7 @@ nsHTMLScriptElement::FreezeUriAsyncDefer()
     mAsync = async;
   }
   
-  mFrozen = PR_TRUE;
+  mFrozen = true;
 }
 
 bool

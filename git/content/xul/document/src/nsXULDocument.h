@@ -260,11 +260,6 @@ protected:
 
     already_AddRefed<nsPIWindowRoot> GetWindowRoot();
 
-    PRInt32 GetDefaultNamespaceID() const
-    {
-        return kNameSpaceID_XUL;
-    }
-
     static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
 
     // pseudo constants
@@ -396,7 +391,7 @@ protected:
      * Execute the precompiled script object scoped by this XUL document's
      * containing window object, and using its associated script context.
      */
-    nsresult ExecuteScript(nsIScriptContext *aContext, void* aScriptObject);
+    nsresult ExecuteScript(nsIScriptContext *aContext, JSScript* aScriptObject);
 
     /**
      * Helper method for the above that uses aScript to find the appropriate
@@ -493,7 +488,7 @@ protected:
                           mozilla::dom::Element* aObservesElement)
             : mDocument(aDocument),
               mObservesElement(aObservesElement),
-              mResolved(PR_FALSE)
+              mResolved(false)
         {
         }
 
@@ -520,7 +515,7 @@ protected:
 
     public:
         OverlayForwardReference(nsXULDocument* aDocument, nsIContent* aOverlay)
-            : mDocument(aDocument), mOverlay(aOverlay), mResolved(PR_FALSE) {}
+            : mDocument(aDocument), mOverlay(aOverlay), mResolved(false) {}
 
         virtual ~OverlayForwardReference();
 
@@ -707,7 +702,7 @@ protected:
                                nsIDOMElement* aListener,
                                const nsAString &aAttr)
       : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
-        mSetAttr(PR_FALSE), mNeedsAttrChange(PR_FALSE) {}
+        mSetAttr(false), mNeedsAttrChange(false) {}
 
       nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
                                nsIDOMElement* aListener,

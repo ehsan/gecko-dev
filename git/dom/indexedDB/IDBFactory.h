@@ -49,6 +49,7 @@
 #include "nsXULAppAPI.h"
 
 class nsPIDOMWindow;
+class nsIAtom;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -84,13 +85,13 @@ public:
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
-                          PRUint32 aDatabaseId,
-                          nsAString& aVersion,
+                          nsIAtom* aDatabaseId,
+                          PRUint64* aVersion,
                           ObjectStoreInfoArray& aObjectStores);
 
   static nsresult
   UpdateDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
-                         const nsAString& aVersion,
+                         PRUint64 aVersion,
                          ObjectStoreInfoArray& aObjectStores);
 
 private:

@@ -36,6 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsTArray.h"
+#include "nsString.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsIDocument.h"
@@ -82,8 +84,8 @@ nsXBLResourceLoader::nsXBLResourceLoader(nsXBLPrototypeBinding* aBinding,
  mResources(aResources),
  mResourceList(nsnull),
  mLastResource(nsnull),
- mLoadingResources(PR_FALSE),
- mInLoadResourcesFunc(PR_FALSE),
+ mLoadingResources(false),
+ mInLoadResourcesFunc(false),
  mPendingSheets(0)
 {
 }
@@ -96,16 +98,16 @@ nsXBLResourceLoader::~nsXBLResourceLoader()
 void
 nsXBLResourceLoader::LoadResources(bool* aResult)
 {
-  mInLoadResourcesFunc = PR_TRUE;
+  mInLoadResourcesFunc = true;
 
   if (mLoadingResources) {
     *aResult = (mPendingSheets == 0);
-    mInLoadResourcesFunc = PR_FALSE;
+    mInLoadResourcesFunc = false;
     return;
   }
 
-  mLoadingResources = PR_TRUE;
-  *aResult = PR_TRUE;
+  mLoadingResources = true;
+  *aResult = true;
 
   // Declare our loaders.
   nsCOMPtr<nsIDocument> doc = mBinding->XBLDocumentInfo()->GetDocument();
@@ -156,7 +158,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
           NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
           if (NS_SUCCEEDED(rv))
           {
-            rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
+            rv = StyleSheetLoaded(sheet, false, NS_OK);
             NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
           }
         }
@@ -171,7 +173,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
   }
 
   *aResult = (mPendingSheets == 0);
-  mInLoadResourcesFunc = PR_FALSE;
+  mInLoadResourcesFunc = false;
   
   // Destroy our resource list.
   delete mResourceList;
@@ -287,4 +289,26 @@ nsXBLResourceLoader::NotifyBoundElements()
 
   // Delete ourselves.
   NS_RELEASE(mResources->mLoader);
+}
+
+nsresult
+nsXBLResourceLoader::Write(nsIObjectOutputStream* aStream)
+{
+  nsresult rv;
+
+  for (nsXBLResource* curr = mResourceList; curr; curr = curr->mNext) {
+    if (curr->mType == nsGkAtoms::image)
+      rv = aStream->Write8(XBLBinding_Serialize_Image);
+    else if (curr->mType == nsGkAtoms::stylesheet)
+      rv = aStream->Write8(XBLBinding_Serialize_Stylesheet);
+    else
+      continue;
+
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = aStream->WriteWStringZ(curr->mSrc.get());
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  return NS_OK;
 }
