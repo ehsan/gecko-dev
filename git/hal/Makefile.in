@@ -32,7 +32,7 @@ MOCHITEST_BROWSER_FILES += \
 	$(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-DISABLED_CMMSRCS += \
+CMMSRCS += \
   CocoaSensor.mm \
   smslib.mm \
   $(NULL)
