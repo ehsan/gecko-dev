@@ -2354,11 +2354,10 @@ PeerConnectionWrapper.prototype = {
     }
   },
 
-  verifySdp : function PCW_verifySdp(desc, expectedType, offerConstraintsList,
-      answerConstraintsList, offerOptions, trickleIceCallback) {
+  verifySdp : function PCW_verifySdp(desc, expectedType, constraints,
+      offerOptions, trickleIceCallback) {
     info("Examining this SessionDescription: " + JSON.stringify(desc));
-    info("offerConstraintsList: " + JSON.stringify(offerConstraintsList));
-    info("answerConstraintsList: " + JSON.stringify(answerConstraintsList));
+    info("constraints: " + JSON.stringify(constraints));
     info("offerOptions: " + JSON.stringify(offerOptions));
     ok(desc, "SessionDescription is not null");
     is(desc.type, expectedType, "SessionDescription type is " + expectedType);
@@ -2377,11 +2376,11 @@ PeerConnectionWrapper.prototype = {
     }
     //TODO: how can we check for absence/presence of m=application?
 
-    var audioTracks =
-      Math.max(this.countAudioTracksInMediaConstraint(offerConstraintsList),
-               this.countAudioTracksInMediaConstraint(answerConstraintsList)) ||
-      this.audioInOfferOptions(offerOptions);
-
+    //TODO: how to handle media contraints + offer options
+    var audioTracks = this.countAudioTracksInMediaConstraint(constraints);
+    if (constraints.length === 0) {
+      audioTracks = this.audioInOfferOptions(offerOptions);
+    }
     info("expected audio tracks: " + audioTracks);
     if (audioTracks == 0) {
       ok(!desc.sdp.contains("m=audio"), "audio m-line is absent from SDP");
@@ -2394,11 +2393,11 @@ PeerConnectionWrapper.prototype = {
 
     }
 
-    var videoTracks =
-      Math.max(this.countVideoTracksInMediaConstraint(offerConstraintsList),
-               this.countVideoTracksInMediaConstraint(answerConstraintsList)) ||
-      this.videoInOfferOptions(offerOptions);
-
+    //TODO: how to handle media contraints + offer options
+    var videoTracks = this.countVideoTracksInMediaConstraint(constraints);
+    if (constraints.length === 0) {
+      videoTracks = this.videoInOfferOptions(offerOptions);
+    }
     info("expected video tracks: " + videoTracks);
     if (videoTracks == 0) {
       ok(!desc.sdp.contains("m=video"), "video m-line is absent from SDP");

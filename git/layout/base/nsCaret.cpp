@@ -309,14 +309,9 @@ nsCaret::GetGeometryForFrame(nsIFrame* aFrame,
     descent = fm->MaxDescent();
   }
   nscoord height = ascent + descent;
-  WritingMode wm = aFrame->GetWritingMode();
-  bool vertical = wm.IsVertical();
+  bool vertical = aFrame->GetWritingMode().IsVertical();
   if (vertical) {
-    if (wm.IsLineInverted()) {
-      framePos.x = baseline - descent;
-    } else {
-      framePos.x = baseline - ascent;
-    }
+    framePos.x = baseline - ascent;
   } else {
     framePos.y = baseline - ascent;
   }

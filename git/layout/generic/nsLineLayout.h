@@ -385,9 +385,9 @@ protected:
     nsOverflowAreas mOverflowAreas;
 
     // From reflow-state
-    mozilla::LogicalMargin mMargin;        // in *line* writing mode
-    mozilla::LogicalMargin mBorderPadding; // in *line* writing mode
-    mozilla::LogicalMargin mOffsets;       // in *frame* writing mode
+    mozilla::LogicalMargin mMargin;
+    mozilla::LogicalMargin mBorderPadding;
+    mozilla::LogicalMargin mOffsets;
 
     // state for text justification
     mozilla::JustificationInfo mJustificationInfo;
@@ -537,7 +537,6 @@ protected:
   // frame, if any
   nscoord mTrimmableISize;
 
-  // Physical width. Use only for physical <-> logical coordinate conversion.
   nscoord mContainerWidth;
 
   bool mFirstLetterStyleOK      : 1;

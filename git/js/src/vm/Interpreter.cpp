@@ -1028,29 +1028,24 @@ HandleError(JSContext *cx, InterpreterRegs &regs)
   again:
     if (cx->isExceptionPending()) {
         /* Call debugger throw hooks. */
-        RootedValue exception(cx);
-        if (!cx->getPendingException(&exception))
+        JSTrapStatus status = Debugger::onExceptionUnwind(cx, regs.fp());
+        switch (status) {
+          case JSTRAP_ERROR:
             goto again;
 
-        if (!exception.isMagic(JS_GENERATOR_CLOSING)) {
-            JSTrapStatus status = Debugger::onExceptionUnwind(cx, regs.fp());
-            switch (status) {
-              case JSTRAP_ERROR:
-                goto again;
+          case JSTRAP_CONTINUE:
+          case JSTRAP_THROW:
+            break;
 
-              case JSTRAP_CONTINUE:
-              case JSTRAP_THROW:
-                break;
+          case JSTRAP_RETURN:
+            ForcedReturn(cx, si, regs);
+            return SuccessfulReturnContinuation;
 
-              case JSTRAP_RETURN:
-                ForcedReturn(cx, si, regs);
-                return SuccessfulReturnContinuation;
-
-              default:
-                MOZ_CRASH("Bad Debugger::onExceptionUnwind status");
-            }
+          default:
+            MOZ_CRASH("Bad Debugger::onExceptionUnwind status");
         }
 
+        RootedValue exception(cx);
         for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 

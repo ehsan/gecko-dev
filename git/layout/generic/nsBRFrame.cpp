@@ -122,8 +122,7 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
         finalSize.BSize(wm) = logicalHeight;
-        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(
-                                       fm, logicalHeight, wm.IsLineInverted()));
+        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight));
       }
       else {
         aMetrics.SetBlockStartAscent(aMetrics.BSize(wm) = 0);

@@ -345,10 +345,6 @@ function nsPlacesAutoComplete()
     return db;
   });
 
-  this._customQuery = (conditions = "") => {
-    return this._db.createAsyncStatement(baseQuery(conditions));
-  };
-
   XPCOMUtils.defineLazyGetter(this, "_defaultQuery", function() {
     return this._db.createAsyncStatement(baseQuery());
   });
@@ -467,7 +463,6 @@ function nsPlacesAutoComplete()
   this._prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefService).
                 getBranch(kBrowserUrlbarBranch);
-  this._syncEnabledPref(true);
   this._loadPrefs(true);
 
   // register observers
@@ -531,13 +526,8 @@ nsPlacesAutoComplete.prototype = {
     let {query, tokens} =
       this._getSearch(this._getUnfilteredSearchTokens(this._currentSearchString));
     let queries = tokens.length ?
-      [this._getBoundKeywordQuery(tokens), this._getBoundAdaptiveQuery()] :
-      [this._getBoundAdaptiveQuery()];
-
-    if (this._hasBehavior("openpage")) {
-      queries.push(this._getBoundOpenPagesQuery(tokens));
-    }
-    queries.push(query);
+      [this._getBoundKeywordQuery(tokens), this._getBoundAdaptiveQuery(), this._getBoundOpenPagesQuery(tokens), query] :
+      [this._getBoundAdaptiveQuery(), this._getBoundOpenPagesQuery(tokens), query];
 
     // Start executing our queries.
     this._telemetryStartTime = Date.now();
@@ -698,7 +688,7 @@ nsPlacesAutoComplete.prototype = {
       }
     }
     else if (aTopic == kPrefChanged) {
-      this._loadPrefs(aSubject, aTopic, aData);
+      this._loadPrefs();
     }
   },
 
@@ -807,51 +797,13 @@ nsPlacesAutoComplete.prototype = {
   },
 
   /**
-   * Synchronize suggest.* prefs with autocomplete.enabled.
-   */
-  _syncEnabledPref: function PAC_syncEnabledPref(init = false)
-  {
-    let suggestPrefs = ["suggest.history", "suggest.bookmark", "suggest.openpage"];
-    let types = ["History", "Bookmark", "Openpage", "Typed"];
-
-    if (init) {
-      // Make sure to initialize the properties when first called with init = true.
-      this._enabled = safePrefGetter(this._prefs, kBrowserUrlbarAutocompleteEnabledPref,
-                                     true);
-      this._suggestHistory = safePrefGetter(this._prefs, "suggest.history", true);
-      this._suggestBookmark = safePrefGetter(this._prefs, "suggest.bookmark", true);
-      this._suggestOpenpage = safePrefGetter(this._prefs, "suggest.openpage", true);
-      this._suggestTyped = safePrefGetter(this._prefs, "suggest.history.onlyTyped", false);
-    }
-
-    if (this._enabled) {
-      // If the autocomplete preference is active, activate all suggest
-      // preferences only if all of them are false.
-      if (types.every(type => this["_suggest" + type] == false)) {
-        for (let type of suggestPrefs) {
-          this._prefs.setBoolPref(type, true);
-        }
-      }
-    } else {
-      // If the preference was deactivated, deactivate all suggest preferences.
-      for (let type of suggestPrefs) {
-        this._prefs.setBoolPref(type, false);
-      }
-    }
-  },
-
-  /**
    * Loads the preferences that we care about.
    *
    * @param [optional] aRegisterObserver
    *        Indicates if the preference observer should be added or not.  The
    *        default value is false.
-   * @param [optional] aTopic
-   *        Observer's topic, if any.
-   * @param [optional] aSubject
-   *        Observer's subject, if any.
    */
-  _loadPrefs: function PAC_loadPrefs(aRegisterObserver, aTopic, aData)
+  _loadPrefs: function PAC_loadPrefs(aRegisterObserver)
   {
     this._enabled = safePrefGetter(this._prefs,
                                    kBrowserUrlbarAutocompleteEnabledPref,
@@ -871,36 +823,13 @@ nsPlacesAutoComplete.prototype = {
                                                  "restrict.openpage", "%");
     this._matchTitleToken = safePrefGetter(this._prefs, "match.title", "#");
     this._matchURLToken = safePrefGetter(this._prefs, "match.url", "@");
-
-    this._suggestHistory = safePrefGetter(this._prefs, "suggest.history", true);
-    this._suggestBookmark = safePrefGetter(this._prefs, "suggest.bookmark", true);
-    this._suggestOpenpage = safePrefGetter(this._prefs, "suggest.openpage", true);
-    this._suggestTyped = safePrefGetter(this._prefs, "suggest.history.onlyTyped", false);
-
-    // If history is not set, onlyTyped value should be ignored.
-    if (!this._suggestHistory) {
-      this._suggestTyped = false;
-    }
-    let types = ["History", "Bookmark", "Openpage", "Typed"];
-    this._defaultBehavior = types.reduce((memo, type) => {
-      let prefValue = this["_suggest" + type];
-      return memo | (prefValue &&
-                     Ci.mozIPlacesAutoComplete["BEHAVIOR_" + type.toUpperCase()]);
-    }, 0);
-
+    this._defaultBehavior = safePrefGetter(this._prefs, "default.behavior", 0);
     // Further restrictions to apply for "empty searches" (i.e. searches for "").
-    // The empty behavior is typed history, if history is enabled. Otherwise,
-    // it is bookmarks, if they are enabled. If both history and bookmarks are disabled,
-    // it defaults to open pages.
-    this._emptySearchDefaultBehavior = Ci.mozIPlacesAutoComplete.BEHAVIOR_RESTRICT;
-    if (this._suggestHistory) {
-      this._emptySearchDefaultBehavior |= Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY |
-                                          Ci.mozIPlacesAutoComplete.BEHAVIOR_TYPED;
-    } else if (this._suggestBookmark) {
-      this._emptySearchDefaultBehavior |= Ci.mozIPlacesAutoComplete.BEHAVIOR_BOOKMARK;
-    } else {
-      this._emptySearchDefaultBehavior |= Ci.mozIPlacesAutoComplete.BEHAVIOR_OPENPAGE;
-    }
+    this._emptySearchDefaultBehavior =
+      this._defaultBehavior |
+      safePrefGetter(this._prefs, "default.behavior.emptyRestriction",
+                     Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY |
+                     Ci.mozIPlacesAutoComplete.BEHAVIOR_TYPED);
 
     // Validate matchBehavior; default to MATCH_BOUNDARY_ANYWHERE.
     if (this._matchBehavior != MATCH_ANYWHERE &&
@@ -911,12 +840,6 @@ nsPlacesAutoComplete.prototype = {
     // register observer
     if (aRegisterObserver) {
       this._prefs.addObserver("", this, false);
-    }
-
-    // Synchronize suggest.* prefs with autocomplete.enabled every time
-    // autocomplete.enabled is changed.
-    if (aData == kBrowserUrlbarAutocompleteEnabledPref) {
-      this._syncEnabledPref();
     }
   },
 
@@ -933,43 +856,33 @@ nsPlacesAutoComplete.prototype = {
    */
   _getSearch: function PAC_getSearch(aTokens)
   {
-    let foundToken = false;
-    let restrict = (behavior) => {
-      if (!foundToken) {
-        this._behavior = 0;
-        this._setBehavior("restrict");
-        foundToken = true;
-      }
-      this._setBehavior(behavior);
-    };
-
     // Set the proper behavior so our call to _getBoundSearchQuery gives us the
     // correct query.
     for (let i = aTokens.length - 1; i >= 0; i--) {
       switch (aTokens[i]) {
         case this._restrictHistoryToken:
-          restrict("history");
+          this._setBehavior("history");
           break;
         case this._restrictBookmarkToken:
-          restrict("bookmark");
+          this._setBehavior("bookmark");
           break;
         case this._restrictTagToken:
-          restrict("tag");
+          this._setBehavior("tag");
           break;
         case this._restrictOpenPageToken:
           if (!this._enableActions) {
             continue;
           }
-          restrict("openpage");
+          this._setBehavior("openpage");
           break;
         case this._matchTitleToken:
-          restrict("title");
+          this._setBehavior("title");
           break;
         case this._matchURLToken:
-          restrict("url");
+          this._setBehavior("url");
           break;
         case this._restrictTypedToken:
-          restrict("typed");
+          this._setBehavior("typed");
           break;
         default:
           // We do not want to remove the token if we did not match.
@@ -993,38 +906,6 @@ nsPlacesAutoComplete.prototype = {
   },
 
   /**
-   * @return a string consisting of the search query to be used based on the
-   * previously set urlbar suggestion preferences.
-   */
-  _getSuggestionPrefQuery: function PAC_getSuggestionPrefQuery()
-  {
-    if (!this._hasBehavior("restrict") && this._hasBehavior("history") &&
-        this._hasBehavior("bookmark")) {
-      return this._hasBehavior("typed") ? this._customQuery("AND h.typed = 1")
-                                        : this._defaultQuery;
-    }
-    let conditions = [];
-    if (this._hasBehavior("history")) {
-      // Enforce ignoring the visit_count index, since the frecency one is much
-      // faster in this case.  ANALYZE helps the query planner to figure out the
-      // faster path, but it may not have up-to-date information yet.
-      conditions.push("+h.visit_count > 0");
-    }
-    if (this._hasBehavior("typed")) {
-      conditions.push("h.typed = 1");
-    }
-    if (this._hasBehavior("bookmark")) {
-      conditions.push("bookmarked");
-    }
-    if (this._hasBehavior("tag")) {
-      conditions.push("tags NOTNULL");
-    }
-
-    return conditions.length ? this._customQuery("AND " + conditions.join(" AND "))
-                             : this._defaultQuery;
-  },
-
-  /**
    * Obtains the search query to be used based on the previously set search
    * behaviors (accessed by this._hasBehavior).  The query is bound and ready to
    * execute.
@@ -1041,7 +922,17 @@ nsPlacesAutoComplete.prototype = {
   _getBoundSearchQuery: function PAC_getBoundSearchQuery(aMatchBehavior,
                                                          aTokens)
   {
-    let query = this._getSuggestionPrefQuery();
+    // We use more optimized queries for restricted searches, so we will always
+    // return the most restrictive one to the least restrictive one if more than
+    // one token is found.
+    // Note: "openpages" behavior is supported by the default query.
+    //       _openPagesQuery instead returns only pages not supported by
+    //       history and it is always executed.
+    let query = this._hasBehavior("tag") ? this._tagsQuery :
+                this._hasBehavior("bookmark") ? this._bookmarkQuery :
+                this._hasBehavior("typed") ? this._typedQuery :
+                this._hasBehavior("history") ? this._historyQuery :
+                this._defaultQuery;
 
     // Bind the needed parameters to the query so consumers can use it.
     let (params = query.params) {
@@ -1155,7 +1046,7 @@ nsPlacesAutoComplete.prototype = {
 
     // If actions are enabled and the page is open, add only the switch-to-tab
     // result.  Otherwise, add the normal result.
-    let [url, action] = this._enableActions && openPageCount > 0 && this._hasBehavior("openpage") ?
+    let [url, action] = this._enableActions && openPageCount > 0 ?
                         ["moz-action:switchtab," + escapedEntryURL, "action "] :
                         [escapedEntryURL, ""];
 
@@ -1190,10 +1081,10 @@ nsPlacesAutoComplete.prototype = {
     // We will always prefer to show tags if we have them.
     let showTags = !!entryTags;
 
-    // However, we'll act as if a page is not bookmarked if the user wants
-    // only history and not bookmarks and there are no tags.
-    if (this._hasBehavior("history") && !this._hasBehavior("bookmark") &&
-        !showTags) {
+    // However, we'll act as if a page is not bookmarked or tagged if the user
+    // only wants only history and not bookmarks or tags.
+    if (this._hasBehavior("history") &&
+        !(this._hasBehavior("bookmark") || this._hasBehavior("tag"))) {
       showTags = false;
       style = "favicon";
     }
@@ -1541,9 +1432,7 @@ urlInlineComplete.prototype = {
     let query = this._urlQuery;
     let (params = query.params) {
       params.matchBehavior = MATCH_BEGINNING_CASE_SENSITIVE;
-      params.searchBehavior |= Ci.mozIPlacesAutoComplete.BEHAVIOR_HISTORY |
-                               Ci.mozIPlacesAutoComplete.BEHAVIOR_TYPED |
-                               Ci.mozIPlacesAutoComplete.BEHAVIOR_URL;
+      params.searchBehavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_URL"];
       params.searchString = this._currentSearchString;
     }
 

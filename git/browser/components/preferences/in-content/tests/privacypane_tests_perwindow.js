@@ -301,14 +301,18 @@ function test_custom_retention(controlToChange, expect, valueIncrement) {
   };
 }
 
-function test_locbar_suggestion_retention(suggestion, autocomplete) {
+function test_locbar_suggestion_retention(mode, expect) {
   return function(win) {
-    let elem = win.document.getElementById(suggestion + "Suggestion");
-    ok(elem, "Suggest " + suggestion + " checkbox should exist.");
-    elem.click();
+    let locbarsuggest = win.document.getElementById("locationBarSuggestion");
+    ok(locbarsuggest, "location bar suggestion menulist should exist");
 
-    is(Services.prefs.getBoolPref("browser.urlbar.autocomplete.enabled"), autocomplete,
-       "browser.urlbar.autocomplete.enabled pref should be " + autocomplete);
+    if (expect !== undefined) {
+      is(locbarsuggest.value, expect,
+        "location bar suggestion is expected to remain " + expect);
+    }
+
+    locbarsuggest.value = mode;
+    controlChanged(locbarsuggest);
   };
 }
 

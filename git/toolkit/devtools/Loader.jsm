@@ -42,6 +42,21 @@ this.EXPORTED_SYMBOLS = ["DevToolsLoader", "devtools", "BuiltinProvider",
 
 let Timer = Cu.import("resource://gre/modules/Timer.jsm", {});
 
+let loaderGlobals = {
+  isWorker: false,
+  reportError: Cu.reportError,
+
+  btoa: btoa,
+  console: console,
+  _Iterator: Iterator,
+  loader: {
+    lazyGetter: (...args) => devtools.lazyGetter.apply(devtools, args),
+    lazyImporter: (...args) => devtools.lazyImporter.apply(devtools, args),
+    lazyServiceGetter: (...args) => devtools.lazyServiceGetter.apply(devtools, args),
+    lazyRequireGetter: (...args) => devtools.lazyRequireGetter.apply(devtools, args)
+  },
+};
+
 let loaderModules = {
   "Debugger": Debugger,
   "Services": Object.create(Services),
@@ -96,7 +111,7 @@ BuiltinProvider.prototype = {
         // Allow access to xpcshell test items from the loader.
         "xpcshell-test": "resource://test"
       },
-      globals: this.globals,
+      globals: loaderGlobals,
       invisibleToDebugger: this.invisibleToDebugger,
       sharedGlobal: true,
       sharedGlobalBlacklist: sharedGlobalBlacklist
@@ -175,7 +190,7 @@ SrcdirProvider.prototype = {
         "tern": ternURI,
         "source-map": sourceMapURI,
       },
-      globals: this.globals,
+      globals: loaderGlobals,
       invisibleToDebugger: this.invisibleToDebugger,
       sharedGlobal: true,
       sharedGlobalBlacklist: sharedGlobalBlacklist
@@ -347,23 +362,7 @@ DevToolsLoader.prototype = {
       this._provider.unload("newprovider");
     }
     this._provider = provider;
-
-    // Pass through internal loader settings specific to this loader instance
     this._provider.invisibleToDebugger = this.invisibleToDebugger;
-    this._provider.globals = {
-      isWorker: false,
-      reportError: Cu.reportError,
-      btoa: btoa,
-      console: console,
-      _Iterator: Iterator,
-      loader: {
-        lazyGetter: this.lazyGetter,
-        lazyImporter: this.lazyImporter,
-        lazyServiceGetter: this.lazyServiceGetter,
-        lazyRequireGetter: this.lazyRequireGetter
-      },
-    };
-
     this._provider.load();
     this.require = loader.Require(this._provider.loader, { id: "devtools" });
 
