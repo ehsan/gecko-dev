@@ -60,7 +60,6 @@ include $(topsrcdir)/build/automation-build.mk
 _SERV_FILES = 	\
 		runtests.py \
 		automation.py \
-		$(CURDIR)/automationutils.py \
 		gen_template.pl \
 		server.js \
 		harness-a11y.xul \
@@ -84,7 +83,7 @@ runtests.py: runtests.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	$(DEFINES) $(ACDEFINES) $^ > $@
 
-GARBAGE += runtests.py
+GARBAGE += automation.py runtests.py
 
 libs:: $(_SERV_FILES)
 	$(INSTALL) $^ $(_DEST_DIR)

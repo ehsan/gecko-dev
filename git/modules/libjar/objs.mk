@@ -37,6 +37,7 @@
 
 MODULES_STANDALONE_LCPPSRCS = \
 		nsZipArchive.cpp \
+		nsWildCard.cpp \
 		$(NULL)
 
 MODULES_LIBJAR_LCPPSRCS = \

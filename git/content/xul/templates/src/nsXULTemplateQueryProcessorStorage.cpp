@@ -330,8 +330,10 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
             nsAutoString name, indexValue;
 
             if (child->GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
-                rv = statement->GetParameterIndex(NS_ConvertUTF16toUTF8(name),
-                                                  &index);
+                nsAutoString fullName;
+                fullName.AssignLiteral(":");
+                fullName.Append(name);
+                rv = statement->GetParameterIndex(NS_ConvertUTF16toUTF8(fullName) , &index);
                 NS_ENSURE_SUCCESS(rv, rv);
                 parameterCount++;
             }

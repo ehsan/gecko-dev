@@ -81,7 +81,6 @@
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageStatementCallback.h"
 #include "mozIStorageError.h"
-#include "nsPlacesTables.h"
 
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
@@ -206,9 +205,9 @@ void GetAutoCompleteBaseQuery(nsACString& aQuery) {
       "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
         "h.visit_count, h.typed "
       "FROM ("
-        "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places_temp "
+        "SELECT * FROM moz_places_temp "
         "UNION ALL "
-        "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places "
+        "SELECT * FROM moz_places "
         "ORDER BY frecency DESC LIMIT ?2 OFFSET ?3) h "
       "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
       "WHERE h.frecency <> 0 "
@@ -738,10 +737,10 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
         "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
           "h.visit_count, h.typed "
         "FROM ( "
-          "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places_temp "
+          "SELECT * FROM moz_places_temp "
           "WHERE url IN (") + bindings + NS_LITERAL_CSTRING(") "
           "UNION ALL "
-          "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places "
+          "SELECT * FROM moz_places "
           "WHERE id NOT IN (SELECT id FROM moz_places_temp) "
           "AND url IN (") + bindings + NS_LITERAL_CSTRING(") "
         ") AS h "
@@ -939,7 +938,7 @@ nsNavHistory::AutoCompleteAdaptiveSearch()
 {
   mozStorageStatementScoper scope(mDBAdaptiveQuery);
 
-  nsresult rv = mDBAdaptiveQuery->BindInt64Parameter(0, GetTagsFolder());
+  nsresult rv = mDBAdaptiveQuery->BindInt32Parameter(0, GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mDBAdaptiveQuery->BindStringParameter(1, mCurrentSearchString);
@@ -954,7 +953,7 @@ nsNavHistory::AutoCompleteAdaptiveSearch()
 nsresult
 nsNavHistory::AutoCompletePreviousSearch()
 {
-  nsresult rv = mDBPreviousQuery->BindInt64Parameter(0, GetTagsFolder());
+  nsresult rv = mDBPreviousQuery->BindInt32Parameter(0, GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = AutoCompleteProcessSearch(mDBPreviousQuery, QUERY_FILTERED);
@@ -980,7 +979,7 @@ nsNavHistory::AutoCompleteFullHistorySearch(PRBool* aHasMoreResults)
 {
   mozStorageStatementScoper scope(mDBCurrentQuery);
 
-  nsresult rv = mDBCurrentQuery->BindInt64Parameter(0, GetTagsFolder());
+  nsresult rv = mDBCurrentQuery->BindInt32Parameter(0, GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mDBCurrentQuery->BindInt32Parameter(1, mAutoCompleteSearchChunkSize);
@@ -1140,13 +1139,6 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
       // Always prefer to show tags if we have them
       PRBool showTags = !entryTags.IsEmpty();
-
-      // Pretend a page isn't bookmarked/tagged if the user only wants history,
-      // but still show the star and tag if the user explicitly wants them
-      if (GET_BEHAVIOR(History) && !(GET_BEHAVIOR(Bookmark) || GET_BEHAVIOR(Tag))) {
-        showTags = PR_FALSE;
-        style = NS_LITERAL_STRING("favicon");
-      }
 
       // Add the tags to the title if necessary
       if (showTags)

@@ -44,7 +44,6 @@
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleText.h"
-#include "nsIAccessibleTable.h"
 #include "nsARIAMap.h"
 
 #include "nsIDOMNode.h"
@@ -53,8 +52,6 @@
 #include "nsPoint.h"
 
 class nsAccessNode;
-class nsAccessible;
-class nsHTMLTableAccessible;
 
 class nsAccUtils
 {
@@ -323,18 +320,6 @@ public:
     return accessNode;
   }
 
-  /**
-   * Query nsAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsAccessible>
-    QueryAccessible(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsHTMLTableAccessible from the given nsIAccessibleTable.
-   */
-  static already_AddRefed<nsHTMLTableAccessible>
-    QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable);
-  
 #ifdef DEBUG_A11Y
   /**
    * Detect whether the given accessible object implements nsIAccessibleText,
