@@ -51,9 +51,9 @@ implements RecordsChannelDelegate,
            RepositorySessionFinishDelegate {
 
   protected static final String LOG_TAG = "SynchronizerSession";
-  protected Synchronizer synchronizer;
-  protected SynchronizerSessionDelegate delegate;
-  protected Context context;
+  private Synchronizer synchronizer;
+  private SynchronizerSessionDelegate delegate;
+  private Context context;
 
   /*
    * Computed during init.
@@ -103,6 +103,20 @@ implements RecordsChannelDelegate,
   protected RecordsChannel channelAToB;
   protected RecordsChannel channelBToA;
 
+  public synchronized void abort() {
+    // Guaranteed to have been begun by the time we get to run.
+    if (channelAToB != null) {
+      channelAToB.abort();
+    }
+
+    // Not guaranteed. It's possible for the second flow to begin after we've aborted.
+    // TODO: stop this from happening!
+    if (channelBToA != null) {
+      channelBToA.abort();
+    }
+    this.delegate.onSynchronizeAborted(this);
+  }
+
   /**
    * Please don't call this until you've been notified with onInitialized.
    */
@@ -128,29 +142,38 @@ implements RecordsChannelDelegate,
     // This is the delegate for the *first* flow.
     RecordsChannelDelegate channelAToBDelegate = new RecordsChannelDelegate() {
       public void onFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
-        session.onFirstFlowCompleted(recordsChannel, fetchEnd, storeEnd);
+        Logger.info(LOG_TAG, "First RecordsChannel onFlowCompleted. Fetch end is " + fetchEnd +
+             ". Store end is " + storeEnd + ". Starting next.");
+        pendingATimestamp = fetchEnd;
+        storeEndBTimestamp = storeEnd;
+        flowAToBCompleted = true;
+        channelBToA.flow();
       }
 
       @Override
       public void onFlowBeginFailed(RecordsChannel recordsChannel, Exception ex) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowBeginFailed. Logging session error.", ex);
-        session.delegate.onSynchronizeFailed(session, ex, "Failed to begin first flow.");
+        Logger.warn(LOG_TAG, "First RecordsChannel onFlowBeginFailed. Reporting session error.", ex);
+        session.delegate.onSessionError(ex);
       }
 
       @Override
       public void onFlowFetchFailed(RecordsChannel recordsChannel, Exception ex) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFetchFailed. Logging remote fetch error.", ex);
+        // TODO: clean up, tear down, abort.
+        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFetchFailed. Reporting fetch error.", ex);
+        session.delegate.onFetchError(ex);
       }
 
       @Override
-      public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex, String recordGuid) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowStoreFailed. Logging local store error.", ex);
+      public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex) {
+        // TODO: clean up, tear down, abort.
+        Logger.warn(LOG_TAG, "First RecordsChannel onFlowStoreFailed. Reporting store error.", ex);
+        session.delegate.onStoreError(ex);
       }
 
       @Override
       public void onFlowFinishFailed(RecordsChannel recordsChannel, Exception ex) {
-        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFinishedFailed. Logging session error.", ex);
-        session.delegate.onSynchronizeFailed(session, ex, "Failed to finish first flow.");
+        Logger.warn(LOG_TAG, "First RecordsChannel onFlowFinishedFailed. Reporting session error.", ex);
+        session.delegate.onSessionError(ex);
       }
     };
 
@@ -165,34 +188,10 @@ implements RecordsChannelDelegate,
     }
   }
 
-  /**
-   * Called after the first flow completes.
-   * <p>
-   * By default, any fetch and store failures are ignored.
-   * @param recordsChannel the <code>RecordsChannel</code> (for error testing).
-   * @param fetchEnd timestamp when fetches completed.
-   * @param storeEnd timestamp when stores completed.
-   */
-  public void onFirstFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
-    Logger.info(LOG_TAG, "First RecordsChannel onFlowCompleted.");
-    Logger.info(LOG_TAG, "Fetch end is " + fetchEnd + ". Store end is " + storeEnd + ". Starting next.");
-    pendingATimestamp = fetchEnd;
-    storeEndBTimestamp = storeEnd;
-    flowAToBCompleted = true;
-    channelBToA.flow();
-  }
-
-  /**
-   * Called after the second flow completes.
-   * <p>
-   * By default, any fetch and store failures are ignored.
-   * @param recordsChannel the <code>RecordsChannel</code> (for error testing).
-   * @param fetchEnd timestamp when fetches completed.
-   * @param storeEnd timestamp when stores completed.
-   */
-  public void onSecondFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
-    Logger.info(LOG_TAG, "Second RecordsChannel onFlowCompleted.");
-    Logger.info(LOG_TAG, "Fetch end is " + fetchEnd + ". Store end is " + storeEnd + ". Finishing.");
+  @Override
+  public void onFlowCompleted(RecordsChannel channel, long fetchEnd, long storeEnd) {
+    Logger.info(LOG_TAG, "Second RecordsChannel onFlowCompleted. Fetch end is " + fetchEnd +
+         ". Store end is " + storeEnd + ". Finishing.");
 
     pendingBTimestamp = fetchEnd;
     storeEndATimestamp = storeEnd;
@@ -203,35 +202,39 @@ implements RecordsChannelDelegate,
       this.sessionA.finish(this);
     } catch (InactiveSessionException e) {
       this.onFinishFailed(e);
-      return;
     }
   }
 
   @Override
-  public void onFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
-    onSecondFlowCompleted(recordsChannel, fetchEnd, storeEnd);
-  }
-
-  @Override
   public void onFlowBeginFailed(RecordsChannel recordsChannel, Exception ex) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowBeginFailed. Logging session error.", ex);
-    this.delegate.onSynchronizeFailed(this, ex, "Failed to begin second flow.");
+    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowBeginFailed. Reporting session error.", ex);
+    this.delegate.onSessionError(ex);
   }
 
   @Override
   public void onFlowFetchFailed(RecordsChannel recordsChannel, Exception ex) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFetchFailed. Logging local fetch error.", ex);
+    // TODO: clean up, tear down, abort.
+    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFetchFailed. Reporting fetch error.", ex);
+    this.delegate.onFetchError(ex);
   }
 
+  /**
+   * We ignore possible store errors, since failure to store a record is not
+   * necessarily a cause to abort. It might mean that the record should be
+   * tracked for re-downloading, or skipped, or we might abort.
+   *
+   * TODO: Bug 709371.
+   */
   @Override
-  public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex, String recordGuid) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowStoreFailed. Logging remote store error.", ex);
+  public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex) {
+    // TODO: clean up, tear down, abort.
+    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowStoreFailed. Ignoring store error.", ex);
   }
 
   @Override
   public void onFlowFinishFailed(RecordsChannel recordsChannel, Exception ex) {
-    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFinishedFailed. Logging session error.", ex);
-    this.delegate.onSynchronizeFailed(this, ex, "Failed to finish second flow.");
+    Logger.warn(LOG_TAG, "Second RecordsChannel onFlowFinishedFailed. Reporting session error.", ex);
+    this.delegate.onSessionError(ex);
   }
 
   /*
@@ -258,7 +261,7 @@ implements RecordsChannelDelegate,
     }
     // We no longer need a reference to our context.
     this.context = null;
-    this.delegate.onSynchronizeFailed(this, ex, "Failed to create session");
+    this.delegate.onSessionError(ex);
   }
 
   /**
@@ -273,7 +276,7 @@ implements RecordsChannelDelegate,
     if (session == null ||
         this.sessionA == session) {
       // TODO: clean up sessionA.
-      this.delegate.onSynchronizeFailed(this, new UnexpectedSessionException(session), "Failed to create session.");
+      this.delegate.onSessionError(new UnexpectedSessionException(session));
       return;
     }
     if (this.sessionA == null) {
@@ -283,7 +286,7 @@ implements RecordsChannelDelegate,
       try {
         this.sessionA.unbundle(this.bundleA);
       } catch (Exception e) {
-        this.delegate.onSynchronizeFailed(this, new UnbundleError(e, sessionA), "Failed to unbundle first session.");
+        this.delegate.onSessionError(new UnbundleError(e, sessionA));
         // TODO: abort
         return;
       }
@@ -299,7 +302,8 @@ implements RecordsChannelDelegate,
       try {
         this.sessionB.unbundle(this.bundleB);
       } catch (Exception e) {
-        this.delegate.onSynchronizeFailed(this, new UnbundleError(e, sessionA), "Failed to unbundle second session.");
+        // TODO: abort
+        this.delegate.onSessionError(new UnbundleError(e, sessionB));
         return;
       }
 
@@ -307,7 +311,7 @@ implements RecordsChannelDelegate,
       return;
     }
     // TODO: need a way to make sure we don't call any more delegate methods.
-    this.delegate.onSynchronizeFailed(this, new UnexpectedSessionException(session), "Failed to create session.");
+    this.delegate.onSessionError(new UnexpectedSessionException(session));
   }
 
   /*
@@ -350,8 +354,7 @@ implements RecordsChannelDelegate,
         this.synchronizer.bundleA = bundle;
       } else {
         // Should not happen!
-        this.delegate.onSynchronizeFailed(this, new UnexpectedSessionException(sessionA), "Failed to finish first session.");
-        return;
+        this.delegate.onSessionError(new UnexpectedSessionException(sessionA));
       }
       if (this.sessionB != null) {
         Logger.info(LOG_TAG, "Finishing session B.");
@@ -360,7 +363,6 @@ implements RecordsChannelDelegate,
           this.sessionB.finish(this);
         } catch (InactiveSessionException e) {
           this.onFinishFailed(e);
-          return;
         }
       }
     } else if (session == sessionB) {
@@ -372,8 +374,7 @@ implements RecordsChannelDelegate,
         this.delegate.onSynchronized(this);
       } else {
         // Should not happen!
-        this.delegate.onSynchronizeFailed(this, new UnexpectedSessionException(sessionB), "Failed to finish second session.");
-        return;
+        this.delegate.onSessionError(new UnexpectedSessionException(sessionB));
       }
     } else {
       // TODO: hurrrrrr...

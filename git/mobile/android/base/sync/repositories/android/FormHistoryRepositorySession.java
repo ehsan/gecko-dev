@@ -450,7 +450,7 @@ public class FormHistoryRepositorySession extends
         try {
           flushInsertQueue();
         } catch (Exception e) {
-          delegate.onRecordStoreFailed(e, record.guid);
+          delegate.onRecordStoreFailed(e);
           return;
         }
       }
@@ -491,8 +491,7 @@ public class FormHistoryRepositorySession extends
           }
           storeDone(now());
         } catch (Exception e) {
-          // XXX TODO
-          delegate.onRecordStoreFailed(e, null);
+          delegate.onRecordStoreFailed(e);
         }
       }
     };
@@ -563,7 +562,7 @@ public class FormHistoryRepositorySession extends
       public void run() {
         if (!isActive()) {
           Logger.warn(LOG_TAG, "FormHistoryRepositorySession is inactive. Store failing.");
-          delegate.onRecordStoreFailed(new InactiveSessionException(null), record.guid);
+          delegate.onRecordStoreFailed(new InactiveSessionException(null));
           return;
         }
 
@@ -606,7 +605,7 @@ public class FormHistoryRepositorySession extends
               Logger.trace(LOG_TAG, "Remote modified, local not. Deleting.");
               deleteExistingRecord(existingRecord);
               trackRecord(record);
-              delegate.onRecordStoreSucceeded(record.guid);
+              delegate.onRecordStoreSucceeded(record);
               return;
             }
 
@@ -615,7 +614,7 @@ public class FormHistoryRepositorySession extends
               Logger.trace(LOG_TAG, "Remote is newer, and deleted. Purging local.");
               deleteExistingRecord(existingRecord);
               trackRecord(record);
-              delegate.onRecordStoreSucceeded(record.guid);
+              delegate.onRecordStoreSucceeded(record);
               return;
             }
 
@@ -639,7 +638,7 @@ public class FormHistoryRepositorySession extends
             Logger.trace(LOG_TAG, "No match. Inserting.");
             insertNewRegularRecord(record);
             trackRecord(record);
-            delegate.onRecordStoreSucceeded(record.guid);
+            delegate.onRecordStoreSucceeded(record);
             return;
           }
 
@@ -651,7 +650,7 @@ public class FormHistoryRepositorySession extends
             Logger.trace(LOG_TAG, "Remote guid different from local guid. Storing to keep remote guid.");
             replaceExistingRecordWithRegularRecord(record, existingRecord);
             trackRecord(record);
-            delegate.onRecordStoreSucceeded(record.guid);
+            delegate.onRecordStoreSucceeded(record);
             return;
           }
 
@@ -661,7 +660,7 @@ public class FormHistoryRepositorySession extends
             Logger.trace(LOG_TAG, "Remote modified, local not. Storing.");
             replaceExistingRecordWithRegularRecord(record, existingRecord);
             trackRecord(record);
-            delegate.onRecordStoreSucceeded(record.guid);
+            delegate.onRecordStoreSucceeded(record);
             return;
           }
 
@@ -670,7 +669,7 @@ public class FormHistoryRepositorySession extends
             Logger.trace(LOG_TAG, "Remote is newer, and not deleted. Storing.");
             replaceExistingRecordWithRegularRecord(record, existingRecord);
             trackRecord(record);
-            delegate.onRecordStoreSucceeded(record.guid);
+            delegate.onRecordStoreSucceeded(record);
             return;
           }
 
@@ -681,7 +680,7 @@ public class FormHistoryRepositorySession extends
           return;
         } catch (Exception e) {
           Logger.error(LOG_TAG, "Store failed for " + record.guid, e);
-          delegate.onRecordStoreFailed(e, record.guid);
+          delegate.onRecordStoreFailed(e);
           return;
         }
       }

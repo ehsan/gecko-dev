@@ -6,7 +6,6 @@ package org.mozilla.gecko.sync.synchronizer;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.ThreadPool;
@@ -60,7 +59,7 @@ import org.mozilla.gecko.sync.repositories.domain.Record;
  * @author rnewman
  *
  */
-public class RecordsChannel implements
+class RecordsChannel implements
   RepositorySessionFetchRecordsDelegate,
   RepositorySessionStoreDelegate,
   RecordsConsumerDelegate,
@@ -72,9 +71,6 @@ public class RecordsChannel implements
   private RecordsChannelDelegate delegate;
   private long timestamp;
   private long fetchEnd = -1;
-
-  private final AtomicInteger numFetchFailed = new AtomicInteger();
-  private final AtomicInteger numStoreFailed = new AtomicInteger();
 
   public RecordsChannel(RepositorySession source, RepositorySession sink, RecordsChannelDelegate delegate) {
     this.source    = source;
@@ -106,19 +102,22 @@ public class RecordsChannel implements
   }
 
   /**
-   * Get the number of fetch failures recorded so far.
-   * @return number of fetch failures.
+   * Attempt to abort an outstanding fetch. Finish both sessions, and
+   * halt the consumer if it exists.
    */
-  public int getFetchFailureCount() {
-    return numFetchFailed.get();
-  }
+  public void abort() {
+    if (source.isActive()) {
+      source.abort();
+    }
+    if (sink.isActive()) {
+      sink.abort();
+    }
 
-  /**
-   * Get the number of store failures recorded so far.
-   * @return number of store failures.
-   */
-  public int getStoreFailureCount() {
-    return numStoreFailed.get();
+    toProcess.clear();
+    if (consumer == null) {
+      return;
+    }
+    consumer.halt();
   }
 
   /**
@@ -131,11 +130,8 @@ public class RecordsChannel implements
         failed = sink;
       }
       this.delegate.onFlowBeginFailed(this, new SessionNotBegunException(failed));
-      return;
     }
     sink.setStoreDelegate(this);
-    numFetchFailed.set(0);
-    numStoreFailed.set(0);
     // Start a consumer thread.
     this.consumer = new ConcurrentRecordConsumer(this);
     ThreadPool.run(this.consumer);
@@ -158,14 +154,14 @@ public class RecordsChannel implements
       sink.store(record);
     } catch (NoStoreDelegateException e) {
       Logger.error(LOG_TAG, "Got NoStoreDelegateException in RecordsChannel.store(). This should not occur. Aborting.", e);
-      delegate.onFlowStoreFailed(this, e, record.guid);
+      delegate.onFlowStoreFailed(this, e);
+      this.abort();
     }
   }
 
   @Override
   public void onFetchFailed(Exception ex, Record record) {
     Logger.warn(LOG_TAG, "onFetchFailed. Calling for immediate stop.", ex);
-    numFetchFailed.incrementAndGet();
     this.consumer.halt();
     delegate.onFlowFetchFailed(this, ex);
   }
@@ -194,17 +190,14 @@ public class RecordsChannel implements
   }
 
   @Override
-  public void onRecordStoreFailed(Exception ex, String recordGuid) {
-    Logger.trace(LOG_TAG, "Failed to store record with guid " + recordGuid);
-    numStoreFailed.incrementAndGet();
+  public void onRecordStoreFailed(Exception ex) {
     this.consumer.stored();
-    delegate.onFlowStoreFailed(this, ex, recordGuid);
+    delegate.onFlowStoreFailed(this, ex);
     // TODO: abort?
   }
 
   @Override
-  public void onRecordStoreSucceeded(String guid) {
-    Logger.trace(LOG_TAG, "Stored record with guid " + guid);
+  public void onRecordStoreSucceeded(Record record) {
     this.consumer.stored();
   }
 
@@ -239,7 +232,6 @@ public class RecordsChannel implements
         sink.begin(this);
       } catch (InvalidSessionTransitionException e) {
         onBeginFailed(e);
-        return;
       }
     }
     if (session == sink) {
