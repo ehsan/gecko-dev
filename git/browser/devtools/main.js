@@ -7,6 +7,15 @@
 const {Cc, Ci, Cu} = require("chrome");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+// Add a couple of globals that we use all over this package.
+let loaderOptions = require("@loader/options")
+
+loaderOptions.globals.loader = {
+  lazyGetter: XPCOMUtils.defineLazyGetter.bind(XPCOMUtils),
+  lazyImporter: XPCOMUtils.defineLazyModuleGetter.bind(XPCOMUtils)
+};
+
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 

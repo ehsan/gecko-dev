@@ -44,8 +44,7 @@ let gTimerRegistry = new Map();
  * @param {object} aOptions (optional)
  *        An object allowing format customization. The only customization
  *        allowed currently is 'truncate' which can take the value "start" to
- *        truncate strings from the start as opposed to the end or "center" to
- *        truncate strings in the center
+ *        truncate strings from the start as opposed to the end.
  * @return {string}
  *        The original string formatted to fit the specified lengths
  */
@@ -59,12 +58,6 @@ function fmt(aStr, aMaxLen, aMinLen, aOptions) {
   if (aStr.length > aMaxLen) {
     if (aOptions && aOptions.truncate == "start") {
       return "_" + aStr.substring(aStr.length - aMaxLen + 1);
-    }
-    else if (aOptions && aOptions.truncate == "center") {
-      let start = aStr.substring(0, (aMaxLen / 2));
-
-      let end = aStr.substring((aStr.length - (aMaxLen / 2)) + 1);
-      return start + "_" + end;
     }
     else {
       return aStr.substring(0, aMaxLen - 1) + "_";
@@ -132,15 +125,15 @@ function stringify(aThing) {
       // Can't use a real ellipsis here, because cmd.exe isn't unicode-enabled
       json = "{" + Object.keys(aThing).join(":..,") + ":.., " + "}";
     }
-    return type + json;
+    return type + fmt(json, 50, 0);
   }
 
   if (typeof aThing == "function") {
-    return aThing.toString().replace(/\s+/g, " ");
+    return fmt(aThing.toString().replace(/\s+/g, " "), 80, 0);
   }
 
   let str = aThing.toString().replace(/\n/g, "|");
-  return str;
+  return fmt(str, 80, 0);
 }
 
 /**
@@ -341,7 +334,7 @@ function formatTrace(aTrace) {
   aTrace.forEach(function(frame) {
     reply += fmt(frame.filename, 20, 20, { truncate: "start" }) + " " +
              fmt(frame.lineNumber, 5, 5) + " " +
-             fmt(frame.functionName, 75, 75, { truncate: "center" }) + "\n";
+             fmt(frame.functionName, 75, 75) + "\n";
   });
   return reply;
 }
@@ -491,7 +484,8 @@ function sendConsoleAPIMessage(aLevel, aFrame, aArgs, aOptions = {})
 
 /**
  * This creates a console object that somewhat replicates Firebug's console
- * object.
+ * object. It currently writes to dump(), but should write to the web
+ * console's chrome error section (when it has one)
  */
 this.console = {
   debug: createMultiLineDumper("debug"),
@@ -499,7 +493,6 @@ this.console = {
   info: createDumper("info"),
   warn: createDumper("warn"),
   error: createMultiLineDumper("error"),
-  exception: createMultiLineDumper("error"),
 
   trace: function Console_trace() {
     let args = Array.prototype.slice.call(arguments, 0);

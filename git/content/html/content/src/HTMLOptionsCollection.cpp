@@ -247,12 +247,13 @@ HTMLOptionsCollection::GetElementAt(uint32_t aIndex)
   return ItemAsOption(aIndex);
 }
 
-HTMLOptionElement*
-HTMLOptionsCollection::GetNamedItem(const nsAString& aName) const
+static HTMLOptionElement*
+GetNamedItemHelper(nsTArray<nsRefPtr<HTMLOptionElement> > &aElements,
+                   const nsAString& aName)
 {
-  uint32_t count = mElements.Length();
+  uint32_t count = aElements.Length();
   for (uint32_t i = 0; i < count; i++) {
-    HTMLOptionElement* content = mElements.ElementAt(i);
+    HTMLOptionElement* content = aElements.ElementAt(i);
     if (content &&
         (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name, aName,
                               eCaseMatters) ||
@@ -275,7 +276,7 @@ NS_IMETHODIMP
 HTMLOptionsCollection::NamedItem(const nsAString& aName,
                                  nsIDOMNode** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetNamedItem(aName));
+  NS_IF_ADDREF(*aReturn = GetNamedItemHelper(mElements, aName));
 
   return NS_OK;
 }
@@ -284,7 +285,7 @@ JSObject*
 HTMLOptionsCollection::NamedItem(JSContext* cx, const nsAString& name,
                                  ErrorResult& error)
 {
-  nsINode* item = GetNamedItem(name);
+  nsINode* item = GetNamedItemHelper(mElements, name);
   if (!item) {
     return nullptr;
   }

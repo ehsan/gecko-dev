@@ -20,6 +20,7 @@ interface DummyInterface {
   void funcDNSCacheDict(optional DNSCacheDict arg);
   void frameRequestCallback(FrameRequestCallback arg);
   void idbObjectStoreParams(optional IDBObjectStoreParameters arg);
+  void DeviceStorageEnumerationParameters(optional DeviceStorageEnumerationParameters arg);
   void CameraPictureOptions(optional CameraPictureOptions arg);
   void MmsParameters(optional MmsParameters arg);
   void MmsAttachment(optional MmsAttachment arg);

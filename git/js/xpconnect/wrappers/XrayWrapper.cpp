@@ -1278,8 +1278,8 @@ DOMXrayTraits::construct(JSContext *cx, HandleObject wrapper,
 void
 DOMXrayTraits::preserveWrapper(JSObject *target)
 {
-    nsISupports *identity = mozilla::dom::UnwrapDOMObjectToISupports(target);
-    if (!identity)
+    nsISupports *identity;
+    if (!mozilla::dom::UnwrapDOMObjectToISupports(target, identity))
         return;
     nsWrapperCache* cache = nullptr;
     CallQueryInterface(identity, &cache);
@@ -1941,7 +1941,9 @@ do_QueryInterfaceNative(JSContext* cx, HandleObject wrapper)
     if (IsWrapper(wrapper) && WrapperFactory::IsXrayWrapper(wrapper)) {
         RootedObject target(cx, XrayTraits::getTargetObject(wrapper));
         if (GetXrayType(target) == XrayForDOMObject) {
-            nativeSupports = UnwrapDOMObjectToISupports(target);
+            if (!UnwrapDOMObjectToISupports(target, nativeSupports)) {
+                nativeSupports = nullptr;
+            }
         } else {
             XPCWrappedNative *wn = GetWrappedNative(target);
             nativeSupports = wn->Native();
