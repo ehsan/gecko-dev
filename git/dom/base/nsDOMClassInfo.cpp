@@ -179,6 +179,7 @@
 #include "nsIDOMStyleSheetList.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSRule.h"
+#include "nsICSSRule.h"
 #include "nsICSSRuleList.h"
 #include "nsIDOMRect.h"
 #include "nsIDOMRGBColor.h"
@@ -300,7 +301,6 @@
 #include "nsIDOMHTMLParagraphElement.h"
 #include "nsIDOMHTMLParamElement.h"
 #include "nsIDOMHTMLPreElement.h"
-#include "nsIDOMHTMLProgressElement.h"
 #include "nsIDOMHTMLQuoteElement.h"
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDOMHTMLStyleElement.h"
@@ -511,7 +511,6 @@
 #include "nsIDOMMediaQueryList.h"
 
 #include "nsDOMTouchEvent.h"
-#include "nsIDOMCustomEvent.h"
 
 using namespace mozilla::dom;
 
@@ -850,8 +849,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLPreElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLProgressElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLQuoteElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLScriptElement, nsElementSH,
@@ -910,6 +907,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(CSSStyleSheet, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSStyleDeclaration, nsCSSStyleDeclSH,
+                           ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(ComputedCSSStyleDeclaration, nsCSSStyleDeclSH,
                            ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ROCSSPrimitiveValue, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1517,8 +1516,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(MediaQueryList, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(CustomEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1567,6 +1564,7 @@ PRBool nsDOMClassInfo::sDisableDocumentAllSupport = PR_FALSE;
 PRBool nsDOMClassInfo::sDisableGlobalScopePollutionSupport = PR_FALSE;
 
 
+jsid nsDOMClassInfo::sTop_id             = JSID_VOID;
 jsid nsDOMClassInfo::sParent_id          = JSID_VOID;
 jsid nsDOMClassInfo::sScrollbars_id      = JSID_VOID;
 jsid nsDOMClassInfo::sLocation_id        = JSID_VOID;
@@ -1901,6 +1899,7 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 
   JSAutoRequest ar(cx);
 
+  SET_JSID_TO_STRING(sTop_id,             cx, "top");
   SET_JSID_TO_STRING(sParent_id,          cx, "parent");
   SET_JSID_TO_STRING(sScrollbars_id,      cx, "scrollbars");
   SET_JSID_TO_STRING(sLocation_id,        cx, "location");
@@ -2623,7 +2622,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HashChangeEvent, nsIDOMHashChangeEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHashChangeEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
+    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   if (nsDOMTouchEvent::PrefEnabled()) {
@@ -2877,11 +2876,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLProgressElement, nsIDOMHTMLProgressElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLProgressElement)
-    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(HTMLQuoteElement, nsIDOMHTMLQuoteElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLQuoteElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
@@ -3006,6 +3000,12 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CSSStyleDeclaration, nsIDOMCSSStyleDeclaration)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSS2Properties)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ComputedCSSStyleDeclaration,
+                                      nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSS2Properties)
   DOM_CLASSINFO_MAP_END
@@ -4340,11 +4340,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaQueryList)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(CustomEvent, nsIDOMCustomEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCustomEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
 #ifdef NS_DEBUG
   {
     PRUint32 i = NS_ARRAY_LENGTH(sClassInfoData);
@@ -5028,6 +5023,7 @@ nsDOMClassInfo::ShutDown()
     }
   }
 
+  sTop_id             = JSID_VOID;
   sParent_id          = JSID_VOID;
   sScrollbars_id      = JSID_VOID;
   sLocation_id        = JSID_VOID;

@@ -67,7 +67,6 @@
 #include "nsIDocumentEncoder.h"
 #include "nsIAnimationFrameListener.h"
 #include "nsEventStates.h"
-#include "nsIStructuredCloneContainer.h"
 
 class nsIContent;
 class nsPresContext;
@@ -124,8 +123,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x26ef6218, 0xcd5e, 0x4953,  \
- { 0xbb, 0x57, 0xb8, 0x50, 0x29, 0xa1, 0xae, 0x40 } }
+{ 0x2c6ad63f, 0xb7b9, 0x42f8, \
+ { 0xbd, 0xde, 0x76, 0x0a, 0x83, 0xe3, 0xb0, 0x49 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -1423,13 +1422,12 @@ public:
   };
 
   /**
-   * Set the document's pending state object (as serialized using structured
-   * clone).
+   * Set the document's pending state object (as serialized to JSON).
    */
-  void SetStateObject(nsIStructuredCloneContainer *scContainer)
+  void SetCurrentStateObject(nsAString &obj)
   {
-    mStateObjectContainer = scContainer;
-    mStateObjectCached = nsnull;
+    mCurrentStateObject.Assign(obj);
+    mCurrentStateObjectCached = nsnull;
   }
 
   /**
@@ -1517,7 +1515,7 @@ public:
   // state is unlocked/false.
   virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
 
-  virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
+  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult) = 0;
 
 protected:
   ~nsIDocument()
@@ -1726,6 +1724,8 @@ protected:
    */
   PRUint32 mExternalScriptsBeingEvaluated;
 
+  nsString mCurrentStateObject;
+
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
@@ -1741,8 +1741,7 @@ protected:
   // Our base target.
   nsString mBaseTarget;
 
-  nsCOMPtr<nsIStructuredCloneContainer> mStateObjectContainer;
-  nsCOMPtr<nsIVariant> mStateObjectCached;
+  nsCOMPtr<nsIVariant> mCurrentStateObjectCached;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

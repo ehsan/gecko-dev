@@ -124,7 +124,6 @@
 #include "nsContentUtils.h"
 #include "nsContentList.h"
 #include "nsMutationEvent.h"
-#include "nsPLDOMEvent.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
@@ -1479,6 +1478,8 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     }
 
     if (hasMutationListeners) {
+        mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
         mutation.mRelatedNode = attrNode;
@@ -1489,7 +1490,8 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
         mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
-        (new nsPLDOMEvent(this, mutation))->RunDOMEventWhenSafe();
+        nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
+                                    nsnull, &mutation);
     }
 
     return NS_OK;
@@ -1958,7 +1960,7 @@ nsXULElement::EnsureLocalStyle()
         nsXULPrototypeAttribute *protoattr =
                   FindPrototypeAttribute(kNameSpaceID_None, nsGkAtoms::style);
         if (protoattr && protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsRefPtr<css::Rule> ruleClone =
+            nsCOMPtr<nsICSSRule> ruleClone =
                 protoattr->mValue.GetCSSStyleRuleValue()->Clone();
 
             nsString stringValue;
@@ -2337,7 +2339,7 @@ nsresult nsXULElement::MakeHeavyweight()
         
         // Style rules need to be cloned.
         if (protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsRefPtr<css::Rule> ruleClone =
+            nsCOMPtr<nsICSSRule> ruleClone =
                 protoattr->mValue.GetCSSStyleRuleValue()->Clone();
 
             nsString stringValue;

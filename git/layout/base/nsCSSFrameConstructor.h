@@ -53,7 +53,6 @@
 #include "nsPageContentFrame.h"
 #include "nsCSSPseudoElements.h"
 #include "RestyleTracker.h"
-#include "nsIAnonymousContentCreator.h"
 
 class nsIDocument;
 struct nsFrameItems;
@@ -1268,7 +1267,7 @@ private:
 
   nsresult GetAnonymousContent(nsIContent* aParent,
                                nsIFrame* aParentFrame,
-                               nsTArray<nsIAnonymousContentCreator::ContentInfo>& aAnonContent);
+                               nsTArray<nsIContent*>& aAnonContent);
 
 //MathML Mod - RBS
 #ifdef MOZ_MATHML

@@ -74,9 +74,3 @@ JS_UnwrapObject(JSObject *obj)
 {
     return obj->unwrap();
 }
-
-JS_FRIEND_API(JSObject *)
-JS_GetFrameScopeChainRaw(JSStackFrame *fp)
-{
-    return &Valueify(fp)->scopeChain();
-}

@@ -43,7 +43,7 @@
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsISVGGlyphFragmentNode.h"
-#include "nsSVGGlyphFrame.h"
+#include "nsISVGGlyphFragmentLeaf.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsIDOMSVGRect.h"
 #include "nsSVGRect.h"
@@ -295,59 +295,36 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
 }
 
 void
-nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
-{
-  SetWhitespaceCompression();
-
-  PRBool trimLeadingWhitespace = PR_TRUE;
-  nsSVGGlyphFrame* lastNonWhitespaceFrame = aFrame;
-
-  while (aFrame) {
-    if (!aFrame->IsAllWhitespace()) {
-      lastNonWhitespaceFrame = aFrame;
-    }
-
-    aFrame->SetTrimLeadingWhitespace(trimLeadingWhitespace);
-    trimLeadingWhitespace = aFrame->EndsWithWhitespace();
-
-    aFrame = aFrame->GetNextGlyphFrame();
-  }
-
-  lastNonWhitespaceFrame->SetTrimTrailingWhitespace(PR_TRUE);
-}
-
-void
 nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 {
   if (mMetricsState == suspended || !mPositioningDirty)
     return;
 
-  mPositioningDirty = PR_FALSE;
+  SetWhitespaceHandling();
 
   nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
-  if (!node)
-    return;
+  if (!node) return;
 
-  nsSVGGlyphFrame *frame, *firstFrame;
+  mPositioningDirty = PR_FALSE;
 
-  firstFrame = node->GetFirstGlyphFrame();
-  if (!firstFrame) {
+  nsISVGGlyphFragmentLeaf *fragment, *firstFragment;
+
+  firstFragment = node->GetFirstGlyphFragment();
+  if (!firstFragment) {
     return;
   }
-
-  SetWhitespaceHandling(firstFrame);
 
   BuildPositionList(0, 0);
 
   gfxPoint ctp(0.0, 0.0);
 
   // loop over chunks
-  while (firstFrame) {
-    nsSVGTextPathFrame *textPath = firstFrame->FindTextPathParent();
+  while (firstFragment) {
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
 
     nsTArray<float> effectiveXList, effectiveYList;
-    firstFrame->GetEffectiveXY(firstFrame->GetNumberOfChars(),
-                               effectiveXList, effectiveYList);
+    firstFragment->GetEffectiveXY(firstFragment->GetNumberOfChars(),
+                                  effectiveXList, effectiveYList);
     if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
     if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
 
@@ -362,7 +339,7 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 
     // determine x offset based on text_anchor:
   
-    PRUint8 anchor = firstFrame->GetTextAnchor();
+    PRUint8 anchor = firstFragment->GetTextAnchor();
 
     /**
      * XXXsmontagu: The SVG spec is very vague as to how 'text-anchor'
@@ -401,11 +378,11 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     if (anchor != NS_STYLE_TEXT_ANCHOR_START) {
       // need to get the total chunk length
     
-      frame = firstFrame;
-      while (frame) {
-        chunkLength += frame->GetAdvance(aForceGlobalTransform);
-        frame = frame->GetNextGlyphFrame();
-        if (frame && frame->IsAbsolutelyPositioned())
+      fragment = firstFragment;
+      while (fragment) {
+        chunkLength += fragment->GetAdvance(aForceGlobalTransform);
+        fragment = fragment->GetNextGlyphFragment();
+        if (fragment && fragment->IsAbsolutelyPositioned())
           break;
       }
     }
@@ -415,17 +392,17 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     else if (anchor == NS_STYLE_TEXT_ANCHOR_END)
       ctp.x -= chunkLength;
   
-    // set position of each frame in this chunk:
+    // set position of each fragment in this chunk:
   
-    frame = firstFrame;
-    while (frame) {
+    fragment = firstFragment;
+    while (fragment) {
 
-      frame->SetGlyphPosition(&ctp, aForceGlobalTransform);
-      frame = frame->GetNextGlyphFrame();
-      if (frame && frame->IsAbsolutelyPositioned())
+      fragment->SetGlyphPosition(&ctp, aForceGlobalTransform);
+      fragment = fragment->GetNextGlyphFragment();
+      if (fragment && fragment->IsAbsolutelyPositioned())
         break;
     }
-    firstFrame = frame;
+    firstFragment = fragment;
   }
   nsSVGUtils::UpdateGraphic(this);
 }

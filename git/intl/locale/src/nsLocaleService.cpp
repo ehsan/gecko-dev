@@ -61,6 +61,7 @@
 #  include "nsIOS2Locale.h"
 #elif defined(XP_MACOSX)
 #  include <Carbon/Carbon.h>
+#  include "nsIMacLocale.h"
 #elif defined(XP_UNIX)
 #  include <locale.h>
 #  include <stdlib.h>

@@ -68,6 +68,7 @@
 #endif
 #include "methodjit/MethodJIT.h"
 
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
@@ -206,10 +207,10 @@ Bindings::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
         }
 
         JSAtom *atom;
-        if (JSID_IS_ATOM(shape.propid)) {
-            atom = JSID_TO_ATOM(shape.propid);
+        if (JSID_IS_ATOM(shape.id)) {
+            atom = JSID_TO_ATOM(shape.id);
         } else {
-            JS_ASSERT(JSID_IS_INT(shape.propid));
+            JS_ASSERT(JSID_IS_INT(shape.id));
             JS_ASSERT(shape.getter() == GetCallArg);
             atom = NULL;
         }
@@ -1224,7 +1225,7 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
 
     script->compartment = cx->compartment;
 #ifdef CHECK_SCRIPT_OWNER
-    script->owner = cx->thread();
+    script->owner = cx->thread;
 #endif
 
     JS_APPEND_LINK(&script->links, &cx->compartment->scripts);
@@ -1469,7 +1470,7 @@ DestroyScript(JSContext *cx, JSScript *script)
         JS_PROPERTY_CACHE(cx).purgeForScript(cx, script);
 
 #ifdef CHECK_SCRIPT_OWNER
-        JS_ASSERT(script->owner == cx->thread());
+        JS_ASSERT(script->owner == cx->thread);
 #endif
     }
 
@@ -1645,7 +1646,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 }
 
 uintN
-js_FramePCToLineNumber(JSContext *cx, StackFrame *fp)
+js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp)
 {
     return js_PCToLineNumber(cx, fp->script(),
                              fp->hasImacropc() ? fp->imacropc() : fp->pc(cx));
@@ -1661,7 +1662,7 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
     jssrcnote *sn;
     JSSrcNoteType type;
 
-    /* Cope with StackFrame.pc value prior to entering js_Interpret. */
+    /* Cope with JSStackFrame.pc value prior to entering js_Interpret. */
     if (!pc)
         return 0;
 
@@ -1766,11 +1767,14 @@ js_GetScriptLineExtent(JSScript *script)
 const char *
 js::CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop)
 {
-    StackFrame *fp = js_GetScriptedCaller(cx, NULL);
-    if (!fp) {
+    if (!cx->hasfp()) {
         *linenop = 0;
         return NULL;
     }
+
+    JSStackFrame *fp = cx->fp();
+    while (fp->isDummyFrame())
+        fp = fp->prev();
 
     *linenop = js_FramePCToLineNumber(cx, fp);
     return fp->script()->filename;

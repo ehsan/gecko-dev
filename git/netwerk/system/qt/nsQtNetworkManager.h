@@ -47,17 +47,15 @@
 
 class nsQtNetworkManager;
 
-
+static nsQtNetworkManager* gQtNetworkManager = nsnull;
 
 class nsQtNetworkManager : public QObject
 {
   Q_OBJECT
   public:
-    static void create();
-    static void destroy();
-    virtual ~nsQtNetworkManager();
+    explicit nsQtNetworkManager(QObject* parent = 0);
 
-    static nsQtNetworkManager* get() { return gQtNetworkManager; }
+    virtual ~nsQtNetworkManager();
 
     static PRBool IsConnected();
     static PRBool GetLinkStatusKnown();
@@ -75,9 +73,6 @@ class nsQtNetworkManager : public QObject
     void openSession();
 
   private:
-    explicit nsQtNetworkManager(QObject* parent = 0);
-
-    static nsQtNetworkManager* gQtNetworkManager;
     QNetworkSession* networkSession;
     QNetworkConfiguration networkConfiguration;
     QNetworkConfigurationManager networkConfigurationManager;

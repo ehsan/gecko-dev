@@ -49,10 +49,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 #include "mozilla/Services.h"
 
 #include "nsConsoleMessage.h"
@@ -489,10 +485,6 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
-#elif defined(ANDROID)
-  if (mozilla::AndroidBridge::Bridge()) {
-    mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
-  }
 #endif
 
   // Because contracts must be registered after CIDs, we save and process them

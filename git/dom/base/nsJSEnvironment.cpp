@@ -116,8 +116,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-using namespace mozilla;
-
 const size_t gStackSize = 8192;
 
 #ifdef PR_LOGGING
@@ -1886,8 +1884,8 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       return NS_ERROR_FAILURE;
     }
 
-    Maybe<nsAutoPoolRelease> poolRelease;
-    Maybe<js::AutoArrayRooter> tvr;
+    js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
+    js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
     // Use |target| as the scope for wrapping the arguments, since aScope is
     // the safe scope in many cases, which isn't very useful.  Wrapping aTarget
@@ -2375,8 +2373,8 @@ nsJSContext::SetProperty(void *aTarget, const char *aPropName, nsISupports *aArg
 
   JSAutoRequest ar(mContext);
 
-  Maybe<nsAutoPoolRelease> poolRelease;
-  Maybe<js::AutoArrayRooter> tvr;
+  js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
+  js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
   nsresult rv;
   rv = ConvertSupportsTojsvals(aArgs, GetNativeGlobal(), &argc,
@@ -2416,8 +2414,8 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      void *aScope,
                                      PRUint32 *aArgc,
                                      jsval **aArgv,
-                                     Maybe<nsAutoPoolRelease> &aPoolRelease,
-                                     Maybe<js::AutoArrayRooter> &aRooter)
+                                     js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
+                                     js::LazilyConstructed<js::AutoArrayRooter> &aRooter)
 {
   nsresult rv = NS_OK;
 

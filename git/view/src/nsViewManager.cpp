@@ -1016,7 +1016,8 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
              aEvent->message != NS_MOUSE_ENTER) ||
             NS_IS_KEY_EVENT(aEvent) ||
             NS_IS_IME_EVENT(aEvent) ||
-            aEvent->message == NS_PLUGIN_INPUT_EVENT) {
+            NS_IS_PLUGIN_EVENT(aEvent) ||
+            NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent)) {
           gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
         }
 

@@ -72,7 +72,9 @@
 
 #if defined(XP_WIN) 
 // Prevent Windows redefining LoadImage
+#ifndef WINCE
 #undef LoadImage
+#endif
 #endif
 
 #define NUM_ENTRIES_IN_4x5_MATRIX 20

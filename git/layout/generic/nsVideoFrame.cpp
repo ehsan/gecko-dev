@@ -89,7 +89,7 @@ NS_QUERYFRAME_HEAD(nsVideoFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult
-nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   nsNodeInfoManager *nodeInfoManager = GetContent()->GetCurrentDoc()->NodeInfoManager();
   nsCOMPtr<nsINodeInfo> nodeInfo;

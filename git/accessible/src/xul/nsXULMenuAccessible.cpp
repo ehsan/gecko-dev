@@ -378,11 +378,16 @@ nsXULMenuitemAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-void
-nsXULMenuitemAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetDescription(nsAString& aDescription)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::description,
                     aDescription);
+
+  return NS_OK;
 }
 
 //return menu accesskey: N or Alt+F

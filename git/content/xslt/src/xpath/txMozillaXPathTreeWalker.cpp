@@ -430,7 +430,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
     if (aNode.isContent()) {
         if (aNode.mNode->IsElement()) {
             nsINodeInfo* nodeInfo = aNode.Content()->NodeInfo();
-            nodeInfo->GetName(aLocalName);
+            nodeInfo->GetLocalName(aLocalName);
             return;
         }
 
@@ -469,7 +469,14 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
 
     if (aNode.isContent()) {
         if (aNode.mNode->IsElement()) {
-            aName = aNode.Content()->NodeInfo()->QualifiedNameCorrectedCase();
+            nsINodeInfo* nodeInfo = aNode.Content()->NodeInfo();
+            nodeInfo->GetQualifiedName(aName);
+
+            // Check for html
+            if (aNode.Content()->IsHTML() &&
+                aNode.Content()->IsInHTMLDocument()) {
+                ToUpperCase(aName);
+            }
             return;
         }
 

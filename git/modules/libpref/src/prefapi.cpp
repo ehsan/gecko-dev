@@ -45,8 +45,12 @@
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "plarena.h"
 
-#ifdef XP_OS2
-  #include <sys/types.h>
+#if defined(XP_MAC)
+  #include <stat.h>
+#else
+  #ifdef XP_OS2
+    #include <sys/types.h>
+  #endif
 #endif
 #ifdef _WIN32
   #include "windows.h"

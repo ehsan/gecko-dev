@@ -265,7 +265,7 @@ public:
   nsresult status;
   nsresult statusResult;
 
-  PRUint16 readyState;
+  PRInt32 readyState;
   nsresult readyStateResult;
 
 protected:

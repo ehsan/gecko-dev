@@ -92,10 +92,10 @@ function Drag(item, event, isFauxDrag) {
       var tab = UI.getActiveTab();
       if (!tab || tab.parent != this.item) {
         if (this.item._children.length)
-          UI.setActive(this.item._children[0]);
+          UI.setActiveTab(this.item._children[0]);
       }
     } else if (this.item.isATabItem) {
-      UI.setActive(this.item);
+      UI.setActiveTab(this.item);
     }
   }
 };

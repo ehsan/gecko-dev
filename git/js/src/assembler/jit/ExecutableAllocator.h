@@ -31,7 +31,6 @@
 #include "assembler/wtf/Assertions.h"
 
 #include "jsapi.h"
-#include "jshashtable.h"
 #include "jsprvtd.h"
 #include "jsvector.h"
 #include "jslock.h"
@@ -79,8 +78,6 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
 
 namespace JSC {
 
-  class ExecutableAllocator;
-
   // These are reference-counted. A new one starts with a count of 1. 
   class ExecutablePool {
 
@@ -95,7 +92,6 @@ private:
 #endif
     };
 
-    ExecutableAllocator* m_allocator;
     char* m_freePtr;
     char* m_end;
     Allocation m_allocation;
@@ -130,12 +126,17 @@ private:
         ++m_refCount;
     }
 
-    ExecutablePool(ExecutableAllocator* allocator, Allocation a)
-      : m_allocator(allocator), m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a),
-        m_refCount(1), m_destroy(false), m_gcNumber(0)
+private:
+    ExecutablePool(Allocation a)
+      : m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a), m_refCount(1),
+        m_destroy(false), m_gcNumber(0)
     { }
 
-    ~ExecutablePool();
+    ~ExecutablePool()
+    {
+        if (m_allocation.pages)
+            ExecutablePool::systemRelease(m_allocation);
+    }
 
     void* alloc(size_t n)
     {
@@ -149,10 +150,14 @@ private:
         JS_ASSERT(m_end >= m_freePtr);
         return m_end - m_freePtr;
     }
+
+    // On OOM, this will return an Allocation where pages is NULL.
+    static Allocation systemAlloc(size_t n);
+    static void systemRelease(const Allocation& alloc);
 };
 
 class ExecutableAllocator {
-    enum ProtectionSetting { Writable, Executable };
+    enum ProtectionSeting { Writable, Executable };
 
 public:
     ExecutableAllocator()
@@ -170,14 +175,13 @@ public:
             largeAllocSize = pageSize * 16;
         }
 
-        JS_ASSERT(m_smallPools.empty());
+        JS_ASSERT(m_smallAllocationPools.empty());
     }
 
     ~ExecutableAllocator()
     {
-        for (size_t i = 0; i < m_smallPools.length(); i++)
-            m_smallPools[i]->release(/* willDestroy = */true);
-        JS_ASSERT(m_pools.empty());     // if this asserts we have a pool leak
+        for (size_t i = 0; i < m_smallAllocationPools.length(); i++)
+            m_smallAllocationPools[i]->release(/* willDestroy = */true);
     }
 
     // alloc() returns a pointer to some memory, and also (by reference) a
@@ -205,14 +209,6 @@ public:
         return result;
     }
 
-    void releasePoolPages(ExecutablePool *pool) {
-        JS_ASSERT(pool->m_allocation.pages);
-        systemRelease(pool->m_allocation);
-        m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
-    }
-
-    size_t getCodeSize() const;
-
 private:
     static size_t pageSize;
     static size_t largeAllocSize;
@@ -237,34 +233,20 @@ private:
         return size;
     }
 
-    // On OOM, this will return an Allocation where pages is NULL.
-    static ExecutablePool::Allocation systemAlloc(size_t n);
-    static void systemRelease(const ExecutablePool::Allocation& alloc);
-
     ExecutablePool* createPool(size_t n)
     {
         size_t allocSize = roundUpAllocationSize(n, pageSize);
         if (allocSize == OVERSIZE_ALLOCATION)
             return NULL;
-
-        if (!m_pools.initialized() && !m_pools.init())
-            return NULL;
-
 #ifdef DEBUG_STRESS_JSC_ALLOCATOR
-        ExecutablePool::Allocation a = systemAlloc(size_t(4294967291));
+        ExecutablePool::Allocation a = ExecutablePool::systemAlloc(size_t(4294967291));
 #else
-        ExecutablePool::Allocation a = systemAlloc(allocSize);
+        ExecutablePool::Allocation a = ExecutablePool::systemAlloc(allocSize);
 #endif
         if (!a.pages)
             return NULL;
 
-        ExecutablePool *pool = js::OffTheBooks::new_<ExecutablePool>(this, a);
-        if (!pool) {
-            systemRelease(a);
-            return NULL;
-        }
-        m_pools.put(pool);
-        return pool;
+        return js::OffTheBooks::new_<ExecutablePool>(a);
     }
 
     ExecutablePool* poolForSize(size_t n)
@@ -276,8 +258,8 @@ private:
         // allocation fitting in a small pool, and (b) it minimizes the
         // potential waste when a small pool is next abandoned.
         ExecutablePool *minPool = NULL;
-        for (size_t i = 0; i < m_smallPools.length(); i++) {
-            ExecutablePool *pool = m_smallPools[i];
+        for (size_t i = 0; i < m_smallAllocationPools.length(); i++) {
+            ExecutablePool *pool = m_smallAllocationPools[i];
             if (n <= pool->available() && (!minPool || pool->available() < minPool->available()))
                 minPool = pool;
         }
@@ -297,26 +279,26 @@ private:
             return NULL;
   	    // At this point, local |pool| is the owner.
 
-        if (m_smallPools.length() < maxSmallPools) {
+        if (m_smallAllocationPools.length() < maxSmallPools) {
             // We haven't hit the maximum number of live pools;  add the new pool.
-            m_smallPools.append(pool);
+            m_smallAllocationPools.append(pool);
             pool->addRef();
         } else {
             // Find the pool with the least space.
             int iMin = 0;
-            for (size_t i = 1; i < m_smallPools.length(); i++)
-                if (m_smallPools[i]->available() <
-                    m_smallPools[iMin]->available())
+            for (size_t i = 1; i < m_smallAllocationPools.length(); i++)
+                if (m_smallAllocationPools[i]->available() <
+                    m_smallAllocationPools[iMin]->available())
                 {
                     iMin = i;
                 }
 
             // If the new allocator will result in more free space than the small
             // pool with the least space, then we will use it instead
-            ExecutablePool *minPool = m_smallPools[iMin];
+            ExecutablePool *minPool = m_smallAllocationPools[iMin];
             if ((pool->available() - n) > minPool->available()) {
                 minPool->release();
-                m_smallPools[iMin] = pool;
+                m_smallAllocationPools[iMin] = pool;
                 pool->addRef();
             }
         }
@@ -429,21 +411,12 @@ public:
 private:
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE
-    static void reprotectRegion(void*, size_t, ProtectionSetting);
+    static void reprotectRegion(void*, size_t, ProtectionSeting);
 #endif
 
-    // These are strong references;  they keep pools alive.
     static const size_t maxSmallPools = 4;
-    typedef js::Vector<ExecutablePool *, maxSmallPools, js::SystemAllocPolicy> SmallExecPoolVector;
-    SmallExecPoolVector m_smallPools;
-
-    // All live pools are recorded here, just for stats purposes.  These are
-    // weak references;  they don't keep pools alive.  When a pool is destroyed
-    // its reference is removed from m_pools.
-    typedef js::HashSet<ExecutablePool *, js::DefaultHasher<ExecutablePool *>, js::SystemAllocPolicy>
-            ExecPoolHashSet;
-    ExecPoolHashSet m_pools;    // All pools, just for stats purposes.
-
+    typedef js::Vector<ExecutablePool *, maxSmallPools, js::SystemAllocPolicy > SmallExecPoolVector;
+    SmallExecPoolVector m_smallAllocationPools;
     static size_t determinePageSize();
 };
 

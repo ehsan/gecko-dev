@@ -136,10 +136,6 @@ struct TracerState
  */
 struct TraceNativeStorage
 {
-    /* Max number of stack slots/frame that may need to be restored in LeaveTree. */
-    static const size_t MAX_NATIVE_STACK_SLOTS  = 4096;
-    static const size_t MAX_CALL_STACK_ENTRIES  = 500;
-
     double stack_global_buf[MAX_NATIVE_STACK_SLOTS + GLOBAL_SLOTS_BUFFER_SIZE];
     FrameInfo *callstack_buf[MAX_CALL_STACK_ENTRIES];
 
@@ -263,16 +259,13 @@ struct TraceMonitor {
     /* Fields needed for fragment/guard profiling. */
     nanojit::Seq<nanojit::Fragment*>* branches;
     uint32                  lastFragID;
+    /*
+     * profAlloc has a lifetime which spans exactly from InitJIT to
+     * FinishJIT.
+     */
     VMAllocator*            profAlloc;
     FragStatsMap*           profTab;
-
-    void logFragProfile();
 #endif
-
-    TraceMonitor();
-    ~TraceMonitor();
-
-    bool init(JSRuntime* rt);
 
     bool ontrace() const {
         return !!tracecx;
@@ -288,10 +281,6 @@ struct TraceMonitor {
     void mark(JSTracer *trc);
 
     bool outOfMemory() const;
-
-    JS_FRIEND_API(void) getCodeAllocStats(size_t &total, size_t &frag_size, size_t &free_size) const;
-    JS_FRIEND_API(size_t) getVMAllocatorsMainSize() const;
-    JS_FRIEND_API(size_t) getVMAllocatorsReserveSize() const;
 };
 
 namespace mjit {
@@ -394,6 +383,10 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool                         hold;
 
+#ifdef JS_GCMETER
+    js::gc::JSGCArenaStats       compartmentStats[js::gc::FINALIZE_LIMIT];
+#endif
+
 #ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     js::TraceMonitor             traceMonitor;
@@ -412,13 +405,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
 #ifdef JS_METHODJIT
     js::mjit::JaegerCompartment  *jaegerCompartment;
-    /*
-     * This function is here so that xpconnect/src/xpcjsruntime.cpp doesn't
-     * need to see the declaration of JaegerCompartment, which would require
-     * #including MethodJIT.h into xpconnect/src/xpcjsruntime.cpp, which is
-     * difficult due to reasons explained in bug 483677.
-     */
-    size_t getMjitCodeSize() const;
 #endif
 
     /*
@@ -470,7 +456,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     js::NativeIterCache          nativeIterCache;
 
-    typedef js::Maybe<js::ToSourceCache> LazyToSourceCache;
+    typedef js::LazilyConstructed<js::ToSourceCache> LazyToSourceCache;
     LazyToSourceCache            toSourceCache;
 
     JSCompartment(JSRuntime *rt);
@@ -493,9 +479,9 @@ struct JS_FRIEND_API(JSCompartment) {
     void sweep(JSContext *cx, uint32 releaseInterval);
     void purge(JSContext *cx);
     void finishArenaLists();
-    void finalizeObjectArenaLists(JSContext *cx);
-    void finalizeStringArenaLists(JSContext *cx);
-    void finalizeShapeArenaLists(JSContext *cx);
+    void finalizeObjectArenaLists(JSContext *cx, JSGCInvocationKind gckind);
+    void finalizeStringArenaLists(JSContext *cx, JSGCInvocationKind gckind);
+    void finalizeShapeArenaLists(JSContext *cx, JSGCInvocationKind gckind);
     bool arenaListsAreEmpty();
 
     void setGCLastBytes(size_t lastBytes);

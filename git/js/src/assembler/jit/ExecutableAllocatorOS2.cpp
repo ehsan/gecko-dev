@@ -38,7 +38,7 @@ size_t ExecutableAllocator::determinePageSize()
     return 4096u;
 }
 
-ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
+ExecutablePool::Allocation ExecutablePool::systemAlloc(size_t n)
 {
     void* allocation = NULL;
     if (DosAllocMem(&allocation, n, OBJ_ANY|PAG_COMMIT|PAG_READ|PAG_WRITE) &&
@@ -48,7 +48,7 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
     return alloc;
 }
 
-void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
+void ExecutablePool::systemRelease(const ExecutablePool::Allocation& alloc)
 {
     DosFreeMem(alloc.pages);
 }

@@ -177,10 +177,11 @@ nsXFormsComboboxPopupWidgetAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-void
-nsXFormsComboboxPopupWidgetAccessible::Description(nsString& aDescription)
+NS_IMETHODIMP
+nsXFormsComboboxPopupWidgetAccessible::GetDescription(nsAString& aDescription)
 {
   aDescription.Truncate();
+  return NS_OK;
 }
 
 void

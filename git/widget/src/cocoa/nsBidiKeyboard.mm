@@ -41,9 +41,7 @@
 #include "nsBidiKeyboard.h"
 #include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
-#include "TextInputHandler.h"
-
-using namespace mozilla::widget;
+#include "nsCocoaTextInputHandler.h"
 
 NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
 
@@ -57,7 +55,7 @@ nsBidiKeyboard::~nsBidiKeyboard()
 
 NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
 {
-  *aIsRTL = TISInputSourceWrapper::CurrentKeyboardLayout().IsForRTLLanguage();
+  *aIsRTL = nsTISInputSource::CurrentKeyboardLayout().IsForRTLLanguage();
   return NS_OK;
 }
 

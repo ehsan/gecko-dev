@@ -1646,15 +1646,14 @@ NS_NewPresShell(nsIPresShell** aInstancePtrResult)
 nsTHashtable<PresShell::PresShellPtrKey> *nsIPresShell::sLiveShells = 0;
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
-                             "heap-used/layout/all",
-                             "Memory used by layout PresShell, PresContext, "
-                             "and other related areas.",
+                             "layout/all",
+                             "Memory in use by layout PresShell, PresContext, and other related areas.",
                              PresShell::SizeOfLayoutMemoryReporter,
                              nsnull)
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutBidi,
-                             "heap-used/layout/bidi",
-                             "Memory used by layout Bidi processor.",
+                             "layout/bidi",
+                             "Memory in use by layout Bidi processor.",
                              PresShell::SizeOfBidiMemoryReporter,
                              nsnull)
 
@@ -6380,10 +6379,8 @@ PresShell::HandleEvent(nsIView         *aView,
   // view that has a frame.
   if (!frame &&
       (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
-       NS_IS_IME_RELATED_EVENT(aEvent) ||
-       NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent) ||
-       aEvent->message == NS_PLUGIN_ACTIVATE ||
-       aEvent->message == NS_PLUGIN_FOCUS)) {
+       NS_IS_IME_RELATED_EVENT(aEvent) || NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent) ||
+       aEvent->message == NS_PLUGIN_ACTIVATE || aEvent->message == NS_PLUGIN_FOCUS)) {
     nsIView* targetView = aView;
     while (targetView && !targetView->GetClientData()) {
       targetView = targetView->GetParent();
@@ -6823,7 +6820,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
   if (!NS_EVENT_NEEDS_FRAME(aEvent) || GetCurrentEventFrame()) {
     PRBool isHandlingUserInput = PR_FALSE;
 
-    // XXX How about IME events and input events for plugins?
     if (NS_IS_TRUSTED_EVENT(aEvent)) {
       switch (aEvent->message) {
       case NS_MOUSE_BUTTON_DOWN:
@@ -8834,7 +8830,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
       nscoord x = 0, y = fm->MaxAscent();
       nscoord width, height = fm->MaxHeight();
       aRenderingContext->SetTextRunRTL(PR_FALSE);
-      width = aRenderingContext->GetWidth(buf);
+      aRenderingContext->GetWidth((char*)buf, width);
 
       PRUint32 color;
       PRUint32 color2;

@@ -327,6 +327,11 @@ static T* ConvertUnknownBreaks(const T* inSrc, PRInt32& ioLen, const char* destB
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
+
 /*----------------------------------------------------------------------------
 	ConvertLineBreaks 
 	
