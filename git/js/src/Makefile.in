@@ -244,6 +244,7 @@ CPPSRCS +=	MIR.cpp \
 		Snapshots.cpp \
 		Safepoints.cpp \
 		StupidAllocator.cpp \
+		TypeOracle.cpp \
 		TypePolicy.cpp \
 		ValueNumbering.cpp \
 		RangeAnalysis.cpp \

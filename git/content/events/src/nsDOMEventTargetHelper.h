@@ -68,6 +68,8 @@ public:
     return static_cast<nsDOMEventTargetHelper*>(target);
   }
 
+  void Init(JSContext* aCx = nullptr);
+
   bool HasListenersFor(nsIAtom* aTypeWithOn)
   {
     return mListenerManager && mListenerManager->HasListenersFor(aTypeWithOn);

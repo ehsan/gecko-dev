@@ -100,6 +100,7 @@ partial interface Document {
   //(Not proxy yet)getter object (DOMString name);
            [SetterThrows]
            attribute DOMString title;
+           [SetterThrows]
            attribute DOMString dir;
   //(HTML only)         attribute HTMLElement? body;
   //(HTML only)readonly attribute HTMLHeadElement? head;

@@ -36,8 +36,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         NORMAL,
         PENDING_LOOP_HEADER,
         LOOP_HEADER,
-        SPLIT_EDGE,
-        DEAD
+        SPLIT_EDGE
     };
 
   private:
@@ -103,6 +102,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MDefinition *peek(int32_t depth);
 
     MDefinition *scopeChain();
+    MDefinition *argumentsObject();
 
     // Increase the number of slots available
     bool increaseSlots(size_t num);
@@ -138,6 +138,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void pushLocal(uint32_t local);
     void pushSlot(uint32_t slot);
     void setScopeChain(MDefinition *ins);
+    void setArgumentsObject(MDefinition *ins);
 
     // Returns the top of the stack, then decrements the virtual stack pointer.
     MDefinition *pop();
@@ -184,9 +185,8 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void clearDominatorInfo();
 
     // Sets a back edge. This places phi nodes and rewrites instructions within
-    // the current loop as necessary. If the backedge introduces new types for
-    // phis at the loop header, returns a disabling abort.
-    AbortReason setBackedge(MBasicBlock *block);
+    // the current loop as necessary.
+    bool setBackedge(MBasicBlock *block);
 
     // Resets a LOOP_HEADER block to a NORMAL block.  This is needed when
     // optimizations remove the backedge.
@@ -194,9 +194,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // Propagates phis placed in a loop header down to this successor block.
     void inheritPhis(MBasicBlock *header);
-
-    // Compute the types for phis in this block according to their inputs.
-    void specializePhis();
 
     void insertBefore(MInstruction *at, MInstruction *ins);
     void insertAfter(MInstruction *at, MInstruction *ins);
@@ -213,16 +210,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MInstructionIterator discardAt(MInstructionIterator &iter);
     MInstructionReverseIterator discardAt(MInstructionReverseIterator &iter);
     MDefinitionIterator discardDefAt(MDefinitionIterator &iter);
-    void discardAllInstructions();
-    void discardAllPhis();
 
     // Discards a phi instruction and updates predecessor successorWithPhis.
     MPhiIterator discardPhiAt(MPhiIterator &at);
-
-    // Mark this block as having been removed from the graph.
-    void markAsDead() {
-        kind_ = DEAD;
-    }
 
     ///////////////////////////////////////////////////////
     /////////// END GRAPH BUILDING INSTRUCTIONS ///////////
@@ -313,9 +303,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     bool isSplitEdge() const {
         return kind_ == SPLIT_EDGE;
-    }
-    bool isDead() const {
-        return kind_ == DEAD;
     }
 
     uint32_t stackDepth() const {
@@ -569,7 +556,6 @@ class MIRGraph
     ReversePostorderIterator rpoEnd() {
         return blocks_.end();
     }
-    void removeBlocksAfter(MBasicBlock *block);
     void removeBlock(MBasicBlock *block) {
         blocks_.remove(block);
         numBlocks_--;

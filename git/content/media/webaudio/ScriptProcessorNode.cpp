@@ -13,20 +13,12 @@
 #include "AudioProcessingEvent.h"
 #include "WebAudioUtils.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/unused.h"
 #include "mozilla/PodOperations.h"
 #include <deque>
 
 namespace mozilla {
 namespace dom {
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ScriptProcessorNode, AudioNode)
-  if (tmp->Context()) {
-    tmp->Context()->UnregisterScriptProcessorNode(tmp);
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ScriptProcessorNode, AudioNode)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(ScriptProcessorNode)
 NS_INTERFACE_MAP_END_INHERITING(AudioNode)
@@ -312,7 +304,10 @@ private:
           // Steal the output buffers
           nsRefPtr<ThreadSharedFloatArrayBufferList> output;
           if (event->HasOutputBuffer()) {
-            output = event->OutputBuffer()->GetThreadSharedChannelsForRate(cx);
+            uint32_t rate, length;
+            output = event->OutputBuffer()->GetThreadSharedChannelsForRate(cx, &rate, &length);
+            unused << rate;
+            unused << length;
           }
 
           // Append it to our output buffer queue
@@ -368,9 +363,7 @@ ScriptProcessorNode::ScriptProcessorNode(AudioContext* aContext,
 
 ScriptProcessorNode::~ScriptProcessorNode()
 {
-  if (Context()) {
-    Context()->UnregisterScriptProcessorNode(this);
-  }
+  DestroyMediaStream();
 }
 
 JSObject*

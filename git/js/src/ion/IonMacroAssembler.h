@@ -16,6 +16,7 @@
 #endif
 #include "ion/IonCompartment.h"
 #include "ion/IonInstrumentation.h"
+#include "ion/TypeOracle.h"
 #include "ion/ParallelFunctions.h"
 
 #include "vm/ForkJoin.h"

@@ -19,8 +19,6 @@
 #include "jsfuninlines.h"
 #include "jstypedarrayinlines.h"
 
-#include "ion/BaselineJIT.h"
-
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"
 #include "vm/RegExpObject-inl.h"
@@ -417,9 +415,7 @@ intrinsic_ParallelTestsShouldPass(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 #if defined(JS_THREADSAFE) && defined(JS_ION)
     args.rval().setBoolean(ion::IsEnabled(cx) &&
-                           ion::IsBaselineEnabled(cx) &&
-                           !ion::js_IonOptions.eagerCompilation &&
-                           ion::js_IonOptions.baselineUsesBeforeCompile != 0);
+                           !ion::js_IonOptions.eagerCompilation);
 #else
     args.rval().setBoolean(false);
 #endif
@@ -466,7 +462,7 @@ intrinsic_RuntimeDefaultLocale(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-const JSFunctionSpec intrinsic_functions[] = {
+JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ToObject",             intrinsic_ToObject,             1,0),
     JS_FN("ToInteger",            intrinsic_ToInteger,            1,0),
     JS_FN("IsCallable",           intrinsic_IsCallable,           1,0),

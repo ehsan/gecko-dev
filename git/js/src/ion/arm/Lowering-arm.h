@@ -64,7 +64,7 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool visitUnbox(MUnbox *unbox);
     bool visitReturn(MReturn *ret);
     bool lowerPhi(MPhi *phi);
-    bool visitGuardShapeOrType(MGuardShapeOrType *ins);
+    bool visitGuardShape(MGuardShape *ins);
     bool visitStoreTypedArrayElement(MStoreTypedArrayElement *ins);
     bool visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins);
     bool visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);

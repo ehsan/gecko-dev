@@ -8,6 +8,7 @@
 #define jsion_caches_h__
 
 #include "IonCode.h"
+#include "TypeOracle.h"
 #include "Registers.h"
 
 #include "vm/ForkJoin.h"

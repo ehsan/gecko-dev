@@ -1541,22 +1541,14 @@ CodeGeneratorARM::storeElementTyped(const LAllocation *value, MIRType valueType,
 }
 
 bool
-CodeGeneratorARM::visitGuardShapeOrType(LGuardShapeOrType *guard)
+CodeGeneratorARM::visitGuardShape(LGuardShape *guard)
 {
     Register obj = ToRegister(guard->input());
     Register tmp = ToRegister(guard->tempInt());
+    masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfShape())), tmp);
+    masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->shape()));
 
-    if (guard->mir()->shape()) {
-        masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfShape())), tmp);
-        masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->shape()));
-    } else {
-        masm.ma_ldr(DTRAddr(obj, DtrOffImm(JSObject::offsetOfType())), tmp);
-        masm.ma_cmp(tmp, ImmGCPtr(guard->mir()->typeObject()));
-    }
-
-    Assembler::Condition cond =
-        guard->mir()->bailOnEquality() ? Assembler::Equal : Assembler::NotEqual;
-    if (!bailoutIf(cond, guard->snapshot()))
+    if (!bailoutIf(Assembler::NotEqual, guard->snapshot()))
         return false;
     return true;
 }

@@ -633,8 +633,9 @@ nsTreeColumns::RestoreNaturalOrder()
   if (!colsContent)
     return NS_OK;
 
-  for (uint32_t i = 0; i < colsContent->GetChildCount(); ++i) {
-    nsCOMPtr<nsIContent> child = colsContent->GetChildAt(i);
+  uint32_t numChildren = colsContent->GetChildCount();
+  for (uint32_t i = 0; i < numChildren; ++i) {
+    nsIContent *child = colsContent->GetChildAt(i);
     nsAutoString ordinal;
     ordinal.AppendInt(i);
     child->SetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, ordinal, true);
@@ -642,9 +643,8 @@ nsTreeColumns::RestoreNaturalOrder()
 
   nsTreeColumns::InvalidateColumns();
 
-  if (mTree) {
-    mTree->Invalidate();
-  }
+  mTree->Invalidate();
+
   return NS_OK;
 }
 
