@@ -78,6 +78,10 @@ add_test(function test_fetch_ruim_recodes() {
   function testFetchRuimRecordes(expectCalled) {
     let ifCalled = [];
 
+    iccHelper.readICCID = function () {
+      ifCalled.push("readICCID");
+    };
+
     ruimHelper.getIMSI_M = function () {
       ifCalled.push("getIMSI_M");
     };
@@ -104,7 +108,7 @@ add_test(function test_fetch_ruim_recodes() {
     }
   }
 
-  let expectCalled = ["getIMSI_M", "readCST", "readCDMAHome",
+  let expectCalled = ["readICCID", "getIMSI_M", "readCST", "readCDMAHome",
                       "getCdmaSubscription"];
   testFetchRuimRecordes(expectCalled);
 

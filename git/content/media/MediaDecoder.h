@@ -247,9 +247,6 @@ public:
   MediaDecoder();
   virtual ~MediaDecoder();
 
-  // Reset the decoder and notify the media element that
-  // server connection is closed.
-  virtual void ResetConnectionState();
   // Create a new decoder of the same type as this one.
   // Subclasses must implement this.
   virtual MediaDecoder* Clone() = 0;

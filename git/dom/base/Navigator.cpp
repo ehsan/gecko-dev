@@ -1236,7 +1236,8 @@ Navigator::GetMozIccManager(ErrorResult& aRv)
     }
     NS_ENSURE_TRUE(mWindow->GetDocShell(), nullptr);
 
-    mIccManager = new IccManager(mWindow);
+    mIccManager = new IccManager();
+    mIccManager->Init(mWindow);
   }
 
   return mIccManager;

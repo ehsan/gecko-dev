@@ -54,25 +54,26 @@ class RenderFrameParent : public PRenderFrameParent,
 public:
   typedef std::map<ViewID, nsRefPtr<nsContentView> > ViewMap;
 
+  /* Init should be called immediately after allocation. */
+  RenderFrameParent();
+  virtual ~RenderFrameParent();
+
   /**
    * Select the desired scrolling behavior.  If ASYNC_PAN_ZOOM is
    * chosen, then RenderFrameParent will watch input events and use
    * them to asynchronously pan and zoom.
    */
-  RenderFrameParent(nsFrameLoader* aFrameLoader,
-                    ScrollingBehavior aScrollingBehavior,
-                    TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                    uint64_t* aId);
-  virtual ~RenderFrameParent();
-
+  void Init(nsFrameLoader* aFrameLoader,
+            ScrollingBehavior aScrollingBehavior,
+            TextureFactoryIdentifier* aTextureFactoryIdentifier,
+            uint64_t* aId);
   void Destroy();
 
   /**
-   * Helper functions for getting a non-owning reference to a scrollable.
+   * Helper function for getting a non-owning reference to a scrollable.
    * @param aId The ID of the frame.
    */
-  nsContentView* GetContentView(ViewID aId);
-  nsContentView* GetRootContentView();
+  nsContentView* GetContentView(ViewID aId = FrameMetrics::ROOT_SCROLL_ID);
 
   void ContentViewScaleChanged(nsContentView* aView);
 
@@ -118,7 +119,6 @@ public:
 
   void UpdateZoomConstraints(uint32_t aPresShellId,
                              ViewID aViewId,
-                             bool aIsRoot,
                              bool aAllowZoom,
                              const CSSToScreenScale& aMinZoom,
                              const CSSToScreenScale& aMaxZoom);
@@ -220,12 +220,6 @@ public:
                HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
-
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap)
-  {
-    return GetBounds(aBuilder, aSnap);
-  }
 
 private:
   RenderFrameParent* mRemoteFrame;

@@ -850,8 +850,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_abortAnimation(JNIEnv* env, j
 {
     APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
-        // TODO: Pass in correct values for presShellId and viewId.
-        controller->CancelAnimation(ScrollableLayerGuid(nsWindow::RootLayerTreeId(), 0, 0));
+        controller->CancelAnimation(ScrollableLayerGuid(nsWindow::RootLayerTreeId()));
     }
 }
 
@@ -919,8 +918,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_notifyDefaultActionPrevented(
 {
     APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
-        // TODO: Pass in correct values for presShellId and viewId.
-        controller->ContentReceivedTouch(ScrollableLayerGuid(nsWindow::RootLayerTreeId(), 0, 0), prevented);
+        controller->ContentReceivedTouch(ScrollableLayerGuid(nsWindow::RootLayerTreeId()), prevented);
     }
 }
 
@@ -949,8 +947,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_updateScrollOffset(JNIEnv* en
 {
     APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
-        // TODO: Pass in correct values for presShellId and viewId.
-        controller->UpdateScrollOffset(ScrollableLayerGuid(nsWindow::RootLayerTreeId(), 0, 0), CSSPoint(cssX, cssY));
+        controller->UpdateScrollOffset(ScrollableLayerGuid(nsWindow::RootLayerTreeId()), CSSPoint(cssX, cssY));
     }
 }
 

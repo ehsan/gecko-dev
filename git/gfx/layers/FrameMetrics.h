@@ -36,6 +36,7 @@ public:
   // We use IDs to identify frames across processes.
   typedef uint64_t ViewID;
   static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
+  static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
   static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
                                         // will begin at.
 
@@ -53,7 +54,6 @@ public:
     , mDevPixelsPerCSSPixel(1)
     , mMayHaveTouchListeners(false)
     , mPresShellId(-1)
-    , mIsRoot(false)
   {}
 
   // Default copy ctor and operator= are fine
@@ -71,8 +71,7 @@ public:
            mCumulativeResolution == aOther.mCumulativeResolution &&
            mDevPixelsPerCSSPixel == aOther.mDevPixelsPerCSSPixel &&
            mMayHaveTouchListeners == aOther.mMayHaveTouchListeners &&
-           mPresShellId == aOther.mPresShellId &&
-           mIsRoot == aOther.mIsRoot;
+           mPresShellId == aOther.mPresShellId;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -89,7 +88,7 @@ public:
 
   bool IsRootScrollable() const
   {
-    return mIsRoot;
+    return mScrollId == ROOT_SCROLL_ID;
   }
 
   bool IsScrollable() const
@@ -207,7 +206,8 @@ public:
   // not any parents, regardless of parent transforms.
   CSSPoint mScrollOffset;
 
-  // A unique ID assigned to each scrollable frame.
+  // A unique ID assigned to each scrollable frame (unless this is
+  // ROOT_SCROLL_ID, in which case it is not unique).
   ViewID mScrollId;
 
   // The scrollable bounds of a frame. This is determined by reflow.
@@ -253,9 +253,6 @@ public:
   bool mMayHaveTouchListeners;
 
   uint32_t mPresShellId;
-
-  // Whether or not this is the root scroll frame for the root content document.
-  bool mIsRoot;
 };
 
 /**
@@ -294,6 +291,16 @@ struct ScrollableLayerGuid {
     , mScrollId(aMetrics.mScrollId)
   {
     MOZ_COUNT_CTOR(ScrollableLayerGuid);
+  }
+
+  ScrollableLayerGuid(uint64_t aLayersId)
+    : mLayersId(aLayersId)
+    , mPresShellId(0)
+    , mScrollId(FrameMetrics::ROOT_SCROLL_ID)
+  {
+    MOZ_COUNT_CTOR(ScrollableLayerGuid);
+    // TODO: get rid of this constructor once all callers know their
+    // presShellId and scrollId
   }
 
   ~ScrollableLayerGuid()

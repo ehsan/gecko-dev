@@ -584,7 +584,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mDevPixelsPerCSSPixel);
     WriteParam(aMsg, aParam.mMayHaveTouchListeners);
     WriteParam(aMsg, aParam.mPresShellId);
-    WriteParam(aMsg, aParam.mIsRoot);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -601,8 +600,7 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mZoom) &&
             ReadParam(aMsg, aIter, &aResult->mDevPixelsPerCSSPixel) &&
             ReadParam(aMsg, aIter, &aResult->mMayHaveTouchListeners) &&
-            ReadParam(aMsg, aIter, &aResult->mPresShellId) &&
-            ReadParam(aMsg, aIter, &aResult->mIsRoot));
+            ReadParam(aMsg, aIter, &aResult->mPresShellId));
   }
 };
 

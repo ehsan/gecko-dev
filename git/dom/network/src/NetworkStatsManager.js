@@ -128,7 +128,7 @@ NetworkStats.prototype = {
 // NetworkStatsManager
 
 const NETWORKSTATSMANAGER_CONTRACTID = "@mozilla.org/networkStatsManager;1";
-const NETWORKSTATSMANAGER_CID        = Components.ID("{5f033d31-c9a2-4e2d-83aa-6a807f1e0c11}");
+const NETWORKSTATSMANAGER_CID        = Components.ID("{5fbdcae6-a2cd-47b3-929f-83ac75bd4881}");
 const nsIDOMMozNetworkStatsManager   = Components.interfaces.nsIDOMMozNetworkStatsManager;
 
 function NetworkStatsManager() {
@@ -189,13 +189,16 @@ NetworkStatsManager.prototype = {
     return request;
   },
 
-  getAvailableNetworks: function getAvailableNetworks() {
+  get availableNetworks() {
     this.checkPrivileges();
 
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("NetworkStats:GetAvailableNetworks",
-                          { id: this.getRequestId(request) });
-    return request;
+    let result = ObjectWrapper.wrap(cpmm.sendSyncMessage("NetworkStats:Networks")[0], this._window);
+    let networks = this.data = Cu.createArrayIn(this._window);
+    for (let i = 0; i < result.length; i++) {
+      networks.push(new NetworkStatsInterface(result[i]));
+    }
+
+    return networks;
   },
 
   get sampleRate() {
@@ -234,20 +237,6 @@ NetworkStatsManager.prototype = {
           debug("result: " + JSON.stringify(result));
         }
         Services.DOMRequest.fireSuccess(req, result);
-        break;
-
-      case "NetworkStats:GetAvailableNetworks:Return":
-        if (msg.error) {
-          Services.DOMRequest.fireError(req, msg.error);
-          return;
-        }
-
-        let networks = Cu.createArrayIn(this._window);
-        for (let i = 0; i < msg.result.length; i++) {
-          networks.push(new NetworkStatsInterface(msg.result[i]));
-        }
-
-        Services.DOMRequest.fireSuccess(req, networks);
         break;
 
       case "NetworkStats:Clear:Return":
@@ -291,7 +280,6 @@ NetworkStatsManager.prototype = {
     }
 
     this.initDOMRequestHelper(aWindow, ["NetworkStats:Get:Return",
-                                        "NetworkStats:GetAvailableNetworks:Return",
                                         "NetworkStats:Clear:Return",
                                         "NetworkStats:ClearAll:Return"]);
   },
@@ -306,8 +294,7 @@ NetworkStatsManager.prototype = {
   classID : NETWORKSTATSMANAGER_CID,
   QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStatsManager,
                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsIObserver]),
+                                         Ci.nsISupportsWeakReference]),
 
   classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATSMANAGER_CID,
                                      contractID: NETWORKSTATSMANAGER_CONTRACTID,
