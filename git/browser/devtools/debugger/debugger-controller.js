@@ -1719,10 +1719,7 @@ EventListeners.prototype = {
 
       // Add all the listeners in the debugger view event linsteners container.
       for (let listener of aResponse.listeners) {
-        let definitionSite;
-        if (listener.function.class == "Function") {
-          definitionSite = yield this._getDefinitionSite(listener.function);
-        }
+        let definitionSite = yield this._getDefinitionSite(listener.function);
         listener.function.url = definitionSite;
         DebuggerView.EventListeners.addListener(listener, { staged: true });
       }
@@ -1743,18 +1740,18 @@ EventListeners.prototype = {
    * @param object aFunction
    *        The grip of the function to get the definition site for.
    * @return object
-   *         A promise that is resolved with the function's owner source url.
+   *         A promise that is resolved with the function's owner source url,
+   *         or rejected if an error occured.
    */
   _getDefinitionSite: function(aFunction) {
     let deferred = promise.defer();
 
     gThreadClient.pauseGrip(aFunction).getDefinitionSite(aResponse => {
       if (aResponse.error) {
-        // Don't make this error fatal, because it would break the entire events pane.
-        const msg = "Error getting function definition site: " + aResponse.message;
-        DevToolsUtils.reportException("_getDefinitionSite", msg);
+        deferred.reject("Error getting function definition site: " + aResponse.message);
+      } else {
+        deferred.resolve(aResponse.url);
       }
-      deferred.resolve(aResponse.url);
     });
 
     return deferred.promise;

@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:name="org.mozilla.search.PostSearchFragment"
-        android:layout_marginTop="@dimen/search_bar_height"
+        android:layout_marginTop="@dimen/webview_height_offset"
         android:id="@+id/postsearch"
         />
 
@@ -22,7 +22,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:name="org.mozilla.search.PreSearchFragment"
-        android:layout_marginTop="@dimen/search_bar_height"
         android:id="@+id/presearch"
         />
 
@@ -30,6 +29,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:name="org.mozilla.search.autocomplete.SearchFragment"
-        android:id="@+id/search_fragment"/>
+        android:id="@+id/header_fragments"
+        />
 
 </merge>

@@ -29,59 +29,51 @@ public class testSettingsMenuItems extends PixelTest {
      */
 
     // Customize menu items.
-    String[] PATH_CUSTOMIZE = { StringHelper.CUSTOMIZE_SECTION_LABEL };
+    String[] PATH_CUSTOMIZE = { "Customize" };
     String[][] OPTIONS_CUSTOMIZE = {
         { "Home" },
         { "Search", "", "Show search suggestions", "Installed search engines"},
-        { StringHelper.TABS_LABEL, "Don't restore after quitting " + BRAND_NAME, "Always restore", "Don't restore after quitting " + BRAND_NAME },
-        { StringHelper.IMPORT_FROM_ANDROID_LABEL, "", "Bookmarks", "History", "Import" },
+        { "Tabs", "Don't restore after quitting " + BRAND_NAME, "Always restore", "Don't restore after quitting " + BRAND_NAME },
+        { "Import from Android", "", "Bookmarks", "History", "Import" },
     };
 
     // Home panel menu items.
-    String[] PATH_HOME = { StringHelper.CUSTOMIZE_SECTION_LABEL, "Home" };
+    String[] PATH_HOME = { "Customize", "Home" };
     String[][] OPTIONS_HOME = {
       { "Panels" },
       { "Automatic updates", "Enabled", "Enabled", "Only over Wi-Fi" },
     };
 
     // Display menu items.
-    String[] PATH_DISPLAY = { StringHelper.DISPLAY_SECTION_LABEL };
+    String[] PATH_DISPLAY = { "Display" };
     String[][] OPTIONS_DISPLAY = {
-        { StringHelper.TEXT_SIZE_LABEL },
-        { StringHelper.TITLE_BAR_LABEL, "Show page title", "Show page title", "Show page address" },
+        { "Text size" },
+        { "Title bar", "Show page title", "Show page title", "Show page address" },
         { "Advanced" },
-        { StringHelper.CHARACTER_ENCODING_LABEL, "Don't show menu", "Show menu", "Don't show menu" },
-        { StringHelper.PLUGINS_LABEL, "Tap to play", "Enabled", "Tap to play", "Disabled" },
+        { "Character encoding", "Don't show menu", "Show menu", "Don't show menu" },
+        { "Plugins", "Tap to play", "Enabled", "Tap to play", "Disabled" },
     };
 
     // Privacy menu items.
-    String[] PATH_PRIVACY = { StringHelper.PRIVACY_SECTION_LABEL };
+    String[] PATH_PRIVACY = { "Privacy" };
     String[][] OPTIONS_PRIVACY = {
-        { StringHelper.TRACKING_LABEL, "Do not tell sites anything about my tracking preferences", "Tell sites that I do not want to be tracked", "Tell sites that I want to be tracked", "Do not tell sites anything about my tracking preferences" },
-        { StringHelper.COOKIES_LABEL, "Enabled", "Enabled, excluding 3rd party", "Disabled" },
-        { StringHelper.REMEMBER_PASSWORDS_LABEL },
-        { StringHelper.MASTER_PASWSWORD_LABEL },
-        { StringHelper.CLEAR_PRIVATE_DATA_LABEL, "", "Browsing history", "Downloads", "Form & search history", "Cookies & active logins", "Saved passwords", "Cache", "Offline website data", "Site settings", "Clear data" },
+        { "Tracking", "Do not tell sites anything about my tracking preferences", "Tell sites that I do not want to be tracked", "Tell sites that I want to be tracked", "Do not tell sites anything about my tracking preferences" },
+        { "Cookies", "Enabled", "Enabled, excluding 3rd party", "Disabled" },
+        { "Remember passwords" },
+        { "Use master password" },
+        { "Clear private data", "", "Browsing history", "Downloads", "Form & search history", "Cookies & active logins", "Saved passwords", "Cache", "Offline website data", "Site settings", "Clear data" },
     };
 
     // Mozilla/vendor menu items.
-    String[] PATH_MOZILLA = { StringHelper.MOZILLA_SECTION_LABEL };
+    String[] PATH_MOZILLA = { "Mozilla" };
     String[][] OPTIONS_MOZILLA = {
         { "About " + BRAND_NAME },
-        { StringHelper.FAQS_LABEL },
-        { StringHelper.FEEDBACK_LABEL },
-        { StringHelper.PRODUCT_ANNOUNCEMENTS_LABEL },
+        { "FAQs" },
+        { "Give feedback" },
+        { "Show product announcements" },
         { "Data choices" },
         { BRAND_NAME + " Health Report", "Shares data with Mozilla about your browser health and helps you understand your browser performance" },
-        { StringHelper.MY_HEALTH_REPORT_LABEL },
-    };
-
-    // Developer menu items.
-    String[] PATH_DEVELOPER = { StringHelper.DEVELOPER_TOOLS_SECTION_LABEL };
-    String[][] OPTIONS_DEVELOPER = {
-        { StringHelper.PAINT_FLASHING_LABEL },
-        { StringHelper.REMOTE_DEBUGGING_LABEL },
-        { StringHelper.LEARN_MORE_LABEL },
+        { "View my Health Report" },
     };
 
     /*
@@ -102,7 +94,6 @@ public class testSettingsMenuItems extends PixelTest {
         settingsMap.put(PATH_DISPLAY, new ArrayList<String[]>(Arrays.asList(OPTIONS_DISPLAY)));
         settingsMap.put(PATH_PRIVACY, new ArrayList<String[]>(Arrays.asList(OPTIONS_PRIVACY)));
         settingsMap.put(PATH_MOZILLA, new ArrayList<String[]>(Arrays.asList(OPTIONS_MOZILLA)));
-        settingsMap.put(PATH_DEVELOPER, new ArrayList<String[]>(Arrays.asList(OPTIONS_DEVELOPER)));
     }
 
     public void testSettingsMenuItems() {

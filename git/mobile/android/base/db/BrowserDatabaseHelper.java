@@ -74,6 +74,14 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
     private void createBookmarksTable(SQLiteDatabase db) {
         debug("Creating " + TABLE_BOOKMARKS + " table");
 
+        // Android versions older than Froyo ship with an sqlite
+        // that doesn't support foreign keys.
+        String foreignKeyOnParent = null;
+        if (Build.VERSION.SDK_INT >= 8) {
+            foreignKeyOnParent = ", FOREIGN KEY (" + Bookmarks.PARENT +
+                ") REFERENCES " + TABLE_BOOKMARKS + "(" + Bookmarks._ID + ")";
+        }
+
         db.execSQL("CREATE TABLE " + TABLE_BOOKMARKS + "(" +
                 Bookmarks._ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 Bookmarks.TITLE + " TEXT," +
@@ -87,9 +95,8 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
                 Bookmarks.DATE_CREATED + " INTEGER," +
                 Bookmarks.DATE_MODIFIED + " INTEGER," +
                 Bookmarks.GUID + " TEXT NOT NULL," +
-                Bookmarks.IS_DELETED + " INTEGER NOT NULL DEFAULT 0, " +
-                "FOREIGN KEY (" + Bookmarks.PARENT + ") REFERENCES " +
-                TABLE_BOOKMARKS + "(" + Bookmarks._ID + ")" +
+                Bookmarks.IS_DELETED + " INTEGER NOT NULL DEFAULT 0" +
+                (foreignKeyOnParent != null ? foreignKeyOnParent : "") +
                 ");");
 
         db.execSQL("CREATE INDEX bookmarks_url_index ON " + TABLE_BOOKMARKS + "("
@@ -105,6 +112,14 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
     private void createBookmarksTableOn13(SQLiteDatabase db) {
         debug("Creating " + TABLE_BOOKMARKS + " table");
 
+        // Android versions older than Froyo ship with an sqlite
+        // that doesn't support foreign keys.
+        String foreignKeyOnParent = null;
+        if (Build.VERSION.SDK_INT >= 8) {
+            foreignKeyOnParent = ", FOREIGN KEY (" + Bookmarks.PARENT +
+                ") REFERENCES " + TABLE_BOOKMARKS + "(" + Bookmarks._ID + ")";
+        }
+
         db.execSQL("CREATE TABLE " + TABLE_BOOKMARKS + "(" +
                 Bookmarks._ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 Bookmarks.TITLE + " TEXT," +
@@ -119,9 +134,8 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
                 Bookmarks.DATE_CREATED + " INTEGER," +
                 Bookmarks.DATE_MODIFIED + " INTEGER," +
                 Bookmarks.GUID + " TEXT NOT NULL," +
-                Bookmarks.IS_DELETED + " INTEGER NOT NULL DEFAULT 0, " +
-                "FOREIGN KEY (" + Bookmarks.PARENT + ") REFERENCES " +
-                TABLE_BOOKMARKS + "(" + Bookmarks._ID + ")" +
+                Bookmarks.IS_DELETED + " INTEGER NOT NULL DEFAULT 0" +
+                (foreignKeyOnParent != null ? foreignKeyOnParent : "") +
                 ");");
 
         db.execSQL("CREATE INDEX bookmarks_url_index ON " + TABLE_BOOKMARKS + "("

@@ -244,7 +244,11 @@ public class CrashReporter extends Activity
         editor.putString(PREFS_CONTACT_EMAIL, contactEmail);
                     
         // A slight performance improvement via async apply() vs. blocking on commit().
-        editor.apply();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+            editor.commit();
+        } else { 
+            editor.apply();
+        }
     }
 
     public void onCloseClick(View v) {  // bound via crash_reporter.xml
@@ -388,11 +392,13 @@ public class CrashReporter extends Activity
             sendPart(os, boundary, "Android_Display", Build.DISPLAY);
             sendPart(os, boundary, "Android_Fingerprint", Build.FINGERPRINT);
             sendPart(os, boundary, "Android_CPU_ABI", Build.CPU_ABI);
-            try {
-                sendPart(os, boundary, "Android_CPU_ABI2", Build.CPU_ABI2);
-                sendPart(os, boundary, "Android_Hardware", Build.HARDWARE);
-            } catch (Exception ex) {
-                Log.e(LOGTAG, "Exception while sending SDK version 8 keys", ex);
+            if (Build.VERSION.SDK_INT >= 8) {
+                try {
+                    sendPart(os, boundary, "Android_CPU_ABI2", Build.CPU_ABI2);
+                    sendPart(os, boundary, "Android_Hardware", Build.HARDWARE);
+                } catch (Exception ex) {
+                    Log.e(LOGTAG, "Exception while sending SDK version 8 keys", ex);
+                }
             }
             sendPart(os, boundary, "Android_Version",  Build.VERSION.SDK_INT + " (" + Build.VERSION.CODENAME + ")");
             if (Build.VERSION.SDK_INT >= 16 && includeURLCheckbox.isChecked()) {
