@@ -15503,7 +15503,7 @@ ICCContactHelperObject.prototype = {
    */
   readAllPhonebookSets: function(pbrs, onsuccess, onerror) {
     let allContacts = [], pbrIndex = 0;
-    let readPhonebook = function(contacts) {
+    let readPhonebook = function readPhonebook(contacts) {
       if (contacts) {
         allContacts = allContacts.concat(contacts);
       }
