@@ -29,8 +29,7 @@
 #define YarrInterpreter_h
 
 #include "jscntxt.h"
-
-#include "yarr/YarrPattern.h"
+#include "YarrPattern.h"
 
 namespace WTF {
 class BumpPointerAllocator;

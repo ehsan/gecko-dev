@@ -10,6 +10,7 @@
 #include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
+#include "jsautooplen.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
@@ -17,7 +18,6 @@
 #include "jscntxt.h"
 #include "jsstr.h"
 #include "jsworkers.h"
-#include "prmjtime.h"
 
 #ifdef JS_ION
 #include "ion/BaselineJIT.h"

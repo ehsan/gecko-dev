@@ -7,8 +7,6 @@
 #ifndef TestingFunctions_h__
 #define TestingFunctions_h__
 
-#include "jsapi.h"
-
 namespace js {
 
 bool

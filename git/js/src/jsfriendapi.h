@@ -7,7 +7,10 @@
 #ifndef jsfriendapi_h___
 #define jsfriendapi_h___
 
+#include "mozilla/GuardObjects.h"
+
 #include "jsclass.h"
+#include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jsprvtd.h"
 

@@ -13,8 +13,7 @@
  * Try to keep this file in sync with xpcom/glue/pldhash.h.
  */
 #include "jstypes.h"
-
-#include "js/Utility.h"
+#include "jsutil.h"
 
 #if defined(__GNUC__) && defined(__i386__) && !defined(XP_OS2)
 #define JS_DHASH_FASTCALL __attribute__ ((regparm (3),stdcall))

@@ -152,7 +152,7 @@ XPCJSContextStack::GetSafeJSContext()
     if (!xpcrt)
         return NULL;
 
-    JSRuntime *rt = xpcrt->Runtime();
+    JSRuntime *rt = xpcrt->GetJSRuntime();
     if (!rt)
         return NULL;
 

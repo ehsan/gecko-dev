@@ -9,6 +9,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
+#include "jsautooplen.h"
 #include "jscompartment.h"
 #include "jscntxt.h"
 
