@@ -31,11 +31,6 @@ var loopServer;
 Services.prefs.setBoolPref("loop.enabled", true);
 Services.prefs.setBoolPref("loop.throttled", false);
 
-// Cleanup function for all tests
-do_register_cleanup(() => {
-  MozLoopService.errors.clear();
-});
-
 function setupFakeLoopServer() {
   loopServer = new HttpServer();
   loopServer.start(-1);

@@ -10,7 +10,7 @@ let openChatOrig = Chat.open;
 add_test(function test_openChatWindow_on_notification() {
   Services.prefs.setCharPref("loop.seenToS", "unseen");
 
-  MozLoopService.promiseRegisteredWithServers().then(() => {
+  MozLoopService.register().then(() => {
     let opened = false;
     Chat.open = function() {
       opened = true;

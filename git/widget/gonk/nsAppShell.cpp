@@ -715,7 +715,7 @@ GeckoInputDispatcher::notifyMotion(const NotifyMotionArgs* args)
     int32_t action = args->action & AMOTION_EVENT_ACTION_MASK;
     int touchCount = args->pointerCount;
     MOZ_ASSERT(touchCount <= MAX_POINTERS);
-    TimeStamp timestamp = TimeStamp(args->eventTime);
+    TimeStamp timestamp = TimeStamp::Now();
     Modifiers modifiers = getDOMModifiers(args->metaState);
 
     MultiTouchInput::MultiTouchType touchType = MultiTouchInput::MULTITOUCH_CANCEL;
@@ -760,7 +760,7 @@ GeckoInputDispatcher::notifyMotion(const NotifyMotionArgs* args)
         }
     }
 
-    mTouchDispatcher->NotifyTouch(touchData, timestamp);
+    mTouchDispatcher->NotifyTouch(touchData, args->eventTime);
 }
 
 void GeckoInputDispatcher::notifySwitch(const NotifySwitchArgs* args)

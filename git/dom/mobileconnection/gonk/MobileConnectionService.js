@@ -774,7 +774,7 @@ MobileConnectionProvider.prototype = {
         return false;
       }
 
-      aCallback.notifyGetPreferredNetworkTypeSuccess(aResponse.type);
+      aCallback.notifySuccessWithString(aResponse.type);
       return false;
     }).bind(this));
   },

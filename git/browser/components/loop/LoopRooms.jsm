@@ -68,7 +68,7 @@ let LoopRoomsInternal = {
     }
 
     Task.spawn(function* () {
-      yield MozLoopService.promiseRegisteredWithServers();
+      yield MozLoopService.register();
 
       if (!gDirty) {
         callback(null, [...this.rooms.values()]);

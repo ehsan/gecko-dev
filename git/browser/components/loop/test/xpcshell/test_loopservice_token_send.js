@@ -24,7 +24,7 @@ add_test(function test_registration_uses_hawk_session_token() {
     response.finish();
   });
 
-  MozLoopService.promiseRegisteredWithServers().then(() => {
+  MozLoopService.register().then(() => {
     run_next_test();
   }, err => {
     do_throw("shouldn't error on a succesful request");

@@ -1,4 +1,4 @@
-var gBasePath = "tests/dom/tv/test/mochitest/";
+var gBasePath = "tests/dom/tv/test/";
 
 function handleRequest(request, response) {
   var query = getQuery(request);

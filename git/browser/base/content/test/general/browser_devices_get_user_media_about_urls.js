@@ -110,7 +110,7 @@ function getMediaCaptureState() {
   return "none";
 }
 
-function* closeStream(aAlreadyClosed) {
+function closeStream(aAlreadyClosed) {
   expectNoObserverCalled();
 
   info("closing the stream");
@@ -123,7 +123,7 @@ function* closeStream(aAlreadyClosed) {
   if (!aAlreadyClosed)
     expectObserverCalled("recording-window-ended");
 
-  yield* assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(null);
 }
 
 function loadPage(aUrl) {
