@@ -10,7 +10,6 @@
  */
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/ThreadLocal.h"
 
 #include <ctype.h>
@@ -1318,6 +1317,10 @@ JS_SetVersion(JSContext *cx, JSVersion newVersion)
     if (oldVersionNumber == newVersionNumber)
         return oldVersionNumber; /* No override actually occurs! */
 
+    /* We no longer support 1.4 or below. */
+    if (newVersionNumber != JSVERSION_DEFAULT && newVersionNumber <= JSVERSION_1_4)
+        return oldVersionNumber;
+
     VersionCopyFlags(&newVersion, oldVersion);
     cx->maybeOverrideVersion(newVersion);
     JS_ASSERT(cx->getCompileOptions() == coptsBefore);
@@ -1328,18 +1331,18 @@ static struct v2smap {
     JSVersion   version;
     const char  *string;
 } v2smap[] = {
+    {JSVERSION_1_0,     "1.0"},
+    {JSVERSION_1_1,     "1.1"},
+    {JSVERSION_1_2,     "1.2"},
+    {JSVERSION_1_3,     "1.3"},
+    {JSVERSION_1_4,     "1.4"},
     {JSVERSION_ECMA_3,  "ECMAv3"},
+    {JSVERSION_1_5,     "1.5"},
     {JSVERSION_1_6,     "1.6"},
     {JSVERSION_1_7,     "1.7"},
     {JSVERSION_1_8,     "1.8"},
     {JSVERSION_ECMA_5,  "ECMAv5"},
     {JSVERSION_DEFAULT, js_default_str},
-    {JSVERSION_DEFAULT, "1.0"},
-    {JSVERSION_DEFAULT, "1.1"},
-    {JSVERSION_DEFAULT, "1.2"},
-    {JSVERSION_DEFAULT, "1.3"},
-    {JSVERSION_DEFAULT, "1.4"},
-    {JSVERSION_DEFAULT, "1.5"},
     {JSVERSION_UNKNOWN, NULL},          /* must be last, NULL is sentinel */
 };
 
@@ -1531,14 +1534,6 @@ JS_WrapValue(JSContext *cx, jsval *vp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     return cx->compartment->wrap(cx, vp);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_WrapId(JSContext *cx, jsid *idp)
-{
-  AssertHeapIsIdle(cx);
-  CHECK_REQUEST(cx);
-  return cx->compartment->wrapId(cx, idp);
 }
 
 /*
@@ -3347,7 +3342,7 @@ JS_GetConstructor(JSContext *cx, JSObject *protoArg)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, proto);
     {
-        JSAutoResolveFlags rf(cx, 0);
+        JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
         if (!JSObject::getProperty(cx, proto, proto, cx->names().constructor, &cval))
             return NULL;
@@ -3371,21 +3366,19 @@ JS_GetObjectId(JSContext *cx, JSRawObject obj, jsid *idp)
 
 class AutoHoldCompartment {
   public:
-    explicit AutoHoldCompartment(JSCompartment *compartment
-                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit AutoHoldCompartment(JSCompartment *compartment JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : holdp(&compartment->hold)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         *holdp = true;
     }
 
     ~AutoHoldCompartment() {
         *holdp = false;
     }
-
   private:
     bool *holdp;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 JS_PUBLIC_API(JSObject *)
@@ -3434,13 +3427,8 @@ JS_NewObject(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, JSObject *pare
     JSObject *obj = NewObjectWithClassProto(cx, clasp, proto, parent);
     AutoAssertNoGC nogc;
     if (obj) {
-        TypeObjectFlags flags = 0;
         if (clasp->ext.equality)
-            flags |= OBJECT_FLAG_SPECIAL_EQUALITY;
-        if (clasp->emulatesUndefined())
-            flags |= OBJECT_FLAG_EMULATES_UNDEFINED;
-        if (flags)
-            MarkTypeObjectFlags(cx, obj, flags);
+            MarkTypeObjectFlags(cx, obj, OBJECT_FLAG_SPECIAL_EQUALITY);
     }
 
     JS_ASSERT_IF(obj, obj->getParent());
@@ -3596,7 +3584,7 @@ JS_LookupPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, jsval *vp)
     RootedObject obj2(cx);
     RootedShape prop(cx);
 
-    return LookupPropertyById(cx, obj, id, 0, &obj2, &prop) &&
+    return LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) &&
            LookupResult(cx, obj, obj2, id, prop, vp);
 }
 
@@ -3667,7 +3655,8 @@ JS_HasPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, JSBool *foundp)
     RootedId id(cx, idArg);
     RootedObject obj2(cx);
     RootedShape prop(cx);
-    JSBool ok = LookupPropertyById(cx, obj, id, 0, &obj2, &prop);
+    JSBool ok = LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
+                                   &obj2, &prop);
     *foundp = (prop != NULL);
     return ok;
 }
@@ -3713,8 +3702,10 @@ JS_AlreadyHasOwnPropertyById(JSContext *cx, JSObject *objArg, jsid id_, JSBool *
         RootedObject obj2(cx);
         RootedShape prop(cx);
 
-        if (!LookupPropertyById(cx, obj, id, 0, &obj2, &prop))
+        if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING,
+                                &obj2, &prop)) {
             return JS_FALSE;
+        }
         *foundp = (obj == obj2);
         return JS_TRUE;
     }
@@ -3837,7 +3828,7 @@ DefinePropertyById(JSContext *cx, HandleObject obj, HandleId id, HandleValue val
                             ? JS_FUNC_TO_DATA_PTR(JSObject *, setter)
                             : NULL);
 
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     if (flags != 0 && obj->isNative()) {
         return DefineNativeProperty(cx, obj, id, value, getter, setter,
                                     attrs, flags, tinyid);
@@ -4091,7 +4082,7 @@ JS_GetPropertyAttrsGetterAndSetterById(JSContext *cx, JSObject *objArg, jsid idA
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
     AutoPropertyDescriptorRooter desc(cx);
-    if (!GetPropertyDescriptorById(cx, obj, id, 0, JS_FALSE, &desc))
+    if (!GetPropertyDescriptorById(cx, obj, id, JSRESOLVE_QUALIFIED, JS_FALSE, &desc))
         return false;
 
     *attrsp = desc.attrs;
@@ -4163,7 +4154,7 @@ SetPropertyAttributesById(JSContext *cx, HandleObject obj, HandleId id, unsigned
     RootedObject obj2(cx);
     RootedShape shape(cx);
 
-    if (!LookupPropertyById(cx, obj, id, 0, &obj2, &shape))
+    if (!LookupPropertyById(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &shape))
         return false;
     if (!shape || obj != obj2) {
         *foundp = false;
@@ -4214,7 +4205,7 @@ JS_ForwardGetPropertyTo(JSContext *cx, JSObject *objArg, jsid idArg, JSObject *o
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
     assertSameCompartment(cx, onBehalfOf);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     RootedValue value(cx);
     if (!JSObject::getGeneric(cx, obj, onBehalfOf, id, &value))
@@ -4253,7 +4244,7 @@ JS_ForwardGetElementTo(JSContext *cx, JSObject *objArg, uint32_t index, JSObject
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     RootedValue value(cx);
     if (!JSObject::getElement(cx, obj, onBehalfOf, index, &value))
@@ -4271,7 +4262,7 @@ JS_GetElementIfPresent(JSContext *cx, JSObject *objArg, uint32_t index, JSObject
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     RootedValue value(cx);
     bool isPresent;
@@ -4342,7 +4333,7 @@ JS_SetPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, jsval *vp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
-    JSAutoResolveFlags rf(cx, JSRESOLVE_ASSIGNING);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
 
     RootedValue value(cx, *vp);
     if (!JSObject::setGeneric(cx, obj, obj, id, &value, false))
@@ -4359,7 +4350,7 @@ JS_SetElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, *vp);
-    JSAutoResolveFlags rf(cx, JSRESOLVE_ASSIGNING);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
 
     RootedValue value(cx, *vp);
     if (!JSObject::setElement(cx, obj, obj, index, &value, false))
@@ -4392,7 +4383,7 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, jsval *rval)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     RootedValue value(cx);
 
@@ -4416,7 +4407,7 @@ JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, jsval *rval)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     RootedValue value(cx);
     if (!JSObject::deleteElement(cx, obj, index, &value, false))
@@ -4432,7 +4423,7 @@ JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, jsval *rva
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     JSAtom *atom = Atomize(cx, name, strlen(name));
     if (!atom)
@@ -4452,7 +4443,7 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
@@ -5122,14 +5113,11 @@ JS_DefineFunctionById(JSContext *cx, JSObject *objArg, jsid id_, JSNative call,
     return js_DefineFunction(cx, obj, id, call, nargs, attrs);
 }
 
-struct AutoLastFrameCheck
-{
-    AutoLastFrameCheck(JSContext *cx
-                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx)
-    {
+struct AutoLastFrameCheck {
+    AutoLastFrameCheck(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx) {
         JS_ASSERT(cx);
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AutoLastFrameCheck() {
@@ -5141,8 +5129,8 @@ struct AutoLastFrameCheck
     }
 
   private:
-    JSContext *cx;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JSContext       *cx;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /* Use the fastest available getc. */
@@ -6823,20 +6811,6 @@ JS_GetRegExpSource(JSContext *cx, JSObject *objArg)
 }
 
 /************************************************************************/
-
-JS_PUBLIC_API(JSBool)
-JS_SetDefaultLocale(JSContext *cx, const char *locale)
-{
-    AssertHeapIsIdle(cx);
-    return cx->setDefaultLocale(locale);
-}
-
-JS_PUBLIC_API(void)
-JS_ResetDefaultLocale(JSContext *cx)
-{
-    AssertHeapIsIdle(cx);
-    cx->resetDefaultLocale();
-}
 
 JS_PUBLIC_API(void)
 JS_SetLocaleCallbacks(JSContext *cx, JSLocaleCallbacks *callbacks)

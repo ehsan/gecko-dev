@@ -400,7 +400,8 @@ private:
 inline HyperTextAccessible*
 Accessible::AsHyperText()
 {
-  return IsHyperText() ? static_cast<HyperTextAccessible*>(this) : nullptr;
+  return mFlags & eHyperTextAccessible ?
+    static_cast<HyperTextAccessible*>(this) : nullptr;
 }
 
 } // namespace a11y

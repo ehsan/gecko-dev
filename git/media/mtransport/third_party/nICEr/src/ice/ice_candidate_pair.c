@@ -37,7 +37,6 @@ static char *RCSSTRING __UNUSED__="$Id: ice_candidate_pair.c,v 1.2 2008/04/28 17
 #include <assert.h>
 #include <string.h>
 #include <nr_api.h>
-#include "async_timer.h"
 #include "ice_ctx.h"
 #include "ice_util.h"
 #include "ice_codeword.h"
@@ -118,7 +117,7 @@ int nr_ice_candidate_pair_create(nr_ice_peer_ctx *pctx, nr_ice_candidate *lcand,
     t_priority = tmpcand.priority;
 
     /* Our sending context */
-    if(r=nr_concat_strings(&l2ruser,rufrag,":",lufrag,NULL))
+    if(r=nr_concat_strings(&l2ruser,lufrag,":",rufrag,NULL))
       ABORT(r);
     if(r=nr_stun_client_ctx_create(pair->as_string,
       lcand->osock,
@@ -126,7 +125,7 @@ int nr_ice_candidate_pair_create(nr_ice_peer_ctx *pctx, nr_ice_candidate *lcand,
       ABORT(r);
     if(!(pair->stun_client->params.ice_binding_request.username=r_strdup(l2ruser)))
       ABORT(R_NO_MEMORY);
-    if(r=r_data_make(&pair->stun_client->params.ice_binding_request.password,(UCHAR *)rpwd,strlen(rpwd)))
+    if(r=r_data_make(&pair->stun_client->params.ice_binding_request.password,(UCHAR *)lpwd,strlen(lpwd)))
       ABORT(r);
     pair->stun_client->params.ice_binding_request.priority=t_priority;
     pair->stun_client->params.ice_binding_request.control = pctx->controlling?
@@ -136,9 +135,9 @@ int nr_ice_candidate_pair_create(nr_ice_peer_ctx *pctx, nr_ice_candidate *lcand,
 
     /* Our receiving username/passwords. Stash these for later 
        injection into the stun server ctx*/
-    if(r=nr_concat_strings(&pair->r2l_user,lufrag,":",rufrag,NULL))
+    if(r=nr_concat_strings(&pair->r2l_user,rufrag,":",lufrag,NULL))
       ABORT(r);
-    if(!(r2lpass=r_strdup(lpwd)))
+    if(!(r2lpass=r_strdup(rpwd)))
       ABORT(R_NO_MEMORY);
     INIT_DATA(pair->r2l_pwd,(UCHAR *)r2lpass,strlen(r2lpass));
     
@@ -173,10 +172,6 @@ int nr_ice_candidate_pair_destroy(nr_ice_cand_pair **pairp)
     RFREE(pair->r2l_user);
     RFREE(pair->r2l_pwd.data);
 
-    NR_async_timer_cancel(pair->stun_cb_timer);
-    NR_async_timer_cancel(pair->restart_controlled_cb_timer);
-    NR_async_timer_cancel(pair->restart_nominated_cb_timer);
-
     RFREE(pair);
     return(0);
   }
@@ -202,8 +197,6 @@ static void nr_ice_candidate_pair_stun_cb(NR_SOCKET s, int how, void *cb_arg)
     nr_transport_addr response_dst;
     nr_stun_message_attribute *attr;
 
-    pair->stun_cb_timer=0;
-
     r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s): STUN cb on pair %s",
       pair->pctx->label,pair->local->stream->label,pair->as_string);
 
@@ -220,10 +213,8 @@ static void nr_ice_candidate_pair_stun_cb(NR_SOCKET s, int how, void *cb_arg)
           r_log(LOG_ICE,LOG_ERR,"ICE-PEER(%s): detected role conflict. Switching to controlled",pair->pctx->label);
           
           pair->pctx->controlling=0;
-	  
-	  /* Only restart if we haven't tried this already */
-	  if(!pair->restart_controlled_cb_timer)
-	    NR_ASYNC_TIMER_SET(0,nr_ice_candidate_pair_restart_stun_controlled_cb,pair,&pair->restart_controlled_cb_timer);
+          
+          NR_ASYNC_SCHEDULE(nr_ice_candidate_pair_restart_stun_controlled_cb,pair);
           
           return;
         }
@@ -385,9 +376,8 @@ int nr_ice_candidate_pair_start(nr_ice_peer_ctx *pctx, nr_ice_cand_pair *pair)
     _status=0;
   abort:
     if(_status){
-      /* Don't fire the CB, but schedule it to fire ASAP */
-      assert(!pair->stun_cb_timer);
-      NR_ASYNC_TIMER_SET(0,nr_ice_candidate_pair_stun_cb,pair, &pair->stun_cb_timer);
+      /* Don't fire the CB, but schedule it to fire */
+      NR_ASYNC_SCHEDULE(nr_ice_candidate_pair_stun_cb,pair);
       _status=0;
     }
     return(_status);
@@ -456,12 +446,8 @@ int nr_ice_candidate_pair_select(nr_ice_cand_pair *pair)
     else{
       /* Ok, they chose one */
       /* 1. Send a new request with nominated. Do it as a scheduled
-            event to avoid reentrancy issues. Only do this if it hasn't
-            happened already (though this shouldn't happen.)
-      */
-      if(!pair->restart_nominated_cb_timer)
-        NR_ASYNC_TIMER_SET(0,nr_ice_candidate_pair_restart_stun_nominated_cb,pair,&pair->restart_nominated_cb_timer);
-
+            event to avoid reentrancy issues  */
+      NR_ASYNC_SCHEDULE(nr_ice_candidate_pair_restart_stun_nominated_cb,pair);
       /* 2. Tell ourselves this pair is ready */
       if(r=nr_ice_component_nominated_pair(pair->remote->component, pair))
         ABORT(r);
@@ -546,8 +532,6 @@ void nr_ice_candidate_pair_restart_stun_nominated_cb(NR_SOCKET s, int how, void 
     nr_ice_cand_pair *pair=cb_arg;
     int r,_status;
 
-    pair->restart_nominated_cb_timer=0;
-
     r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s):%d: Restarting pair %s as nominated",pair->pctx->label,pair->local->stream->label,pair->remote->component->component_id,pair->as_string);
 
     nr_stun_client_reset(pair->stun_client);
@@ -568,8 +552,6 @@ static void nr_ice_candidate_pair_restart_stun_controlled_cb(NR_SOCKET s, int ho
   {
     nr_ice_cand_pair *pair=cb_arg;
     int r,_status;
-
-    pair->restart_controlled_cb_timer=0;
 
     r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s):%d: Restarting pair %s as CONTROLLED",pair->pctx->label,pair->local->stream->label,pair->remote->component->component_id,pair->as_string);
 

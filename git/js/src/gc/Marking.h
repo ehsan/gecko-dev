@@ -18,9 +18,9 @@
 
 extern "C" {
 struct JSContext;
-class JSFunction;
+struct JSFunction;
 struct JSObject;
-class JSScript;
+struct JSScript;
 }
 
 class JSAtom;
@@ -32,7 +32,7 @@ class ArgumentsObject;
 class BaseShape;
 class GlobalObject;
 class UnownedBaseShape;
-class Shape;
+struct Shape;
 
 template<class, typename> class HeapPtr;
 

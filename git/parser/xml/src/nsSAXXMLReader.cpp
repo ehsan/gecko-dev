@@ -24,12 +24,11 @@ using mozilla::dom::EncodingUtils;
 
 static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 
-NS_IMPL_CYCLE_COLLECTION_8(nsSAXXMLReader,
+NS_IMPL_CYCLE_COLLECTION_7(nsSAXXMLReader,
                            mContentHandler,
                            mDTDHandler,
                            mErrorHandler,
                            mLexicalHandler,
-                           mDeclarationHandler,
                            mBaseURI,
                            mListener,
                            mParserObserver)
@@ -290,15 +289,8 @@ nsSAXXMLReader::HandleXMLDeclaration(const PRUnichar *aVersion,
                                      const PRUnichar *aEncoding,
                                      int32_t aStandalone)
 {
-  NS_ASSERTION(aVersion, "null passed to handler");
-  if (mDeclarationHandler) {
-    PRUnichar nullChar = PRUnichar(0);
-    if (!aEncoding)
-      aEncoding = &nullChar;
-    mDeclarationHandler->HandleXMLDeclaration(nsDependentString(aVersion),
-                                              nsDependentString(aEncoding),
-                                              aStandalone > 0);
-  }
+  // XXX need to decide what to do with this. It's a separate
+  // optional interface in SAX.
   return NS_OK;
 }
 
@@ -414,18 +406,6 @@ nsSAXXMLReader::GetFeature(const nsAString &aName, bool *aResult)
     return NS_OK;
   }
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsSAXXMLReader::GetDeclarationHandler(nsIMozSAXXMLDeclarationHandler **aDeclarationHandler) {
-  NS_IF_ADDREF(*aDeclarationHandler = mDeclarationHandler);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSAXXMLReader::SetDeclarationHandler(nsIMozSAXXMLDeclarationHandler *aDeclarationHandler) {
-  mDeclarationHandler = aDeclarationHandler;
-  return NS_OK;
 }
 
 NS_IMETHODIMP

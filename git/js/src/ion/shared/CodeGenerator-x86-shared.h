@@ -63,7 +63,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
 
     Operand createArrayElementOperand(Register elements, const LAllocation *index);
 
-    void emitCompare(MCompare::CompareType type, const LAllocation *left, const LAllocation *right);
+    void emitCompare(MIRType type, const LAllocation *left, const LAllocation *right);
 
     // Emits a conditional set.
     void emitSet(Assembler::Condition cond, const Register &dest,
@@ -84,6 +84,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
   public:
     // Instruction visitors.
     virtual bool visitMinMaxD(LMinMaxD *ins);
+    virtual bool visitNegD(LNegD *ins);
     virtual bool visitAbsD(LAbsD *ins);
     virtual bool visitSqrtD(LSqrtD *ins);
     virtual bool visitPowHalfD(LPowHalfD *ins);

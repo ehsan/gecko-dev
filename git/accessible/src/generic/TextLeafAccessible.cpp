@@ -19,7 +19,7 @@ TextLeafAccessible::
   TextLeafAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   LinkableAccessible(aContent, aDoc)
 {
-  mType = eTextLeafType;
+  mFlags |= eTextLeafAccessible;
 }
 
 TextLeafAccessible::~TextLeafAccessible()

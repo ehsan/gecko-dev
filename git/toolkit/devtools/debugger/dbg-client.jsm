@@ -480,10 +480,9 @@ DebuggerClient.prototype = {
         this._threadClients[aPacket.from]._onThreadState(aPacket);
       }
       // On navigation the server resumes, so the client must resume as well.
-      // We achieve that by generating a fake resumption packet that triggers
+      // We achive that by generating a fake resumption packet that triggers
       // the client's thread state change listeners.
-      if (this.activeThread &&
-          aPacket.type == UnsolicitedNotifications.tabNavigated &&
+      if (aPacket.type == UnsolicitedNotifications.tabNavigated &&
           aPacket.from in this._tabClients) {
         let resumption = { from: this.activeThread._actor, type: "resumed" };
         this.activeThread._onThreadState(resumption);

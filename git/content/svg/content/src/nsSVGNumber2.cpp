@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsError.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSVGNumber2.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
@@ -57,9 +56,6 @@ NS_INTERFACE_MAP_BEGIN(DOMSVGNumber)
 NS_INTERFACE_MAP_END
 
 /* Implementation */
-
-static nsSVGAttrTearoffTable<nsSVGNumber2, nsSVGNumber2::DOMAnimatedNumber>
-  sSVGAnimatedNumberTearoffTable;
 
 static nsresult
 GetValueFromString(const nsAString &aValueAsString,
@@ -155,20 +151,12 @@ nsresult
 nsSVGNumber2::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
                                   nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimatedNumber> domAnimatedNumber =
-    sSVGAnimatedNumberTearoffTable.GetTearoff(this);
-  if (!domAnimatedNumber) {
-    domAnimatedNumber = new DOMAnimatedNumber(this, aSVGElement);
-    sSVGAnimatedNumberTearoffTable.AddTearoff(this, domAnimatedNumber);
-  }
+  *aResult = new DOMAnimatedNumber(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimatedNumber.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGNumber2::DOMAnimatedNumber::~DOMAnimatedNumber()
-{
-  sSVGAnimatedNumberTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*

@@ -12,7 +12,7 @@
 #error "This code is for Linux ARM only. Please check if it works for you, too.\nDepends strongly on gcc behaviour."
 #endif
 
-#ifdef __GNUC__
+#if (__GNUC__ > 3) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 4))
 /* This tells gcc3.4+ not to optimize away symbols.
  * @see http://gcc.gnu.org/gcc-3.4/changes.html
  */

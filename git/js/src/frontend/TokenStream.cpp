@@ -428,12 +428,11 @@ TokenStream::positionAfterLastFunctionKeyword(Position &pos)
 }
 
 bool
-TokenStream::reportStrictModeErrorNumberVA(ParseNode *pn, bool strictMode, unsigned errorNumber,
-                                           va_list args)
+TokenStream::reportStrictModeErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args)
 {
     /* In strict mode code, this is an error, not merely a warning. */
     unsigned flags = JSREPORT_STRICT;
-    if (strictMode)
+    if (strictMode())
         flags |= JSREPORT_ERROR;
     else if (cx->hasStrictOption())
         flags |= JSREPORT_WARNING;
@@ -586,7 +585,7 @@ TokenStream::reportStrictModeError(unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = reportStrictModeErrorNumberVA(NULL, strictMode(), errorNumber, args);
+    bool result = reportStrictModeErrorNumberVA(NULL, errorNumber, args);
     va_end(args);
     return result;
 }
@@ -612,12 +611,14 @@ TokenStream::reportWarning(unsigned errorNumber, ...)
 }
 
 bool
-TokenStream::reportStrictWarningErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args)
+TokenStream::reportStrictWarning(unsigned errorNumber, ...)
 {
-    if (!cx->hasStrictOption())
-        return true;
-
-    return reportCompileErrorNumberVA(NULL, JSREPORT_STRICT | JSREPORT_WARNING, errorNumber, args);
+    va_list args;
+    va_start(args, errorNumber);
+    bool result = reportCompileErrorNumberVA(NULL, JSREPORT_STRICT | JSREPORT_WARNING,
+                                             errorNumber, args);
+    va_end(args);
+    return result;
 }
 
 #if JS_HAS_XML_SUPPORT

@@ -404,7 +404,7 @@ short vcmTxOpen(cc_mcapid_t mcap_id,
  *  @param[in]  port_requested - port requested (if zero -> give any)
  *  @param[out]  port_allocated - port that was actually allocated.
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return    void
  *
  */
 
@@ -416,7 +416,7 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
         int *port_allocated);
 
 
-short vcmRxAllocICE(cc_mcapid_t mcap_id,
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle,
@@ -435,9 +435,9 @@ short vcmRxAllocICE(cc_mcapid_t mcap_id,
  *  @param[out] ufragp - where to put the ufrag
  *  @param[out] pwdp - where to put the pwd
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return void
  */
-short vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp);
+void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp);
 
 /* Set remote ICE global parameters.
  *
@@ -474,10 +474,10 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
 
 /* Start ICE checks
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]  isControlling - true if controlling, false if controlled
+ *  @param[in]  level - the m-line
  *  @return 0 success, error failure
  */
-short vcmStartIceChecks(const char *peerconnection, cc_boolean isControlling);
+short vcmStartIceChecks(const char *peerconnection);
 
 
 
@@ -685,11 +685,11 @@ int vcmTxStart(cc_mcapid_t mcap_id,
  *  @param[in]    stream_id - stream id of the given media type.
  *  @param[in]    call_handle - call handle
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return   None
  *
  */
 
-short vcmRxClose(cc_mcapid_t mcap_id,
+void vcmRxClose(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle);
@@ -702,10 +702,10 @@ short vcmRxClose(cc_mcapid_t mcap_id,
  *  @param[in] stream_id - stream id of the given media type.
  *  @param[in] call_handle - call handle
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return     void
  */
 
-short vcmTxClose(cc_mcapid_t mcap_id,
+void vcmTxClose(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle);

@@ -83,6 +83,7 @@ pointer_match(const T *a, const T *b)
  * - XXXbe patrol
  * - Fuse objects and their JSXML* private data into single GC-things
  * - fix function::foo vs. x.(foo == 42) collision using proper namespacing
+ * - JSCLASS_DOCUMENT_OBSERVER support -- live two-way binding to Gecko's DOM!
  */
 
 /*
@@ -1855,6 +1856,10 @@ ToXML(JSContext *cx, jsval v)
         }
 
         clasp = obj->getClass();
+        if (clasp->flags & JSCLASS_DOCUMENT_OBSERVER) {
+            JS_ASSERT(0);
+        }
+
         if (clasp != &StringClass &&
             clasp != &NumberClass &&
             clasp != &BooleanClass) {
@@ -1933,6 +1938,10 @@ ToXMLList(JSContext *cx, jsval v)
         }
 
         clasp = obj->getClass();
+        if (clasp->flags & JSCLASS_DOCUMENT_OBSERVER) {
+            JS_ASSERT(0);
+        }
+
         if (clasp != &StringClass &&
             clasp != &NumberClass &&
             clasp != &BooleanClass) {
@@ -5887,13 +5896,7 @@ xml_hasOwnProperty(JSContext *cx, unsigned argc, jsval *vp)
     RootedId id(cx);
     if (!ValueToId(cx, name, id.address()))
         return false;
-
-    RootedObject obj2(cx);
-    RootedShape prop(cx);
-    if (!js_HasOwnProperty(cx, baseops::LookupProperty, obj, id, &obj2, &prop))
-        return false;
-    args.rval().setBoolean(!!prop);
-    return true;
+    return js_HasOwnPropertyHelper(cx, baseops::LookupProperty, obj, id, args.rval());
 }
 
 /* XML and XMLList */
@@ -7128,7 +7131,8 @@ XML(JSContext *cx, unsigned argc, Value *vp)
     if (IsConstructing(vp) && !JSVAL_IS_PRIMITIVE(v)) {
         vobj = JSVAL_TO_OBJECT(v);
         clasp = vobj->getClass();
-        if (clasp == &XMLClass) {
+        if (clasp == &XMLClass ||
+            (clasp->flags & JSCLASS_DOCUMENT_OBSERVER)) {
             copy = DeepCopy(cx, xml, NULL, 0);
             if (!copy)
                 return JS_FALSE;

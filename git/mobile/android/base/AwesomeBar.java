@@ -60,10 +60,9 @@ public class AwesomeBar extends GeckoActivity {
     static final String CURRENT_URL_KEY = "currenturl";
     static final String TARGET_KEY = "target";
     static final String SEARCH_KEY = "search";
-    static final String TITLE_KEY = "title";
     static final String USER_ENTERED_KEY = "user_entered";
     static final String READING_LIST_KEY = "reading_list";
-    public static enum Target { NEW_TAB, CURRENT_TAB, PICK_SITE };
+    public static enum Target { NEW_TAB, CURRENT_TAB };
 
     private String mTarget;
     private AwesomeBarTabs mAwesomeTabs;
@@ -92,8 +91,8 @@ public class AwesomeBar extends GeckoActivity {
 
         mAwesomeTabs = (AwesomeBarTabs) findViewById(R.id.awesomebar_tabs);
         mAwesomeTabs.setOnUrlOpenListener(new AwesomeBarTabs.OnUrlOpenListener() {
-            public void onUrlOpen(String url, String title) {
-                openUrlAndFinish(url, title, false);
+            public void onUrlOpen(String url) {
+                openUrlAndFinish(url);
             }
 
             public void onSearch(String engine, String text) {
@@ -348,16 +347,8 @@ public class AwesomeBar extends GeckoActivity {
     }
 
     private void openUrlAndFinish(String url) {
-        openUrlAndFinish(url, null, false);
-    }
-
-    private void openUrlAndFinish(String url, String title, boolean userEntered) {
         Intent resultIntent = new Intent();
         resultIntent.putExtra(URL_KEY, url);
-        if (title != null && !TextUtils.isEmpty(title))
-            resultIntent.putExtra(TITLE_KEY, title);
-        if (userEntered)
-            resultIntent.putExtra(USER_ENTERED_KEY, userEntered);
         resultIntent.putExtra(TARGET_KEY, mTarget);
         finishWithResult(resultIntent);
     }
@@ -380,7 +371,11 @@ public class AwesomeBar extends GeckoActivity {
             url = keywordUrl.replace("%s", search);
         }
 
-        openUrlAndFinish(url, "", true);
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra(URL_KEY, url);
+        resultIntent.putExtra(TARGET_KEY, mTarget);
+        resultIntent.putExtra(USER_ENTERED_KEY, true);
+        finishWithResult(resultIntent);
     }
 
     private void openSearchAndFinish(String url, String engine) {

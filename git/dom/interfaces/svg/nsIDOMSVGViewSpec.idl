@@ -5,6 +5,7 @@
 
 #include "nsIDOMSVGZoomAndPan.idl"
 
+interface nsIDOMSVGTransformList;
 interface nsIDOMSVGElement;
 
 [scriptable, uuid(ede34b03-57b6-45bf-a259-3550b5697286)]
@@ -20,8 +21,7 @@ interface nsIDOMSVGViewSpec : nsIDOMSVGZoomAndPan
     nsIDOMSVGFitToViewBox
 */
 { 
-  // SVGTransformList
-  readonly attribute nsISupports            transform;
+  readonly attribute nsIDOMSVGTransformList transform;
   readonly attribute nsIDOMSVGElement       viewTarget;
   readonly attribute DOMString              viewBoxString;
   readonly attribute DOMString              preserveAspectRatioString;

@@ -27,7 +27,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEvent.h"
@@ -6252,7 +6252,7 @@ nsBlockFrame::AccessibleType()
 {
   // block frame may be for <hr>
   if (mContent->Tag() == nsGkAtoms::hr) {
-    return a11y::eHTMLHRType;
+    return a11y::eHTMLHR;
   }
 
   if (!HasBullet() || !PresContext()) {
@@ -6275,11 +6275,11 @@ nsBlockFrame::AccessibleType()
     }
 
     // Not a bullet, treat as normal HTML container
-    return a11y::eHyperTextType;
+    return a11y::eHyperText;
   }
 
   // Create special list bullet accessible
-  return a11y::eHTMLLiType;
+  return a11y::eHTMLLi;
 }
 #endif
 

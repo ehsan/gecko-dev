@@ -221,7 +221,8 @@ public:
         mUVSOffset(0), mUVSData(nullptr),
         mUserFontData(nullptr),
         mSVGGlyphs(nullptr),
-        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE)
+        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mFamily(aFamily)
     { }
 
     virtual ~gfxFontEntry();
@@ -230,18 +231,11 @@ public:
     // "real" or user-friendly name, may be an internal identifier
     const nsString& Name() const { return mName; }
 
-    // The following two methods may be relatively expensive, as they
-    // will (usually, except on Linux) load and parse the 'name' table;
-    // they are intended only for the font-inspection API, not for
-    // perf-critical layout/drawing work.
-
-    // The "real" name of the face, if available from the font resource;
-    // returns Name() if nothing better is available.
+    // the "real" name of the face, if available from the font resource
+    // (may be expensive); returns Name() if nothing better is available
     virtual nsString RealFaceName();
 
-    // The family name (if available) that would be used in css font-family
-    // properties; returns Name() if nothing better available.
-    virtual nsString FamilyName();
+    gfxFontFamily* Family() const { return mFamily; }
 
     uint16_t Weight() const { return mWeight; }
     int16_t Stretch() const { return mStretch; }
@@ -304,6 +298,12 @@ public:
     virtual nsresult GetFontTable(uint32_t aTableTag, FallibleTArray<uint8_t>& aBuffer) {
         return NS_ERROR_FAILURE; // all platform subclasses should reimplement this!
     }
+
+    void SetFamily(gfxFontFamily* aFamily) {
+        mFamily = aFamily;
+    }
+
+    virtual nsString FamilyName() const;
 
     already_AddRefed<gfxFont> FindOrMakeFont(const gfxFontStyle *aStyle,
                                              bool aNeedsBold);
@@ -390,7 +390,8 @@ protected:
         mUVSOffset(0), mUVSData(nullptr),
         mUserFontData(nullptr),
         mSVGGlyphs(nullptr),
-        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE)
+        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mFamily(nullptr)
     { }
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold) {
@@ -401,6 +402,8 @@ protected:
 #ifdef MOZ_GRAPHITE
     virtual void CheckForGraphiteTables();
 #endif
+
+    gfxFontFamily *mFamily;
 
 private:
 
@@ -522,7 +525,6 @@ struct GlobalFontMatch {
     const gfxFontStyle*    mStyle;       // style to match
     int32_t                mMatchRank;   // metric indicating closest match
     nsRefPtr<gfxFontEntry> mBestMatch;   // current best match
-    nsRefPtr<gfxFontFamily> mMatchedFamily; // the family it belongs to
     uint32_t               mCount;       // number of fonts matched
     uint32_t               mCmapsTested; // number of cmaps tested
 };
@@ -542,7 +544,18 @@ public:
         mFamilyCharacterMapInitialized(false)
         { }
 
-    virtual ~gfxFontFamily() { }
+    virtual ~gfxFontFamily() {
+        // clear Family pointers in our faces; the font entries might stay
+        // alive due to cached font objects, but they can no longer refer
+        // to their families.
+        uint32_t i = mAvailableFonts.Length();
+        while (i) {
+             gfxFontEntry *fe = mAvailableFonts[--i];
+             if (fe) {
+                 fe->SetFamily(nullptr);
+             }
+        }
+    }
 
     const nsString& Name() { return mName; }
 
@@ -560,6 +573,7 @@ public:
             aFontEntry->mIgnoreGDEF = true;
         }
         mAvailableFonts.AppendElement(aFontEntry);
+        aFontEntry->SetFamily(this);
     }
 
     // note that the styles for this family have been added
@@ -651,17 +665,6 @@ public:
                                      FontListSizes*    aSizes) const;
     virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-
-    // Only used for debugging checks - does a linear search
-    bool ContainsFace(gfxFontEntry* aFontEntry) {
-        uint32_t i, numFonts = mAvailableFonts.Length();
-        for (i = 0; i < numFonts; i++) {
-            if (mAvailableFonts[i] == aFontEntry) {
-                return true;
-            }
-        }
-        return false;
-    }
 
 protected:
     // fills in an array with weights of faces that match style,
@@ -2997,27 +3000,6 @@ private:
 
 class THEBES_API gfxFontGroup : public gfxTextRunFactory {
 public:
-    class FamilyFace {
-    public:
-        FamilyFace() { }
-
-        FamilyFace(gfxFontFamily* aFamily, gfxFont* aFont)
-            : mFamily(aFamily), mFont(aFont)
-        {
-            NS_ASSERTION(aFont, "font pointer must not be null");
-            NS_ASSERTION(!aFamily ||
-                         aFamily->ContainsFace(aFont->GetFontEntry()),
-                         "font is not a member of the given family");
-        }
-
-        gfxFontFamily* Family() const { return mFamily.get(); }
-        gfxFont* Font() const { return mFont.get(); }
-
-    private:
-        nsRefPtr<gfxFontFamily> mFamily;
-        nsRefPtr<gfxFont>       mFont;
-    };
-
     static void Shutdown(); // platform must call this to release the languageAtomService
 
     gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet = nullptr);
@@ -3032,23 +3014,10 @@ public:
         NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
                      "Whoever was caching this font group should have "
                      "called UpdateFontList on it");
-        NS_ASSERTION(mFonts.Length() > uint32_t(i) && mFonts[i].Font(), 
+        NS_ASSERTION(mFonts.Length() > uint32_t(i), 
                      "Requesting a font index that doesn't exist");
 
-        return mFonts[i].Font();
-    }
-
-    // Return the family name of the primary font in the group.
-    // Note that gfxPangoFontGroup (for the Linux/Fontconfig backend),
-    // which does not have gfxFontFamily objects, must override this.
-    virtual nsString GetFamilyNameAt(int32_t i) {
-        NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
-                     "Whoever was caching this font group should have "
-                     "called UpdateFontList on it");
-        NS_ASSERTION(mFonts.Length() > uint32_t(i) && mFonts[i].Family(),
-                     "No fonts in the group!");
-
-        return mFonts[i].Family()->Name();
+        return static_cast<gfxFont*>(mFonts[i]);
     }
 
     uint32_t FontListLength() const {
@@ -3172,7 +3141,7 @@ public:
 protected:
     nsString mFamilies;
     gfxFontStyle mStyle;
-    nsTArray<FamilyFace> mFonts;
+    nsTArray< nsRefPtr<gfxFont> > mFonts;
     gfxFloat mUnderlineOffset;
 
     gfxUserFontSet* mUserFontSet;
@@ -3247,10 +3216,10 @@ protected:
                                void *closure);
 
     // Helper for font-matching:
-    // see if aCh is supported in any of the faces from aFamily;
+    // see if aCh is supported in any of the other faces from aFont's family;
     // if so return the best style match, else return null.
-    already_AddRefed<gfxFont> TryAllFamilyMembers(gfxFontFamily* aFamily,
-                                                  uint32_t aCh);
+    already_AddRefed<gfxFont> TryOtherFamilyMembers(gfxFont* aFont,
+                                                    uint32_t aCh);
 
     static bool FontResolverProc(const nsAString& aName, void *aClosure);
 

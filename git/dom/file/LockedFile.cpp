@@ -204,7 +204,8 @@ CreateGenericEvent(const nsAString& aType, bool aBubbles, bool aCancelable)
   nsresult rv = event->InitEvent(aType, aBubbles, aCancelable);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, nullptr);
 
   return event.forget();
 }
@@ -952,10 +953,10 @@ FinishHelper::Run()
   }
 
   for (uint32_t index = 0; index < mParallelStreams.Length(); index++) {
-    nsCOMPtr<nsIInputStream> stream =
+    nsCOMPtr<nsIOutputStream> ostream =
       do_QueryInterface(mParallelStreams[index]);
 
-    if (NS_FAILED(stream->Close())) {
+    if (NS_FAILED(ostream->Close())) {
       NS_WARNING("Failed to close stream!");
     }
 
@@ -963,9 +964,9 @@ FinishHelper::Run()
   }
 
   if (mStream) {
-    nsCOMPtr<nsIInputStream> stream = do_QueryInterface(mStream);
+    nsCOMPtr<nsIOutputStream> ostream = do_QueryInterface(mStream);
 
-    if (NS_FAILED(stream->Close())) {
+    if (NS_FAILED(ostream->Close())) {
       NS_WARNING("Failed to close stream!");
     }
 

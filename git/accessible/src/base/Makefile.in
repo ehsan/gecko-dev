@@ -82,7 +82,6 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../xul \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/style \
-  -I$(srcdir)/../../../layout/svg \
   -I$(srcdir)/../../../layout/xul/base/src \
   $(NULL)
 

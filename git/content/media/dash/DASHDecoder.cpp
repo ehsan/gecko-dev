@@ -235,7 +235,7 @@ DASHDecoder::NotifyDownloadEnded(nsresult aStatus)
     // Create reader thread for |ChannelMediaResource|::|Read|.
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(this, &DASHDecoder::ReadMPDBuffer);
-    NS_ENSURE_TRUE_VOID(event);
+    NS_ENSURE_TRUE(event, );
 
     nsresult rv = NS_NewNamedThread("DASH MPD Reader",
                                     getter_AddRefs(mMPDReaderThread),
@@ -393,12 +393,12 @@ DASHDecoder::CreateRepDecoders()
 
   // For each audio/video stream, create a |ChannelMediaResource| object.
 
-  for (uint32_t i = 0; i < mMPDManager->GetNumAdaptationSets(); i++) {
+  for (int i = 0; i < mMPDManager->GetNumAdaptationSets(); i++) {
     IMPDManager::AdaptationSetType asType = mMPDManager->GetAdaptationSetType(i);
     if (asType == IMPDManager::DASH_VIDEO_STREAM) {
       mVideoAdaptSetIdx = i;
     }
-    for (uint32_t j = 0; j < mMPDManager->GetNumRepresentations(i); j++) {
+    for (int j = 0; j < mMPDManager->GetNumRepresentations(i); j++) {
       // Get URL string.
       nsAutoString segmentUrl;
       nsresult rv = mMPDManager->GetFirstSegmentUrl(i, j, segmentUrl);
@@ -704,7 +704,7 @@ DASHDecoder::NotifyDownloadEnded(DASHRepDecoder* aRepDecoder,
       // Do Stream Switching here before loading next bytes.
       // Audio stream switching not supported.
       if (aRepDecoder == VideoRepDecoder() &&
-          (uint32_t)mVideoSubsegmentIdx < VideoRepDecoder()->GetNumDataByteRanges()) {
+          mVideoSubsegmentIdx < VideoRepDecoder()->GetNumDataByteRanges()) {
         nsresult rv = PossiblySwitchDecoder(aRepDecoder);
         if (NS_FAILED(rv)) {
           LOG("Failed possibly switching decoder rv[0x%x]", rv);
@@ -792,12 +792,12 @@ DASHDecoder::Shutdown()
 
   // Call parent class shutdown.
   MediaDecoder::Shutdown();
-  NS_ENSURE_TRUE_VOID(mShuttingDown);
+  NS_ENSURE_TRUE(mShuttingDown, );
 
   // Shutdown reader thread if not already done.
   if (mMPDReaderThread) {
     nsresult rv = mMPDReaderThread->Shutdown();
-    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_SUCCESS(rv, );
     mMPDReaderThread = nullptr;
   }
 
@@ -961,7 +961,7 @@ DASHDecoder::PossiblySwitchDecoder(DASHRepDecoder* aRepDecoder)
                  NS_ERROR_ILLEGAL_VALUE);
 
   // Notify reader and sub decoders and do the switch.
-  if (toDecoderIdx != (uint32_t)mVideoRepDecoderIdx) {
+  if (toDecoderIdx != mVideoRepDecoderIdx) {
     LOG("*** Switching video decoder from [%d] [%p] to [%d] [%p] at "
         "subsegment [%d]", mVideoRepDecoderIdx, VideoRepDecoder(),
         toDecoderIdx, mVideoRepDecoders[toDecoderIdx].get(),

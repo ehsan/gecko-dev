@@ -40,7 +40,6 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGPathGeometryFrame)
 
 NS_QUERYFRAME_HEAD(nsSVGPathGeometryFrame)
   NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-  NS_QUERYFRAME_ENTRY(nsSVGPathGeometryFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGPathGeometryFrameBase)
 
 //----------------------------------------------------------------------
@@ -310,28 +309,7 @@ nsSVGPathGeometryFrame::ReflowSVG()
   if ((hitTestFlags & SVG_HIT_TEST_STROKE)) {
    flags |= nsSVGUtils::eBBoxIncludeStrokeGeometry;
   }
- 
-  // We'd like to just pass the identity matrix to GetBBoxContribution, but if
-  // this frame's user space size is _very_ large/small then the extents we
-  // obtain below might have overflowed or otherwise be broken. This would
-  // cause us to end up with a broken mRect and visual overflow rect and break
-  // painting of this frame. This is particularly noticeable if the transforms
-  // between us and our nsSVGOuterSVGFrame scale this frame to a reasonable
-  // size. To avoid this we sadly have to do extra work to account for the
-  // transforms between us and our nsSVGOuterSVGFrame, even though the
-  // overwhelming number of SVGs will never have this problem.
-  // XXX Will Azure eventually save us from having to do this?
-  gfxSize scaleFactors = GetCanvasTM(FOR_OUTERSVG_TM).ScaleFactors(true);
-  bool applyScaling = fabs(scaleFactors.width) >= 1e-6 &&
-                      fabs(scaleFactors.height) >= 1e-6;
-  gfxMatrix scaling;
-  if (applyScaling) {
-    scaling.Scale(scaleFactors.width, scaleFactors.height);
-  }
-  gfxRect extent = GetBBoxContribution(scaling, flags);
-  if (applyScaling) {
-    extent.Scale(1 / scaleFactors.width, 1 / scaleFactors.height);
-  }
+  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags);
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent,
             PresContext()->AppUnitsPerCSSPixel());
 

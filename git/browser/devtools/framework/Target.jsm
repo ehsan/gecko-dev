@@ -170,7 +170,7 @@ Object.defineProperty(Target.prototype, "version", {
  * be web pages served over http(s), but they don't have to be.
  */
 function TabTarget(tab) {
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
   this._tab = tab;
   this._setupListeners();
 }
@@ -199,10 +199,6 @@ TabTarget.prototype = {
 
   get isRemote() {
     return false;
-  },
-
-  get isLocalTab() {
-    return true;
   },
 
   /**
@@ -295,10 +291,9 @@ TabWebProgressListener.prototype = {
   onSecurityChange: function() {},
   onStatusChange: function() {},
 
-  onLocationChange: function TwPL_onLocationChange(webProgress, request, URI, flags) {
-    if (this.target &&
-        !(flags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT)) {
-      let window = webProgress.DOMWindow;
+  onLocationChange: function TwPL_onLocationChange(webProgress) {
+    let window = webProgress.DOMWindow;
+    if (this.target) {
       this.target.emit("navigate", window);
     }
   },
@@ -310,7 +305,7 @@ TabWebProgressListener.prototype = {
  * these will have a chrome: URL
  */
 function WindowTarget(window) {
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
   this._window = window;
 }
 
@@ -331,10 +326,6 @@ WindowTarget.prototype = {
   },
 
   get isRemote() {
-    return false;
-  },
-
-  get isLocalTab() {
     return false;
   },
 
@@ -363,7 +354,7 @@ WindowTarget.prototype = {
  * A RemoteTarget represents a page living in a remote Firefox instance.
  */
 function RemoteTarget(form, client, chrome) {
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
   this._client = client;
   this._form = form;
   this._chrome = chrome;
@@ -371,12 +362,8 @@ function RemoteTarget(form, client, chrome) {
   this.destroy = this.destroy.bind(this);
   this.client.addListener("tabDetached", this.destroy);
 
-  this._onTabNavigated = function onRemoteTabNavigated(aType, aPacket) {
-    if (aPacket.state == "start") {
-      this.emit("will-navigate", aPacket);
-    } else {
-      this.emit("navigate", aPacket);
-    }
+  this._onTabNavigated = function onRemoteTabNavigated() {
+    this.emit("navigate");
   }.bind(this);
   this.client.addListener("tabNavigated", this._onTabNavigated);
 }
@@ -389,15 +376,13 @@ RemoteTarget.prototype = {
 
   get chrome() this._chrome,
 
-  get name() this._form.title,
+  get name() this._form._title,
 
-  get url() this._form.url,
+  get url() this._form._url,
 
   get client() this._client,
 
   get form() this._form,
-
-  get isLocalTab() false,
 
   /**
    * Target is not alive anymore.

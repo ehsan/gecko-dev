@@ -58,10 +58,9 @@ public:
 
   // Callers to Init or ChangeOwner are required to call NotifyListener after
   // (although not immediately after) doing so.
-  nsresult Init(imgRequest* aOwner,
+  nsresult Init(imgStatusTracker* aStatusTracker,
                 nsILoadGroup *aLoadGroup,
-                nsIURI* aURI,
-                imgINotificationObserver *aObserver);
+                nsIURI* aURI, imgINotificationObserver *aObserver);
 
   nsresult ChangeOwner(imgRequest *aNewOwner); // this will change mOwner.  Do not call this if the previous
                                                // owner has already sent notifications out!
@@ -136,8 +135,7 @@ protected:
   // class) imgStatusTracker is the only class allowed to send us
   // notifications.
 
-  /* non-virtual imgDecoderObserver methods */
-  void OnStartDecode     ();
+  /* non-virtual imgIDecoderObserver methods */
   void OnStartContainer  ();
   void OnFrameUpdate     (const nsIntRect * aRect);
   void OnStopFrame       ();

@@ -133,8 +133,7 @@ IceCandidate.prototype = {
     if (candidateInitDict !== undefined) {
       this.candidate = candidateInitDict.candidate || null;
       this.sdpMid = candidateInitDict.sdbMid || null;
-      this.sdpMLineIndex = candidateInitDict.sdpMLineIndex === null ?
-            null : candidateInitDict.sdpMLineIndex + 1;
+      this.sdpMLineIndex = candidateInitDict.sdpMLineIndex || null;
     } else {
       this.candidate = this.sdpMid = this.sdpMLineIndex = null;
     }
@@ -210,7 +209,6 @@ function PeerConnection() {
   this.onstatechange = null;
   this.ongatheringchange = null;
   this.onicechange = null;
-  this.localDescription = null;
   this.remoteDescription = null;
 
   // Data channel.
@@ -441,11 +439,6 @@ PeerConnection.prototype = {
         );
         break;
     }
-
-    this.localDescription = {
-      type: desc.type, sdp: desc.sdp,
-      __exposedProps__: { type: "rw", sdp: "rw"}
-    };
 
     this.remoteDescription = {
       type: desc.type, sdp: desc.sdp,

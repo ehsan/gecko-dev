@@ -86,8 +86,8 @@ namespace ipc {
 
 NetdClient::NetdClient()
   : LineWatcher('\0', MAX_COMMAND_SIZE)
-  , mIOLoop(MessageLoopForIO::current())
   , mSocket(INVALID_SOCKET)
+  , mIOLoop(MessageLoopForIO::current())
   , mCurrentWriteOffset(0)
   , mReConnectTimes(0)
 {

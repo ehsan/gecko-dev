@@ -21,7 +21,6 @@ XPIDLSRCS = \
   nsIDOMSmsRequest.idl \
   nsIDOMSmsFilter.idl \
   nsIDOMSmsCursor.idl \
-  nsIDOMSmsSegmentInfo.idl \
   nsISmsDatabaseService.idl \
   nsISmsRequest.idl \
   nsISmsService.idl \

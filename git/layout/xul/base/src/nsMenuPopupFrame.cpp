@@ -122,9 +122,9 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX Hack. The popup's view should float above all other views,
-  // so we use the nsView::SetFloating() to tell the view manager
+  // so we use the nsIView::SetFloating() to tell the view manager
   // about that constraint.
-  nsView* ourView = GetView();
+  nsIView* ourView = GetView();
   nsIViewManager* viewManager = ourView->GetViewManager();
   viewManager->SetViewFloating(ourView, true);
 
@@ -227,7 +227,7 @@ nsMenuPopupFrame::PopupLevel(bool aIsNoAutoHide) const
 void
 nsMenuPopupFrame::EnsureWidget()
 {
-  nsView* ourView = GetView();
+  nsIView* ourView = GetView();
   if (!ourView->HasWidget()) {
     NS_ASSERTION(!mGeneratedChildren && !GetFirstPrincipalChild(),
                  "Creating widget for MenuPopupFrame with children");
@@ -236,7 +236,7 @@ nsMenuPopupFrame::EnsureWidget()
 }
 
 nsresult
-nsMenuPopupFrame::CreateWidgetForView(nsView* aView)
+nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
 {
   // Create a widget for ourselves.
   nsWidgetInitData widgetData;
@@ -448,7 +448,7 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, b
   }
 
   nsPresContext* pc = PresContext();
-  nsView* view = GetView();
+  nsIView* view = GetView();
 
   if (sizeChanged) {
     // If the size of the popup changed, apply any size constraints.
@@ -793,7 +793,7 @@ nsMenuPopupFrame::HidePopup(bool aDeselectMenu, nsPopupState aNewState)
   mCurrentMenu = nullptr; // make sure no current menu is set
   mHFlip = mVFlip = false;
 
-  nsView* view = GetView();
+  nsIView* view = GetView();
   nsIViewManager* viewManager = view->GetViewManager();
   viewManager->SetViewVisibility(view, nsViewVisibility_kHide);
 
@@ -827,10 +827,10 @@ nsMenuPopupFrame::GetLayoutFlags(uint32_t& aFlags)
 //   Retrieves the view for the popup widget that contains the given frame. 
 //   If the given frame is not contained by a popup widget, return the
 //   root view of the root viewmanager.
-nsView*
+nsIView*
 nsMenuPopupFrame::GetRootViewForPopup(nsIFrame* aStartFrame)
 {
-  nsView* view = aStartFrame->GetClosestView();
+  nsIView* view = aStartFrame->GetClosestView();
   NS_ASSERTION(view, "frame must have a closest view!");
   while (view) {
     // Walk up the view hierarchy looking for a view whose widget has a 
@@ -845,7 +845,7 @@ nsMenuPopupFrame::GetRootViewForPopup(nsIFrame* aStartFrame)
       }
     }
 
-    nsView* temp = view->GetParent();
+    nsIView* temp = view->GetParent();
     if (!temp) {
       // Otherwise, we've walked all the way up to the root view and not
       // found a view for a popup window widget. Just return the root view.
@@ -865,8 +865,8 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(nsRect& anchorRect,
   int8_t popupAnchor(mPopupAnchor);
   int8_t popupAlign(mPopupAlignment);
   if (IsDirectionRTL()) {
-    // no need to flip the centered anchor types vertically
-    if (popupAnchor <= POPUPALIGNMENT_LEFTCENTER) {
+    // no need to flip the centered anchor types
+    if (popupAnchor < POPUPALIGNMENT_LEFTCENTER) {
       popupAnchor = -popupAnchor;
     }
     popupAlign = -popupAlign;
@@ -946,28 +946,25 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(nsRect& anchorRect,
   // however horizontally, we want to to use the inside edges so the popup
   // still appears underneath the anchor menu instead of floating off the
   // side of the menu.
-  switch (popupAnchor) {
-    case POPUPALIGNMENT_LEFTCENTER:
-    case POPUPALIGNMENT_RIGHTCENTER:
+  if (popupAnchor >= POPUPALIGNMENT_LEFTCENTER) {
+    if (popupAnchor == POPUPALIGNMENT_LEFTCENTER ||
+        popupAnchor == POPUPALIGNMENT_RIGHTCENTER) {
       aHFlip = FlipStyle_Outside;
       aVFlip = FlipStyle_Inside;
-      break;
-    case POPUPALIGNMENT_TOPCENTER:
-    case POPUPALIGNMENT_BOTTOMCENTER:
+    }
+    else {
       aHFlip = FlipStyle_Inside;
       aVFlip = FlipStyle_Outside;
-      break;
-    default:
-    {
-      FlipStyle anchorEdge = mFlipBoth ? FlipStyle_Inside : FlipStyle_None;
-      aHFlip = (popupAnchor == -popupAlign) ? FlipStyle_Outside : anchorEdge;
-      if (((popupAnchor > 0) == (popupAlign > 0)) ||
-          (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT))
-        aVFlip = FlipStyle_Outside;
-      else
-        aVFlip = anchorEdge;
-      break;
     }
+  }
+  else {
+    FlipStyle anchorEdge = mFlipBoth ? FlipStyle_Inside : FlipStyle_None;
+    aHFlip = (popupAnchor == -popupAlign) ? FlipStyle_Outside : anchorEdge;
+    if (((popupAnchor > 0) == (popupAlign > 0)) ||
+        (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT))
+      aVFlip = FlipStyle_Outside;
+    else
+      aVFlip = anchorEdge;
   }
 
   return pnt;
@@ -1271,7 +1268,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, bool aIsMove)
   viewPoint.x = presContext->RoundAppUnitsToNearestDevPixels(viewPoint.x);
   viewPoint.y = presContext->RoundAppUnitsToNearestDevPixels(viewPoint.y);
 
-  nsView* view = GetView();
+  nsIView* view = GetView();
   NS_ASSERTION(view, "popup with no view");
 
   // Offset the position by the width and height of the borders and titlebar.
@@ -1731,7 +1728,7 @@ nsMenuPopupFrame::LockMenuUntilClosed(bool aLock)
 nsIWidget*
 nsMenuPopupFrame::GetWidget()
 {
-  nsView * view = GetRootViewForPopup(this);
+  nsIView * view = GetRootViewForPopup(this);
   if (!view)
     return nullptr;
 
@@ -1773,7 +1770,7 @@ nsMenuPopupFrame::AttributeChanged(int32_t aNameSpaceID,
 
   if (aAttribute == nsGkAtoms::label) {
     // set the label for the titlebar
-    nsView* view = GetView();
+    nsIView* view = GetView();
     if (view) {
       nsIWidget* widget = view->GetWidget();
       if (widget) {
@@ -1923,7 +1920,7 @@ nsMenuPopupFrame::CreatePopupView()
   NS_ASSERTION(nullptr != viewManager, "null view manager");
 
   // Create a view
-  nsView* parentView = viewManager->GetRootView();
+  nsIView* parentView = viewManager->GetRootView();
   nsViewVisibility visibility = nsViewVisibility_kHide;
   int32_t zIndex = INT32_MAX;
   bool    autoZIndex = false;
@@ -1931,7 +1928,7 @@ nsMenuPopupFrame::CreatePopupView()
   NS_ASSERTION(parentView, "no parent view");
 
   // Create a view
-  nsView *view = viewManager->CreateView(GetRect(), parentView, visibility);
+  nsIView *view = viewManager->CreateView(GetRect(), parentView, visibility);
   if (view) {
     viewManager->SetViewZIndex(view, autoZIndex, zIndex);
     // XXX put view last in document order until we can do better

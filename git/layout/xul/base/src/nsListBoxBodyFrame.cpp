@@ -21,7 +21,7 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIScrollableFrame.h"
 #include "nsScrollbarFrame.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
 #include "nsFontMetrics.h"

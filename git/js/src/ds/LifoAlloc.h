@@ -10,7 +10,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/GuardObjects.h"
 
 /*
  * This data structure supports stacky LIFO allocation (mark/release and
@@ -350,14 +349,13 @@ class LifoAllocScope
     LifoAlloc   *lifoAlloc;
     void        *mark;
     bool        shouldRelease;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
     explicit LifoAllocScope(LifoAlloc *lifoAlloc
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : lifoAlloc(lifoAlloc), shouldRelease(true)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : lifoAlloc(lifoAlloc), shouldRelease(true) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         mark = lifoAlloc->mark();
     }
 

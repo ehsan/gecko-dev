@@ -66,12 +66,10 @@ CountWakeLocks(const uint64_t& aKey, LockCount aCount, void* aUserArg)
 }
 
 static PLDHashOperator
-RemoveChildFromList(const nsAString& aKey, nsAutoPtr<ProcessLockTable>& aTable,
-                    void* aUserArg)
+RemoveChildFromList(const nsAString& aKey, ProcessLockTable* aTable, void* aUserArg)
 {
   MOZ_ASSERT(aUserArg);
 
-  PLDHashOperator op = PL_DHASH_NEXT;
   uint64_t childID = *static_cast<uint64_t*>(aUserArg);
   if (aTable->Get(childID, NULL)) {
     aTable->Remove(childID);
@@ -80,7 +78,7 @@ RemoveChildFromList(const nsAString& aKey, nsAutoPtr<ProcessLockTable>& aTable,
       WakeLockInformation info;
       aTable->EnumerateRead(CountWakeLocks, &totalCount);
       if (!totalCount.numLocks) {
-        op = PL_DHASH_REMOVE;
+        sLockTable->Remove(aKey);
       }
       info.numLocks() = totalCount.numLocks;
       info.numHidden() = totalCount.numHidden;
@@ -89,7 +87,7 @@ RemoveChildFromList(const nsAString& aKey, nsAutoPtr<ProcessLockTable>& aTable,
     }
   }
 
-  return op;
+  return PL_DHASH_NEXT;
 }
 
 class ClearHashtableOnShutdown MOZ_FINAL : public nsIObserver {
@@ -138,7 +136,7 @@ CleanupOnContentShutdown::Observe(nsISupports* aSubject, const char* aTopic, con
   nsresult rv = props->GetPropertyAsUint64(NS_LITERAL_STRING("childID"),
                                            &childID);
   if (NS_SUCCEEDED(rv)) {
-    sLockTable->Enumerate(RemoveChildFromList, &childID);
+    sLockTable->EnumerateRead(RemoveChildFromList, &childID);
   } else {
     NS_WARNING("ipc:content-shutdown message without childID property");
   }

@@ -458,13 +458,14 @@ public:
     nsCOMPtr<nsIURI> uri;
     (void)NS_NewURI(getter_AddRefs(uri), mPlace.spec);
 
-    // Notify the visit.  Note that TRANSITION_EMBED visits are never added
-    // to the database, thus cannot be queried and we don't notify them.
-    if (mPlace.transitionType != nsINavHistoryService::TRANSITION_EMBED) {
+    // Notify nsNavHistory observers of visit, but only for certain types of
+    // visits to maintain consistency with nsNavHistory::GetQueryResults.
+    if (!mPlace.hidden &&
+        mPlace.transitionType != nsINavHistoryService::TRANSITION_EMBED &&
+        mPlace.transitionType != nsINavHistoryService::TRANSITION_FRAMED_LINK) {
       navHistory->NotifyOnVisit(uri, mPlace.visitId, mPlace.visitTime,
                                 mPlace.sessionId, mReferrer.visitId,
-                                mPlace.transitionType, mPlace.guid,
-                                mPlace.hidden);
+                                mPlace.transitionType, mPlace.guid);
     }
 
     nsCOMPtr<nsIObserverService> obsService =
@@ -1402,7 +1403,8 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf,
+                                     "history-links-hashtable")
 
 int64_t GetHistoryObserversSize()
 {
@@ -2019,7 +2021,7 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendSetURITitle(uri, PromiseFlatString(aTitle));
+    (void)cpc->SendSetURITitle(uri, nsString(aTitle));
     return NS_OK;
   } 
 

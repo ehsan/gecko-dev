@@ -255,7 +255,6 @@ _BROWSER_FILES = \
                  plugin_bug749455.html \
                  plugin_bug797677.html \
                  plugin_bug818009.html \
-                 plugin_bug820497.html \
                  plugin_hidden_to_visible.html \
                  plugin_two_types.html \
                  alltabslistener.html \
@@ -284,7 +283,6 @@ _BROWSER_FILES = \
                  browser_bug812562.js \
                  browser_bug818009.js \
                  browser_bug818118.js \
-                 browser_bug820497.js \
                  blockPluginVulnerableUpdatable.xml \
                  blockPluginVulnerableNoUpdate.xml \
                  blockNoPlugins.xml \
@@ -292,7 +290,6 @@ _BROWSER_FILES = \
                  browser_bug676619.js \
                  download_page.html \
                  browser_URLBarSetURI.js \
-                 browser_bookmark_titles.js \
                  $(NULL)
 
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))

@@ -22,7 +22,7 @@ class HTMLListAccessible : public HyperTextAccessibleWrap
 {
 public:
   HTMLListAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    HyperTextAccessibleWrap(aContent, aDoc) { mGenericTypes |= eList; }
+    HyperTextAccessibleWrap(aContent, aDoc) { mFlags |= eListAccessible; }
   virtual ~HTMLListAccessible() { }
 
   // nsISupports
@@ -100,7 +100,8 @@ public:
 inline HTMLLIAccessible*
 Accessible::AsHTMLListItem()
 {
-  return IsHTMLListItem() ? static_cast<HTMLLIAccessible*>(this) : nullptr;
+  return mFlags & eHTMLListItemAccessible ?
+    static_cast<HTMLLIAccessible*>(this) : nullptr;
 }
 
 } // namespace a11y

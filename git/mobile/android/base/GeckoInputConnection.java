@@ -53,7 +53,6 @@ class GeckoInputConnection
     private boolean mBatchSelectionChanged;
     private boolean mBatchTextChanged;
     private Runnable mRestartInputRunnable;
-    private final InputConnection mPluginInputConnection;
 
     public static GeckoEditableListener create(View targetView,
                                                GeckoEditableClient editable) {
@@ -68,8 +67,6 @@ class GeckoInputConnection
         super(targetView, true);
         mEditableClient = editable;
         mIMEState = IME_STATE_DISABLED;
-        // InputConnection for plugins, which don't have full editors
-        mPluginInputConnection = new BaseInputConnection(targetView, false);
     }
 
     @Override
@@ -290,8 +287,6 @@ class GeckoInputConnection
 
         if (mIMEState == IME_STATE_PASSWORD)
             outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_PASSWORD;
-        else if (mIMEState == IME_STATE_PLUGIN)
-            outAttrs.inputType = InputType.TYPE_NULL; // "send key events" mode
         else if (mIMETypeHint.equalsIgnoreCase("url"))
             outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_URI;
         else if (mIMETypeHint.equalsIgnoreCase("email"))
@@ -307,7 +302,7 @@ class GeckoInputConnection
                                  | InputType.TYPE_NUMBER_FLAG_DECIMAL;
         else if (mIMETypeHint.equalsIgnoreCase("week") ||
                  mIMETypeHint.equalsIgnoreCase("month"))
-            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
+             outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
                                   | InputType.TYPE_DATETIME_VARIATION_DATE;
         else if (mIMEModeHint.equalsIgnoreCase("numeric"))
             outAttrs.inputType = InputType.TYPE_CLASS_NUMBER |
@@ -365,15 +360,9 @@ class GeckoInputConnection
             }
         }
 
-        if (mIMEState == IME_STATE_PLUGIN) {
-            // Since we are using a temporary string as the editable, the selection is at 0
-            outAttrs.initialSelStart = 0;
-            outAttrs.initialSelEnd = 0;
-            return mPluginInputConnection;
-        }
-        Editable editable = getEditable();
-        outAttrs.initialSelStart = Selection.getSelectionStart(editable);
-        outAttrs.initialSelEnd = Selection.getSelectionEnd(editable);
+        // We don't know the selection
+        outAttrs.initialSelStart = -1;
+        outAttrs.initialSelEnd = -1;
         return this;
     }
 
@@ -410,7 +399,6 @@ class GeckoInputConnection
 
         // KeyListener returns true if it handled the event for us.
         if (mIMEState == IME_STATE_DISABLED ||
-                mIMEState == IME_STATE_PLUGIN ||
                 keyCode == KeyEvent.KEYCODE_ENTER ||
                 keyCode == KeyEvent.KEYCODE_DEL ||
                 keyCode == KeyEvent.KEYCODE_TAB ||
@@ -442,7 +430,6 @@ class GeckoInputConnection
         KeyListener keyListener = TextKeyListener.getInstance();
 
         if (mIMEState == IME_STATE_DISABLED ||
-            mIMEState == IME_STATE_PLUGIN ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
             keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
@@ -530,14 +517,6 @@ class GeckoInputConnection
         mIMEModeHint = (modeHint == null) ? "" : modeHint;
         mIMEActionHint = (actionHint == null) ? "" : actionHint;
 
-        View v = getView();
-        if (v == null || !v.hasFocus()) {
-            // When using Find In Page, we can still receive notifyIMEEnabled calls due to the
-            // selection changing when highlighting. However in this case we don't want to reset/
-            // show/hide the keyboard because the find box has the focus and is taking input from
-            // the keyboard.
-            return;
-        }
         restartInput();
         GeckoApp.mAppContext.mMainHandler.postDelayed(new Runnable() {
             public void run() {

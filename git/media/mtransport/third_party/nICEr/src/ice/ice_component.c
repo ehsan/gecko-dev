@@ -551,8 +551,6 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
     /* Create the candidate pairs */
     lcand=TAILQ_FIRST(&lcomp->candidates);
     while(lcand){
-      int was_paired = 0;
-
       nr_ice_compute_codeword(lcand->label,strlen(lcand->label),codeword);
       r_log(LOG_ICE,LOG_DEBUG,"Examining local candidate %s:%s",codeword,lcand->label);
 
@@ -564,10 +562,7 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
           goto next_cand;
           break;
         case PEER_REFLEXIVE:
-          /* This is not implemented, and I'm not sure if we need it
-             for trickle ICE. We don't need it for regular ICE */
-          assert(0);
-          ABORT(R_INTERNAL);
+          UNIMPLEMENTED;
           break;
         case RELAYED:
           break;
@@ -591,7 +586,7 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
            TODO(ekr@rtfm.com): Add refernece to the spec when there
            is one.
          */
-        if (pcand->state == NR_ICE_CAND_PEER_CANDIDATE_UNPAIRED) {
+        if (pcand->state = NR_ICE_CAND_PEER_CANDIDATE_UNPAIRED) {
           nr_ice_compute_codeword(pcand->label,strlen(pcand->label),codeword);
           r_log(LOG_ICE,LOG_DEBUG,"Examining peer candidate %s:%s",codeword,pcand->label);
           
@@ -602,28 +597,21 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
               pair))
             ABORT(r);
         }
-        else {
-	  was_paired = 1;
-	}
         pcand=TAILQ_NEXT(pcand,entry_comp);
       }
-
+    
       if(!pair)
-        goto next_cand;
+        ABORT(R_INTERNAL);
 
-      if (!was_paired) {
-        /* Add the stun username/password pair from the last pair (any
-           would do) to the stun contexts, but only if we haven't already
-           done so (was_paired) */
-        isock=STAILQ_FIRST(&lcomp->sockets);
-        while(isock){
-          if(r=nr_stun_server_add_client(isock->stun_server,pctx->label,
-             pair->r2l_user,&pair->r2l_pwd,nr_ice_component_stun_server_cb,pcomp)) {
-             ABORT(r);
-          }
+      /* Add the stun username/password pair from the last pair (any 
+         would do) to the stun contexts */
+      isock=STAILQ_FIRST(&lcomp->sockets);
+      while(isock){
+        if(r=nr_stun_server_add_client(isock->stun_server,pctx->label,
+           pair->r2l_user,&pair->r2l_pwd,nr_ice_component_stun_server_cb,pcomp))
+          ABORT(r);
 
-          isock=STAILQ_NEXT(isock,entry);
-        }
+        isock=STAILQ_NEXT(isock,entry);
       }
 
     next_cand:

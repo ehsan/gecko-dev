@@ -80,7 +80,7 @@ USING_WORKERS_NAMESPACE
 using namespace mozilla::dom::workers::events;
 using namespace mozilla::dom;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
 
 namespace {
 
@@ -937,13 +937,9 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    // Don't fire this event if the JS object has been disconnected from the
-    // private object.
-    if (!aWorkerPrivate->IsAcceptingEvents()) {
-      return true;
-    }
-
-    JSObject* target = aWorkerPrivate->GetJSObject();
+    JSObject* target = aWorkerPrivate->IsAcceptingEvents() ?
+                       aWorkerPrivate->GetJSObject() :
+                       nullptr;
 
     uint64_t innerWindowId;
 
@@ -3394,7 +3390,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
       NS_ASSERTION(syncQueue->mQueue.IsEmpty(), "Unprocessed sync events!");
 
       bool result = syncQueue->mResult;
-      DestroySyncLoop(aSyncLoopKey);
+      mSyncQueues.RemoveElementAt(aSyncLoopKey);
 
 #ifdef DEBUG
       syncQueue = nullptr;
@@ -3426,14 +3422,6 @@ WorkerPrivate::StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult)
 
   syncQueue->mResult = aSyncResult;
   syncQueue->mComplete = true;
-}
-
-void
-WorkerPrivate::DestroySyncLoop(uint32_t aSyncLoopKey)
-{
-  AssertIsOnWorkerThread();
-
-  mSyncQueues.RemoveElementAt(aSyncLoopKey);
 }
 
 bool

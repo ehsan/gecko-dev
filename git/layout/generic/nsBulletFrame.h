@@ -13,6 +13,7 @@
 #include "nsStyleContext.h"
 
 #include "imgIRequest.h"
+#include "imgIDecoderObserver.h"
 #include "imgINotificationObserver.h"
 
 class imgRequestProxy;
@@ -98,8 +99,6 @@ public:
     return (GetStateBits() & BULLET_FRAME_HAS_FONT_INFLATION) != 0;
   }
   void SetFontSizeInflation(float aInflation);
-
-  int32_t GetOrdinal() { return mOrdinal; }
 
 protected:
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);

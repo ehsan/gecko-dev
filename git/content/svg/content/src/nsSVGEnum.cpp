@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsError.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSVGEnum.h"
 #include "nsIAtom.h"
 #include "nsSVGElement.h"
@@ -25,9 +24,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedEnumeration)
 NS_INTERFACE_MAP_END
-
-static nsSVGAttrTearoffTable<nsSVGEnum, nsSVGEnum::DOMAnimatedEnum>
-  sSVGAnimatedEnumTearoffTable;
 
 nsSVGEnumMapping *
 nsSVGEnum::GetMapping(nsSVGElement *aSVGElement)
@@ -126,20 +122,12 @@ nsresult
 nsSVGEnum::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
                              nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimatedEnum> domAnimatedEnum =
-    sSVGAnimatedEnumTearoffTable.GetTearoff(this);
-  if (!domAnimatedEnum) {
-    domAnimatedEnum = new DOMAnimatedEnum(this, aSVGElement);
-    sSVGAnimatedEnumTearoffTable.AddTearoff(this, domAnimatedEnum);
-  }
+  *aResult = new DOMAnimatedEnum(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimatedEnum.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGEnum::DOMAnimatedEnum::~DOMAnimatedEnum()
-{
-  sSVGAnimatedEnumTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*

@@ -490,10 +490,7 @@ NS_METHOD nsWindow::Destroy()
   // just to be safe. If we're going away and for some reason we're still
   // the rollup widget, rollup and turn off capture.
   nsIRollupListener* rollupListener = GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget;
-  if (rollupListener) {
-    rollupWidget = rollupListener->GetRollupWidget();
-  }
+  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
   if (this == rollupWidget) {
     rollupListener->Rollup(UINT32_MAX);
     CaptureRollupEvents(nullptr, false, true);
@@ -1546,7 +1543,7 @@ bool nsWindow::EventIsInsideWindow(nsWindow* aWindow)
 {
   RECTL  rcl;
   POINTL ptl;
-  NS_ENSURE_TRUE(aWindow, false);
+
   if (WinQueryMsgPos(0, &ptl)) {
     WinMapWindowPoints(HWND_DESKTOP, aWindow->mWnd, &ptl, 1);
     WinQueryWindowRect(aWindow->mWnd, &rcl);
@@ -1568,10 +1565,7 @@ bool nsWindow::EventIsInsideWindow(nsWindow* aWindow)
 bool nsWindow::RollupOnButtonDown(ULONG aMsg)
 {
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget;
-  if (rollupListener) {
-    rollupWidget = rollupListener->GetRollupWidget();
-  }
+  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
 
   // Exit if the event is inside the most recent popup.
   if (EventIsInsideWindow((nsWindow*)rollupWidget)) {
@@ -1613,11 +1607,8 @@ bool nsWindow::RollupOnButtonDown(ULONG aMsg)
 void nsWindow::RollupOnFocusLost(HWND aFocus)
 {
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget;
-  if (rollupListener) {
-    rollupWidget = rollupListener->GetRollupWidget();
-  }
-  HWND hRollup = rollupWidget ? ((nsWindow*)rollupWidget)->mWnd : NULL;
+  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
+  HWND hRollup = ((nsWindow*)rollupWidget)->mWnd;
 
   // Exit if focus was lost to the most recent popup.
   if (hRollup == aFocus) {

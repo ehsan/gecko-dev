@@ -294,12 +294,15 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   return nullptr;
 }
 
-nsIntPoint
+nsresult
 nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
                                   uint32_t aCoordinateType,
-                                  Accessible* aAccessible)
+                                  nsAccessNode *aAccessNode,
+                                  nsIntPoint *aCoords)
 {
-  nsIntPoint coords(aX, aY);
+  NS_ENSURE_ARG_POINTER(aCoords);
+
+  aCoords->MoveTo(aX, aY);
 
   switch (aCoordinateType) {
     case nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE:
@@ -307,27 +310,29 @@ nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE:
     {
-      coords += nsCoreUtils::GetScreenCoordsForWindow(aAccessible->GetNode());
+      NS_ENSURE_ARG(aAccessNode);
+      *aCoords += GetScreenCoordsForWindow(aAccessNode);
       break;
     }
 
     case nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE:
     {
-      coords += GetScreenCoordsForParent(aAccessible);
+      NS_ENSURE_ARG(aAccessNode);
+      *aCoords += GetScreenCoordsForParent(aAccessNode);
       break;
     }
 
     default:
-      NS_NOTREACHED("invalid coord type!");
+      return NS_ERROR_INVALID_ARG;
   }
 
-  return coords;
+  return NS_OK;
 }
 
-void
+nsresult
 nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
                                   uint32_t aCoordinateType,
-                                  Accessible* aAccessible)
+                                  nsAccessNode *aAccessNode)
 {
   switch (aCoordinateType) {
     case nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE:
@@ -335,7 +340,8 @@ nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE:
     {
-      nsIntPoint coords = nsCoreUtils::GetScreenCoordsForWindow(aAccessible->GetNode());
+      NS_ENSURE_ARG(aAccessNode);
+      nsIntPoint coords = nsAccUtils::GetScreenCoordsForWindow(aAccessNode);
       *aX -= coords.x;
       *aY -= coords.y;
       break;
@@ -343,21 +349,31 @@ nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE:
     {
-      nsIntPoint coords = GetScreenCoordsForParent(aAccessible);
+      NS_ENSURE_ARG(aAccessNode);
+      nsIntPoint coords = nsAccUtils::GetScreenCoordsForParent(aAccessNode);
       *aX -= coords.x;
       *aY -= coords.y;
       break;
     }
 
     default:
-    NS_NOTREACHED("invalid coord type!");
+      return NS_ERROR_INVALID_ARG;
   }
+
+  return NS_OK;
 }
 
 nsIntPoint
-nsAccUtils::GetScreenCoordsForParent(Accessible* aAccessible)
+nsAccUtils::GetScreenCoordsForWindow(nsAccessNode *aAccessNode)
 {
-  Accessible* parent = aAccessible->Parent();
+  return nsCoreUtils::GetScreenCoordsForWindow(aAccessNode->GetNode());
+}
+
+nsIntPoint
+nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
+{
+  DocAccessible* document = aAccessNode->Document();
+  Accessible* parent = document->GetContainerAccessible(aAccessNode->GetNode());
   if (!parent)
     return nsIntPoint(0, 0);
 

@@ -159,7 +159,7 @@ public:
 
     nsRefPtr<nsXMLHttpRequest> req = new nsXMLHttpRequest();
     req->Construct(principal->GetPrincipal(), window);
-    req->InitParameters(aParams.mMozAnon, aParams.mMozSystem);
+    req->InitParameters(aParams.mozAnon, aParams.mozSystem);
     return req.forget();
   }
 
@@ -276,10 +276,6 @@ private:
     {
       mValue.mArrayBuffer = aArrayBuffer;
     }
-    RequestBody(mozilla::dom::ArrayBufferView* aArrayBufferView) : mType(ArrayBufferView)
-    {
-      mValue.mArrayBufferView = aArrayBufferView;
-    }
     RequestBody(nsIDOMBlob* aBlob) : mType(Blob)
     {
       mValue.mBlob = aBlob;
@@ -304,7 +300,6 @@ private:
     enum Type {
       Uninitialized,
       ArrayBuffer,
-      ArrayBufferView,
       Blob,
       Document,
       DOMString,
@@ -313,7 +308,6 @@ private:
     };
     union Value {
       mozilla::dom::ArrayBuffer* mArrayBuffer;
-      mozilla::dom::ArrayBufferView* mArrayBufferView;
       nsIDOMBlob* mBlob;
       nsIDocument* mDocument;
       const nsAString* mString;
@@ -363,18 +357,15 @@ public:
   {
     aRv = Send(RequestBody(&aArrayBuffer));
   }
-  void Send(mozilla::dom::ArrayBufferView& aArrayBufferView, ErrorResult& aRv)
-  {
-    aRv = Send(RequestBody(&aArrayBufferView));
-  }
   void Send(nsIDOMBlob* aBlob, ErrorResult& aRv)
   {
     NS_ASSERTION(aBlob, "Null should go to string version");
     aRv = Send(RequestBody(aBlob));
   }
-  void Send(nsIDocument& aDoc, ErrorResult& aRv)
+  void Send(nsIDocument* aDoc, ErrorResult& aRv)
   {
-    aRv = Send(RequestBody(&aDoc));
+    NS_ASSERTION(aDoc, "Null should go to string version");
+    aRv = Send(RequestBody(aDoc));
   }
   void Send(const nsAString& aString, ErrorResult& aRv)
   {

@@ -23,9 +23,6 @@ class InstallGeckoError(MarionetteException):
 class TimeoutException(MarionetteException):
     pass
 
-class InvalidResponseException(MarionetteException):
-    pass
-
 class NoSuchAttributeException(MarionetteException):
     pass
 
@@ -96,4 +93,3 @@ class ErrorCodes(object):
     MOVE_TARGET_OUT_OF_BOUNDS = 34
     INVALID_XPATH_SELECTOR = 51
     INVALID_XPATH_SELECTOR_RETURN_TYPER = 52
-    INVALID_RESPONSE = 53

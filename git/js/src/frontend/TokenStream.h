@@ -524,6 +524,7 @@ class TokenStream
     void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
     void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
 
+    bool strictMode() const { return strictModeGetter && strictModeGetter->get(); }
     bool isXMLTagMode() const { return !!(flags & TSF_XMLTAGMODE); }
     bool isXMLOnlyMode() const { return !!(flags & TSF_XMLONLYMODE); }
     bool isUnexpectedEOF() const { return !!(flags & TSF_UNEXPECTED_EOF); }
@@ -533,22 +534,17 @@ class TokenStream
     // TokenStream-specific error reporters.
     bool reportError(unsigned errorNumber, ...);
     bool reportWarning(unsigned errorNumber, ...);
+    bool reportStrictWarning(unsigned errorNumber, ...);
+    bool reportStrictModeError(unsigned errorNumber, ...);
 
     // General-purpose error reporters.  You should avoid calling these
     // directly, and instead use the more succinct alternatives (e.g.
     // reportError()) in TokenStream, Parser, and BytecodeEmitter.
     bool reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned errorNumber,
                                     va_list args);
-    bool reportStrictModeErrorNumberVA(ParseNode *pn, bool strictMode, unsigned errorNumber,
-                                       va_list args);
-    bool reportStrictWarningErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args);
+    bool reportStrictModeErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args);
 
   private:
-    // These are private because they should only be called by the tokenizer
-    // while tokenizing not by, for example, BytecodeEmitter.
-    bool reportStrictModeError(unsigned errorNumber, ...);
-    bool strictMode() const { return strictModeGetter && strictModeGetter->get(); }
-
     void onError();
     static JSAtom *atomize(JSContext *cx, CharBuffer &cb);
     bool putIdentInTokenbuf(const jschar *identStart);

@@ -5,7 +5,7 @@
 
 #include "mozilla/Util.h"
 
-#include "nsSVGElement.h"
+#include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGTextPathElement.h"
 #include "nsIDOMSVGURIReference.h"
@@ -128,14 +128,14 @@ nsSVGTextPathElement::IsAttributeMapped(const nsIAtom* name) const
     nsSVGTextPathElementBase::IsAttributeMapped(name);
 }
 
+//----------------------------------------------------------------------
+// nsSVGElement overrides
+
 bool
-nsSVGTextPathElement::IsEventAttributeName(nsIAtom* aName)
+nsSVGTextPathElement::IsEventName(nsIAtom* aName)
 {
   return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
-
-//----------------------------------------------------------------------
-// nsSVGElement overrides
 
 nsSVGElement::LengthAttributesInfo
 nsSVGTextPathElement::GetLengthInfo()

@@ -67,7 +67,7 @@ public:
    */
   nsresult ReadNoiseEntries(const Prefix& aPrefix,
                             const nsACString& aTableName,
-                            uint32_t aCount,
+                            int32_t aCount,
                             PrefixArray* aNoiseEntries);
 private:
   void DropStores();

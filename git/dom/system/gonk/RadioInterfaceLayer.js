@@ -99,8 +99,7 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
 ];
 
 const RIL_IPC_VOICEMAIL_MSG_NAMES = [
-  "RIL:RegisterVoicemailMsg",
-  "RIL:GetVoicemailInfo"
+  "RIL:RegisterVoicemailMsg"
 ];
 
 const RIL_IPC_CELLBROADCAST_MSG_NAMES = [
@@ -205,6 +204,8 @@ function RadioInterfaceLayer() {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNAVAILABLE,
     icc:            null,
+    voicemail:      {number: null,
+                     displayName: null},
 
     // These objects implement the nsIDOMMozMobileConnectionInfo interface,
     // although the actual implementation lives in the content process. So are
@@ -226,11 +227,6 @@ function RadioInterfaceLayer() {
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
-  };
-
-  this.voicemailInfo = {
-    number: null,
-    displayName: null
   };
 
   this.callWaitingStatus = null;
@@ -273,6 +269,9 @@ function RadioInterfaceLayer() {
   lock.get("ril.supl.passwd", this);
   lock.get("ril.supl.httpProxyHost", this);
   lock.get("ril.supl.httpProxyPort", this);
+
+  // Read the desired setting of call waiting from the settings DB.
+  lock.get("ril.callwaiting.enabled", this);
 
   // Read the 'time.nitz.automatic-update.enabled' setting to see if
   // we need to adjust the system clock time and time zone by NITZ.
@@ -483,9 +482,6 @@ RadioInterfaceLayer.prototype = {
       case "RIL:RegisterCellBroadcastMsg":
         this.registerMessageTarget("cellbroadcast", msg.target);
         break;
-      case "RIL:GetVoicemailInfo":
-        // This message is sync.
-        return this.voicemailInfo;
     }
   },
 
@@ -834,6 +830,12 @@ RadioInterfaceLayer.prototype = {
     // this here. (TODO GSM only for now, see bug 726098.)
     voiceInfo.type = "gsm";
 
+    // Ensure the call waiting status once the voice network connects.
+    if (voiceInfo.connected && this.callWaitingStatus == null) {
+      // The call waiting status has not been updated yet. Update that.
+      this.setCallWaitingEnabled(this._callWaitingEnabled);
+    }
+
     // Make sure we also reset the operator and signal strength information
     // if we drop off the network.
     if (newInfo.regState == RIL.NETWORK_CREG_STATE_UNKNOWN) {
@@ -1092,7 +1094,7 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (value == null) {
-      // We haven't read the valid value from the settings DB yet.
+      // We haven't read the initial value from the settings DB yet.
       // Wait for that.
       return;
     }
@@ -1240,14 +1242,6 @@ RadioInterfaceLayer.prototype = {
   handleCallDisconnected: function handleCallDisconnected(call) {
     debug("handleCallDisconnected: " + JSON.stringify(call));
     call.state = nsIRadioInterfaceLayer.CALL_STATE_DISCONNECTED;
-    let duration = ("started" in call && typeof call.started == "number") ?
-      new Date().getTime() - call.started : 0;
-    let data = {
-      number: call.number,
-      duration: duration,
-      direction: call.direction
-    };
-    gSystemMessenger.broadcastMessage("telephony-call-ended", data);
     this.updateCallAudioState(call);
     this._sendTargetMessage("telephony", "RIL:CallStateChanged", call);
   },
@@ -1259,8 +1253,6 @@ RadioInterfaceLayer.prototype = {
     debug("handleEnumerateCalls: " + JSON.stringify(options));
     for (let i in options.calls) {
       options.calls[i].state = convertRILCallState(options.calls[i].state);
-      options.calls[i].isActive = this._activeCall ?
-        options.calls[i].callIndex == this._activeCall.callIndex : false;
     }
     this._sendRequestResults("RIL:EnumerateCalls", options);
   },
@@ -1448,8 +1440,6 @@ RadioInterfaceLayer.prototype = {
     if (!options.requestStatusReport) {
       // No more used if STATUS-REPORT not requested.
       delete this._sentSmsEnvelopes[message.envelopeId];
-    } else {
-      options.sms = sms;
     }
 
     options.request.notifyMessageSent(sms);
@@ -1585,12 +1575,12 @@ RadioInterfaceLayer.prototype = {
   },
 
   handleICCMbdn: function handleICCMbdn(message) {
-    let voicemailInfo = this.voicemailInfo;
+    let voicemail = this.rilContext.voicemail;
 
-    voicemailInfo.number = message.number;
-    voicemailInfo.displayName = message.alphaId;
+    voicemail.number = message.number;
+    voicemail.displayName = message.alphaId;
 
-    this._sendTargetMessage("voicemail", "RIL:VoicemailInfoChanged", voicemailInfo);
+    this._sendTargetMessage("voicemail", "RIL:VoicemailInfoChanged", voicemail);
   },
 
   handleICCInfoChange: function handleICCInfoChange(message) {
@@ -2053,23 +2043,7 @@ RadioInterfaceLayer.prototype = {
 
       septet = langShiftTable.indexOf(c);
       if (septet < 0) {
-        if (!strict7BitEncoding) {
-          return -1;
-        }
-
-        // Bug 816082, when strict7BitEncoding is enabled, we should replace
-        // characters that can't be encoded with GSM 7-Bit alphabets with '*'.
-        c = '*';
-        if (langTable.indexOf(c) >= 0) {
-          length++;
-        } else if (langShiftTable.indexOf(c) >= 0) {
-          length += 2;
-        } else {
-          // We can't even encode a '*' character with current configuration.
-          return -1;
-        }
-
-        continue;
+        return -1;
       }
 
       // According to 3GPP TS 23.038 B.2, "This code represents a control
@@ -2133,15 +2107,21 @@ RadioInterfaceLayer.prototype = {
 
       // Calculate full user data length, note the extra byte is for header len
       let headerSeptets = Math.ceil((headerLen ? headerLen + 1 : 0) * 8 / 7);
-      let segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT;
-      if ((bodySeptets + headerSeptets) > segmentSeptets) {
-        headerLen += this.segmentRef16Bit ? 6 : 5;
+      let userDataSeptets = bodySeptets + headerSeptets;
+      let segments = bodySeptets ? 1 : 0;
+      if (userDataSeptets > RIL.PDU_MAX_USER_DATA_7BIT) {
+        if (this.segmentRef16Bit) {
+          headerLen += 6;
+        } else {
+          headerLen += 5;
+        }
+
         headerSeptets = Math.ceil((headerLen + 1) * 8 / 7);
-        segmentSeptets -= headerSeptets;
+        let segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT - headerSeptets;
+        segments = Math.ceil(bodySeptets / segmentSeptets);
+        userDataSeptets = bodySeptets + headerSeptets * segments;
       }
 
-      let segments = Math.ceil(bodySeptets / segmentSeptets);
-      let userDataSeptets = bodySeptets + headerSeptets * segments;
       if (userDataSeptets >= minUserDataSeptets) {
         continue;
       }
@@ -2155,7 +2135,7 @@ RadioInterfaceLayer.prototype = {
         langIndex: langIndex,
         langShiftIndex: langShiftIndex,
         segmentMaxSeq: segments,
-        segmentChars: segmentSeptets,
+        strict7BitEncoding: strict7BitEncoding
       };
     }
 
@@ -2177,21 +2157,24 @@ RadioInterfaceLayer.prototype = {
     let bodyChars = message.length;
     let headerLen = 0;
     let headerChars = Math.ceil((headerLen ? headerLen + 1 : 0) / 2);
-    let segmentChars = RIL.PDU_MAX_USER_DATA_UCS2;
-    if ((bodyChars + headerChars) > segmentChars) {
-      headerLen += this.segmentRef16Bit ? 6 : 5;
-      headerChars = Math.ceil((headerLen + 1) / 2);
-      segmentChars -= headerChars;
-    }
+    let segments = bodyChars ? 1 : 0;
+    if ((bodyChars + headerChars) > RIL.PDU_MAX_USER_DATA_UCS2) {
+      if (this.segmentRef16Bit) {
+        headerLen += 6;
+      } else {
+        headerLen += 5;
+      }
 
-    let segments = Math.ceil(bodyChars / segmentChars);
+      headerChars = Math.ceil((headerLen + 1) / 2);
+      let segmentChars = RIL.PDU_MAX_USER_DATA_UCS2 - headerChars;
+      segments = Math.ceil(bodyChars / segmentChars);
+    }
 
     return {
       dcs: RIL.PDU_DCS_MSG_CODING_16BITS_ALPHABET,
       encodedFullBodyLength: bodyChars * 2,
       userDataHeaderLength: headerLen,
       segmentMaxSeq: segments,
-      segmentChars: segmentChars,
     };
   },
 
@@ -2209,6 +2192,8 @@ RadioInterfaceLayer.prototype = {
    * @param dcs
    *        Data coding scheme. One of the PDU_DCS_MSG_CODING_*BITS_ALPHABET
    *        constants.
+   * @param fullBody
+   *        Original unfragmented text message.
    * @param userDataHeaderLength
    *        Length of embedded user data header, in bytes. The whole header
    *        size will be userDataHeaderLength + 1; 0 for no header.
@@ -2230,6 +2215,10 @@ RadioInterfaceLayer.prototype = {
       options = this._calculateUserDataLengthUCS2(message);
     }
 
+    if (options) {
+      options.fullBody = message;
+    }
+
     debug("_calculateUserDataLength: " + JSON.stringify(options));
     return options;
   },
@@ -2243,17 +2232,19 @@ RadioInterfaceLayer.prototype = {
    *        locking shift table string.
    * @param langShiftTable
    *        single shift table string.
-   * @param segmentSeptets
-   *        Number of available spetets per segment.
+   * @param headerLen
+   *        Length of prepended user data header.
    * @param strict7BitEncoding
    *        Optional. Enable Latin characters replacement with corresponding
    *        ones in GSM SMS 7-bit default alphabet.
    *
    * @return an array of objects. See #_fragmentText() for detailed definition.
    */
-  _fragmentText7Bit: function _fragmentText7Bit(text, langTable, langShiftTable, segmentSeptets, strict7BitEncoding) {
+  _fragmentText7Bit: function _fragmentText7Bit(text, langTable, langShiftTable, headerLen, strict7BitEncoding) {
+    const headerSeptets = Math.ceil((headerLen ? headerLen + 1 : 0) * 8 / 7);
+    const segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT - headerSeptets;
     let ret = [];
-    let body = "", len = 0;
+    let begin = 0, len = 0;
     for (let i = 0, inc = 0; i < text.length; i++) {
       let c = text.charAt(i);
       if (strict7BitEncoding) {
@@ -2269,41 +2260,32 @@ RadioInterfaceLayer.prototype = {
         inc = 1;
       } else {
         septet = langShiftTable.indexOf(c);
+        if (septet < 0) {
+          throw new Error("Given text cannot be encoded with GSM 7-bit Alphabet!");
+        }
+
         if (septet == RIL.PDU_NL_RESERVED_CONTROL) {
           continue;
         }
 
         inc = 2;
-        if (septet < 0) {
-          if (!strict7BitEncoding) {
-            throw new Error("Given text cannot be encoded with GSM 7-bit Alphabet!");
-          }
-
-          // Bug 816082, when strict7BitEncoding is enabled, we should replace
-          // characters that can't be encoded with GSM 7-Bit alphabets with '*'.
-          c = '*';
-          if (langTable.indexOf(c) >= 0) {
-            inc = 1;
-          }
-        }
       }
 
       if ((len + inc) > segmentSeptets) {
         ret.push({
-          body: body,
+          body: text.substring(begin, i),
           encodedBodyLength: len,
         });
-        body = c;
-        len = inc;
-      } else {
-        body += c;
-        len += inc;
+        begin = i;
+        len = 0;
       }
+
+      len += inc;
     }
 
     if (len) {
       ret.push({
-        body: body,
+        body: text.substring(begin),
         encodedBodyLength: len,
       });
     }
@@ -2316,12 +2298,14 @@ RadioInterfaceLayer.prototype = {
    *
    * @param text
    *        text string to be fragmented.
-   * @param segmentChars
-   *        Number of available characters per segment.
+   * @param headerLen
+   *        Length of prepended user data header.
    *
    * @return an array of objects. See #_fragmentText() for detailed definition.
    */
-  _fragmentTextUCS2: function _fragmentTextUCS2(text, segmentChars) {
+  _fragmentTextUCS2: function _fragmentTextUCS2(text, headerLen) {
+    const headerChars = Math.ceil((headerLen ? headerLen + 1 : 0) / 2);
+    const segmentChars = RIL.PDU_MAX_USER_DATA_UCS2 - headerChars;
     let ret = [];
     for (let offset = 0; offset < text.length; offset += segmentChars) {
       let str = text.substr(offset, segmentChars);
@@ -2357,16 +2341,21 @@ RadioInterfaceLayer.prototype = {
       options = this._calculateUserDataLength(text, strict7BitEncoding);
     }
 
+    if (options.segmentMaxSeq <= 1) {
+      options.segments = null;
+      return options;
+    }
+
     if (options.dcs == RIL.PDU_DCS_MSG_CODING_7BITS_ALPHABET) {
       const langTable = RIL.PDU_NL_LOCKING_SHIFT_TABLES[options.langIndex];
       const langShiftTable = RIL.PDU_NL_SINGLE_SHIFT_TABLES[options.langShiftIndex];
-      options.segments = this._fragmentText7Bit(text,
+      options.segments = this._fragmentText7Bit(options.fullBody,
                                                 langTable, langShiftTable,
-                                                options.segmentChars,
-                                                strict7BitEncoding);
+                                                options.userDataHeaderLength,
+                                                options.strict7BitEncodingEncoding);
     } else {
-      options.segments = this._fragmentTextUCS2(text,
-                                                options.segmentChars);
+      options.segments = this._fragmentTextUCS2(options.fullBody,
+                                                options.userDataHeaderLength);
     }
 
     // Re-sync options.segmentMaxSeq with actual length of returning array.
@@ -2375,26 +2364,14 @@ RadioInterfaceLayer.prototype = {
     return options;
   },
 
-  getSegmentInfoForText: function getSegmentInfoForText(text) {
+  getNumberOfMessagesForText: function getNumberOfMessagesForText(text) {
     let strict7BitEncoding;
     try {
       strict7BitEncoding = Services.prefs.getBoolPref("dom.sms.strict7BitEncoding");
     } catch (e) {
       strict7BitEncoding = false;
     }
-
-    let options = this._fragmentText(text, null, strict7BitEncoding);
-    let lastSegment = options.segments[options.segmentMaxSeq - 1];
-    let charsInLastSegment = lastSegment.encodedBodyLength;
-    if (options.dcs == RIL.PDU_DCS_MSG_CODING_16BITS_ALPHABET) {
-      // In UCS2 encoding, encodedBodyLength is in octets.
-      charsInLastSegment /= 2;
-    }
-
-    let result = gSmsService.createSmsSegmentInfo(options.segmentMaxSeq,
-                                                  options.segmentChars,
-                                                  options.segmentChars - charsInLastSegment);
-    return result;
+    return this._fragmentText(text, null, strict7BitEncoding).segmentMaxSeq;
   },
 
   sendSMS: function sendSMS(number, message, request) {
@@ -2405,17 +2382,21 @@ RadioInterfaceLayer.prototype = {
       strict7BitEncoding = false;
     }
 
-    let options = this._fragmentText(message, null, strict7BitEncoding);
+    let options = this._calculateUserDataLength(message, strict7BitEncoding);
     options.rilMessageType = "sendSMS";
     options.number = number;
     options.requestStatusReport = true;
+
+    this._fragmentText(message, options, strict7BitEncoding);
     if (options.segmentMaxSeq > 1) {
       options.segmentRef16Bit = this.segmentRef16Bit;
       options.segmentRef = this.nextSegmentRef;
     }
 
     let timestamp = Date.now();
-    let id = gSmsDatabaseService.saveSendingMessage(number, message, timestamp);
+    let id = gSmsDatabaseService.saveSendingMessage(options.number,
+                                                    options.fullBody,
+                                                    timestamp);
     let messageClass = RIL.GECKO_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_NORMAL];
     let deliveryStatus = options.requestStatusReport
                        ? RIL.GECKO_SMS_DELIVERY_STATUS_PENDING
@@ -2424,8 +2405,8 @@ RadioInterfaceLayer.prototype = {
                                            DOM_SMS_DELIVERY_SENDING,
                                            deliveryStatus,
                                            null,
-                                           number,
-                                           message,
+                                           options.number,
+                                           options.fullBody,
                                            messageClass,
                                            timestamp,
                                            true);

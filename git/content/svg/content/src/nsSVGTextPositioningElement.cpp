@@ -46,40 +46,40 @@ nsSVGTextPositioningElement::GetNumberListInfo()
 //----------------------------------------------------------------------
 // nsIDOMSVGTextPositioningElement methods
 
-/* readonly attribute DOMSVGAnimatedLengthList x; */
-NS_IMETHODIMP nsSVGTextPositioningElement::GetX(nsISupports * *aX)
+/* readonly attribute nsIDOMSVGAnimatedLengthList x; */
+NS_IMETHODIMP nsSVGTextPositioningElement::GetX(nsIDOMSVGAnimatedLengthList * *aX)
 {
   *aX = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[X],
                                                 this, X, SVGContentUtils::X).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList y; */
-NS_IMETHODIMP nsSVGTextPositioningElement::GetY(nsISupports * *aY)
+/* readonly attribute nsIDOMSVGAnimatedLengthList y; */
+NS_IMETHODIMP nsSVGTextPositioningElement::GetY(nsIDOMSVGAnimatedLengthList * *aY)
 {
   *aY = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[Y],
                                                 this, Y, SVGContentUtils::Y).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList dx; */
-NS_IMETHODIMP nsSVGTextPositioningElement::GetDx(nsISupports * *aDx)
+/* readonly attribute nsIDOMSVGAnimatedLengthList dx; */
+NS_IMETHODIMP nsSVGTextPositioningElement::GetDx(nsIDOMSVGAnimatedLengthList * *aDx)
 {
   *aDx = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[DX],
                                                  this, DX, SVGContentUtils::X).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList dy; */
-NS_IMETHODIMP nsSVGTextPositioningElement::GetDy(nsISupports * *aDy)
+/* readonly attribute nsIDOMSVGAnimatedLengthList dy; */
+NS_IMETHODIMP nsSVGTextPositioningElement::GetDy(nsIDOMSVGAnimatedLengthList * *aDy)
 {
   *aDy = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[DY],
                                                  this, DY, SVGContentUtils::Y).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedNumberList rotate; */
-NS_IMETHODIMP nsSVGTextPositioningElement::GetRotate(nsISupports * *aRotate)
+/* readonly attribute nsIDOMSVGAnimatedNumberList rotate; */
+NS_IMETHODIMP nsSVGTextPositioningElement::GetRotate(nsIDOMSVGAnimatedNumberList * *aRotate)
 {
   *aRotate = DOMSVGAnimatedNumberList::GetDOMWrapper(&mNumberListAttributes[ROTATE],
                                                      this, ROTATE).get();

@@ -18,13 +18,10 @@
   display: none;
 }
 
-#downloadsFooter {
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
 #downloadsHistory {
   background: transparent;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
   color: hsl(210,100%,75%);
   cursor: pointer;
 }
@@ -77,7 +74,7 @@ richlistitem[type="download"] {
 }
 
 #downloadsSummary > .downloadTypeIcon {
-  list-style-image: url("chrome://browser/skin/downloads/download-summary.png");
+  list-style-image: url("chrome://mozapps/skin/downloads/downloadIcon.png");
 }
 
 #downloadsSummaryDescription {

@@ -427,7 +427,7 @@ GDIFontEntry::InitLogFont(const nsAString& aName,
     mLogFont.lfWeight         = mWeight;
 
     int len = NS_MIN<int>(aName.Length(), LF_FACESIZE - 1);
-    memcpy(&mLogFont.lfFaceName, aName.BeginReading(), len * sizeof(PRUnichar));
+    memcpy(&mLogFont.lfFaceName, nsPromiseFlatString(aName).get(), len * 2);
     mLogFont.lfFaceName[len] = '\0';
 }
 
@@ -560,7 +560,10 @@ GDIFontFamily::FindStyleVariations()
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfPitchAndFamily = 0;
     uint32_t l = NS_MIN<uint32_t>(mName.Length(), LF_FACESIZE - 1);
-    memcpy(logFont.lfFaceName, mName.get(), l * sizeof(PRUnichar));
+    memcpy(logFont.lfFaceName,
+           nsPromiseFlatString(mName).get(),
+           l * sizeof(PRUnichar));
+    logFont.lfFaceName[l] = 0;
 
     EnumFontFamiliesExW(hdc, &logFont,
                         (FONTENUMPROCW)GDIFontFamily::FamilyAddStylesProc,
@@ -953,8 +956,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
             if (ret != E_NONE) {
                 fontRef = nullptr;
                 char buf[256];
-                sprintf(buf, "font (%s) not loaded using TTLoadEmbeddedFont - error %8.8x",
-                        NS_ConvertUTF16toUTF8(aProxyEntry->Name()).get(), ret);
+                sprintf(buf, "font (%s) not loaded using TTLoadEmbeddedFont - error %8.8x", NS_ConvertUTF16toUTF8(aProxyEntry->FamilyName()).get(), ret);
                 NS_WARNING(buf);
             }
         }
@@ -1018,8 +1020,8 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     return fe;
 }
 
-gfxFontFamily*
-gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
+gfxFontEntry*
+gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
 {
     // this really shouldn't fail to find a font....
     HGDIOBJ hGDI = ::GetStockObject(DEFAULT_GUI_FONT);
@@ -1027,7 +1029,7 @@ gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
     if (hGDI && ::GetObjectW(hGDI, sizeof(logFont), &logFont)) {
         nsAutoString resolvedName;
         if (ResolveFontName(nsDependentString(logFont.lfFaceName), resolvedName)) {
-            return FindFamily(resolvedName);
+            return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
         }
     }
 
@@ -1039,7 +1041,7 @@ gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
     if (status) {
         nsAutoString resolvedName;
         if (ResolveFontName(nsDependentString(ncm.lfMessageFont.lfFaceName), resolvedName)) {
-            return FindFamily(resolvedName);
+            return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
         }
     }
 

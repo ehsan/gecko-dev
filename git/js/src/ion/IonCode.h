@@ -18,7 +18,7 @@ namespace JSC {
     class ExecutablePool;
 }
 
-class JSScript;
+struct JSScript;
 
 namespace js {
 namespace ion {

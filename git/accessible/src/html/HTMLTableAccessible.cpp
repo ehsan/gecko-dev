@@ -347,7 +347,7 @@ HTMLTableAccessible::
   HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
 {
-  mGenericTypes |= eTable;
+  mFlags |= eTableAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -502,8 +502,7 @@ HTMLTableAccessible::SelectedCellCount()
       int32_t startRow = -1, startCol = -1;
       cellFrame->GetRowIndex(startRow);
       cellFrame->GetColIndex(startCol);
-      if (startRow >= 0 && (uint32_t)startRow == rowIdx &&
-          startCol >= 0 && (uint32_t)startCol == colIdx)
+      if (startRow == rowIdx && startCol == colIdx)
         count++;
     }
   }
@@ -552,8 +551,7 @@ HTMLTableAccessible::SelectedCells(nsTArray<Accessible*>* aCells)
       int32_t startCol = -1, startRow = -1;
       cellFrame->GetRowIndex(startRow);
       cellFrame->GetColIndex(startCol);
-      if ((startRow >= 0 && (uint32_t)startRow != rowIdx) ||
-          (startCol >= 0 && (uint32_t)startCol != colIdx))
+      if (startRow != rowIdx || startCol != colIdx)
         continue;
 
       Accessible* cell = mDoc->GetAccessible(cellFrame->GetContent());
@@ -579,8 +577,7 @@ HTMLTableAccessible::SelectedCellIndices(nsTArray<uint32_t>* aCells)
       int32_t startRow = -1, startCol = -1;
       cellFrame->GetColIndex(startCol);
       cellFrame->GetRowIndex(startRow);
-      if (startRow >= 0 && (uint32_t)startRow == rowIdx &&
-          startCol >= 0 && (uint32_t)startCol == colIdx)
+      if (startRow == rowIdx && startCol == colIdx)
         aCells->AppendElement(CellIndexAt(rowIdx, colIdx));
     }
   }

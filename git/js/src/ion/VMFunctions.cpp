@@ -13,7 +13,6 @@
 
 #include "vm/StringObject-inl.h"
 
-#include "jsboolinlines.h"
 #include "jsinterpinlines.h"
 
 using namespace js;
@@ -228,11 +227,11 @@ StringsEqual(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res)
 template bool StringsEqual<true>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 
-JSBool
-ObjectEmulatesUndefined(RawObject obj)
+bool
+ValueToBooleanComplement(JSContext *cx, const Value &input, JSBool *output)
 {
-    AutoAssertNoGC nogc;
-    return EmulatesUndefined(obj);
+    *output = !ToBoolean(input);
+    return true;
 }
 
 bool
@@ -364,8 +363,7 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
 bool
 CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
 {
-    JS_ASSERT(index >= 0 &&
-              static_cast<uint32_t>(index) < str->length());
+    JS_ASSERT(index < str->length());
 
     const jschar *chars = str->getChars(cx);
     if (!chars)

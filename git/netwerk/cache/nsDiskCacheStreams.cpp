@@ -484,7 +484,8 @@ nsDiskCacheStreamIO::Flush()
 
     bool written = false;
 
-    if (mStreamEnd <= kMaxBufferSize) {
+    if ((mStreamEnd <= kMaxBufferSize) &&
+        (mBinding->mCacheEntry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE)) {
         // store data (if any) in cache block files
 
         mBufDirty = false;
@@ -677,16 +678,18 @@ nsDiskCacheStreamIO::OpenCacheFile(int flags, PRFileDesc ** fd)
 
     nsresult         rv;
     nsDiskCacheMap * cacheMap = mDevice->CacheMap();
-    nsCOMPtr<nsIFile>           localFile;
     
     rv = cacheMap->GetLocalFileForDiskCacheRecord(&mBinding->mRecord,
                                                   nsDiskCache::kData,
                                                   !!(flags & PR_CREATE_FILE),
-                                                  getter_AddRefs(localFile));
+                                                  getter_AddRefs(mLocalFile));
     if (NS_FAILED(rv))  return rv;
     
     // create PRFileDesc for input stream - the 00600 is just for consistency
-    return localFile->OpenNSPRFileDesc(flags, 00600, fd);
+    rv = mLocalFile->OpenNSPRFileDesc(flags, 00600, fd);
+    if (NS_FAILED(rv))  return rv;  // unable to open file
+
+    return NS_OK;
 }
 
 
@@ -781,6 +784,7 @@ nsDiskCacheStreamIO::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t usage = aMallocSizeOf(this);
 
+    usage += aMallocSizeOf(mLocalFile);
     usage += aMallocSizeOf(mFD);
     usage += aMallocSizeOf(mBuffer);
 

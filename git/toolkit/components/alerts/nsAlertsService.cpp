@@ -78,12 +78,12 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     if (aAlertListener)
       cpc->AddRemoteAlertObserver(PromiseFlatString(aAlertCookie), aAlertListener);
 
-    cpc->SendShowAlertNotification(PromiseFlatString(aImageUrl),
-                                   PromiseFlatString(aAlertTitle),
-                                   PromiseFlatString(aAlertText),
+    cpc->SendShowAlertNotification(nsAutoString(aImageUrl),
+                                   nsAutoString(aAlertTitle),
+                                   nsAutoString(aAlertText),
                                    aAlertTextClickable,
-                                   PromiseFlatString(aAlertCookie),
-                                   PromiseFlatString(aAlertName));
+                                   nsAutoString(aAlertCookie),
+                                   nsAutoString(aAlertName));
     return NS_OK;
   }
 

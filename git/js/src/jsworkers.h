@@ -13,8 +13,6 @@
 #ifndef jsworkers_h___
 #define jsworkers_h___
 
-#include "mozilla/GuardObjects.h"
-
 #include "jscntxt.h"
 #include "jslock.h"
 
@@ -127,15 +125,14 @@ OffThreadCompilationAvailable(JSContext *cx);
 class AutoLockWorkerThreadState
 {
     JSRuntime *rt;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
 
-    AutoLockWorkerThreadState(JSRuntime *rt
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoLockWorkerThreadState(JSRuntime *rt JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : rt(rt)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_PARALLEL_COMPILATION
         JS_ASSERT(rt->workerThreadState);
         rt->workerThreadState->lock();
@@ -155,15 +152,14 @@ class AutoLockWorkerThreadState
 class AutoUnlockWorkerThreadState
 {
     JSRuntime *rt;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
 
-    AutoUnlockWorkerThreadState(JSRuntime *rt
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoUnlockWorkerThreadState(JSRuntime *rt JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : rt(rt)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_PARALLEL_COMPILATION
         JS_ASSERT(rt->workerThreadState);
         rt->workerThreadState->unlock();

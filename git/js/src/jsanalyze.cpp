@@ -75,7 +75,7 @@ ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
 
     if (offset < *currentOffset) {
         /* Scripts containing loops are never inlined. */
-        isJaegerInlineable = isIonInlineable = false;
+        isInlineable = false;
         hasLoops_ = true;
 
         if (code->analyzed) {
@@ -163,11 +163,9 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
     isJaegerCompileable = true;
 
-    isJaegerInlineable = isIonInlineable = true;
-    if (heavyweight || cx->compartment->debugMode())
-        isJaegerInlineable = isIonInlineable = false;
-    if (script_->argumentsHasVarBinding())
-        isJaegerInlineable = false;
+    isInlineable = true;
+    if (heavyweight || script_->argumentsHasVarBinding() || cx->compartment->debugMode())
+        isInlineable = false;
 
     modifiesArguments_ = false;
     if (heavyweight)
@@ -259,8 +257,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
         if (script_->hasBreakpointsAt(pc)) {
             code->safePoint = true;
-            canTrackVars = false;
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = canTrackVars = false;
         }
 
         unsigned stackDepth = code->stackDepth;
@@ -307,7 +304,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_SETRVAL:
           case JSOP_POPV:
             usesReturnValue_ = true;
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = false;
             break;
 
           case JSOP_QNAMEPART:
@@ -324,7 +321,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_SETALIASEDVAR:
           case JSOP_LAMBDA:
             usesScopeChain_ = true;
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = false;
             break;
 
           case JSOP_DEFFUN:
@@ -332,25 +329,22 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_DEFCONST:
           case JSOP_SETCONST:
             usesScopeChain_ = true; // Requires access to VarObj via ScopeChain.
-            canTrackVars = false;
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = canTrackVars = false;
             break;
 
           case JSOP_EVAL:
-            canTrackVars = false;
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = canTrackVars = false;
             break;
 
           case JSOP_ENTERWITH:
-            isJaegerCompileable = canTrackVars = false;
-            isJaegerInlineable = isIonInlineable = false;
+            isJaegerCompileable = isInlineable = canTrackVars = false;
             break;
 
           case JSOP_ENTERLET0:
           case JSOP_ENTERLET1:
           case JSOP_ENTERBLOCK:
           case JSOP_LEAVEBLOCK:
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = false;
             break;
 
           case JSOP_THIS:
@@ -364,7 +358,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             break;
 
           case JSOP_TABLESWITCH: {
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = false;
             unsigned defaultOffset = offset + GET_JUMP_OFFSET(pc);
             jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
             int32_t low = GET_JUMP_OFFSET(pc2);
@@ -374,6 +368,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
             if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                 return;
+            getCode(defaultOffset).switchTarget = true;
             getCode(defaultOffset).safePoint = true;
 
             for (int32_t i = low; i <= high; i++) {
@@ -382,8 +377,34 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                     if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                         return;
                 }
+                getCode(targetOffset).switchTarget = true;
                 getCode(targetOffset).safePoint = true;
                 pc2 += JUMP_OFFSET_LEN;
+            }
+            break;
+          }
+
+          case JSOP_LOOKUPSWITCH: {
+            isInlineable = false;
+            unsigned defaultOffset = offset + GET_JUMP_OFFSET(pc);
+            jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
+            unsigned npairs = GET_UINT16(pc2);
+            pc2 += UINT16_LEN;
+
+            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                return;
+            getCode(defaultOffset).switchTarget = true;
+            getCode(defaultOffset).safePoint = true;
+
+            while (npairs) {
+                pc2 += UINT32_INDEX_LEN;
+                unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
+                if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                    return;
+                getCode(targetOffset).switchTarget = true;
+                getCode(targetOffset).safePoint = true;
+                pc2 += JUMP_OFFSET_LEN;
+                npairs--;
             }
             break;
           }
@@ -395,7 +416,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
              * exception but is not caught by a later handler in the same function:
              * no more code will execute, and it does not matter what is defined.
              */
-            isJaegerInlineable = isIonInlineable = false;
+            isInlineable = false;
             JSTryNote *tn = script_->trynotes()->vector;
             JSTryNote *tnlimit = tn + script_->trynotes()->length;
             for (; tn < tnlimit; tn++) {
@@ -447,7 +468,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           case JSOP_SETARG:
             modifiesArguments_ = true;
-            isIonInlineable = isJaegerInlineable = false;
+            isInlineable = false;
             break;
 
           case JSOP_GETPROP:
@@ -460,14 +481,12 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           /* Additional opcodes which can be compiled but which can't be inlined. */
           case JSOP_ARGUMENTS:
-          case JSOP_FUNAPPLY:
-            isJaegerInlineable = false;
-            break;
           case JSOP_THROW:
           case JSOP_EXCEPTION:
           case JSOP_DEBUGGER:
           case JSOP_FUNCALL:
-            isIonInlineable = isJaegerInlineable = false;
+          case JSOP_FUNAPPLY:
+            isInlineable = false;
             break;
 
           /* Additional opcodes which can be both compiled both normally and inline. */
@@ -566,10 +585,8 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             break;
 
           default:
-            if (!(js_CodeSpec[op].format & JOF_DECOMPOSE)) {
-                isJaegerCompileable = false;
-                isJaegerInlineable = isIonInlineable = false;
-            }
+            if (!(js_CodeSpec[op].format & JOF_DECOMPOSE))
+                isJaegerCompileable = isInlineable = false;
             break;
         }
 
@@ -577,17 +594,21 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
         /* Check basic jump opcodes, which may or may not have a fallthrough. */
         if (jump) {
-            /* Case instructions do not push the lvalue back when branching. */
+            /* Some opcodes behave differently on their branching path. */
             unsigned newStackDepth = stackDepth;
-            if (op == JSOP_CASE)
+
+            switch (op) {
+              case JSOP_CASE:
+                /* Case instructions do not push the lvalue back when branching. */
                 newStackDepth--;
+                break;
+
+              default:;
+            }
 
             unsigned targetOffset = offset + GET_JUMP_OFFSET(pc);
             if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, newStackDepth))
                 return;
-
-            if (op == JSOP_CASE || op == JSOP_DEFAULT)
-                getCode(targetOffset).safePoint = true;
         }
 
         /* Handle any fallthrough from this opcode. */
@@ -767,6 +788,7 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
             break;
           }
 
+          case JSOP_LOOKUPSWITCH:
           case JSOP_TABLESWITCH:
             /* Restore all saved variables. :FIXME: maybe do this precisely. */
             for (unsigned i = 0; i < savedCount; i++) {
@@ -1494,6 +1516,24 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
                 if (targetOffset != offset)
                     checkBranchTarget(cx, targetOffset, branchTargets, values, stackDepth);
                 pc2 += JUMP_OFFSET_LEN;
+            }
+
+            checkBranchTarget(cx, defaultOffset, branchTargets, values, stackDepth);
+            break;
+          }
+
+          case JSOP_LOOKUPSWITCH: {
+            unsigned defaultOffset = offset + GET_JUMP_OFFSET(pc);
+            jsbytecode *pc2 = pc + JUMP_OFFSET_LEN;
+            unsigned npairs = GET_UINT16(pc2);
+            pc2 += UINT16_LEN;
+
+            while (npairs) {
+                pc2 += UINT32_INDEX_LEN;
+                unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
+                checkBranchTarget(cx, targetOffset, branchTargets, values, stackDepth);
+                pc2 += JUMP_OFFSET_LEN;
+                npairs--;
             }
 
             checkBranchTarget(cx, defaultOffset, branchTargets, values, stackDepth);

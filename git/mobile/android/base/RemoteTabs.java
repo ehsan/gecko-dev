@@ -15,13 +15,14 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ExpandableListView;
+import android.widget.LinearLayout;
 import android.widget.SimpleExpandableListAdapter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class RemoteTabs extends ExpandableListView
+public class RemoteTabs extends LinearLayout
                         implements TabsPanel.PanelView,
                                    ExpandableListView.OnGroupClickListener,
                                    ExpandableListView.OnChildClickListener, 
@@ -31,6 +32,8 @@ public class RemoteTabs extends ExpandableListView
     private Context mContext;
     private TabsPanel mTabsPanel;
 
+    private static ExpandableListView mList;
+    
     private static ArrayList <ArrayList <HashMap <String, String>>> mTabsList;
 
     private static final String[] CLIENT_KEY = new String[] { "name" };
@@ -42,8 +45,11 @@ public class RemoteTabs extends ExpandableListView
         super(context, attrs);
         mContext = context;
 
-        setOnGroupClickListener(this);
-        setOnChildClickListener(this);
+        LayoutInflater.from(context).inflate(R.layout.remote_tabs, this);
+
+        mList = (ExpandableListView) findViewById(R.id.list);
+        mList.setOnGroupClickListener(this);
+        mList.setOnChildClickListener(this);
     }
 
     @Override
@@ -123,18 +129,18 @@ public class RemoteTabs extends ExpandableListView
             tabsForClient.add(tab);
         }
         
-        setAdapter(new SimpleExpandableListAdapter(mContext,
-                                                   clients,
-                                                   R.layout.remote_tabs_group,
-                                                   CLIENT_KEY,
-                                                   CLIENT_RESOURCE,
-                                                   mTabsList,
-                                                   R.layout.remote_tabs_child,
-                                                   TAB_KEY,
-                                                   TAB_RESOURCE));
+        mList.setAdapter(new SimpleExpandableListAdapter(mContext,
+                                                         clients,
+                                                         R.layout.remote_tabs_group,
+                                                         CLIENT_KEY,
+                                                         CLIENT_RESOURCE,
+                                                         mTabsList,
+                                                         R.layout.remote_tabs_child,
+                                                         TAB_KEY,
+                                                         TAB_RESOURCE));
         
         for (int i = 0; i < clients.size(); i++) {
-            expandGroup(i);
+            mList.expandGroup(i);
         }
     }
 }

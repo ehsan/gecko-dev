@@ -7,12 +7,12 @@
 #ifndef jsfriendapi_h___
 #define jsfriendapi_h___
 
-#include "mozilla/GuardObjects.h"
-
 #include "jsclass.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jsprvtd.h"
+
+#include "mozilla/GuardObjects.h"
 
 /*
  * This macro checks if the stack pointer has exceeded a given limit. If
@@ -220,11 +220,10 @@ class JS_FRIEND_API(AutoSwitchCompartment) {
     JSCompartment *oldCompartment;
   public:
     AutoSwitchCompartment(JSContext *cx, JSCompartment *newCompartment
-                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    AutoSwitchCompartment(JSContext *cx, JSHandleObject target
-                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM);
+    AutoSwitchCompartment(JSContext *cx, JSHandleObject target JS_GUARD_OBJECT_NOTIFIER_PARAM);
     ~AutoSwitchCompartment();
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 #ifdef OLD_GETTER_SETTER_METHODS
@@ -239,14 +238,13 @@ extern JS_FRIEND_API(bool)
 IsAtomsCompartment(const JSCompartment *c);
 
 /*
- * Check whether it is OK to assign an undeclared variable with the name
- * |propname| at the current location in script.  It is not an error if there is
- * no current script location, or if that location is not an assignment to an
- * undeclared variable.  Reports an error if one needs to be reported (and,
- * particularly, always reports when it returns false).
+ * Check whether it is OK to assign an undeclared property with name
+ * propname of the global object in the current script on cx.  Reports
+ * an error if one needs to be reported (in particular in all cases
+ * when it returns false).
  */
 extern JS_FRIEND_API(bool)
-ReportIfUndeclaredVarAssignment(JSContext *cx, HandleString propname);
+CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname);
 
 struct WeakMapTracer;
 
@@ -300,11 +298,6 @@ GCThingTraceKind(void *thing);
 extern JS_FRIEND_API(void)
 IterateGrayObjects(JSCompartment *compartment, GCThingCallback cellCallback, void *data);
 
-#ifdef JS_HAS_CTYPES
-extern JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
-#endif
-
 /*
  * Shadow declarations of JS internal structures, for access by inline access
  * functions below. Do not use these structures in any other way. When adding
@@ -322,8 +315,7 @@ struct BaseShape {
     JSObject    *parent;
 };
 
-class Shape {
-public:
+struct Shape {
     shadow::BaseShape *base;
     jsid              _1;
     uint32_t          slotInfo;
@@ -685,10 +677,8 @@ SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size,
 JS_FRIEND_API(void)
 EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled);
 
-// Use RawScript rather than UnrootedScript because it may be called from a
-// signal handler
 JS_FRIEND_API(jsbytecode*)
-ProfilingGetPC(JSRuntime *rt, RawScript script, void *ip);
+ProfilingGetPC(JSRuntime *rt, JSScript *script, void *ip);
 
 #ifdef JS_THREADSAFE
 JS_FRIEND_API(void *)
@@ -1447,9 +1437,8 @@ struct JSJitInfo {
     uint32_t protoID;
     uint32_t depth;
     OpType type;
-    bool isInfallible;      /* Is op fallible? False in setters. */
-    bool isConstant;        /* Getting a construction-time constant? */
-    JSValueType returnType; /* The return type tag.  Might be JSVAL_TYPE_UNKNOWN */
+    bool isInfallible;    /* Is op fallible? False in setters. */
+    bool isConstant;      /* Getting a construction-time constant? */
 };
 
 static JS_ALWAYS_INLINE const JSJitInfo *
@@ -1554,12 +1543,6 @@ IdToJsval(jsid id)
 {
     return IdToValue(id);
 }
-
-extern JS_FRIEND_API(bool)
-IsReadOnlyDateMethod(JS::IsAcceptableThis test, JS::NativeImpl method);
-
-extern JS_FRIEND_API(bool)
-IsTypedArrayThisCheck(JS::IsAcceptableThis test);
 
 } /* namespace js */
 

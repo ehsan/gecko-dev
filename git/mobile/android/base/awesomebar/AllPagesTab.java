@@ -249,8 +249,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 return;
 
             String url = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL));
-            String title = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.TITLE));
-            listener.onUrlOpen(url, title);
+            listener.onUrlOpen(url);
         }
 
         public ContextMenuSubject getSubject() {
@@ -461,7 +460,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                         // pattern, go to that URL. Otherwise, do a search for
                         // the term.
                         if (v != viewHolder.userEnteredView && !StringUtils.isSearchQuery(suggestion)) {
-                            listener.onUrlOpen(suggestion, null);
+                            listener.onUrlOpen(suggestion);
                         } else {
                             listener.onSearch(engine.name, suggestion);
                         }
@@ -600,9 +599,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     private void showSuggestionsOptIn() {
         mSuggestionsOptInPrompt = LayoutInflater.from(mContext).inflate(R.layout.awesomebar_suggestion_prompt, (LinearLayout)getView(), false);
-        GeckoTextView promptText = (GeckoTextView) mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_title);
-        promptText.setText(getResources().getString(R.string.suggestions_prompt, mSearchEngines.get(0).name));
-        promptText.setPrivateMode(Tabs.getInstance().getSelectedTab().isPrivate());
+        ((TextView) mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_title))
+                .setText(getResources().getString(R.string.suggestions_prompt, mSearchEngines.get(0).name));
 
         final View yesButton = mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_yes);
         final View noButton = mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_no);

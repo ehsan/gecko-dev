@@ -12,7 +12,7 @@
 #include "nsPresContext.h"
 #include "nsStyleUtil.h"
 #include "nsDOMCSSRGBColor.h"
-#include "nsDOMCSSRect.h"
+#include "nsIDOMRect.h"
 #include "nsIURI.h"
 #include "nsError.h"
 
@@ -180,8 +180,8 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_RGBCOLOR :
       {
         NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
-        ErrorResult error;
         NS_NAMED_LITERAL_STRING(comma, ", ");
+        nsCOMPtr<nsIDOMCSSPrimitiveValue> colorCSSValue;
         nsAutoString colorValue;
         if (mValue.mColor->HasAlpha())
           tmpStr.AssignLiteral("rgba(");
@@ -189,27 +189,39 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
           tmpStr.AssignLiteral("rgb(");
 
         // get the red component
-        mValue.mColor->Red()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetRed(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue + comma);
 
         // get the green component
-        mValue.mColor->Green()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetGreen(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue + comma);
 
         // get the blue component
-        mValue.mColor->Blue()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetBlue(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue);
 
         if (mValue.mColor->HasAlpha()) {
           // get the alpha component
-          mValue.mColor->Alpha()->GetCssText(colorValue, error);
-          if (error.Failed())
+          result = mValue.mColor->GetAlpha(getter_AddRefs(colorCSSValue));
+          if (NS_FAILED(result))
+            break;
+          result = colorCSSValue->GetCssText(colorValue);
+          if (NS_FAILED(result))
             break;
           tmpStr.Append(comma + colorValue);
         }
@@ -458,7 +470,7 @@ nsROCSSPrimitiveValue::GetCounterValue(ErrorResult& aRv)
   return nullptr;
 }
 
-nsDOMCSSRect*
+already_AddRefed<nsIDOMRect>
 nsROCSSPrimitiveValue::GetRectValue(ErrorResult& aRv)
 {
   if (mType != CSS_RECT) {
@@ -467,6 +479,7 @@ nsROCSSPrimitiveValue::GetRectValue(ErrorResult& aRv)
   }
 
   NS_ASSERTION(mValue.mRect, "mValue.mRect should never be null");
+  NS_ADDREF(mValue.mRect);
   return mValue.mRect;
 }
 
@@ -474,19 +487,27 @@ NS_IMETHODIMP
 nsROCSSPrimitiveValue::GetRectValue(nsIDOMRect** aRect)
 {
   ErrorResult error;
-  NS_IF_ADDREF(*aRect = GetRectValue(error));
+  *aRect = GetRectValue(error).get();
   return error.ErrorCode();
 }
 
-nsDOMCSSRGBColor*
+NS_IMETHODIMP
+nsROCSSPrimitiveValue::GetRGBColorValue(nsIDOMRGBColor** aColor)
+{
+  ErrorResult error;
+  *aColor = GetRGBColorValue(error).get();
+  return error.ErrorCode();
+}
+
+already_AddRefed<nsIDOMRGBColor>
 nsROCSSPrimitiveValue::GetRGBColorValue(ErrorResult& aRv)
 {
   if (mType != CSS_RGBCOLOR) {
     aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return nullptr;
   }
-
   NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
+  NS_ADDREF(mValue.mColor);
   return mValue.mColor;
 }
 
@@ -600,7 +621,7 @@ nsROCSSPrimitiveValue::SetColor(nsDOMCSSRGBColor* aColor)
 }
 
 void
-nsROCSSPrimitiveValue::SetRect(nsDOMCSSRect* aRect)
+nsROCSSPrimitiveValue::SetRect(nsIDOMRect* aRect)
 {
   NS_PRECONDITION(aRect, "Null rect being set!");
   Reset();
@@ -647,6 +668,4 @@ nsROCSSPrimitiveValue::Reset()
       NS_RELEASE(mValue.mColor);
       break;
   }
-
-  mType = CSS_UNKNOWN;
 }

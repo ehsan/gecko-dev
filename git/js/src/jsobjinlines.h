@@ -31,7 +31,6 @@
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "gc/Root.h"
-#include "js/MemoryMetrics.h"
 #include "js/TemplateLib.h"
 #include "vm/BooleanObject.h"
 #include "vm/GlobalObject.h"
@@ -699,8 +698,6 @@ JSObject::setType(js::types::TypeObject *newType)
     JS_ASSERT(newType);
     JS_ASSERT_IF(hasSpecialEquality(),
                  newType->hasAnyFlags(js::types::OBJECT_FLAG_SPECIAL_EQUALITY));
-    JS_ASSERT_IF(getClass()->emulatesUndefined(),
-                 newType->hasAnyFlags(js::types::OBJECT_FLAG_EMULATES_UNDEFINED));
     JS_ASSERT(!hasSingletonType());
     JS_ASSERT(compartment() == newType->compartment());
     type_ = newType;
@@ -1000,27 +997,30 @@ JSObject::computedSizeOfThisSlotsElements() const
 }
 
 inline void
-JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, JS::ObjectsExtraSizes *sizes)
+JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *slotsSize,
+                              size_t *elementsSize, size_t *argumentsDataSize,
+                              size_t *regExpStaticsSize, size_t *propertyIteratorDataSize) const
 {
-    if (hasDynamicSlots())
-        sizes->slots = mallocSizeOf(slots);
+    *slotsSize = 0;
+    if (hasDynamicSlots()) {
+        *slotsSize += mallocSizeOf(slots);
+    }
 
-    if (hasDynamicElements())
-        sizes->elements = mallocSizeOf(getElementsHeader());
+    *elementsSize = 0;
+    if (hasDynamicElements()) {
+        *elementsSize += mallocSizeOf(getElementsHeader());
+    }
 
-    // Other things may be measured in the future if DMD indicates it is worthwhile.
-    // Note that sizes->private_ is measured elsewhere.
+    /* Other things may be measured in the future if DMD indicates it is worthwhile. */
+    *argumentsDataSize = 0;
+    *regExpStaticsSize = 0;
+    *propertyIteratorDataSize = 0;
     if (isArguments()) {
-        sizes->argumentsData = asArguments().sizeOfMisc(mallocSizeOf);
+        *argumentsDataSize += asArguments().sizeOfMisc(mallocSizeOf);
     } else if (isRegExpStatics()) {
-        sizes->regExpStatics = js::SizeOfRegExpStaticsData(this, mallocSizeOf);
+        *regExpStaticsSize += js::SizeOfRegExpStaticsData(this, mallocSizeOf);
     } else if (isPropertyIterator()) {
-        sizes->propertyIteratorData = asPropertyIterator().sizeOfMisc(mallocSizeOf);
-#ifdef JS_HAS_CTYPES
-    } else {
-        // This must be the last case.
-        sizes->ctypesData = js::SizeOfDataIfCDataObject(mallocSizeOf, const_cast<JSObject *>(this));
-#endif
+        *propertyIteratorDataSize += asPropertyIterator().sizeOfMisc(mallocSizeOf);
     }
 }
 
@@ -1507,10 +1507,6 @@ FindClassPrototype(JSContext *cx, HandleObject scope, JSProtoKey protoKey,
  */
 JSObject *
 NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc::AllocKind kind);
-
-// Used to optimize calls to (new Object())
-bool
-NewObjectScriptedCall(JSContext *cx, MutableHandleObject obj);
 
 /* Make an object with pregenerated shape from a NEWOBJECT bytecode. */
 static inline JSObject *

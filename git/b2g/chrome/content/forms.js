@@ -39,6 +39,7 @@ let FormAssistant = {
     addMessageListener("Forms:Select:Choice", this);
     addMessageListener("Forms:Input:Value", this);
     addMessageListener("Forms:Select:Blur", this);
+    Services.obs.addObserver(this, "ime-enabled-state-changed", false);
     Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
 
@@ -93,12 +94,12 @@ let FormAssistant = {
           return;
 
         if (target && this.isFocusableElement(target))
-          this.showKeyboard(target);
+          this.handleIMEStateEnabled(target);
         break;
 
       case "blur":
         if (this.focusedElement)
-          this.hideKeyboard();
+          this.handleIMEStateDisabled();
         break;
 
       case 'mousedown':
@@ -115,7 +116,7 @@ let FormAssistant = {
         // need to tell the keyboard about it
         if (this.focusedElement.selectionStart !== this.selectionStart ||
             this.focusedElement.selectionEnd !== this.selectionEnd) {
-          this.sendKeyboardState(this.focusedElement);
+          this.tryShowIme(this.focusedElement);
         }
         break;
 
@@ -194,7 +195,22 @@ let FormAssistant = {
 
   observe: function fa_observe(subject, topic, data) {
     switch (topic) {
+      case "ime-enabled-state-changed":
+        let shouldOpen = parseInt(data);
+        let target = Services.fm.focusedElement;
+        if (!target || !this.isTextInputElement(target))
+          return;
+
+        if (shouldOpen) {
+          if (!this.focusedElement && this.isFocusableElement(target))
+            this.handleIMEStateEnabled(target);
+        } else if (this._focusedElement == target) {
+          this.handleIMEStateDisabled();
+        }
+        break;
+
       case "xpcom-shutdown":
+        Services.obs.removeObserver(this, "ime-enabled-state-changed", false);
         Services.obs.removeObserver(this, "xpcom-shutdown");
         removeMessageListener("Forms:Select:Choice", this);
         removeMessageListener("Forms:Input:Value", this);
@@ -211,21 +227,21 @@ let FormAssistant = {
     return disabled;
   },
 
-  showKeyboard: function fa_showKeyboard(target) {
+  handleIMEStateEnabled: function fa_handleIMEStateEnabled(target) {
     if (this.isKeyboardOpened)
       return;
 
     if (target instanceof HTMLOptionElement)
       target = target.parentNode;
 
-    let kbOpened = this.sendKeyboardState(target);
+    let kbOpened = this.tryShowIme(target);
     if (this.isTextInputElement(target))
       this.isKeyboardOpened = kbOpened;
 
     this.setFocusedElement(target);
   },
 
-  hideKeyboard: function fa_hideKeyboard() {
+  handleIMEStateDisabled: function fa_handleIMEStateDisabled() {
     sendAsyncMessage("Forms:Input", { "type": "blur" });
     this.isKeyboardOpened = false;
     this.setFocusedElement(null);
@@ -254,7 +270,7 @@ let FormAssistant = {
            (element.contentEditable && element.contentEditable == "true");
   },
 
-  sendKeyboardState: function(element) {
+  tryShowIme: function(element) {
     // FIXME/bug 729623: work around apparent bug in the IME manager
     // in gecko.
     let readonly = element.getAttribute("readonly");
@@ -282,12 +298,14 @@ function getJSON(element) {
 
   // Until the input type=date/datetime/time have been implemented
   // let's return their real type even if the platform returns 'text'
+  // Related to Bug 769352 - Implement <input type=date>
   // Related to Bug 777279 - Implement <input type=time>
   let attributeType = element.getAttribute("type") || "";
 
   if (attributeType) {
     var typeLowerCase = attributeType.toLowerCase(); 
     switch (typeLowerCase) {
+      case "date":
       case "time":
       case "datetime":
       case "datetime-local":

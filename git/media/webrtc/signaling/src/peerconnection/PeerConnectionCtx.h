@@ -13,12 +13,7 @@
 #include "CC_Call.h"
 #include "CC_Observer.h"
 
-#include "StaticPtr.h"
 #include "PeerConnectionImpl.h"
-
-namespace mozilla {
-class PeerConnectionCtxShutdown;
-}
 
 namespace sipcc {
 
@@ -77,8 +72,6 @@ class PeerConnectionCtx : public CSF::CC_Observer {
 
   static PeerConnectionCtx *gInstance;
   static nsIThread *gMainThread;
-public:
-  static StaticRefPtr<mozilla::PeerConnectionCtxShutdown> gPeerConnectionCtxShutdown;
 };
 
 }  // namespace sipcc

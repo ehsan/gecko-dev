@@ -103,7 +103,7 @@ class B2GOptions(MochitestOptions):
                         help="directory to store logcat dump files")
         defaults["logcat_dir"] = None
 
-        defaults["remoteTestRoot"] = "/data/local/tests"
+        defaults["remoteTestRoot"] = None
         defaults["logFile"] = "mochitest.log"
         defaults["autorun"] = True
         defaults["closeWhenDone"] = True
@@ -113,8 +113,7 @@ class B2GOptions(MochitestOptions):
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options, automation):
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
+        options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
         productRoot = options.remoteTestRoot + "/" + automation._product
 
         if options.utilityPath == self._automation.DIST_BIN:
@@ -201,6 +200,7 @@ class B2GMochitest(Mochitest):
     _automation = None
     _dm = None
     localProfile = None
+    testDir = '/data/local/tests'
 
     def __init__(self, automation, devmgr, options):
         self._automation = automation
@@ -498,7 +498,7 @@ def main():
 
     # create the DeviceManager
     kwargs = {'adbPath': options.adbPath,
-              'deviceRoot': options.remoteTestRoot}
+              'deviceRoot': B2GMochitest.testDir}
     if options.deviceIP:
         kwargs.update({'host': options.deviceIP,
                        'port': options.devicePort})

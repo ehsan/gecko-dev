@@ -346,7 +346,6 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   nsIFrame* baseFrame = mFrames.FirstChild();
   underSize.ascent = 0; 
   overSize.ascent = 0;
-  bool haveError = false;
   if (baseFrame) {
     if (tag == nsGkAtoms::munder_ ||
         tag == nsGkAtoms::munderover_) {
@@ -362,26 +361,20 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   if (tag == nsGkAtoms::munder_) {
     if (!baseFrame || !underFrame || underFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
   }
   if (tag == nsGkAtoms::mover_) {
     if (!baseFrame || !overFrame || overFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
   }
   if (tag == nsGkAtoms::munderover_) {
     if (!baseFrame || !underFrame || !overFrame || overFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
-  }
-  if (haveError) {
-    if (aPlaceOrigin) {
-      ReportChildCountError();
-    } 
-    return ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
   if (underFrame) {

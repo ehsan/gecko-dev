@@ -11,10 +11,9 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
-#include "nsISVGPoint.h"
+#include "nsIDOMSVGPoint.h"
 #include "nsTArray.h"
 #include "SVGPoint.h"
-#include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
 class nsSVGElement;
@@ -32,8 +31,6 @@ class nsSVGElement;
 
 namespace mozilla {
 
-class DOMSVGMatrix;
-
 /**
  * Class DOMSVGPoint
  *
@@ -48,12 +45,13 @@ class DOMSVGMatrix;
  * See the architecture comment in DOMSVGLength.h (yes, LENGTH) for an overview
  * of the important points regarding how this specific class works.
  */
-class DOMSVGPoint MOZ_FINAL : public nsISVGPoint
+class DOMSVGPoint MOZ_FINAL : public nsIDOMSVGPoint
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGPOINT_IID)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPoint)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGPoint)
+  NS_DECL_NSIDOMSVGPOINT
 
   /**
    * Generic ctor for DOMSVGPoint objects that are created for an attribute.
@@ -61,8 +59,7 @@ public:
   DOMSVGPoint(DOMSVGPointList *aList,
               uint32_t aListIndex,
               bool aIsAnimValItem)
-    : nsISVGPoint()
-    , mList(aList)
+    : mList(aList)
     , mListIndex(aListIndex)
     , mIsReadonly(false)
     , mIsAnimValItem(aIsAnimValItem)
@@ -74,9 +71,8 @@ public:
     NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGPoint!");
   }
 
-  explicit DOMSVGPoint(const DOMSVGPoint *aPt = nullptr)
-    : nsISVGPoint()
-    , mList(nullptr)
+  DOMSVGPoint(const DOMSVGPoint *aPt = nullptr)
+    : mList(nullptr)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -87,8 +83,7 @@ public:
   }
 
   DOMSVGPoint(float aX, float aY)
-    : nsISVGPoint()
-    , mList(nullptr)
+    : mList(nullptr)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -97,9 +92,8 @@ public:
     mPt.mY = aY;
   }
 
-  explicit DOMSVGPoint(const gfxPoint &aPt)
-    : nsISVGPoint()
-    , mList(nullptr)
+  DOMSVGPoint(const gfxPoint &aPt)
+    : mList(nullptr)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -111,23 +105,13 @@ public:
   }
 
 
-  virtual ~DOMSVGPoint() {
+  ~DOMSVGPoint() {
     // Our mList's weak ref to us must be nulled out when we die. If GC has
     // unlinked us using the cycle collector code, then that has already
     // happened, and mList is null.
     if (mList) {
       mList->mItems[mListIndex] = nullptr;
     }
-  }
-
-  // WebIDL
-  virtual float X();
-  virtual void SetX(float aX, ErrorResult& rv);
-  virtual float Y();
-  virtual void SetY(float aY, ErrorResult& rv);
-  virtual already_AddRefed<nsISVGPoint> MatrixTransform(DOMSVGMatrix& matrix);
-  nsISupports* GetParentObject() MOZ_OVERRIDE {
-    return mList;
   }
 
   /**

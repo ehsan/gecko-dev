@@ -46,7 +46,6 @@
 @BINPATH@/@DLL_PREFIX@omxplugingb235@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@omxpluginhc@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@omxpluginsony@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@omxpluginfroyo@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 
@@ -131,7 +130,6 @@
 @BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
-@BINPATH@/components/dom_system.xpt
 @BINPATH@/components/dom_threads.xpt
 @BINPATH@/components/dom_traversal.xpt
 @BINPATH@/components/dom_views.xpt

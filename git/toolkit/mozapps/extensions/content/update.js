@@ -213,9 +213,9 @@ var gVersionInfoPage = {
 
     // Update the status text and progress bar
     var updateStrings = document.getElementById("updateStrings");
-    var statusElt = document.getElementById("versioninfo.status");
+    var status = document.getElementById("versioninfo.status");
     var statusString = updateStrings.getFormattedString("statusPrefix", [aAddon.name]);
-    statusElt.setAttribute("value", statusString);
+    status.setAttribute("value", statusString);
 
     // Update the status text and progress bar
     var progress = document.getElementById("versioninfo.progress");
@@ -287,9 +287,9 @@ var gUpdatePage = {
 
     // Update the status text and progress bar
     var updateStrings = document.getElementById("updateStrings");
-    var statusElt = document.getElementById("checking.status");
+    var status = document.getElementById("checking.status");
     var statusString = updateStrings.getFormattedString("statusPrefix", [aAddon.name]);
-    statusElt.setAttribute("value", statusString);
+    status.setAttribute("value", statusString);
 
     var progress = document.getElementById("checking.progress");
     progress.value = Math.ceil((this._completeCount / this._totalCount) * 100);

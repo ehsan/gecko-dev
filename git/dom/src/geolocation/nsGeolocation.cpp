@@ -196,23 +196,6 @@ private:
   nsRefPtr<nsGeolocation>        mLocator;
 };
 
-class RequestRestartTimerEvent : public nsRunnable
-{
-public:
-  RequestRestartTimerEvent(nsGeolocationRequest* aRequest)
-    : mRequest(aRequest)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    mRequest->SetTimeoutTimer();
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsGeolocationRequest> mRequest;
-};
-
 ////////////////////////////////////////////////////
 // nsDOMGeoPositionError
 ////////////////////////////////////////////////////
@@ -340,22 +323,15 @@ nsGeolocationRequest::NotifyError(int16_t errorCode)
 NS_IMETHODIMP
 nsGeolocationRequest::Notify(nsITimer* aTimer)
 {
-  if (mCleared) {
-    return NS_OK;
-  }
-
   // If we haven't gotten an answer from the geolocation
-  // provider yet, fire a TIMEOUT error and reset the timer.
-  if (!mIsWatchPositionRequest) {
-    mLocator->RemoveRequest(this);
-  }
+  // provider yet, cancel the request.  Same logic as
+  // ::Cancel, just a different error
 
+  // remove ourselves from the locator's callback lists.
+  mLocator->RemoveRequest(this);
   NotifyError(nsIDOMGeoPositionError::TIMEOUT);
 
-  if (mIsWatchPositionRequest) {
-    SetTimeoutTimer();
-  }
-
+  mTimeoutTimer = nullptr;
   return NS_OK;
 }
 
@@ -554,16 +530,13 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition, bool aIsBetter)
   // in the case when newly detected positions are all less accurate than the cached one.
   //
   // Fixes bug 596481
-  nsCOMPtr<nsIRunnable> ev;
   if (mIsFirstUpdate || aIsBetter) {
     mIsFirstUpdate = false;
-    ev  = new RequestSendLocationEvent(aPosition,
-                                       this,
-                                       mIsWatchPositionRequest ? nullptr : mLocator);
-  } else {
-    ev = new RequestRestartTimerEvent(this);
+    nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition,
+                                                             this,
+                                                             mIsWatchPositionRequest ? nullptr : mLocator);
+    NS_DispatchToMainThread(ev);
   }
-  NS_DispatchToMainThread(ev);
   return true;
 }
 
@@ -855,11 +828,7 @@ nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
   if (!aSomewhere) {
     return false;
   }
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    return true;
-  }
-
+  
   if (mProviders.Count() == 1 || !mLastPosition) {
     return true;
   }
@@ -1003,12 +972,6 @@ nsGeolocationService::SetDisconnectTimer()
 void
 nsGeolocationService::SetHigherAccuracy(bool aEnable)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendSetGeolocationHigherAccuracy(aEnable);
-    return;
-  }
-
   if (!mHigherAccuracy && aEnable) {
     for (int32_t i = 0; i < mProviders.Count(); i++) {
       mProviders[i]->SetHighAccuracy(true);

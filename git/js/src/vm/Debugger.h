@@ -495,7 +495,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
 class BreakpointSite {
     friend class Breakpoint;
     friend struct ::JSCompartment;
-    friend class ::JSScript;
+    friend struct ::JSScript;
     friend class Debugger;
 
   public:

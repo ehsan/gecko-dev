@@ -3902,7 +3902,7 @@ nsTextFrame::AccessibleType()
     }
   }
 
-  return a11y::eTextLeafType;
+  return a11y::eTextLeaf;
 }
 #endif
 
@@ -4740,7 +4740,8 @@ nsTextFrame::GetTextDecorations(
     frameTopOffset += f->GetRect().y - f->GetRelativeOffset().y;
 
     const uint8_t style = styleText->GetDecorationStyle();
-    if (textDecorations) {
+    // Accumulate only elements that have decorations with a genuine style
+    if (textDecorations && style != NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
       nscolor color;
       if (useOverride) {
         color = overrideColor;
@@ -4814,38 +4815,34 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
     nsIFrame* firstLetterFrame = aBlockReflowState.frame;
     uint8_t decorationStyle = firstLetterFrame->GetStyleContext()->
                                 GetStyleTextReset()->GetDecorationStyle();
-    // If the style is none, let's include decoration line rect as solid style
-    // since changing the style from none to solid/dotted/dashed doesn't cause
-    // reflow.
-    if (decorationStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-      decorationStyle = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
+    if (decorationStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
+      nsFontMetrics* fontMetrics = aProvider.GetFontMetrics();
+      nscoord underlineOffset, underlineSize;
+      fontMetrics->GetUnderline(underlineOffset, underlineSize);
+      nscoord maxAscent = fontMetrics->MaxAscent();
+
+      gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel();
+      gfxFloat gfxWidth = aVisualOverflowRect->width / appUnitsPerDevUnit;
+      gfxFloat gfxAscent = gfxFloat(mAscent) / appUnitsPerDevUnit;
+      gfxFloat gfxMaxAscent = maxAscent / appUnitsPerDevUnit;
+      gfxFloat gfxUnderlineSize = underlineSize / appUnitsPerDevUnit;
+      gfxFloat gfxUnderlineOffset = underlineOffset / appUnitsPerDevUnit;
+      nsRect underlineRect =
+        nsCSSRendering::GetTextDecorationRect(aPresContext,
+          gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxUnderlineOffset,
+          NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle);
+      nsRect overlineRect =
+        nsCSSRendering::GetTextDecorationRect(aPresContext,
+          gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxMaxAscent,
+          NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle);
+
+      aVisualOverflowRect->UnionRect(*aVisualOverflowRect, underlineRect);
+      aVisualOverflowRect->UnionRect(*aVisualOverflowRect, overlineRect);
+
+      // XXX If strikeoutSize is much thicker than the underlineSize, it may
+      //     cause overflowing from the overflow rect.  However, such case
+      //     isn't realistic, we don't need to compute it now.
     }
-    nsFontMetrics* fontMetrics = aProvider.GetFontMetrics();
-    nscoord underlineOffset, underlineSize;
-    fontMetrics->GetUnderline(underlineOffset, underlineSize);
-    nscoord maxAscent = fontMetrics->MaxAscent();
-
-    gfxFloat appUnitsPerDevUnit = aPresContext->AppUnitsPerDevPixel();
-    gfxFloat gfxWidth = aVisualOverflowRect->width / appUnitsPerDevUnit;
-    gfxFloat gfxAscent = gfxFloat(mAscent) / appUnitsPerDevUnit;
-    gfxFloat gfxMaxAscent = maxAscent / appUnitsPerDevUnit;
-    gfxFloat gfxUnderlineSize = underlineSize / appUnitsPerDevUnit;
-    gfxFloat gfxUnderlineOffset = underlineOffset / appUnitsPerDevUnit;
-    nsRect underlineRect =
-      nsCSSRendering::GetTextDecorationRect(aPresContext,
-        gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxUnderlineOffset,
-        NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle);
-    nsRect overlineRect =
-      nsCSSRendering::GetTextDecorationRect(aPresContext,
-        gfxSize(gfxWidth, gfxUnderlineSize), gfxAscent, gfxMaxAscent,
-        NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle);
-
-    aVisualOverflowRect->UnionRect(*aVisualOverflowRect, underlineRect);
-    aVisualOverflowRect->UnionRect(*aVisualOverflowRect, overlineRect);
-
-    // XXX If strikeoutSize is much thicker than the underlineSize, it may
-    //     cause overflowing from the overflow rect.  However, such case
-    //     isn't realistic, we don't need to compute it now.
   }
   if (aIncludeTextDecorations) {
     // Since CSS 2.1 requires that text-decoration defined on ancestors maintain
@@ -4867,13 +4864,6 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
       // containing all of them, in this frame's coordinate space
       for (uint32_t i = 0; i < textDecs.mUnderlines.Length(); ++i) {
         const LineDecoration& dec = textDecs.mUnderlines[i];
-        uint8_t decorationStyle = dec.mStyle;
-        // If the style is solid, let's include decoration line rect of solid
-        // style since changing the style from none to solid/dotted/dashed
-        // doesn't cause reflow.
-        if (decorationStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-          decorationStyle = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
-        }
 
         float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                             inflationMinFontSize);
@@ -4884,7 +4874,7 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.underlineSize),
             ascent, metrics.underlineOffset,
-            NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, decorationStyle) +
+            NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE, dec.mStyle) +
           nsPoint(0, -dec.mBaselineOffset);
 
         top = NS_MIN(decorationRect.y, top);
@@ -4892,13 +4882,6 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
       }
       for (uint32_t i = 0; i < textDecs.mOverlines.Length(); ++i) {
         const LineDecoration& dec = textDecs.mOverlines[i];
-        uint8_t decorationStyle = dec.mStyle;
-        // If the style is solid, let's include decoration line rect of solid
-        // style since changing the style from none to solid/dotted/dashed
-        // doesn't cause reflow.
-        if (decorationStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-          decorationStyle = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
-        }
 
         float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                             inflationMinFontSize);
@@ -4909,7 +4892,7 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.underlineSize),
             ascent, metrics.maxAscent,
-            NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, decorationStyle) +
+            NS_STYLE_TEXT_DECORATION_LINE_OVERLINE, dec.mStyle) +
           nsPoint(0, -dec.mBaselineOffset);
 
         top = NS_MIN(decorationRect.y, top);
@@ -4917,13 +4900,6 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
       }
       for (uint32_t i = 0; i < textDecs.mStrikes.Length(); ++i) {
         const LineDecoration& dec = textDecs.mStrikes[i];
-        uint8_t decorationStyle = dec.mStyle;
-        // If the style is solid, let's include decoration line rect of solid
-        // style since changing the style from none to solid/dotted/dashed
-        // doesn't cause reflow.
-        if (decorationStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-          decorationStyle = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
-        }
 
         float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                             inflationMinFontSize);
@@ -4934,7 +4910,7 @@ nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
           nsCSSRendering::GetTextDecorationRect(aPresContext,
             gfxSize(gfxWidth, metrics.strikeoutSize),
             ascent, metrics.strikeoutOffset,
-            NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, decorationStyle) +
+            NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH, dec.mStyle) +
           nsPoint(0, -dec.mBaselineOffset);
         top = NS_MIN(decorationRect.y, top);
         bottom = NS_MAX(decorationRect.YMost(), bottom);
@@ -6006,9 +5982,6 @@ nsTextFrame::DrawTextRunAndDecorations(
     // Underlines
     for (uint32_t i = aDecorations.mUnderlines.Length(); i-- > 0; ) {
       const LineDecoration& dec = aDecorations.mUnderlines[i];
-      if (dec.mStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-        continue;
-      }
 
       float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                           inflationMinFontSize);
@@ -6026,9 +5999,6 @@ nsTextFrame::DrawTextRunAndDecorations(
     // Overlines
     for (uint32_t i = aDecorations.mOverlines.Length(); i-- > 0; ) {
       const LineDecoration& dec = aDecorations.mOverlines[i];
-      if (dec.mStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-        continue;
-      }
 
       float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                           inflationMinFontSize);
@@ -6052,9 +6022,6 @@ nsTextFrame::DrawTextRunAndDecorations(
     // Line-throughs
     for (uint32_t i = aDecorations.mStrikes.Length(); i-- > 0; ) {
       const LineDecoration& dec = aDecorations.mStrikes[i];
-      if (dec.mStyle == NS_STYLE_TEXT_DECORATION_STYLE_NONE) {
-        continue;
-      }
 
       float inflation = nsLayoutUtils::FontSizeInflationInner(dec.mFrame,
                           inflationMinFontSize);

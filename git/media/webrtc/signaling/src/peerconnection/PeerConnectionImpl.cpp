@@ -186,12 +186,6 @@ public:
           }
           break;
         }
-
-      case UPDATELOCALDESC:
-      case UPDATEREMOTEDESC:
-        /* No action necessary */
-        break;
-
       default:
         CSFLogDebugS(logTag, ": **** UNHANDLED CALL STATE : " << mStateStr);
         break;
@@ -231,13 +225,17 @@ PeerConnectionImpl::~PeerConnectionImpl()
   PeerConnectionCtx::GetInstance()->mPeerConnections.erase(mHandle);
   CloseInt(false);
 
+#if 0
+  // TODO(ekr@rtfm.com): figure out how to shut down PCCtx.
+  // bug 820011.
+
   // Since this and Initialize() occur on MainThread, they can't both be
   // running at once
-
-  // Right now, we delete PeerConnectionCtx at XPCOM shutdown only, but we
-  // probably want to shut it down more aggressively to save memory.  We
-  // could shut down here when there are no uses.  It might be more optimal
-  // to release off a timer (and XPCOM Shutdown) to avoid churn
+  // Might be more optimal to release off a timer (and XPCOM Shutdown)
+  // to avoid churn
+  if (PeerConnectionCtx::GetInstance()->mPeerConnections.empty())
+    Shutdown();
+#endif
 
   /* We should release mPCObserver on the main thread, but also prevent a double free.
   nsCOMPtr<nsIThread> mainThread;
@@ -262,7 +260,19 @@ PeerConnectionImpl::MakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aRetval)
 }
 
 nsresult
-PeerConnectionImpl::CreateRemoteSourceStreamInfo(uint32_t aHint, nsRefPtr<RemoteSourceStreamInfo>* aInfo)
+PeerConnectionImpl::MakeRemoteSource(nsDOMMediaStream* aStream, RemoteSourceStreamInfo** aInfo)
+{
+  MOZ_ASSERT(aInfo);
+  MOZ_ASSERT(aStream);
+
+  // TODO(ekr@rtfm.com): Add the track info with the first segment
+  nsRefPtr<RemoteSourceStreamInfo> remote = new RemoteSourceStreamInfo(aStream);
+  NS_ADDREF(*aInfo = remote);
+  return NS_OK;
+}
+
+nsresult
+PeerConnectionImpl::CreateRemoteSourceStreamInfo(uint32_t aHint, RemoteSourceStreamInfo** aInfo)
 {
   MOZ_ASSERT(aInfo);
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
@@ -278,8 +288,19 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(uint32_t aHint, nsRefPtr<Remote
   static_cast<mozilla::SourceMediaStream*>(comstream->GetStream())->SetPullEnabled(true);
 
   nsRefPtr<RemoteSourceStreamInfo> remote;
-  remote = new RemoteSourceStreamInfo(comstream);
-  *aInfo = remote;
+  if (!mThread || NS_IsMainThread()) {
+    remote = new RemoteSourceStreamInfo(comstream);
+    NS_ADDREF(*aInfo = remote);
+    return NS_OK;
+  }
+
+  mThread->Dispatch(WrapRunnableNMRet(
+    &PeerConnectionImpl::MakeRemoteSource, comstream, aInfo, &res
+  ), NS_DISPATCH_SYNC);
+
+  if (NS_FAILED(res)) {
+    return res;
+  }
 
   return NS_OK;
 }
@@ -504,9 +525,6 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& aLabel,
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": making DOMDataChannel");
 
-  // TODO -- need something like "mCall->addStream(stream_id, 0, DATA);" so
-  // the SDP can be generated correctly
-
   return NS_NewDOMDataChannel(dataChannel.forget(), mWindow, aRetval);
 #else
   return NS_OK;
@@ -568,7 +586,7 @@ PeerConnectionImpl::NotifyDataChannel(mozilla::DataChannel *aChannel)
    nsCOMPtr<nsIDOMDataChannel> domchannel;
    nsresult rv = NS_NewDOMDataChannel(aChannel, mWindow,
                                       getter_AddRefs(domchannel));
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv,);
 
   RUN_ON_THREAD(mThread,
                 WrapRunnableNM(NotifyDataChannel_m,
@@ -599,7 +617,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Mandatory constraints.
   if (JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
-    if (mandatory.isObject()) {
+    if (JSVAL_IS_PRIMITIVE(mandatory) && mandatory.isObject() && !JSVAL_IS_NULL(mandatory)) {
       JSObject* opts = JSVAL_TO_OBJECT(mandatory);
       JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
@@ -622,7 +640,7 @@ PeerConnectionImpl::ConvertConstraints(
 
   // Optional constraints.
   if (JS_GetProperty(aCx, &constraints, "optional", &optional)) {
-    if (optional.isObject()) {
+    if (JSVAL_IS_PRIMITIVE(optional) && optional.isObject() && !JSVAL_IS_NULL(optional)) {
       JSObject* opts = JSVAL_TO_OBJECT(optional);
       if (JS_IsArrayObject(aCx, opts)) {
         uint32_t length;
@@ -632,7 +650,7 @@ PeerConnectionImpl::ConvertConstraints(
         for (i = 0; i < length; i++) {
           jsval val;
           JS_GetElement(aCx, opts, i, &val);
-          if (val.isObject()) {
+          if (JSVAL_IS_PRIMITIVE(val)) {
             // Extract name & value and store.
             // FIXME: MediaConstraints does not support optional constraints?
           }
@@ -901,8 +919,6 @@ PeerConnectionImpl::CheckApiState(bool assert_ice_ready) const
 
   if (mReadyState == kClosed)
     return NS_ERROR_FAILURE;
-  if (!mMedia)
-    return NS_ERROR_FAILURE;
   return NS_OK;
 }
 
@@ -910,7 +926,7 @@ NS_IMETHODIMP
 PeerConnectionImpl::Close(bool aIsSynchronous)
 {
   CSFLogDebugS(logTag, __FUNCTION__);
-  PC_AUTO_ENTER_API_CALL_NO_CHECK();
+  PC_AUTO_ENTER_API_CALL(false);
 
   return CloseInt(aIsSynchronous);
 }
@@ -961,6 +977,12 @@ PeerConnectionImpl::ShutdownMedia(bool aIsSynchronous)
 }
 
 void
+PeerConnectionImpl::Shutdown()
+{
+  PeerConnectionCtx::Destroy();
+}
+
+void
 PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
                                 CSF::CC_CallPtr aCall, CSF::CC_CallInfoPtr aInfo)
 {
@@ -979,15 +1001,11 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
 
   switch (event) {
     case SETLOCALDESC:
-    case UPDATELOCALDESC:
-      mLocalSDP = aInfo->getSDP();
+      mLocalSDP = mLocalRequestedSDP;
       break;
-
     case SETREMOTEDESC:
-    case UPDATEREMOTEDESC:
-      mRemoteSDP = aInfo->getSDP();
+      mRemoteSDP = mRemoteRequestedSDP;
       break;
-
     case CONNECTED:
       CSFLogDebugS(logTag, "Setting PeerConnnection state to kActive");
       ChangeReadyState(kActive);
@@ -1050,19 +1068,17 @@ PeerConnectionImpl::GetHandle()
 void
 PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *aCtx)
 {
-  // Do an async call here to unwind the stack. refptr keeps the PC alive.
-  nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
-                WrapRunnable(pc,
+                WrapRunnable(this,
                              &PeerConnectionImpl::IceGatheringCompleted_m,
                              aCtx),
-                NS_DISPATCH_NORMAL);
+                NS_DISPATCH_SYNC);
 }
 
-nsresult
+void
 PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
 {
-  PC_AUTO_ENTER_API_CALL(false);
+  PC_AUTO_ENTER_API_CALL_NO_CHECK();
   MOZ_ASSERT(aCtx);
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
@@ -1079,25 +1095,22 @@ PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
                   NS_DISPATCH_NORMAL);
   }
 #endif
-  return NS_OK;
 }
 
 void
 PeerConnectionImpl::IceCompleted(NrIceCtx *aCtx)
 {
-  // Do an async call here to unwind the stack. refptr keeps the PC alive.
-  nsRefPtr<PeerConnectionImpl> pc(this);
   RUN_ON_THREAD(mThread,
-                WrapRunnable(pc,
+                WrapRunnable(this,
                              &PeerConnectionImpl::IceCompleted_m,
                              aCtx),
-                NS_DISPATCH_NORMAL);
+                NS_DISPATCH_SYNC);
 }
 
-nsresult
+void
 PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
 {
-  PC_AUTO_ENTER_API_CALL(false);
+  PC_AUTO_ENTER_API_CALL_NO_CHECK();
   MOZ_ASSERT(aCtx);
 
   CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(aCtx));
@@ -1114,7 +1127,6 @@ PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
                   NS_DISPATCH_NORMAL);
   }
 #endif
-  return NS_OK;
 }
 
 void

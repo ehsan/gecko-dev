@@ -24,10 +24,10 @@ class FileManager
   friend class FileInfo;
 
 public:
-  FileManager(const nsACString& aOrigin, FactoryPrivilege aPrivilege,
+  FileManager(const nsACString& aOrigin,
               const nsAString& aDatabaseName)
-  : mOrigin(aOrigin), mPrivilege(aPrivilege), mDatabaseName(aDatabaseName),
-    mLastFileId(0), mInvalidated(false)
+  : mOrigin(aOrigin), mDatabaseName(aDatabaseName), mLastFileId(0),
+    mInvalidated(false)
   { }
 
   ~FileManager()
@@ -38,11 +38,6 @@ public:
   const nsACString& Origin() const
   {
     return mOrigin;
-  }
-
-  const FactoryPrivilege& Privilege() const
-  {
-    return mPrivilege;
   }
 
   const nsAString& DatabaseName() const
@@ -73,15 +68,12 @@ public:
   static already_AddRefed<nsIFile> GetFileForId(nsIFile* aDirectory,
                                                 int64_t aId);
 
-  static nsresult InitDirectory(nsIFile* aDirectory,
-                                nsIFile* aDatabaseFile,
-                                const nsACString& aOrigin);
-
-  static nsresult GetUsage(nsIFile* aDirectory, uint64_t* aUsage);
+  static nsresult InitDirectory(mozIStorageServiceQuotaManagement* aService,
+                                nsIFile* aDirectory, nsIFile* aDatabaseFile,
+                                FactoryPrivilege aPrivilege);
 
 private:
   nsCString mOrigin;
-  FactoryPrivilege mPrivilege;
   nsString mDatabaseName;
 
   nsString mDirectoryPath;

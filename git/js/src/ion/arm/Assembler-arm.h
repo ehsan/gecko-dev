@@ -14,7 +14,6 @@
 #include "ion/IonCode.h"
 #include "ion/arm/Architecture-arm.h"
 #include "ion/shared/IonAssemblerBufferWithConstantPools.h"
-#include "mozilla/Util.h"
 
 namespace js {
 namespace ion {
@@ -54,10 +53,6 @@ static const Register CallTempReg2 = r7;
 static const Register CallTempReg3 = r8;
 static const Register CallTempReg4 = r0;
 static const Register CallTempReg5 = r1;
-
-static const Register CallTempNonArgRegs[] = { r5, r6, r7, r8 };
-static const uint32_t NumCallTempNonArgRegs =
-    mozilla::ArrayLength(CallTempNonArgRegs);
 
 static const Register PreBarrierReg = r1;
 
@@ -714,28 +709,28 @@ class DtrOffReg : public DtrOff
     // These are designed to be called by a constructor of a subclass.
     // Constructing the necessary RIS/RRS structures are annoying
   protected:
-    DtrOffReg(Register rn, ShiftType type, datastore::RIS shiftImm, IsUp_ iu = IsUp)
-      : DtrOff(datastore::Reg(rn.code(), type, 0, shiftImm.encode()), iu)
+    DtrOffReg(Register rn, ShiftType type, datastore::RIS shiftImm)
+      : DtrOff(datastore::Reg(rn.code(), type, 0, shiftImm.encode()))
     { }
 
-    DtrOffReg(Register rn, ShiftType type, datastore::RRS shiftReg, IsUp_ iu = IsUp)
-      : DtrOff(datastore::Reg(rn.code(), type, 1, shiftReg.encode()), iu)
+    DtrOffReg(Register rn, ShiftType type, datastore::RRS shiftReg)
+      : DtrOff(datastore::Reg(rn.code(), type, 1, shiftReg.encode()))
     { }
 };
 
 class DtrRegImmShift : public DtrOffReg
 {
   public:
-    DtrRegImmShift(Register rn, ShiftType type, uint32_t shift, IsUp_ iu = IsUp)
-      : DtrOffReg(rn, type, datastore::RIS(shift), iu)
+    DtrRegImmShift(Register rn, ShiftType type, uint32_t shift)
+      : DtrOffReg(rn, type, datastore::RIS(shift))
     { }
 };
 
 class DtrRegRegShift : public DtrOffReg
 {
   public:
-    DtrRegRegShift(Register rn, ShiftType type, Register rs, IsUp_ iu = IsUp)
-      : DtrOffReg(rn, type, datastore::RRS(rs.code()), iu)
+    DtrRegRegShift(Register rn, ShiftType type, Register rs)
+      : DtrOffReg(rn, type, datastore::RRS(rs.code()))
     { }
 };
 
@@ -1957,26 +1952,6 @@ GetIntArgReg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
     return true;
 }
 
-// Get a register in which we plan to put a quantity that will be used as an
-// integer argument.  This differs from GetIntArgReg in that if we have no more
-// actual argument registers to use we will fall back on using whatever
-// CallTempReg* don't overlap the argument registers, and only fail once those
-// run out too.
-static inline bool
-GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
-{
-    if (GetIntArgReg(usedIntArgs, usedFloatArgs, out))
-        return true;
-    // Unfortunately, we have to assume things about the point at which
-    // GetIntArgReg returns false, because we need to know how many registers it
-    // can allocate.
-    usedIntArgs -= NumIntArgRegs;
-    if (usedIntArgs >= NumCallTempNonArgRegs)
-        return false;
-    *out = CallTempNonArgRegs[usedIntArgs];
-    return true;
-}
-
 static inline bool
 GetFloatArgReg(uint32_t usedIntArgs, uint32_t usedFloatArgs, FloatRegister *out)
 {
@@ -2015,31 +1990,11 @@ GetFloatArgStackDisp(uint32_t usedIntArgs, uint32_t usedFloatArgs, uint32_t *pad
 static inline bool
 GetIntArgReg(uint32_t arg, uint32_t floatArg, Register *out)
 {
-    if (arg < NumIntArgRegs) {
+    if (arg < 4) {
         *out = Register::FromCode(arg);
         return true;
     }
     return false;
-}
-
-// Get a register in which we plan to put a quantity that will be used as an
-// integer argument.  This differs from GetIntArgReg in that if we have no more
-// actual argument registers to use we will fall back on using whatever
-// CallTempReg* don't overlap the argument registers, and only fail once those
-// run out too.
-static inline bool
-GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
-{
-    if (GetIntArgReg(usedIntArgs, usedFloatArgs, out))
-        return true;
-    // Unfortunately, we have to assume things about the point at which
-    // GetIntArgReg returns false, because we need to know how many registers it
-    // can allocate.
-    usedIntArgs -= NumIntArgRegs;
-    if (usedIntArgs >= NumCallTempNonArgRegs)
-        return false;
-    *out = CallTempNonArgRegs[usedIntArgs];
-    return true;
 }
 
 static inline uint32_t

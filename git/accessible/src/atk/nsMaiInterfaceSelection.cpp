@@ -6,7 +6,6 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "AccessibleWrap.h"
 #include "nsMai.h"
 #include "mozilla/Likely.h"

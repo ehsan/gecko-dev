@@ -58,7 +58,6 @@ PARALLEL_DIRS += \
   media \
   messages \
   power \
-  quota \
   settings \
   sms \
   mms \

@@ -1176,8 +1176,11 @@ NS_IMETHODIMP
 CompositeDataSourceImpl::GetAllCmds(nsIRDFResource* source,
                                     nsISimpleEnumerator/*<nsIRDFResource>*/** result)
 {
+    nsCOMPtr<nsISupportsArray> cmdArray;
     nsresult rv;
-    nsCOMPtr<nsISimpleEnumerator> set;
+
+    rv = NS_NewISupportsArray(getter_AddRefs(cmdArray));
+    if (NS_FAILED(rv)) return(rv);
 
     for (int32_t i = 0; i < mDataSources.Count(); i++)
     {
@@ -1186,15 +1189,23 @@ CompositeDataSourceImpl::GetAllCmds(nsIRDFResource* source,
         rv = mDataSources[i]->GetAllCmds(source, getter_AddRefs(dsCmds));
         if (NS_SUCCEEDED(rv))
         {
-            nsCOMPtr<nsISimpleEnumerator> tmp;
-            rv = NS_NewUnionEnumerator(getter_AddRefs(tmp), set, dsCmds);
-            set.swap(tmp);
+            bool	hasMore = false;
+            while(NS_SUCCEEDED(rv = dsCmds->HasMoreElements(&hasMore)) &&
+                  hasMore)
+            {
+                nsCOMPtr<nsISupports>	item;
+                if (NS_SUCCEEDED(rv = dsCmds->GetNext(getter_AddRefs(item))))
+                {
+                    // rjc: do NOT strip out duplicate commands here
+                    // (due to items such as separators, it is done at a higher level)
+                    cmdArray->AppendElement(item);
+                }
+            }
             if (NS_FAILED(rv)) return(rv);
         }
     }
 
-    set.forget(result);
-    return NS_OK;
+    return NS_NewArrayEnumerator(result, cmdArray);
 }
 
 NS_IMETHODIMP

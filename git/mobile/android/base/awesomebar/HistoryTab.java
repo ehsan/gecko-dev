@@ -377,10 +377,9 @@ public class HistoryTab extends AwesomeBarTab {
         Map<String,Object> historyItem = (Map<String,Object>) adapter.getChild(groupPosition, childPosition);
 
         String url = (String) historyItem.get(URLColumns.URL);
-        String title = (String) historyItem.get(URLColumns.TITLE);
         AwesomeBarTabs.OnUrlOpenListener listener = getUrlListener();
         if (!TextUtils.isEmpty(url) && listener != null)
-            listener.onUrlOpen(url, title);
+            listener.onUrlOpen(url);
 
         return true;
     }

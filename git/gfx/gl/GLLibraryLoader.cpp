@@ -4,8 +4,6 @@
 
 #include "GLLibraryLoader.h"
 
-#include "nsDebug.h"
-
 namespace mozilla {
 namespace gl {
 
@@ -24,22 +22,15 @@ GLLibraryLoader::OpenLibrary(const char *library)
 }
 
 bool
-GLLibraryLoader::LoadSymbols(SymLoadStruct *firstStruct,
-                             bool tryplatform,
-                             const char *prefix,
-                             bool warnOnFailure)
+GLLibraryLoader::LoadSymbols(SymLoadStruct *firstStruct, bool tryplatform, const char *prefix)
 {
-    return LoadSymbols(mLibrary,
-                       firstStruct,
-                       tryplatform ? mLookupFunc : nullptr,
-                       prefix,
-                       warnOnFailure);
+    return LoadSymbols(mLibrary, firstStruct, tryplatform ? mLookupFunc : nullptr, prefix);
 }
 
 PRFuncPtr
 GLLibraryLoader::LookupSymbol(PRLibrary *lib,
-                              const char *sym,
-                              PlatformLookupFunction lookupFunction)
+                                  const char *sym,
+                                  PlatformLookupFunction lookupFunction)
 {
     PRFuncPtr res = 0;
 
@@ -64,10 +55,9 @@ GLLibraryLoader::LookupSymbol(PRLibrary *lib,
 
 bool
 GLLibraryLoader::LoadSymbols(PRLibrary *lib,
-                             SymLoadStruct *firstStruct,
-                             PlatformLookupFunction lookupFunction,
-                             const char *prefix,
-                             bool warnOnFailure)
+                                 SymLoadStruct *firstStruct,
+                                 PlatformLookupFunction lookupFunction,
+                                 const char *prefix)
 {
     char sbuf[MAX_SYMBOL_LENGTH * 2];
     int failCount = 0;
@@ -95,9 +85,7 @@ GLLibraryLoader::LoadSymbols(PRLibrary *lib,
         }
 
         if (*ss->symPointer == 0) {
-            if (warnOnFailure)
-                printf_stderr("Can't find symbol '%s'.\n", ss->symNames[0]);
-
+            fprintf (stderr, "Can't find symbol '%s'\n", ss->symNames[0]);
             failCount++;
         }
 

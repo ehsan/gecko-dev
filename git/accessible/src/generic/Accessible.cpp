@@ -49,7 +49,7 @@
 #include "nsIStringBundle.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
@@ -73,7 +73,6 @@
 #include "nsIDOMCharacterData.h"
 #endif
 
-#include "mozilla/Assertions.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
@@ -147,8 +146,7 @@ Accessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 Accessible::Accessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsAccessNodeWrap(aContent, aDoc),
   mParent(nullptr), mIndexInParent(-1), mChildrenFlags(eChildrenUninitialized),
-  mStateFlags(0), mType(0), mGenericTypes(0), mIndexOfEmbeddedChild(-1),
-  mRoleMapEntry(nullptr)
+  mStateFlags(0), mFlags(0), mIndexOfEmbeddedChild(-1), mRoleMapEntry(nullptr)
 {
 #ifdef NS_DEBUG_X
    {
@@ -264,16 +262,6 @@ Accessible::Name(nsString& aName)
       aName.CompressWhitespace();
       return eNameFromTooltip;
     }
-  } else if (mContent->IsSVG()) {
-    // If user agents need to choose among multiple ‘desc’ or ‘title’ elements
-    // for processing, the user agent shall choose the first one.
-    for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
-         childElm = childElm->GetNextSibling()) {
-      if (childElm->IsSVG(nsGkAtoms::title)) {
-        nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aName);
-        return eNameFromTooltip;
-      }
-    }
   }
 
   if (nameFlag != eNoNameOnPurpose)
@@ -317,40 +305,25 @@ Accessible::Description(nsString& aDescription)
       // Try XUL <description control="[id]">description text</description>
       XULDescriptionIterator iter(Document(), mContent);
       Accessible* descr = nullptr;
-      while ((descr = iter.Next())) {
+      while ((descr = iter.Next()))
         nsTextEquivUtils::AppendTextEquivFromContent(this, descr->GetContent(),
                                                      &aDescription);
       }
-    }
 
-    if (aDescription.IsEmpty()) {
-      // Keep the Name() method logic.
-      if (mContent->IsHTML()) {
-        mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::title, aDescription);
-      } else if (mContent->IsXUL()) {
-        mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::tooltiptext, aDescription);
-      } else if (mContent->IsSVG()) {
-        for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
-             childElm = childElm->GetNextSibling()) {
-          if (childElm->IsSVG(nsGkAtoms::title)) {
-            nsTextEquivUtils::AppendTextEquivFromContent(this, childElm,
-                                                         &aDescription);
-            break;
-          }
+      if (aDescription.IsEmpty()) {
+        nsIAtom *descAtom = isXUL ? nsGkAtoms::tooltiptext :
+                                    nsGkAtoms::title;
+        if (mContent->GetAttr(kNameSpaceID_None, descAtom, aDescription)) {
+          nsAutoString name;
+          Name(name);
+          if (name.IsEmpty() || aDescription == name)
+            // Don't use tooltip for a description if this object
+            // has no name or the tooltip is the same as the name
+            aDescription.Truncate();
         }
       }
-
-      if (!aDescription.IsEmpty()) {
-        nsAutoString name;
-        ENameValueFlag nameFlag = Name(name);
-
-        // Don't use tooltip for a description if it was used for a name.
-        if (nameFlag == eNameFromTooltip)
-          aDescription.Truncate();
-      }
     }
-  }
-  aDescription.CompressWhitespace();
+    aDescription.CompressWhitespace();
 }
 
 NS_IMETHODIMP
@@ -624,7 +597,7 @@ Accessible::VisibilityState()
   nsIFrame* curFrame = frame;
   nsPoint framePos(0, 0);
   do {
-    nsView* view = curFrame->GetView();
+    nsIView* view = curFrame->GetView();
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
       return states::INVISIBLE;
 
@@ -637,7 +610,6 @@ Accessible::VisibilityState()
           deckFrame->GetContent()->Tag() == nsGkAtoms::tabpanels)
         return states::OFFSCREEN;
 
-      NS_NOTREACHED("Children of not selected deck panel are not accessible.");
       return states::INVISIBLE;
     }
 
@@ -1615,44 +1587,17 @@ Accessible::GetValue(nsAString& aValue)
 void
 Accessible::Value(nsString& aValue)
 {
-  if (!mRoleMapEntry)
-    return;
+  if (mRoleMapEntry) {
+    if (mRoleMapEntry->valueRule == eNoValue)
+      return;
 
-  if (mRoleMapEntry->valueRule != eNoValue) {
-    // aria-valuenow is a number, and aria-valuetext is the optional text
-    // equivalent. For the string value, we will try the optional text
-    // equivalent first.
+    // aria-valuenow is a number, and aria-valuetext is the optional text equivalent
+    // For the string value, we will try the optional text equivalent first
     if (!mContent->GetAttr(kNameSpaceID_None,
                            nsGkAtoms::aria_valuetext, aValue)) {
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_valuenow,
                         aValue);
     }
-    return;
-  }
-
-  // Value of combobox is a text of current or selected item.
-  if (mRoleMapEntry->Is(nsGkAtoms::combobox)) {
-    Accessible* option = CurrentItem();
-    if (!option) {
-      Accessible* listbox = nullptr;
-      IDRefsIterator iter(mDoc, mContent, nsGkAtoms::aria_owns);
-      while ((listbox = iter.Next()) && !listbox->IsListControl());
-
-      if (!listbox) {
-        uint32_t childCount = ChildCount();
-        for (uint32_t idx = 0; idx < childCount; idx++) {
-          Accessible* child = mChildren.ElementAt(idx);
-          if (child->IsListControl())
-            listbox = child;
-        }
-      }
-
-      if (listbox)
-        option = listbox->GetSelectedItem(0);
-    }
-
-    if (option)
-      nsTextEquivUtils::GetNameFromSubtree(option, aValue);
   }
 }
 
@@ -2015,7 +1960,7 @@ Accessible::RelationByType(uint32_t aType)
       // above it).
       nsIFrame *frame = GetFrame();
       if (frame) {
-        nsView *view = frame->GetViewExternal();
+        nsIView *view = frame->GetViewExternal();
         if (view) {
           nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
           if (scrollFrame || view->GetWidget() || !frame->GetParent())
@@ -2217,8 +2162,10 @@ Accessible::ScrollToPoint(uint32_t aCoordinateType, int32_t aX, int32_t aY)
   if (!frame)
     return NS_ERROR_FAILURE;
 
-  nsIntPoint coords = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
-                                                        this);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsIFrame *parentFrame = frame;
   while ((parentFrame = parentFrame->GetParent()))
@@ -2518,18 +2465,6 @@ Accessible::NativeName(nsString& aName)
 
   if (mContent->IsXUL())
     return GetXULName(aName);
-
-  if (mContent->IsSVG()) {
-    // If user agents need to choose among multiple ‘desc’ or ‘title’ elements
-    // for processing, the user agent shall choose the first one.
-    for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
-         childElm = childElm->GetNextSibling()) {
-      if (childElm->IsSVG(nsGkAtoms::desc)) {
-        nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aName);
-        return eNameOK;
-      }
-    }
-  }
 
   return eNameOK;
 }
@@ -3238,19 +3173,6 @@ Accessible::GetLevelInternal()
   }
 
   return level;
-}
-
-void
-Accessible::StaticAsserts() const
-{
-  MOZ_STATIC_ASSERT(eLastChildrenFlag <= (2 << kChildrenFlagsBits) - 1,
-                    "Accessible::mChildrenFlags was oversized by eLastChildrenFlag!");
-  MOZ_STATIC_ASSERT(eLastStateFlag <= (2 << kStateFlagsBits) - 1,
-                    "Accessible::mStateFlags was oversized by eLastStateFlag!");
-  MOZ_STATIC_ASSERT(eLastAccType <= (2 << kTypeBits) - 1,
-                    "Accessible::mType was oversized by eLastAccType!");
-  MOZ_STATIC_ASSERT(eLastAccGenericType <= (2 << kGenericTypesBits) - 1,
-                    "Accessible::mGenericType was oversized by eLastAccGenericType!");
 }
 
 

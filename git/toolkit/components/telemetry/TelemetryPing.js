@@ -75,6 +75,8 @@ const MEM_HISTOGRAMS = {
 // start asynchronous tasks to gather data.  On the next idle the data is sent.
 const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
+const SHUTDOWN_TIME_READ_DELAY_MS = 5413;
+
 var gLastMemoryPoll = null;
 
 let gWasDebuggerAttached = false;
@@ -255,17 +257,12 @@ TelemetryPing.prototype = {
       bucket_count: r.length,
       histogram_type: hgram.histogram_type,
       values: {},
-      sum: hgram.sum
+      sum: hgram.sum,
+      sum_squares_lo: hgram.sum_squares_lo,
+      sum_squares_hi: hgram.sum_squares_hi,
+      log_sum: hgram.log_sum,
+      log_sum_squares: hgram.log_sum_squares
     };
-
-    if (hgram.histogram_type == Telemetry.HISTOGRAM_EXPONENTIAL) {
-      retgram.log_sum = hgram.log_sum;
-      retgram.log_sum_squares = hgram.log_sum_squares;
-    } else {
-      retgram.sum_squares_lo = hgram.sum_squares_lo;
-      retgram.sum_squares_hi = hgram.sum_squares_hi;
-    }
-
     let first = true;
     let last = 0;
 
@@ -717,15 +714,6 @@ TelemetryPing.prototype = {
    * Initializes telemetry within a timer. If there is no PREF_SERVER set, don't turn on telemetry.
    */
   setup: function setup() {
-#ifdef MOZILLA_OFFICIAL
-    if (!Telemetry.canSend) {
-      // We can't send data; no point in initializing observers etc.
-      // Only do this for official builds so that e.g. developer builds
-      // still enable Telemetry based on prefs.
-      Telemetry.canRecord = false;
-      return;
-    }
-#endif
     let enabled = false; 
     try {
       enabled = Services.prefs.getBoolPref(PREF_ENABLED);
@@ -739,9 +727,7 @@ TelemetryPing.prototype = {
       Telemetry.canRecord = false;
       return;
     }
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     Services.obs.addObserver(this, "private-browsing", false);
-#endif
     Services.obs.addObserver(this, "profile-before-change", false);
     Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "quit-application-granted", false);
@@ -757,9 +743,6 @@ TelemetryPing.prototype = {
       this._initialized = true;
       this.attachObservers();
       this.gatherMemory();
-
-      Telemetry.asyncFetchTelemetryData(function () {
-      });
       delete this._timer;
     }
     this._timer.initWithCallback(timerCallback.bind(this), TELEMETRY_DELAY,
@@ -966,9 +949,7 @@ TelemetryPing.prototype = {
       this._hasXulWindowVisibleObserver = false;
     }
     Services.obs.removeObserver(this, "profile-before-change");
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     Services.obs.removeObserver(this, "private-browsing");
-#endif
     Services.obs.removeObserver(this, "quit-application-granted");
   },
 
@@ -1036,7 +1017,6 @@ TelemetryPing.prototype = {
         this.gatherMemory();
       }
       break;
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
     case "private-browsing":
       Telemetry.canRecord = aData == "exit";
       if (aData == "enter") {
@@ -1045,9 +1025,14 @@ TelemetryPing.prototype = {
         this.attachObservers()
       }
       break;
-#endif
     case "xul-window-visible":
       Services.obs.removeObserver(this, "xul-window-visible");
+
+      let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+      timer.initWithCallback(function() {
+        Telemetry.asyncReadShutdownTime(function () {
+        });
+      }, SHUTDOWN_TIME_READ_DELAY_MS, Ci.nsITimer.TYPE_ONE_SHOT);
       this._hasXulWindowVisibleObserver = false;   
       var counters = processInfo.getCounters();
       if (counters) {
@@ -1086,7 +1071,7 @@ TelemetryPing.prototype = {
   },
 
   classID: Components.ID("{55d6a5fa-130e-4ee6-a158-0133af3b86ba}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsITelemetryPing, Ci.nsIObserver]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsITelemetryPing]),
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([TelemetryPing]);

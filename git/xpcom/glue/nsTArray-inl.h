@@ -370,7 +370,7 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
   // job for AutoTArray!  (One of the two arrays we're swapping is using an
   // auto buffer, so we're likely not allocating a lot of space here.  But one
   // could, in theory, allocate a huge AutoTArray on the heap.)
-  nsAutoArrayBase<nsTArray_Impl<uint8_t, Alloc>, 64> temp;
+  nsAutoTArray<uint8_t, 64, Alloc> temp;
   if (!temp.SetCapacity(smallerLength * elemSize)) {
     return false;
   }

@@ -25,16 +25,12 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.device = devmgr
         self.pathMapping = []
         self.remoteTestRoot = self.device.getTestRoot("xpcshell")
-        # remoteBinDir contains xpcshell and its wrapper script, both of which must
-        # be executable. Since +x permissions cannot usually be set on /mnt/sdcard,
-        # and the test root may be on /mnt/sdcard, remoteBinDir is set to be on 
-        # /data/local, always.
-        self.remoteBinDir = "/data/local/xpcb"
-        # Terse directory names are used here ("c" for the components directory)
+        # Terse directory names are used here ("b" for a binaries directory)
         # to minimize the length of the command line used to execute
         # xpcshell on the remote device. adb has a limit to the number
         # of characters used in a shell command, and the xpcshell command
         # line can be quite complex.
+        self.remoteBinDir = self.remoteJoin(self.remoteTestRoot, "b")
         self.remoteTmpDir = self.remoteJoin(self.remoteTestRoot, "tmp")
         self.remoteScriptsDir = self.remoteTestRoot
         self.remoteComponentsDir = self.remoteJoin(self.remoteTestRoot, "c")
@@ -87,10 +83,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         return local
 
     def setupUtilities(self):
-        if (not self.device.dirExists(self.remoteBinDir)):
-          # device.mkDir may fail here where shellCheckOutput may succeed -- see bug 817235
-          self.device.shellCheckOutput(["mkdir", self.remoteBinDir]);
-
         remotePrefDir = self.remoteJoin(self.remoteBinDir, "defaults/pref")
         if (self.device.dirExists(self.remoteTmpDir)):
           self.device.removeDir(self.remoteTmpDir)
@@ -379,11 +371,6 @@ class RemoteXPCShellOptions(xpcshell.XPCShellOptions):
                         help = "local path to bin directory")
         defaults["localBin"] = None
 
-        self.add_option("--remoteTestRoot", action = "store",
-                    type = "string", dest = "remoteTestRoot",
-                    help = "remote directory to use as test root (eg. /mnt/sdcard/tests or /data/local/tests)")
-        defaults["remoteTestRoot"] = None
-
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options):
@@ -448,11 +435,11 @@ def main():
 
     if (options.dm_trans == "adb"):
       if (options.deviceIP):
-        dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, packageName=None, deviceRoot=options.remoteTestRoot)
+        dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
       else:
-        dm = devicemanagerADB.DeviceManagerADB(packageName=None, deviceRoot=options.remoteTestRoot)
+        dm = devicemanagerADB.DeviceManagerADB()
     else:
-      dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+      dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
       if (options.deviceIP == None):
         print "Error: you must provide a device IP to connect to via the --device option"
         sys.exit(1)

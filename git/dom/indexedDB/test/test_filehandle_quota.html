@@ -13,6 +13,7 @@
   function testSteps()
   {
     const READ_WRITE = IDBTransaction.READ_WRITE;
+    const DEFAULT_QUOTA_MB = 50;
 
     const name = window.location.pathname;
 
@@ -38,10 +39,10 @@
 
     let lockedFile = fileHandle.open("readwrite");
 
-    let blob = getNullBlob(DEFAULT_QUOTA);
+    let blob = getNullBlob((50 + 1) * 1024 * 1024 - getUsageSync());
 
     request = lockedFile.write(blob);
-    request.addEventListener("error", new ExpectError("UnknownError", true));
+    request.addEventListener("error", new ExpectError("UnknownError"));
     request.onsuccess = unexpectedSuccessHandler;
     event = yield;
 

@@ -425,10 +425,6 @@ public:
     hal::UnregisterWakeLockObserver(this);
     hal::UnregisterSystemClockChangeObserver(this);
     hal::UnregisterSystemTimezoneChangeObserver(this);
-    for (int32_t switchDevice = SWITCH_DEVICE_UNKNOWN + 1;
-         switchDevice < NUM_SWITCH_DEVICE; ++switchDevice) {
-      hal::UnregisterSwitchObserver(SwitchDevice(switchDevice), this);
-    }
   }
 
   virtual bool
@@ -441,7 +437,8 @@ public:
     nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(tabParent->GetBrowserDOMWindow());
     WindowIdentifier newID(id, window);
-    hal::Vibrate(pattern, newID);
+    // Have to copy, because Vibrate doesn't take a compatible array type
+    hal::Vibrate(nsTArray<uint32_t>(pattern), newID);
     return true;
   }
 

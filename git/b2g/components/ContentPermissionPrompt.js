@@ -25,7 +25,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Webapps.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/PermissionsInstaller.jsm");
-Cu.import("resource://gre/modules/PermissionsTable.jsm");
 
 var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
 var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
@@ -120,9 +119,6 @@ ContentPermissionPrompt.prototype = {
 
     let principal = request.principal;
     let isApp = principal.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
-    let remember = principal.appStatus == Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
-                   ? true
-                   : request.remember;
 
     let details = {
       type: "permission-prompt",
@@ -130,7 +126,7 @@ ContentPermissionPrompt.prototype = {
       id: requestId,
       origin: principal.origin,
       isApp: isApp,
-      remember: remember
+      remember: request.remember
     };
 
     this._permission = access;

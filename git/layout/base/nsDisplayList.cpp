@@ -425,8 +425,6 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
 
       AddAnimationsForProperty(frame, aProperty, &anim,
                                aLayer, data);
-
-      pt->mIsRunningOnCompositor = true;
     }
     aLayer->SetAnimationGeneration(et->mAnimationGeneration);
   }
@@ -552,8 +550,11 @@ static bool ForceVisiblityForFixedItem(nsDisplayListBuilder* aBuilder,
 
 void nsDisplayListBuilder::SetDisplayPort(const nsRect& aDisplayPort)
 {
-    mHasDisplayPort = true;
-    mDisplayPort = aDisplayPort;
+    static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
+    if (fixedPositionLayersEnabled) {
+      mHasDisplayPort = true;
+      mDisplayPort = aDisplayPort;
+    }
 }
 
 void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
@@ -1042,7 +1043,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   bool widgetTransaction = false;
   bool allowRetaining = false;
   bool doBeginTransaction = true;
-  nsView *view = nullptr;
+  nsIView *view = nullptr;
   if (aFlags & PAINT_USE_WIDGET_LAYERS) {
     nsIFrame* rootReferenceFrame = aBuilder->RootReferenceFrame();
     view = rootReferenceFrame->GetView();
@@ -1600,9 +1601,7 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
     if (rv != NS_OK) {
       return rv;
     }
-    if (aBackground) {
-      *aBackground = bgItem;
-    }
+    *aBackground = bgItem;
     return NS_OK;
   }
 

@@ -22,7 +22,6 @@ class nsXULDocument;
 class nsXULPrototypeElement;
 class nsXULPrototypePI;
 class nsXULPDGlobalObject;
-struct JSTracer;
 
 /**
  * A "prototype" document that stores shared document information
@@ -119,8 +118,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULPrototypeDocument,
                                              nsIScriptGlobalObjectOwner)
 
-    void TraceProtos(JSTracer* aTrc, uint32_t aGCNumber);
-
 protected:
     nsCOMPtr<nsIURI> mURI;
     nsRefPtr<nsXULPrototypeElement> mRoot;
@@ -135,7 +132,6 @@ protected:
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
 
     uint32_t mCCGeneration;
-    uint32_t mGCNumber;
 
     nsXULPrototypeDocument();
     virtual ~nsXULPrototypeDocument();

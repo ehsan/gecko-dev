@@ -11,8 +11,6 @@
 
 #include <ctype.h> // for toupper()
 #include <stdio.h>
-#include "nsArrayEnumerator.h"
-#include "nsCOMArray.h"
 #include "nsIEnumerator.h"
 #include "nsIRDFDataSource.h"
 #include "nsIRDFObserver.h"
@@ -743,33 +741,35 @@ FileSystemDataSource::ArcLabelsOut(nsIRDFResource *source,
 
     if (source == mNC_FileSystemRoot)
     {
-        nsCOMArray<nsIRDFResource> resources;
-        if (!resources.SetCapacity(2)) return NS_ERROR_OUT_OF_MEMORY;
+        nsCOMPtr<nsISupportsArray> array;
+        rv = NS_NewISupportsArray(getter_AddRefs(array));
+        if (NS_FAILED(rv)) return rv;
 
-        resources.AppendObject(mNC_Child);
-        resources.AppendObject(mNC_pulse);
+        array->AppendElement(mNC_Child);
+        array->AppendElement(mNC_pulse);
 
-        return NS_NewArrayEnumerator(labels, resources);
+        return NS_NewArrayEnumerator(labels, array);
     }
     else if (isFileURI(source))
     {
-        nsCOMArray<nsIRDFResource> resources;
-        if (!resources.SetCapacity(2)) return NS_ERROR_OUT_OF_MEMORY;
+        nsCOMPtr<nsISupportsArray> array;
+        rv = NS_NewISupportsArray(getter_AddRefs(array));
+        if (NS_FAILED(rv)) return rv;
 
         if (isDirURI(source))
         {
 #ifdef  XP_WIN
             if (isValidFolder(source))
             {
-                resources.AppendObject(mNC_Child);
+                array->AppendElement(mNC_Child);
             }
 #else
-            resources.AppendObject(mNC_Child);
+            array->AppendElement(mNC_Child);
 #endif
-            resources.AppendObject(mNC_pulse);
+            array->AppendElement(mNC_pulse);
         }
 
-        return NS_NewArrayEnumerator(labels, resources);
+        return NS_NewArrayEnumerator(labels, array);
     }
 
     return NS_NewEmptyEnumerator(labels);
@@ -852,7 +852,11 @@ nsresult
 FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 {
     nsresult rv;
-    nsCOMArray<nsIRDFResource> volumes;
+    nsCOMPtr<nsISupportsArray> volumes;
+
+    rv = NS_NewISupportsArray(getter_AddRefs(volumes));
+    if (NS_FAILED(rv)) return rv;
+
     nsCOMPtr<nsIRDFResource> vol;
 
 #ifdef XP_WIN
@@ -874,14 +878,14 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
           if (NS_FAILED(rv))
             return rv;
 
-                volumes.AppendObject(vol);
+          volumes->AppendElement(vol);
         }
     }
 #endif
 
 #ifdef XP_UNIX
     mRDFService->GetResource(NS_LITERAL_CSTRING("file:///"), getter_AddRefs(vol));
-    volumes.AppendObject(vol);
+    volumes->AppendElement(vol);
 #endif
 
 #ifdef XP_OS2
@@ -901,7 +905,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
           rv = mRDFService->GetResource(nsDependentCString(url), getter_AddRefs(vol));
 
           if (NS_FAILED(rv)) return rv;
-                volumes.AppendObject(vol);
+          volumes->AppendElement(vol);
         }
 
     }
@@ -978,6 +982,11 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         return(NS_RDF_NO_VALUE);
 
     nsresult                    rv;
+    nsCOMPtr<nsISupportsArray>  nameArray;
+
+    rv = NS_NewISupportsArray(getter_AddRefs(nameArray));
+    if (NS_FAILED(rv))
+        return(rv);
 
     const char      *parentURI = nullptr;
     rv = source->GetValueConst(&parentURI);
@@ -1007,7 +1016,6 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
     if (!dirContents)
         return(NS_ERROR_UNEXPECTED);
 
-    nsCOMArray<nsIRDFResource> resources;
     bool            hasMore;
     while(NS_SUCCEEDED(rv = dirContents->HasMoreElements(&hasMore)) &&
           hasMore)
@@ -1073,13 +1081,13 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         nsCOMPtr<nsIRDFResource>    fileRes;
         mRDFService->GetResource(fullURI, getter_AddRefs(fileRes));
 
-        resources.AppendObject(fileRes);
+        nameArray->AppendElement(fileRes);
 
         if (onlyFirst)
             break;
     }
 
-    return NS_NewArrayEnumerator(aResult, resources);
+    return NS_NewArrayEnumerator(aResult, nameArray);
 }
 
 nsresult

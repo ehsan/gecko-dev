@@ -228,12 +228,6 @@ static inline bool IsCurrentThread(nsIThread* aThread) {
   return NS_GetCurrentThread() == aThread;
 }
 
-// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
-// GetTickCount() and conflicts with MediaDecoder::GetCurrentTime implementation.
-#ifdef GetCurrentTime
-#undef GetCurrentTime
-#endif
-
 class MediaDecoder : public nsIObserver,
                      public AbstractMediaDecoder
 {
@@ -771,10 +765,6 @@ public:
 
 #ifdef MOZ_DASH
   static bool IsDASHEnabled();
-#endif
-
-#ifdef MOZ_WMF
-  static bool IsWMFEnabled();
 #endif
 
   // Schedules the state machine to run one cycle on the shared state

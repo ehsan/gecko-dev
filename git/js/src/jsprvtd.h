@@ -134,7 +134,7 @@ class InlineMap;
 
 class LifoAlloc;
 
-class Shape;
+struct Shape;
 
 class Breakpoint;
 class BreakpointSite;

@@ -13,9 +13,7 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 LIBRARY_NAME	= gkconhtmlcon_s
 LIBXUL_LIBRARY	= 1
-ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 
 EXPORTS		= \
@@ -27,20 +25,6 @@ EXPORTS		= \
 		nsTimeRanges.h \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-		HTMLBodyElement.h \
-		HTMLDataListElement.h \
-		HTMLDivElement.h \
-		HTMLFontElement.h \
-		HTMLFrameSetElement.h \
-		HTMLHeadingElement.h \
-		HTMLImageElement.h \
-		HTMLLabelElement.h \
-		HTMLTitleElement.h \
-		HTMLUnknownElement.h
-
 CPPSRCS		= \
 		HTMLPropertiesCollection.cpp \
 		nsClientRect.cpp \
@@ -49,27 +33,27 @@ CPPSRCS		= \
 		nsGenericHTMLFrameElement.cpp \
 		nsFormSubmission.cpp \
 		nsTextEditorState.cpp \
-		HTMLElement.cpp \
+		nsHTMLElement.cpp \
 		nsHTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
 		nsHTMLBRElement.cpp \
-		HTMLBodyElement.cpp \
+		nsHTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
 		nsHTMLCanvasElement.cpp \
-		HTMLDataListElement.cpp \
-		HTMLDivElement.cpp \
+		nsHTMLDataListElement.cpp \
+		nsHTMLDivElement.cpp \
 		nsHTMLFieldSetElement.cpp \
-		HTMLFontElement.cpp \
+		nsHTMLFontElement.cpp \
 		nsHTMLFormElement.cpp \
 		nsHTMLFrameElement.cpp \
-		HTMLFrameSetElement.cpp \
+		nsHTMLFrameSetElement.cpp \
 		nsHTMLHRElement.cpp \
-		HTMLHeadingElement.cpp \
+		nsHTMLHeadingElement.cpp \
 		nsHTMLIFrameElement.cpp \
-		HTMLImageElement.cpp \
+		nsHTMLImageElement.cpp \
 		nsHTMLInputElement.cpp \
 		nsHTMLLIElement.cpp \
-		HTMLLabelElement.cpp \
+		nsHTMLLabelElement.cpp \
 		nsHTMLLegendElement.cpp \
 		nsHTMLLinkElement.cpp \
 		nsHTMLMapElement.cpp \
@@ -99,8 +83,8 @@ CPPSRCS		= \
 		nsHTMLTableRowElement.cpp \
 		nsHTMLTableSectionElement.cpp \
 		nsHTMLTextAreaElement.cpp \
-		HTMLTitleElement.cpp \
-		HTMLUnknownElement.cpp \
+		nsHTMLTitleElement.cpp \
+		nsHTMLUnknownElement.cpp \
 		nsDOMValidityState.cpp \
 		nsIConstraintValidation.cpp \
 		nsRadioVisitor.cpp \

@@ -73,7 +73,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsIServiceManager.h"
 #include "nsIURL.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
@@ -102,8 +102,6 @@
 #include "nsCSSParser.h"
 #include "nsHTMLLegendElement.h"
 #include "nsWrapperCacheInlines.h"
-#include "WrapperFactory.h"
-#include "DocumentType.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -223,8 +221,9 @@ nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
         !node->AsElement()->IsHTML())
       continue;
 
-    nsCOMPtr<nsIEditor> editor =
-      static_cast<nsGenericHTMLElement*>(node)->GetEditorInternal();
+    nsCOMPtr<nsIEditor> editor;
+    static_cast<nsGenericHTMLElement*>(node)->
+        GetEditorInternal(getter_AddRefs(editor));
     if (!editor)
       continue;
 
@@ -698,7 +697,6 @@ nsINode::SetUserData(JSContext* aCx, const nsAString& aKey, JS::Value aData,
   }
 
   JS::Value result;
-  JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), oldData,
                                                     &result);
   return result;
@@ -713,7 +711,6 @@ nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
   }
 
   JS::Value result;
-  JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), data,
                                                     &result);
   return result;
@@ -1445,7 +1442,7 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
         return true;
       }
 
-      nsIContent* docTypeContent = parentDocument->GetDoctype();
+      nsIContent* docTypeContent = parentDocument->GetDocumentType();
       if (!docTypeContent) {
         // It's all good.
         return true;
@@ -1468,7 +1465,7 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
       }
 
       nsIDocument* parentDocument = static_cast<nsIDocument*>(aParent);
-      nsIContent* docTypeContent = parentDocument->GetDoctype();
+      nsIContent* docTypeContent = parentDocument->GetDocumentType();
       if (docTypeContent) {
         // Already have a doctype, so this is only OK if we're replacing it
         return aIsReplace && docTypeContent == aRefChild;
@@ -2182,12 +2179,7 @@ ParseSelectorList(nsINode* aNode,
                                            doc->GetDocumentURI(),
                                            0, // XXXbz get the line number!
                                            &selectorList);
-  if (NS_FAILED(rv)) {
-    // We hit this for syntax errors, which are quite common, so don't
-    // use NS_ENSURE_SUCCESS.  (For example, jQuery has an extended set
-    // of selectors, but it sees if we can parse them first.)
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Filter out pseudo-element selectors from selectorList
   nsCSSSelectorList** slot = &selectorList;
@@ -2226,12 +2218,7 @@ FindMatchingElements(nsINode* aRoot, const nsAString& aSelector, T &aList)
   nsAutoPtr<nsCSSSelectorList> selectorList;
   nsresult rv = ParseSelectorList(aRoot, aSelector,
                                   getter_Transfers(selectorList));
-  if (NS_FAILED(rv)) {
-    // We hit this for syntax errors, which are quite common, so don't
-    // use NS_ENSURE_SUCCESS.  (For example, jQuery has an extended set
-    // of selectors, but it sees if we can parse them first.)
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selectorList, NS_OK);
 
   NS_ASSERTION(selectorList->mSelectors,
@@ -2355,18 +2342,7 @@ nsINode::WrapObject(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
     return nullptr;
   }
 
-  JSObject* obj = WrapNode(aCx, aScope, aTriedToWrap);
-  if (obj && ChromeOnlyAccess()) {
-    // Create a new wrapper and cache it.
-    JSAutoCompartment ac(aCx, obj);
-    JSObject* wrapper = xpc::WrapperFactory::WrapSOWObject(aCx, obj);
-    if (!wrapper) {
-      ClearWrapper();
-      return nullptr;
-    }
-    dom::SetSystemOnlyWrapper(obj, this, *wrapper);
-  }
-  return obj;
+  return WrapNode(aCx, aScope, aTriedToWrap);
 }
 
 bool

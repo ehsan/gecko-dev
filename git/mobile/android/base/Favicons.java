@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.GeckoBackgroundThread;
 import org.mozilla.gecko.util.GeckoJarReader;
 
 import org.apache.http.HttpEntity;
@@ -206,20 +205,17 @@ public class Favicons {
         }
 
         // Runs in background thread
-        private void saveFaviconToDb(final Bitmap favicon) {
+        private void saveFaviconToDb(Bitmap favicon) {
             if (!mPersist) {
                 return;
             }
 
-            // Even though this code is in a background thread, all DB writes
-            // should happen in GeckoBackgroundThread or we could get locked
-            // databases.
-            GeckoBackgroundThread.post(new Runnable() {
-                public void run() {
-                    ContentResolver resolver = mContext.getContentResolver();
-                    BrowserDB.updateFaviconForUrl(resolver, mPageUrl, favicon, mFaviconUrl);
-                }
-            });
+            // since the Async task can run this on any number of threads in the
+            // pool, we need to protect against inserting the same url twice
+            synchronized(Favicons.this) {
+                ContentResolver resolver = mContext.getContentResolver();
+                BrowserDB.updateFaviconForUrl(resolver, mPageUrl, favicon, mFaviconUrl);
+            }
         }
 
         // Runs in background thread

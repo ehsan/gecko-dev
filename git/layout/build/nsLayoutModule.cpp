@@ -50,7 +50,9 @@
 #include "nsStyleSheetService.h"
 #include "nsFocusManager.h"
 #include "ThirdPartyUtil.h"
+#include "mozilla/Services.h"
 #include "nsStructuredCloneContainer.h"
+#include "mozilla/Attributes.h"
 
 #include "nsIEventListenerService.h"
 #include "nsIMessageManager.h"
@@ -64,6 +66,7 @@
 #include "nsDOMSerializer.h"
 #include "nsXMLHttpRequest.h"
 #include "nsChannelPolicy.h"
+#include "nsEventSource.h"
 
 // view stuff
 #include "nsViewsCID.h"
@@ -87,15 +90,12 @@
 #include "nsDOMScriptObjectFactory.h"
 #include "nsDOMStorage.h"
 #include "nsJSON.h"
-#include "mozIApplicationClearPrivateDataParams.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/Activity.h"
-#include "mozilla/dom/DOMRequest.h"
-#include "mozilla/dom/EventSource.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
-#include "mozilla/dom/network/TCPSocketChild.h"
+#include "mozIApplicationClearPrivateDataParams.h"
+#include "mozilla/dom/DOMRequest.h"
 #include "mozilla/OSFileConstants.h"
-#include "mozilla/Services.h"
+#include "mozilla/dom/Activity.h"
+#include "mozilla/dom/network/TCPSocketChild.h"
 
 #ifdef MOZ_B2G_RIL
 #include "SystemWorkerManager.h"
@@ -129,6 +129,8 @@ using mozilla::dom::fm::FMRadio;
 
 #include "AudioChannelAgent.h"
 using mozilla::dom::AudioChannelAgent;
+
+#include "nsDOMMutationObserver.h"
 
 // Editor stuff
 #include "nsEditorCID.h"
@@ -233,7 +235,6 @@ static void Shutdown();
 #include "mozilla/dom/sms/SmsServicesFactory.h"
 #include "nsIPowerManagerService.h"
 #include "nsIAlarmHalService.h"
-#include "nsIMediaManager.h"
 #include "nsMixedContentBlocker.h"
 
 #include "AudioChannelService.h"
@@ -245,7 +246,6 @@ static void Shutdown();
 #ifdef MOZ_WIDGET_GONK
 #include "GonkGPSGeolocationProvider.h"
 #endif
-#include "MediaManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -271,7 +271,7 @@ NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsXPathEvaluator, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR(EventSource)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsEventSource)
 NS_GENERIC_FACTORY_CONSTRUCTOR(Activity)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileReader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(ArchiveReader)
@@ -295,6 +295,7 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(SystemWorkerManager,
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(BluetoothService,
                                          BluetoothService::FactoryCreate)
 #endif
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMMutationObserver)
 
 #ifdef MOZ_WIDGET_GONK
 NS_GENERIC_FACTORY_CONSTRUCTOR(AudioManager)
@@ -328,8 +329,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITimeService,
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIGeolocationProvider,
                                          GonkGPSGeolocationProvider::GetSingleton)
 #endif
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIMediaManagerService,
-                                         MediaManager::GetInstance)
 
 //-----------------------------------------------------------------------------
 
@@ -827,6 +826,7 @@ NS_DEFINE_NAMED_CID(NS_NULLPRINCIPAL_CID);
 NS_DEFINE_NAMED_CID(NS_SECURITYNAMESET_CID);
 NS_DEFINE_NAMED_CID(THIRDPARTYUTIL_CID);
 NS_DEFINE_NAMED_CID(NS_STRUCTUREDCLONECONTAINER_CID);
+NS_DEFINE_NAMED_CID(NS_DOMMUTATIONOBSERVER_CID);
 NS_DEFINE_NAMED_CID(NS_DEVICE_SENSORS_CID);
 
 #ifndef MOZ_WIDGET_GONK
@@ -844,7 +844,6 @@ NS_DEFINE_NAMED_CID(NS_TIMESERVICE_CID);
 #ifdef MOZ_WIDGET_GONK
 NS_DEFINE_NAMED_CID(GONK_GPS_GEOLOCATION_PROVIDER_CID);
 #endif
-NS_DEFINE_NAMED_CID(NS_MEDIAMANAGERSERVICE_CID);
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -1057,7 +1056,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_MEDIASTREAMPROTOCOLHANDLER_CID, false, NULL, nsMediaStreamProtocolHandlerConstructor },
   { &kNS_HOSTOBJECTURI_CID, false, NULL, nsHostObjectURIConstructor },
   { &kNS_XMLHTTPREQUEST_CID, false, NULL, nsXMLHttpRequestConstructor },
-  { &kNS_EVENTSOURCE_CID, false, NULL, EventSourceConstructor },
+  { &kNS_EVENTSOURCE_CID, false, NULL, nsEventSourceConstructor },
   { &kNS_DOMACTIVITY_CID, false, NULL, ActivityConstructor },
   { &kNS_DOMPARSER_CID, false, NULL, nsDOMParserConstructor },
   { &kNS_DOMSTORAGE2_CID, false, NULL, NS_NewDOMStorage2 },
@@ -1114,6 +1113,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #endif
   { &kTHIRDPARTYUTIL_CID, false, NULL, ThirdPartyUtilConstructor },
   { &kNS_STRUCTUREDCLONECONTAINER_CID, false, NULL, nsStructuredCloneContainerConstructor },
+  { &kNS_DOMMUTATIONOBSERVER_CID, false, NULL, nsDOMMutationObserverConstructor },
   { &kSMS_SERVICE_CID, false, NULL, nsISmsServiceConstructor },
   { &kSMS_DATABASE_SERVICE_CID, false, NULL, nsISmsDatabaseServiceConstructor },
   { &kNS_POWERMANAGERSERVICE_CID, false, NULL, nsIPowerManagerServiceConstructor },
@@ -1124,7 +1124,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef MOZ_WIDGET_GONK
   { &kGONK_GPS_GEOLOCATION_PROVIDER_CID, false, NULL, nsIGeolocationProviderConstructor },
 #endif
-  { &kNS_MEDIAMANAGERSERVICE_CID, false, NULL, nsIMediaManagerServiceConstructor },
   { NULL }
 };
 
@@ -1258,6 +1257,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #endif
   { THIRDPARTYUTIL_CONTRACTID, &kTHIRDPARTYUTIL_CID },
   { NS_STRUCTUREDCLONECONTAINER_CONTRACTID, &kNS_STRUCTUREDCLONECONTAINER_CID },
+  { NS_DOMMUTATIONOBSERVER_CONTRACTID, &kNS_DOMMUTATIONOBSERVER_CID },
   { SMS_SERVICE_CONTRACTID, &kSMS_SERVICE_CID },
   { SMS_DATABASE_SERVICE_CONTRACTID, &kSMS_DATABASE_SERVICE_CID },
   { POWERMANAGERSERVICE_CONTRACTID, &kNS_POWERMANAGERSERVICE_CID },
@@ -1268,7 +1268,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #ifdef MOZ_WIDGET_GONK
   { GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID, &kGONK_GPS_GEOLOCATION_PROVIDER_CID },
 #endif
-  { MEDIAMANAGERSERVICE_CONTRACTID, &kNS_MEDIAMANAGERSERVICE_CID },
   { NULL }
 };
 

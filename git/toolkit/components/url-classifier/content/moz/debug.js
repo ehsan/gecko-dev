@@ -606,10 +606,10 @@ G_DebugService.prototype.observe = function(consoleMessage) {
  */
 G_DebugService.prototype.reportScriptError_ = function(message, sourceName, 
                                                        lineNumber, label) {
-  message = "\n------------------------------------------------------------\n" +
-            label + ": " + message +
-            "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
-            "\n------------------------------------------------------------\n\n";
+  var message = "\n------------------------------------------------------------\n" +
+                label + ": " + message +
+                "\nlocation: " + sourceName + ", " + "line: " + lineNumber +
+                "\n------------------------------------------------------------\n\n";
 
   dump(message);
   this.maybeDumpToFile(message);

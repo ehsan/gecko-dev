@@ -17,11 +17,11 @@ namespace dmd {
 
 // Mark a heap block as reported by a memory reporter.
 MOZ_EXPORT void
-Report(const void* aPtr);
+Report(const void* aPtr, const char* aReporterName);
 
 // Mark a heap block as reported immediately on allocation.
 MOZ_EXPORT void
-ReportOnAlloc(const void* aPtr);
+ReportOnAlloc(const void* aPtr, const char* aReporterName);
 
 class Writer
 {
@@ -52,13 +52,12 @@ FpWrite(void* aFp, const char* aFmt, va_list aAp);
 
 struct Sizes
 {
-  size_t mStackTracesUsed;
-  size_t mStackTracesUnused;
+  size_t mStackTraces;
   size_t mStackTraceTable;
-  size_t mBlockTable;
+  size_t mLiveBlockTable;
+  size_t mDoubleReportTable;
 
-  Sizes() { Clear(); }
-  void Clear() { memset(this, 0, sizeof(Sizes)); }
+  Sizes() { memset(this, 0, sizeof(Sizes)); }
 };
 
 // Gets the size of various data structures.  Used to implement a memory

@@ -64,7 +64,7 @@
 using namespace mozilla;
 using namespace mozilla::image;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ImagesMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ImagesMallocSizeOf, "images")
 
 class imgMemoryReporter MOZ_FINAL :
   public nsIMemoryMultiReporter
@@ -250,12 +250,7 @@ private:
       nsRefPtr<imgRequest> req = entry->GetRequest();
       Image *image = static_cast<Image*>(req->mImage.get());
       if (image) {
-        // Both this and EntryAllSizes measure images-content-used-uncompressed
-        // memory.  This function's measurement is secondary -- the result
-        // doesn't go in the "explicit" tree -- so we use moz_malloc_size_of
-        // instead of ImagesMallocSizeOf to prevent DMD from seeing it reported
-        // twice.
-        *n += image->HeapSizeOfDecodedWithComputedFallback(moz_malloc_size_of);
+        *n += image->HeapSizeOfDecodedWithComputedFallback(ImagesMallocSizeOf);
         *n += image->NonHeapSizeOfDecoded();
       }
     }
@@ -708,7 +703,7 @@ nsresult imgLoader::CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup 
   aRequest->GetURI(getter_AddRefs(uri));
 
   // init adds itself to imgRequest's list of observers
-  nsresult rv = proxyRequest->Init(aRequest, aLoadGroup, uri, aObserver);
+  nsresult rv = proxyRequest->Init(&aRequest->GetStatusTracker(), aLoadGroup, uri, aObserver);
   if (NS_FAILED(rv)) {
     NS_RELEASE(proxyRequest);
     return rv;

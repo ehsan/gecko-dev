@@ -84,10 +84,6 @@ class NrIceCtx {
                ICE_CTX_FAILED
   };
 
-  enum Controlling { ICE_CONTROLLING,
-                     ICE_CONTROLLED
-  };
-
   static RefPtr<NrIceCtx> Create(const std::string& name,
                                           bool offerer,
                                           bool set_interface_priorities = true);
@@ -114,9 +110,6 @@ class NrIceCtx {
 
   // Set the other side's global attributes
   nsresult ParseGlobalAttributes(std::vector<std::string> attrs);
-
-  // Set whether we are controlling or not.
-  nsresult SetControlling(Controlling controlling);
 
   // Start ICE gathering
   nsresult StartGathering();

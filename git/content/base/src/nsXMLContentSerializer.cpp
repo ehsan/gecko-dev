@@ -785,7 +785,23 @@ nsXMLContentSerializer::IsJavaScript(nsIContent * aContent, nsIAtom* aAttrNameAt
       return false;
   }
 
-  return aContent->IsEventAttributeName(aAttrNameAtom);
+  // Wouldn't having an nsIContent::IsEventAttributeName work better? Bug 811753
+  // That way we would only have to put the flags in one place...
+  if (isHtml) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom,
+                                                EventNameType_HTML |
+                                                EventNameType_HTMLBodyOrFramesetOnly);
+  }
+  else if (isXul) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom, EventNameType_XUL);
+  }
+  else if (isSvg) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom,
+                                                EventNameType_SVGGraphic |
+                                                EventNameType_SVGSVG |
+                                                EventNameType_SMIL);
+  }
+  return false;
 }
 
 

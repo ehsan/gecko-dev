@@ -8,13 +8,18 @@ function test() {
   waitForExplicitFinish();
 
   registerCleanupFunction(function() {
+    Services.prefs.clearUserPref("browser.sessionstore.interval");
     ss.setBrowserState(originalState);
   });
 
   runNextTest();
 }
 
-let tests = [test_1, test_2, test_3 ];
+let tests = [
+  test_1,
+  test_2,
+  test_3,
+];
 
 const testState = {
   windows: [{
@@ -26,13 +31,22 @@ const testState = {
 
 function runNextTest() {
   // Set an empty state
-  closeAllButPrimaryWindow();
+  let windowsEnum = Services.wm.getEnumerator("navigator:browser");
+  while (windowsEnum.hasMoreElements()) {
+    let currentWindow = windowsEnum.getNext();
+    if (currentWindow != window) {
+      currentWindow.close();
+    }
+  }
 
   // Run the next test, or finish
   if (tests.length) {
     let currentTest = tests.shift();
     waitForBrowserState(testState, currentTest);
-  } else {
+  }
+  else {
+    Services.prefs.clearUserPref("browser.sessionstore.interval");
+    ss.setBrowserState(originalState);
     finish();
   }
 }
@@ -55,18 +69,23 @@ function test_1() {
           is (curState.windows[4].isPrivate, true, "Last window is private");
           is (curState.selectedWindow, 5, "Last window opened is the one selected");
 
-          forceWriteState(function(state) {
+          Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
+            Services.obs.removeObserver(observe, aTopic);
+            aSubject.QueryInterface(Ci.nsISupportsString);
+            let state = JSON.parse(aSubject.data);
             is(state.windows.length, 3,
-               "sessionstore state: 3 windows in data being written to disk");
+              "sessionstore state: 3 windows in data being writted to disk");
             is (state.selectedWindow, 3,
-               "Selected window is updated to match one of the saved windows");
+              "Selected window is updated to match one of the saved windows");
             state.windows.forEach(function(win) {
               is(!win.isPrivate, true, "Saved window is not private");
             });
             is(state._closedWindows.length, 0,
-               "sessionstore state: no closed windows in data being written to disk");
+              "sessionstore state: no closed windows in data being writted to disk");
             runNextTest();
-          });
+          }, "sessionstore-state-write", false);
+
+          Services.prefs.setIntPref("browser.sessionstore.interval", 0);
         });
       });
     });
@@ -75,8 +94,8 @@ function test_1() {
 
 // Test opening default mochitest window + 2 private windows
 function test_2() {
-  testOnWindow(true, function(aWindow) {
-    aWindow.gBrowser.addTab("http://www.example.com/1");
+testOnWindow(true, function(aWindow) {
+  aWindow.gBrowser.addTab("http://www.example.com/1");
     testOnWindow(true, function(aWindow) {
       aWindow.gBrowser.addTab("http://www.example.com/2");
 
@@ -86,85 +105,61 @@ function test_2() {
       is (curState.windows[2].isPrivate, true, "Window 2 is private");
       is (curState.selectedWindow, 3, "Last window opened is the one selected");
 
-      forceWriteState(function(state) {
+      Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
+        Services.obs.removeObserver(observe, aTopic);
+        aSubject.QueryInterface(Ci.nsISupportsString);
+        let state = JSON.parse(aSubject.data);
         is(state.windows.length, 1,
-           "sessionstore state: 1 windows in data being writted to disk");
+          "sessionstore state: 1 windows in data being writted to disk");
         is (state.selectedWindow, 1,
-           "Selected window is updated to match one of the saved windows");
+          "Selected window is updated to match one of the saved windows");
         is(state._closedWindows.length, 0,
-           "sessionstore state: no closed windows in data being writted to disk");
+          "sessionstore state: no closed windows in data being writted to disk");
         runNextTest();
-      });
-    });
+      }, "sessionstore-state-write", false);
+      Services.prefs.setIntPref("browser.sessionstore.interval", 0);
   });
+});
 }
 
 // Test opening default-normal-private-normal windows and closing a normal window
 function test_3() {
   testOnWindow(false, function(normalWindow) {
-    waitForTabLoad(normalWindow, "http://www.example.com/", function() {
-      testOnWindow(true, function(aWindow) {
-        waitForTabLoad(aWindow, "http://www.example.com/", function() {
-          testOnWindow(false, function(aWindow) {
-            waitForTabLoad(aWindow, "http://www.example.com/", function() {
+    normalWindow.gBrowser.addTab("http://www.example.com/1");
+    testOnWindow(true, function(aWindow) {
+      aWindow.gBrowser.addTab("http://www.example.com/2");
+      testOnWindow(false, function(aWindow) {
+        aWindow.gBrowser.addTab("http://www.example.com/3");
 
-              let curState = JSON.parse(ss.getBrowserState());
-              is(curState.windows.length, 4, "Browser has opened 4 windows");
-              is(curState.windows[2].isPrivate, true, "Window 2 is private");
-              is(curState.selectedWindow, 4, "Last window opened is the one selected");
+        let curState = JSON.parse(ss.getBrowserState());
+        is (curState.windows.length, 4, "Browser has opened 4 windows");
+        is (curState.windows[2].isPrivate, true, "Window 2 is private");
+        is (curState.selectedWindow, 4, "Last window opened is the one selected");
 
-              waitForWindowClose(normalWindow, function() {
-                forceWriteState(function(state) {
-                  is(state.windows.length, 2,
-                     "sessionstore state: 2 windows in data being writted to disk");
-                  is(state.selectedWindow, 2,
-                     "Selected window is updated to match one of the saved windows");
-                  state.windows.forEach(function(win) {
-                    is(!win.isPrivate, true, "Saved window is not private");
-                  });
-                  is(state._closedWindows.length, 1,
-                     "sessionstore state: 1 closed window in data being writted to disk");
-                  state._closedWindows.forEach(function(win) {
-                    is(!win.isPrivate, true, "Closed window is not private");
-                  });
-                  runNextTest();
-                });
-              });
-            });
+        normalWindow.close();
+        Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
+          Services.obs.removeObserver(observe, aTopic);
+          aSubject.QueryInterface(Ci.nsISupportsString);
+          let state = JSON.parse(aSubject.data);
+          is(state.windows.length, 2,
+            "sessionstore state: 2 windows in data being writted to disk");
+          is (state.selectedWindow, 2,
+            "Selected window is updated to match one of the saved windows");
+          state.windows.forEach(function(win) {
+            is(!win.isPrivate, true, "Saved window is not private");
           });
-        });
+          is(state._closedWindows.length, 1,
+            "sessionstore state: 1 closed window in data being writted to disk");
+          state._closedWindows.forEach(function(win) {
+            is(!win.isPrivate, true, "Closed window is not private");
+          });
+          runNextTest();
+        }, "sessionstore-state-write", false);
+
+        Services.prefs.setIntPref("browser.sessionstore.interval", 0);
       });
     });
   });
-}
-
-function waitForWindowClose(aWin, aCallback) {
-  let winCount = JSON.parse(ss.getBrowserState()).windows.length;
-  aWin.addEventListener("SSWindowClosing", function onWindowClosing() {
-    aWin.removeEventListener("SSWindowClosing", onWindowClosing, false);
-    function checkCount() {
-      let state = JSON.parse(ss.getBrowserState());
-      if (state.windows.length == (winCount - 1)) {
-        aCallback();
-      } else {
-        executeSoon(checkCount);
-      }
-    }
-    executeSoon(checkCount);
-  }, false);
-  aWin.close();
-}
-
-function forceWriteState(aCallback) {
-  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
-    if (aTopic == "sessionstore-state-write") {
-      Services.obs.removeObserver(observe, aTopic);
-      Services.prefs.clearUserPref("browser.sessionstore.interval");
-      aSubject.QueryInterface(Ci.nsISupportsString);
-      aCallback(JSON.parse(aSubject.data));
-    }
-  }, "sessionstore-state-write", false);
-  Services.prefs.setIntPref("browser.sessionstore.interval", 0);
 }
 
 function testOnWindow(aIsPrivate, aCallback) {
@@ -173,12 +168,4 @@ function testOnWindow(aIsPrivate, aCallback) {
     win.removeEventListener("load", onLoad, false);
     executeSoon(function() { aCallback(win); });
   }, false);
-}
-
-function waitForTabLoad(aWin, aURL, aCallback) {
-  aWin.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    aWin.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    aCallback();
-  }, true);
-  aWin.gBrowser.selectedBrowser.loadURI(aURL);
 }

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.mozilla.apache.commons.codec.binary.Base64;
 import org.mozilla.gecko.sync.crypto.CryptoException;
@@ -130,7 +131,7 @@ public class CryptoRecord extends Record {
   public static CryptoRecord fromJSONRecord(String jsonRecord)
       throws ParseException, NonObjectJSONException, IOException {
     byte[] bytes = jsonRecord.getBytes("UTF-8");
-    ExtendedJSONObject object = ExtendedJSONObject.parseUTF8AsJSONObject(bytes);
+    ExtendedJSONObject object = CryptoRecord.parseUTF8AsJSONObject(bytes);
 
     return CryptoRecord.fromJSONRecord(object);
   }
@@ -140,10 +141,7 @@ public class CryptoRecord extends Record {
       throws IOException, ParseException, NonObjectJSONException {
     String id                  = (String) jsonRecord.get(KEY_ID);
     String collection          = (String) jsonRecord.get(KEY_COLLECTION);
-    String jsonEncodedPayload  = (String) jsonRecord.get(KEY_PAYLOAD);
-
-    ExtendedJSONObject payload = ExtendedJSONObject.parseJSONObject(jsonEncodedPayload);
-
+    ExtendedJSONObject payload = jsonRecord.getJSONObject(KEY_PAYLOAD);
     CryptoRecord record = new CryptoRecord(payload);
     record.guid         = id;
     record.collection   = collection;
@@ -166,6 +164,16 @@ public class CryptoRecord extends Record {
     this.keyBundle = bundle;
   }
 
+  private static ExtendedJSONObject parseUTF8AsJSONObject(byte[] in)
+      throws UnsupportedEncodingException, ParseException, NonObjectJSONException {
+    Object obj = new JSONParser().parse(new String(in, "UTF-8"));
+    if (obj instanceof JSONObject) {
+      return new ExtendedJSONObject((JSONObject) obj);
+    } else {
+      throw new NonObjectJSONException(obj);
+    }
+  }
+
   public CryptoRecord decrypt() throws CryptoException, IOException, ParseException,
                        NonObjectJSONException {
     if (keyBundle == null) {
@@ -182,7 +190,7 @@ public class CryptoRecord extends Record {
     // There's no difference between handling the crypto/keys object and
     // anything else; we just get this.keyBundle from a different source.
     byte[] cleartext = decryptPayload(payload, keyBundle);
-    payload = ExtendedJSONObject.parseUTF8AsJSONObject(cleartext);
+    payload = CryptoRecord.parseUTF8AsJSONObject(cleartext);
     return this;
   }
 

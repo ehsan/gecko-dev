@@ -13,9 +13,8 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/GuardObjects.h"
-#include "mozilla/RangedPtr.h"
 #include "mozilla/StandardInteger.h"
+#include "mozilla/RangedPtr.h"
 #include "mozilla/ThreadLocal.h"
 
 #include <stddef.h>
@@ -1105,17 +1104,17 @@ class AutoValueRooter : private AutoGCRooter
 {
   public:
     explicit AutoValueRooter(JSContext *cx
-                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, JSVAL), val(NullValue())
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     AutoValueRooter(JSContext *cx, const Value &v
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, JSVAL), val(v)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     /*
@@ -1153,17 +1152,16 @@ class AutoValueRooter : private AutoGCRooter
 
   private:
     Value val;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoObjectRooter : private AutoGCRooter
-{
+class AutoObjectRooter : private AutoGCRooter {
   public:
     AutoObjectRooter(JSContext *cx, JSObject *obj = NULL
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, OBJECT), obj(obj)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     void setObject(JSObject *obj) {
@@ -1182,16 +1180,16 @@ class AutoObjectRooter : private AutoGCRooter
 
   private:
     JSObject *obj;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoStringRooter : private AutoGCRooter {
   public:
     AutoStringRooter(JSContext *cx, JSString *str = NULL
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, STRING), str(str)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     void setString(JSString *str) {
@@ -1214,16 +1212,16 @@ class AutoStringRooter : private AutoGCRooter {
 
   private:
     JSString *str;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoArrayRooter : private AutoGCRooter {
   public:
     AutoArrayRooter(JSContext *cx, size_t len, Value *vec
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, len), array(vec), skip(cx, array, len)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_ASSERT(tag >= 0);
     }
 
@@ -1242,7 +1240,7 @@ class AutoArrayRooter : private AutoGCRooter {
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     js::SkipRoot skip;
 };
@@ -1252,10 +1250,10 @@ class AutoVectorRooter : protected AutoGCRooter
 {
   public:
     explicit AutoVectorRooter(JSContext *cx, ptrdiff_t tag
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, tag), vector(cx), vectorRoot(cx, &vector)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     typedef T ElementType;
@@ -1329,7 +1327,7 @@ class AutoVectorRooter : protected AutoGCRooter
     /* Prevent overwriting of inline elements in vector. */
     js::SkipRoot vectorRoot;
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 template<class Key, class Value>
@@ -1340,10 +1338,10 @@ class AutoHashMapRooter : protected AutoGCRooter
 
   public:
     explicit AutoHashMapRooter(JSContext *cx, ptrdiff_t tag
-                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, tag), map(cx)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     typedef Key KeyType;
@@ -1452,46 +1450,46 @@ class AutoHashMapRooter : protected AutoGCRooter
 
     HashMapImpl map;
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoValueVector : public AutoVectorRooter<Value>
 {
   public:
     explicit AutoValueVector(JSContext *cx
-                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<Value>(cx, VALVECTOR)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoIdVector : public AutoVectorRooter<jsid>
 {
   public:
     explicit AutoIdVector(JSContext *cx
-                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<jsid>(cx, IDVECTOR)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoScriptVector : public AutoVectorRooter<JSScript *>
 {
   public:
     explicit AutoScriptVector(JSContext *cx
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<JSScript *>(cx, SCRIPTVECTOR)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class CallReceiver
@@ -1838,7 +1836,9 @@ typedef JSBool
 /*
  * Like JSResolveOp, but flags provide contextual information as follows:
  *
+ *  JSRESOLVE_QUALIFIED   a qualified property id: obj.id or obj[id], not id
  *  JSRESOLVE_ASSIGNING   obj[id] is on the left-hand side of an assignment
+ *  JSRESOLVE_DETECTING   'if (o.p)...' or similar detection opcode sequence
  *
  * The *objp out parameter, on success, should be null to indicate that id
  * was not resolved; and non-null, referring to obj or one of its prototypes,
@@ -2560,10 +2560,10 @@ class AutoIdRooter : private AutoGCRooter
 {
   public:
     explicit AutoIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0)
-                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, ID), id_(id)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     jsid id() {
@@ -2578,7 +2578,7 @@ class AutoIdRooter : private AutoGCRooter
 
   private:
     jsid id_;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 } /* namespace JS */
@@ -2761,6 +2761,8 @@ ToBoolean(const Value &v)
         return v.toBoolean();
     if (v.isInt32())
         return v.toInt32() != 0;
+    if (v.isObject())
+        return true;
     if (v.isNullOrUndefined())
         return false;
     if (v.isDouble()) {
@@ -2768,7 +2770,7 @@ ToBoolean(const Value &v)
         return !MOZ_DOUBLE_IS_NaN(d) && d != 0;
     }
 
-    /* The slow path handles strings and objects. */
+    /* Slow path. Handle Strings. */
     return js::ToBooleanSlow(v);
 }
 
@@ -3034,14 +3036,11 @@ template <> struct RootMethods<jsid>
 
 } /* namespace js */
 
-class JSAutoRequest
-{
+class JSAutoRequest {
   public:
-    JSAutoRequest(JSContext *cx
-                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mContext(cx)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JSAutoRequest(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : mContext(cx) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_BeginRequest(mContext);
     }
     ~JSAutoRequest() {
@@ -3050,7 +3049,7 @@ class JSAutoRequest
 
   protected:
     JSContext *mContext;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
 #if 0
   private:
@@ -3059,17 +3058,14 @@ class JSAutoRequest
 #endif
 };
 
-class JSAutoCheckRequest
-{
+class JSAutoCheckRequest {
   public:
-    JSAutoCheckRequest(JSContext *cx
-                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    {
+    JSAutoCheckRequest(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM) {
 #if defined JS_THREADSAFE && defined DEBUG
         mContext = cx;
         JS_ASSERT(JS_IsInRequest(JS_GetRuntime(cx)));
 #endif
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~JSAutoCheckRequest() {
@@ -3083,7 +3079,7 @@ class JSAutoCheckRequest
 #if defined JS_THREADSAFE && defined DEBUG
     JSContext *mContext;
 #endif
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 extern JS_PUBLIC_API(JSContextCallback)
@@ -3247,9 +3243,6 @@ JS_WrapObject(JSContext *cx, JSObject **objp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_WrapValue(JSContext *cx, jsval *vp);
-
-extern JS_PUBLIC_API(JSBool)
-JS_WrapId(JSContext *cx, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
@@ -3870,13 +3863,6 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind);
         JS_CALL_TRACER((trc), str_, JSTRACE_STRING, name);                    \
     JS_END_MACRO
 
-#define JS_CALL_SCRIPT_TRACER(trc, script, name)                              \
-    JS_BEGIN_MACRO                                                            \
-        JSScript *script_ = (script);                                         \
-        JS_ASSERT(script_);                                                   \
-        JS_CALL_TRACER((trc), script_, JSTRACE_SCRIPT, name);                 \
-    JS_END_MACRO
-
 /*
  * API for JSTraceCallback implementations.
  */
@@ -4101,9 +4087,7 @@ struct JSClass {
 #define JSCLASS_IS_DOMJSCLASS           (1<<4)  /* objects are DOM */
 #define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
                                                    and write barriers */
-#define JSCLASS_EMULATES_UNDEFINED      (1<<6)  /* objects of this class act
-                                                   like the value undefined,
-                                                   in some contexts */
+#define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
 #define JSCLASS_USERBIT1                (1<<7)  /* Reserved for embeddings. */
 
 /*
@@ -4189,14 +4173,12 @@ JS_DestroyIdArray(JSContext *cx, JSIdArray *ida);
 
 namespace JS {
 
-class AutoIdArray : private AutoGCRooter
-{
+class AutoIdArray : private AutoGCRooter {
   public:
-    AutoIdArray(JSContext *cx, JSIdArray *ida
-                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoIdArray(JSContext *cx, JSIdArray *ida JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, IDARRAY), context(cx), idArray(ida)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoIdArray() {
         if (idArray)
@@ -4228,7 +4210,7 @@ class AutoIdArray : private AutoGCRooter
   private:
     JSContext *context;
     JSIdArray *idArray;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     /* No copy or assignment semantics. */
     AutoIdArray(AutoIdArray &ida) MOZ_DELETE;
@@ -4246,7 +4228,9 @@ JS_IdToValue(JSContext *cx, jsid id, jsval *vp);
 /*
  * JSNewResolveOp flag bits.
  */
-#define JSRESOLVE_ASSIGNING     0x01    /* resolve on the left of assignment */
+#define JSRESOLVE_QUALIFIED     0x01    /* resolve a qualified property id */
+#define JSRESOLVE_ASSIGNING     0x02    /* resolve on the left of assignment */
+#define JSRESOLVE_DETECTING     0x04    /* 'if (o.p)...' or '(o.p) ?...:...' */
 
 /*
  * Invoke the [[DefaultValue]] hook (see ES5 8.6.2) with the provided hint on
@@ -5545,21 +5529,17 @@ JS_GetStringEncodingLength(JSContext *cx, JSString *str);
 JS_PUBLIC_API(size_t)
 JS_EncodeStringToBuffer(JSString *str, char *buffer, size_t length);
 
-class JSAutoByteString
-{
+class JSAutoByteString {
   public:
-    JSAutoByteString(JSContext *cx, JSString *str
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mBytes(JS_EncodeString(cx, str))
-    {
+    JSAutoByteString(JSContext *cx, JSString *str JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : mBytes(JS_EncodeString(cx, str)) {
         JS_ASSERT(cx);
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    JSAutoByteString(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
-      : mBytes(NULL)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JSAutoByteString(JS_GUARD_OBJECT_NOTIFIER_PARAM0)
+      : mBytes(NULL) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~JSAutoByteString() {
@@ -5594,7 +5574,7 @@ class JSAutoByteString
 
   private:
     char        *mBytes;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     /* Copy and assignment are not supported. */
     JSAutoByteString(const JSAutoByteString &another);
@@ -5753,22 +5733,6 @@ JS_PUBLIC_API(JSBool)
 JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v);
 
 /************************************************************************/
-
-/*
- * The default locale for the ECMAScript Internationalization API
- * (Intl.Collator, Intl.NumberFormat, Intl.DateTimeFormat).
- * Note that the Internationalization API encourages clients to
- * specify their own locales.
- * The locale string remains owned by the caller.
- */
-extern JS_PUBLIC_API(JSBool)
-JS_SetDefaultLocale(JSContext *cx, const char *locale);
-
-/*
- * Reset the default locale to OS defaults.
- */
-extern JS_PUBLIC_API(void)
-JS_ResetDefaultLocale(JSContext *cx);
 
 /*
  * Locale specific string conversion and error message callbacks.

@@ -525,8 +525,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 { (PRFuncPtr*) &mSymbols.fGetTexLevelParameteriv, { "GetTexLevelParameteriv", nullptr } },
                 { nullptr, { nullptr } },
         };
-        bool warnOnFailures = DebugMode();
-        LoadSymbols(&auxSymbols[0], trygl, prefix, warnOnFailures);
+        LoadSymbols(&auxSymbols[0], trygl, prefix);
     }
 
     if (mInitialized) {
@@ -594,16 +593,6 @@ GLContext::InitExtensions()
 #endif
 
     mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && DebugMode());
-
-#ifdef XP_MACOSX
-    // The Mac Nvidia driver, for versions up to and including 10.8, don't seem
-    // to properly support this.  See 814839
-    if (WorkAroundDriverBugs() &&
-        Vendor() == gl::GLContext::VendorNVIDIA)
-    {
-        MarkExtensionUnsupported(gl::GLContext::EXT_packed_depth_stencil);
-    }
-#endif
 
 #ifdef DEBUG
     firstRun = false;

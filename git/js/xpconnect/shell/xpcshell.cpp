@@ -104,14 +104,10 @@ public:
     // The app executable
     void SetAppFile(nsIFile *appFile);
     void ClearAppFile() { mAppFile = nullptr; }
-    // An additional custom plugin dir if specified
-    void SetPluginDir(nsIFile* pluginDir);
-    void ClearPluginDir() { mPluginDir = nullptr; }
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
     nsCOMPtr<nsIFile> mAppDir;
-    nsCOMPtr<nsIFile> mPluginDir;
     nsCOMPtr<nsIFile> mAppFile;
 };
 
@@ -945,6 +941,9 @@ env_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
 {
     JSString *idstr, *valstr;
 
+    if (flags & JSRESOLVE_ASSIGNING)
+        return true;
+
     jsval idval;
     if (!JS_IdToValue(cx, id, &idval))
         return false;
@@ -1174,7 +1173,7 @@ ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
 }
 
 static int
-ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc, XPCShellDirProvider* aDirProvider)
+ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 {
     const char rcfilename[] = "xpcshell.js";
     FILE *rcfile;
@@ -1298,18 +1297,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc, XPCShellDirProv
         case 'n':
             // These options are processed in ProcessArgsForCompartment.
             break;
-        case 'p':
-        {
-          // plugins path
-          char *pluginPath = argv[++i];
-          nsCOMPtr<nsIFile> pluginsDir;
-          if (NS_FAILED(XRE_GetFileFromPath(pluginPath, getter_AddRefs(pluginsDir)))) {
-              fprintf(gErrFile, "Couldn't use given plugins dir.\n");
-              return usage();
-          }
-          aDirProvider->SetPluginDir(pluginsDir);
-          break;
-        }
         default:
             return usage();
         }
@@ -1942,7 +1929,7 @@ main(int argc, char **argv, char **envp)
             JS_DefineProperty(cx, glob, "__LOCATION__", JSVAL_VOID,
                               GetLocationProperty, NULL, 0);
 
-            result = ProcessArgs(cx, glob, argv, argc, &dirprovider);
+            result = ProcessArgs(cx, glob, argv, argc);
 
 
 //#define TEST_CALL_ON_WRAPPED_JS_AFTER_SHUTDOWN 1
@@ -1991,7 +1978,6 @@ main(int argc, char **argv, char **envp)
     appFile = nullptr;
     dirprovider.ClearGREDir();
     dirprovider.ClearAppDir();
-    dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
 
 #ifdef MOZ_CRASHREPORTER
@@ -2028,12 +2014,6 @@ void
 XPCShellDirProvider::SetAppDir(nsIFile* appDir)
 {
     mAppDir = appDir;
-}
-
-void
-XPCShellDirProvider::SetPluginDir(nsIFile* pluginDir)
-{
-    mPluginDir = pluginDir;
 }
 
 NS_IMETHODIMP_(nsrefcnt)
@@ -2146,26 +2126,12 @@ XPCShellDirProvider::GetFiles(const char *prop, nsISimpleEnumerator* *result)
             return NS_NewArrayEnumerator(result, dirs);
         }
         return NS_ERROR_FAILURE;
-    } else if (!strcmp(prop, NS_APP_PLUGINS_DIR_LIST)) {
+    } else if (mGREDir && !strcmp(prop, NS_APP_PLUGINS_DIR_LIST)) {
         nsCOMPtr<nsIFile> file;
+        mGREDir->Clone(getter_AddRefs(file));
+        file->AppendNative(NS_LITERAL_CSTRING("plugins"));
         nsCOMArray<nsIFile> dirs;
-        bool exists;
-        // We have to add this path, buildbot copies the test plugin directory
-        // to (app)/bin when unpacking test zips.
-        if (mGREDir) {
-            mGREDir->Clone(getter_AddRefs(file));
-            if (NS_SUCCEEDED(mGREDir->Clone(getter_AddRefs(file)))) {
-                file->AppendNative(NS_LITERAL_CSTRING("plugins"));
-                if (NS_SUCCEEDED(file->Exists(&exists)) && exists) {
-                    dirs.AppendObject(file);
-                }
-            }
-        }
-        // Add the test plugin location passed in by the caller or through
-        // runxpcshelltests.
-        if (mPluginDir) {
-            dirs.AppendObject(mPluginDir);
-        }
+        dirs.AppendObject(file);
         return NS_NewArrayEnumerator(result, dirs);
     }
     return NS_ERROR_FAILURE;

@@ -39,7 +39,6 @@
 #include "nsAgg.h"
 #include "nsCOMPtr.h"
 #include "nscore.h"
-#include "nsArrayEnumerator.h"
 #include "nsIOutputStream.h"
 #include "nsIRDFDataSource.h"
 #include "nsIRDFLiteral.h"
@@ -740,8 +739,8 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
         if (NS_FAILED(rv = mHashArcs->Count(&itemCount)))   return(rv);
         if (itemCount > 0) {
             --itemCount;
-            nsCOMPtr<nsIRDFResource> tmp = do_QueryElementAt(mHashArcs, itemCount);
-            tmp.forget(&mCurrent);
+            mCurrent = static_cast<nsIRDFResource *>
+                                  (mHashArcs->ElementAt(itemCount));
             mHashArcs->RemoveElementAt(itemCount);
             *aResult = true;
             return NS_OK;
@@ -1751,7 +1750,9 @@ InMemoryDataSource::ResourceEnumerator(PLDHashTable* aTable,
                                        uint32_t aNumber, void* aArg)
 {
     Entry* entry = reinterpret_cast<Entry*>(aHdr);
-    static_cast<nsCOMArray<nsIRDFNode>*>(aArg)->AppendObject(entry->mNode);
+    nsISupportsArray* resources = static_cast<nsISupportsArray*>(aArg);
+
+    resources->AppendElement(entry->mNode);
     return PL_DHASH_NEXT;
 }
 
@@ -1761,15 +1762,14 @@ InMemoryDataSource::GetAllResources(nsISimpleEnumerator** aResult)
 {
     nsresult rv;
 
-    nsCOMArray<nsIRDFNode> nodes;
-    if (!nodes.SetCapacity(mForwardArcs.entryCount)) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
+    nsCOMPtr<nsISupportsArray> values;
+    rv = NS_NewISupportsArray(getter_AddRefs(values));
+    if (NS_FAILED(rv)) return rv;
 
-    // Enumerate all of our entries into an nsCOMArray
-    PL_DHashTableEnumerate(&mForwardArcs, ResourceEnumerator, &nodes);
+    // Enumerate all of our entries into an nsISupportsArray.
+    PL_DHashTableEnumerate(&mForwardArcs, ResourceEnumerator, values.get());
 
-    return NS_NewArrayEnumerator(aResult, nodes);
+    return NS_NewArrayEnumerator(aResult, values);
 }
 
 NS_IMETHODIMP

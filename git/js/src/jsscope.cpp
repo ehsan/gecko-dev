@@ -304,7 +304,6 @@ Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base,
     }
 
     StackShape child(shape);
-    StackShape::AutoRooter childRoot(cx, &child);
     {
         UnrootedUnownedBaseShape nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)

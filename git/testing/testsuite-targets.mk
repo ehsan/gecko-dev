@@ -33,7 +33,6 @@ RUN_MOCHITEST = \
     --console-level=INFO --log-file=./$@.log --file-level=INFO \
     --failure-file=$(call core_abspath,_tests/testing/mochitest/makefailures.json) \
     --testing-modules-dir=$(call core_abspath,_tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
     $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 RERUN_MOCHITEST = \
@@ -42,7 +41,6 @@ RERUN_MOCHITEST = \
     --console-level=INFO --log-file=./$@.log --file-level=INFO \
     --run-only-tests=makefailures.json \
     --testing-modules-dir=$(call core_abspath,_tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
     $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 RUN_MOCHITEST_REMOTE = \
@@ -155,7 +153,6 @@ endif
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
-  --extra-profile-file=$(DIST)/plugins \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
 REMOTE_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/remotereftest.py \
@@ -241,7 +238,7 @@ jstestbrowser:
 	$(MAKE) -C $(DEPTH)/config
 	$(MAKE) -C $(DEPTH)/js/src/config
 	$(MAKE) stage-jstests
-	$(call RUN_REFTEST,$(DIST)/$(TESTS_PATH)/jstests.list --extra-profile-file=$(DIST)/test-package-stage/jsreftest/tests/user.js)
+	$(call RUN_REFTEST,$(DIST)/$(TESTS_PATH)/jstests.list --extra-profile-file=$(DIST)/$(TESTS_PATH)/user.js)
 	$(CHECK_TEST_ERROR)
 
 GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
@@ -263,6 +260,22 @@ xpcshell-tests:
           $(SYMBOLS_PATH) \
 	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
 	  $(LIBXUL_DIST)/bin/xpcshell
+
+REMOTE_XPCSHELL = \
+	rm -f ./$@.log && \
+	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
+	  -I$(topsrcdir)/build \
+	  -I$(topsrcdir)/testing/mozbase/mozdevice/mozdevice \
+	  $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
+	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
+	  --build-info-json=$(DEPTH)/mozinfo.json \
+	  --no-logfiles \
+	  --testing-modules-dir=$(call core_abspath,_tests/modules) \
+	  --dm_trans=$(DM_TRANS) \
+	  --deviceIP=${TEST_DEVICE} \
+	  --objdir=$(DEPTH) \
+	  $(SYMBOLS_PATH) \
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 B2G_XPCSHELL = \
 	rm -f ./@.log && \
@@ -298,17 +311,7 @@ xpcshell-tests-b2g:
 xpcshell-tests-remote: DM_TRANS?=adb
 xpcshell-tests-remote:
 	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
-          then $(PYTHON) -u $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
-	    --manifest=$(DEPTH)/_tests/xpcshell/xpcshell_android.ini \
-	    --build-info-json=$(DEPTH)/mozinfo.json \
-	    --no-logfiles \
-	    --testing-modules-dir=$(call core_abspath,_tests/modules) \
-	    --dm_trans=$(DM_TRANS) \
-	    --deviceIP=${TEST_DEVICE} \
-	    --objdir=$(DEPTH) \
-	    $(SYMBOLS_PATH) \
-	    $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS); \
-	    $(CHECK_TEST_ERROR); \
+          then $(call REMOTE_XPCSHELL); $(CHECK_TEST_ERROR); \
         else \
           echo "please prepare your host with environment variables for TEST_DEVICE"; \
         fi
@@ -326,23 +329,6 @@ RUN_PEPTEST = \
 peptest:
 	$(RUN_PEPTEST)
 	$(CHECK_TEST_ERROR)
-
-REMOTE_CPPUNITTESTS = \
-	$(PYTHON) -u $(topsrcdir)/testing/remotecppunittests.py \
-	  --xre-path=$(DEPTH)/dist/bin \
-	  --localLib=$(DEPTH)/dist/fennec \
-	  --dm_trans=$(DM_TRANS) \
-	  --deviceIP=${TEST_DEVICE} \
-	  $(TEST_PATH) $(EXTRA_TEST_ARGS)
-
-# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] cppunittests-remote|.
-cppunittests-remote: DM_TRANS?=adb
-cppunittests-remote:
-	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; \
-          then $(call REMOTE_CPPUNITTESTS); \
-        else \
-          echo "please prepare your host with environment variables for TEST_DEVICE"; \
-        fi
 
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk

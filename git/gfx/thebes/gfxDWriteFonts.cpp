@@ -154,10 +154,7 @@ gfxDWriteFont::GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics)
     gfxFontStyle style(mStyle);
     style.weight = 700;
     bool needsBold;
-
-    gfxFontEntry* fe =
-        gfxPlatformFontList::PlatformFontList()->
-            FindFontForFamily(NS_LITERAL_STRING("Arial"), &style, needsBold);
+    gfxFontEntry *fe = mFontEntry->Family()->FindFontForStyle(style, needsBold);
     if (!fe || fe == mFontEntry) {
         return false;
     }
@@ -175,7 +172,7 @@ gfxDWriteFont::ComputeMetrics(AntialiasOption anAAOption)
     DWRITE_FONT_METRICS fontMetrics;
     if (!(mFontEntry->Weight() == 900 &&
           !mFontEntry->IsUserFont() &&
-          mFontEntry->Name().EqualsLiteral("Arial Black") &&
+          mFontEntry->FamilyName().EqualsLiteral("Arial") &&
           GetFakeMetricsForArialBlack(&fontMetrics)))
     {
         mFontFace->GetMetrics(&fontMetrics);

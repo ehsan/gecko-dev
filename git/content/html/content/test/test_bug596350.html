@@ -44,7 +44,7 @@ var objects = document.getElementsByTagName("object");
 
 function runTests()
 {
-  for (var data of testData) {
+  for each(var data in testData) {
     var obj = objects[data[0]];
 
     if (data[1]) {

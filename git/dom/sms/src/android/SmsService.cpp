@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/sms/SmsMessage.h"
 #include "SmsService.h"
-#include "SmsSegmentInfo.h"
 #include "AndroidBridge.h"
 #include "jsapi.h"
 
@@ -23,19 +22,14 @@ SmsService::HasSupport(bool* aHasSupport)
 }
 
 NS_IMETHODIMP
-SmsService::GetSegmentInfoForText(const nsAString & aText,
-                                  nsIDOMMozSmsSegmentInfo** aResult)
+SmsService::GetNumberOfMessagesForText(const nsAString& aText, uint16_t* aResult)
 {
   if (!AndroidBridge::Bridge()) {
-    return NS_ERROR_FAILURE;
+    *aResult = 0;
+    return NS_OK;
   }
 
-  SmsSegmentInfoData data;
-  nsresult rv = AndroidBridge::Bridge()->GetSegmentInfoForText(aText, &data);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info = new SmsSegmentInfo(data);
-  info.forget(aResult);
+  *aResult = AndroidBridge::Bridge()->GetNumberOfMessagesForText(aText);
   return NS_OK;
 }
 
@@ -68,18 +62,6 @@ SmsService::CreateSmsMessage(int32_t aId,
                             aSender, aReceiver,
                             aBody, aMessageClass, aTimestamp, aRead,
                             aCx, aMessage);
-}
-
-NS_IMETHODIMP
-SmsService::CreateSmsSegmentInfo(int32_t aSegments,
-                                 int32_t aCharsPerSegment,
-                                 int32_t aCharsAvailableInLastSegment,
-                                 nsIDOMMozSmsSegmentInfo** aSegmentInfo)
-{
-  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info =
-      new SmsSegmentInfo(aSegments, aCharsPerSegment, aCharsAvailableInLastSegment);
-  info.forget(aSegmentInfo);
-  return NS_OK;
 }
 
 } // namespace sms

@@ -114,7 +114,7 @@ nsSVGTextFrame::GetSubStringLength(uint32_t charnum, uint32_t nchars)
 }
 
 int32_t
-nsSVGTextFrame::GetCharNumAtPosition(DOMSVGPoint *point)
+nsSVGTextFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
   UpdateGlyphPositioning(false);
 
@@ -122,7 +122,7 @@ nsSVGTextFrame::GetCharNumAtPosition(DOMSVGPoint *point)
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval)
+nsSVGTextFrame::GetStartPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval)
 {
   UpdateGlyphPositioning(false);
 
@@ -130,7 +130,7 @@ nsSVGTextFrame::GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval)
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval)
+nsSVGTextFrame::GetEndPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval)
 {
   UpdateGlyphPositioning(false);
 

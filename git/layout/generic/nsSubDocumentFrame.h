@@ -87,7 +87,7 @@ public:
   nsresult GetDocShell(nsIDocShell **aDocShell);
   nsresult BeginSwapDocShells(nsIFrame* aOther);
   void EndSwapDocShells(nsIFrame* aOther);
-  nsView* EnsureInnerView();
+  nsIView* EnsureInnerView();
   nsIFrame* GetSubdocumentRootFrame();
 
   // nsIReflowCallback
@@ -143,7 +143,7 @@ protected:
   bool PassPointerEventsToChildren();
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
-  nsView* mInnerView;
+  nsIView* mInnerView;
   bool mIsInline;
   bool mPostedReflowCallback;
   bool mDidCreateDoc;

@@ -593,7 +593,8 @@ struct ParseNode {
         struct {                        /* two kids if binary */
             ParseNode   *left;
             ParseNode   *right;
-            unsigned    iflags;         /* JSITER_* flags for PNK_FOR node */
+            Value       *pval;          /* switch case value */
+            unsigned       iflags;         /* JSITER_* flags for PNK_FOR node */
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;

@@ -4,10 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -27,7 +24,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
-#include "StaticPtr.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -44,8 +40,6 @@ namespace ipc {
 
 namespace {
 static bool sInitialized = false;
-class ProcessPriorityManager;
-static StaticRefPtr<ProcessPriorityManager> sManager;
 
 // Some header defines a LOG macro, but we don't want it here.
 #ifdef LOG
@@ -73,33 +67,6 @@ GetPPMLog()
 #else
 #define LOG(fmt, ...)
 #endif
-
-/**
- * Get the appropriate backround priority for this process.
- */
-ProcessPriority
-GetBackgroundPriority()
-{
-  bool isHomescreen = false;
-
-  ContentChild* contentChild = ContentChild::GetSingleton();
-  if (contentChild) {
-    const InfallibleTArray<PBrowserChild*>& browsers =
-      contentChild->ManagedPBrowserChild();
-    for (uint32_t i = 0; i < browsers.Length(); i++) {
-      nsAutoString appType;
-      static_cast<TabChild*>(browsers[i])->GetAppType(appType);
-      if (appType.EqualsLiteral("homescreen")) {
-        isHomescreen = true;
-        break;
-      }
-    }
-  }
-
-  return isHomescreen ?
-         PROCESS_PRIORITY_BACKGROUND_HOMESCREEN :
-         PROCESS_PRIORITY_BACKGROUND;
-}
 
 /**
  * This class listens to window creation and visibilitychange events and
@@ -131,8 +98,6 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTLISTENER
 
-  ProcessPriority GetPriority() const { return mProcessPriority; }
-
 private:
   void SetPriority(ProcessPriority aPriority);
   void OnContentDocumentGlobalCreated(nsISupports* aOuterWindow);
@@ -141,8 +106,8 @@ private:
   void RecomputeNumVisibleWindows();
 
   // mProcessPriority tracks the priority we've given this process in hal,
-  // except that, when the grace period timer is active, mProcessPriority ==
-  // BACKGROUND or HOMESCREEN_BACKGROUND even though hal still thinks we're a
+  // except that, when the grace period timer is active,
+  // mProcessPriority == BACKGROUND even though hal still thinks we're a
   // foreground process.
   ProcessPriority mProcessPriority;
 
@@ -286,7 +251,7 @@ ProcessPriorityManager::RecomputeNumVisibleWindows()
   }
 
   SetPriority(allHidden ?
-              GetBackgroundPriority() :
+              PROCESS_PRIORITY_BACKGROUND :
               PROCESS_PRIORITY_FOREGROUND);
 }
 
@@ -297,8 +262,7 @@ ProcessPriorityManager::SetPriority(ProcessPriority aPriority)
     return;
   }
 
-  if (aPriority == PROCESS_PRIORITY_BACKGROUND ||
-      aPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN) {
+  if (aPriority == PROCESS_PRIORITY_BACKGROUND) {
     // If this is a foreground --> background transition, give ourselves a
     // grace period before informing hal.
     uint32_t gracePeriodMS = Preferences::GetUint("dom.ipc.processPriorityManager.gracePeriodMS", 1000);
@@ -340,16 +304,15 @@ void
 ProcessPriorityManager::OnGracePeriodTimerFired()
 {
   LOG("Grace period timer fired; setting priority to %d.",
-      mProcessPriority);
+      PROCESS_PRIORITY_BACKGROUND);
 
-  // mProcessPriority should already be one of the BACKGROUND values: We set it
-  // in SetPriority(BACKGROUND), and we canceled this timer if there was an
+  // mProcessPriority should already be BACKGROUND: We set it in
+  // SetPriority(BACKGROUND), and we canceled this timer if there was an
   // intervening SetPriority(FOREGROUND) call.
-  MOZ_ASSERT(mProcessPriority == PROCESS_PRIORITY_BACKGROUND ||
-             mProcessPriority == PROCESS_PRIORITY_BACKGROUND_HOMESCREEN);
+  MOZ_ASSERT(mProcessPriority == PROCESS_PRIORITY_BACKGROUND);
 
   mGracePeriodTimer = nullptr;
-  hal::SetProcessPriority(getpid(), mProcessPriority);
+  hal::SetProcessPriority(getpid(), PROCESS_PRIORITY_BACKGROUND);
 
   // We're in the background; dump as much memory as we can.
   nsCOMPtr<nsIMemoryReporterManager> mgr =
@@ -395,15 +358,9 @@ InitProcessPriorityManager()
     return;
   }
 
-  sManager = new ProcessPriorityManager();
-  sManager->Init();
-  ClearOnShutdown(&sManager);
-}
-
-bool
-CurrentProcessIsForeground()
-{
-  return sManager->GetPriority() >= PROCESS_PRIORITY_FOREGROUND;
+  // This object is held alive by the observer service.
+  nsRefPtr<ProcessPriorityManager> mgr = new ProcessPriorityManager();
+  mgr->Init();
 }
 
 } // namespace ipc

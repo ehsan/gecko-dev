@@ -10,7 +10,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
-#include "nsXULDocument.h"
 #include "nsIWindowMediator.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebNavigation.h"
@@ -367,15 +366,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
       nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
       MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
     }
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-    appShell->GetHiddenPrivateWindow(getter_AddRefs(hw));
-    if (hw) {
-      nsCOMPtr<nsIDocShell> shell;
-      hw->GetDocShell(getter_AddRefs(shell));
-      nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
-      MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
-    }
-#endif
   }
 
 #ifdef MOZ_XUL
@@ -404,48 +394,30 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-struct TraceClosure
-{
-  TraceClosure(JSTracer* aTrc, uint32_t aGCNumber)
-    : mTrc(aTrc), mGCNumber(aGCNumber)
-  {}
-  JSTracer* mTrc;
-  uint32_t mGCNumber;
-};
-
 static PLDHashOperator
 TraceActiveWindowGlobal(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aClosure)
 {
   if (aWindow->GetDocShell() && aWindow->IsOuterWindow()) {
-    TraceClosure* closure = static_cast<TraceClosure*>(aClosure);
     if (JSObject* global = aWindow->FastGetGlobalJSObject()) {
-      JS_CALL_OBJECT_TRACER(closure->mTrc, global, "active window global");
+      JSTracer* trc = static_cast<JSTracer *>(aClosure);
+      JS_CALL_OBJECT_TRACER(trc, global, "active window global");
     }
-#ifdef MOZ_XUL
-    nsIDocument* doc = aWindow->GetExtantDoc();
-    if (doc && doc->IsXUL()) {
-      nsXULDocument* xulDoc = static_cast<nsXULDocument*>(doc);
-      xulDoc->TraceProtos(closure->mTrc, closure->mGCNumber);
-    }
-#endif
   }
   return PL_DHASH_NEXT;
 }
 
 void
-mozilla::dom::TraceBlackJS(JSTracer* aTrc, uint32_t aGCNumber)
+mozilla::dom::TraceBlackJS(JSTracer* aTrc)
 {
   if (!nsCCUncollectableMarker::sGeneration) {
     return;
   }
 
-  TraceClosure closure(aTrc, aGCNumber);
-
   // Mark globals of active windows black.
   nsGlobalWindow::WindowByIdTable* windowsById =
     nsGlobalWindow::GetWindowsTable();
   if (windowsById) {
-    windowsById->Enumerate(TraceActiveWindowGlobal, &closure);
+    windowsById->Enumerate(TraceActiveWindowGlobal, aTrc);
   }
 
   // Mark the safe context black

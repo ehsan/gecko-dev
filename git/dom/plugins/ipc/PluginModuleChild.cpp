@@ -181,6 +181,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     }
 #else // defined(OS_MACOSX)
     mozilla::plugins::PluginUtilsOSX::SetProcessName(info.fName);
+    NS_NAMED_LITERAL_CSTRING(flashHead, "Shockwave Flash");
+    if (StringBeginsWith(nsDependentCString(info.fDescription), flashHead)) {
+        AddQuirk(QUIRK_FLASH_AVOID_CGMODE_CRASHES);
+    }
 #endif
 
     if (!mLibrary)
@@ -1768,10 +1772,7 @@ _convertpoint(NPP instance,
               double *destX, double *destY, NPCoordinateSpace destSpace)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
-    if (!IsPluginThread()) {
-        NS_WARNING("Not running on the plugin's main thread!");
-        return false;
-    }
+    AssertPluginThread();
 
     double rDestX = 0;
     bool ignoreDestX = !destX;
@@ -1993,9 +1994,6 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
     // Whitelist Flash and Quicktime to support offline renderer
     NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
     NS_NAMED_LITERAL_CSTRING(quicktime, "QuickTime Plugin.plugin");
-    if (FindInReadable(flash, aMimeType)) {
-      mQuirks |= QUIRK_FLASH_AVOID_CGMODE_CRASHES;
-    }
     if (FindInReadable(flash, aMimeType) ||
         FindInReadable(quicktime, mPluginFilename)) {
         mQuirks |= QUIRK_ALLOW_OFFLINE_RENDERER;

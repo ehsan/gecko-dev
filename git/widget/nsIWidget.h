@@ -524,7 +524,7 @@ class nsIWidget : public nsISupports {
 
     /**
      * Accessor functions to get and set the attached listener. Used by
-     * nsView in connection with AttachViewToTopLevel above.
+     * nsIView in connection with AttachViewToTopLevel above.
      */
     virtual void SetAttachedWidgetListener(nsIWidgetListener* aListener) = 0;
     virtual nsIWidgetListener* GetAttachedWidgetListener() = 0;

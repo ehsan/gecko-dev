@@ -468,16 +468,6 @@ struct Parser : private AutoGCRooter
     ParseNode *propertyQualifiedIdentifier();
 #endif /* JS_HAS_XML_SUPPORT */
 
-    bool allowsForEachIn() {
-#if !JS_HAS_FOR_EACH_IN
-        return false;
-#elif JS_HAS_XML_SUPPORT
-        return allowsXML() || tokenStream.hasMoarXML();
-#else
-        return versionNumber() >= JSVERSION_1_6;
-#endif
-    }
-
     bool setAssignmentLhsOps(ParseNode *pn, JSOp op);
     bool matchInOrOf(bool *isForOfp);
 };
@@ -518,7 +508,8 @@ Parser::reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream.reportStrictWarningErrorNumberVA(pn, errorNumber, args);
+    bool result = tokenStream.reportCompileErrorNumberVA(pn, JSREPORT_STRICT | JSREPORT_WARNING,
+                                                         errorNumber, args);
     va_end(args);
     return result;
 }
@@ -528,8 +519,7 @@ Parser::reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result =
-        tokenStream.reportStrictModeErrorNumberVA(pn, pc->sc->strict, errorNumber, args);
+    bool result = tokenStream.reportStrictModeErrorNumberVA(pn, errorNumber, args);
     va_end(args);
     return result;
 }

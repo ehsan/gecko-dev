@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/GuardObjects.h"
-
 #include "mozilla/jsipc/ObjectWrapperParent.h"
 #include "mozilla/jsipc/ContextWrapperParent.h"
 #include "mozilla/jsipc/CPOWTypes.h"
@@ -30,7 +28,7 @@ namespace {
     {
         JSObject* mObj;
         unsigned mOldFlags;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
         static unsigned GetFlags(JSObject* obj) {
             jsval v = JS_GetReservedSlot(obj, sFlagsSlot);
@@ -47,11 +45,11 @@ namespace {
     public:
 
         AutoResolveFlag(JSObject* obj
-                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
             : mObj(obj)
             , mOldFlags(SetFlags(obj, GetFlags(obj) | CPOW_FLAG_RESOLVING))
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
         ~AutoResolveFlag() {
@@ -78,14 +76,14 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     public:
         AutoCheckOperation(JSContext* cx,
                            ObjectWrapperParent* owp
-                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                           JS_GUARD_OBJECT_NOTIFIER_PARAM)
             : ACOBase(cx, owp)
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
     };
 

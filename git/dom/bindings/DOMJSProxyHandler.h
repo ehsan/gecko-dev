@@ -10,7 +10,7 @@
 #include "jsfriendapi.h"
 #include "jsproxy.h"
 #include "xpcpublic.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "mozilla/Likely.h"
 
 #define DOM_PROXY_OBJECT_SLOT js::JSSLOT_PROXY_PRIVATE

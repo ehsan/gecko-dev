@@ -3,9 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsArrayEnumerator.h"
 #include "nsID.h"
-#include "nsCOMArray.h"
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
 #include "nsIInputStream.h"
@@ -19,6 +17,7 @@
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsPersistentProperties.h"
 #include "nsIProperties.h"
+#include "nsISupportsArray.h"
 #include "nsProperties.h"
 
 struct PropertyTableEntry : public PLDHashEntryHdr
@@ -590,16 +589,17 @@ static PLDHashOperator
 AddElemToArray(PLDHashTable* table, PLDHashEntryHdr *hdr,
                uint32_t i, void *arg)
 {
-  nsCOMArray<nsIPropertyElement>* props =
-    static_cast<nsCOMArray<nsIPropertyElement>*>(arg);
+  nsISupportsArray  *propArray = (nsISupportsArray *) arg;
   PropertyTableEntry* entry =
     static_cast<PropertyTableEntry*>(hdr);
 
   nsPropertyElement *element =
     new nsPropertyElement(nsDependentCString(entry->mKey),
                           nsDependentString(entry->mValue));
+  if (!element)
+     return PL_DHASH_STOP;
 
-  props->AppendObject(element);
+  propArray->InsertElementAt(element, i);
 
   return PL_DHASH_NEXT;
 }
@@ -608,19 +608,22 @@ AddElemToArray(PLDHashTable* table, PLDHashEntryHdr *hdr,
 NS_IMETHODIMP
 nsPersistentProperties::Enumerate(nsISimpleEnumerator** aResult)
 {
-  nsCOMArray<nsIPropertyElement> props;
+  nsCOMPtr<nsISupportsArray> propArray;
+  nsresult rv = NS_NewISupportsArray(getter_AddRefs(propArray));
+  if (NS_FAILED(rv))
+    return rv;
 
   // We know the necessary size; we can avoid growing it while adding elements
-  if (!props.SetCapacity(mTable.entryCount))
+  if (!propArray->SizeTo(mTable.entryCount))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Step through hash entries populating a transient array
   uint32_t n =
-    PL_DHashTableEnumerate(&mTable, AddElemToArray, (void *)&props);
+    PL_DHashTableEnumerate(&mTable, AddElemToArray, (void *)propArray);
   if (n < mTable.entryCount)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  return NS_NewArrayEnumerator(aResult, props);
+  return NS_NewArrayEnumerator(aResult, propArray);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,7 @@ namespace mozilla {
 namespace image {
 
 // Constructor
-ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
-  mURI(aURI),
+Image::Image(imgStatusTracker* aStatusTracker) :
   mInnerWindowId(0),
   mAnimationConsumers(0),
   mAnimationMode(kNormalAnimMode),
@@ -22,12 +21,12 @@ ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
     mStatusTracker = aStatusTracker;
     mStatusTracker->SetImage(this);
   } else {
-    mStatusTracker = new imgStatusTracker(this);
+    mStatusTracker = new imgStatusTracker(this, nullptr);
   }
 }
 
 uint32_t
-ImageResource::SizeOfData()
+Image::SizeOfData()
 {
   if (mError)
     return 0;
@@ -88,14 +87,14 @@ Image::GetDecoderType(const char *aMimeType)
 }
 
 void
-ImageResource::IncrementAnimationConsumers()
+Image::IncrementAnimationConsumers()
 {
   mAnimationConsumers++;
   EvaluateAnimation();
 }
 
 void
-ImageResource::DecrementAnimationConsumers()
+Image::DecrementAnimationConsumers()
 {
   NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
   mAnimationConsumers--;
@@ -103,7 +102,7 @@ ImageResource::DecrementAnimationConsumers()
 }
 
 nsresult
-ImageResource::GetAnimationModeInternal(uint16_t* aAnimationMode)
+Image::GetAnimationModeInternal(uint16_t* aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -115,7 +114,7 @@ ImageResource::GetAnimationModeInternal(uint16_t* aAnimationMode)
 }
 
 nsresult
-ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
+Image::SetAnimationModeInternal(uint16_t aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -133,7 +132,7 @@ ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
 }
 
 void
-ImageResource::EvaluateAnimation()
+Image::EvaluateAnimation()
 {
   if (!mAnimating && ShouldAnimate()) {
     nsresult rv = StartAnimation();

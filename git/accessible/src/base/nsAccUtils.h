@@ -25,6 +25,7 @@ struct nsRoleMapEntry;
 namespace mozilla {
 namespace a11y {
 
+class nsAccessNode;
 class Accessible;
 class HyperTextAccessible;
 class DocAccessible;
@@ -117,7 +118,9 @@ public:
   static DocAccessible* GetDocAccessibleFor(nsIDocShellTreeItem* aContainer)
   {
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
-    return GetAccService()->GetDocAccessible(docShell->GetPresShell());
+    nsCOMPtr<nsIPresShell> presShell;
+    docShell->GetPresShell(getter_AddRefs(presShell));
+    return GetAccService()->GetDocAccessible(presShell);
   }
 
   /**
@@ -163,13 +166,14 @@ public:
    * @param aY               [in] the given y coord
    * @param aCoordinateType  [in] specifies coordinates origin (refer to
    *                         nsIAccessibleCoordinateType)
-   * @param aAccessible      [in] the accessible if coordinates are given
+   * @param aAccessNode      [in] the accessible if coordinates are given
    *                         relative it.
-   * @return converted coordinates
+   * @param aCoords          [out] converted coordinates
    */
-  static nsIntPoint ConvertToScreenCoords(int32_t aX, int32_t aY,
-                                          uint32_t aCoordinateType,
-                                          Accessible* aAccessible);
+  static nsresult ConvertToScreenCoords(int32_t aX, int32_t aY,
+                                        uint32_t aCoordinateType,
+                                        nsAccessNode *aAccessNode,
+                                        nsIntPoint *aCoords);
 
   /**
    * Converts the given coordinates relative screen to another coordinate
@@ -179,19 +183,26 @@ public:
    * @param aY               [in, out] the given y coord
    * @param aCoordinateType  [in] specifies coordinates origin (refer to
    *                         nsIAccessibleCoordinateType)
-   * @param aAccessible      [in] the accessible if coordinates are given
+   * @param aAccessNode      [in] the accessible if coordinates are given
    *                         relative it
    */
-  static void ConvertScreenCoordsTo(int32_t* aX, int32_t* aY,
-                                    uint32_t aCoordinateType,
-                                    Accessible* aAccessible);
+  static nsresult ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
+                                        uint32_t aCoordinateType,
+                                        nsAccessNode *aAccessNode);
+
+  /**
+   * Returns coordinates relative screen for the top level window.
+   *
+   * @param aAccessNode  the accessible hosted in the window
+   */
+  static nsIntPoint GetScreenCoordsForWindow(nsAccessNode *aAccessNode);
 
   /**
    * Returns coordinates relative screen for the parent of the given accessible.
    *
-   * @param [in] aAccessible  the accessible
+   * @param aAccessNode  the accessible
    */
-  static nsIntPoint GetScreenCoordsForParent(Accessible* aAccessible);
+  static nsIntPoint GetScreenCoordsForParent(nsAccessNode *aAccessNode);
 
   /**
    * Return the role of the given accessible.

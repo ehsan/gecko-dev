@@ -36,7 +36,7 @@ nsGfxRadioControlFrame::~nsGfxRadioControlFrame()
 a11y::AccType
 nsGfxRadioControlFrame::AccessibleType()
 {
-  return a11y::eHTMLRadioButtonType;
+  return a11y::eHTMLRadioButton;
 }
 #endif
 

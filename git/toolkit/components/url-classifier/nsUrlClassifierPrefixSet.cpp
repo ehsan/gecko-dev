@@ -49,7 +49,8 @@ private:
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsPrefixSetReporter, nsIMemoryReporter)
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StoragePrefixSetMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StoragePrefixSetMallocSizeOf,
+                                     "storage/prefixset")
 
 nsPrefixSetReporter::nsPrefixSetReporter(nsUrlClassifierPrefixSet* aParent,
                                          const nsACString& aName)

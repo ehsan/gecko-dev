@@ -70,8 +70,6 @@ public:
 
   nsresult ToDOMAnimatedRect(nsIDOMSVGAnimatedRect **aResult,
                              nsSVGElement *aSVGElement);
-  nsresult ToDOMBaseVal(nsIDOMSVGRect **aResult, nsSVGElement* aSVGElement);
-  nsresult ToDOMAnimVal(nsIDOMSVGRect **aResult, nsSVGElement* aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
 
@@ -81,7 +79,6 @@ private:
   nsAutoPtr<nsSVGViewBoxRect> mAnimVal;
   bool mHasBaseVal;
 
-public:
   struct DOMBaseVal MOZ_FINAL : public nsIDOMSVGRect
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -89,7 +86,6 @@ public:
 
     DOMBaseVal(nsSVGViewBox *aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMBaseVal();
 
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -116,7 +112,6 @@ public:
 
     DOMAnimVal(nsSVGViewBox *aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimVal();
 
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -158,6 +153,7 @@ public:
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
+public:
   struct DOMAnimatedRect MOZ_FINAL : public nsIDOMSVGAnimatedRect
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -165,16 +161,12 @@ public:
 
     DOMAnimatedRect(nsSVGViewBox *aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimatedRect();
 
     nsSVGViewBox* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
 
-    NS_IMETHOD GetBaseVal(nsIDOMSVGRect **aBaseVal)
-      { return mVal->ToDOMBaseVal(aBaseVal, mSVGElement); }
-
-    NS_IMETHOD GetAnimVal(nsIDOMSVGRect **aAnimVal)
-      { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
+    NS_IMETHOD GetBaseVal(nsIDOMSVGRect **aResult);
+    NS_IMETHOD GetAnimVal(nsIDOMSVGRect **aResult);
   };
 
   struct SMILViewBox : public nsISMILAttr

@@ -69,10 +69,15 @@ this.ResponsiveUIManager = {
           this.toggle(aWindow, aTab);
       default:
     }
-  }
-}
+  },
 
-EventEmitter.decorate(ResponsiveUIManager);
+  get events() {
+    if (!this._eventEmitter) {
+      this._eventEmitter = new EventEmitter();
+    }
+    return this._eventEmitter;
+  },
+}
 
 let presets = [
   // Phones
@@ -158,6 +163,9 @@ function ResponsiveUI(aWindow, aTab)
   this.buildUI();
   this.checkMenus();
 
+  let target = TargetFactory.forTab(this.tab);
+  this.toolboxWasOpen = !!gDevTools.getToolbox(target);
+
   try {
     if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
       this.rotate();
@@ -167,7 +175,7 @@ function ResponsiveUI(aWindow, aTab)
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
 
-  ResponsiveUIManager.emit("on", this.tab, this);
+  ResponsiveUIManager.events.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
@@ -224,7 +232,7 @@ ResponsiveUI.prototype = {
     this.stack.removeAttribute("responsivemode");
 
     delete this.tab.__responsiveUI;
-    ResponsiveUIManager.emit("off", this.tab, this);
+    ResponsiveUIManager.events.emit("off", this.tab, this);
   },
 
   /**
@@ -236,9 +244,17 @@ ResponsiveUI.prototype = {
     if (aEvent.keyCode == this.mainWindow.KeyEvent.DOM_VK_ESCAPE &&
         this.mainWindow.gBrowser.selectedBrowser == this.browser) {
 
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      this.close();
+      // If the toolbox wasn't open at first but is open now,
+      // we don't want to close the Responsive Mode on Escape.
+      // We let the toolbox close first.
+
+      let target = TargetFactory.forTab(this.tab);
+      let isToolboxOpen =  !!gDevTools.getToolbox(target);
+      if (this.toolboxWasOpen || !isToolboxOpen) {
+        aEvent.preventDefault();
+        aEvent.stopPropagation();
+        this.close();
+      }
     }
   },
 

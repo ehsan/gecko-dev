@@ -287,7 +287,7 @@ protected:
                        bool& aDoReturn,
                        bool& aDocumentIsTopLevel,
                        nsSize& aAdjSize);
-  nsView* GetParentViewForRoot();
+  nsIView* GetParentViewForRoot();
   bool DoSetPixelScale();
   void UpdateZoomRatio(nsPrintObject* aPO, bool aSetPixelScale);
   nsresult ReconstructAndReflow(bool aDoSetPixelScale);

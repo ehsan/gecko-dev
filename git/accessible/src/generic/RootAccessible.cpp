@@ -61,7 +61,7 @@ RootAccessible::
                  nsIPresShell* aPresShell) :
   DocAccessibleWrap(aDocument, aRootContent, aPresShell)
 {
-  mType = eRootType;
+  mFlags |= eRootAccessible;
 }
 
 RootAccessible::~RootAccessible()

@@ -369,7 +369,6 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
                     cc_uint16_t port_requested,
                     int *port_allocated)
 {
-    *port_allocated = -1;
     CSFLogDebug( logTag, "vcmRxAllocPort(): group_id=%d stream_id=%d call_handle=%d port_requested = %d",
         group_id, stream_id, call_handle, port_requested);
 
@@ -411,25 +410,22 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
  *  @param[out] candidatesp - the ICE candidate array
  *  @param[out] candidate_ctp length of the array
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return    void
  *
  */
-static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
-                             cc_groupid_t group_id,
-                             cc_streamid_t stream_id,
-                             cc_call_handle_t  call_handle,
-                             const char *peerconnection,
-                             uint16_t level,
-                             char **default_addrp, /* Out */
-                             int *default_portp, /* Out */
-                             char ***candidatesp, /* Out */
-                             int *candidate_ctp /* Out */
+static void vcmRxAllocICE_m(cc_mcapid_t mcap_id,
+                            cc_groupid_t group_id,
+			    cc_streamid_t stream_id,
+			    cc_call_handle_t  call_handle,
+			    const char *peerconnection,
+			    uint16_t level,
+			    char **default_addrp, /* Out */
+			    int *default_portp, /* Out */
+			    char ***candidatesp, /* Out */
+			    int *candidate_ctp /* Out */
 )
 {
-  *default_addrp = NULL;
   *default_portp = -1;
-  *candidatesp = NULL;
-  *candidate_ctp = 0;
 
   CSFLogDebug( logTag, "%s: group_id=%d stream_id=%d call_handle=%d PC = %s",
     __FUNCTION__, group_id, stream_id, call_handle, peerconnection);
@@ -438,14 +434,14 @@ static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
   // ICE streams already exist, so we're just acquiring them. Any logic
   // to make them on demand is elsewhere.
   sipcc::PeerConnectionWrapper pc(peerconnection);
-  ENSURE_PC(pc, VCM_ERROR);
+  ENSURE_PC(pc, /**/);
 
   CSFLogDebug( logTag, "%s: Getting stream %d", __FUNCTION__, level);
   mozilla::RefPtr<NrIceMediaStream> stream = pc.impl()->media()->
     ice_media_stream(level-1);
   MOZ_ASSERT(stream);
   if (!stream) {
-    return VCM_ERROR;
+    return;
   }
 
   std::vector<std::string> candidates = stream->GetCandidates();
@@ -457,7 +453,7 @@ static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
   nsresult res = stream->GetDefaultCandidate(1, &default_addr, &default_port);
   MOZ_ASSERT(NS_SUCCEEDED(res));
   if (!NS_SUCCEEDED(res)) {
-    return VCM_ERROR;
+    return;
   }
 
   CSFLogDebug( logTag, "%s: Got default candidates %s:%d", __FUNCTION__,
@@ -466,7 +462,7 @@ static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
   // Note: this leaks memory if we are out of memory. Oh well.
   *candidatesp = (char **) cpr_malloc(candidates.size() * sizeof(char *));
   if (!(*candidatesp))
-    return VCM_ERROR;
+    return;
 
   for (size_t i=0; i<candidates.size(); i++) {
     (*candidatesp)[i] = (char *) cpr_malloc(candidates[i].size() + 1);
@@ -477,10 +473,9 @@ static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
   // Copy the default address
   *default_addrp = (char *) cpr_malloc(default_addr.size() + 1);
   if (!*default_addrp)
-    return VCM_ERROR;
+    return;
   sstrncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
   *default_portp = default_port; /* This is the signal that things are cool */
-  return 0;
 }
 
 
@@ -498,10 +493,10 @@ static short vcmRxAllocICE_m(cc_mcapid_t mcap_id,
  *  @param[out] candidatesp - the ICE candidate array
  *  @param[out] candidate_ctp length of the array
  *
- *  @return 0 for success; VCM_ERROR for failure
+  *  @return    void
  *
  */
-short vcmRxAllocICE(cc_mcapid_t mcap_id,
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
                    cc_groupid_t group_id,
                    cc_streamid_t stream_id,
                    cc_call_handle_t  call_handle,
@@ -513,22 +508,19 @@ short vcmRxAllocICE(cc_mcapid_t mcap_id,
                    int *candidate_ctp /* Out */
                    )
 {
-  int ret;
   VcmSIPCCBinding::getMainThread()->Dispatch(
-      WrapRunnableNMRet(&vcmRxAllocICE_m,
-                        mcap_id,
-                        group_id,
-                        stream_id,
-                        call_handle,
-                        peerconnection,
-                        level,
-                        default_addrp,
-                        default_portp,
-                        candidatesp,
-                        candidate_ctp,
-                        &ret),
-          NS_DISPATCH_SYNC);
-  return ret;
+      WrapRunnableNM(&vcmRxAllocICE_m,
+                     mcap_id,
+                     group_id,
+                     stream_id,
+                     call_handle,
+                     peerconnection,
+                     level,
+                     default_addrp,
+                     default_portp,
+                     candidatesp,
+                     candidate_ctp),
+      NS_DISPATCH_SYNC);
 }
 
 /* Get ICE global parameters (ufrag and pwd)
@@ -536,11 +528,11 @@ short vcmRxAllocICE(cc_mcapid_t mcap_id,
  *  @param[out] ufragp - where to put the ufrag
  *  @param[out] pwdp - where to put the pwd
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return void
  */
-static short vcmGetIceParams_m(const char *peerconnection,
-                               char **ufragp,
-                               char **pwdp)
+static void vcmGetIceParams_m(const char *peerconnection,
+                              char **ufragp,
+                              char **pwdp)
 {
   CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
 
@@ -550,7 +542,7 @@ static short vcmGetIceParams_m(const char *peerconnection,
   // ICE streams already exist, so we're just acquiring them. Any logic
   // to make them on demand is elsewhere.
   sipcc::PeerConnectionWrapper pc(peerconnection);
-  ENSURE_PC(pc, VCM_ERROR);
+  ENSURE_PC(pc, /**/);
 
   std::vector<std::string> attrs = pc.impl()->media()->
     ice_ctx()->GetGlobalAttributes();
@@ -564,7 +556,7 @@ static short vcmGetIceParams_m(const char *peerconnection,
       if (!ufrag) {
         ufrag = (char *) cpr_malloc(attrs[i].size() + 1);
         if (!ufrag)
-          return VCM_ERROR;
+          return;
         sstrncpy(ufrag, attrs[i].c_str(), attrs[i].size() + 1);
         ufrag[attrs[i].size()] = 0;
       }
@@ -573,7 +565,7 @@ static short vcmGetIceParams_m(const char *peerconnection,
     if (attrs[i].compare(0, strlen("ice-pwd:"), "ice-pwd:") == 0) {
       pwd = (char *) cpr_malloc(attrs[i].size() + 1);
       if (!pwd)
-        return VCM_ERROR;
+        return;
       sstrncpy(pwd, attrs[i].c_str(), attrs[i].size() + 1);
       pwd[attrs[i].size()] = 0;
     }
@@ -584,13 +576,13 @@ static short vcmGetIceParams_m(const char *peerconnection,
     cpr_free(ufrag);
     cpr_free(pwd);
     CSFLogDebug( logTag, "%s: no ufrag or password", __FUNCTION__);
-    return VCM_ERROR;
+    return;
   }
 
   *ufragp = ufrag;
   *pwdp = pwd;
 
-  return 0;
+  return;
 }
 
 /* Get ICE global parameters (ufrag and pwd)
@@ -601,21 +593,18 @@ static short vcmGetIceParams_m(const char *peerconnection,
  *  @param[out] ufragp - where to put the ufrag
  *  @param[out] pwdp - where to put the pwd
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return void
  */
-short vcmGetIceParams(const char *peerconnection,
+void vcmGetIceParams(const char *peerconnection,
                      char **ufragp,
                      char **pwdp)
 {
-  int ret;
   VcmSIPCCBinding::getMainThread()->Dispatch(
-      WrapRunnableNMRet(&vcmGetIceParams_m,
-                        peerconnection,
-                        ufragp,
-                        pwdp,
-                        &ret),
+      WrapRunnableNM(&vcmGetIceParams_m,
+                     peerconnection,
+                     ufragp,
+                     pwdp),
       NS_DISPATCH_SYNC);
-  return ret;
 }
 
 
@@ -625,7 +614,7 @@ short vcmGetIceParams(const char *peerconnection,
  *  @param[in]  ufrag - the ufrag
  *  @param[in]  pwd - the pwd
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return 0 success, error failure
  */
 static short vcmSetIceSessionParams_m(const char *peerconnection,
                                       char *ufrag,
@@ -754,20 +743,14 @@ short vcmSetIceCandidate(const char *peerconnection,
  *  @param[in]  peerconnection - the peerconnection in use
  *  @return 0 success, error failure
  */
-static short vcmStartIceChecks_m(const char *peerconnection, cc_boolean isControlling)
+static short vcmStartIceChecks_m(const char *peerconnection)
 {
   CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
 
-  sipcc::PeerConnectionWrapper pc(peerconnection);
+  sipcc::PeerConnectionWrapper pc(peerconnection);  
   ENSURE_PC(pc, VCM_ERROR);
 
   nsresult res;
-  res = pc.impl()->media()->ice_ctx()->SetControlling(
-      isControlling ? NrIceCtx::ICE_CONTROLLING : NrIceCtx::ICE_CONTROLLED);
-  if (!NS_SUCCEEDED(res)) {
-    CSFLogError( logTag, "%s: couldn't set controlling", __FUNCTION__ );
-    return VCM_ERROR;
-  }
   nsresult rv = pc.impl()->media()->ice_ctx()->thread()->Dispatch(
     WrapRunnableRet(pc.impl()->media()->ice_ctx(), &NrIceCtx::StartChecks, &res),
       NS_DISPATCH_SYNC);
@@ -776,10 +759,12 @@ static short vcmStartIceChecks_m(const char *peerconnection, cc_boolean isContro
     CSFLogError( logTag, "%s(): Could not dispatch to ICE thread", __FUNCTION__);
     return VCM_ERROR;
   }
+
   if (!NS_SUCCEEDED(res)) {
     CSFLogError( logTag, "%s: couldn't start ICE checks", __FUNCTION__ );
     return VCM_ERROR;
   }
+
   return 0;
 }
 
@@ -791,14 +776,13 @@ static short vcmStartIceChecks_m(const char *peerconnection, cc_boolean isContro
  *  @param[in]  peerconnection - the peerconnection in use
  *  @return 0 success, error failure
  */
-short vcmStartIceChecks(const char *peerconnection, cc_boolean isControlling)
+short vcmStartIceChecks(const char *peerconnection)
 {
   short ret;
 
   VcmSIPCCBinding::getMainThread()->Dispatch(
       WrapRunnableNMRet(&vcmStartIceChecks_m,
                         peerconnection,
-                        isControlling,
                         &ret),
       NS_DISPATCH_SYNC);
 
@@ -812,7 +796,7 @@ short vcmStartIceChecks(const char *peerconnection, cc_boolean isControlling)
  *  @param[in]  ufrag - the ufrag
  *  @param[in]  pwd - the pwd
  *  @param[in]  candidates - the candidates
- *  @param[in]  candidate_ct - the number of candidates
+ *  @param[i]   candidate_ct - the number of candidates
  *  @return 0 success, error failure
  */
 static short vcmSetIceMediaParams_m(const char *peerconnection,
@@ -863,7 +847,7 @@ static short vcmSetIceMediaParams_m(const char *peerconnection,
  *  @param[in]  ufrag - the ufrag
  *  @param[in]  pwd - the pwd
  *  @param[in]  candidates - the candidates
- *  @param[in]   candidate_ct - the number of candidates
+ *  @param[i]   candidate_ct - the number of candidates
  *  @return 0 success, error failure
  */
 short vcmSetIceMediaParams(const char *peerconnection,
@@ -909,8 +893,6 @@ static short vcmCreateRemoteStream_m(
   uint32_t hints = 0;
   nsresult res;
 
-  *pc_stream_id = -1;
-
   CSFLogDebug( logTag, "%s", __FUNCTION__);
   sipcc::PeerConnectionWrapper pc(peerconnection);
   ENSURE_PC(pc, VCM_ERROR);
@@ -922,7 +904,7 @@ static short vcmCreateRemoteStream_m(
     hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
   }
 
-  nsRefPtr<sipcc::RemoteSourceStreamInfo> info;
+  sipcc::RemoteSourceStreamInfo* info;
   res = pc.impl()->CreateRemoteSourceStreamInfo(hints, &info);
   if (NS_FAILED(res)) {
     return VCM_ERROR;
@@ -1001,10 +983,6 @@ static short vcmGetDtlsIdentity_m(const char *peerconnection,
                                   size_t max_digest_alg_len,
                                   char *digestp,
                                   size_t max_digest_len) {
-
-  digest_algp[0]='\0';
-  digestp[0]='\0';
-
   sipcc::PeerConnectionWrapper pc(peerconnection);
   ENSURE_PC(pc, VCM_ERROR);
 
@@ -1095,7 +1073,7 @@ short vcmSetDataChannelParameters(const char *peerconnection, cc_uint16_t stream
  *  @param[in]     port_requested   - requested port.
  *  @param[in]     listen_ip        - local IP for listening
  *  @param[in]     is_multicast     - multicast stream?
- *  @param[out]    port_allocated   - allocated(reserved) port
+ *  @param[in,out] port_allocated   - allocated(reserved) port
  *
  *  tbd need to see if we can deprecate this API
  *
@@ -1115,7 +1093,6 @@ short vcmRxOpen(cc_mcapid_t mcap_id,
     char fname[] = "vcmRxOpen";
 
     char dottedIP[20] = "";
-    *port_allocated = -1;
     if(listen_ip)
     {
     	csf_sprintf(dottedIP, sizeof(dottedIP), "%u.%u.%u.%u",
@@ -1261,7 +1238,7 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[in]   stream_id    - stream id of the given media type.
  *  @param[in]   level        - the m-line index
  *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
- *  @param[in]   pc_track_id  - the track within the media stream
+ *  @param[i]n   pc_track_id  - the track within the media stream
  *  @param[in]   call_handle  - call handle
  *  @param[in]   peerconnection - the peerconnection in use
  *  @param[in]   num_payloads   - number of negotiated payloads
@@ -1347,26 +1324,14 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     if (conduit->ConfigureRecvMediaCodecs(configs))
       return VCM_ERROR;
 
-
     // Now we have all the pieces, create the pipeline
-    mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
+    stream->StorePipeline(pc_track_id,
       new mozilla::MediaPipelineReceiveAudio(
-        pc.impl()->GetHandle(),
         pc.impl()->GetMainThread().get(),
         pc.impl()->GetSTSThread(),
-        stream->GetMediaStream()->GetStream(),
-        conduit, rtp_flow, rtcp_flow);
+        stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow));
 
-    nsresult res = pipeline->Init();
-    if (NS_FAILED(res)) {
-      CSFLogError(logTag, "Failure initializing audio pipeline");
-      return VCM_ERROR;
-    }
-
-    CSFLogDebug(logTag, "Created audio pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
-                pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
-
-    stream->StorePipeline(pc_track_id, pipeline);
   } else if (CC_IS_VIDEO(mcap_id)) {
 
     std::vector<mozilla::VideoCodecConfig *> configs;
@@ -1392,24 +1357,13 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
       return VCM_ERROR;
 
     // Now we have all the pieces, create the pipeline
-    mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
-        new mozilla::MediaPipelineReceiveVideo(
-            pc.impl()->GetHandle(),
-            pc.impl()->GetMainThread().get(),
-            pc.impl()->GetSTSThread(),
-            stream->GetMediaStream()->GetStream(),
-            conduit, rtp_flow, rtcp_flow);
+    stream->StorePipeline(pc_track_id,
+      new mozilla::MediaPipelineReceiveVideo(
+        pc.impl()->GetMainThread().get(),
+        pc.impl()->GetSTSThread(),
+        stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow));
 
-    nsresult res = pipeline->Init();
-    if (NS_FAILED(res)) {
-      CSFLogError(logTag, "Failure initializing video pipeline");
-      return VCM_ERROR;
-    }
-
-    CSFLogDebug(logTag, "Created video pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
-                pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
-
-    stream->StorePipeline(pc_track_id, pipeline);
   } else {
     CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
     return VCM_ERROR;
@@ -1489,11 +1443,11 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
  *  @param[in]    stream_id - stream id of the given media type.
  *  @param[in]    call_handle  - call identifier
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return   None
  *
  */
 
-short vcmRxClose(cc_mcapid_t mcap_id,
+void vcmRxClose(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle)
@@ -1505,7 +1459,7 @@ short vcmRxClose(cc_mcapid_t mcap_id,
     if (call_handle == CC_NO_CALL_ID) {
         CSFLogDebugS( logTag, "No CALL ID");
         /* no operation when no call ID */
-        return VCM_ERROR;
+        return;
     }
     switch ( mcap_id )
     {
@@ -1522,7 +1476,6 @@ short vcmRxClose(cc_mcapid_t mcap_id,
     default:
         break;
     }
-    return 0;
 }
 
 /**
@@ -1978,22 +1931,15 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     if (!conduit || conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
 
-    mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
-        new mozilla::MediaPipelineTransmit(
-            pc.impl()->GetHandle(),
-            pc.impl()->GetMainThread().get(),
-            pc.impl()->GetSTSThread(),
-            stream->GetMediaStream()->GetStream(),
-            conduit, rtp_flow, rtcp_flow);
+    mozilla::RefPtr<mozilla::MediaPipelineTransmit> pipeline =
+      new mozilla::MediaPipelineTransmit(
+        pc.impl()->GetMainThread().get(),
+        pc.impl()->GetSTSThread(),
+        stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow);
 
-    nsresult res = pipeline->Init();
-    if (NS_FAILED(res)) {
-      CSFLogError(logTag, "Failure initializing audio pipeline");
-      return VCM_ERROR;
-    }
     CSFLogDebug(logTag, "Created audio pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
                 pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
-
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id, pipeline);
@@ -2017,24 +1963,18 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     if (!conduit || conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
 
-    // Now we have all the pieces, create the pipeline
+    // Create the pipeline
     mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
         new mozilla::MediaPipelineTransmit(
-            pc.impl()->GetHandle(),
-            pc.impl()->GetMainThread().get(),
-            pc.impl()->GetSTSThread(),
-            stream->GetMediaStream()->GetStream(),
-            conduit, rtp_flow, rtcp_flow);
-
-    nsresult res = pipeline->Init();
-    if (NS_FAILED(res)) {
-      CSFLogError(logTag, "Failure initializing video pipeline");
-      return VCM_ERROR;
-    }
+          pc.impl()->GetMainThread().get(),
+          pc.impl()->GetSTSThread(),
+          stream->GetMediaStream(),
+          conduit, rtp_flow, rtcp_flow);
 
     CSFLogDebug(logTag, "Created video pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
                 pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
 
+    // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id, pipeline);
   } else {
     CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
@@ -2103,7 +2043,7 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
                         attrs,
                         &ret),
       NS_DISPATCH_SYNC);
-
+  
   return ret;
 }
 
@@ -2116,10 +2056,10 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
  *  @param[in] stream_id - stream id of the given media type.
  *  @param[in] call_handle  - call identifier
  *
- *  @return 0 for success; VCM_ERROR for failure
+ *  @return     void
  */
 
-short vcmTxClose(cc_mcapid_t mcap_id,
+void vcmTxClose(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle)
@@ -2130,7 +2070,7 @@ short vcmTxClose(cc_mcapid_t mcap_id,
 
     if (call_handle == CC_NO_CALL_ID) {
         /* no operation when no call ID */
-        return VCM_ERROR;
+        return;
     }
 
     switch ( mcap_id )
@@ -2148,7 +2088,6 @@ short vcmTxClose(cc_mcapid_t mcap_id,
     default:
         break;
     }
-    return 0;
 }
 
 #if 0
@@ -2307,8 +2246,6 @@ int vcmGetRtpStats(cc_mcapid_t mcap_id,
         char *rx_stats,
         char *tx_stats)
 {
-    rx_stats[0] = '\0';
-    tx_stats[0] = '\0';
     return 0;
 }
 

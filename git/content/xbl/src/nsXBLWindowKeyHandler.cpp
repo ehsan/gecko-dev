@@ -426,7 +426,7 @@ nsXBLWindowKeyHandler::IsEditor()
   nsIDocShell *docShell = piwin->GetDocShell();
   nsCOMPtr<nsIPresShell> presShell;
   if (docShell)
-    presShell = docShell->GetPresShell();
+    docShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell) {
     return presShell->GetSelectionFlags() == nsISelectionDisplay::DISPLAY_ALL;

@@ -38,7 +38,7 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsIComponentManager.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMElement.h"
@@ -97,7 +97,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 a11y::AccType
 nsTextControlFrame::AccessibleType()
 {
-  return a11y::eHTMLTextFieldType;
+  return a11y::eHTMLTextField;
 }
 #endif
 

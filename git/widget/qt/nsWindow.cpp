@@ -410,12 +410,9 @@ nsWindow::Destroy(void)
     ClearCachedResources();
 
     nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-    if (rollupListener) {
-        nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-        if (static_cast<nsIWidget *>(this) == rollupWidget) {
-            rollupListener->Rollup(0, nullptr);
-        }
-    }
+    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
+    if (static_cast<nsIWidget *>(this) == rollupWidget)
+        rollupListener->Rollup(0, nullptr);
 
     Show(false);
 
@@ -941,52 +938,49 @@ bool
 nsWindow::CheckForRollup(double aMouseX, double aMouseY,
                          bool aIsWheel)
 {
-    nsIRollupListener* rollupListener = GetActiveRollupListener();
-    nsCOMPtr<nsIWidget> rollupWidget;
-    if (rollupListener) {
-        rollupWidget = rollupListener->GetRollupWidget();
-    }
-    if (!rollupWidget) {
-        nsBaseWidget::gRollupListener = nullptr;
-        return false;
-    }
-
     bool retVal = false;
-    MozQWidget *currentPopup =
-        (MozQWidget *)rollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-    if (!is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
-        bool rollup = true;
-        if (aIsWheel) {
-            rollup = rollupListener->ShouldRollupOnMouseWheelEvent();
-            retVal = true;
-        }
-        // if we're dealing with menus, we probably have submenus and
-        // we don't want to rollup if the clickis in a parent menu of
-        // the current submenu
-        uint32_t popupsToRollup = UINT32_MAX;
-        if (rollupListener) {
-            nsAutoTArray<nsIWidget*, 5> widgetChain;
-            uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
-            for (uint32_t i=0; i<widgetChain.Length(); ++i) {
-                nsIWidget* widget =  widgetChain[i];
-                MozQWidget* currWindow =
-                    (MozQWidget*) widget->GetNativeData(NS_NATIVE_WINDOW);
-                if (is_mouse_in_window(currWindow, aMouseX, aMouseY)) {
-                  if (i < sameTypeCount) {
-                    rollup = false;
-                  }
-                  else {
-                    popupsToRollup = sameTypeCount;
-                  }
-                  break;
-                }
-            } // foreach parent menu widget
-        } // if rollup listener knows about menus
+    nsIRollupListener* rollupListener = GetActiveRollupListener();
+    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
+    if (rollupWidget) {
+        MozQWidget *currentPopup =
+            (MozQWidget *)rollupWidget->GetNativeData(NS_NATIVE_WINDOW);
 
-        // if we've determined that we should still rollup, do it.
-        if (rollup) {
-            retVal = rollupListener->Rollup(popupsToRollup, nullptr);
+        if (!is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
+            bool rollup = true;
+            if (aIsWheel) {
+                rollup = rollupListener->ShouldRollupOnMouseWheelEvent();
+                retVal = true;
+            }
+            // if we're dealing with menus, we probably have submenus and
+            // we don't want to rollup if the clickis in a parent menu of
+            // the current submenu
+            uint32_t popupsToRollup = UINT32_MAX;
+            if (rollupListener) {
+                nsAutoTArray<nsIWidget*, 5> widgetChain;
+                uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
+                for (uint32_t i=0; i<widgetChain.Length(); ++i) {
+                    nsIWidget* widget =  widgetChain[i];
+                    MozQWidget* currWindow =
+                        (MozQWidget*) widget->GetNativeData(NS_NATIVE_WINDOW);
+                    if (is_mouse_in_window(currWindow, aMouseX, aMouseY)) {
+                      if (i < sameTypeCount) {
+                        rollup = false;
+                      }
+                      else {
+                        popupsToRollup = sameTypeCount;
+                      }
+                      break;
+                    }
+                } // foreach parent menu widget
+            } // if rollup listener knows about menus
+
+            // if we've determined that we should still rollup, do it.
+            if (rollup) {
+                retVal = rollupListener->Rollup(popupsToRollup, nullptr);
+            }
         }
+    } else {
+        nsBaseWidget::gRollupListener = nullptr;
     }
 
     return retVal;
@@ -2961,7 +2955,7 @@ nsWindow::Show(bool aState)
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
+nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
 {
     mBounds.width = NSToIntRound(aWidth);
     mBounds.height = NSToIntRound(aHeight);
@@ -3257,8 +3251,7 @@ nsWindow::SetSoftwareKeyboardState(bool aOpen,
                                    const InputContextAction& aAction)
 {
     if (aOpen) {
-        NS_ENSURE_TRUE_VOID(mInputContext.mIMEState.mEnabled !=
-                            IMEState::DISABLED);
+        NS_ENSURE_TRUE(mInputContext.mIMEState.mEnabled != IMEState::DISABLED,);
 
         // Ensure that opening the virtual keyboard is allowed for this specific
         // InputContext depending on the content.ime.strict.policy pref

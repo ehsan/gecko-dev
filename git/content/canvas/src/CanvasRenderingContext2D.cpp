@@ -94,7 +94,7 @@
 #include "nsJSUtils.h"
 #include "XPCQuickStubs.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/HTMLImageElement.h"
+#include "nsHTMLImageElement.h"
 #include "nsHTMLVideoElement.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include <cstdlib> // for std::abs(int/long)
@@ -1421,7 +1421,7 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
       return pat.forget();
     }
   } else if (element.IsHTMLImageElement()) {
-    htmlElement = &element.GetAsHTMLImageElement();
+    htmlElement = element.GetAsHTMLImageElement();
   } else {
     htmlElement = element.GetAsHTMLVideoElement();
   }
@@ -2548,7 +2548,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   const ContextState &state = CurrentState();
 
   // This is only needed to know if we can know the drawing bounding box easily.
-  bool doDrawShadow = NeedToDrawShadow();
+  bool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
 
   CanvasBidiProcessor processor;
 
@@ -2944,7 +2944,7 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
     }
   } else {
     if (image.IsHTMLImageElement()) {
-      HTMLImageElement* img = &image.GetAsHTMLImageElement();
+      nsHTMLImageElement* img = image.GetAsHTMLImageElement();
       element = img;
     } else {
       nsHTMLVideoElement* video = image.GetAsHTMLVideoElement();

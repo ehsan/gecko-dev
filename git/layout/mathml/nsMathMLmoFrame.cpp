@@ -406,8 +406,7 @@ nsMathMLmoFrame::ProcessOperatorData()
                value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
-    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
-                                           mContent->OwnerDoc())) {
+    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0)) {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
         leadingSpace = 0;
       else if (cssValue.IsLengthUnit())
@@ -433,8 +432,7 @@ nsMathMLmoFrame::ProcessOperatorData()
                value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
-    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
-                                           mContent->OwnerDoc())) {
+    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0)) {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
         trailingSpace = 0;
       else if (cssValue.IsLengthUnit())
@@ -519,8 +517,7 @@ nsMathMLmoFrame::ProcessOperatorData()
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,
                                            nsMathMLElement::
-                                           PARSE_ALLOW_UNITLESS,
-                                           mContent->OwnerDoc())) {
+                                           PARSE_ALLOW_UNITLESS)) {
       nsCSSUnit unit = cssValue.GetUnit();
       if (eCSSUnit_Number == unit)
         mMinSize = cssValue.GetFloatValue();
@@ -552,8 +549,7 @@ nsMathMLmoFrame::ProcessOperatorData()
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,
                                            nsMathMLElement::
-                                           PARSE_ALLOW_UNITLESS,
-                                           mContent->OwnerDoc())) {
+                                           PARSE_ALLOW_UNITLESS)) {
       nsCSSUnit unit = cssValue.GetUnit();
       if (eCSSUnit_Number == unit)
         mMaxSize = cssValue.GetFloatValue();

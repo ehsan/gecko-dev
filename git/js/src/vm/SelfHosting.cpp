@@ -103,32 +103,6 @@ intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-/**
- * Handles an assertion failure in self-hosted code just like an assertion
- * failure in C++ code. Information about the failure can be provided in args[0].
- */
-static JSBool
-intrinsic_AssertionFailed(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-#ifdef DEBUG
-    if (argc > 0) {
-        // try to dump the informative string
-        JSString *str = ToString(cx, args[0]);
-        if (str) {
-            const jschar *chars = str->getChars(cx);
-            if (chars) {
-                fprintf(stderr, "Self-hosted JavaScript assertion info: ");
-                JSString::dumpChars(chars, str->length());
-                fputc('\n', stderr);
-            }
-        }
-    }
-#endif
-    JS_ASSERT(false);
-    return false;
-}
-
 /*
  * Used to decompile values in the nearest non-builtin stack frame, falling
  * back to decompiling in the current frame. Helpful for printing higher-order
@@ -165,39 +139,15 @@ intrinsic_MakeConstructible(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-/**
- * Returns the default locale as a well-formed, but not necessarily canonicalized,
- * BCP-47 language tag.
- */
-static JSBool
-intrinsic_RuntimeDefaultLocale(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    const char *locale = cx->getDefaultLocale();
-    if (!locale)
-        return false;
-
-    RootedString jslocale(cx, JS_NewStringCopyZ(cx, locale));
-    if (!jslocale)
-        return false;
-
-    args.rval().setString(jslocale);
-    return true;
-}
-
 JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ToObject",           intrinsic_ToObject,             1,0),
     JS_FN("ToInteger",          intrinsic_ToInteger,            1,0),
     JS_FN("IsCallable",         intrinsic_IsCallable,           1,0),
     JS_FN("ThrowError",         intrinsic_ThrowError,           4,0),
-    JS_FN("AssertionFailed",    intrinsic_AssertionFailed,      1,0),
     JS_FN("MakeConstructible",  intrinsic_MakeConstructible,    1,0),
     JS_FN("DecompileArg",       intrinsic_DecompileArg,         2,0),
-    JS_FN("RuntimeDefaultLocale", intrinsic_RuntimeDefaultLocale, 0,0),
     JS_FS_END
 };
-
 bool
 JSRuntime::initSelfHosting(JSContext *cx)
 {

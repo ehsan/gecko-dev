@@ -9,7 +9,7 @@
 #include "mozilla/Attributes.h"
 
 #include "nsCycleCollectionNoteChild.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsISupports.h"
 
 // See below for the definition of nsCOMArray<T>
@@ -25,28 +25,28 @@ protected:
     nsCOMArray_base(const nsCOMArray_base& other);
     ~nsCOMArray_base();
 
-    int32_t IndexOf(nsISupports* aObject) const;
+    int32_t IndexOf(nsISupports* aObject) const {
+        return mArray.IndexOf(aObject);
+    }
+
     int32_t IndexOfObject(nsISupports* aObject) const;
 
-    typedef bool (* nsBaseArrayEnumFunc)
-        (void* aElement, void *aData);
+    bool EnumerateForwards(nsVoidArrayEnumFunc aFunc, void* aData) {
+        return mArray.EnumerateForwards(aFunc, aData);
+    }
     
-    // enumerate through the array with a callback.
-    bool EnumerateForwards(nsBaseArrayEnumFunc aFunc, void* aData) const;
+    bool EnumerateBackwards(nsVoidArrayEnumFunc aFunc, void* aData) {
+        return mArray.EnumerateBackwards(aFunc, aData);
+    }
     
-    bool EnumerateBackwards(nsBaseArrayEnumFunc aFunc, void* aData) const;
-
-    typedef int (* nsBaseArrayComparatorFunc)
-        (nsISupports* aElement1, nsISupports* aElement2, void* aData);
-
-    struct nsCOMArrayComparatorContext {
-        nsBaseArrayComparatorFunc mComparatorFunc;
-        void* mData;
-    };
-
-    static int nsCOMArrayComparator(const void* aElement1, const void* aElement2, void* aData);
-    void Sort(nsBaseArrayComparatorFunc aFunc, void* aData);
-
+    void Sort(nsVoidArrayComparatorFunc aFunc, void* aData) {
+        mArray.Sort(aFunc, aData);
+    }
+    
+    // any method which is not a direct forward to mArray should
+    // avoid inline bodies, so that the compiler doesn't inline them
+    // all over the place
+    void Clear();
     bool InsertObjectAt(nsISupports* aObject, int32_t aIndex);
     bool InsertObjectsAt(const nsCOMArray_base& aObjects, int32_t aIndex);
     bool ReplaceObjectAt(nsISupports* aObject, int32_t aIndex);
@@ -57,63 +57,58 @@ protected:
         return InsertObjectsAt(aObjects, Count());
     }
     bool RemoveObject(nsISupports *aObject);
+    bool RemoveObjectAt(int32_t aIndex);
+    bool RemoveObjectsAt(int32_t aIndex, int32_t aCount);
 
 public:
-    // elements in the array (including null elements!)
+    // override nsVoidArray stuff so that they can be accessed by
+    // consumers of nsCOMArray
     int32_t Count() const {
-        return mArray.Length();
+        return mArray.Count();
     }
-
     // If the array grows, the newly created entries will all be null;
     // if the array shrinks, the excess entries will all be released.
     bool SetCount(int32_t aNewCount);
 
-    // remove all elements in the array, and call NS_RELEASE on each one
-    void Clear();
-
     nsISupports* ObjectAt(int32_t aIndex) const {
-        return mArray[aIndex];
+        return static_cast<nsISupports*>(mArray.FastElementAt(aIndex));
     }
     
     nsISupports* SafeObjectAt(int32_t aIndex) const {
-        return mArray.SafeElementAt(aIndex, nullptr);
+        return static_cast<nsISupports*>(mArray.SafeElementAt(aIndex));
     }
 
     nsISupports* operator[](int32_t aIndex) const {
         return ObjectAt(aIndex);
     }
 
-    // remove an element at a specific position, shrinking the array
-    // as necessary
-    bool RemoveObjectAt(int32_t aIndex);
-
-    // remove a range of elements at a specific position, shrinking the array
-    // as necessary
-    bool RemoveObjectsAt(int32_t aIndex, int32_t aCount);
-
     // Ensures there is enough space to store a total of aCapacity objects.
     // This method never deletes any objects.
     bool SetCapacity(uint32_t aCapacity) {
-      return mArray.SetCapacity(aCapacity);
+      return aCapacity > 0 ? mArray.SizeTo(static_cast<int32_t>(aCapacity))
+                           : true;
     }
-
-    typedef size_t (* nsBaseArraySizeOfElementIncludingThisFunc)
-        (nsISupports* aElement, nsMallocSizeOfFun aMallocSizeOf, void *aData);
 
     // Measures the size of the array's element storage, and if
     // |aSizeOfElement| is non-NULL, measures the size of things pointed to by
     // elements.
     size_t SizeOfExcludingThis(
-             nsBaseArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-             nsMallocSizeOfFun aMallocSizeOf, void* aData = NULL) const;
-
+             nsVoidArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
+             nsMallocSizeOfFun aMallocSizeOf, void* aData = NULL) const {
+        return mArray.SizeOfExcludingThis(aSizeOfElementIncludingThis,
+                                          aMallocSizeOf, aData);
+    }
+    
 private:
     
     // the actual storage
-    nsTArray<nsISupports*> mArray;
+    nsVoidArray mArray;
 
     // don't implement these, defaults will muck with refcounts!
     nsCOMArray_base& operator=(const nsCOMArray_base& other) MOZ_DELETE;
+
+    // needs to call Clear() which is protected
+    friend void ImplCycleCollectionUnlink(nsCOMArray_base& aField);
 };
 
 inline void
@@ -216,6 +211,19 @@ class nsCOMArray : public nsCOMArray_base
         return nsCOMArray_base::ReplaceObjectAt(static_cast<nsISupports*>(aObject), aIndex);
     }
 
+    // override nsVoidArray stuff so that they can be accessed by
+    // other methods
+
+    // elements in the array (including null elements!)
+    int32_t Count() const {
+        return nsCOMArray_base::Count();
+    }
+
+    // remove all elements in the array, and call NS_RELEASE on each one
+    void Clear() {
+        nsCOMArray_base::Clear();
+    }
+
     // Enumerator callback function. Return false to stop
     // Here's a more readable form:
     // bool enumerate(T* aElement, void* aData)
@@ -224,12 +232,12 @@ class nsCOMArray : public nsCOMArray_base
     
     // enumerate through the array with a callback. 
     bool EnumerateForwards(nsCOMArrayEnumFunc aFunc, void* aData) {
-        return nsCOMArray_base::EnumerateForwards(nsBaseArrayEnumFunc(aFunc),
+        return nsCOMArray_base::EnumerateForwards(nsVoidArrayEnumFunc(aFunc),
                                                   aData);
     }
 
     bool EnumerateBackwards(nsCOMArrayEnumFunc aFunc, void* aData) {
-        return nsCOMArray_base::EnumerateBackwards(nsBaseArrayEnumFunc(aFunc),
+        return nsCOMArray_base::EnumerateBackwards(nsVoidArrayEnumFunc(aFunc),
                                                   aData);
     }
     
@@ -237,7 +245,7 @@ class nsCOMArray : public nsCOMArray_base
         (T* aElement1, T* aElement2, void* aData);
         
     void Sort(nsCOMArrayComparatorFunc aFunc, void* aData) {
-        nsCOMArray_base::Sort(nsBaseArrayComparatorFunc(aFunc), aData);
+        nsCOMArray_base::Sort(nsVoidArrayComparatorFunc(aFunc), aData);
     }
 
     // append an object, growing the array as necessary
@@ -257,6 +265,18 @@ class nsCOMArray : public nsCOMArray_base
         return nsCOMArray_base::RemoveObject(static_cast<nsISupports*>(aObject));
     }
 
+    // remove an element at a specific position, shrinking the array
+    // as necessary
+    bool RemoveObjectAt(int32_t aIndex) {
+        return nsCOMArray_base::RemoveObjectAt(aIndex);
+    }
+
+    // remove a range of elements at a specific position, shrinking the array
+    // as necessary
+    bool RemoveObjectsAt(int32_t aIndex, int32_t aCount) {
+        return nsCOMArray_base::RemoveObjectsAt(aIndex, aCount);
+    }
+
     // Each element in an nsCOMArray<T> is actually a T*, so this function is
     // "IncludingThis" rather than "ExcludingThis" because it needs to measure
     // the memory taken by the T itself as well as anything it points to.
@@ -267,7 +287,7 @@ class nsCOMArray : public nsCOMArray_base
              nsCOMArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis, 
              nsMallocSizeOfFun aMallocSizeOf, void *aData = NULL) const {
         return nsCOMArray_base::SizeOfExcludingThis(
-                 nsBaseArraySizeOfElementIncludingThisFunc(aSizeOfElementIncludingThis),
+                 nsVoidArraySizeOfElementIncludingThisFunc(aSizeOfElementIncludingThis),
                  aMallocSizeOf, aData);
     }
 

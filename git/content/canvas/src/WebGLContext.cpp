@@ -45,14 +45,12 @@
 #include "mozilla/Services.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ipc/ProcessPriorityManager.h"
 
 #include "Layers.h"
 
 using namespace mozilla;
 using namespace mozilla::gl;
 using namespace mozilla::dom;
-using namespace mozilla::dom::ipc;
 using namespace mozilla::layers;
 
 NS_IMETHODIMP
@@ -65,10 +63,7 @@ WebGLMemoryPressureObserver::Observe(nsISupports* aSubject,
 
     bool wantToLoseContext = true;
 
-    if (!mContext->mCanLoseContextInForeground && CurrentProcessIsForeground())
-        wantToLoseContext = false;
-    else if (!nsCRT::strcmp(aSomeData,
-                            NS_LITERAL_STRING("heap-minimize").get()))
+    if (!nsCRT::strcmp(aSomeData, NS_LITERAL_STRING("heap-minimize").get()))
         wantToLoseContext = mContext->mLoseContextOnHeapMinimize;
 
     if (wantToLoseContext)
@@ -184,7 +179,6 @@ WebGLContext::WebGLContext()
     mContextStatus = ContextStable;
     mContextLostErrorSet = false;
     mLoseContextOnHeapMinimize = false;
-    mCanLoseContextInForeground = true;
 
     mAlreadyGeneratedWarnings = 0;
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;
@@ -902,12 +896,12 @@ WebGLContext::GetContextAttributes(Nullable<dom::WebGLContextAttributesInitializ
     dom::WebGLContextAttributes& result = retval.SetValue();
 
     gl::ContextFormat cf = gl->ActualFormat();
-    result.mAlpha = cf.alpha > 0;
-    result.mDepth = cf.depth > 0;
-    result.mStencil = cf.stencil > 0;
-    result.mAntialias = cf.samples > 1;
-    result.mPremultipliedAlpha = mOptions.premultipliedAlpha;
-    result.mPreserveDrawingBuffer = mOptions.preserveDrawingBuffer;
+    result.alpha = cf.alpha > 0;
+    result.depth = cf.depth > 0;
+    result.stencil = cf.stencil > 0;
+    result.antialias = cf.samples > 1;
+    result.premultipliedAlpha = mOptions.premultipliedAlpha;
+    result.preserveDrawingBuffer = mOptions.preserveDrawingBuffer;
 }
 
 bool

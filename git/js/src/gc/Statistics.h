@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/GuardObjects.h"
 
 #include "jsfriendapi.h"
 #include "jspubtd.h"
@@ -33,7 +32,6 @@ enum Phase {
     PHASE_MARK_DELAYED,
     PHASE_SWEEP,
     PHASE_SWEEP_MARK,
-    PHASE_SWEEP_MARK_TYPES,
     PHASE_SWEEP_MARK_DELAYED,
     PHASE_SWEEP_MARK_INCOMING_BLACK,
     PHASE_SWEEP_MARK_WEAK,
@@ -173,56 +171,39 @@ struct Statistics {
     double computeMMU(int64_t resolution);
 };
 
-struct AutoGCSlice
-{
+struct AutoGCSlice {
     AutoGCSlice(Statistics &stats, int collectedCount, int compartmentCount, gcreason::Reason reason
-                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : stats(stats)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
         stats.beginSlice(collectedCount, compartmentCount, reason);
     }
     ~AutoGCSlice() { stats.endSlice(); }
 
     Statistics &stats;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-struct AutoPhase
-{
-    AutoPhase(Statistics &stats, Phase phase
-              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats), phase(phase)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        stats.beginPhase(phase);
-    }
-    ~AutoPhase() {
-        stats.endPhase(phase);
-    }
+struct AutoPhase {
+    AutoPhase(Statistics &stats, Phase phase JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : stats(stats), phase(phase) { JS_GUARD_OBJECT_NOTIFIER_INIT; stats.beginPhase(phase); }
+    ~AutoPhase() { stats.endPhase(phase); }
 
     Statistics &stats;
     Phase phase;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-struct AutoSCC
-{
-    AutoSCC(Statistics &stats, unsigned scc
-            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats), scc(scc)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        start = stats.beginSCC();
-    }
-    ~AutoSCC() {
-        stats.endSCC(scc, start);
-    }
+struct AutoSCC {
+    AutoSCC(Statistics &stats, unsigned scc JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : stats(stats), scc(scc) { JS_GUARD_OBJECT_NOTIFIER_INIT; start = stats.beginSCC(); }
+    ~AutoSCC() { stats.endSCC(scc, start); }
 
     Statistics &stats;
     unsigned scc;
     int64_t start;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 } /* namespace gcstats */

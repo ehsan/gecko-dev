@@ -40,7 +40,6 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsTreeSanitizer.h \
-nsViewportInfo.h \
 nsXMLNameSpaceMap.h \
 nsHostObjectProtocolHandler.h \
 $(NULL)
@@ -84,6 +83,7 @@ XPIDLSRCS	= \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
 		nsIMessageManager.idl \
+		nsIEventSource.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

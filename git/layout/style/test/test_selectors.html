@@ -536,7 +536,7 @@ function run() {
     function idset(ids) { // takes an array of ids
         return function idset_filter(doc) {
             var result = [];
-            for (var id of ids)
+            for each (var id in ids)
                 result.push(doc.getElementById(id));
             return result;
         }

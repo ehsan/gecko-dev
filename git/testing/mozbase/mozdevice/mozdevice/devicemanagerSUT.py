@@ -25,10 +25,10 @@ class DeviceManagerSUT(DeviceManager):
     _agentErrorRE = re.compile('^##AGENT-WARNING##\ ?(.*)')
     default_timeout = 300
 
-    def __init__(self, host, port = 20701, retryLimit = 5, deviceRoot = None, **kwargs):
+    def __init__(self, host, port = 20701, retrylimit = 5, deviceRoot = None, **kwargs):
         self.host = host
         self.port = port
-        self.retryLimit = retryLimit
+        self.retrylimit = retrylimit
         self._sock = None
         self._everConnected = False
         self.deviceRoot = deviceRoot
@@ -99,9 +99,9 @@ class DeviceManagerSUT(DeviceManager):
                 return True
         return False
 
-    def _sendCmds(self, cmdlist, outputfile, timeout = None, retryLimit = None):
+    def _sendCmds(self, cmdlist, outputfile, timeout = None):
         """
-        Wrapper for _doCmds that loops up to retryLimit iterations
+        Wrapper for _doCmds that loops up to self.retrylimit iterations
         """
         # this allows us to move the retry logic outside of the _doCmds() to make it
         # easier for debugging in the future.
@@ -109,9 +109,8 @@ class DeviceManagerSUT(DeviceManager):
         # one fails.  this is necessary in particular for pushFile(), where we don't want
         # to accidentally send extra data if a failure occurs during data transmission.
 
-        retryLimit = retryLimit or self.retryLimit
         retries = 0
-        while retries < retryLimit:
+        while retries < self.retrylimit:
             try:
                 self._doCmds(cmdlist, outputfile, timeout)
                 return
@@ -124,21 +123,20 @@ class DeviceManagerSUT(DeviceManager):
                     print err
                 retries += 1
                 # if we lost the connection or failed to establish one, wait a bit
-                if retries < retryLimit and not self._sock:
+                if retries < self.retrylimit and not self._sock:
                     sleep_time = 5 * retries
                     print 'Could not connect; sleeping for %d seconds.' % sleep_time
                     time.sleep(sleep_time)
 
-        raise DMError("Remote Device Error: unable to connect to %s after %s attempts" % (self.host, retryLimit))
+        raise DMError("Remote Device Error: unable to connect to %s after %s attempts" % (self.host, self.retrylimit))
 
-    def _runCmds(self, cmdlist, timeout = None, retryLimit = None):
+    def _runCmds(self, cmdlist, timeout = None):
         """
         Similar to _sendCmds, but just returns any output as a string instead of
         writing to a file
         """
-        retryLimit = retryLimit or self.retryLimit
         outputfile = StringIO.StringIO()
-        self._sendCmds(cmdlist, outputfile, timeout, retryLimit=retryLimit)
+        self._sendCmds(cmdlist, outputfile, timeout)
         outputfile.seek(0)
         return outputfile.read()
 
@@ -329,18 +327,17 @@ class DeviceManagerSUT(DeviceManager):
         # woops, we couldn't find an end of line/return value
         raise DMError("Automation Error: Error finding end of line/return value when running '%s'" % cmdline)
 
-    def pushFile(self, localname, destname, retryLimit = None):
+    def pushFile(self, localname, destname):
         """
         Copies localname from the host to destname on the device
         """
-        retryLimit = retryLimit or self.retryLimit
         self.mkDirs(destname)
 
         try:
             filesize = os.path.getsize(localname)
             with open(localname, 'rb') as f:
                 remoteHash = self._runCmds([{ 'cmd': 'push ' + destname + ' ' + str(filesize),
-                                              'data': f.read() }], retryLimit=retryLimit).strip()
+                                              'data': f.read() }]).strip()
         except OSError:
             raise DMError("DeviceManager: Error reading file to push")
 
@@ -360,11 +357,10 @@ class DeviceManagerSUT(DeviceManager):
         if not self.dirExists(name):
             self._runCmds([{ 'cmd': 'mkdr ' + name }])
 
-    def pushDir(self, localDir, remoteDir, retryLimit = None):
+    def pushDir(self, localDir, remoteDir):
         """
         Push localDir from host to remoteDir on the device
         """
-        retryLimit = retryLimit or self.retryLimit
         if (self.debug >= 2):
             print "pushing directory: %s to %s" % (localDir, remoteDir)
 
@@ -386,7 +382,7 @@ class DeviceManagerSUT(DeviceManager):
                     self.mkDirs(remoteName)
                     existentDirectories.append(parent)
 
-                self.pushFile(os.path.join(root, f), remoteName, retryLimit=retryLimit)
+                self.pushFile(os.path.join(root, f), remoteName)
 
 
     def dirExists(self, remotePath):

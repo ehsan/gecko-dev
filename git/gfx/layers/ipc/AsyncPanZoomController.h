@@ -25,7 +25,6 @@ namespace layers {
 class CompositorParent;
 class GestureEventListener;
 class ContainerLayer;
-class ViewTransform;
 
 /**
  * Controller for all panning and zooming logic. Any time a user input is
@@ -109,7 +108,7 @@ public:
   void UpdateCompositionBounds(const nsIntRect& aCompositionBounds);
 
   /**
-   * We have found a scrollable subframe, so disable our machinery until we hit
+   * We are scrolling a subframe, so disable our machinery until we hit
    * a touch end or a new touch start. This prevents us from accidentally
    * panning both the subframe and the parent frame.
    *
@@ -117,6 +116,12 @@ public:
    * subframes.
    */
   void CancelDefaultPanZoom();
+
+  /**
+   * We have found a scrollable subframe, so we need to delay the scrolling
+   * gesture executed and let subframe do the scrolling first.
+   */
+  void DetectScrollableSubframe();
 
   /**
    * Kicks an animation to zoom to a rect. This may be either a zoom out or zoom
@@ -160,7 +165,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
-                                      ViewTransform* aTransform);
+                                      gfx3DMatrix* aNewTransform);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -226,12 +231,6 @@ public:
   static gfxSize CalculateResolution(const FrameMetrics& aMetrics);
 
   static gfx::Rect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
-
-  /**
-   * Send an mozbrowserasyncscroll event.
-   * *** The monitor must be held while calling this.
-   */
-  void SendAsyncScrollEvent();
 
 protected:
   /**
@@ -445,14 +444,6 @@ protected:
    */
   void SetZoomAndResolution(float aScale);
 
-  /**
-   * Timeout function for mozbrowserasyncscroll event. Because we throttle
-   * mozbrowserasyncscroll events in some conditions, this function ensures
-   * that the last mozbrowserasyncscroll event will be fired after a period of
-   * time.
-   */
-  void FireAsyncScrollOnTimeout();
-
 private:
   enum PanZoomState {
     NOTHING,        /* no touch-start events received */
@@ -546,27 +537,6 @@ private:
   // previous paints.
   TimeStamp mPreviousPaintStartTime;
 
-  // The last time and offset we fire the mozbrowserasyncscroll event when
-  // compositor has sampled the content transform for this frame.
-  TimeStamp mLastAsyncScrollTime;
-  gfx::Point mLastAsyncScrollOffset;
-
-  // The current offset drawn on the screen, it may not be sent since we have
-  // throttling policy for mozbrowserasyncscroll event.
-  gfx::Point mCurrentAsyncScrollOffset;
-
-  // The delay task triggered by the throttling mozbrowserasyncscroll event
-  // ensures the last mozbrowserasyncscroll event is always been fired.
-  CancelableTask* mAsyncScrollTimeoutTask;
-
-  // The time period in ms that throttles mozbrowserasyncscroll event.
-  // Default is 100ms if there is no "apzc.asyncscroll.throttle" in preference.
-  uint32_t mAsyncScrollThrottleTime;
-
-  // The timeout in ms for mAsyncScrollTimeoutTask delay task.
-  // Default is 300ms if there is no "apzc.asyncscroll.timeout" in preference.
-  uint32_t mAsyncScrollTimeout;
-
   int mDPI;
 
   // Stores the current paint status of the frame that we're managing. Repaints
@@ -584,6 +554,12 @@ private:
   // queued up event block. If set, this means that we are handling this queue
   // and we don't want to queue the events back up again.
   bool mHandlingTouchQueue;
+
+  // Flag used to determine whether or not we should try scrolling by
+  // BrowserElementScrolling first. If set, this means we should pend touch move
+  // event, which not be cosumed by GestureListener. This flag will be reset
+  // after touch move event has been handled by content process.
+  bool mDelayPanning;
 
   friend class Axis;
 };

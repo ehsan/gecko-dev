@@ -177,12 +177,10 @@ TiltVisualizer.prototype = {
     let target = TargetFactory.forTab(aTab);
     let toolbox = gDevTools.getToolbox(target);
     if (toolbox) {
-      let panel = toolbox.getPanel("inspector");
-      if (panel) {
-        this.inspector = panel;
-        this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
-        this.onNewNodeFromInspector();
-      }
+      this.inspector = toolbox.getPanel("inspector");
+      this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
+      this.inspector.selection.on("detached", this.onNewNodeFromInspector);
+      this.onNewNodeFromInspector();
     }
   },
 
@@ -195,6 +193,7 @@ TiltVisualizer.prototype = {
 
     if (this.inspector) {
       this.inspector.selection.off("new-node", this.onNewNodeFromInspector);
+      this.inspector.selection.off("detached", this.onNewNodeFromInspector);
       this.inspector = null;
     }
 
@@ -215,6 +214,7 @@ TiltVisualizer.prototype = {
     if (toolbox.target.tab === this._browserTab) {
       this.inspector = panel;
       this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
+      this.inspector.selection.on("detached", this.onNewNodeFromInspector);
       this.onNewNodeFromTilt();
     }
   },
@@ -228,6 +228,7 @@ TiltVisualizer.prototype = {
         this.inspector) {
       if (this.inspector.selection) {
         this.inspector.selection.off("new-node", this.onNewNodeFromInspector);
+        this.inspector.selection.off("detached", this.onNewNodeFromInspector);
       }
       this.inspector = null;
     }
