@@ -568,6 +568,7 @@ JSFunction::trace(JSTracer *trc)
             // - their compartment isn't currently executing scripts or being
             //   debugged
             // - they are not in the self-hosting compartment
+            // - their 'arguments' object can't escape
             // - they aren't generators
             // - they don't have JIT code attached
             // - they don't have child functions
@@ -1003,6 +1004,13 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
         // Push fval, obj, and aobj's elements as args.
         args2.setCallee(fval);
         args2.setThis(args[0]);
+
+        // Make sure the function is delazified before querying its arguments.
+        if (args2.callee().is<JSFunction>()) {
+            JSFunction *fun = &args2.callee().as<JSFunction>();
+            if (fun->isInterpreted() && !fun->getOrCreateScript(cx))
+                return false;
+        }
 
         // Steps 7-8.
         if (!GetElements(cx, aobj, length, args2.array()))

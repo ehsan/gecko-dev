@@ -69,7 +69,6 @@ var TPS = {
       }
     }
     catch(e) {}
-
     Weave.Service.identity.account       = prefs.getCharPref('tps.account.username');
     Weave.Service.Identity.basicPassword = prefs.getCharPref('tps.account.password');
     Weave.Service.identity.syncKey       = prefs.getCharPref('tps.account.passphrase');

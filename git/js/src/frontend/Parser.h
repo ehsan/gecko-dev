@@ -304,6 +304,9 @@ struct BindData;
 
 class CompExprTransplanter;
 
+template <typename ParseHandler>
+class GenexpGuard;
+
 enum LetContext { LetExpresion, LetStatement };
 enum VarContext { HoistVars, DontHoistVars };
 enum FunctionType { Getter, Setter, Normal };
@@ -523,8 +526,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node unaryExpr();
     Node memberExpr(TokenKind tt, bool allowCallSyntax);
     Node primaryExpr(TokenKind tt);
-    Node parenExprOrGeneratorComprehension();
-    Node exprInParens();
+    Node parenExpr(bool *genexp = nullptr);
 
     /*
      * Additional JS parsers.
@@ -541,23 +543,12 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node unaryOpExpr(ParseNodeKind kind, JSOp op, uint32_t begin);
 
     Node condition();
-
-    Node generatorComprehensionLambda(GeneratorKind comprehensionKind, unsigned begin,
-                                      Node innerStmt);
-
-    Node legacyComprehensionTail(Node kid, unsigned blockid, GeneratorKind comprehensionKind,
-                                 ParseContext<ParseHandler> *outerpc,
-                                 unsigned innerBlockScopeDepth);
-    Node legacyArrayComprehension(Node array);
-    Node legacyGeneratorExpr(Node kid);
-
-    Node comprehensionTail(GeneratorKind comprehensionKind);
-    Node comprehensionIf(GeneratorKind comprehensionKind);
-    Node comprehensionFor(GeneratorKind comprehensionKind);
-    Node comprehension(GeneratorKind comprehensionKind);
-    Node arrayComprehension(uint32_t begin);
-    Node generatorComprehension(uint32_t begin);
-
+    Node comprehensionTail(Node kid, unsigned blockid, bool isGenexp,
+                           ParseContext<ParseHandler> *outerpc,
+                           ParseNodeKind kind, JSOp op,
+                           unsigned innerBlockScopeDepth);
+    bool arrayInitializerComprehensionTail(Node pn);
+    Node generatorExpr(Node kid);
     bool argumentList(Node listNode, bool *isSpread);
     Node letBlock(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler> *data, TokenKind tt);
@@ -653,7 +644,8 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     uint32_t offsetOfCurrentAsmJSModule() const { return tokenStream.currentToken().pos.end; }
   private:
 
-    friend class LegacyCompExprTransplanter;
+    friend class CompExprTransplanter;
+    friend class GenexpGuard<ParseHandler>;
     friend struct BindData<ParseHandler>;
 };
 

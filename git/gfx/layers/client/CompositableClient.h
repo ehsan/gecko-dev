@@ -73,7 +73,7 @@ class CompositableClient : public AtomicRefCounted<CompositableClient>
 {
 public:
   MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableClient)
-  CompositableClient(CompositableForwarder* aForwarder, TextureFlags aFlags = 0);
+  CompositableClient(CompositableForwarder* aForwarder);
 
   virtual ~CompositableClient();
 
@@ -85,7 +85,7 @@ public:
   CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType,
                                 gfxContentType aContentType = gfxContentType::SENTINEL);
 
-  TemporaryRef<BufferTextureClient>
+  virtual TemporaryRef<BufferTextureClient>
   CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
                             TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT);
 
@@ -143,18 +143,9 @@ public:
    */
   virtual void OnDetach() {}
 
-  /**
-   * Clear any resources that are not immediately necessary. This may be called
-   * in low-memory conditions.
-   */
-  virtual void ClearCachedResources() {}
-
 protected:
   CompositableChild* mCompositableChild;
   CompositableForwarder* mForwarder;
-  // Some layers may want to enforce some flags to all their textures
-  // (like disallowing tiling)
-  TextureFlags mTextureFlags;
 
   friend class CompositableChild;
 };

@@ -32,7 +32,6 @@
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsCoord.h"                    // for NSAppUnitsToFloatPixels
 #include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsDeviceContext.h"            // for AppUnitsPerCSSPixel
 #include "nsISupportsImpl.h"            // for Layer::Release, etc
 #include "nsLayoutUtils.h"              // for nsLayoutUtils
 #include "nsMathUtils.h"                // for NS_round
@@ -173,12 +172,6 @@ LayerTransactionParent::Destroy()
       static_cast<ShadowLayerParent*>(ManagedPLayerParent()[i]);
     slp->Destroy();
   }
-}
-
-LayersBackend
-LayerTransactionParent::GetCompositorBackendType() const
-{
-  return mLayerManager->GetBackendType();
 }
 
 /* virtual */
@@ -569,40 +562,25 @@ LayerTransactionParent::RecvGetOpacity(PLayerParent* aParent,
 }
 
 bool
-LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
-                                                  MaybeTransform* aTransform)
+LayerTransactionParent::RecvGetTransform(PLayerParent* aParent,
+                                         gfx3DMatrix* aTransform)
 {
   if (mDestroyed || !layer_manager() || layer_manager()->IsDestroyed()) {
     return false;
   }
 
+  // The following code recovers the untranslated transform
+  // from the shadow transform by undoing the translations in
+  // AsyncCompositionManager::SampleValue.
   Layer* layer = cast(aParent)->AsLayer();
   if (!layer) {
     return false;
   }
-
-  // This method is specific to transforms applied by animation.
-  // This is because this method uses the information stored with an animation
-  // such as the origin of the reference frame corresponding to the layer, to
-  // recover the untranslated transform from the shadow transform. For
-  // transforms that are not set by animation we don't have this information
-  // available.
-  if (!layer->AsLayerComposite()->GetShadowTransformSetByAnimation()) {
-    *aTransform = mozilla::void_t();
-    return true;
-  }
-
-  // The following code recovers the untranslated transform
-  // from the shadow transform by undoing the translations in
-  // AsyncCompositionManager::SampleValue.
-
-  gfx3DMatrix transform;
-  gfx::To3DMatrix(layer->AsLayerComposite()->GetShadowTransform(), transform);
+  gfx::To3DMatrix(layer->AsLayerComposite()->GetShadowTransform(), *aTransform);
   if (ContainerLayer* c = layer->AsContainerLayer()) {
-    // Undo the scale transform applied by AsyncCompositionManager::SampleValue
-    transform.ScalePost(1.0f/c->GetInheritedXScale(),
-                        1.0f/c->GetInheritedYScale(),
-                        1.0f);
+    aTransform->ScalePost(1.0f/c->GetInheritedXScale(),
+                          1.0f/c->GetInheritedYScale(),
+                          1.0f);
   }
   float scale = 1;
   gfxPoint3D scaledOrigin;
@@ -615,32 +593,13 @@ LayerTransactionParent::RecvGetAnimationTransform(PLayerParent* aParent,
         gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(data.origin().x, scale)),
                    NS_round(NSAppUnitsToFloatPixels(data.origin().y, scale)),
                    0.0f);
-      double cssPerDev =
-        double(nsDeviceContext::AppUnitsPerCSSPixel()) / double(scale);
-      transformOrigin = data.transformOrigin() * cssPerDev;
+      transformOrigin = data.transformOrigin();
       break;
     }
   }
 
-  // Undo the translation to the origin of the reference frame applied by
-  // AsyncCompositionManager::SampleValue
-  transform.Translate(-scaledOrigin);
-
-  // Undo the rebasing applied by
-  // nsDisplayTransform::GetResultingTransformMatrixInternal
-  transform = nsLayoutUtils::ChangeMatrixBasis(-scaledOrigin - transformOrigin,
-                                               transform);
-
-  // Convert to CSS pixels (this undoes the operations performed by
-  // nsStyleTransformMatrix::ProcessTranslatePart which is called from
-  // nsDisplayTransform::GetResultingTransformMatrix)
-  double devPerCss =
-    double(scale) / double(nsDeviceContext::AppUnitsPerCSSPixel());
-  transform._41 *= devPerCss;
-  transform._42 *= devPerCss;
-  transform._43 *= devPerCss;
-
-  *aTransform = transform;
+  aTransform->Translate(-scaledOrigin);
+  *aTransform = nsLayoutUtils::ChangeMatrixBasis(-scaledOrigin - transformOrigin, *aTransform);
   return true;
 }
 

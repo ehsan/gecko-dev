@@ -110,7 +110,6 @@
     macro(keys, keys, "keys") \
     macro(lastIndex, lastIndex, "lastIndex") \
     macro(length, length, "length") \
-    macro(let, let, "let") \
     macro(line, line, "line") \
     macro(lineNumber, lineNumber, "lineNumber") \
     macro(loc, loc, "loc") \

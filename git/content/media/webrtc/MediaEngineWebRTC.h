@@ -28,8 +28,6 @@
 #include "MediaStreamGraph.h"
 #include "LoadMonitor.h"
 
-#include "MediaEngineWrapper.h"
-
 // WebRTC library includes follow
 
 // Audio Engine
@@ -310,10 +308,10 @@ private:
   void Shutdown();
 
   webrtc::VoiceEngine* mVoiceEngine;
-  ScopedCustomReleasePtr<webrtc::VoEBase> mVoEBase;
-  ScopedCustomReleasePtr<webrtc::VoEExternalMedia> mVoERender;
-  ScopedCustomReleasePtr<webrtc::VoENetwork> mVoENetwork;
-  ScopedCustomReleasePtr<webrtc::VoEAudioProcessing> mVoEProcessing;
+  webrtc::VoEBase* mVoEBase;
+  webrtc::VoEExternalMedia* mVoERender;
+  webrtc::VoENetwork*  mVoENetwork;
+  webrtc::VoEAudioProcessing *mVoEProcessing;
 
   // mMonitor protects mSources[] access/changes, and transitions of mState
   // from kStarted to kStopped (which are combined with EndTrack()).

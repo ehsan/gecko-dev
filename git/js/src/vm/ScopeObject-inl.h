@@ -37,14 +37,6 @@ CallObject::setAliasedVar(JSContext *cx, AliasedFormalIter fi, PropertyName *nam
         types::AddTypePropertyId(cx, this, NameToId(name), v);
 }
 
-inline void
-CallObject::setAliasedVarFromArguments(JSContext *cx, const Value &argsValue, jsid id, const Value &v)
-{
-    setSlot(argsValue.magicUint32(), v);
-    if (hasSingletonType())
-        types::AddTypePropertyId(cx, this, id, v);
-}
-
 template <AllowGC allowGC>
 inline bool
 StaticScopeIter<allowGC>::done() const

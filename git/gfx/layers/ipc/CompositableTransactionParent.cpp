@@ -29,7 +29,7 @@
 namespace mozilla {
 namespace layers {
 
-class ClientTiledLayerBuffer;
+class BasicTiledLayerBuffer;
 class Compositor;
 
 template<typename T>
@@ -224,9 +224,9 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       compositable->SetPictureRect(op.picture());
       break;
     }
-    case CompositableOperation::TOpUseTiledLayerBuffer: {
+    case CompositableOperation::TOpPaintTiledLayerBuffer: {
       MOZ_LAYERS_LOG(("[ParentSide] Paint TiledLayerBuffer"));
-      const OpUseTiledLayerBuffer& op = aEdit.get_OpUseTiledLayerBuffer();
+      const OpPaintTiledLayerBuffer& op = aEdit.get_OpPaintTiledLayerBuffer();
       CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
       CompositableHost* compositable =
         compositableParent->GetCompositableHost();
@@ -235,7 +235,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       NS_ASSERTION(tileComposer, "compositable is not a tile composer");
 
       const SurfaceDescriptorTiles& tileDesc = op.tileLayerDescriptor();
-      tileComposer->UseTiledLayerBuffer(this, tileDesc);
+      tileComposer->PaintedTiledLayerBuffer(this, tileDesc);
       break;
     }
     case CompositableOperation::TOpRemoveTexture: {
