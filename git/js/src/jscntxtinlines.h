@@ -340,13 +340,13 @@ inline Value *
 FrameRegsIter::contiguousDownFrameSP(JSStackFrame *up)
 {
     JS_ASSERT(up->argv);
-    Value *sp = up->argv + up->numActualArgs();
+    Value *sp = up->argv + up->argc;
 #ifdef DEBUG
     JS_ASSERT(sp <= up->argEnd());
     JS_ASSERT(sp >= (up->down->hasScript() ? up->down->base() : up->down->slots()));
     if (up->hasFunction()) {
         uint16 nargs = up->getFunction()->nargs;
-        uintN argc = up->numActualArgs();
+        uintN argc = up->argc;
         uintN missing = argc < nargs ? nargs - argc : 0;
         JS_ASSERT(sp == up->argEnd() - missing);
     } else {
