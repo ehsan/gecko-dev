@@ -468,9 +468,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
       // If we get here then the child process is either dead or in the process
       // of being killed. Abort the transaction now to prevent any changes to
       // the database.
-      ErrorResult rv;
-      transaction->Abort(rv);
-      if (rv.Failed()) {
+      if (NS_FAILED(transaction->Abort())) {
         NS_WARNING("Failed to abort transaction!");
       }
       return NS_ERROR_FAILURE;
@@ -719,8 +717,7 @@ IndexedDBTransactionParent::ActorDestroy(ActorDestroyReason aWhy)
     if (mArtificialRequestCount) {
       // The transaction never completed and now the child side is dead. Abort
       // here to be safe.
-      ErrorResult rv;
-      mTransaction->Abort(rv);
+      mTransaction->Abort();
 
       mTransaction->OnRequestFinished();
 #ifdef DEBUG
@@ -795,14 +792,10 @@ IndexedDBTransactionParent::RecvPIndexedDBObjectStoreConstructor(
     {
       AutoSetCurrentTransaction asct(mTransaction);
 
-      ErrorResult rv;
-      nsCOMPtr<nsIIDBObjectStore> store = mTransaction->ObjectStore(name, rv);
-      if (rv.Failed()) {
-        NS_WARNING("Failed to get object store!");
-        return false;
-      }
+      nsresult rv =
+        mTransaction->ObjectStoreInternal(name, getter_AddRefs(objectStore));
+      NS_ENSURE_SUCCESS(rv, false);
 
-      objectStore = static_cast<IDBObjectStore*>(store.get());
       actor->SetObjectStore(objectStore);
     }
 

@@ -1372,15 +1372,19 @@ nsNSSCertificate::GetASN1Structure(nsIASN1Object * *aASN1Structure)
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   NS_ENSURE_ARG_POINTER(aASN1Structure);
-  // First create the recursive structure os ASN1Objects
-  // which tells us the layout of the cert.
-  rv = CreateASN1Struct(aASN1Structure);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (!mASN1Structure) {
+    // First create the recursive structure os ASN1Objects
+    // which tells us the layout of the cert.
+    rv = CreateASN1Struct();
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 #ifdef DEBUG_javi
-  DumpASN1Object(*aASN1Structure, 0);
+    DumpASN1Object(mASN1Structure, 0);
 #endif
+  }
+  *aASN1Structure = mASN1Structure;
+  NS_IF_ADDREF(*aASN1Structure);
   return rv;
 }
 

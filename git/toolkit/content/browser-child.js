@@ -25,9 +25,7 @@ let WebProgressListener = {
   _setupJSON: function setupJSON(aWebProgress, aRequest) {
     return {
       isTopLevel: aWebProgress.isTopLevel,
-      isLoadingDocument: aWebProgress.isLoadingDocument,
-      requestURI: this._requestSpec(aRequest),
-      loadType: aWebProgress.loadType
+      requestURI: this._requestSpec(aRequest)
     };
   },
 
@@ -197,13 +195,3 @@ addEventListener("DOMTitleChanged", function (aEvent) {
     break;
   }
 }, false);
-
-addEventListener("ImageContentLoaded", function (aEvent) {
-  if (content.document instanceof Ci.nsIImageDocument) {
-    let req = content.document.imageRequest;
-    if (!req.image)
-      return;
-    sendAsyncMessage("ImageDocumentLoaded", { width: req.image.width,
-                                              height: req.image.height });
-  }
-}, false)

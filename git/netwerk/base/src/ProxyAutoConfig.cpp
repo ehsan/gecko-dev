@@ -13,7 +13,6 @@
 #include "nsThreadUtils.h"
 #include "nsIConsoleService.h"
 #include "nsJSUtils.h"
-#include "jsfriendapi.h"
 #include "prnetdb.h"
 #include "nsITimer.h"
 #include "mozilla/net/DNS.h"
@@ -544,7 +543,7 @@ private:
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
 
     JSAutoCompartment ac(mContext, mGlobal);
-    js::SetDefaultObjectForContext(mContext, mGlobal);
+    JS_SetGlobalObject(mContext, mGlobal);
     JS_InitStandardClasses(mContext, mGlobal);
 
     JS_SetErrorReporter(mContext, PACErrorReporter);

@@ -6,10 +6,10 @@
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-let SyncFlyoutPanel = {
+let SyncFlyout = {
   init: function() {
     if (this._isInitialized) {
-      Cu.reportError("Attempted to initialize SyncFlyoutPanel more than once");
+      Cu.reportError("Attempted to initialize SyncFlyout more than once");
       return;
     }
 

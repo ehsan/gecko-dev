@@ -164,12 +164,6 @@ CompositorParent::CompositorThreadID()
   return sCompositorThread ? sCompositorThread->thread_id() : sCompositorThreadID;
 }
 
-bool
-CompositorParent::IsInCompositorThread()
-{
-  return CompositorThreadID() == PlatformThread::CurrentId();
-}
-
 CompositorParent::~CompositorParent()
 {
   MOZ_COUNT_DTOR(CompositorParent);

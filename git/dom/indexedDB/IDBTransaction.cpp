@@ -39,7 +39,6 @@
 using namespace mozilla::dom;
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::quota::QuotaManager;
-using mozilla::ErrorResult;
 
 namespace {
 
@@ -179,8 +178,6 @@ IDBTransaction::IDBTransaction()
 #endif
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  SetIsDOMBinding();
 }
 
 IDBTransaction::~IDBTransaction()
@@ -619,7 +616,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction, IDBWrapperCache)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBTransaction)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBTransaction)
   NS_INTERFACE_MAP_ENTRY(nsIRunnable)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBTransaction)
 NS_INTERFACE_MAP_END_INHERITING(IDBWrapperCache)
 
 NS_IMPL_ADDREF_INHERITED(IDBTransaction, IDBWrapperCache)
@@ -627,49 +626,59 @@ NS_IMPL_RELEASE_INHERITED(IDBTransaction, IDBWrapperCache)
 
 DOMCI_DATA(IDBTransaction, IDBTransaction)
 
-JSObject*
-IDBTransaction::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+NS_IMPL_EVENT_HANDLER(IDBTransaction, error)
+NS_IMPL_EVENT_HANDLER(IDBTransaction, complete)
+NS_IMPL_EVENT_HANDLER(IDBTransaction, abort)
+
+NS_IMETHODIMP
+IDBTransaction::GetDb(nsIIDBDatabase** aDB)
 {
-  return IDBTransactionBinding::Wrap(aCx, aScope, this);
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  NS_ADDREF(*aDB = mDatabase);
+  return NS_OK;
 }
 
-mozilla::dom::IDBTransactionMode
-IDBTransaction::GetMode(ErrorResult& aRv) const
+NS_IMETHODIMP
+IDBTransaction::GetMode(nsAString& aMode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   switch (mMode) {
     case READ_ONLY:
-      return mozilla::dom::IDBTransactionMode::Readonly;
-
+      aMode.AssignLiteral("readonly");
+      break;
     case READ_WRITE:
-      return mozilla::dom::IDBTransactionMode::Readwrite;
-
+      aMode.AssignLiteral("readwrite");
+      break;
     case VERSION_CHANGE:
-      return mozilla::dom::IDBTransactionMode::Versionchange;
+      aMode.AssignLiteral("versionchange");
+      break;
 
     case MODE_INVALID:
     default:
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return mozilla::dom::IDBTransactionMode::Readonly;
+      NS_NOTREACHED("Bad mode value!");
+      return NS_ERROR_UNEXPECTED;
   }
+
+  return NS_OK;
 }
 
-DOMError*
-IDBTransaction::GetError(ErrorResult& aRv)
+NS_IMETHODIMP
+IDBTransaction::GetError(nsISupports** aError)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (IsOpen()) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  return mError;
+  NS_IF_ADDREF(*aError = mError);
+  return NS_OK;
 }
 
-already_AddRefed<nsIDOMDOMStringList>
-IDBTransaction::GetObjectStoreNames(ErrorResult& aRv)
+NS_IMETHODIMP
+IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -689,24 +698,38 @@ IDBTransaction::GetObjectStoreNames(ErrorResult& aRv)
 
   uint32_t count = arrayOfNames->Length();
   for (uint32_t index = 0; index < count; index++) {
-    if (!list->Add(arrayOfNames->ElementAt(index))) {
-      NS_WARNING("Failed to add element!");
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      return nullptr;
-    }
+    NS_ENSURE_TRUE(list->Add(arrayOfNames->ElementAt(index)),
+                   NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
-  return list.forget();
+  list.forget(aObjectStores);
+  return NS_OK;
 }
 
-already_AddRefed<nsIIDBObjectStore>
-IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBTransaction::ObjectStore(const nsAString& aName,
+                            nsIIDBObjectStore** _retval)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsRefPtr<IDBObjectStore> objectStore;
+  nsresult rv = ObjectStoreInternal(aName, getter_AddRefs(objectStore));
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  objectStore.forget(_retval);
+  return NS_OK;
+}
+
+nsresult
+IDBTransaction::ObjectStoreInternal(const nsAString& aName,
+                                    IDBObjectStore** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (IsFinished()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   ObjectStoreInfo* info = nullptr;
@@ -717,19 +740,23 @@ IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
   }
 
   if (!info) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
   }
 
   nsRefPtr<IDBObjectStore> objectStore =
     GetOrCreateObjectStore(aName, info, false);
-  if (!objectStore) {
-    NS_WARNING("Failed to get or create object store!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(objectStore, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  return objectStore.forget();
+  objectStore.forget(_retval);
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+IDBTransaction::Abort()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  return AbortInternal(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR, nullptr);
 }
 
 nsresult

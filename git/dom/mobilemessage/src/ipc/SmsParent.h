@@ -37,12 +37,6 @@ protected:
   virtual bool
   RecvGetSegmentInfoForText(const nsString& aText, SmsSegmentInfoData* aResult) MOZ_OVERRIDE;
 
-  virtual bool
-  RecvAddSilentNumber(const nsString& aNumber) MOZ_OVERRIDE;
-
-  virtual bool
-  RecvRemoveSilentNumber(const nsString& aNumber) MOZ_OVERRIDE;
-
   SmsParent();
   virtual ~SmsParent()
   {
@@ -74,9 +68,6 @@ protected:
 
   bool
   GetMobileMessageDataFromMessage(nsISupports* aMsg, MobileMessageData& aData);
-
-private:
-  nsTArray<nsString> mSilentNumbers;
 };
 
 class SmsRequestParent : public PSmsRequestParent

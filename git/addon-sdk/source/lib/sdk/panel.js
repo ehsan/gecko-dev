@@ -71,6 +71,7 @@ function modelFor(panel) models.get(panel)
 function panelFor(view) panels.get(view)
 function workerFor(panel) workers.get(panel)
 
+getActiveView.define(Panel, viewFor);
 
 // Utility function takes `panel` instance and makes sure it will be
 // automatically hidden as soon as other panel is shown.
@@ -231,9 +232,6 @@ const Panel = Class({
   }
 });
 exports.Panel = Panel;
-
-// Note must be defined only after value to `Panel` is assigned.
-getActiveView.define(Panel, viewFor);
 
 // Filter panel events to only panels that are create by this module.
 let panelEvents = filter(events, function({target}) panelFor(target));

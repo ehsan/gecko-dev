@@ -127,9 +127,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNewDenseArrayPar(LNewDenseArrayPar *lir);
     bool visitAbortPar(LAbortPar *lir);
     bool visitInitElem(LInitElem *lir);
-    bool visitInitElemGetterSetter(LInitElemGetterSetter *lir);
     bool visitInitProp(LInitProp *lir);
-    bool visitInitPropGetterSetter(LInitPropGetterSetter *lir);
     bool visitCreateThis(LCreateThis *lir);
     bool visitCreateThisWithProto(LCreateThisWithProto *lir);
     bool visitCreateThisWithTemplate(LCreateThisWithTemplate *lir);

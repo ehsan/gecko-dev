@@ -6,8 +6,7 @@
 #ifndef MOZILLA_GFX_BASICCOMPOSITOR_H
 #define MOZILLA_GFX_BASICCOMPOSITOR_H
 
-#include "mozilla/layers/Compositor.h"
-#include "mozilla/layers/TextureHost.h"
+#include "Compositor.h"
 
 namespace mozilla {
 namespace layers {
@@ -33,13 +32,9 @@ public:
 
   virtual ~BasicCompositor();
 
-
   virtual bool Initialize() MOZ_OVERRIDE { return true; };
 
   virtual void Destroy() MOZ_OVERRIDE;
-
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE { return nullptr; }
 
   virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {

@@ -8,6 +8,7 @@
 
 interface nsIIDBObjectStore;
 interface nsIIDBRequest;
+interface nsIIDBTransaction;
 interface nsIDOMDOMStringList;
 interface nsIDOMEventListener;
 
@@ -36,7 +37,7 @@ interface nsIIDBDatabase : nsISupports
 
   // mode can be either "readonly" or "readwrite"
   [optional_argc, implicit_jscontext]
-  nsISupports
+  nsIIDBTransaction
   transaction(in jsval storeNames, // js array of strings
               [optional /* "readonly" */] in DOMString mode);
 

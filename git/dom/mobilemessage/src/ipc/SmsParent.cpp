@@ -56,7 +56,7 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
 
   nsCOMPtr<nsIDOMBlob> blob = static_cast<BlobParent*>(aAttachment.contentParent())->GetBlob();
   JS::Rooted<JS::Value> content(aContext);
-  JS::Rooted<JSObject*> global(aContext, JS::CurrentGlobalOrNull(aContext));
+  JS::Rooted<JSObject*> global(aContext, JS_GetGlobalForScopeChain(aContext));
   nsresult rv = nsContentUtils::WrapNative(aContext,
                                            global,
                                            blob,
@@ -151,7 +151,6 @@ SmsParent::SmsParent()
   obs->AddObserver(this, kSmsFailedObserverTopic, false);
   obs->AddObserver(this, kSmsDeliverySuccessObserverTopic, false);
   obs->AddObserver(this, kSmsDeliveryErrorObserverTopic, false);
-  obs->AddObserver(this, kSilentSmsReceivedObserverTopic, false);
 }
 
 void
@@ -169,7 +168,6 @@ SmsParent::ActorDestroy(ActorDestroyReason why)
   obs->RemoveObserver(this, kSmsFailedObserverTopic);
   obs->RemoveObserver(this, kSmsDeliverySuccessObserverTopic);
   obs->RemoveObserver(this, kSmsDeliveryErrorObserverTopic);
-  obs->RemoveObserver(this, kSilentSmsReceivedObserverTopic);
 }
 
 NS_IMETHODIMP
@@ -253,24 +251,6 @@ SmsParent::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-  if (!strcmp(aTopic, kSilentSmsReceivedObserverTopic)) {
-    nsCOMPtr<nsIDOMMozSmsMessage> smsMsg = do_QueryInterface(aSubject);
-    if (!smsMsg) {
-      return NS_OK;
-    }
-
-    nsString sender;
-    if (NS_FAILED(smsMsg->GetSender(sender)) ||
-        !mSilentNumbers.Contains(sender)) {
-      return NS_OK;
-    }
-
-    MobileMessageData msgData =
-      static_cast<SmsMessage*>(smsMsg.get())->GetData();
-    unused << SendNotifyReceivedSilentMessage(msgData);
-    return NS_OK;
-  }
-
   return NS_OK;
 }
 
@@ -337,42 +317,6 @@ SmsParent::RecvGetSegmentInfoForText(const nsString& aText,
   aResult->segments() = segments;
   aResult->charsPerSegment() = charsPerSegment;
   aResult->charsAvailableInLastSegment() = charsAvailableInLastSegment;
-  return true;
-}
-
-bool
-SmsParent::RecvAddSilentNumber(const nsString& aNumber)
-{
-  if (mSilentNumbers.Contains(aNumber)) {
-    return true;
-  }
-
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsService, true);
-
-  nsresult rv = smsService->AddSilentNumber(aNumber);
-  if (NS_SUCCEEDED(rv)) {
-    mSilentNumbers.AppendElement(aNumber);
-  }
-
-  return true;
-}
-
-bool
-SmsParent::RecvRemoveSilentNumber(const nsString& aNumber)
-{
-  if (!mSilentNumbers.Contains(aNumber)) {
-    return true;
-  }
-
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsService, true);
-
-  nsresult rv = smsService->RemoveSilentNumber(aNumber);
-  if (NS_SUCCEEDED(rv)) {
-    mSilentNumbers.RemoveElement(aNumber);
-  }
-
   return true;
 }
 
@@ -478,7 +422,7 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
       NS_ENSURE_TRUE(smsService, true);
 
       const SendSmsMessageRequest &data = aRequest.get_SendSmsMessageRequest();
-      smsService->Send(data.number(), data.message(), data.silent(), this);
+      smsService->Send(data.number(), data.message(), this);
     }
     break;
   case SendMessageRequest::TSendMmsMessageRequest: {

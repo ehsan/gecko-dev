@@ -651,31 +651,6 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
     return true;
 }
 
-class ReturnZero : public OutOfLineCodeBase<CodeGeneratorX86Shared>
-{
-    Register reg_;
-
-  public:
-    explicit ReturnZero(Register reg)
-      : reg_(reg)
-    { }
-
-    virtual bool accept(CodeGeneratorX86Shared *codegen) {
-        return codegen->visitReturnZero(this);
-    }
-    Register reg() const {
-        return reg_;
-    }
-};
-
-bool
-CodeGeneratorX86Shared::visitReturnZero(ReturnZero *ool)
-{
-    masm.xorl(ool->reg(), ool->reg());
-    masm.jmp(ool->rejoin());
-    return true;
-}
-
 bool
 CodeGeneratorX86Shared::visitUDivOrMod(LUDivOrMod *ins)
 {
@@ -685,17 +660,19 @@ CodeGeneratorX86Shared::visitUDivOrMod(LUDivOrMod *ins)
 
     JS_ASSERT_IF(output == eax, ToRegister(ins->remainder()) == edx);
 
-    masm.testl(rhs, rhs);
+    Label afterDiv;
 
-    ReturnZero *ool = new ReturnZero(output);
-    masm.j(Assembler::Zero, ool->entry());
-    if (!addOutOfLineCode(ool))
-        return false;
+    masm.testl(rhs, rhs);
+    Label notzero;
+    masm.j(Assembler::NonZero, &notzero);
+    masm.xorl(output, output);
+    masm.jmp(&afterDiv);
+    masm.bind(&notzero);
 
     masm.xorl(edx, edx);
     masm.udiv(rhs);
 
-    masm.bind(ool->rejoin());
+    masm.bind(&afterDiv);
 
     return true;
 }
@@ -773,16 +750,17 @@ CodeGeneratorX86Shared::visitDivI(LDivI *ins)
     JS_ASSERT(output == eax);
 
     Label done;
-    ReturnZero *ool = NULL;
 
     // Handle divide by zero.
     if (mir->canBeDivideByZero()) {
         masm.testl(rhs, rhs);
         if (mir->isTruncated()) {
             // Truncated division by zero is zero (Infinity|0 == 0)
-            if (!ool)
-                ool = new ReturnZero(output);
-            masm.j(Assembler::Zero, ool->entry());
+            Label notzero;
+            masm.j(Assembler::NonZero, &notzero);
+            masm.xorl(output, output);
+            masm.jmp(&done);
+            masm.bind(&notzero);
         } else {
             JS_ASSERT(mir->fallible());
             if (!bailoutIf(Assembler::Zero, ins->snapshot()))
@@ -832,12 +810,6 @@ CodeGeneratorX86Shared::visitDivI(LDivI *ins)
 
     masm.bind(&done);
 
-    if (ool) {
-        if (!addOutOfLineCode(ool))
-            return false;
-        masm.bind(ool->rejoin());
-    }
-
     return true;
 }
 
@@ -871,47 +843,6 @@ CodeGeneratorX86Shared::visitModPowTwoI(LModPowTwoI *ins)
 
 }
 
-class ModOverflowCheck : public OutOfLineCodeBase<CodeGeneratorX86Shared>
-{
-    Label done_;
-    LModI *ins_;
-    Register rhs_;
-
-  public:
-    explicit ModOverflowCheck(LModI *ins, Register rhs)
-      : ins_(ins), rhs_(rhs)
-    { }
-
-    virtual bool accept(CodeGeneratorX86Shared *codegen) {
-        return codegen->visitModOverflowCheck(this);
-    }
-    Label *done() {
-        return &done_;
-    }
-    LModI *ins() const {
-        return ins_;
-    }
-    Register rhs() const {
-        return rhs_;
-    }
-};
-
-bool
-CodeGeneratorX86Shared::visitModOverflowCheck(ModOverflowCheck *ool)
-{
-    masm.cmpl(ool->rhs(), Imm32(-1));
-    if (ool->ins()->mir()->isTruncated()) {
-        masm.j(Assembler::NotEqual, ool->rejoin());
-        masm.xorl(edx, edx);
-        masm.jmp(ool->done());
-    } else {
-        if (!bailoutIf(Assembler::Equal, ool->ins()->snapshot()))
-            return false;
-       masm.jmp(ool->rejoin());
-    }
-    return true;
-}
-
 bool
 CodeGeneratorX86Shared::visitModI(LModI *ins)
 {
@@ -930,16 +861,16 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
     }
 
     Label done;
-    ReturnZero *ool = NULL;
-    ModOverflowCheck *overflow = NULL;
 
     // Prevent divide by zero.
     if (ins->mir()->canBeDivideByZero()) {
         masm.testl(rhs, rhs);
         if (ins->mir()->isTruncated()) {
-            if (!ool)
-                ool = new ReturnZero(edx);
-            masm.j(Assembler::Zero, ool->entry());
+            Label notzero;
+            masm.j(Assembler::NonZero, &notzero);
+            masm.xorl(edx, edx);
+            masm.jmp(&done);
+            masm.bind(&notzero);
         } else {
             if (!bailoutIf(Assembler::Zero, ins->snapshot()))
                 return false;
@@ -989,9 +920,18 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
         // Prevent an integer overflow exception from -2147483648 % -1
         Label notmin;
         masm.cmpl(lhs, Imm32(INT32_MIN));
-        overflow = new ModOverflowCheck(ins, rhs);
-        masm.j(Assembler::Equal, overflow->entry());
-        masm.bind(overflow->rejoin());
+        masm.j(Assembler::NotEqual, &notmin);
+        masm.cmpl(rhs, Imm32(-1));
+        if (ins->mir()->isTruncated()) {
+            masm.j(Assembler::NotEqual, &notmin);
+            masm.xorl(edx, edx);
+            masm.jmp(&done);
+        } else {
+            if (!bailoutIf(Assembler::Equal, ins->snapshot()))
+                return false;
+        }
+        masm.bind(&notmin);
+
         masm.cdq();
         masm.idiv(rhs);
 
@@ -1004,19 +944,6 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
     }
 
     masm.bind(&done);
-
-    if (overflow) {
-        if (!addOutOfLineCode(overflow))
-            return false;
-        masm.bind(overflow->done());
-    }
-
-    if (ool) {
-        if (!addOutOfLineCode(ool))
-            return false;
-        masm.bind(ool->rejoin());
-    }
-
     return true;
 }
 

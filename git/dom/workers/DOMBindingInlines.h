@@ -70,7 +70,7 @@ Wrap(JSContext* aCx, JSObject* aGlobal, nsRefPtr<T>& aConcreteObject)
   MOZ_ASSERT(aCx);
 
   if (!aGlobal) {
-    aGlobal = JS::CurrentGlobalOrNull(aCx);
+    aGlobal = JS_GetGlobalForScopeChain(aCx);
     if (!aGlobal) {
       return NULL;
     }

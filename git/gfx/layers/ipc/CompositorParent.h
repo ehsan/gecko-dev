@@ -175,10 +175,6 @@ public:
    */
   static void SetTimeAndSampleAnimations(TimeStamp aTime, bool aIsTesting);
 
-  /**
-   * Returns true if the calling thrad is the compositor thread.
-   */
-  static bool IsInCompositorThread();
 protected:
   virtual PLayerTransactionParent*
     AllocPLayerTransactionParent(const LayersBackend& aBackendHint,
@@ -197,7 +193,7 @@ private:
   void ResumeCompositionAndResize(int width, int height);
   void ForceComposition();
 
-  inline static PlatformThreadId CompositorThreadID();
+  inline PlatformThreadId CompositorThreadID();
 
   /**
    * Creates a global map referencing each compositor by ID.

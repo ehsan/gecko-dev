@@ -10,7 +10,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.content.res.Resources;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -45,7 +44,6 @@ public class SiteIdentityPopup extends ArrowPopup
 
     private Resources mResources;
 
-    private LinearLayout mIdentity;
     private TextView mHost;
     private TextView mOwner;
     private TextView mVerifier;
@@ -83,12 +81,12 @@ public class SiteIdentityPopup extends ArrowPopup
         setFocusable(true);
 
         LayoutInflater inflater = LayoutInflater.from(mActivity);
-        mIdentity = (LinearLayout) inflater.inflate(R.layout.site_identity, null);
-        mContent.addView(mIdentity);
+        LinearLayout layout = (LinearLayout) inflater.inflate(R.layout.site_identity, null);
+        mContent.addView(layout);
 
-        mHost = (TextView) mIdentity.findViewById(R.id.host);
-        mOwner = (TextView) mIdentity.findViewById(R.id.owner);
-        mVerifier = (TextView) mIdentity.findViewById(R.id.verifier);
+        mHost = (TextView) layout.findViewById(R.id.host);
+        mOwner = (TextView) layout.findViewById(R.id.owner);
+        mVerifier = (TextView) layout.findViewById(R.id.verifier);
     }
 
     private void setIdentity(JSONObject identityData) {
@@ -98,26 +96,18 @@ public class SiteIdentityPopup extends ArrowPopup
 
             String owner = identityData.getString("owner");
 
-            // Supplemental data is optional.
-            String supplemental = identityData.optString("supplemental");
-            if (!TextUtils.isEmpty(supplemental)) {
+            try {
+                String supplemental = identityData.getString("supplemental");
                 owner += "\n" + supplemental;
-            }
+            } catch (JSONException e) { }
+
             mOwner.setText(owner);
 
             String verifier = identityData.getString("verifier");
             String encrypted = identityData.getString("encrypted");
             mVerifier.setText(verifier + "\n" + encrypted);
-
-            mContent.setPadding(0, 0, 0, 0);
-            mIdentity.setVisibility(View.VISIBLE);
-
         } catch (JSONException e) {
-            // Hide the identity data if there isn't valid site identity data.
-            // Set some top padding on the popup content to create a of light blue
-            // between the popup arrow and the mixed content notification.
-            mContent.setPadding(0, (int) mResources.getDimension(R.dimen.identity_padding_top), 0, 0);
-            mIdentity.setVisibility(View.GONE);
+            Log.e(LOGTAG, "Exception trying to get identity data", e);
         }
     }
 

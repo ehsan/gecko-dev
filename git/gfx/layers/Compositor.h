@@ -10,8 +10,9 @@
 #include "mozilla/gfx/Matrix.h"
 #include "gfxMatrix.h"
 #include "Layers.h"
+#include "mozilla/layers/TextureHost.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/layers/CompositorTypes.h"
+
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -112,9 +113,6 @@ struct Effect;
 struct EffectChain;
 class Image;
 class ISurfaceAllocator;
-class NewTextureSource;
-class DataTextureSource;
-class CompositingRenderTarget;
 
 enum SurfaceInitMode
 {
@@ -181,18 +179,8 @@ public:
     MOZ_COUNT_DTOR(Compositor);
   }
 
-  virtual TemporaryRef<DataTextureSource> CreateDataTextureSource(TextureFlags aFlags = 0) = 0;
   virtual bool Initialize() = 0;
   virtual void Destroy() = 0;
-
-  /**
-   * Return true if the effect type is supported.
-   *
-   * By default Compositor implementations should support all effects but in
-   * some rare cases it is not possible to support an effect efficiently.
-   * This is the case for BasicCompositor with EffectYCbCr.
-   */
-  virtual bool SupportsEffect(EffectTypes aEffect) { return true; }
 
   /**
    * Request a texture host identifier that may be used for creating textures

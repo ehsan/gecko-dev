@@ -11,12 +11,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-function newURI(spec)
-{
-    return Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService)
-                                                    .newURI(spec, null, null);
-}
-
 function RemoteWebProgressRequest(spec)
 {
   this.uri = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService)
@@ -32,10 +26,9 @@ RemoteWebProgressRequest.prototype = {
 function RemoteWebProgress(browser)
 {
   this._browser = browser;
-  this._isLoadingDocument = false;
+  this._isDocumentLoading = false;
   this._DOMWindow = null;
   this._isTopLevel = null;
-  this._loadType = 0;
   this._progressListeners = [];
 }
 
@@ -63,7 +56,7 @@ RemoteWebProgress.prototype = {
     this._browser = null;
   },
 
-  get isLoadingDocument() { return this._isLoadingDocument },
+  get isLoadingDocument() { return this._isDocumentLoading },
   get DOMWindow() { return this._DOMWindow; },
   get DOMWindowID() { return 0; },
   get isTopLevel() {
@@ -75,7 +68,6 @@ RemoteWebProgress.prototype = {
     // may not be a toplevel frame.
     return this._isTopLevel === null ? true : this._isTopLevel;
   },
-  get loadType() { return this._loadType; },
 
   addProgressListener: function WP_AddProgressListener (aListener) {
     let listener = aListener.QueryInterface(Ci.nsIWebProgressListener);
@@ -94,11 +86,8 @@ RemoteWebProgress.prototype = {
   },
 
   receiveMessage: function WP_ReceiveMessage(aMessage) {
-    this._isLoadingDocument = aMessage.json.isLoadingDocument;
     this._DOMWindow = aMessage.objects.DOMWindow;
     this._isTopLevel = aMessage.json.isTopLevel;
-    this._loadType = aMessage.json.loadType;
-
     this._browser._contentWindow = aMessage.objects.contentWindow;
 
     let req = this._uriSpec(aMessage.json.requestURI);
@@ -110,14 +99,13 @@ RemoteWebProgress.prototype = {
       break;
 
     case "Content:LocationChange":
-      let loc = newURI(aMessage.json.location);
-
+      let loc = Cc["@mozilla.org/network/io-service;1"]
+                .getService(Ci.nsIIOService)
+                .newURI(aMessage.json.location, null, null);
       this._browser.webNavigation._currentURI = loc;
       this._browser.webNavigation.canGoBack = aMessage.json.canGoBack;
       this._browser.webNavigation.canGoForward = aMessage.json.canGoForward;
       this._browser._characterSet = aMessage.json.charset;
-      this._browser._documentURI = newURI(aMessage.json.documentURI);
-      this._browser._imageDocument = null;
 
       for each (let p in this._progressListeners) {
         p.onLocationChange(this, req, loc);

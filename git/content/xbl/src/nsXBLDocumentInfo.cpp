@@ -16,7 +16,6 @@
 #include "nsIScriptRuntime.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsIURI.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
@@ -298,7 +297,7 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   nsIURI *ownerURI = mGlobalObjectOwner->DocumentURI();
   xpc::SetLocationForGlobal(mJSObject, ownerURI);
 
-  js::SetDefaultObjectForContext(cx, mJSObject);
+  ::JS_SetGlobalObject(cx, mJSObject);
 
   // Add an owning reference from JS back to us. This'll be
   // released when the JSObject is finalized.

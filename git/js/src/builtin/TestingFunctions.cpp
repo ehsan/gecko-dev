@@ -800,7 +800,7 @@ static JSClass FinalizeCounterClass = {
 static JSBool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+    RootedObject scope(cx, JS_GetGlobalForScopeChain(cx));
     if (!scope)
         return false;
 

@@ -2286,7 +2286,7 @@ template<class T>
 class GetCCParticipant<T, true>
 {
 public:
-  static MOZ_CONSTEXPR nsCycleCollectionParticipant*
+  static nsCycleCollectionParticipant*
   Get()
   {
     return nullptr;

@@ -3,13 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// Opening new windows in Fennec causes issues
-module.metadata = {
-  engines: {
-    'Firefox': '*'
-  }
-};
-
 const { WindowLoader } = require('sdk/windows/loader'),
       { Trait } = require('sdk/deprecated/traits');
 
@@ -124,3 +117,14 @@ exports['test create loader from opened window'] = function(test) {
     }
   });
 };
+
+if (require("sdk/system/xul-app").is("Fennec")) {
+
+  module.exports = {
+    "test Unsupported Test": function UnsupportedTest (test) {
+        test.pass(
+          "Skipping this test until Fennec support is implemented." +
+          "See bug 809409");
+    }
+  }
+}

@@ -73,11 +73,13 @@ private:
   void HandleShutdown();
 
   void NotifyStatusChanged();
+  void NotifyAudioManager();
+
+  nsString mDeviceAddress;
 
   // A2DP data member
   bool mA2dpConnected;
   bool mPlaying;
-  nsString mDeviceAddress;
   SinkState mSinkState;
 
   // AVRCP data member

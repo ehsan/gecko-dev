@@ -40,9 +40,7 @@ SmsService::GetSegmentInfoForText(const nsAString & aText,
 }
 
 NS_IMETHODIMP
-SmsService::Send(const nsAString& aNumber,
-                 const nsAString& aMessage,
-                 const bool       aSilent,
+SmsService::Send(const nsAString& aNumber, const nsAString& aMessage,
                  nsIMobileMessageCallback* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
@@ -51,28 +49,6 @@ SmsService::Send(const nsAString& aNumber,
 
   AndroidBridge::Bridge()->SendMessage(aNumber, aMessage, aRequest);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsService::IsSilentNumber(const nsAString& aNumber,
-                           bool*            aIsSilent)
-{
-  NS_NOTYETIMPLEMENTED("Implement me!");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-SmsService::AddSilentNumber(const nsAString& aNumber)
-{
-  NS_NOTYETIMPLEMENTED("Implement me!");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-SmsService::RemoveSilentNumber(const nsAString& aNumber)
-{
-  NS_NOTYETIMPLEMENTED("Implement me!");
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 } // namespace mobilemessage

@@ -363,7 +363,6 @@ template <> struct OutParamToDataType<Value *> { static const DataType result = 
 template <> struct OutParamToDataType<int *> { static const DataType result = Type_Int32; };
 template <> struct OutParamToDataType<uint32_t *> { static const DataType result = Type_Int32; };
 template <> struct OutParamToDataType<uint8_t **> { static const DataType result = Type_Pointer; };
-template <> struct OutParamToDataType<bool *> { static const DataType result = Type_Bool; };
 template <> struct OutParamToDataType<MutableHandleValue> { static const DataType result = Type_Handle; };
 template <> struct OutParamToDataType<MutableHandleObject> { static const DataType result = Type_Handle; };
 template <> struct OutParamToDataType<MutableHandleString> { static const DataType result = Type_Handle; };
@@ -579,20 +578,22 @@ bool SetConst(JSContext *cx, HandlePropertyName name, HandleObject scopeChain, H
 bool InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value);
 
 template<bool Equal>
-bool LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
+bool LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
 
 template<bool Equal>
-bool StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
+bool StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
 
-bool LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
-bool LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
-bool GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
-bool GreaterThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, bool *res);
+bool LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+bool LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+bool GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+bool GreaterThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
 
 template<bool Equal>
-bool StringsEqual(JSContext *cx, HandleString left, HandleString right, bool *res);
+bool StringsEqual(JSContext *cx, HandleString left, HandleString right, JSBool *res);
 
-bool IteratorMore(JSContext *cx, HandleObject obj, bool *res);
+JSBool ObjectEmulatesUndefined(JSObject *obj);
+
+bool IteratorMore(JSContext *cx, HandleObject obj, JSBool *res);
 
 // Allocation functions for JSOP_NEWARRAY and JSOP_NEWOBJECT and parallel array inlining
 JSObject *NewInitParallelArray(JSContext *cx, HandleObject templateObj);
@@ -621,8 +622,8 @@ JSObject *NewStringObject(JSContext *cx, HandleString str);
 bool SPSEnter(JSContext *cx, HandleScript script);
 bool SPSExit(JSContext *cx, HandleScript script);
 
-bool OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, bool *out);
-bool OperatorInI(JSContext *cx, uint32_t index, HandleObject obj, bool *out);
+bool OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out);
+bool OperatorInI(JSContext *cx, uint32_t index, HandleObject obj, JSBool *out);
 
 bool GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rval);
 
@@ -630,7 +631,7 @@ bool CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval);
 
 void GetDynamicName(JSContext *cx, JSObject *scopeChain, JSString *str, Value *vp);
 
-bool FilterArguments(JSContext *cx, JSString *str);
+JSBool FilterArguments(JSContext *cx, JSString *str);
 
 #ifdef JSGC_GENERATIONAL
 void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
@@ -638,8 +639,8 @@ void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
 
 uint32_t GetIndexFromString(JSString *str);
 
-bool DebugPrologue(JSContext *cx, BaselineFrame *frame, bool *mustReturn);
-bool DebugEpilogue(JSContext *cx, BaselineFrame *frame, bool ok);
+bool DebugPrologue(JSContext *cx, BaselineFrame *frame, JSBool *mustReturn);
+bool DebugEpilogue(JSContext *cx, BaselineFrame *frame, JSBool ok);
 
 bool StrictEvalPrologue(JSContext *cx, BaselineFrame *frame);
 bool HeavyweightFunPrologue(JSContext *cx, BaselineFrame *frame);
@@ -649,8 +650,8 @@ bool NewArgumentsObject(JSContext *cx, BaselineFrame *frame, MutableHandleValue 
 JSObject *InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject templateObj,
                             HandleObject res);
 
-bool HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, bool *mustReturn);
-bool OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *mustReturn);
+bool HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, JSBool *mustReturn);
+bool OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, JSBool *mustReturn);
 
 bool EnterBlock(JSContext *cx, BaselineFrame *frame, Handle<StaticBlockObject *> block);
 bool LeaveBlock(JSContext *cx, BaselineFrame *frame);
