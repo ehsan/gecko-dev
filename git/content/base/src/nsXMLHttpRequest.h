@@ -657,14 +657,14 @@ protected:
 
   bool mFirstStartRequestSeen;
   bool mInLoadProgressEvent;
-
+  
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
-
-  JS::Heap<JS::Value> mResultJSON;
+  
+  JS::Value mResultJSON;
 
   js::ArrayBufferBuilder mArrayBufferBuilder;
-  JS::Heap<JSObject*> mResultArrayBuffer;
+  JSObject* mResultArrayBuffer;
 
   void ResetResponse();
 

@@ -14,6 +14,7 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsversion.h"
 #include "jsobj.h"
 
 #include "vm/GlobalObject.h"

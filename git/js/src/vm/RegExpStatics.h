@@ -7,11 +7,16 @@
 #ifndef RegExpStatics_h__
 #define RegExpStatics_h__
 
-#include <stddef.h>
+#include "mozilla/GuardObjects.h"
 
-#include "jspubtd.h"
+#include "jscntxt.h"
 
-#include "js/Utility.h"
+#include "gc/Barrier.h"
+#include "gc/Marking.h"
+#include "js/Vector.h"
+
+#include "vm/MatchPairs.h"
+#include "vm/RegExpObject.h"
 
 namespace js {
 

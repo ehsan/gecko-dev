@@ -11,7 +11,7 @@
 #ifndef jsexn_h___
 #define jsexn_h___
 
-#include "jsapi.h"
+#include "jsobj.h"
 
 /*
  * Initialize the exception constructor/prototype hierarchy.

@@ -2716,7 +2716,7 @@ class MBinaryBitwiseInstruction
     virtual MDefinition *foldIfZero(size_t operand) = 0;
     virtual MDefinition *foldIfNegOne(size_t operand) = 0;
     virtual MDefinition *foldIfEqual()  = 0;
-    virtual void infer(BaselineInspector *inspector, jsbytecode *pc);
+    virtual void infer();
 
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
@@ -2812,7 +2812,7 @@ class MShiftInstruction
     MDefinition *foldIfEqual() {
         return this;
     }
-    virtual void infer(BaselineInspector *inspector, jsbytecode *pc);
+    virtual void infer();
 };
 
 class MLsh : public MShiftInstruction
@@ -2876,7 +2876,7 @@ class MUrsh : public MShiftInstruction
         return this;
     }
 
-    void infer(BaselineInspector *inspector, jsbytecode *pc);
+    void infer();
 
     bool canOverflow() {
         // solution is only negative when lhs < 0 and rhs & 0x1f == 0

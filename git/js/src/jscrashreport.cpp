@@ -10,7 +10,6 @@
 
 #include "jsapi.h"
 #include "jscrashformat.h"
-#include "jsutil.h"
 
 using namespace js;
 using namespace js::crash;

@@ -51,10 +51,6 @@ class nsCycleCollectionParticipant;
 class nsScriptObjectTracer;
 class nsXPCOMCycleCollectionParticipant;
 
-namespace JS {
-template <class T> class Heap;
-} /* namespace JS */
-
 /*
  * A struct defining pure virtual methods which are called when tracing cycle
  * collection paticipants.  The appropriate method is called depending on the
@@ -62,11 +58,15 @@ template <class T> class Heap;
  */
 struct TraceCallbacks
 {
-    virtual void Trace(JS::Heap<JS::Value>* p, const char* name, void* closure) const = 0;
-    virtual void Trace(JS::Heap<jsid>* p, const char* name, void* closure) const = 0;
-    virtual void Trace(JS::Heap<JSObject*>* p, const char* name, void* closure) const = 0;
-    virtual void Trace(JS::Heap<JSString*>* p, const char* name, void* closure) const = 0;
-    virtual void Trace(JS::Heap<JSScript*>* p, const char* name, void* closure) const = 0;
+    virtual void Trace(JS::Value* p, const char* name, void* closure) const = 0;
+    virtual void Trace(jsid* p, const char* name, void* closure) const = 0;
+    virtual void Trace(JSObject** p, const char* name, void* closure) const = 0;
+    virtual void Trace(JSString** p, const char* name, void* closure) const = 0;
+    virtual void Trace(JSScript** p, const char* name, void* closure) const = 0;
+
+    void Trace(JSFlatString** p, const char* name, void* closure) const {
+        Trace(reinterpret_cast<JSString**>(p), name, closure);
+    }
 };
 
 /*
@@ -79,11 +79,11 @@ struct TraceCallbackFunc : public TraceCallbacks
 
     explicit TraceCallbackFunc(Func cb) : mCallback(cb) {}
 
-    virtual void Trace(JS::Heap<JS::Value>* p, const char* name, void* closure) const MOZ_OVERRIDE;
-    virtual void Trace(JS::Heap<jsid>* p, const char* name, void* closure) const MOZ_OVERRIDE;
-    virtual void Trace(JS::Heap<JSObject*>* p, const char* name, void* closure) const MOZ_OVERRIDE;
-    virtual void Trace(JS::Heap<JSString*>* p, const char* name, void* closure) const MOZ_OVERRIDE;
-    virtual void Trace(JS::Heap<JSScript*>* p, const char* name, void* closure) const MOZ_OVERRIDE;
+    virtual void Trace(JS::Value* p, const char* name, void* closure) const MOZ_OVERRIDE;
+    virtual void Trace(jsid* p, const char* name, void* closure) const MOZ_OVERRIDE;
+    virtual void Trace(JSObject** p, const char* name, void* closure) const MOZ_OVERRIDE;
+    virtual void Trace(JSString** p, const char* name, void* closure) const MOZ_OVERRIDE;
+    virtual void Trace(JSScript** p, const char* name, void* closure) const MOZ_OVERRIDE;
 
   private:
     Func mCallback;

@@ -28,10 +28,6 @@ class LIRGeneratorX64 : public LIRGeneratorX86Shared
                 LUse::Policy policy = LUse::REGISTER, bool useAtStart = false);
     bool useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Register reg1, Register);
 
-    inline LDefinition tempToUnbox() {
-        return temp();
-    }
-
     LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
 
   public:

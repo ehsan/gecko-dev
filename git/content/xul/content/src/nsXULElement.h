@@ -243,13 +243,13 @@ public:
     // &mScriptObject pointer can't go stale.
     JS::Handle<JSScript*> GetScriptObject()
     {
-        return JS::Handle<JSScript*>(mScriptObject);
+        return JS::Handle<JSScript*>::fromMarkedLocation(&mScriptObject);
     }
 
     void TraceScriptObject(JSTracer* aTrc)
     {
         if (mScriptObject) {
-            JS_CallHeapScriptTracer(aTrc, &mScriptObject, "active window XUL prototype script");
+            JS_CallScriptTracer(aTrc, &mScriptObject, "active window XUL prototype script");
         }
     }
 
@@ -267,7 +267,7 @@ public:
     mozilla::dom::XULDocument* mSrcLoadWaiters;   // [OWNER] but not COMPtr
     uint32_t                 mLangVersion;
 private:
-    JS::Heap<JSScript*>      mScriptObject;
+    JSScript*                mScriptObject;
 };
 
 class nsXULPrototypeText : public nsXULPrototypeNode

@@ -168,7 +168,7 @@ protected:
   nsRefPtr<IDBObjectStore> mObjectStore;
   nsRefPtr<IDBIndex> mIndex;
 
-  JS::Heap<JSObject*> mScriptOwner;
+  JSObject* mScriptOwner;
 
   Type mType;
   Direction mDirection;
@@ -176,9 +176,9 @@ protected:
   nsCString mContinueToQuery;
 
   // These are cycle-collected!
-  JS::Heap<JS::Value> mCachedKey;
-  JS::Heap<JS::Value> mCachedPrimaryKey;
-  JS::Heap<JS::Value> mCachedValue;
+  jsval mCachedKey;
+  jsval mCachedPrimaryKey;
+  jsval mCachedValue;
 
   Key mRangeKey;
 

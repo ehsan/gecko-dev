@@ -79,7 +79,7 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
     if (!array) {
       return false;
     }
-    mJSChannels.AppendElement(array.get());
+    mJSChannels.AppendElement(array);
   }
 
   return true;

@@ -32,6 +32,10 @@
 #include "YarrCanonicalizeUCS2.h"
 #include "BumpPointerAllocator.h"
 
+#ifndef NDEBUG
+#include <stdio.h>
+#endif
+
 using namespace WTF;
 
 namespace JSC { namespace Yarr {

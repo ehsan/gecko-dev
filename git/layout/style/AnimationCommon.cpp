@@ -304,10 +304,7 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     message.AppendLiteral("Performance warning: Async animations are disabled");
     LogAsyncAnimationFailure(message);
   }
-  bool propertyAllowed = (aProperty == eCSSProperty_transform) ||
-                         (aProperty == eCSSProperty_opacity) ||
-                         (aFlags & CanAnimate_AllowPartial);
-  return enabled && propertyAllowed;
+  return enabled && (aFlags & CanAnimate_AllowPartial);
 }
 
 /* static */ void

@@ -1164,7 +1164,12 @@ public:
 
   NS_METHOD GetFilename(nsAString& aFilename)
   {
-    CopyUTF8toUTF16(mPluginTag.mFileName, aFilename);
+    if (Preferences::GetBool("plugin.expose_full_path", false)) {
+      CopyUTF8toUTF16(mPluginTag.mFullPath, aFilename);
+    } else {
+      CopyUTF8toUTF16(mPluginTag.mFileName, aFilename);
+    }
+
     return NS_OK;
   }
 

@@ -1392,18 +1392,6 @@ function UpdateCurrentCanvasForInvalidation(rects)
     }
 }
 
-function UpdateWholeCurrentCanvasForInvalidation()
-{
-    LogInfo("Updating entire canvas for invalidation");
-
-    if (!gCurrentCanvas) {
-        return;
-    }
-
-    var ctx = gCurrentCanvas.getContext("2d");
-    DoDrawWindow(ctx, 0, 0, gCurrentCanvas.width, gCurrentCanvas.height);
-}
-
 function RecordResult(testRunTime, errorMsg, scriptResults)
 {
     LogInfo("RecordResult fired");
@@ -1803,10 +1791,6 @@ function RegisterMessageListenersAndLoadContentScript()
         function (m) { RecvUpdateCanvasForInvalidation(m.json.rects); }
     );
     gBrowserMessageManager.addMessageListener(
-        "reftest:UpdateWholeCanvasForInvalidation",
-        function (m) { RecvUpdateWholeCanvasForInvalidation(); }
-    );
-    gBrowserMessageManager.addMessageListener(
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
@@ -1884,11 +1868,6 @@ function RecvTestDone(runtimeMs)
 function RecvUpdateCanvasForInvalidation(rects)
 {
     UpdateCurrentCanvasForInvalidation(rects);
-}
-
-function RecvUpdateWholeCanvasForInvalidation()
-{
-    UpdateWholeCurrentCanvasForInvalidation();
 }
 
 function OnProcessCrashed(subject, topic, data)

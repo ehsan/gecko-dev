@@ -8,6 +8,7 @@
 #define jsalloc_h_
 
 #include "js/Utility.h"
+#include "jstypes.h"
 
 struct JSContext;
 

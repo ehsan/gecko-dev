@@ -109,7 +109,7 @@ protected:
   nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
 
-  JS::Heap<JS::Value> mResultVal;
+  jsval mResultVal;
   nsRefPtr<mozilla::dom::DOMError> mError;
   IndexedDBRequestParentBase* mActorParent;
   nsString mFilename;

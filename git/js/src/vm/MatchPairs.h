@@ -7,8 +7,6 @@
 #ifndef MatchPairs_h__
 #define MatchPairs_h__
 
-#include "ds/LifoAlloc.h"
-
 /*
  * RegExp match results are succinctly represented by pairs of integer
  * indices delimiting (start, limit] segments of the input string.

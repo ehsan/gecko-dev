@@ -7,6 +7,7 @@
 #ifndef StringBuffer_h___
 #define StringBuffer_h___
 
+#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jscntxt.h"

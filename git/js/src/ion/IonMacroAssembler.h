@@ -9,9 +9,6 @@
 
 #ifdef JS_ION
 
-#include "jstypedarray.h"
-#include "jscompartment.h"
-
 #if defined(JS_CPU_X86)
 # include "ion/x86/MacroAssembler-x86.h"
 #elif defined(JS_CPU_X64)
@@ -19,12 +16,16 @@
 #elif defined(JS_CPU_ARM)
 # include "ion/arm/MacroAssembler-arm.h"
 #endif
-#include "ion/AsmJS.h"
 #include "ion/IonCompartment.h"
 #include "ion/IonInstrumentation.h"
 #include "ion/ParallelFunctions.h"
 #include "ion/VMFunctions.h"
+
 #include "vm/ForkJoin.h"
+
+#include "jstypedarray.h"
+#include "jscompartment.h"
+
 #include "vm/Shape.h"
 
 namespace js {

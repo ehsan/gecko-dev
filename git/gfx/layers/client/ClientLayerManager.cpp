@@ -261,16 +261,6 @@ ClientLayerManager::MakeSnapshotIfRequired()
 }
 
 void
-ClientLayerManager::FlushRendering()
-{
-  if (mWidget) {
-    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
-      remoteRenderer->SendFlushRendering();
-    }
-  }
-}
-
-void
 ClientLayerManager::ForwardTransaction()
 {
   mPhase = PHASE_FORWARD;

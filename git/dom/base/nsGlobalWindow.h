@@ -15,7 +15,6 @@
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 #include "nsDataHashtable.h"
-#include "nsJSThingHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 
 // Interfaces Needed
@@ -1235,7 +1234,7 @@ protected:
 
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
-  nsJSThingHashtable<nsPtrHashKey<nsXBLPrototypeHandler>, JSObject*> mCachedXBLPrototypeHandlers;
+  nsDataHashtable<nsPtrHashKey<nsXBLPrototypeHandler>, JSObject*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 

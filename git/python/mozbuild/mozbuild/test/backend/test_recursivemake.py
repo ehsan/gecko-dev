@@ -172,10 +172,6 @@ class TestRecursiveMakeBackend(BackendTester):
             'LIBRARY_NAME': [
                 'LIBRARY_NAME := lib_name',
             ],
-            'SDK_LIBRARY': [
-                'SDK_LIBRARY += bar.sdk',
-                'SDK_LIBRARY += foo.sdk',
-            ],
             'SIMPLE_PROGRAMS': [
                 'SIMPLE_PROGRAMS += bar.x',
                 'SIMPLE_PROGRAMS += foo.x',

@@ -1139,7 +1139,7 @@ bool
 CodeGenerator::visitTypeBarrier(LTypeBarrier *lir)
 {
     ValueOperand operand = ToValue(lir, LTypeBarrier::Input);
-    Register scratch = ToTempUnboxRegister(lir->temp());
+    Register scratch = ToRegister(lir->temp());
 
     Label matched, miss;
     masm.guardTypeSet(operand, lir->mir()->resultTypeSet(), scratch, &matched, &miss);
@@ -1154,7 +1154,7 @@ bool
 CodeGenerator::visitMonitorTypes(LMonitorTypes *lir)
 {
     ValueOperand operand = ToValue(lir, LMonitorTypes::Input);
-    Register scratch = ToTempUnboxRegister(lir->temp());
+    Register scratch = ToRegister(lir->temp());
 
     Label matched, miss;
     masm.guardTypeSet(operand, lir->mir()->typeSet(), scratch, &matched, &miss);
@@ -1288,7 +1288,7 @@ CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
         masm.bind(&tenured);
     }
 
-    Register valuereg = masm.extractObject(value, ToTempUnboxRegister(lir->temp()));
+    Register valuereg = masm.extractObject(value, ToRegister(lir->temp()));
     masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.start()), ool->rejoin());
     masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.heapEnd()), ool->entry());
 
@@ -3544,8 +3544,7 @@ CodeGenerator::visitCompareStrictS(LCompareStrictS *lir)
     const ValueOperand leftV = ToValue(lir, LCompareStrictS::Lhs);
     Register right = ToRegister(lir->right());
     Register output = ToRegister(lir->output());
-    Register temp = ToRegister(lir->temp());
-    Register tempToUnbox = ToTempUnboxRegister(lir->tempToUnbox());
+    Register temp = ToRegister(lir->temp0());
 
     Label string, done;
 
@@ -3554,7 +3553,7 @@ CodeGenerator::visitCompareStrictS(LCompareStrictS *lir)
     masm.jump(&done);
 
     masm.bind(&string);
-    Register left = masm.extractString(leftV, tempToUnbox);
+    Register left = masm.extractString(leftV, ToRegister(lir->temp1()));
     if (!emitCompareS(lir, op, left, right, output, temp))
         return false;
 
@@ -3711,9 +3710,9 @@ CodeGenerator::visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir)
             // undefined.
             masm.branchTestObject(Assembler::NotEqual, tag, notNullOrLikeUndefined);
 
-            Register objreg = masm.extractObject(value, ToTempUnboxRegister(lir->tempToUnbox()));
+            Register objreg = masm.extractObject(value, ToRegister(lir->temp0()));
             testObjectTruthy(objreg, notNullOrLikeUndefined, nullOrLikeUndefined,
-                             ToRegister(lir->temp()), ool);
+                             ToRegister(lir->temp1()), ool);
         }
 
         Label done;
@@ -3790,8 +3789,8 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
             masm.branchTestObject(Assembler::NotEqual, tag, ifFalseLabel);
 
             // Objects that emulate undefined are loosely equal to null/undefined.
-            Register objreg = masm.extractObject(value, ToTempUnboxRegister(lir->tempToUnbox()));
-            testObjectTruthy(objreg, ifFalseLabel, ifTrueLabel, ToRegister(lir->temp()), ool);
+            Register objreg = masm.extractObject(value, ToRegister(lir->temp0()));
+            testObjectTruthy(objreg, ifFalseLabel, ifTrueLabel, ToRegister(lir->temp1()), ool);
         } else {
             masm.jump(ifFalseLabel);
         }

@@ -40,14 +40,6 @@ CString sFirefoxPath;
 // startup command line paramters.
 #define kMetroTestFile "tests.ini"
 
-// Process exit codes for buildbotcustom logic. These are currently ignored, but
-// at some point releng expects to use these.
-#define SUCCESS   0
-#define WARNINGS  1
-#define FAILURE   2
-#define EXCEPTION 3
-#define RETRY     4
-
 static void Log(const wchar_t *fmt, ...)
 {
   va_list a = NULL;
@@ -64,7 +56,7 @@ static void Log(const wchar_t *fmt, ...)
   fflush(stdout);
 }
 
-static void Fail(bool aRequestRetry, const wchar_t *fmt, ...)
+static void Fail(const wchar_t *fmt, ...)
 {
   va_list a = NULL;
   wchar_t szDebugString[1024];
@@ -75,11 +67,8 @@ static void Fail(bool aRequestRetry, const wchar_t *fmt, ...)
   va_end(a);
   if(!lstrlenW(szDebugString))
     return;
-  if (aRequestRetry) {
-    wprintf(L"FAIL-SHOULD-RETRY | metrotestharness.exe | %s\n", szDebugString);
-  } else {
-    wprintf(L"TEST-UNEXPECTED-FAIL | metrotestharness.exe | %s\n", szDebugString);
-  }
+
+  wprintf(L"TEST-UNEXPECTED-FAIL | metrotestharness.exe | %s\n", szDebugString);
   fflush(stdout);
 }
 
@@ -94,7 +83,7 @@ static bool GetModulePath(CStringW& aPathBuffer)
   memset(buffer, 0, sizeof(buffer));
 
   if (!GetModuleFileName(NULL, buffer, MAX_PATH)) {
-    Fail(false, L"GetModuleFileName failed.");
+    Fail(L"GetModuleFileName failed.");
     return false;
   }
 
@@ -201,6 +190,13 @@ static void ReadPipe()
   }
 }
 
+// From buildbotcustom logic:
+#define SUCCESS   0
+#define WARNINGS  1
+#define FAILURE   2
+#define EXCEPTION 3
+#define RETRY     4 /* will retry endlessly on new slaves, be careful with this! */
+
 static int Launch()
 {
   Log(L"Launching browser...");
@@ -213,7 +209,7 @@ static int Launch()
                               CLSCTX_LOCAL_SERVER,
                               IID_IApplicationActivationManager,
                               (void**)&activateMgr))) {
-    Fail(false, L"CoCreateInstance CLSID_ApplicationActivationManager failed.");
+    Fail(L"CoCreateInstance CLSID_ApplicationActivationManager failed.");
     return FAILURE;
   }
   
@@ -221,7 +217,7 @@ static int Launch()
   WCHAR appModelID[256];
   // Activation is based on the browser's registered app model id
   if (!GetDefaultBrowserAppModelID(appModelID, (sizeof(appModelID)/sizeof(WCHAR)))) {
-    Fail(false, L"GetDefaultBrowserAppModelID failed.");
+    Fail(L"GetDefaultBrowserAppModelID failed.");
     return FAILURE;
   }
   Log(L"App model id='%s'", appModelID);
@@ -255,7 +251,7 @@ static int Launch()
     // Use the firefoxpath passed to us by the test harness
     int index = sFirefoxPath.ReverseFind('\\');
     if (index == -1) {
-      Fail(false, L"Bad firefoxpath path");
+      Fail(L"Bad firefoxpath path");
       return FAILURE;
     }
     testFilePath = sFirefoxPath.Mid(0, index);
@@ -265,7 +261,7 @@ static int Launch()
     // Use the module path
     char path[MAX_PATH];
     if (!GetModuleFileNameA(NULL, path, MAX_PATH)) {
-      Fail(false, L"GetModuleFileNameA errorno=%d", GetLastError());
+      Fail(L"GetModuleFileNameA errorno=%d", GetLastError());
       return FAILURE;
     }
     char* slash = strrchr(path, '\\');
@@ -281,7 +277,7 @@ static int Launch()
 
   // Make sure the firefox bin exists
   if (GetFileAttributesW(sFirefoxPath) == INVALID_FILE_ATTRIBUTES) {
-    Fail(false, L"Invalid bin path: '%s'", sFirefoxPath);
+    Fail(L"Invalid bin path: '%s'", sFirefoxPath);
     return FAILURE;
   }
 
@@ -293,7 +289,7 @@ static int Launch()
                                  FILE_ATTRIBUTE_NORMAL,
                                  NULL);
   if (hTestFile == INVALID_HANDLE_VALUE) {
-    Fail(false, L"CreateFileA errorno=%d", GetLastError());
+    Fail(L"CreateFileA errorno=%d", GetLastError());
     return FAILURE;
   }
 
@@ -308,7 +304,7 @@ static int Launch()
   Log(L"Browser command line args: '%s'", CString(asciiParams));
   if (!WriteFile(hTestFile, asciiParams, asciiParams.GetLength(), NULL, 0)) {
     CloseHandle(hTestFile);
-    Fail(false, L"WriteFile errorno=%d", GetLastError());
+    Fail(L"WriteFile errorno=%d", GetLastError());
     return FAILURE;
   }
   FlushFileBuffers(hTestFile);
@@ -316,14 +312,14 @@ static int Launch()
 
   // Create a named stdout pipe for the browser
   if (!SetupTestOutputPipe()) {
-    Fail(false, L"SetupTestOutputPipe failed (errno=%d)", GetLastError());
+    Fail(L"SetupTestOutputPipe failed (errno=%d)", GetLastError());
     return FAILURE;
   }
 
   // Launch firefox
   hr = activateMgr->ActivateApplication(appModelID, L"", AO_NOERRORUI, &processID);
   if (FAILED(hr)) {
-    Fail(true, L"ActivateApplication result %X", hr);
+    Fail(L"ActivateApplication result %X", hr);
     return RETRY;
   }
 
@@ -331,7 +327,7 @@ static int Launch()
 
   HANDLE child = OpenProcess(SYNCHRONIZE, FALSE, processID);
   if (!child) {
-    Fail(false, L"Couldn't find child process. (%d)", GetLastError());
+    Fail(L"Couldn't find child process. (%d)", GetLastError());
     return FAILURE;
   }
 

@@ -11,6 +11,7 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsiter.h"
+#include "jsmath.h"
 #include "jsproxy.h"
 #include "jswatchpoint.h"
 #include "jswrapper.h"

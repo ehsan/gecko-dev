@@ -2521,7 +2521,7 @@ Parser<ParseHandler>::statements()
             }
             break;
         }
-        Node next = statement(canHaveDirectives);
+        Node next = statement();
         if (!next) {
             if (tokenStream.isEOF())
                 tokenStream.setUnexpectedEOF();
@@ -4501,7 +4501,7 @@ Parser<ParseHandler>::expressionStatement()
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::statement(bool canHaveDirectives)
+Parser<ParseHandler>::statement()
 {
     Node pn;
 
@@ -4781,14 +4781,7 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
       case TOK_ERROR:
         return null();
 
-      case TOK_STRING:
-        if (!canHaveDirectives && tokenStream.currentToken().atom() == context->names().useAsm) {
-            if (!report(ParseWarning, false, null(), JSMSG_USE_ASM_DIRECTIVE_FAIL))
-                return null();
-        }
-        return expressionStatement();
-
-      case TOK_NAME:
+      case TOK_NAME: {
         if (tokenStream.peekToken() == TOK_COLON)
             return labeledStatement();
         if (tokenStream.currentToken().name() == context->names().module
@@ -4796,7 +4789,8 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
         {
             return moduleDecl();
         }
-        return expressionStatement();
+      }
+        /* FALL THROUGH */
 
       default:
         return expressionStatement();
