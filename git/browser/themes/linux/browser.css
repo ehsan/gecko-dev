@@ -1923,7 +1923,8 @@ toolbar[iconsize="small"] .toolbarbutton-badge-container {
 #servicesInstall-notification-icon {
   list-style-image: url(chrome://browser/skin/social/services-16.png);
 }
-#social-undoactivation-button {
+#social-undoactivation-button,
+#servicesInstall-learnmore-link {
   -moz-margin-start: 0; /* override default label margin to match description margin */
 }
 

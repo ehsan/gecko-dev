@@ -108,7 +108,8 @@ nsTableCellMap::GetRightMostBorder(int32_t aRowIndex)
     return &mBCInfo->mRightBorders.ElementAt(aRowIndex);
   }
 
-  mBCInfo->mRightBorders.SetLength(aRowIndex+1);
+  if (!mBCInfo->mRightBorders.SetLength(aRowIndex+1))
+    ABORT1(nullptr);
   return &mBCInfo->mRightBorders.ElementAt(aRowIndex);
 }
 
@@ -123,7 +124,8 @@ nsTableCellMap::GetBottomMostBorder(int32_t aColIndex)
     return &mBCInfo->mBottomBorders.ElementAt(aColIndex);
   }
 
-  mBCInfo->mBottomBorders.SetLength(aColIndex+1);
+  if (!mBCInfo->mBottomBorders.SetLength(aColIndex+1))
+    ABORT1(nullptr);
   return &mBCInfo->mBottomBorders.ElementAt(aColIndex);
 }
 
@@ -486,13 +488,15 @@ nsTableCellMap::InsertRows(nsTableRowGroupFrame*       aParent,
         int32_t count = mBCInfo->mRightBorders.Length();
         if (aFirstRowIndex < count) {
           for (int32_t rowX = aFirstRowIndex; rowX < aFirstRowIndex + numNewRows; rowX++) {
-            mBCInfo->mRightBorders.InsertElementAt(rowX);
+            if (!mBCInfo->mRightBorders.InsertElementAt(rowX))
+              ABORT0();
           }
         }
         else {
           GetRightMostBorder(aFirstRowIndex); // this will create missing entries
           for (int32_t rowX = aFirstRowIndex + 1; rowX < aFirstRowIndex + numNewRows; rowX++) {
-            mBCInfo->mRightBorders.AppendElement();
+            if (!mBCInfo->mRightBorders.AppendElement())
+              ABORT0();
           }
         }
       }

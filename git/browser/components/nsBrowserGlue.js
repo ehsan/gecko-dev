@@ -1914,20 +1914,17 @@ ContentPermissionPrompt.prototype = {
     if (perm.type == "pointerLock") {
       // If there's no mainAction, this is the autoAllow warning prompt.
       let autoAllow = !mainAction;
-
-      if (!aOptions)
-        aOptions = {};
-
-      aOptions.removeOnDismissal = autoAllow;
-      aOptions.eventCallback = type => {
-        if (type == "removed") {
-          browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
-          if (autoAllow) {
-            aRequest.allow();
+      aOptions = {
+        removeOnDismissal: autoAllow,
+        eventCallback: type => {
+          if (type == "removed") {
+            browser.removeEventListener("mozfullscreenchange", onFullScreen, true);
+            if (autoAllow) {
+              aRequest.allow();
+            }
           }
-        }
-      }
-
+        },
+      };
     }
 
     var popup = chromeWin.PopupNotifications.show(browser, aNotificationId, aMessage, aAnchorId,
@@ -1985,14 +1982,15 @@ ContentPermissionPrompt.prototype = {
       });
     }
 
-    var options = {
-                    learnMoreURL: Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL"),
-                  };
+    var chromeWin = this._getBrowserForRequest(aRequest).ownerDocument.defaultView;
+    var link = chromeWin.document.getElementById("geolocation-learnmore-link");
+    link.value = browserBundle.GetStringFromName("geolocation.learnMore");
+    link.href = Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL");
 
     secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST);
 
     this._showPrompt(aRequest, message, "geo", actions, "geolocation",
-                     "geo-notification-icon", options);
+                     "geo-notification-icon", null);
   },
 
   _promptWebNotifications : function(aRequest) {

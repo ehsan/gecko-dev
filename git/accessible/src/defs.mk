@@ -2,12 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-include $(topsrcdir)/config/rules.mk
-
-ifdef MOZ_ENABLE_GTK
-CXXFLAGS        += $(MOZ_CAIRO_CFLAGS)
+A11Y_LOG = 0
+ifdef MOZ_DEBUG
+  A11Y_LOG = 1
 endif
-
-ifneq ($(A11Y_LOG),0)
-  DEFINES += -DA11Y_LOG
+ifeq (,$(filter aurora beta release esr,$(MOZ_UPDATE_CHANNEL)))
+  A11Y_LOG = 1
 endif

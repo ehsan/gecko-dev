@@ -2,12 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-include $(topsrcdir)/config/rules.mk
-
-ifdef MOZ_ENABLE_GTK
-CXXFLAGS        += $(MOZ_CAIRO_CFLAGS)
-endif
-
-ifneq ($(A11Y_LOG),0)
-  DEFINES += -DA11Y_LOG
+# Additional debugging info is exposed by setting the MOZ_EM_DEBUG
+# environment variable when building.
+ifneq (,$(MOZ_EM_DEBUG))
+DEFINES += -DMOZ_EM_DEBUG=1
 endif
