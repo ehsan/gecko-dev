@@ -12,7 +12,6 @@ function onLoad() {
 
 function onUnload() {
   if (!gIterations) {
-    window.focus();
     finish();
   } else {
     gBugWindow = window.openDialog(gTestRoot + "bug839193.xul");
