@@ -1,0 +1,3 @@
+changeset ded43d8dee816ea3058dc7d0804c0d1ace23f4b7
+manifest 95805bd1c9910aeb624bcd976c81aac530ae1412
+files browser/devtools/performance/test/browser_perf-overview-time-interval.js

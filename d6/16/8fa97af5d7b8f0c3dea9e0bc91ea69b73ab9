@@ -1,0 +1,4 @@
+changeset 0ece6a897f47235562891cc50ffa0b20003db4c2
+manifest 2e22d668fa00d8d2483f5d09d80242e29a163555
+extra rebase_source:105d70011f4a96358a0e6e65d9adeeb923ca8a21
+files browser/components/about/AboutRedirector.cpp
