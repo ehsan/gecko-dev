@@ -188,15 +188,9 @@ BrowserCLH.prototype = {
 
     // Open the main browser window, if we don't already have one
     let win;
-    let localePickerWin;
     try {
       win = Services.wm.getMostRecentWindow("navigator:browser");
-      localePickerWin = Services.wm.getMostRecentWindow("navigator:localepicker");
-      if (localePickerWin) {
-        localePickerWin.focus();
-        aCmdLine.preventDefault = true;
-        return;
-      } else  if (!win) {
+      if (!win) {
         // Default to the saved homepage
         let defaultURL = getHomePage();
 

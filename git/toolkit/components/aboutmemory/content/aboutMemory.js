@@ -167,16 +167,16 @@ function update()
   //   once before most of the memory required to generate this page is
   //   allocated.
   var reportersByProcess = {};
-
-  function addReporter(aProcess, aPath, aKind, aUnits, aAmount, aDescription)
-  {
-    var process = aProcess === "" ? "Main" : aProcess;
+  var e = mgr.enumerateReporters();
+  while (e.hasMoreElements()) {
+    var rOrig = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
+    var process = rOrig.process === "" ? "Main" : rOrig.process;
     var r = {
-      _path:        aPath,
-      _kind:        aKind,
-      _units:       aUnits,
-      _amount:      aAmount,
-      _description: aDescription
+      _path:        rOrig.path,
+      _kind:        rOrig.kind,
+      _units:       rOrig.units,
+      _amount:      rOrig.amount,
+      _description: rOrig.description
     };
     if (!reportersByProcess[process]) {
       reportersByProcess[process] = {};
@@ -189,19 +189,6 @@ function update()
     } else {
       reporters[r._path] = r;
     }
-  }
-
-  // Process vanilla reporters first, then multi-reporters.
-  var e = mgr.enumerateReporters();
-  while (e.hasMoreElements()) {
-    var rOrig = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-    addReporter(rOrig.process, rOrig.path, rOrig.kind, rOrig.units,
-                rOrig.amount, rOrig.description);
-  }
-  var e = mgr.enumerateMultiReporters();
-  while (e.hasMoreElements()) {
-    var r = e.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
-    r.collectReports(addReporter, null);
   }
 
   // Generate output for one process at a time.  Always start with the
@@ -255,7 +242,7 @@ function update()
 function cmp_amount(a, b)
 {
   if (a._units != b._units)
-    return a._units - b._units;   // use the enum order from nsIMemoryReporter
+    return b._units - a._units;
   else
     return b._amount - a._amount;
 };
