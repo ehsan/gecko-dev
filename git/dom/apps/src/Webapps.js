@@ -10,6 +10,7 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
+Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 
@@ -276,7 +277,7 @@ let manifestCache = {
 
     let winObjs = this._cache[aManifestURL];
     if (!(aInnerWindowID in winObjs)) {
-      winObjs[aInnerWindowID] = Cu.cloneInto(aManifest, aWindow);
+      winObjs[aInnerWindowID] = ObjectWrapper.wrap(aManifest, aWindow);
     }
 
     return winObjs[aInnerWindowID];
@@ -380,7 +381,8 @@ WebappsApplication.prototype = {
 
   get updateManifest() {
     return this.updateManifest =
-      this._updateManifest ? Cu.cloneInto(this._updateManifest, this._window)
+      this._updateManifest ? ObjectWrapper.wrap(this._updateManifest,
+                                                this._window)
                            : null;
   },
 

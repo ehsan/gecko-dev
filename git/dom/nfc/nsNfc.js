@@ -132,7 +132,7 @@ MozNFCPeer.prototype = {
       "blob": blob.slice()
     };
     return this._nfcContentHelper.sendFile(this._window,
-                                           Cu.cloneInto(data, this._window),
+                                           ObjectWrapper.wrap(data, this._window),
                                            this.session);
   },
 
@@ -158,7 +158,7 @@ mozNfc.prototype = {
   _nfcContentHelper: null,
   _window: null,
   _wrap: function _wrap(obj) {
-    return Cu.cloneInto(obj, this._window);
+    return ObjectWrapper.wrap(obj, this._window);
   },
 
   init: function init(aWindow) {
@@ -277,7 +277,8 @@ mozNfc.prototype = {
     let detail = {
       "detail":sessionToken
     };
-    let event = new this._window.CustomEvent(peerEvent, this._wrap(detail);
+    let event = new this._window.CustomEvent(peerEvent,
+      ObjectWrapper.wrap(detail, this._window));
     this.__DOM_IMPL__.dispatchEvent(event);
   },
 

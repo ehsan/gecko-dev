@@ -10,6 +10,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -75,7 +76,7 @@ ActivityProxy.prototype = {
       case "Activity:FireSuccess":
         debug("FireSuccess");
         Services.DOMRequest.fireSuccess(this.activity,
-                                        Cu.cloneInto(msg.result, this.window));
+                                        ObjectWrapper.wrap(msg.result, this.window));
         Services.obs.notifyObservers(null, "Activity:Success", null);
         break;
       case "Activity:FireError":

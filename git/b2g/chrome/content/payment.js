@@ -47,6 +47,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "nsIUUIDGenerator");
 
 #ifdef MOZ_B2G_RIL
+Cu.import('resource://gre/modules/ObjectWrapper.jsm');
+
 XPCOMUtils.defineLazyServiceGetter(this, "gRil",
                                    "@mozilla.org/ril;1",
                                    "nsIRadioInterfaceLayer");
@@ -330,7 +332,7 @@ let PaymentProvider = {
       }
     }
 
-    return Cu.cloneInto(this._iccInfo, content);
+    return ObjectWrapper.wrap(this._iccInfo, content);
   },
 
   _silentNumbers: null,
