@@ -78,11 +78,6 @@ public:
     return gAnnotationService;
   }
 
-  /**
-   * Finalize all internal statements.
-   */
-  nsresult FinalizeStatements();
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIANNOTATIONSERVICE
 

@@ -26,7 +26,6 @@
  *   Christian Biesinger <cbiesinger@web.de>
  *   Dan Mosedale <dmose@mozilla.org>
  *   Myk Melez <myk@mozilla.org>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -124,8 +123,6 @@
 #include "nsIRandomGenerator.h"
 #include "plbase64.h"
 #include "prmem.h"
-
-#include "nsIPrivateBrowsingService.h"
 
 // Buffer file writes in 32kb chunks
 #define BUFFERED_OUTPUT_SIZE (1024 * 32)
@@ -567,19 +564,12 @@ NS_IMPL_ISUPPORTS6(
   nsIObserver,
   nsISupportsWeakReference)
 
-nsExternalHelperAppService::nsExternalHelperAppService() :
-  mInPrivateBrowsing(PR_FALSE)
+nsExternalHelperAppService::nsExternalHelperAppService()
 {
   gExtProtSvc = this;
 }
 nsresult nsExternalHelperAppService::Init()
 {
-  nsCOMPtr<nsIPrivateBrowsingService> pbs =
-    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-  if (pbs) {
-    pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
-  }
-
   // Add an observer for profile change
   nsresult rv = NS_OK;
   nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1", &rv);
@@ -593,9 +583,7 @@ nsresult nsExternalHelperAppService::Init()
   }
 #endif
 
-  rv = obs->AddObserver(this, "profile-before-change", PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return obs->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
+  return obs->AddObserver(this, "profile-before-change", PR_TRUE);
 }
 
 nsExternalHelperAppService::~nsExternalHelperAppService()
@@ -939,10 +927,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DeleteTemporaryFileOnExit(nsIFile * aT
   localFile->IsFile(&isFile);
   if (!isFile) return NS_OK;
 
-  if (mInPrivateBrowsing)
-    mTemporaryPrivateFilesList.AppendObject(localFile);
-  else
-    mTemporaryFilesList.AppendObject(localFile);
+  mTemporaryFilesList.AppendObject(localFile);
 
   return NS_OK;
 }
@@ -952,13 +937,13 @@ void nsExternalHelperAppService::FixFilePermissions(nsILocalFile* aFile)
   // This space intentionally left blank
 }
 
-void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList)
+nsresult nsExternalHelperAppService::ExpungeTemporaryFiles()
 {
-  PRInt32 numEntries = fileList.Count();
+  PRInt32 numEntries = mTemporaryFilesList.Count();
   nsILocalFile* localFile;
   for (PRInt32 index = 0; index < numEntries; index++)
   {
-    localFile = fileList[index];
+    localFile = mTemporaryFilesList[index];
     if (localFile) {
       // First make the file writable, since the temp file is probably readonly.
       localFile->SetPermissions(0600);
@@ -966,17 +951,9 @@ void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocal
     }
   }
 
-  fileList.Clear();
-}
+  mTemporaryFilesList.Clear();
 
-void nsExternalHelperAppService::ExpungeTemporaryFiles()
-{
-  ExpungeTemporaryFilesHelper(mTemporaryFilesList);
-}
-
-void nsExternalHelperAppService::ExpungeTemporaryPrivateFiles()
-{
-  ExpungeTemporaryFilesHelper(mTemporaryPrivateFilesList);
+  return NS_OK;
 }
 
 static const char kExternalWarningPrefPrefix[] = 
@@ -1065,13 +1042,6 @@ nsExternalHelperAppService::Observe(nsISupports *aSubject, const char *aTopic, c
 {
   if (!strcmp(aTopic, "profile-before-change")) {
     ExpungeTemporaryFiles();
-  } else if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(someData))
-      mInPrivateBrowsing = PR_TRUE;
-    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(someData)) {
-      mInPrivateBrowsing = PR_FALSE;
-      ExpungeTemporaryPrivateFiles();
-    }
   }
   return NS_OK;
 }

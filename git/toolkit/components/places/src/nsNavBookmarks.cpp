@@ -432,35 +432,6 @@ nsNavBookmarks::InitStatements()
   return NS_OK;
 }
 
-nsresult
-nsNavBookmarks::FinalizeStatements() {
-  mozIStorageStatement* stmts[] = {
-    mDBGetChildren,
-    mDBFindURIBookmarks,
-    mDBFolderCount,
-    mDBGetItemIndex,
-    mDBGetChildAt,
-    mDBGetItemProperties,
-    mDBGetItemIdForGUID,
-    mDBGetRedirectDestinations,
-    mDBInsertBookmark,
-    mDBIsBookmarkedInDatabase,
-    mDBGetLastBookmarkID,
-    mDBSetItemDateAdded,
-    mDBSetItemLastModified,
-    mDBSetItemIndex,
-    mDBGetKeywordForURI,
-    mDBGetKeywordForBookmark,
-    mDBGetURIForKeyword
-  };
-
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {
-    nsresult rv = nsNavHistory::FinalizeStatement(stmts[i]);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
 
 // nsNavBookmarks::InitRoots
 //
@@ -548,13 +519,12 @@ nsNavBookmarks::InitRoots()
   rv = prefService->GetBranch("", getter_AddRefs(prefBranch));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUint16 databaseStatus = nsINavHistoryService::DATABASE_STATUS_OK;
-  rv = History()->GetDatabaseStatus(&databaseStatus);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (NS_FAILED(rv) ||
-      databaseStatus != nsINavHistoryService::DATABASE_STATUS_OK) {
+  PRBool importDefaults = PR_TRUE;
+  rv = prefBranch->GetBoolPref("browser.places.importDefaults", &importDefaults);
+  if (NS_FAILED(rv) || importDefaults) {
     rv = InitDefaults();
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = prefBranch->SetBoolPref("browser.places.importDefaults", PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

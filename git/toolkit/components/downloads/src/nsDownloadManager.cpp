@@ -2602,7 +2602,7 @@ nsDownload::OnStateChange(nsIWebProgress *aWebProgress,
       mPercentComplete = 100;
       mLastUpdate = PR_Now();
 
-#ifdef DOWNLOAD_SCANNER
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
       PRBool scan = PR_TRUE;
       nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
       if (prefs)

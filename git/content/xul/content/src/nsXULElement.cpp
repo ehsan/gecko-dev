@@ -3129,7 +3129,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     }
 
     nsCAutoString urlspec;
-    nsContentUtils::GetWrapperSafeScriptFilename(aDocument, aURI, urlspec);
+    aURI->GetSpec(urlspec);
 
     // Ok, compile it to create a prototype script object!
 

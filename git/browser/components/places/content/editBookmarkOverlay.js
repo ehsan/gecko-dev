@@ -693,7 +693,6 @@ var gEditItemOverlay = {
     if (!this._uri.equals(uri)) {
       var txn = PlacesUIUtils.ptm.editBookmarkURI(this._itemId, uri);
       PlacesUIUtils.ptm.doTransaction(txn);
-      this._uri = uri;
     }
   },
 

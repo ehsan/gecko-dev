@@ -129,6 +129,9 @@ enum {
   // the link back to it must be weak.
   nsChildView* mGeckoChild;
     
+  // tag for our mouse enter/exit tracking rect
+  NSTrackingRectTag mMouseEnterExitTag;
+
   // Whether we're a plugin view.
   BOOL mIsPluginView;
 

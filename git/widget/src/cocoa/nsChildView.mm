@@ -200,7 +200,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 
 - (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
 
-- (void)initTSMDocument;
 @end
 
 
@@ -2746,6 +2745,26 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
+// Override in order to keep our mouse enter/exit tracking rect in sync with
+// the frame of the view
+- (void)setFrame:(NSRect)frameRect
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  [super setFrame:frameRect];
+  if (mMouseEnterExitTag)
+    [self removeTrackingRect:mMouseEnterExitTag];
+
+  if ([self window])
+    mMouseEnterExitTag = [self addTrackingRect:[self bounds]
+                                         owner:self
+                                      userData:nil
+                                  assumeInside:[[self window] acceptsMouseMovedEvents]];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+
 // Make the origin of this view the topLeft corner (gecko origin) rather
 // than the bottomLeft corner (standard cocoa origin).
 - (BOOL)isFlipped
@@ -2835,10 +2854,25 @@ NSEvent* gLastDragEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!newWindow)
-    HideChildPluginViews(self);
+  if (mMouseEnterExitTag)
+    [self removeTrackingRect:mMouseEnterExitTag];
 
   [super viewWillMoveToWindow:newWindow];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+
+- (void)viewDidMoveToWindow
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if ([self window])
+    mMouseEnterExitTag = [self addTrackingRect:[self bounds] owner:self
+                                      userData:nil assumeInside: [[self window]
+                                      acceptsMouseMovedEvents]];
+
+  [super viewDidMoveToWindow];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -5058,9 +5092,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   if (!mGeckoChild)
     return nsRect(0, 0, 0, 0);
 
-  if (aEventType == NS_COMPOSITION_START)
-    [self initTSMDocument];
-
   // static void init_composition_event( *aEvent, int aType)
   nsCompositionEvent event(PR_TRUE, aEventType, mGeckoChild);
   event.time = PR_IntervalNow();
@@ -5168,13 +5199,8 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       }
     }
 
-    PRBool keyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
-    // Only record the results of dispatching geckoEvent if we're currently
-    // processing a keyDown event.
-    if (mCurKeyEvent) {
-      mKeyPressHandled = keyPressHandled;
-      mKeyPressSent = YES;
-    }
+    mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+    mKeyPressSent = YES;
   }
   else {
     if (!nsTSMManager::IsComposing()) {
@@ -5624,6 +5650,27 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     }
   }
 
+  // We need to initialize the TSMDocument *before* interpretKeyEvents when
+  // IME is enabled.
+  if (!isKeyEquiv && nsTSMManager::IsIMEEnabled()) {
+    // We need to get actual focused view. E.g., the view is in bookmark dialog
+    // that is <panel> element. Then, the key events are processed the parent
+    // window's view that has native focus.
+    nsQueryContentEvent textContent(PR_TRUE, NS_QUERY_TEXT_CONTENT,
+                                    mGeckoChild);
+    textContent.InitForQueryTextContent(0, 0);
+    mGeckoChild->DispatchWindowEvent(textContent);
+    NSView<mozView>* focusedView = self;
+    if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
+      NSView<mozView>* view =
+        static_cast<NSView<mozView>*>(textContent.mReply.mFocusedWidget->
+                                      GetNativeData(NS_NATIVE_WIDGET));
+      if (view)
+        focusedView = view;
+    }
+    nsTSMManager::InitTSMDocument(focusedView);
+  }
+
   // Let Cocoa interpret the key events, caching IsComposing first.
   // We don't do it if this came from performKeyEquivalent because
   // interpretKeyEvents isn't set up to handle those key combinations.
@@ -5671,29 +5718,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   return handled;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
-}
-
-- (void)initTSMDocument
-{
-  if (!mGeckoChild)
-    return;
-
-  // We need to get actual focused view. E.g., the view is in bookmark dialog
-  // that is <panel> element. Then, the key events are processed the parent
-  // window's view that has native focus.
-  nsQueryContentEvent textContent(PR_TRUE, NS_QUERY_TEXT_CONTENT,
-                                  mGeckoChild);
-  textContent.InitForQueryTextContent(0, 0);
-  mGeckoChild->DispatchWindowEvent(textContent);
-  NSView<mozView>* focusedView = self;
-  if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
-    NSView<mozView>* view =
-      static_cast<NSView<mozView>*>(textContent.mReply.mFocusedWidget->
-                                    GetNativeData(NS_NATIVE_WIDGET));
-    if (view)
-      focusedView = view;
-  }
-  nsTSMManager::InitTSMDocument(focusedView);
 }
 
 

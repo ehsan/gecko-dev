@@ -169,7 +169,7 @@ private:
 
   // Scan forward in the stream looking for the WAVE format chunk.  If
   // found, parse and validate required metadata, then use it to set
-  // mSampleRate, mChannels, mSampleSize, and mSampleFormat.
+  // mSampleRate, mChannels, and mSampleSize.
   PRBool LoadFormatChunk();
 
   // Scan forward in the stream looking for the start of the PCM data.  If
@@ -248,11 +248,9 @@ private:
   PRUint32 mChannels;
 
   // Size of a single sample segment, which includes a sample for each
-  // channel (interleaved).
+  // channel (interleaved).  Limited to 2 or 4 due to requirement for 16-bit
+  // samples and the limit on number of channels.
   PRUint32 mSampleSize;
-
-  // The sample format of the PCM data.
-  nsAudioStream::SampleFormat mSampleFormat;
 
   // Size of PCM data stored in the WAVE as reported by the data chunk in
   // the media.
@@ -291,8 +289,8 @@ private:
   PRPackedBool mExpectMoreData;
 
   // True once metadata has been parsed and validated. Users of mSampleRate,
-  // mChannels, mSampleSize, mSampleFormat, mWaveLength, mWavePCMOffset must
-  // check this flag before assuming the values are valid.
+  // mChannels, mSampleSize, mWaveLength, mWavePCMOffset must check this
+  // flag before assuming the values are valid.
   PRPackedBool mMetadataValid;
 };
 
@@ -307,7 +305,6 @@ nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder, nsMediaStream* a
     mSampleRate(0),
     mChannels(0),
     mSampleSize(0),
-    mSampleFormat(nsAudioStream::FORMAT_S16_LE),
     mWaveLength(0),
     mWavePCMOffset(0),
     mMonitor(nsnull),
@@ -534,11 +531,7 @@ nsWaveStateMachine::Run()
             ChangeState(STATE_ENDED);
           }
 
-          PRUint32 lengthInSamples = len;
-          if (mSampleFormat == nsAudioStream::FORMAT_S16_LE) {
-            lengthInSamples /= sizeof(short);
-          }
-          mAudioStream->Write(buf.get(), lengthInSamples);
+          mAudioStream->Write(reinterpret_cast<short*>(buf.get()), len / sizeof(short));
           monitor.Enter();
         }
 
@@ -606,13 +599,7 @@ nsWaveStateMachine::Run()
         monitor.Exit();
         mAudioStream->Drain();
         monitor.Enter();
-        mTimeOffset = mAudioStream->GetTime();
       }
-
-      // Dispose the audio stream early (before SHUTDOWN) so that
-      // GetCurrentTime no longer attempts to query the audio backend for
-      // stream time.
-      CloseAudioStream();
 
       if (mState != STATE_SHUTDOWN) {
         nsCOMPtr<nsIRunnable> event =
@@ -660,9 +647,7 @@ nsWaveStateMachine::OpenAudioStream()
   if (!mAudioStream) {
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
   } else {
-    NS_ABORT_IF_FALSE(mMetadataValid,
-                      "Attempting to initialize audio stream with invalid metadata");
-    mAudioStream->Init(mChannels, mSampleRate, mSampleFormat);
+    mAudioStream->Init(mChannels, mSampleRate);
     mAudioStream->SetVolume(mInitialVolume);
     mAudioBufferSize = mAudioStream->Available() * sizeof(short);
   }
@@ -758,7 +743,7 @@ nsWaveStateMachine::LoadRIFFChunk()
 PRBool
 nsWaveStateMachine::LoadFormatChunk()
 {
-  PRUint32 rate, channels, sampleSize, sampleFormat;
+  PRUint32 rate, channels, sampleSize;
   char waveFormat[WAVE_FORMAT_SIZE];
   const char* p = waveFormat;
 
@@ -790,7 +775,12 @@ nsWaveStateMachine::LoadFormatChunk()
 
   sampleSize = ReadUint16LE(&p);
 
-  sampleFormat = ReadUint16LE(&p);
+  // We only support 16-bit audio for now, since that's all that the in-tree
+  // libsydney supports.
+  if (ReadUint16LE(&p) != 16) {
+    NS_WARNING("WAVE is not 16-bit, other bit rates are not supported");
+    return PR_FALSE;
+  }
 
   // PCM encoded WAVEs are not expected to have an extended "format" chunk,
   // but I have found WAVEs that have a extended "format" chunk with an
@@ -806,7 +796,7 @@ nsWaveStateMachine::LoadFormatChunk()
     }
 
     PRUint16 extra = ReadUint16LE(&p);
-    if (fmtsize - (WAVE_FORMAT_CHUNK_SIZE + 2) != extra) {
+    if (fmtsize - WAVE_FORMAT_CHUNK_SIZE + 2 != extra) {
       NS_WARNING("Invalid extended format chunk size");
       return PR_FALSE;
     }
@@ -825,12 +815,12 @@ nsWaveStateMachine::LoadFormatChunk()
                     "LoadFormatChunk left stream unaligned");
 
   // Make sure metadata is fairly sane.  The rate check is fairly arbitrary,
-  // but the channels check is intentionally limited to mono or stereo
-  // because that's what the audio backend currently supports.
+  // but the channels/sampleSize check is intentionally limited to 16-bit
+  // mono or stereo because that's what the audio backend currently
+  // supports.
   if (rate < 100 || rate > 96000 ||
       channels < 1 || channels > 2 ||
-      (sampleSize != 1 && sampleSize != 2 && sampleSize != 4) ||
-      (sampleFormat != 8 && sampleFormat != 16)) {
+      sampleSize < 2 || sampleSize > 4) {
     NS_WARNING("Invalid WAVE metadata");
     return PR_FALSE;
   }
@@ -839,11 +829,6 @@ nsWaveStateMachine::LoadFormatChunk()
   mSampleRate = rate;
   mChannels = channels;
   mSampleSize = sampleSize;
-  if (sampleFormat == 8) {
-    mSampleFormat = nsAudioStream::FORMAT_U8;
-  } else {
-    mSampleFormat = nsAudioStream::FORMAT_S16_LE;
-  }
   return PR_TRUE;
 }
 

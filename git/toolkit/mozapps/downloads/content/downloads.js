@@ -504,14 +504,8 @@ let gDownloadObserver = {
         break;
       case "private-browsing":
         if (aData == "enter" || aData == "exit") {
-          // We might get this notification before the download manager
-          // service, so the new database connection might not be ready
-          // yet.  Defer this until all private-browsing notifications
-          // have been processed.
-          setTimeout(function() {
-            initStatement();
-            buildDownloadList(true);
-          }, 0);
+          initStatement();
+          buildDownloadList(true);
         }
         break;
     }

@@ -46,8 +46,7 @@
 
 /* ::::: autocomplete ::::: */
 
-/* .padded is used by autocomplete widgets that don't have an icon. Gross. -dwh */
-textbox:not(.padded) {
+textbox {
   cursor: default;
   padding: 0;
 }
@@ -56,15 +55,20 @@ textbox[nomatch="true"][highlightnonmatches="true"] {
   color: red;
 }
 
+/* Used by autocomplete widgets that don't have an icon. Gross. -dwh */
+textbox.padded {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  -moz-padding-start: 2px;
+  -moz-padding-end: 0px;
+}
+
 .autocomplete-textbox-container {
   -moz-box-align: center;
 }
 
-textbox:not(.padded) .textbox-input-box {
-  margin: 0 3px;
-}
-
 .textbox-input-box {
+  margin: 0 3px;
   -moz-box-align: center;
 }
 

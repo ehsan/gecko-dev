@@ -234,7 +234,12 @@
       <label crop="center" flex="1" class="tooltip-label"/>
     </tooltip>
 
-    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" norestorefocus="true" ignorekeys="true">
+    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" norestorefocus="true" ignorekeys="true"
+#ifdef XP_WIN
+# XXX bug 457997
+      noautohide="true"
+#endif
+    >
       <hbox pack="center">
         <textbox id="ctrlTab-search"
                  type="search"

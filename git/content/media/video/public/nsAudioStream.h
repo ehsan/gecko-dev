@@ -46,19 +46,12 @@ extern PRLogModuleInfo* gAudioStreamLog;
 class nsAudioStream 
 {
  public:
-  enum SampleFormat
-  {
-    FORMAT_U8,
-    FORMAT_S16_LE,
-    FORMAT_FLOAT32_LE
-  };
-
-  // Initialize Audio Library. Some Audio backends require initializing the
+  // Initialize Audio Library. Some Audio backends (eg. PortAudio) require initializing
   // library before using it. 
   static void InitLibrary();
 
-  // Shutdown Audio Library. Some Audio backends require shutting down the
-  // library after using it.
+  // Shutdown Audio Library. Some Audio backends (eg. PortAudio) require shutting down
+  // the library after using it. 
   static void ShutdownLibrary();
 
   nsAudioStream();
@@ -66,15 +59,20 @@ class nsAudioStream
   // Initialize the audio stream. aNumChannels is the number of audio channels 
   // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the sound 
   // samples (22050, 44100, etc).
-  void Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat);
+  void Init(PRInt32 aNumChannels, PRInt32 aRate);
 
   // Closes the stream. All future use of the stream is an error.
   void Shutdown();
 
-  // Write sound data to the audio hardware.  aBuf is an array of samples in
-  // the format specified by mFormat of length aCount.  aCount should be
+  // Write sound data to the audio hardware. aBuf is an array of floats of
+  // length aCount. aCount should be evenly divisible by the number of 
+  // channels in this audio stream.
+  void Write(const float* aBuf, PRUint32 aCount);
+
+  // Write sound data to the audio hardware.  aBuf is an array of shorts in
+  // signed 16-bit little endian format of length aCount.  Acount should be
   // evenly divisible by the number of channels in this audio stream.
-  void Write(const void* aBuf, PRUint32 aCount);
+  void Write(const short* aBuf, PRUint32 aCount);
 
   // Return the number of sound samples that can be written to the audio device
   // without blocking.
@@ -114,8 +112,6 @@ class nsAudioStream
   float mStartTime;
   float mPauseTime;
   PRInt64 mSamplesBuffered;
-
-  SampleFormat mFormat;
 
   PRPackedBool mPaused;
 };

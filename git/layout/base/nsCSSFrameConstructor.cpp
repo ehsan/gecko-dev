@@ -2233,10 +2233,7 @@ nsCSSFrameConstructor::CreateInputFrame(nsFrameConstructorState& aState,
   // been processed.  If you feel the urge to do something like that, fix
   // callers accordingly.
   nsCOMPtr<nsIFormControl> control = do_QueryInterface(aContent);
-  if (!control) {
-    NS_ERROR("input doesn't implement nsIFormControl?");
-    return NS_OK;
-  }
+  NS_ASSERTION(control, "input is not an nsIFormControl!");
 
   switch (control->GetType()) {
     case NS_FORM_INPUT_SUBMIT:

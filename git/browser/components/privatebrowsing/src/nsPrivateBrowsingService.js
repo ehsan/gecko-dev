@@ -40,29 +40,16 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 ////////////////////////////////////////////////////////////////////////////////
 //// Utilities
 
-/**
- * Returns true if the string passed in is part of the root domain of the
- * current string.  For example, if this is "www.mozilla.org", and we pass in
- * "mozilla.org", this will return true.  It would return false the other way
- * around.
- */
-String.prototype.hasRootDomain = function hasRootDomain(aDomain)
+String.prototype.endsWith = function endsWith(aString)
 {
-  let index = this.indexOf(aDomain);
-  // If aDomain is not found, we know we do not have it as a root domain.
+  let index = this.indexOf(aString);
+  // If it is not found, we know it doesn't end with it.
   if (index == -1)
     return false;
 
-  // If the strings are the same, we obviously have a match.
-  if (this == aDomain)
-    return true;
-
-  // Otherwise, we have aDomain as our root domain iff the index of aDomain is
-  // aDomain.length subtracted from our length and (since we do not have an
-  // exact match) the character before the index is a dot or slash.
-  let prevChar = this[index - 1];
-  return (index == (this.length - aDomain.length)) &&
-         (prevChar == "." || prevChar == "/");
+  // Otherwise, we end with the given string iff the index is aString.length
+  // subtracted from our length.
+  return index == (this.length - aString.length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,7 +328,7 @@ PrivateBrowsingService.prototype = {
       let enumerator = cm.enumerator;
       while (enumerator.hasMoreElements()) {
         let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie);
-        if (cookie.host.hasRootDomain(aDomain))
+        if (cookie.host.endsWith(aDomain))
           cm.remove(cookie.host, cookie.name, cookie.path, false);
       }
     }
@@ -353,7 +340,7 @@ PrivateBrowsingService.prototype = {
       let enumerator = dm.activeDownloads;
       while (enumerator.hasMoreElements()) {
         let dl = enumerator.getNext().QueryInterface(Ci.nsIDownload);
-        if (dl.source.host.hasRootDomain(aDomain)) {
+        if (dl.source.host.endsWith(aDomain)) {
           dm.cancelDownload(dl.id);
           dm.removeDownload(dl.id);
         }
@@ -395,7 +382,7 @@ PrivateBrowsingService.prototype = {
       try {
         let logins = lm.getAllLogins({});
         for (let i = 0; i < logins.length; i++)
-          if (logins[i].hostname.hasRootDomain(aDomain))
+          if (logins[i].hostname.endsWith(aDomain))
             lm.removeLogin(logins[i]);
       }
       // XXXehsan: is there a better way to do this rather than this
@@ -405,7 +392,7 @@ PrivateBrowsingService.prototype = {
       // Clear any "do not save for this site" for this domain
       let disabledHosts = lm.getAllDisabledHosts({});
       for (let i = 0; i < disabledHosts.length; i++)
-        if (disabledHosts[i].hasRootDomain(aDomain))
+        if (disabledHosts[i].endsWith(aDomain))
           lm.setLoginSavingEnabled(disabledHosts, true);
     }
 
@@ -416,7 +403,7 @@ PrivateBrowsingService.prototype = {
       let enumerator = pm.enumerator;
       while (enumerator.hasMoreElements()) {
         let perm = enumerator.getNext().QueryInterface(Ci.nsIPermission);
-        if (perm.host.hasRootDomain(aDomain))
+        if (perm.host.endsWith(aDomain))
           pm.remove(perm.host, perm.type);
       }
     }
@@ -436,8 +423,7 @@ PrivateBrowsingService.prototype = {
       stmt.bindStringParameter(0, "%" + pattern);
       try {
         while (stmt.executeStep())
-          if (stmt.getString(0).hasRootDomain(aDomain))
-            names.push(stmt.getString(0));
+          names.push(stmt.getString(0));
       }
       finally {
         stmt.finalize();

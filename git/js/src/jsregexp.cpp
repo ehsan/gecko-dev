@@ -1990,16 +1990,12 @@ class RegExpNativeCompiler {
         fails.clear();
     }
 
-    /* 
-     * These functions return the new position after their match operation,
-     * or NULL if there was an error.
-     */
-    LIns* compileEmpty(RENode* node, LIns* pos, LInsList& fails) 
+    JSBool compileEmpty(RENode* node, LIns* pos, LInsList& fails) 
     {
-        return pos;
+        return compileNode(node->next, pos, fails);
     }
 
-    LIns* compileFlatSingleChar(RENode* node, LIns* pos, LInsList& fails) 
+    JSBool compileFlatSingleChar(RENode* node, LIns* pos, LInsList& fails) 
     {
         /* 
          * Fast case-insensitive test for ASCII letters: convert text
@@ -2033,10 +2029,11 @@ class RegExpNativeCompiler {
             targetCurrentPoint(to_ok);
         }
 
-        return lir->ins2(LIR_piadd, pos, lir->insImm(2));
+        pos = lir->ins2(LIR_piadd, pos, lir->insImm(2));
+        return compileNode(node->next, pos, fails);
     }
 
-    LIns* compileClass(RENode* node, LIns* pos, LInsList& fails) 
+    JSBool compileClass(RENode* node, LIns* pos, LInsList& fails) 
     {
         if (!node->u.ucclass.sense) 
             return JS_FALSE;
@@ -2055,10 +2052,11 @@ class RegExpNativeCompiler {
         
         LIns* to_next = lir->insBranch(LIR_jt, test, 0);
         fails.add(to_next);
-        return lir->ins2(LIR_piadd, pos, lir->insImm(2));
+        pos = lir->ins2(LIR_piadd, pos, lir->insImm(2));
+        return compileNode(node->next, pos, fails);
     }
 
-    LIns* compileAlt(RENode* node, LIns* pos, LInsList& fails) 
+    JSBool compileAlt(RENode* node, LIns* pos, LInsList& fails) 
     {
         LInsList kidFails(NULL);
         if (!compileNode((RENode *) node->kid, pos, kidFails)) 
@@ -2078,41 +2076,35 @@ class RegExpNativeCompiler {
          */
         if (node->next) 
             return JS_FALSE;
-        return pos;
+        return compileNode(node->next, pos, fails);
     }
 
     JSBool compileNode(RENode* node, LIns* pos, LInsList& fails) 
     {
-        for (; node; node = node->next) {
-            if (fragment->lirbuf->outOmem()) 
-                return JS_FALSE;
+        if (fragment->lirbuf->outOmem()) 
+            return JS_FALSE;
 
-            switch (node->op) {
-            case REOP_EMPTY:
-                pos = compileEmpty(node, pos, fails);
-                break;
-            case REOP_FLAT:
-                if (node->u.flat.length != 1) 
-                    return JS_FALSE;
-                pos = compileFlatSingleChar(node, pos, fails);
-                break;
-            case REOP_ALT:
-            case REOP_ALTPREREQ:
-                pos = compileAlt(node, pos, fails);
-                break;
-            case REOP_CLASS:
-                pos = compileClass(node, pos, fails);
-                break;
-            default:
-                return JS_FALSE;
-            }
-            if (!pos) 
-                return JS_FALSE;
+        if (!node) {
+            lir->insStorei(pos, state, (int) offsetof(REMatchState, cp));
+            lir->ins1(LIR_ret, state);
+            return JS_TRUE;
         }
 
-        lir->insStorei(pos, state, (int) offsetof(REMatchState, cp));
-        lir->ins1(LIR_ret, state);
-        return JS_TRUE;
+        switch (node->op) {
+        case REOP_EMPTY:
+            return compileEmpty(node, pos, fails);
+        case REOP_FLAT:
+            if (node->u.flat.length == 1)
+                return compileFlatSingleChar(node, pos, fails);
+            return JS_FALSE;
+        case REOP_ALT:
+        case REOP_ALTPREREQ:
+            return compileAlt(node, pos, fails);
+        case REOP_CLASS:
+            return compileClass(node, pos, fails);
+        default:
+            return JS_FALSE;
+        }
     }
 
     JSBool compileSticky(RENode* root, LIns* start) 
@@ -2163,13 +2155,10 @@ class RegExpNativeCompiler {
         bool oom = false;
         
         Fragmento* fragmento = JS_TRACE_MONITOR(cx).reFragmento;
-        fragment = fragmento->getLoop(re);
-        if (!fragment) {
-            fragment = fragmento->getAnchor(re);
-            fragment->lirbuf = new (&gc) LirBuffer(fragmento, NULL);
-            /* Scary: required to have the onDestroy method delete the lirbuf. */
-            fragment->root = fragment;
-        }
+        fragment = fragmento->getAnchor(re);
+        fragment->lirbuf = new (&gc) LirBuffer(fragmento, NULL);
+        /* Scary: required to have the onDestroy method delete the lirbuf. */
+        fragment->root = fragment;
         LirBuffer* lirbuf = fragment->lirbuf;
         LirBufWriter* lirb;
         if (lirbuf->outOmem()) goto fail2;
@@ -2297,6 +2286,14 @@ js_NewRegExp(JSContext *cx, JSTokenStream *ts,
         re->classList = NULL;
     }
 
+#ifdef JS_TRACER
+    /*
+     * Try compiling the native code version. For the time being we also 
+     * compile the bytecode version in case we evict the native code
+     * version from the code cache.
+     */
+    js_CompileRegExpToNative(cx, re, &state);
+#endif
     /* Compile the bytecode version. */
     endPC = EmitREBytecode(&state, re, state.treeDepth, re->program, state.result);
     if (!endPC) {
@@ -2322,17 +2319,6 @@ js_NewRegExp(JSContext *cx, JSTokenStream *ts,
     re->flags = flags;
     re->parenCount = state.parenCount;
     re->source = str;
-
-#ifdef JS_TRACER
-    /*
-     * Try compiling the native code version. For the time being we also 
-     * compile the bytecode version in case we evict the native code
-     * version from the code cache.
-     * We have to compile at this point because we are using the JSRegExp
-     * address as a key and the shrink step above can move it.
-     */
-    js_CompileRegExpToNative(cx, re, &state);
-#endif
 
 out:
     JS_ARENA_RELEASE(&cx->tempPool, mark);
@@ -2845,10 +2831,7 @@ js_DestroyRegExp(JSContext *cx, JSRegExp *re)
 {
     if (JS_ATOMIC_DECREMENT(&re->nrefs) == 0) {
 #ifdef JS_TRACER
-        /* Don't reuse this compiled code for some new regexp at same addr. */
-        Fragment* fragment = JS_TRACE_MONITOR(cx).reFragmento->getLoop(re);
-        if (fragment)
-            fragment->blacklist();
+        JS_TRACE_MONITOR(cx).reFragmento->clearFrag(re);
 #endif
         if (re->classList) {
             uintN i;
@@ -3661,8 +3644,7 @@ MatchRegExp(REGlobalData *gData, REMatchState *x)
 
     /* Run with native regexp if possible. */
     if (((fragment = JS_TRACE_MONITOR(gData->cx).reFragmento->getLoop(gData->regexp)) != NULL)
-        && fragment->code()
-        && !fragment->isBlacklisted()) {
+        && fragment->code()) {
         union { NIns *code; REMatchState* (FASTCALL *func)(void*, void*); } u;
         u.code = fragment->code();
         REMatchState *lr;

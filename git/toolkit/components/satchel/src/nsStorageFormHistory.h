@@ -113,19 +113,14 @@ public:
 
  protected:
   // Database I/O
-  nsresult OpenDatabase(PRBool *aDoImport);
+  nsresult OpenDatabase();
   nsresult CloseDatabase();
   nsresult GetDatabaseFile(nsIFile** aFile);
-
-  nsresult CreateTable();
-  nsresult CreateStatements();
 
   static PRBool FormHistoryEnabled();
   static nsFormHistory *gFormHistory;
   static PRBool gFormHistoryEnabled;
   static PRBool gPrefsInitialized;
-
-  PRInt64 GetExistingEntryID(const nsAString &aName, const nsAString &aValue);
 
   nsCOMPtr<nsIPrefBranch> mPrefBranch;
   nsCOMPtr<mozIStorageService> mStorageService;
@@ -134,7 +129,6 @@ public:
   nsCOMPtr<mozIStorageStatement> mDBFindEntryByName;
   nsCOMPtr<mozIStorageStatement> mDBSelectEntries;
   nsCOMPtr<mozIStorageStatement> mDBInsertNameValue;
-  nsCOMPtr<mozIStorageStatement> mDBUpdateEntry;
 
   // dummy statement (see StartCache)
   nsresult StartCache();

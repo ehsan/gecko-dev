@@ -2976,8 +2976,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                  dirProvider.GetAppDir(),
                  updRoot,
                  gRestartArgc,
-                 gRestartArgv,
-                 appData.version);
+                 gRestartArgv);
 #endif
 
     nsCOMPtr<nsIProfileLock> profileLock;
