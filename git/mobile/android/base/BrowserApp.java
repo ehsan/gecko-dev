@@ -2932,13 +2932,15 @@ public class BrowserApp extends GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
         }
 
-        // Only solicit feedback when the app has been launched from the icon shortcut.
-        if (GuestSession.NOTIFICATION_INTENT.equals(action)) {
-            GuestSession.handleIntent(this, intent);
+        if (!mInitialized) {
+            return;
         }
 
-        if (!mInitialized || !Intent.ACTION_MAIN.equals(action)) {
+        // Only solicit feedback when the app has been launched from the icon shortcut.
+        if (!Intent.ACTION_MAIN.equals(action)) {
             return;
+        } else if (GuestSession.NOTIFICATION_INTENT.equals(action)) {
+            GuestSession.handleIntent(this, intent);
         }
 
         // Check to see how many times the app has been launched.

@@ -3871,14 +3871,10 @@ SearchService.prototype = {
     if (observer) {
       this._initObservers.promise.then(
         function onSuccess() {
-          try {
-            observer.onInitComplete(self._initRV);
-          } catch (e) {
-            Cu.reportError(e);
-          }
+          observer.onInitComplete(self._initRV);
         },
         function onError(aReason) {
-          Cu.reportError("Internal error while initializing SearchService: " + aReason);
+          Components.utils.reportError("Internal error while initializing SearchService: " + aReason);
           observer.onInitComplete(Components.results.NS_ERROR_UNEXPECTED);
         }
       );
