@@ -59,7 +59,7 @@
 #include "nsIMediaList.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIDOMCSSStyleSheet.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"

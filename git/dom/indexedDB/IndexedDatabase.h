@@ -14,7 +14,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 

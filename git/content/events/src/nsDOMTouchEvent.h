@@ -114,7 +114,7 @@ public:
 
   nsIDOMTouch* GetItemAt(PRUint32 aIndex)
   {
-    return mPoints.SafeElementAt(aIndex, nullptr);
+    return mPoints.SafeElementAt(aIndex, nsnull);
   }
 
 protected:

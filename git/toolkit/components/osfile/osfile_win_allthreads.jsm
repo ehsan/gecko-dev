@@ -133,10 +133,4 @@ if (typeof Components != "undefined") {
   });
 
   exports.OS.Shared.Win.Error = OSError;
-
-  // Special constants that need to be defined on all platforms
-
-  Object.defineProperty(exports.OS.Shared, "POS_START", { value: exports.OS.Constants.Win.FILE_BEGIN });
-  Object.defineProperty(exports.OS.Shared, "POS_CURRENT", { value: exports.OS.Constants.Win.FILE_CURRENT });
-  Object.defineProperty(exports.OS.Shared, "POS_END", { value: exports.OS.Constants.Win.FILE_END });
 })(this);

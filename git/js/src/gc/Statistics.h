@@ -137,7 +137,7 @@ struct Statistics {
     void beginGC();
     void endGC();
 
-    void gcDuration(int64_t *total, int64_t *maxPause);
+    int64_t gcDuration();
     void printStats();
     bool formatData(StatisticsSerializer &ss, uint64_t timestamp);
 

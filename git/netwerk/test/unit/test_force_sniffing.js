@@ -1,11 +1,6 @@
 // This file tests the flag LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN.
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const octetStreamType = "application/octet-stream";
 const sniffedType = "application/x-sniffed";
@@ -72,7 +67,7 @@ var url = "http://localhost:4444/test";
 var httpserv = null;
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/test", handler);
   httpserv.start(4444);
 

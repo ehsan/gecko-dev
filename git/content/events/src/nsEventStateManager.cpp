@@ -332,6 +332,7 @@ public:
 
   static DeltaValues AccelerateWheelDelta(widget::WheelEvent* aEvent,
                                           bool aAllowScrollSpeedOverride);
+  static bool IsAccelerationEnabled();
 
   enum {
     kScrollSeriesTimeout = 80
@@ -585,6 +586,12 @@ PRUint32
 nsMouseWheelTransaction::GetIgnoreMoveDelayTime()
 {
   return Preferences::GetUint("mousewheel.transaction.ignoremovedelay", 100);
+}
+
+bool
+nsMouseWheelTransaction::IsAccelerationEnabled()
+{
+  return GetAccelerationStart() >= 0 && GetAccelerationFactor() > 0;
 }
 
 DeltaValues
@@ -2458,7 +2465,7 @@ nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
   nsIContent *content = aTargetFrame->GetContent();
   if (content &&
       !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
-      !content->OwnerDoc()->IsXUL())
+      !content->IsXUL())
     {
       // positive adjustment to decrease zoom, negative to increase
       PRInt32 change = (adjustment > 0) ? -1 : 1;

@@ -19,13 +19,7 @@
  * and configuration of Firefox.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
-
+do_load_httpd_js();
 
 function run_test()
 {
@@ -34,7 +28,7 @@ function run_test()
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
   do_load_manifest("data/chrome.manifest");
 
-  let httpServer = new HttpServer();
+  let httpServer = new nsHttpServer();
   httpServer.start(4444);
   httpServer.registerDirectory("/", do_get_cwd());
 

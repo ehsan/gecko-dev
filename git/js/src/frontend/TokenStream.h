@@ -679,16 +679,11 @@ class TokenStream
      */
     size_t endOffset(const Token &tok);
 
-    bool hasSourceMap() const {
-        return sourceMap != NULL;
-    }
-
     /*
      * Give up responsibility for managing the sourceMap filename's memory.
      */
-    jschar *releaseSourceMap() {
-        JS_ASSERT(hasSourceMap());
-        jschar *sm = sourceMap;
+    const jschar *releaseSourceMap() {
+        const jschar* sm = sourceMap;
         sourceMap = NULL;
         return sm;
     }

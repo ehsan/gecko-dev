@@ -7,7 +7,7 @@
 #include "nsSVGContainerFrame.h"
 
 // Keep others in (case-insensitive) order:
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGTextFrame.h"
 #include "nsSVGUtils.h"

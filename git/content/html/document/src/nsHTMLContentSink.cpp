@@ -66,7 +66,7 @@
 
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsITimer.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIScriptContext.h"
 #include "nsStyleLinkElement.h"

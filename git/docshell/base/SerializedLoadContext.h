@@ -28,7 +28,7 @@ class SerializedLoadContext
 public:
   SerializedLoadContext()
   {
-    Init(nullptr);
+    Init(nsnull);
   }
 
   SerializedLoadContext(nsILoadContext* aLoadContext);

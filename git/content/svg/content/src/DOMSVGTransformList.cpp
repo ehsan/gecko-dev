@@ -10,7 +10,7 @@
 #include "nsSVGElement.h"
 #include "nsContentUtils.h"
 #include "dombindings.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 // local helper functions
 namespace {

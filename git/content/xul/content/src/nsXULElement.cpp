@@ -18,7 +18,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsDOMCID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMString.h"
 #include "nsIDOMEvent.h"
 #include "nsHashtable.h"

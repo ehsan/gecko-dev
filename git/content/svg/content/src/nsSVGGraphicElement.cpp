@@ -16,7 +16,7 @@
 #include "nsISVGChildFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsSVGUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsSVGRect.h"
 #include "nsContentUtils.h"
 

@@ -106,7 +106,6 @@ public:
     virtual PRUint32 GetGLFrameBufferFormat() MOZ_OVERRIDE;
 
     virtual nsIntRect GetNaturalBounds() MOZ_OVERRIDE;
-    virtual bool NeedsPaint();
 
 protected:
     nsWindow* mParent;

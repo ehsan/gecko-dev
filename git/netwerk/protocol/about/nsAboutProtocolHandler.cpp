@@ -17,7 +17,7 @@
 #include "nsReadableUtils.h"
 #include "nsNetCID.h"
 #include "nsAboutProtocolUtils.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsNetUtil.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"

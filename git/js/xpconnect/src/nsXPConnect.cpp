@@ -2702,8 +2702,7 @@ public:
     }
 };
 
-static const CCParticipantVTable<JSCompartmentParticipant>::Type
-JSCompartment_cycleCollectorGlobal = {
+static CCParticipantVTable<JSCompartmentParticipant>::Type JSCompartment_cycleCollectorGlobal = {
     NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSCompartmentParticipant)
 };
 

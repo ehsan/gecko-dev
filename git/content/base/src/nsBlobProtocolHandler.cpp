@@ -4,7 +4,7 @@
 
 #include "nsBlobProtocolHandler.h"
 #include "nsBlobURI.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsClassHashtable.h"
 #include "nsNetUtil.h"
 #include "nsIPrincipal.h"

@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 /*
  * This xpcshell test checks whether we detect infinite HTTP redirect loops.
@@ -60,7 +55,7 @@ function testFullLoop(request, buffer)
   do_check_eq(request.status, Components.results.NS_ERROR_REDIRECT_LOOP);
 
   var chan = make_channel(relativeLoopURI);
-  chan.asyncOpen(new ChannelListener(testRelativeLoop, null, CL_EXPECT_FAILURE),
+  chan.asyncOpen(new ChannelListener(testRelativeLoop, null, CL_EXPECT_FAILURE), 
                  null);
 }
 
@@ -69,7 +64,7 @@ function testRelativeLoop(request, buffer)
   do_check_eq(request.status, Components.results.NS_ERROR_REDIRECT_LOOP);
 
   var chan = make_channel(emptyLoopURI);
-  chan.asyncOpen(new ChannelListener(testEmptyLoop, null, CL_EXPECT_FAILURE),
+  chan.asyncOpen(new ChannelListener(testEmptyLoop, null, CL_EXPECT_FAILURE), 
                  null);
 }
 
@@ -82,14 +77,14 @@ function testEmptyLoop(request, buffer)
 
 function run_test()
 {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler(fullLoopPath, fullLoopHandler);
   httpServer.registerPathHandler(relativeLoopPath, relativeLoopHandler);
   httpServer.registerPathHandler(emptyLoopPath, emptyLoopHandler);
   httpServer.start(4444);
 
   var chan = make_channel(fullLoopURI);
-  chan.asyncOpen(new ChannelListener(testFullLoop, null, CL_EXPECT_FAILURE),
+  chan.asyncOpen(new ChannelListener(testFullLoop, null, CL_EXPECT_FAILURE), 
                  null);
   do_test_pending();
 }

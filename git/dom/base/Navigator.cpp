@@ -54,8 +54,6 @@
 
 #include "nsIDOMGlobalPropertyInitializer.h"
 
-using namespace mozilla::dom::power;
-
 // This should not be in the namespace.
 DOMCI_DATA(Navigator, mozilla::dom::Navigator)
 
@@ -1031,11 +1029,11 @@ Navigator::GetMozPower(nsIDOMMozPowerManager** aPower)
   *aPower = nullptr;
 
   if (!mPowerManager) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
+    nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
+    NS_ENSURE_TRUE(win, NS_OK);
 
-    mPowerManager = PowerManager::CheckPermissionAndCreateInstance(window);
-    NS_ENSURE_TRUE(mPowerManager, NS_OK);
+    mPowerManager = new power::PowerManager();
+    mPowerManager->Init(win);
   }
 
   nsCOMPtr<nsIDOMMozPowerManager> power(mPowerManager);

@@ -96,7 +96,7 @@
 #include "nsDocShellEditorData.h"
 
 // Helper Classes
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEscape.h"
 
 // Interfaces Needed
@@ -179,7 +179,9 @@
 #include "nsIWebBrowserPrint.h"
 #endif
 
+#include "nsPluginError.h"
 #include "nsContentUtils.h"
+#include "nsContentErrors.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 
@@ -226,6 +228,12 @@ static PRUint32 gValidateOrigin = 0xffffffff;
 // all documents have loaded in milliseconds before favoring normal
 // native event dispatch priorites over performance
 #define NS_EVENT_STARVATION_DELAY_HINT 2000
+
+// This is needed for displaying an error message 
+// when navigation is attempted on a document when printing
+// The value arbitrary as long as it doesn't conflict with
+// any of the other values in the errors in DisplayLoadError
+#define NS_ERROR_DOCUMENT_IS_PRINTMODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL,2001)
 
 #ifdef PR_LOGGING
 #ifdef DEBUG
@@ -2838,10 +2846,7 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
     //             window with javascript
     // Bug 408052: Adopt "ancestor" frame navigation policy
 
-    // Now do a security check.
-    //
-    // Disallow navigation if the two frames are not part of the same app, or if
-    // they have different is-in-browser-element states.
+    // Now do a security check
     //
     // Allow navigation if
     //  1) aAccessingItem can script aTargetItem or one of its ancestors in
@@ -2852,29 +2857,7 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
 
     if (aTargetItem == aAccessingItem) {
         // A frame is allowed to navigate itself.
-        return true;
-    }
-
-    nsCOMPtr<nsIDocShell> targetDS = do_QueryInterface(aTargetItem);
-    nsCOMPtr<nsIDocShell> accessingDS = do_QueryInterface(aAccessingItem);
-    if (!!targetDS != !!accessingDS) {
-        // We must be able to convert both or neither to nsIDocShell.
-        return false;
-    }
-
-    if (targetDS && accessingDS) {
-        bool targetInBrowser = false, accessingInBrowser = false;
-        targetDS->GetIsInBrowserElement(&targetInBrowser);
-        accessingDS->GetIsInBrowserElement(&accessingInBrowser);
-
-        PRUint32 targetAppId = 0, accessingAppId = 0;
-        targetDS->GetAppId(&targetAppId);
-        accessingDS->GetAppId(&accessingAppId);
-
-        if (targetInBrowser != accessingInBrowser ||
-            targetAppId != accessingAppId) {
-            return false;
-        }
+        return true;  
     }
 
     nsCOMPtr<nsIDocShellTreeItem> accessingRoot;
@@ -8360,19 +8343,16 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         
         bool isNewWindow = false;
         if (!targetDocShell) {
-            nsCOMPtr<nsPIDOMWindow> win =
+            nsCOMPtr<nsIDOMWindow> win =
                 do_GetInterface(GetAsSupports(this));
             NS_ENSURE_TRUE(win, NS_ERROR_NOT_AVAILABLE);
 
             nsDependentString name(aWindowTarget);
             nsCOMPtr<nsIDOMWindow> newWin;
-            nsCAutoString spec;
-            if (aURI)
-                aURI->GetSpec(spec);
-            rv = win->OpenNoNavigate(NS_ConvertUTF8toUTF16(spec),
-                                     name,          // window name
-                                     EmptyString(), // Features
-                                     getter_AddRefs(newWin));
+            rv = win->Open(EmptyString(), // URL to load
+                           name,          // window name
+                           EmptyString(), // Features
+                           getter_AddRefs(newWin));
 
             // In some cases the Open call doesn't actually result in a new
             // window being opened.  We can detect these cases by examining the

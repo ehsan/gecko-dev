@@ -5,7 +5,7 @@
 
 #include "txIXPathContext.h"
 #include "nsGkAtoms.h"
-#include "nsError.h"
+#include "txError.h"
 #include "txXMLUtils.h"
 #include "txXSLTFunctions.h"
 #include "txNamespaceMap.h"

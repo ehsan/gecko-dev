@@ -386,7 +386,7 @@ nsPrefetchNode::OnRedirectResult(bool proceeding)
     if (proceeding && mRedirectChannel)
         mChannel = mRedirectChannel;
 
-    mRedirectChannel = nullptr;
+    mRedirectChannel = nsnull;
 
     return NS_OK;
 }

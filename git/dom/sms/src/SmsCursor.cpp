@@ -5,7 +5,7 @@
 
 #include "SmsCursor.h"
 #include "nsIDOMClassInfo.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDOMSmsMessage.h"
 #include "nsIDOMSmsRequest.h"
 #include "SmsRequest.h"

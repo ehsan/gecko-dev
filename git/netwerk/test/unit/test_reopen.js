@@ -1,12 +1,7 @@
 // This testcase verifies that channels can't be reopened
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=372486
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const NS_ERROR_IN_PROGRESS = 0x804b000f;
 const NS_ERROR_ALREADY_OPENED = 0x804b0049;
@@ -137,8 +132,8 @@ function end() {
 
 function run_test() {
   // start server
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.start(4444);
-
+  
   run_next_test();
 }

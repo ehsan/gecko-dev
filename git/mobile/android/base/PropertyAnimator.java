@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -142,20 +141,18 @@ public class PropertyAnimator extends TimerTask {
     }
 
     private void invalidate(final ElementHolder element, final int delta) {
-        final View view = element.view;
-
-        Handler handler = view.getHandler();
-        if (handler == null)
+        View v = (element == null ? null : element.view);
+        if (v == null)
             return;
 
         // Post the layout changes on the view's UI thread.
-        handler.post(new Runnable() {
+        v.getHandler().post(new Runnable() {
             @Override
             public void run() {
-                // check to see if the view was detached between the check above and this code
-                // getting run on the UI thread.
-                if (view.getHandler() == null)
-                    return;
+                // Check if the element and view still exist
+                View view = (element == null ? null : element.view);
+                if (view == null)
+                     return;
             
                 if (element.property == Property.SLIDE_TOP) {
                     view.scrollTo(view.getScrollX(), delta);

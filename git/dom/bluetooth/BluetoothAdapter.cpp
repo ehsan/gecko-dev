@@ -64,11 +64,6 @@ NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
-    , mEnabled(false)
-    , mDiscoverable(false)
-    , mDiscovering(false)
-    , mPairable(false)
-    , mPowered(false)
     , mJsUuids(nullptr)
     , mJsDeviceAddresses(nullptr)
     , mIsRooted(false)
@@ -363,7 +358,7 @@ BluetoothAdapter::SetName(const nsAString& aName,
                           nsIDOMDOMRequest** aRequest)
 {
   if (mName.Equals(aName)) {
-    return FirePropertyAlreadySet(GetOwner(), aRequest);
+    return NS_OK;
   }
   nsString name(aName);
   BluetoothValue value(name);
@@ -376,7 +371,7 @@ BluetoothAdapter::SetDiscoverable(const bool aDiscoverable,
                                   nsIDOMDOMRequest** aRequest)
 {
   if (aDiscoverable == mDiscoverable) {
-    return FirePropertyAlreadySet(GetOwner(), aRequest);
+    return NS_OK;
   }
   BluetoothValue value(aDiscoverable);
   BluetoothNamedValue property(NS_LITERAL_STRING("Discoverable"), value);
@@ -388,7 +383,7 @@ BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
                                          nsIDOMDOMRequest** aRequest)
 {
   if (aDiscoverableTimeout == mDiscoverableTimeout) {
-    return FirePropertyAlreadySet(GetOwner(), aRequest);
+    return NS_OK;
   }
   BluetoothValue value(aDiscoverableTimeout);
   BluetoothNamedValue property(NS_LITERAL_STRING("DiscoverableTimeout"), value);

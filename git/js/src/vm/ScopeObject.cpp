@@ -1369,9 +1369,8 @@ class DebugScopeProxy : public BaseProxyHandler
 
     bool delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp) MOZ_OVERRIDE
     {
-        RootedValue val(cx, IdToValue(id));
         return js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_CANT_DELETE,
-                                        JSDVG_IGNORE_STACK, val, NullPtr(),
+                                        JSDVG_IGNORE_STACK, IdToValue(id), NULL,
                                         NULL, NULL);
     }
 

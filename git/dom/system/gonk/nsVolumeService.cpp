@@ -153,13 +153,6 @@ void nsVolumeService::UpdateVolume(const nsVolume *aVolume)
   if (!obs) {
     return;
   }
-  if (aVolume->State() == nsIVolume::STATE_MOUNTED) {
-    LOG("UpdateVolume: '%s' state %s @ '%s'",
-        aVolume->NameStr(), aVolume->StateStr(), aVolume->MountPointStr());
-  } else {
-    LOG("UpdateVolume: '%s' state %s",
-        aVolume->NameStr(), aVolume->StateStr());
-  }
   nsString stateStr(NS_ConvertUTF8toUTF16(vol->StateStr()));
   obs->NotifyObservers(vol, NS_VOLUME_STATE_CHANGED, stateStr.get());
 }
@@ -180,7 +173,7 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    DBG("UpdateVolumeRunnable::Run '%s' state %s",
+    LOG("UpdateVolumeRunnable::Run '%s' state %s",
         mVolume->NameStr(), mVolume->StateStr());
 
     nsCOMPtr<nsIVolumeService> ivs = do_GetService(NS_VOLUMESERVICE_CONTRACTID);
@@ -203,7 +196,7 @@ private:
 //static
 void nsVolumeService::UpdateVolumeIOThread(const Volume *aVolume)
 {
-  DBG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s'",
+  LOG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s'",
       aVolume->NameStr(), aVolume->StateStr(), aVolume->MountPoint().get());
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   NS_DispatchToMainThread(new UpdateVolumeRunnable(aVolume));

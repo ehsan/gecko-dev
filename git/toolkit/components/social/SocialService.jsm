@@ -8,10 +8,10 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/MozSocialAPI.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "getFrameWorkerHandle", "resource://gre/modules/FrameWorker.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "WorkerAPI", "resource://gre/modules/WorkerAPI.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "MozSocialAPI", "resource://gre/modules/MozSocialAPI.jsm");
 
 /**
  * The SocialService is the public API to social providers - it tracks which
@@ -27,8 +27,8 @@ let SocialServiceInternal = {
   }
 };
 
-function initService() {
-  // Add a pref observer for the enabled state
+XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
+  // Initialize the service (add a pref observer)
   function prefObserver(subject, topic, data) {
     SocialService._setEnabled(Services.prefs.getBoolPref("social.enabled"));
   }
@@ -39,12 +39,7 @@ function initService() {
   }, "xpcom-shutdown", false);
 
   // Initialize the MozSocialAPI
-  if (SocialServiceInternal.enabled)
-    MozSocialAPI.enabled = true;
-}
-
-XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
-  initService();
+  MozSocialAPI.enabled = SocialServiceInternal.enabled;
 
   // Don't load any providers from prefs if the test pref is set
   let skipLoading = false;
@@ -55,7 +50,7 @@ XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
   if (skipLoading)
     return {};
 
-  // Now retrieve the providers from prefs
+  // Now retrieve the providers
   let providers = {};
   let MANIFEST_PREFS = Services.prefs.getBranch("social.manifest.");
   let prefs = MANIFEST_PREFS.getChildList("", {});

@@ -30,7 +30,7 @@ var httpserv = null;
 var timer = null;
 function run_test()
 {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerDirectory("/", do_get_cwd());
   httpserv.start(4444);
 

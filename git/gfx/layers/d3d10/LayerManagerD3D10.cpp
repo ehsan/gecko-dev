@@ -200,7 +200,7 @@ LayerManagerD3D10::Initialize(bool force)
     mInputLayout = attachments->mInputLayout;
   }
 
-  if (ShadowLayerForwarder::HasShadowManager()) {
+  if (HasShadowManager()) {
     reporter.SetSuccessful();
     return true;
   }
@@ -335,12 +335,12 @@ LayerManagerD3D10::BeginTransactionWithTarget(gfxContext* aTarget)
 }
 
 bool
-LayerManagerD3D10::EndEmptyTransaction(EndTransactionFlags aFlags)
+LayerManagerD3D10::EndEmptyTransaction()
 {
   if (!mRoot)
     return false;
 
-  EndTransaction(nullptr, nullptr, aFlags);
+  EndTransaction(nullptr, nullptr);
   return true;
 }
 
@@ -362,7 +362,7 @@ LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
     Log();
 #endif
 
-    Render(aFlags);
+    Render();
     mCurrentCallbackInfo.Callback = nullptr;
     mCurrentCallbackInfo.CallbackData = nullptr;
   }
@@ -703,13 +703,9 @@ LayerManagerD3D10::EnsureReadbackManager()
 }
 
 void
-LayerManagerD3D10::Render(EndTransactionFlags aFlags)
+LayerManagerD3D10::Render()
 {
   static_cast<LayerD3D10*>(mRoot->ImplData())->Validate();
-
-  if (aFlags & END_NO_COMPOSITE) {
-    return;
-  }
 
   SetupPipeline();
 

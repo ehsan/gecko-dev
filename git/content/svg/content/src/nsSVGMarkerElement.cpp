@@ -8,7 +8,7 @@
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
 #include "gfxMatrix.h"

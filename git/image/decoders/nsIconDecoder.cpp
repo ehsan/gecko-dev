@@ -11,7 +11,7 @@
 #include "nspr.h"
 #include "nsRect.h"
 
-#include "nsError.h"
+#include "ImageErrors.h"
 
 namespace mozilla {
 namespace image {

@@ -45,7 +45,7 @@
 #include "nsContentList.h"
 #include "nsDOMTokenList.h"
 #include "nsXBLPrototypeBinding.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMString.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMMutationEvent.h"
@@ -607,7 +607,10 @@ PRInt32
 nsGenericElement::GetScrollTop()
 {
   nsIScrollableFrame* sf = GetScrollFrame();
-  return sf ? sf->GetScrollPositionCSSPixels().y : 0;
+
+  return sf ?
+         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().y) :
+         0;
 }
 
 NS_IMETHODIMP
@@ -623,7 +626,9 @@ nsGenericElement::SetScrollTop(PRInt32 aScrollTop)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
-    sf->ScrollToCSSPixels(nsIntPoint(sf->GetScrollPositionCSSPixels().x, aScrollTop));
+    nsPoint pt = sf->GetScrollPosition();
+    sf->ScrollToCSSPixels(nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                                     aScrollTop));
   }
   return NS_OK;
 }
@@ -632,7 +637,10 @@ PRInt32
 nsGenericElement::GetScrollLeft()
 {
   nsIScrollableFrame* sf = GetScrollFrame();
-  return sf ? sf->GetScrollPositionCSSPixels().x : 0;
+
+  return sf ?
+         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().x) :
+         0;
 }
 
 NS_IMETHODIMP
@@ -648,7 +656,9 @@ nsGenericElement::SetScrollLeft(PRInt32 aScrollLeft)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
-    sf->ScrollToCSSPixels(nsIntPoint(aScrollLeft, sf->GetScrollPositionCSSPixels().y));
+    nsPoint pt = sf->GetScrollPosition();
+    sf->ScrollToCSSPixels(nsIntPoint(aScrollLeft,
+                                     nsPresContext::AppUnitsToIntCSSPixels(pt.y)));
   }
   return NS_OK;
 }
@@ -1883,7 +1893,13 @@ nsGenericElement::MaybeCheckSameAttrVal(PRInt32 aNamespaceID,
       }
       bool valueMatches = aValue.EqualsAsStrings(*info.mValue);
       if (valueMatches && aPrefix == info.mName->GetPrefix()) {
-        return true;
+        if (OwnerDoc()->MayHaveDOMMutationObservers()) {
+          // For backward compatibility, don't fire mutation events
+          // when setting an attribute to its old value.
+          *aHasListeners = false;
+        } else {
+          return true;
+        }
       }
       modification = true;
     }
@@ -1914,8 +1930,8 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   nsAttrValueOrString value(aValue);
   nsAttrValue oldValue;
 
-  if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, value, aNotify,
-                             oldValue, &modType, &hasListeners)) {
+  if (MaybeCheckSameAttrVal(aNamespaceID, aName, aPrefix, value, aNotify,
+                            oldValue, &modType, &hasListeners)) {
     return NS_OK;
   }
 
@@ -1961,8 +1977,8 @@ nsGenericElement::SetParsedAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   nsAttrValueOrString value(aParsedValue);
   nsAttrValue oldValue;
 
-  if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, value, aNotify,
-                             oldValue, &modType, &hasListeners)) {
+  if (MaybeCheckSameAttrVal(aNamespaceID, aName, aPrefix, value, aNotify,
+                            oldValue, &modType, &hasListeners)) {
     return NS_OK;
   }
 
@@ -2794,7 +2810,7 @@ static const char*
 GetFullScreenError(nsIDocument* aDoc)
 {
   nsCOMPtr<nsPIDOMWindow> win = aDoc->GetWindow();
-  if (aDoc->NodePrincipal()->GetAppStatus() >= nsIPrincipal::APP_STATUS_INSTALLED) {
+  if (win && win->IsInAppOrigin()) {
     // Request is in a web app and in the same origin as the web app.
     // Don't enforce as strict security checks for web apps, the user
     // is supposed to have trust in them. However documents cross-origin

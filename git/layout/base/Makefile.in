@@ -46,6 +46,7 @@ EXPORTS		= \
 		nsIPercentHeightObserver.h  \
 		nsIPresShell.h \
 		nsIReflowCallback.h \
+		nsLayoutErrors.h \
 		nsLayoutUtils.h \
 		nsPresArena.h \
 		nsPresContext.h \

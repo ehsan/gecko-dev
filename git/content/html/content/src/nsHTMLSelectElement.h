@@ -21,7 +21,7 @@
 #include "nsPresState.h"
 #include "nsIComponentManager.h"
 #include "nsCheapSets.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsHTMLOptionElement.h"
 #include "nsHTMLFormElement.h"
 

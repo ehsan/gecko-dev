@@ -12,7 +12,7 @@
 
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeFilter.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsINode.h"
 #include "nsDOMClassInfoID.h"
 #include "nsContentUtils.h"

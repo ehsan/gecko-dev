@@ -1037,7 +1037,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   layerBuilder->WillEndTransaction(layerManager);
   bool temp = aBuilder->SetIsCompositingCheap(layerManager->IsCompositingCheap());
   layerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer,
-                               aBuilder, (aFlags & PAINT_NO_COMPOSITE) ? LayerManager::END_NO_COMPOSITE : LayerManager::END_DEFAULT);
+                               aBuilder);
   aBuilder->SetIsCompositingCheap(temp);
   layerBuilder->DidEndTransaction(layerManager);
 
@@ -2247,7 +2247,7 @@ bool nsDisplayWrapList::ChildrenCanBeInactive(nsDisplayListBuilder* aBuilder,
     }
 
     LayerState state = i->GetLayerState(aBuilder, aManager, aParameters);
-    if (state == LAYER_ACTIVE || state == LAYER_ACTIVE_FORCE)
+    if (state == LAYER_ACTIVE)
       return false;
     if (state == LAYER_NONE) {
       nsDisplayList* list = i->GetList();

@@ -8,7 +8,7 @@
 #include "nsSOCKSSocketProvider.h"
 #include "nsSOCKSIOLayer.h"
 #include "nsCOMPtr.h"
-#include "nsError.h"
+#include "nsNetError.h"
 
 //////////////////////////////////////////////////////////////////////////
 

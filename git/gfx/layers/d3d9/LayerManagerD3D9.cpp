@@ -121,7 +121,7 @@ LayerManagerD3D9::EndConstruction()
 }
 
 bool
-LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
+LayerManagerD3D9::EndEmptyTransaction()
 {
   // If the device reset count from our last EndTransaction doesn't match
   // the current device reset count, the device must have been reset one or
@@ -130,7 +130,7 @@ LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
   if (!mRoot || mDeviceResetCount != mDeviceManager->GetDeviceResetCount())
     return false;
 
-  EndTransaction(nullptr, nullptr, aFlags);
+  EndTransaction(nullptr, nullptr);
   return true;
 }
 
@@ -149,7 +149,6 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
     // so we don't need to pass any global transform here.
     mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
 
-    SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
     Render();
     /* Clean this out for sanity */
     mCurrentCallbackInfo.Callback = NULL;
@@ -285,12 +284,6 @@ LayerManagerD3D9::Render()
   deviceManager()->SetupRenderState();
 
   SetupPipeline();
-
-  if (CompositingDisabled()) {
-    static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
-    return;
-  }
-
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 

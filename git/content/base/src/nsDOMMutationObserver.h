@@ -21,7 +21,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsClassHashtable.h"
 #include "nsNodeUtils.h"
-#include "nsIDOMMutationEvent.h"
 
 class nsDOMMutationObserver;
 
@@ -274,16 +273,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
   NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
-
-  virtual void AttributeSetToCurrentValue(nsIDocument* aDocument,
-                                          mozilla::dom::Element* aElement,
-                                          PRInt32 aNameSpaceID,
-                                          nsIAtom* aAttribute)
-  {
-    // We can reuse AttributeWillChange implementation.
-    AttributeWillChange(aDocument, aElement, aNameSpaceID, aAttribute,
-                        nsIDOMMutationEvent::MODIFICATION);
-  }
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsMutationReceiver, NS_MUTATION_OBSERVER_IID)

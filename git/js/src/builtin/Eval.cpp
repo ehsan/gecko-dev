@@ -86,11 +86,9 @@ class EvalScriptGuard
     EvalCacheLookup lookup_;
     EvalCache::AddPtr p_;
 
-    Rooted<JSLinearString*> lookupStr_;
-
   public:
     EvalScriptGuard(JSContext *cx)
-      : cx_(cx), script_(cx), lookupStr_(cx)
+      : cx_(cx), script_(cx)
     {
         lookup_.str = NULL;
     }
@@ -100,7 +98,6 @@ class EvalScriptGuard
             CallDestroyScriptHook(cx_->runtime->defaultFreeOp(), script_);
             script_->isActiveEval = false;
             script_->isCachedEval = true;
-            lookup_.str = lookupStr_;
             if (lookup_.str && IsEvalCacheCandidate(script_))
                 cx_->runtime->evalCache.relookupOrAdd(p_, lookup_, script_);
         }
@@ -108,7 +105,6 @@ class EvalScriptGuard
 
     void lookupInEvalCache(JSLinearString *str, JSFunction *caller, unsigned staticLevel)
     {
-        lookupStr_ = str;
         lookup_.str = str;
         lookup_.caller = caller;
         lookup_.staticLevel = staticLevel;

@@ -38,7 +38,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
 
-#include "nsError.h"
+#include "nsPluginError.h"
 
 // Util headers
 #include "prenv.h"
@@ -540,7 +540,7 @@ IsPluginEnabledForType(const nsCString& aMIMEType)
 
   if (!pluginHost) {
     NS_NOTREACHED("No pluginhost");
-    return NS_ERROR_FAILURE;
+    return false;
   }
 
   nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get());
@@ -720,7 +720,7 @@ nsObjectLoadingContent::InstantiatePluginInstance()
 
   if (!pluginHost) {
     NS_NOTREACHED("No pluginhost");
-    return NS_ERROR_FAILURE;
+    return false;
   }
 
   // If you add early return(s), be sure to balance this call to

@@ -9,7 +9,7 @@
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsICharsetDetector.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIClassInfo.h"

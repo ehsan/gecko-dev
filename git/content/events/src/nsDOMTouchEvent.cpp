@@ -163,7 +163,7 @@ nsDOMTouchList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsDOMTouchList::Item(PRUint32 aIndex, nsIDOMTouch** aRetVal)
 {
-  NS_IF_ADDREF(*aRetVal = mPoints.SafeElementAt(aIndex, nullptr));
+  NS_IF_ADDREF(*aRetVal = mPoints.SafeElementAt(aIndex, nsnull));
   return NS_OK;
 }
 

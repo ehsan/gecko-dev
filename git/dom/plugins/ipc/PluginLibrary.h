@@ -12,7 +12,7 @@
 #include "npfunctions.h"
 #include "nscore.h"
 #include "nsTArray.h"
-#include "nsError.h"
+#include "nsPluginError.h"
 
 class gfxASurface;
 class gfxContext;

@@ -20,16 +20,11 @@ var lastTest = 4;    // set to test of interest when debugging
 ////////////////////////////////////////////////////////////////////////////////
 
 // Note: sets Cc and Ci variables
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
-var nextTest = firstTest;
+var nextTest = firstTest; 
 var test_flags = new Array();
 var testPathBase = "/test_headers";
 

@@ -2,21 +2,15 @@
    http://creativecommons.org/publicdomain/zero/1.0/ 
 */
 /* This testcase triggers two telemetry pings.
- *
+ * 
  * Telemetry code keeps histograms of past telemetry pings. The first
  * ping populates these histograms. One of those histograms is then
  * checked in the second request.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const PATH = "/submit/telemetry/test-ping";
 const SERVER = "http://localhost:4444";
@@ -33,7 +27,7 @@ const BinaryInputStream = Components.Constructor(
   "setInputStream");
 const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var gFinished = false;
 
 function telemetry_ping () {

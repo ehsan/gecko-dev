@@ -6,7 +6,7 @@
 
 #include "nsTimeRanges.h"
 #include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 NS_IMPL_ADDREF(nsTimeRanges)
 NS_IMPL_RELEASE(nsTimeRanges)

@@ -7,7 +7,7 @@
 #include "FileReaderSync.h"
 
 #include "nsIDOMFile.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 #include "jsapi.h"
 #include "jsatom.h"

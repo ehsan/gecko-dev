@@ -30,12 +30,7 @@
  *
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 // const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
@@ -105,7 +100,7 @@ function init_profile() {
 }
 
 function init_http_server() {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler("/app1", app_handler);
   httpServer.registerPathHandler("/app2", app_handler);
   httpServer.registerPathHandler("/app1.appcache", manifest1_handler);

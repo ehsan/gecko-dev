@@ -40,7 +40,7 @@
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsContentList.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
 #include "nsIScriptSecurityManager.h"

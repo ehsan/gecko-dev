@@ -16,15 +16,13 @@
 #include "nsIHashable.h"
 #include "nsIClassInfoImpl.h"
 
-#include "mozilla/Attributes.h"
-
 #include "windows.h"
 #include "shlobj.h"
 
 #include <sys/stat.h>
 
-class nsLocalFile MOZ_FINAL : public nsILocalFileWin,
-                              public nsIHashable
+class nsLocalFile : public nsILocalFileWin,
+                    public nsIHashable
 {
 public:
     NS_DEFINE_STATIC_CID_ACCESSOR(NS_LOCAL_FILE_CID)

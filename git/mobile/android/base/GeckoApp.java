@@ -631,14 +631,17 @@ abstract public class GeckoApp
     }
 
     void processThumbnail(Tab thumbnailTab, Bitmap bitmap, byte[] compressed) {
-        try {
-            if (bitmap == null) {
-                if (compressed == null) {
-                    Log.e(LOGTAG, "processThumbnail: one of bitmap or compressed must be non-null!");
-                    return;
-                }
-                bitmap = BitmapFactory.decodeByteArray(compressed, 0, compressed.length);
+        if (shouldUpdateThumbnail(thumbnailTab)) {
+            if (compressed == null) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
+                compressed = bos.toByteArray();
             }
+        }
+
+        try {
+            if (bitmap == null)
+                bitmap = BitmapFactory.decodeByteArray(compressed, 0, compressed.length);
             thumbnailTab.updateThumbnail(bitmap);
         } catch (OutOfMemoryError ome) {
             Log.w(LOGTAG, "decoding byte array ran out of memory", ome);
@@ -1771,16 +1774,17 @@ abstract public class GeckoApp
      * Enable Android StrictMode checks (for supported OS versions).
      * http://developer.android.com/reference/android/os/StrictMode.html
      */
-    private void enableStrictMode()
-    {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+    private void enableStrictMode() {
+        int SDK_INT = Build.VERSION.SDK_INT;
+        if (SDK_INT < 9)
             return;
-        }
 
-        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
-                                  .detectAll()
-                                  .penaltyLog()
-                                  .build());
+        StrictMode.ThreadPolicy.Builder threadPolicyBuilder = new StrictMode.ThreadPolicy.Builder()
+                                                                            .detectAll()
+                                                                            .penaltyLog();
+        if (SDK_INT >= 11)
+            threadPolicyBuilder = threadPolicyBuilder.penaltyFlashScreen();
+        StrictMode.setThreadPolicy(threadPolicyBuilder.build());
 
         StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
                                .detectAll()

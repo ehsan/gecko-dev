@@ -144,7 +144,7 @@ GuardFunApplyArgumentsOptimization(JSContext *cx)
  * problem to the value at |spindex| on the stack.
  */
 JS_ALWAYS_INLINE JSObject *
-ValuePropertyBearer(JSContext *cx, StackFrame *fp, HandleValue v, int spindex)
+ValuePropertyBearer(JSContext *cx, StackFrame *fp, const Value &v, int spindex)
 {
     if (v.isObject())
         return &v.toObject();
@@ -159,7 +159,7 @@ ValuePropertyBearer(JSContext *cx, StackFrame *fp, HandleValue v, int spindex)
         return global.getOrCreateBooleanPrototype(cx);
 
     JS_ASSERT(v.isNull() || v.isUndefined());
-    js_ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
+    js_ReportIsNullOrUndefined(cx, spindex, v, NULL);
     return NULL;
 }
 
@@ -205,27 +205,27 @@ GetPropertyGenericMaybeCallXML(JSContext *cx, JSOp op, HandleObject obj, HandleI
 }
 
 inline bool
-GetPropertyOperation(JSContext *cx, jsbytecode *pc, MutableHandleValue lval, MutableHandleValue vp)
+GetPropertyOperation(JSContext *cx, JSScript *script, jsbytecode *pc, Value &lval, Value *vp)
 {
-    JS_ASSERT(vp.address() != lval.address());
+    JS_ASSERT(vp != &lval);
 
     JSOp op = JSOp(*pc);
 
     if (op == JSOP_LENGTH) {
         /* Optimize length accesses on strings, arrays, and arguments. */
         if (lval.isString()) {
-            vp.setInt32(lval.toString()->length());
+            *vp = Int32Value(lval.toString()->length());
             return true;
         }
-        if (IsOptimizedArguments(cx->fp(), lval.address())) {
-            vp.setInt32(cx->fp()->numActualArgs());
+        if (IsOptimizedArguments(cx->fp(), &lval)) {
+            *vp = Int32Value(cx->fp()->numActualArgs());
             return true;
         }
         if (lval.isObject()) {
             JSObject *obj = &lval.toObject();
             if (obj->isArray()) {
                 uint32_t length = obj->getArrayLength();
-                vp.setNumber(length);
+                *vp = NumberValue(length);
                 return true;
             }
 
@@ -234,19 +234,19 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, MutableHandleValue lval, Mut
                 if (!argsobj->hasOverriddenLength()) {
                     uint32_t length = argsobj->initialLength();
                     JS_ASSERT(length < INT32_MAX);
-                    vp.setInt32(int32_t(length));
+                    *vp = Int32Value(int32_t(length));
                     return true;
                 }
             }
 
             if (obj->isTypedArray()) {
-                vp.setInt32(TypedArray::length(obj));
+                *vp = Int32Value(TypedArray::length(obj));
                 return true;
             }
         }
     }
 
-    RootedObject obj(cx, ToObjectFromStack(cx, lval));
+    RootedObject obj(cx, ValueToObject(cx, lval));
     if (!obj)
         return false;
 
@@ -256,38 +256,40 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, MutableHandleValue lval, Mut
     JS_PROPERTY_CACHE(cx).test(cx, pc, obj.get(), obj2.get(), entry, name);
     if (!name) {
         AssertValidPropertyCacheHit(cx, obj, obj2, entry);
-        if (!NativeGet(cx, obj, obj2, entry->prop, JSGET_CACHE_RESULT, vp.address()))
+        if (!NativeGet(cx, obj, obj2, entry->prop, JSGET_CACHE_RESULT, vp))
             return false;
         return true;
     }
 
     RootedId id(cx, NameToId(name));
+    RootedValue value(cx);
 
     if (obj->getOps()->getProperty) {
-        if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, vp))
+        if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, &value))
             return false;
     } else {
-        if (!GetPropertyHelper(cx, obj, id, JSGET_CACHE_RESULT, vp))
+        if (!GetPropertyHelper(cx, obj, id, JSGET_CACHE_RESULT, &value))
             return false;
     }
 
 #if JS_HAS_NO_SUCH_METHOD
     if (op == JSOP_CALLPROP &&
-        JS_UNLIKELY(vp.isPrimitive()) &&
+        JS_UNLIKELY(value.isPrimitive()) &&
         lval.isObject())
     {
-        if (!OnUnknownMethod(cx, obj, IdToValue(id), vp))
+        if (!OnUnknownMethod(cx, obj, IdToValue(id), &value))
             return false;
     }
 #endif
 
+    *vp = value;
     return true;
 }
 
 inline bool
-SetPropertyOperation(JSContext *cx, jsbytecode *pc, HandleValue lval, HandleValue rval)
+SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Value &rval)
 {
-    RootedObject obj(cx, ToObjectFromStack(cx, lval));
+    RootedObject obj(cx, ValueToObject(cx, lval));
     if (!obj)
         return false;
 
@@ -503,8 +505,10 @@ AddOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
     } else
 #endif
     {
-        RootedValue lval(cx, lhs);
-        RootedValue rval(cx, rhs);
+        RootedValue lval_(cx, lhs);
+        RootedValue rval_(cx, rhs);
+        Value &lval = lval_.get();
+        Value &rval = rval_.get();
 
         /*
          * If either operand is an object, any non-integer result must be
@@ -512,9 +516,9 @@ AddOperation(JSContext *cx, const Value &lhs, const Value &rhs, Value *res)
          */
         bool lIsObject = lval.isObject(), rIsObject = rval.isObject();
 
-        if (!ToPrimitive(cx, lval.address()))
+        if (!ToPrimitive(cx, &lval))
             return false;
-        if (!ToPrimitive(cx, rval.address()))
+        if (!ToPrimitive(cx, &rval))
             return false;
         bool lIsString, rIsString;
         if ((lIsString = lval.isString()) | (rIsString = rval.isString())) {
@@ -625,14 +629,14 @@ FetchElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp, Muta
 }
 
 static JS_ALWAYS_INLINE bool
-ToIdOperation(JSContext *cx, HandleValue objval, HandleValue idval, MutableHandleValue res)
+ToIdOperation(JSContext *cx, const Value &objval, const Value &idval, MutableHandleValue res)
 {
     if (idval.isInt32()) {
         res.set(idval);
         return true;
     }
 
-    JSObject *obj = ToObjectFromStack(cx, objval);
+    JSObject *obj = ValueToObject(cx, objval);
     if (!obj)
         return false;
 
@@ -706,8 +710,7 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
 }
 
 static JS_ALWAYS_INLINE bool
-GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue rref,
-                    MutableHandleValue res)
+GetElementOperation(JSContext *cx, JSOp op, Value &lref, const Value &rref, MutableHandleValue res)
 {
     JS_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
 
@@ -724,7 +727,7 @@ GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue
     }
 
     StackFrame *fp = cx->fp();
-    if (IsOptimizedArguments(fp, lref.address())) {
+    if (IsOptimizedArguments(fp, &lref)) {
         if (rref.isInt32()) {
             int32_t i = rref.toInt32();
             if (i >= 0 && uint32_t(i) < fp->numActualArgs()) {
@@ -736,11 +739,11 @@ GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue
         if (!JSScript::argumentsOptimizationFailed(cx, fp->script()))
             return false;
 
-        lref.set(ObjectValue(fp->argsObj()));
+        lref = ObjectValue(fp->argsObj());
     }
 
     bool isObject = lref.isObject();
-    RootedObject obj(cx, ToObjectFromStack(cx, lref));
+    RootedObject obj(cx, ValueToObject(cx, lref));
     if (!obj)
         return false;
     if (!GetObjectElementOperation(cx, op, obj, rref, res))

@@ -17,7 +17,7 @@
 #include "nsCRT.h"
 
 #include "Image.h"
-#include "nsError.h"
+#include "ImageErrors.h"
 #include "ImageLogging.h"
 
 #include "nspr.h"

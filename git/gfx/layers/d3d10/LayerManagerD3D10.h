@@ -85,7 +85,7 @@ public:
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
 
-  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
+  virtual bool EndEmptyTransaction();
 
   struct CallbackInfo {
     DrawThebesLayerCallback Callback;
@@ -178,7 +178,7 @@ private:
   void VerifyBufferSize();
   void EnsureReadbackManager();
 
-  void Render(EndTransactionFlags aFlags);
+  void Render();
 
   nsRefPtr<ID3D10Device1> mDevice;
 

@@ -8,6 +8,7 @@
 
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMError.h"
 #include "nsError.h"
 #include "nsIDOMSVGAngle.h"
 #include "nsIDOMSVGAnimatedAngle.h"

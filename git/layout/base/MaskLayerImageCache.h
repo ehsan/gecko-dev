@@ -113,9 +113,8 @@ public:
   class MaskLayerImageKey
   {
   public:
-    MaskLayerImageKey(const nsTArray<PixelRoundedRect>& aRoundedClipRects, layers::LayersBackend aBackend)
-      : mBackend(aBackend)
-      , mLayerCount(0)
+    MaskLayerImageKey(const nsTArray<PixelRoundedRect>& aRoundedClipRects)
+      : mLayerCount(0)
       , mRoundedClipRects(aRoundedClipRects)
     {}
 
@@ -133,7 +132,6 @@ public:
       for (PRUint32 i = 0; i < mRoundedClipRects.Length(); ++i) {
         hash = AddToHash(hash, mRoundedClipRects[i].Hash());
       }
-      hash = AddToHash(hash, mBackend);
 
       return hash;
     }
@@ -143,7 +141,6 @@ public:
       return mRoundedClipRects == aOther.mRoundedClipRects;
     }
 
-    layers::LayersBackend mBackend;
     mutable PRUint32 mLayerCount;
     nsTArray<PixelRoundedRect> mRoundedClipRects;
   };

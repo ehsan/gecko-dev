@@ -119,6 +119,8 @@ protected:
     virtual ~nsRefreshTimer();
 };
 
+#define NS_ERROR_DOCSHELL_REQUEST_REJECTED  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL,1001)
+
 typedef enum {
     eCharsetReloadInit,
     eCharsetReloadRequested,

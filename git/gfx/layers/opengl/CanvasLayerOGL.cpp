@@ -229,9 +229,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
                             const nsIntPoint& aOffset)
 {
   UpdateSurface();
-  if (mOGLManager->CompositingDisabled()) {
-    return;
-  }
   FireDidTransactionCallback();
 
   mOGLManager->MakeCurrent();
@@ -449,9 +446,6 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     return;
   }
 
-  if (mOGLManager->CompositingDisabled()) {
-    return;
-  }
   mOGLManager->MakeCurrent();
 
   gfx3DMatrix effectiveTransform = GetEffectiveTransform();
