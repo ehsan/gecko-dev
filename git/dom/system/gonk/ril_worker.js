@@ -9029,16 +9029,7 @@ let CdmaPDUHelper = {
       case PDU_CDMA_MSG_CODING_SHIFT_JIS:
         // Reference : http://msdn.microsoft.com/en-US/goglobal/cc305152.aspx
         //             http://demo.icu-project.org/icu-bin/convexp?conv=Shift_JIS
-        let shift_jis_message = [];
-
-        while (msgBodySize > 0) {
-          shift_jis_message.push(BitBufferHelper.readBits(8));
-          msgBodySize--;
-        }
-
-        let decoder = new TextDecoder("shift_jis");
-        result = decoder.decode(new Uint8Array(shift_jis_message));
-        break;
+        // Fall through.
       case PDU_CDMA_MSG_CODING_KOREAN:
       case PDU_CDMA_MSG_CODING_GSM_DCS:
         // Fall through.

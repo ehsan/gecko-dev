@@ -150,7 +150,6 @@ public class FxAccountClient10 {
     protected final byte[] tokenId;
     protected final byte[] reqHMACKey;
     protected final boolean payload;
-    protected final SkewHandler skewHandler;
 
     /**
      * Create a delegate for an un-authenticated resource.
@@ -168,13 +167,12 @@ public class FxAccountClient10 {
       this.reqHMACKey = reqHMACKey;
       this.tokenId = tokenId;
       this.payload = authenticatePayload;
-      this.skewHandler = SkewHandler.getSkewHandlerForResource(resource);
     }
 
     @Override
     public AuthHeaderProvider getAuthHeaderProvider() {
       if (tokenId != null && reqHMACKey != null) {
-        return new HawkAuthHeaderProvider(Utils.byte2Hex(tokenId), reqHMACKey, payload, skewHandler.getSkewInSeconds());
+        return new HawkAuthHeaderProvider(Utils.byte2Hex(tokenId), reqHMACKey, payload);
       }
       return super.getAuthHeaderProvider();
     }
@@ -184,14 +182,9 @@ public class FxAccountClient10 {
       final int status = response.getStatusLine().getStatusCode();
       switch (status) {
       case 200:
-        skewHandler.updateSkew(response, now());
         invokeHandleSuccess(status, response);
         return;
       default:
-        if (!skewHandler.updateSkew(response, now())) {
-          // If we couldn't update skew, but we got a failure, let's try clearing the skew.
-          skewHandler.resetSkew();
-        }
         invokeHandleFailure(status, response);
         return;
       }
@@ -247,11 +240,6 @@ public class FxAccountClient10 {
       invokeHandleError(delegate, e);
       return;
     }
-  }
-
-  @SuppressWarnings("static-method")
-  public long now() {
-    return System.currentTimeMillis();
   }
 
   public void createAccount(final String email, final byte[] stretchedPWBytes,
@@ -650,47 +638,5 @@ public class FxAccountClient10 {
       }
     };
     post(resource, body, delegate);
-  }
-
-  /**
-   * Request a verification link be sent to the account email, given a valid session token.
-   *
-   * @param sessionToken
-   *          to authenticate with.
-   * @param delegate
-   *          to invoke callbacks.
-   */
-  public void resendCode(byte[] sessionToken, final RequestDelegate<Void> delegate) {
-    final byte[] tokenId = new byte[32];
-    final byte[] reqHMACKey = new byte[32];
-    final byte[] requestKey = new byte[32];
-    try {
-      HKDF.deriveMany(sessionToken, new byte[0], FxAccountUtils.KW("sessionToken"), tokenId, reqHMACKey, requestKey);
-    } catch (Exception e) {
-      invokeHandleError(delegate, e);
-      return;
-    }
-
-    BaseResource resource;
-    try {
-      resource = new BaseResource(new URI(serverURI + "recovery_email/resend_code"));
-    } catch (URISyntaxException e) {
-      invokeHandleError(delegate, e);
-      return;
-    }
-
-    resource.delegate = new ResourceDelegate<Void>(resource, delegate, tokenId, reqHMACKey, false) {
-      @Override
-      public void handleSuccess(int status, HttpResponse response, ExtendedJSONObject body) {
-        try {
-          delegate.handleSuccess(null);
-          return;
-        } catch (Exception e) {
-          delegate.handleError(e);
-          return;
-        }
-      }
-    };
-    post(resource, new JSONObject(), delegate);
   }
 }

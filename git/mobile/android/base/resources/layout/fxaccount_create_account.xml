@@ -14,8 +14,6 @@
         android:id="@+id/create_account_view"
         style="@style/FxAccountMiddle" >
 
-        <LinearLayout style="@style/FxAccountSpacer" />
-
         <TextView
             style="@style/FxAccountHeaderItem"
             android:text="@string/firefox_accounts" />

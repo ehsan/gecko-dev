@@ -15,7 +15,6 @@ import org.mozilla.gecko.background.fxa.FxAccountClient10.StatusResponse;
 import org.mozilla.gecko.background.fxa.FxAccountClient10.TwoKeys;
 import org.mozilla.gecko.background.fxa.FxAccountClient20;
 import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
-import org.mozilla.gecko.background.fxa.SkewHandler;
 import org.mozilla.gecko.browserid.BrowserIDKeyPair;
 import org.mozilla.gecko.browserid.JSONWebTokenUtils;
 import org.mozilla.gecko.browserid.VerifyingPublicKey;
@@ -58,8 +57,6 @@ public class FxAccountLoginPolicy {
     return new FxAccountClient20(serverURI, executor);
   }
 
-  private SkewHandler skewHandler;
-
   /**
    * Check if this certificate is not worth generating an assertion from: for
    * example, because it is not well-formed, or it is already expired.
@@ -84,10 +81,6 @@ public class FxAccountLoginPolicy {
    */
   protected boolean isInvalidAssertion(String assertion) {
     return false;
-  }
-
-  protected long now() {
-    return System.currentTimeMillis();
   }
 
   public enum AccountState {
@@ -172,11 +165,6 @@ public class FxAccountLoginPolicy {
       return stages;
     }
     return stages;
-  }
-
-  public void login(final String audience, final FxAccountLoginDelegate delegate, final SkewHandler skewHandler) {
-    this.skewHandler = skewHandler;
-    this.login(audience, delegate);
   }
 
   /**
@@ -287,10 +275,6 @@ public class FxAccountLoginPolicy {
 
         @Override
         public void handleFailure(int status, HttpResponse response) {
-          if (skewHandler != null) {
-            skewHandler.updateSkew(response, now());
-          }
-
           if (status != 401) {
             delegate.handleError(new FxAccountLoginException(new HTTPFailureException(new SyncStorageResponse(response))));
             return;
@@ -336,10 +320,6 @@ public class FxAccountLoginPolicy {
 
         @Override
         public void handleFailure(int status, HttpResponse response) {
-          if (skewHandler != null) {
-            skewHandler.updateSkew(response, now());
-          }
-
           if (status != 401) {
             delegate.handleError(new FxAccountLoginException(new HTTPFailureException(new SyncStorageResponse(response))));
             return;
@@ -399,10 +379,6 @@ public class FxAccountLoginPolicy {
 
         @Override
         public void handleFailure(int status, HttpResponse response) {
-          if (skewHandler != null) {
-            skewHandler.updateSkew(response, now());
-          }
-
           if (status != 401) {
             delegate.handleError(new FxAccountLoginException(new HTTPFailureException(new SyncStorageResponse(response))));
             return;
@@ -450,10 +426,6 @@ public class FxAccountLoginPolicy {
 
         @Override
         public void handleFailure(int status, HttpResponse response) {
-          if (skewHandler != null) {
-            skewHandler.updateSkew(response, now());
-          }
-
           if (status != 401) {
             delegate.handleError(new FxAccountLoginException(new HTTPFailureException(new SyncStorageResponse(response))));
             return;
@@ -501,10 +473,6 @@ public class FxAccountLoginPolicy {
 
         @Override
         public void handleFailure(int status, HttpResponse response) {
-          if (skewHandler != null) {
-            skewHandler.updateSkew(response, now());
-          }
-
           if (status != 401) {
             delegate.handleError(new FxAccountLoginException(new HTTPFailureException(new SyncStorageResponse(response))));
             return;

@@ -22,14 +22,6 @@ import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
 
 abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractActivity {
-  public FxAccountAbstractSetupActivity() {
-    super(CANNOT_RESUME_WHEN_ACCOUNTS_EXIST | CANNOT_RESUME_WHEN_LOCKED_OUT);
-  }
-
-  protected FxAccountAbstractSetupActivity(int resume) {
-    super(resume);
-  }
-
   private static final String LOG_TAG = FxAccountAbstractSetupActivity.class.getSimpleName();
 
   protected int minimumPasswordLength = 8;
@@ -54,7 +46,7 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
           showPasswordButton.setText(R.string.fxaccount_password_show);
         } else {
           showPasswordButton.setText(R.string.fxaccount_password_hide);
-        }
+        } 
       }
     });
   }
@@ -111,19 +103,15 @@ abstract public class FxAccountAbstractSetupActivity extends FxAccountAbstractAc
     }
   }
 
-  protected boolean shouldButtonBeEnabled() {
+  protected boolean updateButtonState() {
     final String email = emailEdit.getText().toString();
     final String password = passwordEdit.getText().toString();
 
     boolean enabled =
         (email.length() > 0) &&
         Patterns.EMAIL_ADDRESS.matcher(email).matches() &&
-        (password.length() >= minimumPasswordLength);
-    return enabled;
-  }
+        (password.length() >= minimumPasswordLength); 
 
-  protected boolean updateButtonState() {
-    boolean enabled = shouldButtonBeEnabled();
     if (enabled != button.isEnabled()) {
       Logger.debug(LOG_TAG, (enabled ? "En" : "Dis") + "abling button.");
       button.setEnabled(enabled);

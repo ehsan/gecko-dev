@@ -48,7 +48,6 @@ public class HawkAuthHeaderProvider implements AuthHeaderProvider {
   protected final String id;
   protected final byte[] key;
   protected final boolean includePayloadHash;
-  protected final long skewSeconds;
 
   /**
    * Create a Hawk Authorization header provider.
@@ -64,12 +63,8 @@ public class HawkAuthHeaderProvider implements AuthHeaderProvider {
    * @param includePayloadHash
    *          true if message integrity hash should be included in signed
    *          request header. See <a href="https://github.com/hueniverse/hawk#payload-validation">https://github.com/hueniverse/hawk#payload-validation</a>.
-   *
-   * @param skewSeconds
-   *          a number of seconds by which to skew the current time when
-   *          computing a header.
    */
-  public HawkAuthHeaderProvider(String id, byte[] key, boolean includePayloadHash, long skewSeconds) {
+  public HawkAuthHeaderProvider(String id, byte[] key, boolean includePayloadHash) {
     if (id == null) {
       throw new IllegalArgumentException("id must not be null");
     }
@@ -79,33 +74,11 @@ public class HawkAuthHeaderProvider implements AuthHeaderProvider {
     this.id = id;
     this.key = key;
     this.includePayloadHash = includePayloadHash;
-    this.skewSeconds = skewSeconds;
-  }
-
-  public HawkAuthHeaderProvider(String id, byte[] key, boolean includePayloadHash) {
-    this(id, key, includePayloadHash, 0L);
-  }
-
-
-  /**
-   * @return the current time in milliseconds.
-   */
-  @SuppressWarnings("static-method")
-  protected long now() {
-    return System.currentTimeMillis();
-  }
-
-  /**
-   * @return the current time in seconds, adjusted for skew. This should
-   *         approximate the server's timestamp.
-   */
-  protected long getTimestampSeconds() {
-    return (now() / 1000) + skewSeconds;
   }
 
   @Override
   public Header getAuthHeader(HttpRequestBase request, BasicHttpContext context, DefaultHttpClient client) throws GeneralSecurityException {
-    long timestamp = getTimestampSeconds();
+    long timestamp = System.currentTimeMillis() / 1000;
     String nonce = Base64.encodeBase64String(Utils.generateRandomBytes(NONCE_LENGTH_IN_BYTES));
     String extra = "";
 
