@@ -2571,27 +2571,27 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "GetScreenOrientationWrapper")
     public static short getScreenOrientation() {
-        return GeckoScreenOrientation.getInstance().getScreenOrientation().value;
+        return GeckoScreenOrientationListener.getInstance().getScreenOrientation();
     }
 
     @WrapElementForJNI
     public static void enableScreenOrientationNotifications() {
-        GeckoScreenOrientation.getInstance().enableNotifications();
+        GeckoScreenOrientationListener.getInstance().enableNotifications();
     }
 
     @WrapElementForJNI
     public static void disableScreenOrientationNotifications() {
-        GeckoScreenOrientation.getInstance().disableNotifications();
+        GeckoScreenOrientationListener.getInstance().disableNotifications();
     }
 
     @WrapElementForJNI
     public static void lockScreenOrientation(int aOrientation) {
-        GeckoScreenOrientation.getInstance().lock(aOrientation);
+        GeckoScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
     }
 
     @WrapElementForJNI
     public static void unlockScreenOrientation() {
-        GeckoScreenOrientation.getInstance().unlock();
+        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
     }
 
     @WrapElementForJNI

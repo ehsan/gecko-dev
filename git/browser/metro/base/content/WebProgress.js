@@ -101,7 +101,6 @@ const WebProgress = {
     if (aTab == Browser.selectedTab) {
       BrowserUI.updateURI();
       BrowserUI.update();
-      BrowserUI.updateStartURIAttributes(aJson.location);
     }
 
     let locationHasChanged = (location != aTab.browser.lastLocation);

@@ -24,8 +24,6 @@ import org.mozilla.gecko.health.BrowserHealthReporter;
 import org.mozilla.gecko.health.HealthRecorder;
 import org.mozilla.gecko.health.SessionInformation;
 import org.mozilla.gecko.home.BrowserSearch;
-import org.mozilla.gecko.home.HomeBanner;
-import org.mozilla.gecko.home.HomeConfigInvalidator;
 import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.SearchEngine;
@@ -1014,7 +1012,7 @@ abstract public class BrowserApp extends GeckoApp
         if (mMainLayoutAnimator != null)
             mMainLayoutAnimator.stop();
 
-        boolean isSideBar = (HardwareUtils.isTablet() && getOrientation() == Configuration.ORIENTATION_LANDSCAPE);
+        boolean isSideBar = (HardwareUtils.isTablet() && mOrientation == Configuration.ORIENTATION_LANDSCAPE);
         final int sidebarWidth = getResources().getDimensionPixelSize(R.dimen.tabs_sidebar_width);
 
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) mTabsPanel.getLayoutParams();
@@ -1423,8 +1421,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private boolean isHomePagerVisible() {
-        return (mHomePager != null && mHomePager.isLoaded()
-            && mHomePagerContainer != null && mHomePagerContainer.getVisibility() == View.VISIBLE);
+        return (mHomePager != null && mHomePager.isVisible());
     }
 
     /* Favicon stuff. */
@@ -1644,7 +1641,9 @@ abstract public class BrowserApp extends GeckoApp
     public void onLocaleReady(final String locale) {
         super.onLocaleReady(locale);
 
-        HomeConfigInvalidator.getInstance().onLocaleReady(locale);
+        if (mHomePager != null) {
+            mHomePager.invalidate(getSupportLoaderManager(), getSupportFragmentManager());
+        }
 
         if (mMenu != null) {
             mMenu.clear();
@@ -1679,13 +1678,9 @@ abstract public class BrowserApp extends GeckoApp
         if (mHomePager == null) {
             final ViewStub homePagerStub = (ViewStub) findViewById(R.id.home_pager_stub);
             mHomePager = (HomePager) homePagerStub.inflate();
-
-            HomeBanner homeBanner = (HomeBanner) findViewById(R.id.home_banner);
-            mHomePager.setBanner(homeBanner);
         }
 
-        mHomePagerContainer.setVisibility(View.VISIBLE);
-        mHomePager.load(getSupportLoaderManager(),
+        mHomePager.show(getSupportLoaderManager(),
                         getSupportFragmentManager(),
                         pageId, animator);
 
@@ -1745,10 +1740,9 @@ abstract public class BrowserApp extends GeckoApp
 
         // Display the previously hidden web content (which prevented screen reader access).
         mLayerView.setVisibility(View.VISIBLE);
-        mHomePagerContainer.setVisibility(View.GONE);
 
         if (mHomePager != null) {
-            mHomePager.unload();
+            mHomePager.hide();
         }
 
         mBrowserToolbar.setNextFocusDownId(R.id.layer_view);

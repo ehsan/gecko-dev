@@ -170,7 +170,7 @@ CustomizeMode.prototype = {
       if (this.document.documentElement._lightweightTheme)
         this.document.documentElement._lightweightTheme.disable();
 
-      CustomizableUI.dispatchToolboxEvent("beforecustomization", {}, window);
+      this.dispatchToolboxEvent("beforecustomization");
       CustomizableUI.notifyStartCustomizing(this.window);
 
       // Add a keypress listener to the document so that we can quickly exit
@@ -220,7 +220,7 @@ CustomizeMode.prototype = {
       yield this._doTransition(true);
 
       // Let everybody in this window know that we're about to customize.
-      CustomizableUI.dispatchToolboxEvent("customizationstarting", {}, window);
+      this.dispatchToolboxEvent("customizationstarting");
 
       this._mainViewContext = mainView.getAttribute("context");
       if (this._mainViewContext) {
@@ -266,7 +266,7 @@ CustomizeMode.prototype = {
       this._handler.isEnteringCustomizeMode = false;
       panelContents.removeAttribute("customize-transitioning");
 
-      CustomizableUI.dispatchToolboxEvent("customizationready", {}, window);
+      this.dispatchToolboxEvent("customizationready");
       if (!this._wantToBeInCustomizeMode) {
         this.exit();
       }
@@ -359,7 +359,7 @@ CustomizeMode.prototype = {
 
       // Let everybody in this window know that we're starting to
       // exit customization mode.
-      CustomizableUI.dispatchToolboxEvent("customizationending", {}, window);
+      this.dispatchToolboxEvent("customizationending");
 
       window.PanelUI.setMainView(window.PanelUI.mainView);
       window.PanelUI.menuButton.disabled = false;
@@ -424,8 +424,8 @@ CustomizeMode.prototype = {
       this._changed = false;
       this._transitioning = false;
       this._handler.isExitingCustomizeMode = false;
-      CustomizableUI.dispatchToolboxEvent("aftercustomization", {}, window);
-      CustomizableUI.notifyEndCustomizing(window);
+      this.dispatchToolboxEvent("aftercustomization");
+      CustomizableUI.notifyEndCustomizing(this.window);
 
       if (this._wantToBeInCustomizeMode) {
         this.enter();
@@ -477,7 +477,7 @@ CustomizeMode.prototype = {
           this.document.documentElement.setAttribute("customize-entered", true);
           this.document.documentElement.removeAttribute("customize-entering");
         }
-        CustomizableUI.dispatchToolboxEvent("customization-transitionend", aEntering, this.window);
+        this.dispatchToolboxEvent("customization-transitionend", aEntering);
 
         deferred.resolve();
       }.bind(this), 0);
@@ -498,6 +498,12 @@ CustomizeMode.prototype = {
     let catchAll = () => customizeTransitionEnd("timedout");
     let catchAllTimeout = this.window.setTimeout(catchAll, kMaxTransitionDurationMs);
     return deferred.promise;
+  },
+
+  dispatchToolboxEvent: function(aEventType, aDetails={}) {
+    let evt = this.document.createEvent("CustomEvent");
+    evt.initCustomEvent(aEventType, true, true, {changed: this._changed});
+    let result = this.window.gNavToolbox.dispatchEvent(evt);
   },
 
   _getCustomizableChildForNode: function(aNode) {
@@ -538,7 +544,7 @@ CustomizeMode.prototype = {
     }
     CustomizableUI.addWidgetToArea(aNode.id, CustomizableUI.AREA_NAVBAR);
     if (!this._customizing) {
-      CustomizableUI.dispatchToolboxEvent("customizationchange");
+      this.dispatchToolboxEvent("customizationchange");
     }
   },
 
@@ -549,7 +555,7 @@ CustomizeMode.prototype = {
     }
     CustomizableUI.addWidgetToArea(aNode.id, CustomizableUI.AREA_PANEL);
     if (!this._customizing) {
-      CustomizableUI.dispatchToolboxEvent("customizationchange");
+      this.dispatchToolboxEvent("customizationchange");
     }
   },
 
@@ -560,7 +566,7 @@ CustomizeMode.prototype = {
     }
     CustomizableUI.removeWidgetFromArea(aNode.id);
     if (!this._customizing) {
-      CustomizableUI.dispatchToolboxEvent("customizationchange");
+      this.dispatchToolboxEvent("customizationchange");
     }
   },
 
@@ -1011,7 +1017,7 @@ CustomizeMode.prototype = {
       this._updateUndoResetButton();
       this._updateEmptyPaletteNotice();
     }
-    CustomizableUI.dispatchToolboxEvent("customizationchange");
+    this.dispatchToolboxEvent("customizationchange");
   },
 
   _updateEmptyPaletteNotice: function() {

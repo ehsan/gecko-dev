@@ -699,7 +699,6 @@ public final class HomeConfig {
     public interface HomeConfigBackend {
         public List<PanelConfig> load();
         public void save(List<PanelConfig> entries);
-        public String getLocale();
         public void setOnChangeListener(OnChangeListener listener);
     }
 
@@ -717,10 +716,6 @@ public final class HomeConfig {
 
     public List<PanelConfig> load() {
         return mBackend.load();
-    }
-
-    public String getLocale() {
-        return mBackend.getLocale();
     }
 
     public void save(List<PanelConfig> panelConfigs) {
