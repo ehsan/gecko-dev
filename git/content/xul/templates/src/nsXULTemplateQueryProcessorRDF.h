@@ -48,6 +48,8 @@ public:
 
     nsXULTemplateQueryProcessorRDF();
 
+    ~nsXULTemplateQueryProcessorRDF();
+
     nsresult InitGlobals();
 
     // nsISupports interface
@@ -272,8 +274,6 @@ public:
 #endif
 
 protected:
-    ~nsXULTemplateQueryProcessorRDF();
-
     // We are an observer of the composite datasource. The cycle is
     // broken when the document is destroyed.
     nsCOMPtr<nsIRDFDataSource> mDB;

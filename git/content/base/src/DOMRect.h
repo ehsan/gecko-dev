@@ -26,12 +26,11 @@ namespace dom {
 class DOMRectReadOnly : public nsISupports
                       , public nsWrapperCache
 {
-protected:
-  virtual ~DOMRectReadOnly() {}
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMRectReadOnly)
+
+  virtual ~DOMRectReadOnly() {}
 
   DOMRectReadOnly(nsISupports* aParent)
     : mParent(aParent)
@@ -147,8 +146,6 @@ protected:
 class DOMRectList MOZ_FINAL : public nsIDOMClientRectList,
                               public nsWrapperCache
 {
-  ~DOMRectList() {}
-
 public:
   DOMRectList(nsISupports *aParent) : mParent(aParent)
   {

@@ -115,13 +115,6 @@ private:
 };
 
 } // namespace dom
-
-template<>
-struct HasDangerousPublicDestructor<dom::NodeIterator>
-{
-  static const bool value = true;
-};
-
 } // namespace mozilla
 
 #endif // mozilla_dom_NodeIterator_h

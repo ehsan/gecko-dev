@@ -33,11 +33,6 @@ private:
 
     bool mCheckedNext;
 
-    ~nsXULTemplateResultSetRDF()
-    {
-        delete mInstantiations;
-    }
-
 public:
 
     // nsISupports interface
@@ -55,6 +50,11 @@ public:
           mCurrent(nullptr),
           mCheckedNext(false)
     { }
+
+    ~nsXULTemplateResultSetRDF()
+    {
+        delete mInstantiations;
+    }
 };
 
 #endif // nsXULTemplateResultSetRDF_h__

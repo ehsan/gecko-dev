@@ -82,6 +82,11 @@ public:
         }
     }
 
+    virtual ~nsJARInputThunk()
+    {
+        Close();
+    }
+
     int64_t GetContentLength()
     {
         return mContentLength;
@@ -90,11 +95,6 @@ public:
     nsresult Init();
 
 private:
-
-    virtual ~nsJARInputThunk()
-    {
-        Close();
-    }
 
     bool                        mUsingJarCache;
     nsCOMPtr<nsIZipReader>      mJarReader;

@@ -24,14 +24,13 @@
 
 class nsDataDocumentContentPolicy MOZ_FINAL : public nsIContentPolicy
 {
-  ~nsDataDocumentContentPolicy()
-  {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPOLICY
 
   nsDataDocumentContentPolicy()
+  {}
+  ~nsDataDocumentContentPolicy()
   {}
 };
 

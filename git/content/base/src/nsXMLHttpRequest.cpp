@@ -183,8 +183,6 @@ public:
   NS_DECL_NSIAUTHPROMPT
 
   XMLHttpRequestAuthPrompt();
-
-protected:
   virtual ~XMLHttpRequestAuthPrompt();
 };
 
@@ -3438,8 +3436,6 @@ public:
   }
 
 private:
-  ~AsyncVerifyRedirectCallbackForwarder() {}
-
   nsRefPtr<nsXMLHttpRequest> mXHR;
 };
 

@@ -328,8 +328,6 @@ class DOMEventListenerManagersHashReporter MOZ_FINAL : public nsIMemoryReporter
 {
   MOZ_DEFINE_MALLOC_SIZE_OF(MallocSizeOf)
 
-  ~DOMEventListenerManagersHashReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -394,8 +392,6 @@ EventListenerManagerHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 class SameOriginChecker MOZ_FINAL : public nsIChannelEventSink,
                                     public nsIInterfaceRequestor
 {
-  ~SameOriginChecker() {}
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR

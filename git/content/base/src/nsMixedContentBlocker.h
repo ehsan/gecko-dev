@@ -26,13 +26,12 @@ enum MixedContentTypes {
 
 class nsMixedContentBlocker : public nsIContentPolicy
 {
-  virtual ~nsMixedContentBlocker();
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPOLICY
 
   nsMixedContentBlocker();
+  virtual ~nsMixedContentBlocker();
   static bool sBlockMixedScript;
   static bool sBlockMixedDisplay;
 };

@@ -121,6 +121,21 @@ const long STARTUP_WINDOW = 5L * 60L * 1000000L; // 5min
 // Version for the database schema
 static const int32_t PREDICTOR_SCHEMA_VERSION = 1;
 
+struct PredictorTelemetryAccumulators {
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICT_ATTEMPTS> mPredictAttempts;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_LEARN_ATTEMPTS> mLearnAttempts;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICT_FULL_QUEUE> mPredictFullQueue;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_LEARN_FULL_QUEUE> mLearnFullQueue;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PREDICTIONS> mTotalPredictions;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS> mTotalPreconnects;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRERESOLVES> mTotalPreresolves;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICTIONS_CALCULATED> mPredictionsCalculated;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_LOAD_COUNT_IS_ZERO> mLoadCountZeroes;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_LOAD_COUNT_OVERFLOWS> mLoadCountOverflows;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_STARTUP_COUNT_IS_ZERO> mStartupCountZeroes;
+  Telemetry::AutoCounter<Telemetry::PREDICTOR_STARTUP_COUNT_OVERFLOWS> mStartupCountOverflows;
+};
+
 // Listener for the speculative DNS requests we'll fire off, which just ignores
 // the result (since we're just trying to warm the cache). This also exists to
 // reduce round-trips to the main thread, by being something threadsafe the
@@ -441,6 +456,8 @@ Predictor::Init()
 
   mStartupTime = PR_Now();
 
+  mAccumulators = new PredictorTelemetryAccumulators();
+
   rv = InstallObserver();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -660,8 +677,7 @@ Predictor::EnsureInitStorage()
     if (newStartupCount <= 0) {
       PREDICTOR_LOG(("Predictor::EnsureInitStorage startup count overflow\n"));
       newStartupCount = mStartupCount;
-      Telemetry::AutoCounter<Telemetry::PREDICTOR_STARTUP_COUNT_OVERFLOWS> startupCountOverflows;
-      ++startupCountOverflows;
+      ++mAccumulators->mStartupCountOverflows;
     }
 
     rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("startup_count"),
@@ -1067,10 +1083,9 @@ public:
       if (NS_FAILED(rv)) {
         continue;
       }
-      Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PREDICTIONS> totalPredictions;
-      Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS> totalPreconnects;
-      ++totalPredictions;
-      ++totalPreconnects;
+
+      ++gPredictor->mAccumulators->mTotalPredictions;
+      ++gPredictor->mAccumulators->mTotalPreconnects;
       gPredictor->mSpeculativeService->SpeculativeConnect(uri, gPredictor);
       if (mVerifier) {
         mVerifier->OnPredictPreconnect(uri);
@@ -1086,10 +1101,8 @@ public:
         continue;
       }
 
-      Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PREDICTIONS> totalPredictions;
-      Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRERESOLVES> totalPreresolves;
-      ++totalPredictions;
-      ++totalPreresolves;
+      ++gPredictor->mAccumulators->mTotalPredictions;
+      ++gPredictor->mAccumulators->mTotalPreresolves;
       nsAutoCString hostname;
       uri->GetAsciiHost(hostname);
       nsCOMPtr<nsICancelable> tmpCancelable;
@@ -1158,8 +1171,7 @@ int
 Predictor::CalculateConfidence(int baseConfidence, PRTime lastHit,
                                PRTime lastPossible, int globalDegradation)
 {
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICTIONS_CALCULATED> predictionsCalculated;
-  ++predictionsCalculated;
+  ++mAccumulators->mPredictionsCalculated;
 
   int maxConfidence = 100;
   int confidenceDegradation = 0;
@@ -1321,8 +1333,7 @@ Predictor::UpdateTopLevel(QueryType queryType, const TopLevelInfo &info,
     PREDICTOR_LOG(("Predictor::UpdateTopLevel type %d id %d load count "
                    "overflow\n", queryType, info.id));
     newLoadCount = info.loadCount;
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_LOAD_COUNT_OVERFLOWS> loadCountOverflows;
-    ++loadCountOverflows;
+    ++mAccumulators->mLoadCountOverflows;
   }
 
   // First, let's update the page in the database, since loading a page
@@ -1354,8 +1365,7 @@ Predictor::TryPredict(QueryType queryType, const TopLevelInfo &info, PRTime now,
 
   if (!info.loadCount) {
     PREDICTOR_LOG(("Predictor::TryPredict info.loadCount is zero!\n"));
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_LOAD_COUNT_IS_ZERO> loadCountZeroes;
-    ++loadCountZeroes;
+    ++mAccumulators->mLoadCountZeroes;
     return false;
   }
 
@@ -1441,8 +1451,7 @@ Predictor::WouldRedirect(const TopLevelInfo &info, PRTime now, UriInfo &newUri)
 
   if (!info.loadCount) {
     PREDICTOR_LOG(("Predictor::WouldRedirect info.loadCount is zero!\n"));
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_LOAD_COUNT_IS_ZERO> loadCountZeroes;
-    ++loadCountZeroes;
+    ++mAccumulators->mLoadCountZeroes;
     return false;
   }
 
@@ -1580,8 +1589,7 @@ Predictor::PredictForStartup(PredictorVerifierHandle &verifier,
 
   if (!mStartupCount) {
     PREDICTOR_LOG(("Predictor::PredictForStartup mStartupCount is zero!\n"));
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_STARTUP_COUNT_IS_ZERO> startupCountZeroes;
-    ++startupCountZeroes;
+    ++mAccumulators->mStartupCountZeroes;
     return;
   }
 
@@ -1742,13 +1750,10 @@ Predictor::Predict(nsIURI *targetURI, nsIURI *sourceURI,
       return NS_ERROR_INVALID_ARG;
   }
 
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICT_ATTEMPTS> predictAttempts;
-  ++predictAttempts;
-
+  ++mAccumulators->mPredictAttempts;
   nsresult rv = ReserveSpaceInQueue();
   if (NS_FAILED(rv)) {
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_PREDICT_FULL_QUEUE> predictFullQueue;
-    ++predictFullQueue;
+    ++mAccumulators->mPredictFullQueue;
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -2261,13 +2266,10 @@ Predictor::Learn(nsIURI *targetURI, nsIURI *sourceURI,
     return NS_ERROR_INVALID_ARG;
   }
 
-  Telemetry::AutoCounter<Telemetry::PREDICTOR_LEARN_ATTEMPTS> learnAttempts;
-  ++learnAttempts;
-
+  ++mAccumulators->mLearnAttempts;
   nsresult rv = ReserveSpaceInQueue();
   if (NS_FAILED(rv)) {
-    Telemetry::AutoCounter<Telemetry::PREDICTOR_LEARN_FULL_QUEUE> learnFullQueue;
-    ++learnFullQueue;
+    ++mAccumulators->mLearnFullQueue;
     return NS_ERROR_NOT_AVAILABLE;
   }
 

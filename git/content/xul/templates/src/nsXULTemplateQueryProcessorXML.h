@@ -69,8 +69,6 @@ class nsXMLQuery MOZ_FINAL : public nsISupports
     { }
 
   protected:
-    ~nsXMLQuery() {}
-
     nsXULTemplateQueryProcessorXML* mProcessor;
 
     nsCOMPtr<nsIAtom> mMemberVariable;
@@ -97,8 +95,6 @@ private:
 
     // current position within the list of results
     uint32_t mPosition;
-
-    ~nsXULTemplateResultSetXML() {}
 
 public:
 
@@ -149,8 +145,6 @@ public:
                      nsIDOMXPathExpression** aCompiledExpr);
 
 private:
-
-    ~nsXULTemplateQueryProcessorXML() {}
 
     bool mGenerationStarted;
 

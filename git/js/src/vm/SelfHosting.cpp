@@ -1127,11 +1127,9 @@ CloneString(JSContext *cx, JSFlatString *selfHostedString)
     size_t len = selfHostedString->length();
     {
         JS::AutoCheckCannotGC nogc;
-        JSString *clone;
-        if (selfHostedString->hasLatin1Chars())
-            clone = NewStringCopyN<NoGC>(cx, selfHostedString->latin1Chars(nogc), len);
-        else
-            clone = NewStringCopyNDontDeflate<NoGC>(cx, selfHostedString->twoByteChars(nogc), len);
+        JSString *clone = selfHostedString->hasLatin1Chars()
+                          ? NewStringCopyN<NoGC>(cx, selfHostedString->latin1Chars(nogc), len)
+                          : NewStringCopyN<NoGC>(cx, selfHostedString->twoByteChars(nogc), len);
         if (clone)
             return clone;
     }
@@ -1142,7 +1140,7 @@ CloneString(JSContext *cx, JSFlatString *selfHostedString)
 
     return chars.isLatin1()
            ? NewStringCopyN<CanGC>(cx, chars.latin1Range().start().get(), len)
-           : NewStringCopyNDontDeflate<CanGC>(cx, chars.twoByteRange().start().get(), len);
+           : NewStringCopyN<CanGC>(cx, chars.twoByteRange().start().get(), len);
 }
 
 static JSObject *

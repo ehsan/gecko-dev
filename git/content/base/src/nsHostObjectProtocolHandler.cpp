@@ -33,8 +33,6 @@ namespace mozilla {
 
 class HostObjectURLsReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~HostObjectURLsReporter() {}
-
  public:
   NS_DECL_ISUPPORTS
 
@@ -134,8 +132,6 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
   }
 
  private:
-  ~BlobURLsReporter() {}
-
   struct EnumArg {
     nsIHandleReportCallback* mCallback;
     nsISupports* mData;

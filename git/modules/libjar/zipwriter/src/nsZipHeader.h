@@ -25,12 +25,6 @@
 
 class nsZipHeader MOZ_FINAL : public nsIZipEntry
 {
-    ~nsZipHeader()
-    {
-        mExtraField = nullptr;
-        mLocalExtraField = nullptr;
-    }
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIZIPENTRY
@@ -56,6 +50,12 @@ public:
         mExtraField(nullptr),
         mLocalExtraField(nullptr)
     {
+    }
+
+    ~nsZipHeader()
+    {
+        mExtraField = nullptr;
+        mLocalExtraField = nullptr;
     }
 
     uint32_t mCRC;
