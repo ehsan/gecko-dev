@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ImageWrapper.h"
+#include "Orientation.h"
 
 #include "mozilla/MemoryReporting.h"
 
@@ -21,7 +22,7 @@ ImageWrapper::Init(const char* aMimeType, uint32_t aFlags)
   return mInnerImage->Init(aMimeType, aFlags);
 }
 
-imgStatusTracker&
+already_AddRefed<imgStatusTracker>
 ImageWrapper::GetStatusTracker()
 {
   return mInnerImage->GetStatusTracker();
@@ -66,12 +67,16 @@ ImageWrapper::OutOfProcessSizeOfDecoded() const
 void
 ImageWrapper::IncrementAnimationConsumers()
 {
+  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
+                                "with DecrementAnimationConsumers");
   mInnerImage->IncrementAnimationConsumers();
 }
 
 void
 ImageWrapper::DecrementAnimationConsumers()
 {
+  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
+                                "with IncrementAnimationConsumers");
   mInnerImage->DecrementAnimationConsumers();
 }
 
@@ -133,7 +138,7 @@ ImageWrapper::SetHasError()
   mInnerImage->SetHasError();
 }
 
-nsIURI*
+ImageURL*
 ImageWrapper::GetURI()
 {
   return mInnerImage->GetURI();
@@ -165,6 +170,12 @@ NS_IMETHODIMP
 ImageWrapper::GetIntrinsicRatio(nsSize* aSize)
 {
   return mInnerImage->GetIntrinsicRatio(aSize);
+}
+
+NS_IMETHODIMP_(Orientation)
+ImageWrapper::GetOrientation()
+{
+  return mInnerImage->GetOrientation();
 }
 
 NS_IMETHODIMP
@@ -207,7 +218,7 @@ ImageWrapper::GetImageContainer(LayerManager* aManager, ImageContainer** _retval
 
 NS_IMETHODIMP
 ImageWrapper::Draw(gfxContext* aContext,
-                   gfxPattern::GraphicsFilter aFilter,
+                   GraphicsFilter aFilter,
                    const gfxMatrix& aUserSpaceToImageSpace,
                    const gfxRect& aFill,
                    const nsIntRect& aSubimage,
@@ -242,12 +253,16 @@ ImageWrapper::IsDecoded()
 NS_IMETHODIMP
 ImageWrapper::LockImage()
 {
+  MOZ_ASSERT(NS_IsMainThread(),
+             "Main thread to encourage serialization with UnlockImage");
   return mInnerImage->LockImage();
 }
 
 NS_IMETHODIMP
 ImageWrapper::UnlockImage()
 {
+  MOZ_ASSERT(NS_IsMainThread(),
+             "Main thread to encourage serialization with LockImage");
   return mInnerImage->UnlockImage();
 }
 

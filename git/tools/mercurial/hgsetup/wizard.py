@@ -10,6 +10,7 @@ import os
 import sys
 import which
 
+from configobj import ConfigObjError
 from StringIO import StringIO
 
 from mozversioncontrol.repoupdate import (
@@ -71,6 +72,12 @@ import patches from Bugzilla using a friendly bz:// URL handler. e.g.
 |hg qimport bz://123456|.
 '''.strip()
 
+QNEWCURRENTUSER_INFO = '''
+The mercurial queues command |hg qnew|, which creates new patches in your patch
+queue does not set patch author information by default. Author information
+should be included when uploading for review.
+'''.strip()
+
 FINISHED = '''
 Your Mercurial should now be properly configured and recommended extensions
 should be up to date!
@@ -84,7 +91,7 @@ class MercurialSetupWizard(object):
         self.state_dir = state_dir
         self.ext_dir = os.path.join(state_dir, 'mercurial', 'extensions')
 
-    def run(self, config_path):
+    def run(self, config_paths):
         try:
             os.makedirs(self.ext_dir)
         except OSError as e:
@@ -93,13 +100,19 @@ class MercurialSetupWizard(object):
 
         try:
             hg = which.which('hg')
-        except which.whichError as e:
+        except which.WhichError as e:
             print(e)
             print('Try running |mach bootstrap| to ensure your environment is '
                 'up to date.')
             return 1
 
-        c = MercurialConfig(config_path)
+        try:
+            c = MercurialConfig(config_paths)
+        except ConfigObjError as e:
+            print('Error importing existing Mercurial config!\n'
+                  '%s\n'
+                  'If using quotes, they must wrap the entire string.' % e)
+            return 1
 
         print(INITIAL_MESSAGE)
         raw_input()
@@ -204,6 +217,14 @@ class MercurialSetupWizard(object):
                     'default',
                     'Ensuring qimportbz extension is up to date...')
 
+            if not c.have_qnew_currentuser_default():
+                print(QNEWCURRENTUSER_INFO)
+                if self._prompt_yn('Would you like qnew to set patch author by '
+                                   'default'):
+                    c.ensure_qnew_currentuser_default()
+                    print('Configured qnew to set patch author by default.')
+                    print('')
+
         c.add_mozilla_host_fingerprints()
 
         b = StringIO()
@@ -211,6 +232,7 @@ class MercurialSetupWizard(object):
         new_lines = [line.rstrip() for line in b.getvalue().splitlines()]
         old_lines = []
 
+        config_path = c.config_path
         if os.path.exists(config_path):
             with open(config_path, 'rt') as fh:
                 old_lines = [line.rstrip() for line in fh.readlines()]

@@ -9,19 +9,22 @@
 #define nsObjectFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsPluginInstanceOwner.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
 
-class nsPluginHost;
+#ifdef XP_WIN
+#include <windows.h> // For HWND :(
+#endif
+
 class nsPresContext;
 class nsRootPresContext;
 class nsDisplayPlugin;
 class nsIOSurface;
 class PluginBackgroundSink;
+class nsPluginInstanceOwner;
 
 namespace mozilla {
 namespace layers {
@@ -67,14 +70,8 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
-                          nsGUIEvent* aEvent,
+                          mozilla::WidgetGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
-
-#ifdef XP_MACOSX
-  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         nsGUIEvent*    aEvent,
-                         nsEventStatus* aEventStatus);
-#endif
 
   virtual nsIAtom* GetType() const;
 

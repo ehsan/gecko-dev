@@ -19,6 +19,12 @@
 #include "trace.h"
 #include "thread_wrapper.h"
 
+#include "Latency.h"
+
+#define LOG_FIRST_CAPTURE(x) LogTime(AsyncLatencyLogger::AudioCaptureBase, \
+                                     reinterpret_cast<uint64_t>(x), 0)
+#define LOG_CAPTURE_FRAMES(x, frames) LogLatency(AsyncLatencyLogger::AudioCapture, \
+                                                 reinterpret_cast<uint64_t>(x), frames)
 
 webrtc_adm_linux_alsa::AlsaSymbolTable AlsaSymbolTable;
 
@@ -97,6 +103,7 @@ AudioDeviceLinuxALSA::AudioDeviceLinuxALSA(const int32_t id) :
     _playBufType(AudioDeviceModule::kFixedBufferSize),
     _initialized(false),
     _recording(false),
+    _firstRecord(true),
     _playing(false),
     _recIsInitialized(false),
     _playIsInitialized(false),
@@ -110,6 +117,7 @@ AudioDeviceLinuxALSA::AudioDeviceLinuxALSA(const int32_t id) :
     _playBufDelay(80),
     _playBufDelayFixed(80)
 {
+    memset(_oldKeyState, 0, sizeof(_oldKeyState));
     WEBRTC_TRACE(kTraceMemory, kTraceAudioDevice, id,
                  "%s created", __FUNCTION__);
 }
@@ -182,6 +190,14 @@ int32_t AudioDeviceLinuxALSA::Init()
         return 0;
     }
 
+    //Get X display handle for typing detection
+    _XDisplay = XOpenDisplay(NULL);
+    if (!_XDisplay)
+    {
+        WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
+          "  failed to open X display, typing detection will not work");
+    }
+
     _playWarning = 0;
     _playError = 0;
     _recWarning = 0;
@@ -246,6 +262,12 @@ int32_t AudioDeviceLinuxALSA::Terminate()
         }
 
         _critSect.Enter();
+    }
+
+    if (_XDisplay)
+    {
+      XCloseDisplay(_XDisplay);
+      _XDisplay = NULL;
     }
 
     _initialized = false;
@@ -1435,6 +1457,7 @@ int32_t AudioDeviceLinuxALSA::StartRecording()
     }
     // RECORDING
     const char* threadName = "webrtc_audio_module_capture_thread";
+    _firstRecord = true;
     _ptrThreadRec = ThreadWrapper::CreateThread(RecThreadFunc,
                                                 this,
                                                 kRealtimePriority,
@@ -1817,9 +1840,9 @@ int32_t AudioDeviceLinuxALSA::GetDevicesInfo(
     const bool playback,
     const int32_t enumDeviceNo,
     char* enumDeviceName,
-    const WebRtc_Word32 ednLen,
+    const int32_t ednLen,
     char* enumDeviceId,
-    const WebRtc_Word32 ediLen) const
+    const int32_t ediLen) const
 {
     
     // Device enumeration based on libjingle implementation
@@ -2253,6 +2276,11 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
         { // buf is full
             _recordingFramesLeft = _recordingFramesIn10MS;
 
+            if (_firstRecord) {
+              LOG_FIRST_CAPTURE(this);
+              _firstRecord = false;
+            }
+            LOG_CAPTURE_FRAMES(this, _recordingFramesIn10MS);
             // store the recorded buffer (no action will be taken if the
             // #recorded samples is not a full buffer)
             _ptrAudioBuffer->SetRecordedBuffer(_recordingBuffer,
@@ -2306,6 +2334,8 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
                 _playoutDelay * 1000 / _playoutFreq,
                 _recordingDelay * 1000 / _recordingFreq, 0);
 
+            _ptrAudioBuffer->SetTypingStatus(KeyPressed());
+
             // Deliver recorded samples at specified sample rate, mic level etc.
             // to the observer using callback.
             UnLock();
@@ -2333,4 +2363,25 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
     return true;
 }
 
+
+bool AudioDeviceLinuxALSA::KeyPressed() const{
+
+  char szKey[32];
+  unsigned int i = 0;
+  char state = 0;
+
+  if (!_XDisplay)
+    return false;
+
+  // Check key map status
+  XQueryKeymap(_XDisplay, szKey);
+
+  // A bit change in keymap means a key is pressed
+  for (i = 0; i < sizeof(szKey); i++)
+    state |= (szKey[i] ^ _oldKeyState[i]) & szKey[i];
+
+  // Save old state
+  memcpy((char*)_oldKeyState, (char*)szKey, sizeof(_oldKeyState));
+  return (state != 0);
+}
 }  // namespace webrtc

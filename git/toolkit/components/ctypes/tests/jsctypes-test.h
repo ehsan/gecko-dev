@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nscore.h"
-#include "prtypes.h"
-#include "jsapi.h"
+#include "jspubtd.h"
 
 #define EXPORT_CDECL(type)   NS_EXPORT type
 #define EXPORT_STDCALL(type) NS_EXPORT type NS_STDCALL

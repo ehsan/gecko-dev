@@ -6,27 +6,39 @@
 #ifndef MOZILLA_GFX_IMAGEBRIDGECHILD_H
 #define MOZILLA_GFX_IMAGEBRIDGECHILD_H
 
-#include "mozilla/layers/PImageBridgeChild.h"
-#include "nsAutoPtr.h"
+#include <stddef.h>                     // for size_t
+#include <stdint.h>                     // for uint32_t, uint64_t
+#include "gfxPoint.h"                   // for gfxIntSize
+#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
+#include "mozilla/RefPtr.h"             // for TemporaryRef
+#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
 #include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/LayersTypes.h"
-
-class gfxSharedImageSurface;
+#include "mozilla/layers/CompositorTypes.h"  // for TextureIdentifier, etc
+#include "mozilla/layers/LayersSurfaces.h"  // for PGrallocBufferChild
+#include "mozilla/layers/PImageBridgeChild.h"
+#include "nsDebug.h"                    // for NS_RUNTIMEABORT
+#include "nsRegion.h"                   // for nsIntRegion
+class MessageLoop;
+struct nsIntPoint;
+struct nsIntRect;
 
 namespace base {
 class Thread;
 }
 
 namespace mozilla {
+namespace ipc {
+class Shmem;
+}
+
 namespace layers {
 
+class BasicTiledLayerBuffer;
 class ImageClient;
 class ImageContainer;
 class ImageBridgeParent;
-class SurfaceDescriptor;
 class CompositableClient;
 class CompositableTransaction;
-class ShadowableLayer;
 class Image;
 class TextureClient;
 
@@ -225,8 +237,18 @@ public:
   TemporaryRef<ImageClient> CreateImageClientNow(CompositableType aType);
 
   static void DispatchReleaseImageClient(ImageClient* aClient);
+  static void DispatchReleaseTextureClient(TextureClient* aClient);
   static void DispatchImageClientUpdate(ImageClient* aClient, ImageContainer* aContainer);
 
+  /**
+   * Flush all Images sent to CompositableHost.
+   */
+  static void FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
+
+  /**
+   * Must be called on the ImageBridgeChild's thread.
+   */
+  static void FlushAllImagesNow(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
 
   // CompositableForwarder
 
@@ -235,7 +257,7 @@ public:
   /**
    * See CompositableForwarder::AddTexture
    */
-  virtual void AddTexture(CompositableClient* aCompositable,
+  virtual bool AddTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
 
   /**
@@ -259,7 +281,7 @@ public:
                           TextureClient* aClient) MOZ_OVERRIDE;
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       BasicTiledLayerBuffer* aTiledLayerBuffer) MOZ_OVERRIDE
+                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE
   {
     NS_RUNTIMEABORT("should not be called");
   }

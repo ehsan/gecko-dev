@@ -44,7 +44,7 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_inputs.html");
 
     yield waitForCondition(function () {
-      return !StartUI.isStartPageVisible;
+      return !BrowserUI.isStartTabVisible;
       });
 
     yield hideContextUI();
@@ -59,7 +59,7 @@ gTests.push({
   setUp: setUpAndTearDown,
   tearDown: setUpAndTearDown,
   run: function test() {
-    gInput.focus();
+    gInput.blur();
     gInput.selectionStart = gInput.selectionEnd = 0;
 
     let promise = waitForEvent(document, "popupshown");
@@ -81,6 +81,7 @@ gTests.push({
       }, kCommonWaitMs, kCommonPollMs);
 
     is(getTrimmedSelection(gInput).toString(), "went", "selection test");
+    is(gWindow.document.activeElement, gInput, "input focused");
   },
 });
 
@@ -90,6 +91,7 @@ gTests.push({
   tearDown: setUpAndTearDown,
   run: function test() {
     gInput.selectionStart = gInput.selectionEnd = gInput.value.length;
+    yield waitForEvent(window, "scroll");
 
     let promise = waitForEvent(document, "popupshown");
     sendContextMenuClick(190, 17);
@@ -136,6 +138,7 @@ gTests.push({
   tearDown: setUpAndTearDown,
   run: function test() {
     gInput.selectionStart = gInput.selectionEnd = 0;
+    yield waitForEvent(window, "scroll");
 
     let promise = waitForEvent(document, "popupshown");
     sendContextMenuClick(230, 17);
@@ -198,10 +201,7 @@ function test() {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
-
   // XXX need this until bugs 886624 and 859742 are fully resolved
   setDevPixelEqualToPx();
-
-  requestLongerTimeout(3);
   runTests();
 }

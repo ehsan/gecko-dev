@@ -6,12 +6,17 @@
 
 MODULE = 'ots'
 
+if CONFIG['OS_TARGET'] == 'WINNT':
+    FORCE_STATIC_LIB = True
+else:
+    LIBXUL_LIBRARY = True
+
 EXPORTS += [
     '../include/opentype-sanitiser.h',
     '../include/ots-memory-stream.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'cff.cc',
     'cff_type2_charstring.cc',
     'cmap.cc',
@@ -46,4 +51,6 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'mozots'
+
+MSVC_ENABLE_PGO = True
 

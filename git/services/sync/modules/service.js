@@ -20,7 +20,7 @@ const KEYS_WBO = "keys";
 
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
@@ -38,7 +38,6 @@ Cu.import("resource://services-sync/util.js");
 
 const ENGINE_MODULES = {
   Addons: "addons.js",
-  Apps: "apps.js",
   Bookmarks: "bookmarks.js",
   Form: "forms.js",
   History: "history.js",
@@ -318,9 +317,9 @@ Sync11Service.prototype = {
 
     this.errorHandler = new ErrorHandler(this);
 
-    this._log = Log4Moz.repository.getLogger("Sync.Service");
+    this._log = Log.repository.getLogger("Sync.Service");
     this._log.level =
-      Log4Moz.Level[Svc.Prefs.get("log.logger.service.main")];
+      Log.Level[Svc.Prefs.get("log.logger.service.main")];
 
     this._log.info("Loading Weave " + WEAVE_VERSION);
 

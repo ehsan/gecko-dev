@@ -75,18 +75,71 @@ public:
   ExtendMode mExtendMode;
 };
 
+#ifdef USE_SKIA_GPU
+int DrawTargetSkia::sTextureCacheCount = 256;
+int DrawTargetSkia::sTextureCacheSizeInBytes = 96*1024*1024;
+
+static std::vector<DrawTargetSkia*>&
+GLDrawTargets()
+{
+  static std::vector<DrawTargetSkia*> targets;
+  return targets;
+}
+
+void
+DrawTargetSkia::RebalanceCacheLimits()
+{
+  // Divide the global cache limits equally between all currently active GL-backed
+  // Skia DrawTargets.
+  std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
+  uint32_t targetCount = targets.size();
+  if (targetCount == 0)
+    return;
+
+  int individualCacheSize = sTextureCacheSizeInBytes / targetCount;
+  for (uint32_t i = 0; i < targetCount; i++) {
+    targets[i]->SetCacheLimits(sTextureCacheCount, individualCacheSize);
+  }
+}
+
+static void
+AddGLDrawTarget(DrawTargetSkia* target)
+{
+  GLDrawTargets().push_back(target);
+  DrawTargetSkia::RebalanceCacheLimits();
+}
+
+static void
+RemoveGLDrawTarget(DrawTargetSkia* target)
+{
+  std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
+  std::vector<DrawTargetSkia*>::iterator it = std::find(targets.begin(), targets.end(), target);
+  if (it != targets.end()) {
+    targets.erase(it);
+    DrawTargetSkia::RebalanceCacheLimits();
+  }
+}
+
+void
+DrawTargetSkia::SetGlobalCacheLimits(int aCount, int aSizeInBytes)
+{
+  sTextureCacheCount = aCount;
+  sTextureCacheSizeInBytes = aSizeInBytes;
+
+  DrawTargetSkia::RebalanceCacheLimits();
+}
+#endif
+
 DrawTargetSkia::DrawTargetSkia()
   : mSnapshot(nullptr)
 {
-#ifdef ANDROID
-  mSoftClipping = false;
-#else
-  mSoftClipping = true;
-#endif
 }
 
 DrawTargetSkia::~DrawTargetSkia()
 {
+#ifdef USE_SKIA_GPU
+  RemoveGLDrawTarget(this);
+#endif
 }
 
 TemporaryRef<SourceSurface>
@@ -651,17 +704,12 @@ DrawTargetSkia::InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLCont
   mSize = aSize;
   mFormat = aFormat;
 
-  // Always use soft clipping when we're using GL
-  mSoftClipping = true;
-
   mGrGLInterface = aGrGLInterface;
   mGrGLInterface->fCallbackData = reinterpret_cast<GrGLInterfaceCallbackData>(this);
 
   GrBackendContext backendContext = reinterpret_cast<GrBackendContext>(aGrGLInterface);
   SkAutoTUnref<GrContext> gr(GrContext::Create(kOpenGL_GrBackend, backendContext));
   mGrContext = gr.get();
-
-  mGrContext->setTextureCacheLimits(128, 1024*1024*16);
 
   GrBackendRenderTargetDesc targetDescriptor;
 
@@ -676,6 +724,15 @@ DrawTargetSkia::InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLCont
   SkAutoTUnref<SkDevice> device(new SkGpuDevice(mGrContext.get(), target.get()));
   SkAutoTUnref<SkCanvas> canvas(new SkCanvas(device.get()));
   mCanvas = canvas.get();
+
+  AddGLDrawTarget(this);
+}
+
+void
+DrawTargetSkia::SetCacheLimits(int aCount, int aSizeInBytes)
+{
+  MOZ_ASSERT(mGrContext, "No GrContext!");
+  mGrContext->setTextureCacheLimits(aCount, aSizeInBytes);
 }
 #endif
 
@@ -727,7 +784,7 @@ DrawTargetSkia::ClearRect(const Rect &aRect)
   MarkChanged();
   SkPaint paint;
   mCanvas->save();
-  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, true);
   paint.setColor(SkColorSetARGB(0, 0, 0, 0));
   paint.setXfermodeMode(SkXfermode::kSrc_Mode);
   mCanvas->drawPaint(paint);
@@ -743,7 +800,7 @@ DrawTargetSkia::PushClip(const Path *aPath)
 
   const PathSkia *skiaPath = static_cast<const PathSkia*>(aPath);
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, true);
 }
 
 void
@@ -752,7 +809,7 @@ DrawTargetSkia::PushClipRect(const Rect& aRect)
   SkRect rect = RectToSkRect(aRect);
 
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, true);
 }
 
 void

@@ -171,9 +171,6 @@ nsXULTemplateBuilder::InitGlobals()
         gXULTemplateLog = PR_NewLogModule("nsXULTemplateBuilder");
 #endif
 
-    if (!mMatchMap.IsInitialized())
-        mMatchMap.Init();
-
     return NS_OK;
 }
 
@@ -244,9 +241,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mListeners)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mQueryProcessor)
-    if (tmp->mMatchMap.IsInitialized()) {
-      tmp->mMatchMap.Enumerate(DestroyMatchList, nullptr);
-    }
+    tmp->mMatchMap.Enumerate(DestroyMatchList, nullptr);
     for (uint32_t i = 0; i < tmp->mQuerySets.Length(); ++i) {
         nsTemplateQuerySet* qs = tmp->mQuerySets[i];
         delete qs;
@@ -266,8 +261,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootResult)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListeners)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueryProcessor)
-    if (tmp->mMatchMap.IsInitialized())
-        tmp->mMatchMap.EnumerateRead(TraverseMatchList, &cb);
+    tmp->mMatchMap.EnumerateRead(TraverseMatchList, &cb);
     {
       uint32_t i, count = tmp->mQuerySets.Length();
       for (i = 0; i < count; ++i) {
@@ -1391,7 +1385,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     JS::Rooted<JSObject*> scope(jscontext, global->GetGlobalJSObject());
     JS::Rooted<JS::Value> v(jscontext);
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, v.address(),
+    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v,
                                     getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1402,7 +1396,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         JS::Rooted<JS::Value> jsdatabase(jscontext);
         rv = nsContentUtils::WrapNative(jscontext, scope, mDB,
                                         &NS_GET_IID(nsIRDFCompositeDataSource),
-                                        jsdatabase.address(), getter_AddRefs(wrapper));
+                                        &jsdatabase, getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;
@@ -1419,7 +1413,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         rv = nsContentUtils::WrapNative(jscontext, jselement,
                                         static_cast<nsIXULTemplateBuilder*>(this),
                                         &NS_GET_IID(nsIXULTemplateBuilder),
-                                        jsbuilder.address(), getter_AddRefs(wrapper));
+                                        &jsbuilder, getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;

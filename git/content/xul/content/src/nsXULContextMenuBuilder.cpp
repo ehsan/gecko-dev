@@ -9,6 +9,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLMenuItemElement.h"
 #include "nsXULContextMenuBuilder.h"
+#include "nsIDocument.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -77,7 +78,8 @@ nsXULContextMenuBuilder::AddItemFor(nsIDOMHTMLMenuItemElement* aElement,
   }
 
   nsCOMPtr<nsIContent> menuitem;
-  nsresult rv = CreateElement(nsGkAtoms::menuitem, aElement,
+  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(aElement);
+  nsresult rv = CreateElement(nsGkAtoms::menuitem, element,
                               getter_AddRefs(menuitem));
   NS_ENSURE_SUCCESS(rv, rv);
 

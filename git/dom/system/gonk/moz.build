@@ -29,10 +29,6 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_system_gonk'
 
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/network/interfaces',
-]
-
 MODULE = 'dom'
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
@@ -41,12 +37,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'nsVolume.h',
         'nsVolumeService.h',
     ]
-    CPP_SOURCES += [
+    SOURCES += [
+        'AudioChannelManager.cpp',
         'AudioManager.cpp',
         'AutoMounter.cpp',
         'AutoMounterSetting.cpp',
         'GonkGPSGeolocationProvider.cpp',
-        'AudioChannelManager.cpp',
         'nsVolume.cpp',
         'nsVolumeMountLock.cpp',
         'nsVolumeService.cpp',
@@ -63,7 +59,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
 if CONFIG['ENABLE_TESTS']:
     XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell.ini']
 
-CPP_SOURCES += [
+SOURCES += [
     'SystemWorkerManager.cpp',
 ]
 
@@ -72,9 +68,9 @@ EXTRA_COMPONENTS += [
     'NetworkInterfaceListService.manifest',
     'NetworkManager.js',
     'NetworkManager.manifest',
-    'RILContentHelper.js',
     'RadioInterfaceLayer.js',
     'RadioInterfaceLayer.manifest',
+    'RILContentHelper.js',
 ]
 
 EXTRA_JS_MODULES += [
@@ -83,4 +79,12 @@ EXTRA_JS_MODULES += [
     'ril_worker.js',
     'systemlibs.js',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'domsystemgonk_s'
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -37,8 +37,9 @@ var ContextCommands = {
   cut: function cc_cut() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target)
+    if (!target) {
       return;
+    }
 
     if (target.localName === "browser") {
       // content
@@ -49,7 +50,7 @@ var ContextCommands = {
       }
     } else {
       // chrome
-      target.editor.cut();
+      CommandUpdater.doCommand("cmd_cut");
     }
 
     target.focus();
@@ -58,8 +59,9 @@ var ContextCommands = {
   copy: function cc_copy() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target)
+    if (!target) {
       return;
+    }
 
     if (target.localName == "browser") {
       // content
@@ -72,7 +74,7 @@ var ContextCommands = {
       this.clipboard.copyString(ContextMenuUI.popupState.string, this.docRef);
     } else {
       // chrome
-      target.editor.copy();
+      CommandUpdater.doCommand("cmd_copy");
     }
 
     target.focus();
@@ -80,18 +82,23 @@ var ContextCommands = {
 
   paste: function cc_paste() {
     let target = ContextMenuUI.popupState.target;
+
+    if (!target) {
+      return;
+    }
+
     if (target.localName == "browser") {
       // content
       let x = ContextMenuUI.popupState.x;
       let y = ContextMenuUI.popupState.y;
       let json = {x: x, y: y, command: "paste" };
       target.messageManager.sendAsyncMessage("Browser:ContextCommand", json);
-      SelectionHelperUI.closeEditSession();
     } else {
       // chrome
-      target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
+      CommandUpdater.doCommand("cmd_paste");
       target.focus();
     }
+    SelectionHelperUI.closeEditSession();
   },
 
   pasteAndGo: function cc_pasteAndGo() {
@@ -104,7 +111,8 @@ var ContextCommands = {
   select: function cc_select() {
     SelectionHelperUI.openEditSession(ContextMenuUI.popupState.target,
                                       ContextMenuUI.popupState.xPos,
-                                      ContextMenuUI.popupState.yPos);
+                                      ContextMenuUI.popupState.yPos,
+                                      true);
   },
 
   selectAll: function cc_selectAll() {
@@ -156,7 +164,7 @@ var ContextCommands = {
     let defaultURI = aRichListItem.getAttribute("searchString");
     aRichListItem.childNodes[0].setAttribute("value", "");
     aRichListItem.setAttribute("searchString", "");
-    BrowserUI.newTab(defaultURI, Browser.selectedTab);
+    BrowserUI.addAndShowTab(defaultURI, Browser.selectedTab);
   },
 
   // Link specific
@@ -200,7 +208,7 @@ var ContextCommands = {
   },
 
   openImageInNewTab: function cc_openImageInNewTab() {
-    BrowserUI.newTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
+    BrowserUI.addAndShowTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
   },
 
   // Video specific
@@ -215,7 +223,7 @@ var ContextCommands = {
   },
 
   openVideoInNewTab: function cc_openVideoInNewTab() {
-    BrowserUI.newTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
+    BrowserUI.addAndShowTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
   },
 
   // Bookmarks
@@ -238,7 +246,7 @@ var ContextCommands = {
 
   jsShell: function cc_jsShell() {
     // XXX for debugging, this only works when running on the desktop.
-    if (!MetroUtils.immersive)
+    if (!Services.metro.immersive)
       window.openDialog("chrome://browser/content/shell.xul", "_blank",
                         "all=no,scrollbars=yes,resizable=yes,dialog=no");
   },
@@ -249,6 +257,24 @@ var ContextCommands = {
 
   viewOnDesktop: function cc_viewOnDesktop() {
     Appbar.onViewOnDesktop();
+  },
+
+  // Checks for MS app store specific meta data, and if present opens
+  // the Windows Store to the appropriate app
+  openWindowsStoreLink: function cc_openWindowsStoreLink() {
+    let storeLink = this.getStoreLink();
+    if (storeLink) {
+      Browser.selectedBrowser.contentWindow.document.location = storeLink;
+    }
+  },
+
+  getStoreLink: function cc_getStoreLink() {
+    let metaData = Browser.selectedBrowser.contentWindow.document.getElementsByTagName("meta");
+    let msApplicationName = metaData.namedItem("msApplication-PackageFamilyName");
+    if (msApplicationName) {
+      return "ms-windows-store:PDP?PFN=" + msApplicationName.getAttribute("content");
+    }
+    return null;
   },
 
   /*
@@ -341,20 +367,23 @@ var ContextCommands = {
     picker.appendFilters(Ci.nsIFilePicker.filterImages);
 
     // prefered save location
-    var dnldMgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
-    picker.displayDirectory = dnldMgr.userDownloadsDirectory;
-    try {
-      let lastDir = Services.prefs.getComplexValue("browser.download.lastDir", Ci.nsILocalFile);
-      if (this.isAccessibleDirectory(lastDir))
-        picker.displayDirectory = lastDir;
-    }
-    catch (e) { }
+    Task.spawn(function() {
+      let preferredDir = yield Downloads.getPreferredDownloadsDirectory();
+      picker.displayDirectory = new FileUtils.File(preferredDir);
 
-    this._picker = picker;
-    this._pickerUrl = mediaURL;
-    this._pickerContentDisp = aPopupState.contentDisposition;
-    this._contentType = aPopupState.contentType;
-    picker.open(ContextCommands);
+      try {
+        let lastDir = Services.prefs.getComplexValue("browser.download.lastDir", Ci.nsILocalFile);
+        if (this.isAccessibleDirectory(lastDir))
+          picker.displayDirectory = lastDir;
+      }
+      catch (e) { }
+
+      this._picker = picker;
+      this._pickerUrl = mediaURL;
+      this._pickerContentDisp = aPopupState.contentDisposition;
+      this._contentType = aPopupState.contentType;
+      picker.open(ContextCommands);
+    }.bind(this));
   },
 
   /*

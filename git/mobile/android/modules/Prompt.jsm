@@ -78,6 +78,16 @@ Prompt.prototype = {
     });
   },
 
+  addNumber: function(aOptions) {
+    return this._addInput({
+      type: "number",
+      value: aOptions.value,
+      hint: aOptions.hint,
+      autofocus: aOptions.autofocus,
+      id: aOptions.id
+    });
+  },
+
   addPassword: function(aOptions) {
     return this._addInput({
       type: "password",
@@ -112,6 +122,14 @@ Prompt.prototype = {
     });
   },
 
+  addIconGrid: function(aOptions) {
+    return this._addInput({
+      type: "icongrid",
+      items: aOptions.items,
+      id: aOptions.id
+    });
+  },
+
   show: function(callback) {
     this.callback = callback;
     log("Sending message");
@@ -120,7 +138,7 @@ Prompt.prototype = {
   },
 
   _innerShow: function() {
-    this.bridge.handleGeckoMessage(JSON.stringify(this.msg));
+    Services.androidBridge.handleGeckoMessage(JSON.stringify(this.msg));
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -177,10 +195,6 @@ Prompt.prototype = {
   setMultiChoiceItems: function(aItems) {
     this.msg.multiple = true;
     return this._setListItems(aItems);
-  },
-
-  get bridge() {
-    return Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
   },
 
 }

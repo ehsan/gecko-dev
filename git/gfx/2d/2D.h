@@ -246,8 +246,10 @@ class RadialGradientPattern : public Pattern
 {
 public:
   /*
-   * aBegin Start of the linear gradient
-   * aEnd End of the linear gradient
+   * aCenter1 Center of the inner (focal) circle.
+   * aCenter2 Center of the outer circle.
+   * aRadius1 Radius of the inner (focal) circle.
+   * aRadius2 Radius of the outer circle.
    * aStops GradientStops object for this gradient, this should match the
    *        backend type of the draw target this pattern will be used with.
    * aMatrix A matrix that transforms the pattern into user space
@@ -446,6 +448,11 @@ public:
    * mutable.
    */
   virtual FillRule GetFillRule() const = 0;
+
+  virtual Float ComputeLength() { return 0; }
+
+  virtual Point ComputePointAtLength(Float aLength,
+                                     Point* aTangent) { return Point(); }
 };
 
 /* The PathBuilder class allows path creation. Once finish is called on the
@@ -503,7 +510,7 @@ public:
    * implementation in some backends, and more efficient implementation in
    * others.
    */
-  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder) = 0;
+  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, const Matrix *aTransformHint = nullptr) = 0;
 
   virtual bool GetFontFileData(FontFileDataOutput, void *) { return false; }
 
@@ -571,6 +578,15 @@ public:
   virtual TemporaryRef<SourceSurface> Snapshot() = 0;
   virtual IntSize GetSize() = 0;
 
+  /**
+   * If possible returns the bits to this DrawTarget for direct manipulation. While
+   * the bits is locked any modifications to this DrawTarget is forbidden.
+   * Release takes the original data pointer for safety.
+   */
+  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
+                        int32_t* aStride, SurfaceFormat* aFormat) { return false; }
+  virtual void ReleaseBits(uint8_t* aData) {}
+
   /* Ensure that the DrawTarget backend has flushed all drawing operations to
    * this draw target. This must be called before using the backing surface of
    * this draw target outside of GFX 2D code.
@@ -635,6 +651,19 @@ public:
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
                            const IntPoint &aDestination) = 0;
+
+  /*
+   * Same as CopySurface, except uses itself as the source.
+   *
+   * Some backends may be able to optimize this better
+   * than just taking a snapshot and using CopySurface.
+   */
+  virtual void CopyRect(const IntRect &aSourceRect,
+                        const IntPoint &aDestination)
+  {
+    RefPtr<SourceSurface> source = Snapshot();
+    CopySurface(source, aSourceRect, aDestination);
+  }
 
   /*
    * Fill a rectangle on the DrawTarget with a certain source pattern.
@@ -863,7 +892,7 @@ public:
     return mOpaqueRect;
   }
 
-  void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
+  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA) {
     mPermitSubpixelAA = aPermitSubpixelAA;
   }
 
@@ -969,6 +998,9 @@ public:
                                                       GrGLInterface* aGrGLInterface,
                                                       const IntSize &aSize,
                                                       SurfaceFormat aFormat);
+
+  static void
+    SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes);
 #endif
 
 #if defined(USE_SKIA) && defined(MOZ_ENABLE_FREETYPE)
@@ -1014,63 +1046,6 @@ private:
 
   static DrawEventRecorder *mRecorder;
 };
-
-#ifdef XP_MACOSX
-/* This is a helper class that let's you borrow a CGContextRef from a
- * DrawTargetCG. This is used for drawing themed widgets.
- *
- * Callers should check the cg member after constructing the object
- * to see if it succeeded. The DrawTarget should not be used while
- * the context is borrowed. */
-class BorrowedCGContext
-{
-public:
-  BorrowedCGContext()
-    : cg(nullptr)
-    , mDT(nullptr)
-  { }
-
-  BorrowedCGContext(DrawTarget *aDT)
-    : mDT(aDT)
-  {
-    cg = BorrowCGContextFromDrawTarget(aDT);
-  }
-
-  // We can optionally Init after construction in
-  // case we don't know what the DT will be at construction
-  // time.
-  CGContextRef Init(DrawTarget *aDT)
-  {
-    MOZ_ASSERT(!mDT, "Can't initialize twice!");
-    mDT = aDT;
-    cg = BorrowCGContextFromDrawTarget(aDT);
-    return cg;
-  }
-
-  // The caller needs to call Finish if cg is non-null when
-  // they are done with the context. This is currently explicit
-  // instead of happening implicitly in the destructor to make
-  // what's happening in the caller more clear. It also
-  // let's you resume using the DrawTarget in the same scope.
-  void Finish()
-  {
-    if (cg) {
-      ReturnCGContextToDrawTarget(mDT, cg);
-      cg = nullptr;
-    }
-  }
-
-  ~BorrowedCGContext() {
-    MOZ_ASSERT(!cg);
-  }
-
-  CGContextRef cg;
-private:
-  static CGContextRef BorrowCGContextFromDrawTarget(DrawTarget *aDT);
-  static void ReturnCGContextToDrawTarget(DrawTarget *aDT, CGContextRef cg);
-  DrawTarget *mDT;
-};
-#endif
 
 }
 }

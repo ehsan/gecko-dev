@@ -235,6 +235,9 @@ static void PrintParameterUsage(void)
     fprintf(stderr, "%-20s Test -F allows 0=any (default), 1=only OCSP, 2=only CRL\n", "-M");
     fprintf(stderr, "%-20s Restrict ciphers\n", "-c ciphers");
     fprintf(stderr, "%-20s Print cipher values allowed for parameter -c and exit\n", "-Y");
+    fprintf(stderr, "%-20s Enforce using an IPv4 destination address\n", "-4");
+    fprintf(stderr, "%-20s Enforce using an IPv6 destination address\n", "-6");
+    fprintf(stderr, "%-20s (Options -4 and -6 cannot be combined.)\n", "");
 }
 
 static void Usage(const char *progName)
@@ -525,12 +528,13 @@ ownAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
         csa = SSL_PeerStapledOCSPResponses(fd);
         if (csa) {
             for (i = 0; i < csa->len; ++i) {
-                CERT_CacheOCSPResponseFromSideChannel(
-                    serverCertAuth->dbHandle,
-                    cert,
-                    PR_Now(),
-                    &csa->items[i],
-                    arg);
+		PORT_SetError(0);
+		if (CERT_CacheOCSPResponseFromSideChannel(
+			serverCertAuth->dbHandle, cert, PR_Now(),
+			&csa->items[i], arg) != SECSuccess) {
+		    PRErrorCode error = PR_GetError();
+		    PORT_Assert(error != 0);
+		}
             }
         }
     
@@ -748,7 +752,7 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
                                         PRBool override)
 {
     SECStatus rv;
-    PRErrorCode status;
+    PRErrorCode error;
     
     if (!serverCertAuth->isPaused)
 	return SECSuccess;
@@ -759,20 +763,20 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
     serverCertAuth->isPaused = PR_FALSE;
     rv = SSL_AuthCertificate(serverCertAuth->dbHandle, fd, PR_TRUE, PR_FALSE);
     if (rv != SECSuccess) {
-        status = PR_GetError();
-        if (status == 0) {
+        error = PR_GetError();
+        if (error == 0) {
             PR_NOT_REACHED("SSL_AuthCertificate return SECFailure without "
                            "setting error code.");
-            status = PR_INVALID_STATE_ERROR;
+            error = PR_INVALID_STATE_ERROR;
         } else if (override) {
             rv = ownBadCertHandler(NULL, fd);
         }
     }
     if (rv == SECSuccess) {
-        status = 0;
+        error = 0;
     }
 
-    if (SSL_AuthCertificateComplete(fd, status) != SECSuccess) {
+    if (SSL_AuthCertificateComplete(fd, error) != SECSuccess) {
         rv = SECFailure;
     }
 
@@ -806,6 +810,8 @@ int main(int argc, char **argv)
     PRSocketOptionData opt;
     PRNetAddr          addr;
     PRPollDesc         pollset[2];
+    PRBool             allowIPv4 = PR_TRUE;
+    PRBool             allowIPv6 = PR_TRUE;
     PRBool             pingServerFirst = PR_FALSE;
     int                pingTimeoutSeconds = -1;
     PRBool             clientSpeaksFirst = PR_FALSE;
@@ -846,11 +852,14 @@ int main(int argc, char **argv)
     SSL_VersionRangeGetSupported(ssl_variant_stream, &enabledVersions);
 
     optstate = PL_CreateOptState(argc, argv,
-                                 "BFM:OSTV:W:Ya:c:d:fgh:m:n:op:qr:st:uvw:xz");
+                                 "46BFM:OSTV:W:Ya:c:d:fgh:m:n:op:qr:st:uvw:xz");
     while ((optstatus = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch (optstate->option) {
 	  case '?':
 	  default : Usage(progName); 			break;
+
+          case '4': allowIPv6 = PR_FALSE; if (!allowIPv4) Usage(progName); break;
+          case '6': allowIPv4 = PR_FALSE; if (!allowIPv6) Usage(progName); break;
 
           case 'B': bypassPKCS11 = 1; 			break;
 
@@ -986,11 +995,15 @@ int main(int argc, char **argv)
 	    SECU_PrintError(progName, "error looking up host");
 	    return 1;
 	}
-	do {
+	for (;;) {
 	    enumPtr = PR_EnumerateAddrInfo(enumPtr, addrInfo, portno, &addr);
-	} while (enumPtr != NULL &&
-		 addr.raw.family != PR_AF_INET &&
-		 addr.raw.family != PR_AF_INET6);
+	    if (enumPtr == NULL)
+		break;
+	    if (addr.raw.family == PR_AF_INET && allowIPv4)
+		break;
+	    if (addr.raw.family == PR_AF_INET6 && allowIPv6)
+		break;
+	}
 	PR_FreeAddrInfo(addrInfo);
 	if (enumPtr == NULL) {
 	    SECU_PrintError(progName, "error looking up host address");

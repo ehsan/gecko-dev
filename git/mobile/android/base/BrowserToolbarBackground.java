@@ -4,6 +4,8 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.widget.GeckoLinearLayout;
+
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
@@ -37,6 +39,6 @@ public class BrowserToolbarBackground extends GeckoLinearLayout {
 
     @Override
     public void onLightweightThemeReset() {
-        setBackgroundResource(R.drawable.address_bar_bg);
+        setBackgroundResource(R.drawable.url_bar_bg);
     }
 }

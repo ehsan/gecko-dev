@@ -6,3 +6,7 @@
 
 PROGRAM = 'webapprt-stub'
 
+SOURCES += [
+    'webapprt.mm',
+]
+

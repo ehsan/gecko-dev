@@ -4,11 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/SVGFEImageElement.h"
+
 #include "mozilla/dom/SVGFEImageElementBinding.h"
 #include "mozilla/dom/SVGFilterElement.h"
+#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsSVGUtils.h"
 #include "nsNetUtil.h"
+#include "imgIContainer.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEImage)
 

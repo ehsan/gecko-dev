@@ -34,8 +34,10 @@ const kCONNECTING = 'connecting';
 const kOPEN = 'open';
 const kCLOSING = 'closing';
 const kCLOSED = 'closed';
+const kRESUME_ERROR = 'Calling resume() on a connection that was not suspended.';
 
 const BUFFER_SIZE = 65536;
+const NETWORK_STATS_THRESHOLD = 65536;
 
 // XXX we have no TCPError implementation right now because it's really hard to
 // do on b2g18.  On mozilla-central we want a proper TCPError that ideally
@@ -156,6 +158,18 @@ TCPSocket.prototype = {
   // IPC socket actor
   _socketBridge: null,
 
+  // StartTLS
+  _waitingForStartTLS: false,
+  _pendingDataAfterStartTLS: [],
+
+#ifdef MOZ_WIDGET_GONK
+  // Network statistics (Gonk-specific feature)
+  _txBytes: 0,
+  _rxBytes: 0,
+  _appId: Ci.nsIScriptSecurityManager.NO_APP_ID,
+  _activeNetwork: null,
+#endif
+
   // Public accessors.
   get readyState() {
     return this._readyState;
@@ -209,19 +223,23 @@ TCPSocket.prototype = {
     this._onclose = f;
   },
 
+  _activateTLS: function() {
+    let securityInfo = this._transport.securityInfo
+          .QueryInterface(Ci.nsISSLSocketControl);
+    securityInfo.StartTLS();
+  },
+
   // Helper methods.
   _createTransport: function ts_createTransport(host, port, sslMode) {
-    let options, optlen;
-    if (sslMode) {
-      options = [sslMode];
-      optlen = 1;
+    let options;
+    if (sslMode === 'ssl') {
+      options = ['ssl'];
     } else {
-      options = null;
-      optlen = 0;
+      options = ['starttls'];
     }
     return Cc["@mozilla.org/network/socket-transport-service;1"]
              .getService(Ci.nsISocketTransportService)
-             .createTransport(options, optlen, host, port, null);
+             .createTransport(options, 1, host, port, null);
   },
 
   _ensureCopying: function ts_ensureCopying() {
@@ -247,6 +265,21 @@ TCPSocket.prototype = {
         if (self._multiplexStream.count) {
           self._ensureCopying();
         } else {
+          // If we are waiting for initiating starttls, we can begin to
+          // activate tls now.
+          if (self._waitingForStartTLS && self._readyState == kOPEN) {
+            self._activateTLS();
+            self._waitingForStartTLS = false;
+            // If we have pending data, we should send them, or fire
+            // a drain event if we are waiting for it.
+            if (self._pendingDataAfterStartTLS.length > 0) {
+              while (self._pendingDataAfterStartTLS.length)
+                self._multiplexStream.appendStream(self._pendingDataAfterStartTLS.shift());
+              self._ensureCopying();
+              return;
+            }
+          }
+
           if (self._waitingForDrain) {
             self._waitingForDrain = false;
             self.callListener("drain");
@@ -290,6 +323,38 @@ TCPSocket.prototype = {
       /* source buffered */ true, /* sink buffered */ false,
       BUFFER_SIZE, /* close source*/ false, /* close sink */ false);
   },
+
+#ifdef MOZ_WIDGET_GONK
+  // Helper method for collecting network statistics.
+  // Note this method is Gonk-specific.
+  _saveNetworkStats: function ts_saveNetworkStats(enforce) {
+    if (this._txBytes <= 0 && this._rxBytes <= 0) {
+      // There is no traffic at all. No need to save statistics.
+      return;
+    }
+
+    // If "enforce" is false, the traffic amount is saved to NetworkStatsServiceProxy
+    // only when the total amount exceeds the predefined threshold value.
+    // The purpose is to avoid too much overhead for collecting statistics.
+    let totalBytes = this._txBytes + this._rxBytes;
+    if (!enforce && totalBytes < NETWORK_STATS_THRESHOLD) {
+      return;
+    }
+
+    let nssProxy = Cc["@mozilla.org/networkstatsServiceProxy;1"]
+                     .getService(Ci.nsINetworkStatsServiceProxy);
+    if (!nssProxy) {
+      LOG("Error: Ci.nsINetworkStatsServiceProxy service is not available.");
+      return;
+    }
+    nssProxy.saveAppStats(this._appId, this._activeNetwork, Date.now(),
+                          this._rxBytes, this._txBytes);
+
+    // Reset the counters once the statistics is saved to NetworkStatsServiceProxy.
+    this._txBytes = this._rxBytes = 0;
+  },
+  // End of helper method for network statistics.
+#endif
 
   callListener: function ts_callListener(type, data) {
     if (!this["on" + type])
@@ -345,6 +410,14 @@ TCPSocket.prototype = {
     that._socketBridge = socketChild;
 
     return that;
+  },
+
+  setAppId: function ts_setAppId(appId) {
+#ifdef MOZ_WIDGET_GONK
+    this._appId = appId;
+#else
+    // Do nothing because _appId only exists on Gonk-specific platform.
+#endif
   },
 
   /* end nsITCPSocketInternal methods */
@@ -406,9 +479,6 @@ TCPSocket.prototype = {
 
   // nsIDOMTCPSocket
   open: function ts_open(host, port, options) {
-    if (!this.initWindowless())
-      return null;
-
     this._inChild = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
                        .processType != Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
     LOG("content process: " + (this._inChild ? "true" : "false"));
@@ -434,7 +504,7 @@ TCPSocket.prototype = {
     that._host = host;
     that._port = port;
     if (options !== undefined) {
-      if (options.useSSL) {
+      if (options.useSecureTransport) {
           that._ssl = 'ssl';
       } else {
           that._ssl = false;
@@ -455,13 +525,44 @@ TCPSocket.prototype = {
     let transport = that._transport = this._createTransport(host, port, that._ssl);
     transport.setEventSink(that, Services.tm.currentThread);
     that._initStream(that._binaryType);
+
+#ifdef MOZ_WIDGET_GONK
+    // Set _activeNetwork, which is only required for network statistics.
+    // Note that nsINetworkManager, as well as nsINetworkStatsServiceProxy, is
+    // Gonk-specific.
+    let networkManager = Cc["@mozilla.org/network/manager;1"].getService(Ci.nsINetworkManager);
+    if (networkManager) {
+      that._activeNetwork = networkManager.active;
+    }
+#endif
+
     return that;
   },
-  
-  listen: function ts_listen(localPort, options, backlog) {
-    if (!this.initWindowless())
-      return null;
 
+  upgradeToSecure: function ts_upgradeToSecure() {
+    if (this._readyState !== kOPEN) {
+      throw new Error("Socket not open.");
+    }
+    if (this._ssl == 'ssl') {
+      // Already SSL
+      return;
+    }
+
+    this._ssl = 'ssl';
+
+    if (this._inChild) {
+      this._socketBridge.startTLS();
+      return;
+    }
+
+    if (this._multiplexStream.count == 0) {
+      this._activateTLS();
+    } else {
+      this._waitingForStartTLS = true;
+    }
+  },
+
+  listen: function ts_listen(localPort, options, backlog) {
     // in the testing case, init won't be called and
     // hasPrivileges will be null. We want to proceed to test.
     if (this._hasPrivileges !== true && this._hasPrivileges !== null) {
@@ -523,7 +624,14 @@ TCPSocket.prototype = {
       new_stream = new StringInputStream();
       new_stream.setData(data, length);
     }
-    this._multiplexStream.appendStream(new_stream);
+
+    if (this._waitingForStartTLS) {
+      // When we are waiting for starttls, new_stream is added to pendingData
+      // and will be appended to multiplexStream after tls had been set up.
+      this._pendingDataAfterStartTLS.push(new_stream);
+    } else {
+      this._multiplexStream.appendStream(new_stream);
+    }
 
     if (newBufferedAmount >= BUFFER_SIZE) {
       // If we buffered more than some arbitrary amount of data,
@@ -535,6 +643,13 @@ TCPSocket.prototype = {
     }
 
     this._ensureCopying();
+
+#ifdef MOZ_WIDGET_GONK
+    // Collect transmitted amount for network statistics.
+    this._txBytes += length;
+    this._saveNetworkStats(false);
+#endif
+
     return bufferNotFull;
   },
 
@@ -559,12 +674,20 @@ TCPSocket.prototype = {
 
     if (this._inputStreamPump) {
       this._inputStreamPump.resume();
+    } else if (this._suspendCount < 1) {
+      throw new Error(kRESUME_ERROR);
     } else {
       --this._suspendCount;
     }
   },
 
   _maybeReportErrorAndCloseIfOpen: function(status) {
+#ifdef MOZ_WIDGET_GONK
+    // Save network statistics once the connection is closed.
+    // For now this function is Gonk-specific.
+    this._saveNetworkStats(true);
+#endif
+
     // If we're closed, we've already reported the error or just don't need to
     // report the error.
     if (this._readyState === kCLOSED)
@@ -757,6 +880,12 @@ TCPSocket.prototype = {
     } else {
       this.callListener("data", this._inputStreamScriptable.read(count));
     }
+
+#ifdef MOZ_WIDGET_GONK
+    // Collect received amount for network statistics.
+    this._rxBytes += count;
+    this._saveNetworkStats(false);
+#endif
   },
 
   classID: Components.ID("{cda91b22-6472-11e1-aa11-834fec09cd0a}"),

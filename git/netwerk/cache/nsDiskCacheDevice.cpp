@@ -23,7 +23,6 @@
 // XXX add necessary include file for ftruncate (or equivalent)
 #endif
 
-#include "prtypes.h"
 #include "prthread.h"
 #include "prbit.h"
 
@@ -370,11 +369,11 @@ nsDiskCache::Truncate(PRFileDesc *  fd, uint32_t  newEOF)
  *  nsDiskCacheDevice
  *****************************************************************************/
 
-class NetworkDiskCacheReporter MOZ_FINAL : public MemoryReporterBase
+class NetworkDiskCacheReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     NetworkDiskCacheReporter(nsDiskCacheDevice* aDevice)
-      : MemoryReporterBase(
+      : MemoryUniReporter(
             "explicit/network/disk-cache",
             KIND_HEAP,
             UNITS_BYTES,

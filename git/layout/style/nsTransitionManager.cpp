@@ -15,21 +15,19 @@
 #include "mozilla/TimeStamp.h"
 #include "nsRefreshDriver.h"
 #include "nsRuleProcessorData.h"
-#include "nsIStyleRule.h"
 #include "nsRuleWalker.h"
-#include "nsRuleData.h"
-#include "gfxColor.h"
 #include "nsCSSPropertySet.h"
 #include "nsStyleAnimation.h"
 #include "nsEventDispatcher.h"
-#include "nsGUIEvent.h"
+#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
-#include "nsCSSFrameConstructor.h"
 #include "Layers.h"
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
 #include "nsStyleChangeList.h"
+#include "nsStyleSet.h"
+#include "RestyleManager.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
@@ -132,7 +130,8 @@ bool
 ElementTransitions::HasAnimationOfProperty(nsCSSProperty aProperty) const
 {
   for (uint32_t tranIdx = mPropertyTransitions.Length(); tranIdx-- != 0; ) {
-    if (aProperty == mPropertyTransitions[tranIdx].mProperty) {
+    const ElementPropertyTransition& pt = mPropertyTransitions[tranIdx];
+    if (aProperty == pt.mProperty && !pt.IsRemovedSentinel()) {
       return true;
     }
   }
@@ -179,7 +178,8 @@ ElementTransitions::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
 
     if (!css::CommonElementAnimationData::CanAnimatePropertyOnCompositor(mElement,
                                                                          pt.mProperty,
-                                                                         aFlags)) {
+                                                                         aFlags) ||
+        css::CommonElementAnimationData::IsCompositorAnimationDisabledForFrame(frame)) {
       return false;
     }
     if (pt.mProperty == eCSSProperty_opacity) {
@@ -999,7 +999,7 @@ nsTransitionManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 
 struct TransitionEventInfo {
   nsCOMPtr<nsIContent> mElement;
-  nsTransitionEvent mEvent;
+  InternalTransitionEvent mEvent;
 
   TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
                       TimeDuration aDuration, const nsAString& aPseudoElement)
@@ -1010,7 +1010,7 @@ struct TransitionEventInfo {
   {
   }
 
-  // nsTransitionEvent doesn't support copy-construction, so we need
+  // InternalTransitionEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
   TransitionEventInfo(const TransitionEventInfo &aOther)
     : mElement(aOther.mElement),

@@ -7,10 +7,8 @@
 #define MOZILLA_AUDIONODESTREAM_H_
 
 #include "MediaStreamGraph.h"
-#include "AudioChannelFormat.h"
-#include "AudioNodeEngine.h"
 #include "mozilla/dom/AudioNodeBinding.h"
-#include "mozilla/dom/AudioParam.h"
+#include "AudioSegment.h"
 
 #ifdef PR_LOGGING
 #define LOG(type, msg) PR_LOG(gMediaStreamGraphLog, type, msg)
@@ -23,9 +21,11 @@ namespace mozilla {
 namespace dom {
 struct ThreeDPoint;
 class AudioParamTimeline;
+class DelayNodeEngine;
 }
 
 class ThreadSharedFloatArrayBufferList;
+class AudioNodeEngine;
 
 /**
  * An AudioNodeStream produces one audio track with ID AUDIO_TRACK.
@@ -55,7 +55,8 @@ public:
       mKind(aKind),
       mNumberOfInputChannels(2),
       mMarkAsFinishedAfterThisBlock(false),
-      mAudioParamStream(false)
+      mAudioParamStream(false),
+      mMuted(false)
   {
     MOZ_ASSERT(NS_IsMainThread());
     mChannelCountMode = dom::ChannelCountMode::Max;
@@ -99,11 +100,18 @@ public:
                                       dom::ChannelInterpretation aChannelInterpretation);
   virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo);
   TrackTicks GetCurrentPosition();
-  bool AllInputsFinished() const;
   bool IsAudioParamStream() const
   {
     return mAudioParamStream;
   }
+  void Mute() {
+    mMuted = true;
+  }
+
+  void Unmute() {
+    mMuted = false;
+  }
+
   const OutputChunks& LastChunks() const
   {
     return mLastChunks;
@@ -154,6 +162,8 @@ protected:
   bool mMarkAsFinishedAfterThisBlock;
   // Whether the stream is an AudioParamHelper stream.
   bool mAudioParamStream;
+  // Whether the stream is muted. Access only on the MediaStreamGraph thread.
+  bool mMuted;
 };
 
 }

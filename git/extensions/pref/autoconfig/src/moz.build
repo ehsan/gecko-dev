@@ -6,10 +6,16 @@
 
 MODULE = 'autoconfig'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsAutoConfig.cpp',
     'nsConfigFactory.cpp',
     'nsJSConfigTriggers.cpp',
     'nsReadConfig.cpp',
 ]
+
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'autoconfig'
+
+EXPORT_LIBRARY = True
 

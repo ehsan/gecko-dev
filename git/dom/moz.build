@@ -11,7 +11,6 @@ interfaces = [
     'html',
     'events',
     'devicestorage',
-    'contacts',
     'settings',
     'stylesheets',
     'sidebar',
@@ -46,9 +45,11 @@ PARALLEL_DIRS += [
     'contacts',
     'phonenumberutils',
     'alarm',
+    'datastore',
     'devicestorage',
     'encoding',
     'file',
+    'fmradio',
     'media',
     'messages',
     'power',
@@ -71,7 +72,10 @@ PARALLEL_DIRS += [
     'camera',
     'audiochannel',
     'promise',
-    'wappush'
+    'wappush',
+    'telephony',
+    'inputmethod',
+    'webidl',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -79,15 +83,11 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 
 if CONFIG['MOZ_B2G_RIL']:
     PARALLEL_DIRS += [
-        'telephony',
         'wifi',
         'icc',
         'cellbroadcast',
         'voicemail',
     ]
-
-if CONFIG['MOZ_B2G_FM']:
-    PARALLEL_DIRS += ['fm']
 
 if CONFIG['MOZ_PAY']:
     PARALLEL_DIRS += ['payment']

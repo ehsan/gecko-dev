@@ -25,8 +25,6 @@
         'include',
         '../interface',
         '<(webrtc_root)/common_video/libyuv/include',
-# added for mozilla for use_system_libjpeg
-        '$(DIST)/include',
       ],
       'sources': [
         'device_info_impl.cc',
@@ -70,8 +68,6 @@
                 'mac/qtkit/video_capture_qtkit_objc.h',
                 'mac/qtkit/video_capture_qtkit_objc.mm',
                 'mac/qtkit/video_capture_qtkit_utility.h',
-                'mac/qtkit/video_capture_recursive_lock.h',
-                'mac/qtkit/video_capture_recursive_lock.mm',
                 'mac/video_capture_mac.mm',
               ],
               'include_dirs': [
@@ -141,7 +137,7 @@
     ['include_tests==1', {
       'targets': [
         {
-          'target_name': 'video_capture_module_test',
+          'target_name': 'video_capture_integrationtests',
           'type': 'executable',
           'dependencies': [
             'video_capture_module',

@@ -4,11 +4,12 @@ package @ANDROID_PACKAGE_NAME@.tests;
 import @ANDROID_PACKAGE_NAME@.*;
 
 abstract class PixelTest extends BaseTest {
-    private static final long PAINT_CLEAR_DELAY = 3000; // milliseconds
+    private static final long PAINT_CLEAR_DELAY = 10000; // milliseconds
 
     protected final PaintedSurface loadAndGetPainted(String url) {
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
-        loadUrl(url);
+        inputAndLoadUrl(url);
+        verifyHomePagerHidden();
         paintExpecter.blockUntilClear(PAINT_CLEAR_DELAY);
         paintExpecter.unregisterListener();
         PaintedSurface p = mDriver.getPaintedSurface();
@@ -44,6 +45,23 @@ abstract class PixelTest extends BaseTest {
     protected final void reloadAndPaint() {
         PaintedSurface painted = reloadAndGetPainted();
         painted.close();
+    }
+
+    public void addTab(String url, String title, boolean isPrivate) {
+        Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        if (isPrivate) {
+            selectMenuItem(StringHelper.NEW_PRIVATE_TAB_LABEL);
+        } else {
+            selectMenuItem(StringHelper.NEW_TAB_LABEL);
+        }
+        tabEventExpecter.blockForEvent();
+        contentEventExpecter.blockForEvent();
+        waitForText(StringHelper.TITLE_PLACE_HOLDER);
+        loadAndPaint(url);
+        tabEventExpecter.unregisterListener();
+        contentEventExpecter.unregisterListener();
+        mAsserter.ok(waitForText(title), "Checking that the page has loaded", "The page has loaded");
     }
 
     protected final PaintedSurface waitForPaint(Actions.RepeatedEventExpecter expecter) {

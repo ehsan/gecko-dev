@@ -152,11 +152,10 @@ InternalPrompt.prototype = {
    * for a response
    */
   showPrompt: function showPrompt(aPrompt) {
-    let callerWin;
     if (this._domWin) {
       PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      callerWin = winUtils.enterModalStateWithWindow();
+      winUtils.enterModalState();
     }
 
     let retval = null;
@@ -171,7 +170,7 @@ InternalPrompt.prototype = {
 
     if (this._domWin) {
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.leaveModalStateWithWindow(callerWin);
+      winUtils.leaveModalState();
       PromptUtils.fireDialogEvent(this._domWin, "DOMModalDialogClosed");
     }
 
@@ -225,7 +224,7 @@ InternalPrompt.prototype = {
   alertCheck: function alertCheck(aTitle, aText, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ], aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
   },
 
@@ -239,7 +238,7 @@ InternalPrompt.prototype = {
     let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     let ok = data.button == 0;
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
     return ok;
   },
@@ -285,7 +284,7 @@ InternalPrompt.prototype = {
 
     let p = this._getPrompt(aTitle, aText, buttons, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
     return data.button;
   },
@@ -299,7 +298,7 @@ InternalPrompt.prototype = {
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aValue.value = data.textbox0;
@@ -317,7 +316,7 @@ InternalPrompt.prototype = {
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aPassword.value = data.password0;
@@ -338,7 +337,7 @@ InternalPrompt.prototype = {
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
+    if (aCheckState && data.button > -1)
       aCheckState.value = data.checkbox0 == "true";
     if (ok) {
       aUsername.value = data.textbox0;
@@ -807,7 +806,7 @@ let PromptUtils = {
   },
 
   sendMessageToJava: function(aMsg) {
-    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(aMsg));
+    let data = Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
     return JSON.parse(data);
   },
 

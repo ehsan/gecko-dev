@@ -7,6 +7,8 @@
 "use strict";
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
+let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
+
 /**
  * An adapter that handles data transfers between the debugger client and
  * server. It can work with both nsIPipe and nsIServerSocket transports so
@@ -59,15 +61,14 @@ this.DebuggerTransport = function DebuggerTransport(aInput, aOutput)
 DebuggerTransport.prototype = {
   /**
    * Transmit a packet.
-   * 
+   *
    * This method returns immediately, without waiting for the entire
    * packet to be transmitted, registering event handlers as needed to
    * transmit the entire packet. Packets are transmitted in the order
    * they are passed to this method.
    */
   send: function DT_send(aPacket) {
-    // TODO (bug 709088): remove pretty printing when the protocol is done.
-    let data = JSON.stringify(aPacket, null, 2);
+    let data = JSON.stringify(aPacket);
     data = this._converter.ConvertFromUnicode(data);
     data = data.length + ':' + data;
     this._outgoing += data;
@@ -125,14 +126,11 @@ DebuggerTransport.prototype = {
 
   onStopRequest:
   makeInfallible(function DT_onStopRequest(aRequest, aContext, aStatus) {
-    let self = this;
-    Services.tm.currentThread.dispatch(makeInfallible(function() {
-      self.close();
-      if (self.hooks) {
-        self.hooks.onClosed(aStatus);
-        self.hooks = null;
-      }
-    }, "DebuggerTransport instance's this.close"), 0);
+    this.close();
+    if (this.hooks) {
+      this.hooks.onClosed(aStatus);
+      this.hooks = null;
+    }
   }, "DebuggerTransport.prototype.onStopRequest"),
 
   onDataAvailable:
@@ -154,10 +152,22 @@ DebuggerTransport.prototype = {
     // Well this is ugly.
     let sep = this._incoming.indexOf(':');
     if (sep < 0) {
+      // Incoming packet length is too big anyway - drop the connection.
+      if (this._incoming.length > 20) {
+        this.close();
+      }
+
       return false;
     }
 
-    let count = parseInt(this._incoming.substring(0, sep));
+    let count = this._incoming.substring(0, sep);
+    // Check for a positive number with no garbage afterwards.
+    if (!/^[0-9]+$/.exec(count)) {
+      this.close();
+      return false;
+    }
+
+    count = +count;
     if (this._incoming.length - (sep + 1) < count) {
       // Don't have a complete request yet.
       return false;
@@ -180,10 +190,16 @@ DebuggerTransport.prototype = {
       return true;
     }
 
-    dumpn("Got: " + packet);
+    if (wantLogging) {
+      dumpn("Got: " + JSON.stringify(parsed, null, 2));
+    }
     let self = this;
     Services.tm.currentThread.dispatch(makeInfallible(function() {
-      self.hooks.onPacket(parsed);
+      // Ensure the hooks are still around by the time this runs (they will go
+      // away when the transport is closed).
+      if (self.hooks) {
+        self.hooks.onPacket(parsed);
+      }
     }, "DebuggerTransport instance's this.hooks.onPacket"), 0);
 
     return true;
@@ -253,7 +269,7 @@ LocalDebuggerTransport.prototype = {
       // Remove the reference to the other endpoint before calling close(), to
       // avoid infinite recursion.
       let other = this.other;
-      delete this.other;
+      this.other = null;
       other.close();
     }
     if (this.hooks) {

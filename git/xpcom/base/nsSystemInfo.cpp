@@ -7,7 +7,7 @@
 
 #include "nsSystemInfo.h"
 #include "prsystem.h"
-#include "nsString.h"
+#include "prio.h"
 #include "prprf.h"
 #include "mozilla/SSE.h"
 #include "mozilla/arm.h"
@@ -68,8 +68,7 @@ static const struct PropItems {
 nsresult
 nsSystemInfo::Init()
 {
-    nsresult rv = nsHashPropertyBag::Init();
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsresult rv;
 
     static const struct {
       PRSysInfo cmd;
@@ -127,59 +126,6 @@ nsSystemInfo::Init()
     }
 #endif
 
-
-#ifdef MOZ_PLATFORM_MAEMO
-    char *  line = nullptr;
-    size_t  len = 0;
-    ssize_t read;
-#if MOZ_PLATFORM_MAEMO > 5
-    FILE *fp = popen("/usr/bin/sysinfoclient --get /component/product", "r");
-#else
-    FILE *fp = fopen("/proc/component_version", "r");
-#endif
-    if (fp) {
-      while ((read = getline(&line, &len, fp)) != -1) {
-        if (line) {
-          if (strstr(line, "RX-51")) {
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N900"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("RX-51"));
-            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
-            break;
-          } else if (strstr(line, "RX-44") ||
-                     strstr(line, "RX-48") ||
-                     strstr(line, "RX-32") ) {
-            /* not as accurate as we can be, but these devices are deprecated */
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N8xx"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N8xx"));
-            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
-            break;
-          } else if (strstr(line, "RM-680")) {
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N950"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N9xx"));
-            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
-            break;
-          } else if (strstr(line, "RM-696")) {
-            SetPropertyAsACString(NS_LITERAL_STRING("device"), NS_LITERAL_CSTRING("Nokia N9"));
-            SetPropertyAsACString(NS_LITERAL_STRING("manufacturer"), NS_LITERAL_CSTRING("Nokia"));
-            SetPropertyAsACString(NS_LITERAL_STRING("hardware"), NS_LITERAL_CSTRING("N9xx"));
-            SetPropertyAsBool(NS_LITERAL_STRING("tablet"), false);
-            break;
-          }
-        }
-      }
-      if (line)
-        free(line);
-#if MOZ_PLATFORM_MAEMO > 5
-      pclose(fp);
-#else
-      fclose(fp);
-#endif
-    }
-#endif
-
 #ifdef MOZ_WIDGET_ANDROID
     if (mozilla::AndroidBridge::Bridge()) {
         nsAutoString str;
@@ -208,9 +154,13 @@ nsSystemInfo::Init()
 #endif
 
 #ifdef MOZ_WIDGET_GONK
-    char sdk[PROP_VALUE_MAX];
+    char sdk[PROP_VALUE_MAX], characteristics[PROP_VALUE_MAX];
     if (__system_property_get("ro.build.version.sdk", sdk))
       android_sdk_version = atoi(sdk);
+    if (__system_property_get("ro.build.characteristics", characteristics)) {
+      if (!strcmp(characteristics, "tablet"))
+        SetPropertyAsBool(NS_LITERAL_STRING("tablet"), true);
+    }
 #endif
 
     return NS_OK;

@@ -4,18 +4,27 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ClientLayerManager.h"
-#include "nsIWidget.h"
-#include "mozilla/dom/TabChild.h"
+#include "CompositorChild.h"            // for CompositorChild
+#include "GeckoProfiler.h"              // for PROFILER_LABEL
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
+#include "gfxASurface.h"                // for gfxASurface, etc
+#include "ipc/AutoOpenSurface.h"        // for AutoOpenSurface
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Hal.h"
-#include "mozilla/layers/PLayerChild.h"
+#include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
+#include "mozilla/dom/TabChild.h"       // for TabChild
+#include "mozilla/hal_sandbox/PHal.h"   // for ScreenConfiguration
+#include "mozilla/layers/CompositableClient.h"  // for CompositableChild, etc
+#include "mozilla/layers/ContentClient.h"  // for ContentClientRemote
+#include "mozilla/layers/ISurfaceAllocator.h"
+#include "mozilla/layers/LayersMessages.h"  // for EditReply, etc
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
+#include "mozilla/layers/PLayerChild.h"  // for PLayerChild
 #include "mozilla/layers/PLayerTransactionChild.h"
-#include "mozilla/layers/PLayerTransactionParent.h"
-#include "CompositorChild.h"
-#include "ipc/AutoOpenSurface.h"
-#include "ipc/ShadowLayerChild.h"
-#include "mozilla/layers/CompositableClient.h"
-#include "mozilla/layers/ContentClient.h"
-
+#include "nsAString.h"
+#include "nsIWidget.h"                  // for nsIWidget
+#include "nsTArray.h"                   // for AutoInfallibleTArray
+#include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #endif
@@ -34,6 +43,7 @@ ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)
   , mIsRepeatTransaction(false)
   , mTransactionIncomplete(false)
   , mCompositorMightResample(false)
+  , mNeedsComposite(false)
 {
   MOZ_COUNT_CTOR(ClientLayerManager);
 }
@@ -156,6 +166,7 @@ ClientLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
   Log();
 #endif
+  profiler_tracing("Paint", "Rasterize", TRACING_INTERVAL_START);
 
   NS_ASSERTION(InConstruction(), "Should be in construction phase");
   mPhase = PHASE_DRAWING;
@@ -254,7 +265,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
       if (AllocSurfaceDescriptor(bounds.Size(),
-                                 gfxASurface::CONTENT_COLOR_ALPHA,
+                                 GFX_CONTENT_COLOR_ALPHA,
                                  &inSnapshot) &&
           // The compositor will usually reuse |snapshot| and return
           // it through |outSnapshot|, but if it doesn't, it's
@@ -289,8 +300,9 @@ ClientLayerManager::ForwardTransaction()
   mPhase = PHASE_FORWARD;
 
   // forward this transaction's changeset to our LayerManagerComposite
+  bool sent;
   AutoInfallibleTArray<EditReply, 10> replies;
-  if (HasShadowManager() && ShadowLayerForwarder::EndTransaction(&replies)) {
+  if (HasShadowManager() && ShadowLayerForwarder::EndTransaction(&replies, &sent)) {
     for (nsTArray<EditReply>::size_type i = 0; i < replies.Length(); ++i) {
       const EditReply& reply = replies[i];
 
@@ -328,12 +340,20 @@ ClientLayerManager::ForwardTransaction()
         // glue code here to find the TextureClient and invoke a callback to
         // let the camera know that the gralloc buffer is not used anymore on
         // the compositor side and that it can reuse it.
+        const ReplyTextureRemoved& rep = reply.get_ReplyTextureRemoved();
+        CompositableClient* compositable
+          = static_cast<CompositableChild*>(rep.compositableChild())->GetCompositableClient();
+        compositable->OnReplyTextureRemoved(rep.textureId());
         break;
       }
 
       default:
         NS_RUNTIMEABORT("not reached");
       }
+    }
+
+    if (sent) {
+      mNeedsComposite = false;
     }
   } else if (HasShadowManager()) {
     NS_WARNING("failed to forward Layers transaction");

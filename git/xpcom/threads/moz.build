@@ -35,10 +35,9 @@ EXPORTS.mozilla += [
     'SyncRunnable.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'HangMonitor.cpp',
     'LazyIdleThread.cpp',
-    'TimerThread.cpp',
     'nsEnvironment.cpp',
     'nsEventQueue.cpp',
     'nsMemoryPressure.cpp',
@@ -47,7 +46,15 @@ CPP_SOURCES += [
     'nsThreadManager.cpp',
     'nsThreadPool.cpp',
     'nsTimerImpl.cpp',
+    'TimerThread.cpp',
 ]
 
 LIBRARY_NAME = 'xpcomthreads_s'
 
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LOCAL_INCLUDES += [
+    '../build',
+]

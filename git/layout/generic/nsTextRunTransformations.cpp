@@ -7,15 +7,12 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "nsTextFrameUtils.h"
-#include "gfxSkipChars.h"
 #include "nsGkAtoms.h"
-
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
-#include "gfxContext.h"
 #include "nsUnicodeProperties.h"
 #include "nsSpecialCasingData.h"
+#include "mozilla/gfx/2D.h"
 
 // Unicode characters needing special casing treatment in tr/az languages
 #define LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE  0x0130

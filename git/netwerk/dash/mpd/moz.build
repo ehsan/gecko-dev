@@ -6,17 +6,19 @@
 
 MODULE = 'necko'
 
-CPP_SOURCES += [
+SOURCES += [
     'AdaptationSet.cpp',
     'IMPDManager.cpp',
     'MPD.cpp',
-    'Period.cpp',
-    'Representation.cpp',
-    'SegmentBase.cpp',
     'nsDASHMPDParser.cpp',
     'nsDASHWebMODManager.cpp',
     'nsDASHWebMODParser.cpp',
+    'Period.cpp',
+    'Representation.cpp',
+    'SegmentBase.cpp',
 ]
 
 LIBRARY_NAME = 'nkdashmpd_s'
+
+LIBXUL_LIBRARY = True
 

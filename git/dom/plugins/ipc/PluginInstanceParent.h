@@ -22,13 +22,14 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRect.h"
-#include "gfxASurface.h"
 
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
-#include "nsGUIEvent.h"
 #include "mozilla/unused.h"
+
+class gfxASurface;
+class gfxContext;
 
 namespace mozilla {
 namespace layers {
@@ -278,10 +279,6 @@ public:
                                    gfxContext** aCtx);
     nsresult EndUpdateBackground(gfxContext* aCtx,
                                  const nsIntRect& aRect);
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
-#endif
-
     void DidComposite() { unused << SendNPP_DidComposite(); }
 
 private:

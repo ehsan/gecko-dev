@@ -3,19 +3,41 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ipc/AutoOpenSurface.h"
-#include "mozilla/layers/PLayerTransaction.h"
-#include "TiledLayerBuffer.h"
-
-/* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
-#include "ThebesLayerBuffer.h"
 #include "ThebesLayerOGL.h"
-#include "gfxUtils.h"
-#include "gfxTeeSurface.h"
+#include <stdint.h>                     // for uint32_t
+#include <sys/types.h>                  // for int32_t
+#include "GLContext.h"                  // for GLContext, etc
+#include "GLContextTypes.h"             // for GLenum
+#include "GLDefs.h"                     // for LOCAL_GL_ONE, LOCAL_GL_BGRA, etc
+#include "GLTextureImage.h"             // for TextureImage, etc
+#include "ThebesLayerBuffer.h"          // for ThebesLayerBuffer, etc
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
+#include "gfxASurface.h"                // for gfxASurface, etc
+#include "gfxColor.h"                   // for gfxRGBA
+#include "gfxContext.h"                 // for gfxContext, etc
+#include "gfxImageSurface.h"            // for gfxImageSurface
+#include "gfxPlatform.h"
+#include "gfxPoint.h"                   // for gfxPoint
+#include "gfxTeeSurface.h"              // for gfxTeeSurface
+#include "gfxUtils.h"                   // for gfxUtils, etc
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
+#include "mozilla/Util.h"               // for ArrayLength
+#include "mozilla/gfx/BasePoint.h"      // for BasePoint
+#include "mozilla/gfx/BaseRect.h"       // for BaseRect
+#include "mozilla/gfx/BaseSize.h"       // for BaseSize
+#include "mozilla/gfx/2D.h"             // for DrawTarget, etc
+#include "mozilla/mozalloc.h"           // for operator new
+#include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsDebug.h"                    // for NS_ASSERTION, etc
+#include "nsPoint.h"                    // for nsIntPoint
+#include "nsRect.h"                     // for nsIntRect
+#include "nsSize.h"                     // for nsIntSize
+#include "LayerManagerOGL.h"            // for LayerManagerOGL, etc
+#include "LayerManagerOGLProgram.h"     // for ShaderProgramOGL, etc
+#include "gfx2DGlue.h"
 
-#include "base/message_loop.h"
+using namespace mozilla;
+using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
@@ -55,14 +77,25 @@ CreateClampOrRepeatTextureImage(GLContext *aGl,
 static void
 SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
 {
-  nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
-  if (surface->GetContentType() != gfxASurface::CONTENT_COLOR_ALPHA) {
-    // Destination doesn't have alpha channel; no need to set any special flags
-    return;
-  }
+  if (aTarget->IsCairo()) {
+    nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
+    if (surface->GetContentType() != GFX_CONTENT_COLOR_ALPHA) {
+      // Destination doesn't have alpha channel; no need to set any special flags
+      return;
+    }
 
-  surface->SetSubpixelAntialiasingEnabled(
-      !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
+    surface->SetSubpixelAntialiasingEnabled(
+        !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
+  } else {
+    RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
+
+    if (dt->GetFormat() != FORMAT_B8G8R8A8) {
+      return;
+    }
+
+    dt->SetPermitSubpixelAA(
+        !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
+  }
 }
 
 class ThebesLayerBufferOGL
@@ -90,7 +123,7 @@ public:
 
   nsIntSize GetSize() {
     if (mTexImage)
-      return mTexImage->GetSize();
+      return ThebesIntSize(mTexImage->GetSize());
     return nsIntSize(0, 0);
   }
 
@@ -203,7 +236,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
 
     // Figure out the intersecting draw region
-    nsIntSize texSize = mTexImage->GetSize();
+    nsIntSize texSize = ThebesIntSize(mTexImage->GetSize());
     nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
     textureRect.MoveBy(region.GetBounds().TopLeft());
     nsIntRegion subregion;
@@ -235,10 +268,10 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     bool usingTiles = (mTexImage->GetTileCount() > 1);
     do {
       if (mTexImageOnWhite) {
-        NS_ASSERTION(mTexImageOnWhite->GetTileRect() == mTexImage->GetTileRect(), "component alpha textures should be the same size.");
+        NS_ASSERTION(ThebesIntRect(mTexImageOnWhite->GetTileRect()) == ThebesIntRect(mTexImage->GetTileRect()), "component alpha textures should be the same size.");
       }
 
-      nsIntRect tileRect = mTexImage->GetTileRect();
+      nsIntRect tileRect = ThebesIntRect(mTexImage->GetTileRect());
 
       // Bind textures.
       TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
@@ -285,7 +318,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
               gfxMatrix matrix;
               bool is2D = mLayer->GetEffectiveTransform().Is2D(&matrix);
               if (is2D && !matrix.HasNonTranslationOrFlip()) {
-                gl()->ApplyFilterToBoundTexture(gfxPattern::FILTER_NEAREST);
+                gl()->ApplyFilterToBoundTexture(GraphicsFilter::FILTER_NEAREST);
               } else {
                 mTexImage->ApplyFilter();
               }
@@ -337,13 +370,16 @@ public:
   }
 
   // ThebesLayerBuffer interface
-  virtual already_AddRefed<gfxASurface>
-  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface**)
+  void
+  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags,
+               gfxASurface** aBlackSurface, gfxASurface** aWhiteSurface,
+               RefPtr<gfx::DrawTarget>* aBlackDT, RefPtr<gfx::DrawTarget>* aWhiteDT) MOZ_OVERRIDE
   {
-    NS_ASSERTION(gfxASurface::CONTENT_ALPHA != aType,"ThebesBuffer has color");
+    NS_ASSERTION(GFX_CONTENT_ALPHA != aType,"ThebesBuffer has color");
 
     mTexImage = CreateClampOrRepeatTextureImage(gl(), aRect.Size(), aType, aFlags);
-    return mTexImage ? mTexImage->GetBackingSurface() : nullptr;
+    nsRefPtr<gfxASurface> ret = mTexImage ? mTexImage->GetBackingSurface() : nullptr;
+    *aBlackSurface = ret.forget().get();
   }
 
   virtual nsIntPoint GetOriginOffset() {
@@ -460,15 +496,13 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     }
 
     if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-      mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
-#else
-      if (!mLayer->GetParent() || !mLayer->GetParent()->SupportsComponentAlphaChildren()) {
+      if (!gfxPlatform::ComponentAlphaEnabled() ||
+          !mLayer->GetParent() ||
+          !mLayer->GetParent()->SupportsComponentAlphaChildren()) {
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
-        contentType = gfxASurface::CONTENT_COLOR;
+        contentType = GFX_CONTENT_COLOR;
       }
- #endif
     }
  
     if ((aFlags & PAINT_WILL_RESAMPLE) &&
@@ -476,10 +510,10 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
          neededRegion.GetNumRects() > 1)) {
       // The area we add to neededRegion might not be painted opaquely
       if (mode == Layer::SURFACE_OPAQUE) {
-        contentType = gfxASurface::CONTENT_COLOR_ALPHA;
+        contentType = GFX_CONTENT_COLOR_ALPHA;
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       }
-      // For component alpha layers, we leave contentType as CONTENT_COLOR.
+      // For component alpha layers, we leave contentType as GFX_CONTENT_COLOR.
 
       // We need to validate the entire buffer, to make sure that only valid
       // pixels are sampled
@@ -742,31 +776,40 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
           "BeginUpdate should always modify the draw region in the same way!");
       FillSurface(onBlack, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(0.0, 0.0, 0.0, 1.0));
       FillSurface(onWhite, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(1.0, 1.0, 1.0, 1.0));
-      gfxASurface* surfaces[2] = { onBlack, onWhite };
-      nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+      if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(BACKEND_COREGRAPHICS)) {
+        RefPtr<DrawTarget> onBlackDT = gfxPlatform::GetPlatform()->CreateDrawTargetForUpdateSurface(onBlack, onBlack->GetSize());
+        RefPtr<DrawTarget> onWhiteDT = gfxPlatform::GetPlatform()->CreateDrawTargetForUpdateSurface(onWhite, onWhite->GetSize());
+        RefPtr<DrawTarget> dt = Factory::CreateDualDrawTarget(onBlackDT, onWhiteDT);
+        result.mContext = new gfxContext(dt);
+        result.mContext->Translate(onBlack->GetDeviceOffset());
+      } else {
+        gfxASurface* surfaces[2] = { onBlack, onWhite };
+        nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
 
-      // XXX If the device offset is set on the individual surfaces instead of on
-      // the tee surface, we render in the wrong place. Why?
-      gfxPoint deviceOffset = onBlack->GetDeviceOffset();
-      onBlack->SetDeviceOffset(gfxPoint(0, 0));
-      onWhite->SetDeviceOffset(gfxPoint(0, 0));
-      surf->SetDeviceOffset(deviceOffset);
+        // XXX If the device offset is set on the individual surfaces instead of on
+        // the tee surface, we render in the wrong place. Why?
+        gfxPoint deviceOffset = onBlack->GetDeviceOffset();
+        onBlack->SetDeviceOffset(gfxPoint(0, 0));
+        onWhite->SetDeviceOffset(gfxPoint(0, 0));
+        surf->SetDeviceOffset(deviceOffset);
 
-      // Using this surface as a source will likely go horribly wrong, since
-      // only the onBlack surface will really be used, so alpha information will
-      // be incorrect.
-      surf->SetAllowUseAsSource(false);
-      result.mContext = new gfxContext(surf);
+        // Using this surface as a source will likely go horribly wrong, since
+        // only the onBlack surface will really be used, so alpha information will
+        // be incorrect.
+        surf->SetAllowUseAsSource(false);
+        result.mContext = new gfxContext(surf);
+      }
     } else {
       result.mContext = nullptr;
     }
   } else {
-    result.mContext = new gfxContext(mTexImage->BeginUpdate(result.mRegionToDraw));
-    if (mTexImage->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-      gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
-      result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-      result.mContext->Paint();
-      result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
+    nsRefPtr<gfxASurface> surf = mTexImage->BeginUpdate(result.mRegionToDraw);
+    if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(BACKEND_COREGRAPHICS)) {
+      RefPtr<DrawTarget> dt = gfxPlatform::GetPlatform()->CreateDrawTargetForUpdateSurface(surf, surf->GetSize());
+      result.mContext = new gfxContext(dt);
+      result.mContext->Translate(surf->GetDeviceOffset());
+    } else {
+      result.mContext = new gfxContext(surf);
     }
   }
   if (!result.mContext) {
@@ -785,7 +828,15 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   // although they never cover it. This leads to two draw rects, the narow strip and the actually
   // newly exposed area. It would be wise to fix this glitch in any way to have simpler
   // clip and draw regions.
-  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
+  result.mClip = CLIP_DRAW;
+
+  if (mTexImage->GetContentType() == GFX_CONTENT_COLOR_ALPHA) {
+    result.mContext->Save();
+    gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
+    result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+    result.mContext->Paint();
+    result.mContext->Restore();
+  }
 
   return result;
 }
@@ -859,8 +910,8 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
   TextureImage::ContentType contentType =
-    CanUseOpaqueSurface() ? gfxASurface::CONTENT_COLOR :
-                            gfxASurface::CONTENT_COLOR_ALPHA;
+    CanUseOpaqueSurface() ? GFX_CONTENT_COLOR :
+                            GFX_CONTENT_COLOR_ALPHA;
 
   uint32_t flags = 0;
 #ifndef MOZ_GFX_OPTIMIZE_MOBILE
@@ -882,7 +933,7 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     } else {
       void* callbackData = mOGLManager->GetThebesLayerCallbackData();
       SetAntialiasingFlags(this, state.mContext);
-      callback(this, state.mContext, state.mRegionToDraw,
+      callback(this, state.mContext, state.mRegionToDraw, state.mClip,
                state.mRegionToInvalidate, callbackData);
       // Everything that's visible has been validated. Do this instead of just
       // OR-ing with aRegionToDraw, since that can lead to a very complex region

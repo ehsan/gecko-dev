@@ -6,8 +6,10 @@
 #ifndef nsColor_h___
 #define nsColor_h___
 
-#include "gfxCore.h"
-#include "nscore.h"
+#include <stddef.h>                     // for size_t
+#include <stdint.h>                     // for uint8_t, uint32_t
+#include "gfxCore.h"                    // for NS_GFX_
+#include "nscore.h"                     // for nsAString
 
 class nsAString;
 class nsString;

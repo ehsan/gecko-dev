@@ -75,7 +75,7 @@ ChildProcess()
   ENSURE_NOT_CHILD_PROCESS_({ return NS_ERROR_NOT_AVAILABLE; })
 
 #define ENSURE_NOT_CHILD_PROCESS_NORET \
-  ENSURE_NOT_CHILD_PROCESS_()
+  ENSURE_NOT_CHILD_PROCESS_(;)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -370,8 +370,6 @@ nsresult
 nsPermissionManager::Init()
 {
   nsresult rv;
-
-  mPermissionTable.Init();
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {

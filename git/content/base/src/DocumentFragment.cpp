@@ -15,8 +15,10 @@
 #include "nsError.h"
 #include "nsGkAtoms.h"
 #include "nsDOMString.h"
-#include "nsContentUtils.h"
+#include "nsContentUtils.h" // for NS_INTERFACE_MAP_ENTRY_TEAROFF
 #include "mozilla/dom/DocumentFragmentBinding.h"
+#include "nsPIDOMWindow.h"
+#include "nsIDocument.h"
 
 namespace mozilla {
 namespace dom {
@@ -122,9 +124,10 @@ DocumentFragment::DumpContent(FILE* out, int32_t aIndent,
 #endif
 
 /* static */ already_AddRefed<DocumentFragment>
-DocumentFragment::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
+DocumentFragment::Constructor(const GlobalObject& aGlobal,
+                              ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window || !window->GetDoc()) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;

@@ -11,11 +11,15 @@ EXPORTS += [
     'WebMReader.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'WebMBufferedParser.cpp',
     'WebMDecoder.cpp',
     'WebMReader.cpp',
 ]
 
 LIBRARY_NAME = 'gkconwebm_s'
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 

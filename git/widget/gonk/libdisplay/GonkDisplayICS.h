@@ -38,11 +38,17 @@ public:
 
     virtual void* GetHWCDevice();
 
+    virtual void* GetFBSurface();
+
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
     virtual ANativeWindowBuffer* DequeueBuffer();
 
     virtual bool QueueBuffer(ANativeWindowBuffer* handle);
+
+    virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
+
+    virtual void SetFBReleaseFd(int fd);
 
 private:
     hw_module_t const*        mModule;

@@ -9,10 +9,15 @@
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:html="http://www.w3.org/1999/xhtml">
   <binding id="circular-progress-indicator">
+    <resources>
+      <stylesheet src="chrome://browser/skin/circularprogress.css"/>
+    </resources>
+
     <content>
       <xul:stack>
         <xul:toolbarbutton anonid="progressButton" class="circularprogressindicator-progressButton appbar-secondary"/>
-        <html:canvas anonid="progressRing" class="circularprogressindicator-progressRing" width="46" height="46"></html:canvas>
+        <html:div anonid="progressTrack" xbl:inherits="progress" class="circularprogressindicator-progressTrack"></html:div>
+        <html:canvas anonid="progressRing" xbl:inherits="progress" class="circularprogressindicator-progressRing" width="40" height="40"></html:canvas>
       </xul:stack>
     </content>
     <implementation>
@@ -32,6 +37,9 @@
         <body>
           <![CDATA[
             const PROGRESS_RING_IMG = "chrome://browser/skin/images/progresscircle.png";
+
+            // show ring background even if % is 0.
+            this.setAttribute("progress", percentComplete);
 
             let startAngle = 1.5 * Math.PI;
             let endAngle = startAngle + (2 * Math.PI * (percentComplete / 100));
@@ -70,6 +78,7 @@
           <![CDATA[
             this._progressCircleCtx.clearRect(0, 0,
               this._progressCanvas.width, this._progressCanvas.height);
+            this.removeAttribute("progress");
           ]]>
         </body>
       </method>

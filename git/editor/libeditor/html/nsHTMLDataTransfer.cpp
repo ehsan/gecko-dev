@@ -8,6 +8,7 @@
 
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/Base64.h"
+#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
 #include "mozilla/Util.h"
@@ -26,7 +27,6 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
-#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLEditUtils.h"
 #include "nsHTMLEditor.h"
@@ -94,8 +94,6 @@ class nsISupports;
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-const PRUnichar nbsp = 160;
 
 #define kInsertCookie  "_moz_Insert Here_moz_"
 
@@ -1341,7 +1339,7 @@ bool nsHTMLEditor::HavePrivateHTMLFlavor(nsIClipboard *aClipboard)
 
 NS_IMETHODIMP nsHTMLEditor::Paste(int32_t aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
+  if (!FireClipboardEvent(NS_PASTE, aSelectionType))
     return NS_OK;
 
   // Get Clipboard Service
@@ -1422,7 +1420,9 @@ NS_IMETHODIMP nsHTMLEditor::Paste(int32_t aSelectionType)
 
 NS_IMETHODIMP nsHTMLEditor::PasteTransferable(nsITransferable *aTransferable)
 {
-  if (!FireClipboardEvent(NS_PASTE))
+  // Use an invalid value for the clipboard type as data comes from aTransferable
+  // and we don't currently implement a way to put that in the data transfer yet.
+  if (!FireClipboardEvent(NS_PASTE, nsIClipboard::kGlobalClipboard))
     return NS_OK;
 
   // handle transferable hooks
@@ -1440,7 +1440,7 @@ NS_IMETHODIMP nsHTMLEditor::PasteTransferable(nsITransferable *aTransferable)
 //
 NS_IMETHODIMP nsHTMLEditor::PasteNoFormatting(int32_t aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE))
+  if (!FireClipboardEvent(NS_PASTE, aSelectionType))
     return NS_OK;
 
   ForceCompositionEnd();

@@ -158,12 +158,13 @@ enum IPCMessageStart {
 
 for name in allprotocols:
     print >>ipcmsgstart, "  %s," % name
+    print >>ipcmsgstart, "  %sChild," % name
 
 print >>ipcmsgstart, """
   LastMsgIndex
 };
 
-COMPILE_ASSERT(LastMsgIndex <= 65536, need_to_update_IPC_MESSAGE_MACRO);
+static_assert(LastMsgIndex <= 65536, "need to update IPC_MESSAGE_MACRO");
 
 #endif // ifndef IPCMessageStart_h
 """

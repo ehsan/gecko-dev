@@ -22,6 +22,12 @@ class nsIRunnable;
 class nsIScriptContext;
 class nsPIDOMWindow;
 
+namespace mozilla {
+namespace dom {
+class OwningIDBObjectStoreOrIDBIndex;
+}
+}
+
 BEGIN_INDEXEDDB_NAMESPACE
 
 class ContinueHelper;
@@ -49,6 +55,7 @@ public:
   enum Type
   {
     OBJECTSTORE = 0,
+    OBJECTSTOREKEY,
     INDEXKEY,
     INDEXOBJECT
   };
@@ -76,6 +83,18 @@ public:
          const nsACString& aContinueToQuery,
          const Key& aKey,
          StructuredCloneReadInfo& aCloneReadInfo);
+
+  // For OBJECTSTOREKEY cursors.
+  static
+  already_AddRefed<IDBCursor>
+  Create(IDBRequest* aRequest,
+         IDBTransaction* aTransaction,
+         IDBObjectStore* aObjectStore,
+         Direction aDirection,
+         const Key& aRangeKey,
+         const nsACString& aContinueQuery,
+         const nsACString& aContinueToQuery,
+         const Key& aKey);
 
   // For INDEXKEY cursors.
   static
@@ -159,8 +178,8 @@ public:
     return mTransaction;
   }
 
-  already_AddRefed<nsISupports>
-  Source() const;
+  void
+  GetSource(OwningIDBObjectStoreOrIDBIndex& aSource) const;
 
   IDBCursorDirection
   GetDirection() const;

@@ -12,6 +12,7 @@ PARALLEL_DIRS += [
     'mime',
     'streamconv',
     'cache',
+    'cache2',
     'protocol',
     'system',
     'ipc',
@@ -35,8 +36,3 @@ DIRS += ['build']
 TEST_TOOL_DIRS += ['test']
 
 MODULE = 'necko'
-
-EXPORTS += [
-    'necko-config.h',
-]
-

@@ -9,20 +9,19 @@
 #define nsPresContext_h___
 
 #include "mozilla/Attributes.h"
-#include "nsISupports.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
 #include "nsRect.h"
-#include "nsDeviceContext.h"
 #include "nsFont.h"
+#include "gfxFontConstants.h"
+#include "nsIAtom.h"
 #include "nsIObserver.h"
 #include "nsITimer.h"
 #include "nsCRT.h"
 #include "FramePropertyTable.h"
 #include "nsGkAtoms.h"
-#include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
 #include <algorithm>
@@ -30,20 +29,16 @@
 #include "gfxRect.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#include "nsIWidget.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/AppUnits.h"
 #include "prclist.h"
-#include "Layers.h"
-#include "nsRefreshDriver.h"
+#include "nsThreadUtils.h"
+#include "ScrollbarStyles.h"
 
 #ifdef IBMBIDI
 class nsBidiPresUtils;
 #endif // IBMBIDI
-
-struct nsRect;
-
-class imgIRequest;
 
 class nsAString;
 class nsIPrintSettings;
@@ -51,14 +46,11 @@ class nsIDocument;
 class nsILanguageAtomService;
 class nsITheme;
 class nsIContent;
-class nsFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
-class nsStyleContext;
 class nsIAtom;
 class nsEventStateManager;
-class nsIURI;
 class nsICSSPseudoComparator;
 struct nsStyleBackground;
 struct nsStyleBorder;
@@ -69,15 +61,16 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
-class imgIContainer;
 class nsIDOMMediaQueryList;
-
-#ifdef MOZ_REFLOW_PERF
-class nsRenderingContext;
-#endif
+class nsRefreshDriver;
+class nsIWidget;
+class nsDeviceContext;
 
 namespace mozilla {
-  class RestyleManager;
+class RestyleManager;
+namespace layers {
+class ContainerLayer;
+}
 }
 
 // supported values for cached bool types
@@ -124,17 +117,6 @@ public:
 
   nsTArray<Request> mRequests;
 };
-
-/**
- * Layer UserData for ContainerLayers that want to be notified
- * of local invalidations of them and their descendant layers.
- * Pass a callback to ComputeDifferences to have these called.
- */
-class ContainerLayerPresContext : public mozilla::layers::LayerUserData {
-public:
-  nsPresContext* mPresContext;
-};
-extern uint8_t gNotifySubDocInvalidationData;
 
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
@@ -241,8 +223,8 @@ public:
       return mDocument;
   }
 
-#ifdef _IMPL_NS_LAYOUT
-  nsStyleSet* StyleSet() { return PresShell()->StyleSet(); }
+#ifdef MOZILLA_INTERNAL_API
+  nsStyleSet* StyleSet() { return GetPresShell()->StyleSet(); }
 
   nsFrameManager* FrameManager()
     { return PresShell()->FrameManager(); }
@@ -283,8 +265,8 @@ public:
   /**
    * Support for window.matchMedia()
    */
-  void MatchMedia(const nsAString& aMediaQueryList,
-                  nsIDOMMediaQueryList** aResult);
+  already_AddRefed<nsIDOMMediaQueryList>
+    MatchMedia(const nsAString& aMediaQueryList);
 
   /**
    * Access compatibility mode for this context.  This is the same as
@@ -303,7 +285,7 @@ public:
   uint16_t     ImageAnimationMode() const { return mImageAnimationMode; }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(uint16_t aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(uint16_t aMode);
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   void SetImageAnimationMode(uint16_t aMode)
   { SetImageAnimationModeInternal(aMode); }
 #else
@@ -431,7 +413,7 @@ public:
 
   virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
   NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   already_AddRefed<nsISupports> GetContainer() const
   { return GetContainerInternal(); }
 #else
@@ -575,33 +557,32 @@ public:
    */
   float ScreenWidthInchesForFontInflation(bool* aChanged = nullptr);
 
-  static int32_t AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
-  int32_t AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
-  static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
+  static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
+  int32_t AppUnitsPerDevPixel() const;
+  static int32_t AppUnitsPerCSSInch() { return mozilla::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
   { return NSToCoordRoundWithClamp(float(aPixels) *
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(AppUnitsPerCSSPixel())); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSToCoordRoundWithClamp(aPixels *
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(AppUnitsPerCSSPixel())); }
 
   static int32_t AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(AppUnitsPerCSSPixel())); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(AppUnitsPerCSSPixel())); }
 
   nscoord DevPixelsToAppUnits(int32_t aPixels) const
-  { return NSIntPixelsToAppUnits(aPixels,
-                                 mDeviceContext->AppUnitsPerDevPixel()); }
+  { return NSIntPixelsToAppUnits(aPixels, AppUnitsPerDevPixel()); }
 
   int32_t AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(mDeviceContext->AppUnitsPerDevPixel())); }
+             float(AppUnitsPerDevPixel())); }
 
   int32_t CSSPixelsToDevPixels(int32_t aPixels)
   { return AppUnitsToDevPixels(CSSPixelsToAppUnits(aPixels)); }
@@ -609,7 +590,7 @@ public:
   float CSSPixelsToDevPixels(float aPixels)
   {
     return NSAppUnitsToFloatPixels(CSSPixelsToAppUnits(aPixels),
-                                   float(mDeviceContext->AppUnitsPerDevPixel()));
+                                   float(AppUnitsPerDevPixel()));
   }
 
   int32_t DevPixelsToIntCSSPixels(int32_t aPixels)
@@ -619,11 +600,9 @@ public:
   { return AppUnitsToFloatCSSPixels(DevPixelsToAppUnits(aPixels)); }
 
   // If there is a remainder, it is rounded to nearest app units.
-  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
-  { return mDeviceContext->GfxUnitsToAppUnits(aGfxUnits); }
+  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const;
 
-  gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
-  { return mDeviceContext->AppUnitsToGfxUnits(aAppUnits); }
+  gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const;
 
   gfxRect AppUnitsToGfxUnits(const nsRect& aAppRect) const
   { return gfxRect(AppUnitsToGfxUnits(aAppRect.x),
@@ -633,7 +612,7 @@ public:
 
   static nscoord CSSTwipsToAppUnits(float aTwips)
   { return NSToCoordRoundWithClamp(
-      nsDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
+      mozilla::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
@@ -643,31 +622,18 @@ public:
                     CSSTwipsToAppUnits(float(marginInTwips.left))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
-  { return NSToCoordRound(aPoints * nsDeviceContext::AppUnitsPerCSSInch() /
+  { return NSToCoordRound(aPoints * mozilla::AppUnitsPerCSSInch() /
                           POINTS_PER_INCH_FLOAT); }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
   { return DevPixelsToAppUnits(AppUnitsToDevPixels(aAppUnits)); }
 
-  struct ScrollbarStyles {
-    // Always one of NS_STYLE_OVERFLOW_SCROLL, NS_STYLE_OVERFLOW_HIDDEN,
-    // or NS_STYLE_OVERFLOW_AUTO.
-    uint8_t mHorizontal, mVertical;
-    ScrollbarStyles(uint8_t h, uint8_t v) : mHorizontal(h), mVertical(v) {}
-    ScrollbarStyles() {}
-    bool operator==(const ScrollbarStyles& aStyles) const {
-      return aStyles.mHorizontal == mHorizontal && aStyles.mVertical == mVertical;
-    }
-    bool operator!=(const ScrollbarStyles& aStyles) const {
-      return aStyles.mHorizontal != mHorizontal || aStyles.mVertical != mVertical;
-    }
-  };
   void SetViewportOverflowOverride(uint8_t aX, uint8_t aY)
   {
     mViewportStyleOverflow.mHorizontal = aX;
     mViewportStyleOverflow.mVertical = aY;
   }
-  ScrollbarStyles GetViewportOverflowOverride()
+  mozilla::ScrollbarStyles GetViewportOverflowOverride()
   {
     return mViewportStyleOverflow;
   }
@@ -690,18 +656,10 @@ public:
   /**
    * Getter and setter for OMTA time counters
    */
-  bool ThrottledStyleIsUpToDate() const {
-    return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastUpdateThrottledStyle() {
-    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
-  }
-  bool StyleUpdateForAllAnimationsIsUpToDate() const {
-    return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastStyleUpdateForAllAnimations() {
-    mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
-  }
+  bool ThrottledStyleIsUpToDate() const;
+  void TickLastUpdateThrottledStyle();
+  bool StyleUpdateForAllAnimationsIsUpToDate();
+  void TickLastStyleUpdateForAllAnimations();
 
 #ifdef IBMBIDI
   /**
@@ -711,7 +669,7 @@ public:
    *
    *  @lina 07/12/2000
    */
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   bool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
   bool BidiEnabled() const { return BidiEnabledExternal(); }
@@ -843,7 +801,7 @@ public:
 
   virtual void InvalidateIsChromeCacheExternal();
   void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = false; }
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   void InvalidateIsChromeCache()
   { InvalidateIsChromeCacheInternal(); }
 #else
@@ -873,7 +831,7 @@ public:
   
   virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
   NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetInternal();
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetInternal(); }
 #else
   gfxUserFontSet* GetUserFontSet() { return GetUserFontSetExternal(); }
@@ -905,6 +863,8 @@ public:
   // Passed to LayerProperties::ComputeDifference
   static void NotifySubDocInvalidation(mozilla::layers::ContainerLayer* aContainer,
                                        const nsIntRegion& aRegion);
+  void SetNotifySubDocInvalidationData(mozilla::layers::ContainerLayer* aContainer);
+  static void ClearNotifySubDocInvalidationData(mozilla::layers::ContainerLayer* aContainer);
   bool IsDOMPaintEventPending();
   void ClearMozAfterPaintEvents() {
     mInvalidateRequestsSinceLastPaint.mRequests.Clear();
@@ -1250,7 +1210,7 @@ protected:
 
   nscolor               mBodyTextColor;
 
-  ScrollbarStyles       mViewportStyleOverflow;
+  mozilla::ScrollbarStyles mViewportStyleOverflow;
   uint8_t               mFocusRingWidth;
 
   bool mExistThrottledUpdates;
@@ -1287,7 +1247,6 @@ protected:
   unsigned              mPaginated : 1;
   unsigned              mCanPaginatedScroll : 1;
   unsigned              mDoScaledTwips : 1;
-  unsigned              mEnableJapaneseTransform : 1;
   unsigned              mIsRootPaginatedDocument : 1;
   unsigned              mPrefBidiDirection : 1;
   unsigned              mPrefScrollbarSide : 2;

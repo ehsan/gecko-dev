@@ -6,12 +6,9 @@
 #ifdef IBMBIDI
 
 #include "nsBidiPresUtils.h"
-#include "nsTextFragment.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
-#include "nsIServiceManager.h"
-#include "nsFrameManager.h"
 #include "nsBidiUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsContainerFrame.h"
@@ -20,7 +17,8 @@
 #include "nsFirstLetterFrame.h"
 #include "nsUnicodeProperties.h"
 #include "nsTextFrame.h"
-#include "nsStyleStructInlines.h"
+#include "nsBlockFrame.h"
+#include "nsIFrameInlines.h"
 #include <algorithm>
 
 #undef NOISY_BIDI
@@ -57,7 +55,6 @@ struct BidiParagraphData {
 
   void Init(nsBlockFrame *aBlockFrame)
   {
-    mContentToFrameIndex.Init();
     mBidiEngine = new nsBidi();
     mPrevContent = nullptr;
     mParagraphDepth = 0;
@@ -114,7 +111,6 @@ struct BidiParagraphData {
   // Initialise a sub-paragraph from its containing paragraph
   void Init(BidiParagraphData *aBpd)
   {
-    mContentToFrameIndex.Init();
     mBidiEngine = new nsBidi();
     mPrevContent = nullptr;
     mIsVisual = aBpd->mIsVisual;
@@ -1314,8 +1310,8 @@ nsBidiPresUtils::IsLeftOrRightMost(nsIFrame*              aFrame,
     // For ib splits, don't treat anything except the last part as
     // endmost or anything except the first part as startmost.
     // As an optimization, only get the first continuation once.
-    nsIFrame* firstContinuation = aFrame->GetFirstContinuation();
-    if (nsLayoutUtils::FrameIsNonLastInIBSplit(firstContinuation)) {
+    nsIFrame* firstContinuation = aFrame->FirstContinuation();
+    if (firstContinuation->FrameIsNonLastInIBSplit()) {
       // We are not endmost
       if (isLTR) {
         aIsRightMost = false;
@@ -1323,7 +1319,7 @@ nsBidiPresUtils::IsLeftOrRightMost(nsIFrame*              aFrame,
         aIsLeftMost = false;
       }
     }
-    if (nsLayoutUtils::FrameIsNonFirstInIBSplit(firstContinuation)) {
+    if (firstContinuation->FrameIsNonFirstInIBSplit()) {
       // We are not startmost
       if (isLTR) {
         aIsLeftMost = false;
@@ -1457,7 +1453,7 @@ nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
   // have been reflowed, which is required for GetUsedMargin/Border/Padding
   nsMargin margin = aFirstChild->GetUsedMargin();
   if (!aFirstChild->GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsNonFirstInIBSplit(aFirstChild))
+      !aFirstChild->FrameIsNonFirstInIBSplit())
     leftSpace = isLTR ? margin.left : margin.right;
 
   nscoord left = aFirstChild->GetPosition().x - leftSpace;
@@ -1465,8 +1461,6 @@ nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
   int32_t count = aBld->mVisualFrames.Length();
   int32_t index;
   nsContinuationStates continuationStates;
-
-  continuationStates.Init();
 
   // Initialize continuation states to (nullptr, 0) for
   // each frame on the line.

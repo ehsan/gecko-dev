@@ -6,9 +6,10 @@
 #ifndef MOZILLA_LAYERS_COMPOSITORTYPES_H
 #define MOZILLA_LAYERS_COMPOSITORTYPES_H
 
-#include "LayersTypes.h"
-#include "nsXULAppAPI.h"
-
+#include <stdint.h>                     // for uint32_t
+#include <sys/types.h>                  // for int32_t
+#include "LayersTypes.h"                // for LayersBackend, etc
+#include "nsXULAppAPI.h"                // for GeckoProcessType, etc
 
 namespace mozilla {
 namespace layers {
@@ -26,18 +27,18 @@ const SurfaceDescriptorType SURFACEDESCRIPTOR_UNKNOWN = 0;
  */
 typedef uint32_t TextureFlags;
 // Use nearest-neighbour texture filtering (as opposed to linear filtering).
-const TextureFlags UseNearestFilter           = 1 << 0;
+const TextureFlags TEXTURE_USE_NEAREST_FILTER = 1 << 0;
 // The texture should be flipped around the y-axis when composited.
-const TextureFlags NeedsYFlip                 = 1 << 1;
+const TextureFlags TEXTURE_NEEDS_Y_FLIP       = 1 << 1;
 // Force the texture to be represented using a single tile (note that this means
 // tiled textures, not tiled layers).
 const TextureFlags TEXTURE_DISALLOW_BIGIMAGE  = 1 << 2;
 // Allow using 'repeat' mode for wrapping.
-const TextureFlags AllowRepeat                = 1 << 3;
+const TextureFlags TEXTURE_ALLOW_REPEAT       = 1 << 3;
 // The texture represents a tile which is newly created.
-const TextureFlags NewTile                    = 1 << 4;
+const TextureFlags TEXTURE_NEW_TILE           = 1 << 4;
 // The texture is part of a component-alpha pair
-const TextureFlags ComponentAlpha             = 1 << 5;
+const TextureFlags TEXTURE_COMPONENT_ALPHA    = 1 << 5;
 // The buffer will be treated as if the RB bytes are swapped.
 // This is useful for rendering using Cairo/Thebes, because there is no
 // BGRX Android pixel format, and so we have to do byte swapping.
@@ -47,7 +48,6 @@ const TextureFlags ComponentAlpha             = 1 << 5;
 // (for example, with GL), a BGRA shader should be used.
 const TextureFlags TEXTURE_RB_SWAPPED         = 1 << 6;
 
-// A texture host that supports tiling
 const TextureFlags TEXTURE_FRONT              = 1 << 12;
 // A texture host on white for component alpha
 const TextureFlags TEXTURE_ON_WHITE           = 1 << 13;
@@ -59,12 +59,11 @@ const TextureFlags TEXTURE_TILE               = 1 << 15;
 // from the previous texture.
 const TextureFlags TEXTURE_COPY_PREVIOUS      = 1 << 24;
 // Who is responsible for deallocating the shared data.
-// if none of the following two flags is set, the shared data will not be
-// deallocated by the layers system. It is not necessarily a leak, it could
-// be a choice from another part of gecko that wants to keep the data alive
-// for some reason. The default behaviour is to deallocate on the host side.
+// if TEXTURE_DEALLOCATE_CLIENT is set, the shared data is deallocated on the
+// client side and requires some extra synchronizaion to ensure race-free
+// deallocation.
+// The default behaviour is to deallocate on the host side.
 const TextureFlags TEXTURE_DEALLOCATE_CLIENT  = 1 << 25;
-const TextureFlags TEXTURE_DEALLOCATE_HOST    = 1 << 26;
 // After being shared ith the compositor side, an immutable texture is never
 // modified, it can only be read. It is safe to not Lock/Unlock immutable
 // textures.
@@ -79,8 +78,7 @@ const TextureFlags TEXTURE_IMMEDIATE_UPLOAD   = 1 << 28;
 const TextureFlags TEXTURE_DOUBLE_BUFFERED    = 1 << 29;
 
 // the default flags
-const TextureFlags TEXTURE_FLAGS_DEFAULT = TEXTURE_DEALLOCATE_HOST
-                                         | TEXTURE_FRONT;
+const TextureFlags TEXTURE_FLAGS_DEFAULT = TEXTURE_FRONT;
 
 static inline bool
 TextureRequiresLocking(TextureFlags aFlags)
@@ -92,6 +90,29 @@ TextureRequiresLocking(TextureFlags aFlags)
                      TEXTURE_DOUBLE_BUFFERED |
                      TEXTURE_IMMUTABLE));
 }
+
+/**
+ * The type of debug diagnostic to enable.
+ */
+typedef uint32_t DiagnosticTypes;
+const DiagnosticTypes DIAGNOSTIC_NONE             = 0;
+const DiagnosticTypes DIAGNOSTIC_TILE_BORDERS     = 1 << 0;
+const DiagnosticTypes DIAGNOSTIC_LAYER_BORDERS    = 1 << 1;
+const DiagnosticTypes DIAGNOSTIC_BIGIMAGE_BORDERS = 1 << 2;
+
+/**
+ * Information about the object that is being diagnosed.
+ */
+typedef uint32_t DiagnosticFlags;
+const DiagnosticFlags DIAGNOSTIC_IMAGE      = 1 << 0;
+const DiagnosticFlags DIAGNOSTIC_CONTENT    = 1 << 1;
+const DiagnosticFlags DIAGNOSTIC_CANVAS     = 1 << 2;
+const DiagnosticFlags DIAGNOSTIC_COLOR      = 1 << 3;
+const DiagnosticFlags DIAGNOSTIC_CONTAINER  = 1 << 4;
+const DiagnosticFlags DIAGNOSTIC_TILE       = 1 << 5;
+const DiagnosticFlags DIAGNOSTIC_BIGIMAGE   = 1 << 6;
+const DiagnosticFlags DIAGNOSTIC_COMPONENT_ALPHA = 1 << 7;
+const DiagnosticFlags DIAGNOSTIC_REGION_RECT = 1 << 8;
 
 /**
  * See gfx/layers/Effects.h

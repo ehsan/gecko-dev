@@ -12,18 +12,19 @@ MODULE = 'layout'
 EXPORTS += [
     'AnimationCommon.h',
     'nsAnimationManager.h',
-    'nsCSSAnonBoxList.h',
+    'nsComputedDOMStylePropertyList.h',
     'nsCSSAnonBoxes.h',
+    'nsCSSAnonBoxList.h',
     'nsCSSFontDescList.h',
     'nsCSSKeywordList.h',
     'nsCSSKeywords.h',
     'nsCSSParser.h',
     'nsCSSPropAliasList.h',
-    'nsCSSPropList.h',
     'nsCSSProperty.h',
+    'nsCSSPropList.h',
     'nsCSSProps.h',
-    'nsCSSPseudoClassList.h',
     'nsCSSPseudoClasses.h',
+    'nsCSSPseudoClassList.h',
     'nsCSSPseudoElementList.h',
     'nsCSSPseudoElements.h',
     'nsCSSRuleProcessor.h',
@@ -54,7 +55,6 @@ EXPORTS += [
     'nsStyleStruct.h',
     'nsStyleStructFwd.h',
     'nsStyleStructInlines.h',
-    'nsStyleStructList.h',
     'nsStyleTransformMatrix.h',
     'nsStyleUtil.h',
 ]
@@ -76,15 +76,15 @@ EXPORTS.mozilla.css += [
     'StyleRule.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'AnimationCommon.cpp',
     'CSS.cpp',
     'Declaration.cpp',
     'ErrorReporter.cpp',
     'ImageLoader.cpp',
     'Loader.cpp',
-    'StyleRule.cpp',
     'nsAnimationManager.cpp',
+    'nsComputedDOMStyle.cpp',
     'nsCSSAnonBoxes.cpp',
     'nsCSSDataBlock.cpp',
     'nsCSSKeywords.cpp',
@@ -97,11 +97,10 @@ CPP_SOURCES += [
     'nsCSSScanner.cpp',
     'nsCSSStyleSheet.cpp',
     'nsCSSValue.cpp',
-    'nsComputedDOMStyle.cpp',
     'nsDOMCSSAttrDeclaration.cpp',
     'nsDOMCSSDeclaration.cpp',
-    'nsDOMCSSRGBColor.cpp',
     'nsDOMCSSRect.cpp',
+    'nsDOMCSSRGBColor.cpp',
     'nsDOMCSSValueList.cpp',
     'nsDOMMediaQueryList.cpp',
     'nsFontFaceLoader.cpp',
@@ -121,5 +120,16 @@ CPP_SOURCES += [
     'nsStyleTransformMatrix.cpp',
     'nsStyleUtil.cpp',
     'nsTransitionManager.cpp',
+    'StyleRule.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'gkstyle_s'
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -9,9 +9,8 @@
 
 #include "nsTArray.h"
 #include "mozilla/MemoryReporting.h"
-#include "gfxASurface.h"
+#include "gfxTypes.h"
 #include "imgFrame.h"
-#include "nsISupportsImpl.h"
 
 namespace mozilla {
 namespace image {
@@ -174,7 +173,7 @@ public:
   /* The total number of frames in this image. */
   uint32_t GetNumFrames() const;
 
-  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
+  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private: // data

@@ -38,8 +38,8 @@
 #include "mozilla/Attributes.h"
 
 struct nsFactoryEntry;
-class nsIServiceManager;
 class nsIMemoryReporter;
+class nsIServiceManager;
 struct PRThread;
 
 #define NS_COMPONENTMANAGER_CID                      \
@@ -211,9 +211,9 @@ public:
         { }
 
         KnownModule(mozilla::FileLocation &aFile)
-            : mModule(NULL)
+            : mModule(nullptr)
             , mFile(aFile)
-            , mLoader(NULL)
+            , mLoader(nullptr)
             , mLoaded(false)
             , mFailed(false)
         { }
@@ -317,7 +317,7 @@ public:
 private:
     ~nsComponentManagerImpl();
 
-    nsIMemoryReporter* mReporter;
+    nsCOMPtr<nsIMemoryReporter> mReporter;
 };
 
 

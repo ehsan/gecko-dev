@@ -31,6 +31,10 @@ var Appbar = {
     switch (aEvent.type) {
       case 'URLChanged':
       case 'TabSelect':
+        this.update();
+        this.flushActiveTileset(aEvent.lastTab);
+        break;
+
       case 'MozAppbarShowing':
         this.update();
         break;
@@ -59,6 +63,21 @@ var Appbar = {
     }
   },
 
+  flushActiveTileset: function flushActiveTileset(aTab) {
+    try {
+      let tab = aTab || Browser.selectedTab;
+      // Switching away from or loading a site into a startui tab that has actions
+      // pending, we consider this confirmation that the user wants to flush changes.
+      if (this.activeTileset && tab && tab.browser && tab.browser.currentURI.spec == kStartURI) {
+        ContextUI.dismiss();
+      }
+    } catch (ex) {}
+  },
+
+  shutdown: function shutdown() {
+    this.flushActiveTileset();
+  },
+
   /*
    * Called from various places when the visible content
    * has changed such that button states may need to be
@@ -67,12 +86,6 @@ var Appbar = {
   update: function update() {
     this._updatePinButton();
     this._updateStarButton();
-  },
-
-  onDownloadButton: function() {
-    // TODO: Bug 883962: Toggle the downloads infobar when the
-    // download button is clicked
-    ContextUI.dismiss();
   },
 
   onPinButton: function() {
@@ -102,11 +115,13 @@ var Appbar = {
   onMenuButton: function(aEvent) {
       let typesArray = [];
 
-      if (!StartUI.isVisible)
+      if (!BrowserUI.isStartTabVisible)
         typesArray.push("find-in-page");
+      if (ContextCommands.getStoreLink())
+        typesArray.push("ms-meta-data");
       if (ConsolePanelView.enabled)
         typesArray.push("open-error-console");
-      if (!MetroUtils.immersive)
+      if (!Services.metro.immersive)
         typesArray.push("open-jsshell");
 
       try {
@@ -142,7 +157,7 @@ var Appbar = {
       var uri = Services.io.newURI(Browser.selectedBrowser.currentURI.spec,
                                    null, null);
       if (uri.schemeIs('http') || uri.schemeIs('https')) {
-        MetroUtils.launchInDesktop(Browser.selectedBrowser.currentURI.spec, "");
+        Services.metro.launchInDesktop(Browser.selectedBrowser.currentURI.spec, "");
       }
     } catch(ex) {
     }

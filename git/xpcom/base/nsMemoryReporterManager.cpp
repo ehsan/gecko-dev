@@ -8,21 +8,21 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
-#include "nsDirectoryServiceUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemoryReporterManager.h"
-#include "nsArrayEnumerator.h"
 #include "nsISimpleEnumerator.h"
-#include "nsIFile.h"
-#include "nsIFileStreams.h"
-#include "nsPrintfCString.h"
 #include "nsThreadUtils.h"
+#include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
 #include "nsIObserverService.h"
-#include "nsThread.h"
+#include "nsIGlobalObject.h"
+#if defined(XP_LINUX)
 #include "nsMemoryInfoDumper.h"
-#include "mozilla/Telemetry.h"
+#endif
 #include "mozilla/Attributes.h"
+#include "mozilla/PodOperations.h"
 #include "mozilla/Services.h"
+#include "mozilla/Telemetry.h"
 
 #ifndef XP_WIN
 #include <unistd.h>
@@ -37,20 +37,19 @@ using namespace mozilla;
 
 #if defined(XP_LINUX)
 
-#include <unistd.h>
-static nsresult GetProcSelfStatmField(int field, int64_t *n)
+static nsresult GetProcSelfStatmField(int aField, int64_t* aN)
 {
     // There are more than two fields, but we're only interested in the first
     // two.
     static const int MAX_FIELD = 2;
     size_t fields[MAX_FIELD];
-    MOZ_ASSERT(field < MAX_FIELD, "bad field number");
-    FILE *f = fopen("/proc/self/statm", "r");
+    MOZ_ASSERT(aField < MAX_FIELD, "bad field number");
+    FILE* f = fopen("/proc/self/statm", "r");
     if (f) {
         int nread = fscanf(f, "%zu %zu", &fields[0], &fields[1]);
         fclose(f);
         if (nread == MAX_FIELD) {
-            *n = fields[field] * getpagesize();
+            *aN = fields[aField] * getpagesize();
             return NS_OK;
         }
     }
@@ -58,20 +57,66 @@ static nsresult GetProcSelfStatmField(int field, int64_t *n)
 }
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult
+VsizeDistinguishedAmount(int64_t* aN)
 {
-    return GetProcSelfStatmField(0, n);
+    return GetProcSelfStatmField(0, aN);
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult
+ResidentDistinguishedAmount(int64_t* aN)
 {
-    return GetProcSelfStatmField(1, n);
+    return GetProcSelfStatmField(1, aN);
 }
 
-static nsresult GetResidentFast(int64_t *n)
+static nsresult
+ResidentFastDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n);
+    return ResidentDistinguishedAmount(aN);
 }
+
+#define HAVE_RESIDENT_UNIQUE_REPORTER
+class ResidentUniqueReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+  ResidentUniqueReporter()
+    : MemoryUniReporter("resident-unique", KIND_OTHER, UNITS_BYTES,
+"Memory mapped by the process that is present in physical memory and not "
+"shared with any other processes.  This is also known as the process's unique "
+"set size (USS).  This is the amount of RAM we'd expect to be freed if we "
+"closed this process.")
+  {}
+
+private:
+  NS_IMETHOD GetAmount(int64_t *aAmount)
+  {
+    // You might be tempted to calculate USS by subtracting the "shared" value
+    // from the "resident" value in /proc/<pid>/statm.  But at least on Linux,
+    // statm's "shared" value actually counts pages backed by files, which has
+    // little to do with whether the pages are actually shared.
+    // /proc/self/smaps on the other hand appears to give us the correct
+    // information.
+
+    *aAmount = 0;
+
+    FILE *f = fopen("/proc/self/smaps", "r");
+    NS_ENSURE_STATE(f);
+
+    int64_t total = 0;
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+      long long val = 0;
+      if (sscanf(line, "Private_Dirty: %lld kB", &val) == 1 ||
+          sscanf(line, "Private_Clean: %lld kB", &val) == 1) {
+        total += val * 1024; // convert from kB to bytes
+      }
+    }
+    *aAmount = total;
+
+    fclose(f);
+    return NS_OK;
+  }
+};
 
 #elif defined(__DragonFly__) || defined(__FreeBSD__) \
     || defined(__NetBSD__) || defined(__OpenBSD__)
@@ -107,7 +152,7 @@ static nsresult GetResidentFast(int64_t *n)
 #define KP_RSS(kp) (kp.p_vm_rssize * getpagesize())
 #endif
 
-static nsresult GetKinfoProcSelf(KINFO_PROC *proc)
+static nsresult GetKinfoProcSelf(KINFO_PROC* aProc)
 {
     int mib[] = {
         CTL_KERN,
@@ -121,36 +166,39 @@ static nsresult GetKinfoProcSelf(KINFO_PROC *proc)
     };
     u_int miblen = sizeof(mib) / sizeof(mib[0]);
     size_t size = sizeof(KINFO_PROC);
-    if (sysctl(mib, miblen, proc, &size, NULL, 0))
+    if (sysctl(mib, miblen, aProc, &size, nullptr, 0))
         return NS_ERROR_FAILURE;
 
     return NS_OK;
 }
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult
+VsizeDistinguishedAmount(int64_t* aN)
 {
     KINFO_PROC proc;
     nsresult rv = GetKinfoProcSelf(&proc);
     if (NS_SUCCEEDED(rv))
-        *n = KP_SIZE(proc);
+        *aN = KP_SIZE(proc);
 
     return rv;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult
+ResidentDistinguishedAmount(int64_t* aN)
 {
     KINFO_PROC proc;
     nsresult rv = GetKinfoProcSelf(&proc);
     if (NS_SUCCEEDED(rv))
-        *n = KP_RSS(proc);
+        *aN = KP_RSS(proc);
 
     return rv;
 }
 
-static nsresult GetResidentFast(int64_t *n)
+static nsresult
+ResidentFastDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n);
+    return ResidentDistinguishedAmount(aN);
 }
 
 #elif defined(SOLARIS)
@@ -165,7 +213,7 @@ static void XMappingIter(int64_t& vsize, int64_t& resident)
     resident = -1;
     int mapfd = open("/proc/self/xmap", O_RDONLY);
     struct stat st;
-    prxmap_t *prmapp = NULL;
+    prxmap_t* prmapp = nullptr;
     if (mapfd >= 0) {
         if (!fstat(mapfd, &st)) {
             int nmap = st.st_size / sizeof(prxmap_t);
@@ -201,31 +249,34 @@ static void XMappingIter(int64_t& vsize, int64_t& resident)
 }
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult
+VsizeDistinguishedAmount(int64_t* aN)
 {
     int64_t vsize, resident;
     XMappingIter(vsize, resident);
     if (vsize == -1) {
         return NS_ERROR_FAILURE;
     }
-    *n = vsize;
+    *aN = vsize;
     return NS_OK;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult
+ResidentDistinguishedAmount(int64_t* aN)
 {
     int64_t vsize, resident;
     XMappingIter(vsize, resident);
     if (resident == -1) {
         return NS_ERROR_FAILURE;
     }
-    *n = resident;
+    *aN = resident;
     return NS_OK;
 }
 
-static nsresult GetResidentFast(int64_t *n)
+static nsresult
+ResidentFastDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n);
+    return ResidentDistinguishedAmount(aN);
 }
 
 #elif defined(XP_MACOSX)
@@ -233,11 +284,11 @@ static nsresult GetResidentFast(int64_t *n)
 #include <mach/mach_init.h>
 #include <mach/task.h>
 
-static bool GetTaskBasicInfo(struct task_basic_info *ti)
+static bool GetTaskBasicInfo(struct task_basic_info* aTi)
 {
     mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;
     kern_return_t kr = task_info(mach_task_self(), TASK_BASIC_INFO,
-                                 (task_info_t)ti, &count);
+                                 (task_info_t)aTi, &count);
     return kr == KERN_SUCCESS;
 }
 
@@ -245,13 +296,14 @@ static bool GetTaskBasicInfo(struct task_basic_info *ti)
 // absurdly high, eg. 2GB+ even at start-up.  But both 'top' and 'ps' report
 // it, so we might as well too.
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult
+VsizeDistinguishedAmount(int64_t* aN)
 {
     task_basic_info ti;
     if (!GetTaskBasicInfo(&ti))
         return NS_ERROR_FAILURE;
 
-    *n = ti.virtual_size;
+    *aN = ti.virtual_size;
     return NS_OK;
 }
 
@@ -262,7 +314,7 @@ static nsresult GetVsize(int64_t *n)
 //
 // Purging these pages can take a long time for some users (see bug 789975),
 // so we provide the option to get the RSS without purging first.
-static nsresult GetResident(int64_t *n, bool aDoPurge)
+static nsresult ResidentDistinguishedAmountHelper(int64_t* aN, bool aDoPurge)
 {
 #ifdef HAVE_JEMALLOC_STATS
     if (aDoPurge) {
@@ -275,27 +327,31 @@ static nsresult GetResident(int64_t *n, bool aDoPurge)
     if (!GetTaskBasicInfo(&ti))
         return NS_ERROR_FAILURE;
 
-    *n = ti.resident_size;
+    *aN = ti.resident_size;
     return NS_OK;
 }
 
-static nsresult GetResidentFast(int64_t *n)
+static nsresult
+ResidentFastDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n, /* doPurge = */ false);
+    return ResidentDistinguishedAmountHelper(aN, /* doPurge = */ false);
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult
+ResidentDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n, /* doPurge = */ true);
+    return ResidentDistinguishedAmountHelper(aN, /* doPurge = */ true);
 }
 
 #elif defined(XP_WIN)
 
 #include <windows.h>
 #include <psapi.h>
+#include <algorithm>
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult
+VsizeDistinguishedAmount(int64_t* aN)
 {
     MEMORYSTATUSEX s;
     s.dwLength = sizeof(s);
@@ -304,11 +360,12 @@ static nsresult GetVsize(int64_t *n)
         return NS_ERROR_FAILURE;
     }
 
-    *n = s.ullTotalVirtual - s.ullAvailVirtual;
+    *aN = s.ullTotalVirtual - s.ullAvailVirtual;
     return NS_OK;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult
+ResidentDistinguishedAmount(int64_t* aN)
 {
     PROCESS_MEMORY_COUNTERS pmc;
     pmc.cb = sizeof(PROCESS_MEMORY_COUNTERS);
@@ -317,27 +374,71 @@ static nsresult GetResident(int64_t *n)
         return NS_ERROR_FAILURE;
     }
 
-    *n = pmc.WorkingSetSize;
+    *aN = pmc.WorkingSetSize;
     return NS_OK;
 }
 
-static nsresult GetResidentFast(int64_t *n)
+static nsresult
+ResidentFastDistinguishedAmount(int64_t* aN)
 {
-    return GetResident(n);
+    return ResidentDistinguishedAmount(aN);
 }
 
+#define HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER 1
+static nsresult
+VsizeMaxContiguousDistinguishedAmount(int64_t* aN)
+{
+    SIZE_T biggestRegion = 0;
+    MEMORY_BASIC_INFORMATION vmemInfo = {0};
+    for (size_t currentAddress = 0; ; ) {
+        if (!VirtualQuery((LPCVOID)currentAddress, &vmemInfo, sizeof(vmemInfo))) {
+            // Something went wrong, just return whatever we've got already.
+            break;
+        }
+
+        if (vmemInfo.State == MEM_FREE) {
+            biggestRegion = std::max(biggestRegion, vmemInfo.RegionSize);
+        }
+
+        SIZE_T lastAddress = currentAddress;
+        currentAddress += vmemInfo.RegionSize;
+
+        // If we overflow, we've examined all of the address space.
+        if (currentAddress < lastAddress) {
+            break;
+        }
+    }
+
+    *aN = biggestRegion;
+    return NS_OK;
+}
+
+class VsizeMaxContiguousReporter MOZ_FINAL : public MemoryUniReporter
+{
+public:
+    VsizeMaxContiguousReporter()
+      : MemoryUniReporter("vsize-max-contiguous", KIND_OTHER, UNITS_BYTES,
+"Size of the maximum contiguous block of available virtual memory.")
+    {}
+
+    NS_IMETHOD GetAmount(int64_t* aAmount)
+    {
+        return VsizeMaxContiguousDistinguishedAmount(aAmount);
+    }
+};
+
 #define HAVE_PRIVATE_REPORTER
-class PrivateReporter MOZ_FINAL : public MemoryReporterBase
+class PrivateReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     PrivateReporter()
-      : MemoryReporterBase("private", KIND_OTHER, UNITS_BYTES,
+      : MemoryUniReporter("private", KIND_OTHER, UNITS_BYTES,
 "Memory that cannot be shared with other processes, including memory that is "
 "committed and marked MEM_PRIVATE, data that is not mapped, and executable "
 "pages that have been written to.")
     {}
 
-    NS_IMETHOD GetAmount(int64_t *aAmount)
+    NS_IMETHOD GetAmount(int64_t* aAmount)
     {
         PROCESS_MEMORY_COUNTERS_EX pmcex;
         pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
@@ -356,11 +457,11 @@ public:
 #endif  // XP_<PLATFORM>
 
 #ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
-class VsizeReporter MOZ_FINAL : public MemoryReporterBase
+class VsizeReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     VsizeReporter()
-      : MemoryReporterBase("vsize", KIND_OTHER, UNITS_BYTES,
+      : MemoryUniReporter("vsize", KIND_OTHER, UNITS_BYTES,
 "Memory mapped by the process, including code and data segments, the heap, "
 "thread stacks, memory explicitly mapped by the process via mmap and similar "
 "operations, and memory shared with other processes. This is the vsize figure "
@@ -370,14 +471,17 @@ public:
 "resources used by the process.")
     {}
 
-    NS_IMETHOD GetAmount(int64_t *aAmount) { return GetVsize(aAmount); }
+    NS_IMETHOD GetAmount(int64_t* aAmount)
+    {
+        return VsizeDistinguishedAmount(aAmount);
+    }
 };
 
-class ResidentReporter MOZ_FINAL : public MemoryReporterBase
+class ResidentReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     ResidentReporter()
-      : MemoryReporterBase("resident", KIND_OTHER, UNITS_BYTES,
+      : MemoryUniReporter("resident", KIND_OTHER, UNITS_BYTES,
 "Memory mapped by the process that is present in physical memory, also known "
 "as the resident set size (RSS).  This is the best single figure to use when "
 "considering the memory resources used by the process, but it depends both on "
@@ -386,37 +490,24 @@ public:
 "time.")
     {}
 
-    NS_IMETHOD GetAmount(int64_t *aAmount) { return GetResident(aAmount); }
-};
-
-class ResidentFastReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-    ResidentFastReporter()
-      : MemoryReporterBase("resident-fast", KIND_OTHER, UNITS_BYTES,
-"This is the same measurement as 'resident', but it tries to be as fast as "
-"possible at the expense of accuracy.  On most platforms this is identical to "
-"the 'resident' measurement, but on Mac it may over-count.  You should use "
-"'resident-fast' where you care about latency of collection (e.g. in "
-"telemetry).  Otherwise you should use 'resident'.")
-    {}
-
-    NS_IMETHOD GetAmount(int64_t *aAmount) { return GetResidentFast(aAmount); }
+    NS_IMETHOD GetAmount(int64_t* aAmount)
+    {
+        return ResidentDistinguishedAmount(aAmount);
+    }
 };
 #endif  // HAVE_VSIZE_AND_RESIDENT_REPORTERS
 
 #ifdef XP_UNIX
 
-#include <sys/time.h>
 #include <sys/resource.h>
 
 #define HAVE_PAGE_FAULT_REPORTERS 1
 
-class PageFaultsSoftReporter MOZ_FINAL : public MemoryReporterBase
+class PageFaultsSoftReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     PageFaultsSoftReporter()
-      : MemoryReporterBase("page-faults-soft", KIND_OTHER,
+      : MemoryUniReporter("page-faults-soft", KIND_OTHER,
                            UNITS_COUNT_CUMULATIVE,
 "The number of soft page faults (also known as 'minor page faults') that "
 "have occurred since the process started.  A soft page fault occurs when the "
@@ -429,7 +520,7 @@ public:
 "they impact performance much less than hard page faults.")
     {}
 
-    NS_IMETHOD GetAmount(int64_t *aAmount)
+    NS_IMETHOD GetAmount(int64_t* aAmount)
     {
         struct rusage usage;
         int err = getrusage(RUSAGE_SELF, &usage);
@@ -441,11 +532,23 @@ public:
     }
 };
 
-class PageFaultsHardReporter MOZ_FINAL : public MemoryReporterBase
+static nsresult
+PageFaultsHardDistinguishedAmount(int64_t* aAmount)
+{
+    struct rusage usage;
+    int err = getrusage(RUSAGE_SELF, &usage);
+    if (err != 0) {
+        return NS_ERROR_FAILURE;
+    }
+    *aAmount = usage.ru_majflt;
+    return NS_OK;
+}
+
+class PageFaultsHardReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     PageFaultsHardReporter()
-      : MemoryReporterBase("page-faults-hard", KIND_OTHER,
+      : MemoryUniReporter("page-faults-hard", KIND_OTHER,
                            UNITS_COUNT_CUMULATIVE,
 "The number of hard page faults (also known as 'major page faults') that have "
 "occurred since the process started.  A hard page fault occurs when a process "
@@ -458,15 +561,9 @@ public:
 "slowly when it is experiencing more than 100 or so hard page faults a second.")
     {}
 
-    NS_IMETHOD GetAmount(int64_t *aAmount)
+    NS_IMETHOD GetAmount(int64_t* aAmount)
     {
-        struct rusage usage;
-        int err = getrusage(RUSAGE_SELF, &usage);
-        if (err != 0) {
-            return NS_ERROR_FAILURE;
-        }
-        *aAmount = usage.ru_majflt;
-        return NS_OK;
+        return PageFaultsHardDistinguishedAmount(aAmount);
     }
 };
 #endif  // HAVE_PAGE_FAULT_REPORTERS
@@ -479,33 +576,47 @@ public:
 
 #ifdef HAVE_JEMALLOC_STATS
 
-class HeapAllocatedReporter MOZ_FINAL : public MemoryReporterBase
+static int64_t
+HeapAllocated()
+{
+    jemalloc_stats_t stats;
+    jemalloc_stats(&stats);
+    return (int64_t) stats.allocated;
+}
+
+// This has UNITS_PERCENTAGE, so it is multiplied by 100x.
+static int64_t
+HeapOverheadRatio()
+{
+    jemalloc_stats_t stats;
+    jemalloc_stats(&stats);
+    return (int64_t) 10000 *
+      (stats.waste + stats.bookkeeping + stats.page_cache) /
+      ((double)stats.allocated);
+}
+
+class HeapAllocatedReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     HeapAllocatedReporter()
-      : MemoryReporterBase("heap-allocated", KIND_OTHER, UNITS_BYTES,
+      : MemoryUniReporter("heap-allocated", KIND_OTHER, UNITS_BYTES,
 "Memory mapped by the heap allocator that is currently allocated to the "
 "application.  This may exceed the amount of memory requested by the "
 "application because the allocator regularly rounds up request sizes. (The "
 "exact amount requested is not recorded.)")
     {}
 private:
-    int64_t Amount()
-    {
-        jemalloc_stats_t stats;
-        jemalloc_stats(&stats);
-        return (int64_t) stats.allocated;
-    }
+    int64_t Amount() MOZ_OVERRIDE { return HeapAllocated(); }
 };
 
-class HeapOverheadWasteReporter MOZ_FINAL : public MemoryReporterBase
+class HeapOverheadWasteReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     // We mark this and the other heap-overhead reporters as KIND_NONHEAP
     // because KIND_HEAP memory means "counted in heap-allocated", which this
     // is not.
     HeapOverheadWasteReporter()
-      : MemoryReporterBase("explicit/heap-overhead/waste",
+      : MemoryUniReporter("explicit/heap-overhead/waste",
                            KIND_NONHEAP, UNITS_BYTES,
 "Committed bytes which do not correspond to an active allocation and which the "
 "allocator is not intentionally keeping alive (i.e., not 'heap-bookkeeping' or "
@@ -514,7 +625,7 @@ public:
 "fragmented, or that allocator is performing poorly for some other reason.")
     {}
 private:
-    int64_t Amount()
+    int64_t Amount() MOZ_OVERRIDE
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
@@ -522,16 +633,16 @@ private:
     }
 };
 
-class HeapOverheadBookkeepingReporter MOZ_FINAL : public MemoryReporterBase
+class HeapOverheadBookkeepingReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     HeapOverheadBookkeepingReporter()
-      : MemoryReporterBase("explicit/heap-overhead/bookkeeping",
+      : MemoryUniReporter("explicit/heap-overhead/bookkeeping",
                            KIND_NONHEAP, UNITS_BYTES,
 "Committed bytes which the heap allocator uses for internal data structures.")
     {}
 private:
-    int64_t Amount()
+    int64_t Amount() MOZ_OVERRIDE
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
@@ -539,11 +650,11 @@ private:
     }
 };
 
-class HeapOverheadPageCacheReporter MOZ_FINAL : public MemoryReporterBase
+class HeapOverheadPageCacheReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     HeapOverheadPageCacheReporter()
-      : MemoryReporterBase("explicit/heap-overhead/page-cache",
+      : MemoryUniReporter("explicit/heap-overhead/page-cache",
                            KIND_NONHEAP, UNITS_BYTES,
 "Memory which the allocator could return to the operating system, but hasn't. "
 "The allocator keeps this memory around as an optimization, so it doesn't "
@@ -551,7 +662,7 @@ public:
 "is typically not larger than a few megabytes.")
     {}
 private:
-    int64_t Amount()
+    int64_t Amount() MOZ_OVERRIDE
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
@@ -559,11 +670,11 @@ private:
     }
 };
 
-class HeapCommittedReporter MOZ_FINAL : public MemoryReporterBase
+class HeapCommittedReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     HeapCommittedReporter()
-      : MemoryReporterBase("heap-committed", KIND_OTHER, UNITS_BYTES,
+      : MemoryUniReporter("heap-committed", KIND_OTHER, UNITS_BYTES,
 "Memory mapped by the heap allocator that is committed, i.e. in physical "
 "memory or paged to disk.  This value corresponds to 'heap-allocated' + "
 "'heap-waste' + 'heap-bookkeeping' + 'heap-page-cache', but because "
@@ -571,7 +682,7 @@ public:
 "exactly.")
     {}
 private:
-    int64_t Amount()
+    int64_t Amount() MOZ_OVERRIDE
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
@@ -580,25 +691,18 @@ private:
     }
 };
 
-class HeapOverheadRatioReporter MOZ_FINAL : public MemoryReporterBase
+class HeapOverheadRatioReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     HeapOverheadRatioReporter()
-      : MemoryReporterBase("heap-overhead-ratio", KIND_OTHER,
+      : MemoryUniReporter("heap-overhead-ratio", KIND_OTHER,
                            UNITS_PERCENTAGE,
 "Ratio of committed, unused bytes to allocated bytes; i.e., "
 "'heap-overhead' / 'heap-allocated'.  This measures the overhead of "
 "the heap allocator relative to amount of memory allocated.")
     {}
 private:
-    int64_t Amount()
-    {
-        jemalloc_stats_t stats;
-        jemalloc_stats(&stats);
-        return (int64_t) 10000 *
-          (stats.waste + stats.bookkeeping + stats.page_cache) /
-          ((double)stats.allocated);
-    }
+    int64_t Amount() MOZ_OVERRIDE { return HeapOverheadRatio(); }
 };
 #endif  // HAVE_JEMALLOC_STATS
 
@@ -607,15 +711,18 @@ private:
 // However, the obvious time to register it is when the table is initialized,
 // and that happens before XPCOM components are initialized, which means the
 // NS_RegisterMemoryReporter call fails.  So instead we do it here.
-class AtomTablesReporter MOZ_FINAL : public MemoryReporterBase
+class AtomTablesReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     AtomTablesReporter()
-      : MemoryReporterBase("explicit/atom-tables", KIND_HEAP, UNITS_BYTES,
+      : MemoryUniReporter("explicit/atom-tables", KIND_HEAP, UNITS_BYTES,
 "Memory used by the dynamic and static atoms tables.")
     {}
 private:
-    int64_t Amount() { return NS_SizeOfAtomTablesIncludingThis(MallocSizeOf); }
+    int64_t Amount() MOZ_OVERRIDE
+    {
+        return NS_SizeOfAtomTablesIncludingThis(MallocSizeOf);
+    }
 };
 
 #ifdef MOZ_DMD
@@ -623,22 +730,22 @@ private:
 namespace mozilla {
 namespace dmd {
 
-class DMDMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class DMDReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
-  DMDMultiReporter()
+  DMDReporter()
   {}
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD GetName(nsACString &name)
+  NS_IMETHOD GetName(nsACString& aName)
   {
-    name.Assign("dmd");
+    aName.Assign("dmd");
     return NS_OK;
   }
 
-  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *callback,
-                            nsISupports *closure)
+  NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
+                            nsISupports* aClosure)
   {
     dmd::Sizes sizes;
     dmd::SizeOf(&sizes);
@@ -646,10 +753,10 @@ public:
 #define REPORT(_path, _amount, _desc)                                         \
     do {                                                                      \
       nsresult rv;                                                            \
-      rv = callback->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),      \
-                              nsIMemoryReporter::KIND_HEAP,                   \
-                              nsIMemoryReporter::UNITS_BYTES, _amount,        \
-                              NS_LITERAL_CSTRING(_desc), closure);            \
+      rv = aCallback->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),     \
+                               nsIMemoryReporter::KIND_HEAP,                  \
+                               nsIMemoryReporter::UNITS_BYTES, _amount,       \
+                               NS_LITERAL_CSTRING(_desc), aClosure);          \
       NS_ENSURE_SUCCESS(rv, rv);                                              \
     } while (0)
 
@@ -677,7 +784,7 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(DMDMultiReporter, nsIMemoryMultiReporter)
+NS_IMPL_ISUPPORTS1(DMDReporter, nsIMemoryReporter)
 
 } // namespace dmd
 } // namespace mozilla
@@ -710,7 +817,14 @@ nsMemoryReporterManager::Init()
 #ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
     RegisterReporter(new VsizeReporter);
     RegisterReporter(new ResidentReporter);
-    RegisterReporter(new ResidentFastReporter);
+#endif
+
+#ifdef HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER
+    RegisterReporter(new VsizeMaxContiguousReporter);
+#endif
+
+#ifdef HAVE_RESIDENT_UNIQUE_REPORTER
+    RegisterReporter(new ResidentUniqueReporter);
 #endif
 
 #ifdef HAVE_PAGE_FAULT_REPORTERS
@@ -725,7 +839,7 @@ nsMemoryReporterManager::Init()
     RegisterReporter(new AtomTablesReporter);
 
 #ifdef MOZ_DMD
-    RegisterMultiReporter(new mozilla::dmd::DMDMultiReporter);
+    RegisterReporter(new mozilla::dmd::DMDReporter);
 #endif
 
 #if defined(XP_LINUX)
@@ -802,8 +916,8 @@ nsMemoryReporterManager::nsMemoryReporterManager()
   : mMutex("nsMemoryReporterManager::mMutex"),
     mIsRegistrationBlocked(false)
 {
-    mReporters.Init();
-    mMultiReporters.Init();
+    PodZero(&mAmountFns);
+    PodZero(&mSizeOfTabFns);
 }
 
 nsMemoryReporterManager::~nsMemoryReporterManager()
@@ -811,7 +925,7 @@ nsMemoryReporterManager::~nsMemoryReporterManager()
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator **result)
+nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator** aResult)
 {
     // Memory reporters are not necessarily threadsafe, so EnumerateReporters()
     // must be called from the main thread.
@@ -823,24 +937,7 @@ nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator **result)
 
     nsRefPtr<HashtableEnumerator> enumerator =
         new HashtableEnumerator(mReporters);
-    enumerator.forget(result);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::EnumerateMultiReporters(nsISimpleEnumerator **result)
-{
-    // Memory multi-reporters are not necessarily threadsafe, so
-    // EnumerateMultiReporters() must be called from the main thread.
-    if (!NS_IsMainThread()) {
-        MOZ_CRASH();
-    }
-
-    mozilla::MutexAutoLock autoLock(mMutex);
-
-    nsRefPtr<HashtableEnumerator> enumerator =
-        new HashtableEnumerator(mMultiReporters);
-    enumerator.forget(result);
+    enumerator.forget(aResult);
     return NS_OK;
 }
 
@@ -857,108 +954,59 @@ DebugAssertRefcountIsNonZero(nsISupports* aObj)
 
 nsresult
 nsMemoryReporterManager::RegisterReporterHelper(
-    nsIMemoryReporter *reporter, bool aForce)
+    nsIMemoryReporter* aReporter, bool aForce)
 {
     // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
 
-    if ((mIsRegistrationBlocked && !aForce) || mReporters.Contains(reporter)) {
+    if ((mIsRegistrationBlocked && !aForce) || mReporters.Contains(aReporter)) {
         return NS_ERROR_FAILURE;
     }
 
-    // This method needs to be safe even if |reporter| has a refcnt of 0, so we
-    // take a kung fu death grip before calling PutEntry.  Otherwise, if
-    // PutEntry addref'ed and released reporter before finally addref'ing it for
-    // good, it would free reporter!
+    // This method needs to be safe even if |aReporter| has a refcnt of 0, so
+    // we take a kung fu death grip before calling PutEntry.  Otherwise, if
+    // PutEntry addref'ed and released |aReporter| before finally addref'ing it
+    // for good, it would free aReporter!
     //
     // The kung fu death grip could itself be problematic if PutEntry didn't
-    // addref |reporter| (because then when the death grip goes out of scope, we
-    // would delete the reporter).  In debug mode, we check that this doesn't
-    // happen.
+    // addref |aReporter| (because then when the death grip goes out of scope,
+    // we would delete the reporter).  In debug mode, we check that this
+    // doesn't happen.
 
     {
-        nsCOMPtr<nsIMemoryReporter> kungFuDeathGrip = reporter;
-        mReporters.PutEntry(reporter);
+        nsCOMPtr<nsIMemoryReporter> kungFuDeathGrip = aReporter;
+        mReporters.PutEntry(aReporter);
     }
 
-    DebugAssertRefcountIsNonZero(reporter);
+    DebugAssertRefcountIsNonZero(aReporter);
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
+nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter* aReporter)
 {
-    return RegisterReporterHelper(reporter, /* force = */ false);
+    return RegisterReporterHelper(aReporter, /* force = */ false);
 }
 
 NS_IMETHODIMP
 nsMemoryReporterManager::RegisterReporterEvenIfBlocked(
-    nsIMemoryReporter *reporter)
+    nsIMemoryReporter* aReporter)
 {
-    return RegisterReporterHelper(reporter, /* force = */ true);
+    return RegisterReporterHelper(aReporter, /* force = */ true);
 }
 
-nsresult
-nsMemoryReporterManager::RegisterMultiReporterHelper(
-    nsIMemoryMultiReporter *reporter, bool aForce)
+NS_IMETHODIMP
+nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter* aReporter)
 {
     // This method is thread-safe.
     mozilla::MutexAutoLock autoLock(mMutex);
 
-    if ((mIsRegistrationBlocked && !aForce) ||
-         mMultiReporters.Contains(reporter)) {
+    if (!mReporters.Contains(aReporter)) {
         return NS_ERROR_FAILURE;
     }
 
-    {
-        nsCOMPtr<nsIMemoryMultiReporter> kungFuDeathGrip = reporter;
-        mMultiReporters.PutEntry(reporter);
-    }
-
-    DebugAssertRefcountIsNonZero(reporter);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::RegisterMultiReporter(nsIMemoryMultiReporter *reporter)
-{
-    return RegisterMultiReporterHelper(reporter, /* force = */ false);
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::RegisterMultiReporterEvenIfBlocked(
-    nsIMemoryMultiReporter *reporter)
-{
-    return RegisterMultiReporterHelper(reporter, /* force = */ true);
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter *reporter)
-{
-    // This method is thread-safe.
-    mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (!mReporters.Contains(reporter)) {
-        return NS_ERROR_FAILURE;
-    }
-
-    mReporters.RemoveEntry(reporter);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::UnregisterMultiReporter(nsIMemoryMultiReporter *reporter)
-{
-    // This method is thread-safe.
-    mozilla::MutexAutoLock autoLock(mMutex);
-
-    if (!mMultiReporters.Contains(reporter)) {
-        return NS_ERROR_FAILURE;
-    }
-
-    mMultiReporters.RemoveEntry(reporter);
+    mReporters.RemoveEntry(aReporter);
     return NS_OK;
 }
 
@@ -986,19 +1034,8 @@ nsMemoryReporterManager::UnblockRegistration()
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsMemoryReporterManager::GetResident(int64_t *aResident)
-{
-#ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
-    return ::GetResident(aResident);
-#else
-    *aResident = 0;
-    return NS_ERROR_NOT_AVAILABLE;
-#endif
-}
-
 // This is just a wrapper for int64_t that implements nsISupports, so it can be
-// passed to nsIMemoryMultiReporter::CollectReports.
+// passed to nsIMemoryReporter::CollectReports.
 class Int64Wrapper MOZ_FINAL : public nsISupports {
 public:
     NS_DECL_ISUPPORTS
@@ -1007,108 +1044,220 @@ public:
 };
 NS_IMPL_ISUPPORTS0(Int64Wrapper)
 
-class ExplicitNonHeapCountingCallback MOZ_FINAL : public nsIMemoryMultiReporterCallback
+class ExplicitCallback MOZ_FINAL : public nsIMemoryReporterCallback
 {
 public:
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
+    NS_IMETHOD Callback(const nsACString& aProcess, const nsACString& aPath,
                         int32_t aKind, int32_t aUnits, int64_t aAmount,
-                        const nsACString &aDescription,
-                        nsISupports *aWrappedExplicitNonHeap)
+                        const nsACString& aDescription,
+                        nsISupports* aWrappedExplicit)
     {
-        if (aKind == nsIMemoryReporter::KIND_NONHEAP &&
-            PromiseFlatCString(aPath).Find("explicit") == 0 &&
-            aAmount != int64_t(-1))
+        // Using the "heap-allocated" reporter here instead of
+        // nsMemoryReporterManager.heapAllocated goes against the usual
+        // pattern.  But it's for a good reason:  in tests, we can easily
+        // create artificial (i.e. deterministic) reporters -- which allows us
+        // to precisely test nsMemoryReporterManager.explicit -- but we can't
+        // do that for distinguished amounts.
+        if (aPath.Equals("heap-allocated") ||
+            (aKind == nsIMemoryReporter::KIND_NONHEAP &&
+             PromiseFlatCString(aPath).Find("explicit") == 0))
         {
-            Int64Wrapper *wrappedPRInt64 =
-                static_cast<Int64Wrapper *>(aWrappedExplicitNonHeap);
-            wrappedPRInt64->mValue += aAmount;
+            Int64Wrapper* wrappedInt64 =
+                static_cast<Int64Wrapper*>(aWrappedExplicit);
+            wrappedInt64->mValue += aAmount;
         }
         return NS_OK;
     }
 };
-NS_IMPL_ISUPPORTS1(
-  ExplicitNonHeapCountingCallback
-, nsIMemoryMultiReporterCallback
-)
+NS_IMPL_ISUPPORTS1(ExplicitCallback, nsIMemoryReporterCallback)
 
 NS_IMETHODIMP
-nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
+nsMemoryReporterManager::GetExplicit(int64_t* aAmount)
 {
-    NS_ENSURE_ARG_POINTER(aExplicit);
-    *aExplicit = 0;
+    NS_ENSURE_ARG_POINTER(aAmount);
+    *aAmount = 0;
 #ifndef HAVE_JEMALLOC_STATS
     return NS_ERROR_NOT_AVAILABLE;
 #else
-    nsresult rv;
     bool more;
 
-    // Get "heap-allocated" and all the KIND_NONHEAP measurements from normal
-    // (i.e. non-multi) "explicit" reporters.
-    int64_t heapAllocated = int64_t(-1);
-    int64_t explicitNonHeapNormalSize = 0;
+    // For each reporter we call CollectReports and filter out the
+    // non-explicit, non-NONHEAP measurements (except for "heap-allocated").
+    // That's lots of wasted work, and we used to have a GetExplicitNonHeap()
+    // method which did this more efficiently, but it ended up being more
+    // trouble than it was worth.
+
+    nsRefPtr<ExplicitCallback> cb = new ExplicitCallback();
+    nsRefPtr<Int64Wrapper> wrappedExplicitSize = new Int64Wrapper();
+
     nsCOMPtr<nsISimpleEnumerator> e;
     EnumerateReporters(getter_AddRefs(e));
     while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
-
-        int32_t kind;
-        rv = r->GetKind(&kind);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        nsCString path;
-        rv = r->GetPath(path);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        // We're only interested in NONHEAP explicit reporters and
-        // the 'heap-allocated' reporter.
-        if (kind == nsIMemoryReporter::KIND_NONHEAP &&
-            path.Find("explicit") == 0)
-        {
-            // Just skip any NONHEAP reporters that fail, because
-            // "heap-allocated" is the most important one.
-            int64_t amount;
-            rv = r->GetAmount(&amount);
-            if (NS_SUCCEEDED(rv)) {
-                explicitNonHeapNormalSize += amount;
-            }
-        } else if (path.Equals("heap-allocated")) {
-            // If we don't have "heap-allocated", give up, because the result
-            // would be horribly inaccurate.
-            rv = r->GetAmount(&heapAllocated);
-            NS_ENSURE_SUCCESS(rv, rv);
-        }
+        r->CollectReports(cb, wrappedExplicitSize);
     }
 
-    // For each multi-reporter we call CollectReports and filter out the
-    // non-explicit, non-NONHEAP measurements.  That's lots of wasted work,
-    // and we used to have a GetExplicitNonHeap() method which did this more
-    // efficiently, but it ended up being more trouble than it was worth.
+    *aAmount = wrappedExplicitSize->mValue;
 
-    nsRefPtr<ExplicitNonHeapCountingCallback> cb =
-      new ExplicitNonHeapCountingCallback();
-    nsRefPtr<Int64Wrapper> wrappedExplicitNonHeapMultiSize =
-      new Int64Wrapper();
-    nsCOMPtr<nsISimpleEnumerator> e2;
-    EnumerateMultiReporters(getter_AddRefs(e2));
-    while (NS_SUCCEEDED(e2->HasMoreElements(&more)) && more) {
-      nsCOMPtr<nsIMemoryMultiReporter> r;
-      e2->GetNext(getter_AddRefs(r));
-      r->CollectReports(cb, wrappedExplicitNonHeapMultiSize);
-    }
-    int64_t explicitNonHeapMultiSize = wrappedExplicitNonHeapMultiSize->mValue;
-
-    *aExplicit = heapAllocated + explicitNonHeapNormalSize + explicitNonHeapMultiSize;
     return NS_OK;
 #endif // HAVE_JEMALLOC_STATS
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::GetHasMozMallocUsableSize(bool *aHas)
+nsMemoryReporterManager::GetVsize(int64_t* aVsize)
 {
-    void *p = malloc(16);
+#ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
+    return VsizeDistinguishedAmount(aVsize);
+#else
+    *aResident = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetVsizeMaxContiguous(int64_t* aAmount)
+{
+#ifdef HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER
+    return VsizeMaxContiguousDistinguishedAmount(aAmount);
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetResident(int64_t* aAmount)
+{
+#ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
+    return ResidentDistinguishedAmount(aAmount);
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetResidentFast(int64_t* aAmount)
+{
+#ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
+    return ResidentFastDistinguishedAmount(aAmount);
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetHeapAllocated(int64_t* aAmount)
+{
+#ifdef HAVE_JEMALLOC_STATS
+    *aAmount = HeapAllocated();
+    return NS_OK;
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+// This has UNITS_PERCENTAGE, so it is multiplied by 100x.
+NS_IMETHODIMP
+nsMemoryReporterManager::GetHeapOverheadRatio(int64_t* aAmount)
+{
+#ifdef HAVE_JEMALLOC_STATS
+    *aAmount = HeapOverheadRatio();
+    return NS_OK;
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+static nsresult
+GetInfallibleAmount(InfallibleAmountFn aAmountFn, int64_t* aAmount)
+{
+    if (aAmountFn) {
+        *aAmount = aAmountFn();
+        return NS_OK;
+    }
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetJSMainRuntimeGCHeap(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mJSMainRuntimeGCHeap, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetJSMainRuntimeTemporaryPeak(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mJSMainRuntimeTemporaryPeak, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetJSMainRuntimeCompartmentsSystem(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mJSMainRuntimeCompartmentsSystem,
+                               aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetJSMainRuntimeCompartmentsUser(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mJSMainRuntimeCompartmentsUser,
+                               aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetImagesContentUsedUncompressed(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mImagesContentUsedUncompressed,
+                               aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetStorageSQLite(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mStorageSQLite, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetLowMemoryEventsVirtual(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mLowMemoryEventsVirtual, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetLowMemoryEventsPhysical(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mLowMemoryEventsPhysical, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetGhostWindows(int64_t* aAmount)
+{
+    return GetInfallibleAmount(mAmountFns.mGhostWindows, aAmount);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetPageFaultsHard(int64_t* aAmount)
+{
+#ifdef HAVE_PAGE_FAULT_REPORTERS
+    return PageFaultsHardDistinguishedAmount(aAmount);
+#else
+    *aAmount = 0;
+    return NS_ERROR_NOT_AVAILABLE;
+#endif
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::GetHasMozMallocUsableSize(bool* aHas)
+{
+    void* p = malloc(16);
     if (!p) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1191,56 +1340,157 @@ private:
 
 NS_IMETHODIMP
 nsMemoryReporterManager::MinimizeMemoryUsage(nsIRunnable* aCallback,
-                                             nsICancelableRunnable **result)
+                                             nsICancelableRunnable** aResult)
 {
-  NS_ENSURE_ARG_POINTER(result);
+  NS_ENSURE_ARG_POINTER(aResult);
 
   nsRefPtr<nsICancelableRunnable> runnable =
     new MinimizeMemoryUsageRunnable(aCallback);
-  NS_ADDREF(*result = runnable);
+  NS_ADDREF(*aResult = runnable);
 
   return NS_DispatchToMainThread(runnable);
+}
+
+NS_IMETHODIMP
+nsMemoryReporterManager::SizeOfTab(nsIDOMWindow* aTopWindow,
+                                   int64_t* aJSObjectsSize,
+                                   int64_t* aJSStringsSize,
+                                   int64_t* aJSOtherSize,
+                                   int64_t* aDomSize,
+                                   int64_t* aStyleSize,
+                                   int64_t* aOtherSize,
+                                   int64_t* aTotalSize,
+                                   double*  aJSMilliseconds,
+                                   double*  aNonJSMilliseconds)
+{
+    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aTopWindow);
+    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aTopWindow);
+    NS_ENSURE_TRUE(!!global && !!piWindow, NS_ERROR_FAILURE);
+
+    TimeStamp t1 = TimeStamp::Now();
+
+    // Measure JS memory consumption (and possibly some non-JS consumption, via
+    // |jsPrivateSize|).
+    size_t jsObjectsSize, jsStringsSize, jsPrivateSize, jsOtherSize;
+    nsresult rv = mSizeOfTabFns.mJS(global->GetGlobalJSObject(),
+                                    &jsObjectsSize, &jsStringsSize,
+                                    &jsPrivateSize, &jsOtherSize);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    TimeStamp t2 = TimeStamp::Now();
+
+    // Measure non-JS memory consumption.
+    size_t domSize, styleSize, otherSize;
+    mSizeOfTabFns.mNonJS(piWindow, &domSize, &styleSize, &otherSize);
+
+    TimeStamp t3 = TimeStamp::Now();
+
+    *aTotalSize = 0;
+    #define DO(aN, n) { *aN = (n); *aTotalSize += (n); }
+    DO(aJSObjectsSize, jsObjectsSize);
+    DO(aJSStringsSize, jsStringsSize);
+    DO(aJSOtherSize,   jsOtherSize);
+    DO(aDomSize,       jsPrivateSize + domSize);
+    DO(aStyleSize,     styleSize);
+    DO(aOtherSize,     otherSize);
+    #undef DO
+
+    *aJSMilliseconds    = (t2 - t1).ToMilliseconds();
+    *aNonJSMilliseconds = (t3 - t2).ToMilliseconds();
+
+    return NS_OK;
 }
 
 // Most memory reporters don't need thread safety, but some do.  Make them all
 // thread-safe just to be safe.  Memory reporters are created and destroyed
 // infrequently enough that the performance cost should be negligible.
-NS_IMPL_ISUPPORTS1(MemoryReporterBase, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(MemoryUniReporter, nsIMemoryReporter)
 
 nsresult
-NS_RegisterMemoryReporter (nsIMemoryReporter *reporter)
+NS_RegisterMemoryReporter(nsIMemoryReporter* aReporter)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nullptr)
+    if (!mgr) {
         return NS_ERROR_FAILURE;
-    return mgr->RegisterReporter(reporter);
+    }
+    return mgr->RegisterReporter(aReporter);
 }
 
 nsresult
-NS_RegisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
+NS_UnregisterMemoryReporter(nsIMemoryReporter* aReporter)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nullptr)
+    if (!mgr) {
         return NS_ERROR_FAILURE;
-    return mgr->RegisterMultiReporter(reporter);
+    }
+    return mgr->UnregisterReporter(aReporter);
 }
 
-nsresult
-NS_UnregisterMemoryReporter (nsIMemoryReporter *reporter)
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nullptr)
-        return NS_ERROR_FAILURE;
-    return mgr->UnregisterReporter(reporter);
-}
+namespace mozilla {
 
-nsresult
-NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nullptr)
-        return NS_ERROR_FAILURE;
-    return mgr->UnregisterMultiReporter(reporter);
+#define GET_MEMORY_REPORTER_MANAGER(mgr)                                      \
+    nsCOMPtr<nsIMemoryReporterManager> imgr =                                 \
+        do_GetService("@mozilla.org/memory-reporter-manager;1");              \
+    nsRefPtr<nsMemoryReporterManager> mgr =                                   \
+        static_cast<nsMemoryReporterManager*>(imgr.get());                    \
+    if (!mgr) {                                                               \
+        return NS_ERROR_FAILURE;                                              \
+    }
+
+// Macro for generating functions that register distinguished amount functions
+// with the memory reporter manager.
+#define DEFINE_REGISTER_DISTINGUISHED_AMOUNT(kind, name)                      \
+    nsresult                                                                  \
+    Register##name##DistinguishedAmount(kind##AmountFn aAmountFn)             \
+    {                                                                         \
+        GET_MEMORY_REPORTER_MANAGER(mgr)                                      \
+        mgr->mAmountFns.m##name = aAmountFn;                                  \
+        return NS_OK;                                                         \
+    }
+
+#define DEFINE_UNREGISTER_DISTINGUISHED_AMOUNT(name)                          \
+    nsresult                                                                  \
+    Unregister##name##DistinguishedAmount()                                   \
+    {                                                                         \
+        GET_MEMORY_REPORTER_MANAGER(mgr)                                      \
+        mgr->mAmountFns.m##name = nullptr;                                    \
+        return NS_OK;                                                         \
+    }
+
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, JSMainRuntimeGCHeap)
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, JSMainRuntimeTemporaryPeak)
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, JSMainRuntimeCompartmentsSystem)
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, JSMainRuntimeCompartmentsUser)
+
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, ImagesContentUsedUncompressed)
+
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, StorageSQLite)
+DEFINE_UNREGISTER_DISTINGUISHED_AMOUNT(StorageSQLite)
+
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, LowMemoryEventsVirtual)
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, LowMemoryEventsPhysical)
+
+DEFINE_REGISTER_DISTINGUISHED_AMOUNT(Infallible, GhostWindows)
+
+#undef DEFINE_REGISTER_DISTINGUISHED_AMOUNT
+#undef DEFINE_UNREGISTER_DISTINGUISHED_AMOUNT
+
+#define DEFINE_REGISTER_SIZE_OF_TAB(name)                                     \
+    nsresult                                                                  \
+    Register##name##SizeOfTab(name##SizeOfTabFn aSizeOfTabFn)                 \
+    {                                                                         \
+        GET_MEMORY_REPORTER_MANAGER(mgr)                                      \
+        mgr->mSizeOfTabFns.m##name = aSizeOfTabFn;                            \
+        return NS_OK;                                                         \
+    }
+
+DEFINE_REGISTER_SIZE_OF_TAB(JS);
+DEFINE_REGISTER_SIZE_OF_TAB(NonJS);
+
+#undef DEFINE_REGISTER_SIZE_OF_TAB
+
+#undef GET_MEMORY_REPORTER_MANAGER
+
 }
 
 #if defined(MOZ_DMD)
@@ -1248,23 +1498,23 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
 namespace mozilla {
 namespace dmd {
 
-class NullMultiReporterCallback : public nsIMemoryMultiReporterCallback
+class NullReporterCallback : public nsIMemoryReporterCallback
 {
 public:
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
+    NS_IMETHOD Callback(const nsACString& aProcess, const nsACString& aPath,
                         int32_t aKind, int32_t aUnits, int64_t aAmount,
-                        const nsACString &aDescription,
-                        nsISupports *aData)
+                        const nsACString& aDescription,
+                        nsISupports* aData)
     {
         // Do nothing;  the reporter has already reported to DMD.
         return NS_OK;
     }
 };
 NS_IMPL_ISUPPORTS1(
-  NullMultiReporterCallback
-, nsIMemoryMultiReporterCallback
+  NullReporterCallback
+, nsIMemoryReporterCallback
 )
 
 void
@@ -1273,48 +1523,15 @@ RunReporters()
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");
 
-    // Do vanilla reporters.
+    nsRefPtr<NullReporterCallback> cb = new NullReporterCallback();
+
+    bool more;
     nsCOMPtr<nsISimpleEnumerator> e;
     mgr->EnumerateReporters(getter_AddRefs(e));
-    bool more;
     while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
-
-        int32_t kind;
-        nsresult rv = r->GetKind(&kind);
-        if (NS_FAILED(rv)) {
-            continue;
-        }
-        nsCString path;
-        rv = r->GetPath(path);
-        if (NS_FAILED(rv)) {
-            continue;
-        }
-
-        // We're only interested in HEAP explicit reporters.  (In particular,
-        // some heap blocks are deliberately measured once inside an "explicit"
-        // reporter and once outside, which isn't a problem.  This condition
-        // prevents them being reported as double-counted.  See bug 811018
-        // comment 2.)
-        if (kind == nsIMemoryReporter::KIND_HEAP &&
-            path.Find("explicit") == 0)
-        {
-            // Just getting the amount is enough for the reporter to report to
-            // DMD.
-            int64_t amount;
-            (void)r->GetAmount(&amount);
-        }
-    }
-
-    // Do multi-reporters.
-    nsCOMPtr<nsISimpleEnumerator> e2;
-    mgr->EnumerateMultiReporters(getter_AddRefs(e2));
-    nsRefPtr<NullMultiReporterCallback> cb = new NullMultiReporterCallback();
-    while (NS_SUCCEEDED(e2->HasMoreElements(&more)) && more) {
-      nsCOMPtr<nsIMemoryMultiReporter> r;
-      e2->GetNext(getter_AddRefs(r));
-      r->CollectReports(cb, nullptr);
+        r->CollectReports(cb, nullptr);
     }
 }
 

@@ -29,22 +29,22 @@ const CONTENT_MIME_TYPE_ABBREVIATIONS = {
   "x-javascript": "js"
 };
 const CONTENT_MIME_TYPE_MAPPINGS = {
-  "/ecmascript": SourceEditor.MODES.JAVASCRIPT,
-  "/javascript": SourceEditor.MODES.JAVASCRIPT,
-  "/x-javascript": SourceEditor.MODES.JAVASCRIPT,
-  "/html": SourceEditor.MODES.HTML,
-  "/xhtml": SourceEditor.MODES.HTML,
-  "/xml": SourceEditor.MODES.HTML,
-  "/atom": SourceEditor.MODES.HTML,
-  "/soap": SourceEditor.MODES.HTML,
-  "/rdf": SourceEditor.MODES.HTML,
-  "/rss": SourceEditor.MODES.HTML,
-  "/css": SourceEditor.MODES.CSS
+  "/ecmascript": Editor.modes.js,
+  "/javascript": Editor.modes.js,
+  "/x-javascript": Editor.modes.js,
+  "/html": Editor.modes.html,
+  "/xhtml": Editor.modes.html,
+  "/xml": Editor.modes.html,
+  "/atom": Editor.modes.html,
+  "/soap": Editor.modes.html,
+  "/rdf": Editor.modes.css,
+  "/rss": Editor.modes.css,
+  "/css": Editor.modes.css
 };
 const DEFAULT_EDITOR_CONFIG = {
-  mode: SourceEditor.MODES.TEXT,
+  mode: Editor.modes.text,
   readOnly: true,
-  showLineNumbers: true
+  lineNumbers: true
 };
 const GENERIC_VARIABLES_VIEW_SETTINGS = {
   lazyEmpty: true,
@@ -156,7 +156,7 @@ let NetMonitorView = {
   },
 
   /**
-   * Lazily initializes and returns a promise for a SourceEditor instance.
+   * Lazily initializes and returns a promise for a Editor instance.
    *
    * @param string aId
    *        The id of the editor placeholder node.
@@ -175,7 +175,8 @@ let NetMonitorView = {
 
     // Initialize the source editor and store the newly created instance
     // in the ether of a resolved promise's value.
-    new SourceEditor().init($(aId), DEFAULT_EDITOR_CONFIG, deferred.resolve);
+    let editor = new Editor(DEFAULT_EDITOR_CONFIG);
+    editor.appendTo($(aId)).then(() => deferred.resolve(editor));
 
     return deferred.promise;
   },
@@ -260,6 +261,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Initializing the RequestsMenuView");
 
     this.widget = new SideMenuWidget($("#requests-menu-contents"), false);
+    this._splitter = $('#splitter');
     this._summary = $("#request-menu-network-summary");
 
     this.allowFocusOnRightClick = true;
@@ -267,6 +269,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     this.widget.autoscrollWithAppendedItems = true;
 
     this.widget.addEventListener("select", this._onSelect, false);
+    this._splitter.addEventListener("mousemove", this._onResize, false);
     window.addEventListener("resize", this._onResize, false);
   },
 
@@ -277,6 +280,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Destroying the SourcesView");
 
     this.widget.removeEventListener("select", this._onSelect, false);
+    this._splitter.removeEventListener("mousemove", this._onResize, false);
     window.removeEventListener("resize", this._onResize, false);
   },
 
@@ -360,6 +364,17 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
 
     // Immediately switch to new request pane.
     this.selectedItem = newItem;
+  },
+
+  /**
+   * Opens selected item in a new tab.
+   */
+  openRequestInTab: function() {
+    let win = Services.wm.getMostRecentWindow("navigator:browser");
+
+    let selected = this.selectedItem.attachment;
+
+    win.openUILinkIn(selected.url, "tab", { relatedToCurrent: true });
   },
 
   /**
@@ -606,22 +621,38 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     first.startedMillis > second.startedMillis,
 
   _byStatus: function({ attachment: first }, { attachment: second })
-    first.status > second.status,
+    first.status == second.status
+      ? first.startedMillis > second.startedMillis
+      : first.status > second.status,
 
   _byMethod: function({ attachment: first }, { attachment: second })
-    first.method > second.method,
+    first.method == second.method
+      ? first.startedMillis > second.startedMillis
+      : first.method > second.method,
 
-  _byFile: function({ attachment: first }, { attachment: second })
-    this._getUriNameWithQuery(first.url).toLowerCase() >
-    this._getUriNameWithQuery(second.url).toLowerCase(),
+  _byFile: function({ attachment: first }, { attachment: second }) {
+    let firstUrl = this._getUriNameWithQuery(first.url).toLowerCase();
+    let secondUrl = this._getUriNameWithQuery(second.url).toLowerCase();
+    return firstUrl == secondUrl
+      ? first.startedMillis > second.startedMillis
+      : firstUrl > secondUrl;
+  },
 
-  _byDomain: function({ attachment: first }, { attachment: second })
-    this._getUriHostPort(first.url).toLowerCase() >
-    this._getUriHostPort(second.url).toLowerCase(),
+  _byDomain: function({ attachment: first }, { attachment: second }) {
+    let firstDomain = this._getUriHostPort(first.url).toLowerCase();
+    let secondDomain = this._getUriHostPort(second.url).toLowerCase();
+    return firstDomain == secondDomain
+      ? first.startedMillis > second.startedMillis
+      : firstDomain > secondDomain;
+  },
 
-  _byType: function({ attachment: first }, { attachment: second })
-    this._getAbbreviatedMimeType(first.mimeType).toLowerCase() >
-    this._getAbbreviatedMimeType(second.mimeType).toLowerCase(),
+  _byType: function({ attachment: first }, { attachment: second }) {
+    let firstType = this._getAbbreviatedMimeType(first.mimeType).toLowerCase();
+    let secondType = this._getAbbreviatedMimeType(second.mimeType).toLowerCase();
+    return firstType == secondType
+      ? first.startedMillis > second.startedMillis
+      : firstType > secondType;
+  },
 
   _bySize: function({ attachment: first }, { attachment: second })
     first.contentSize > second.contentSize,
@@ -656,7 +687,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Adds odd/even attributes to all the visible items in this container.
    */
   refreshZebra: function() {
-    let visibleItems = this.orderedVisibleItems;
+    let visibleItems = this.visibleItems;
 
     for (let i = 0, len = visibleItems.length; i < len; i++) {
       let requestItem = visibleItems[i];
@@ -693,7 +724,8 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       return void this._flushRequests();
     }
     // Allow requests to settle down first.
-    drain("update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
+    setNamedTimeout(
+      "update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
   },
 
   /**
@@ -1164,7 +1196,8 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    */
   _onResize: function(e) {
     // Allow requests to settle down first.
-    drain("resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
+    setNamedTimeout(
+      "resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
   },
 
   /**
@@ -1301,6 +1334,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     return this._cachedWaterfallWidth;
   },
 
+  _splitter: null,
   _summary: null,
   _canvas: null,
   _ctx: null,
@@ -1504,8 +1538,10 @@ NetworkDetailsView.prototype = {
       }));
     this._json = new VariablesView($("#response-content-json"),
       Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
+        onlyEnumVisible: true,
         searchPlaceholder: L10N.getStr("jsonFilterText")
       }));
+    VariablesViewController.attach(this._json);
 
     this._paramsQueryString = L10N.getStr("paramsQueryString");
     this._paramsFormData = L10N.getStr("paramsFormData");
@@ -1790,7 +1826,7 @@ NetworkDetailsView.prototype = {
           aEditor.setText(aString);
         });
       }
-      window.emit("NetMonitor:ResponsePostParamsAvailable");
+      window.emit(EVENTS.REQUEST_POST_PARAMS_DISPLAYED);
     });
   },
 
@@ -1831,13 +1867,16 @@ NetworkDetailsView.prototype = {
     let { mimeType, text, encoding } = aResponse.content;
 
     gNetwork.getString(text).then(aString => {
-      // Handle json.
-      if (mimeType.contains("/json")) {
+      // Handle json, which we tentatively identify by checking the MIME type
+      // for "json" after any word boundary. This works for the standard
+      // "application/json", and also for custom types like "x-bigcorp-json".
+      // This should be marginally more reliable than just looking for "json".
+      if (/\bjson/.test(mimeType)) {
         let jsonpRegex = /^[a-zA-Z0-9_$]+\(|\)$/g; // JSONP with callback.
         let sanitizedJSON = aString.replace(jsonpRegex, "");
         let callbackPadding = aString.match(jsonpRegex);
 
-        // Make sure this is an valid JSON object first. If so, nicely display
+        // Make sure this is a valid JSON object first. If so, nicely display
         // the parsing results in a variables view. Otherwise, simply show
         // the contents as plain text.
         try {
@@ -1853,15 +1892,16 @@ NetworkDetailsView.prototype = {
             ? L10N.getFormatStr("jsonpScopeName", callbackPadding[0].slice(0, -1))
             : L10N.getStr("jsonScopeName");
 
-          let jsonScope = this._json.addScope(jsonScopeName);
-          jsonScope.addItem().populate(jsonObject, { expanded: true });
-          jsonScope.expanded = true;
+          this._json.controller.setSingleVariable({
+            label: jsonScopeName,
+            rawObject: jsonObject,
+          });
         }
         // Malformed JSON.
         else {
           $("#response-content-textarea-box").hidden = false;
           NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-            aEditor.setMode(SourceEditor.MODES.JAVASCRIPT);
+            aEditor.setMode(Editor.modes.js);
             aEditor.setText(aString);
           });
           let infoHeader = $("#response-content-info-header");
@@ -1898,7 +1938,7 @@ NetworkDetailsView.prototype = {
       else {
         $("#response-content-textarea-box").hidden = false;
         NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-          aEditor.setMode(SourceEditor.MODES.TEXT);
+          aEditor.setMode(Editor.modes.text);
           aEditor.setText(aString);
 
           // Maybe set a more appropriate mode in the Source Editor if possible,
@@ -1913,7 +1953,7 @@ NetworkDetailsView.prototype = {
           }
         });
       }
-      window.emit("NetMonitor:ResponseBodyAvailable");
+      window.emit(EVENTS.RESPONSE_BODY_DISPLAYED);
     });
   },
 
@@ -2004,6 +2044,7 @@ NetworkDetailsView.prototype = {
  * DOM query helper.
  */
 function $(aSelector, aTarget = document) aTarget.querySelector(aSelector);
+function $all(aSelector, aTarget = document) aTarget.querySelectorAll(aSelector);
 
 /**
  * Helper for getting an nsIURL instance out of a string.
@@ -2121,16 +2162,6 @@ function writeQueryText(aParams) {
 function writeQueryString(aParams) {
   return [(name + "=" + value) for ({name, value} of aParams)].join("&");
 }
-
-/**
- * Helper for draining a rapid succession of events and invoking a callback
- * once everything settles down.
- */
-function drain(aId, aWait, aCallback, aStore = drain.store) {
-  window.clearTimeout(aStore.get(aId));
-  aStore.set(aId, window.setTimeout(aCallback, aWait));
-}
-drain.store = new Map();
 
 /**
  * Preliminary setup for the NetMonitorView object.

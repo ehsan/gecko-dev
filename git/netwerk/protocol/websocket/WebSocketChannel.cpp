@@ -7,7 +7,6 @@
 #include "WebSocketLog.h"
 #include "WebSocketChannel.h"
 
-#include "nsISocketTransportService.h"
 #include "nsIURI.h"
 #include "nsIChannel.h"
 #include "nsICryptoHash.h"
@@ -22,12 +21,18 @@
 #include "nsIProtocolProxyService.h"
 #include "nsIProxyInfo.h"
 #include "nsIProxiedChannel.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
+#include "nsIDashboardEventNotifier.h"
+#include "nsIEventTarget.h"
+#include "nsIHttpChannel.h"
+#include "nsILoadGroup.h"
+#include "nsIProtocolHandler.h"
+#include "nsIRandomGenerator.h"
+#include "nsISocketTransport.h"
 
 #include "nsAutoPtr.h"
-#include "nsStandardURL.h"
 #include "nsNetCID.h"
 #include "nsServiceManagerUtils.h"
-#include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsThreadUtils.h"
 #include "nsError.h"
@@ -35,17 +40,21 @@
 #include "nsAlgorithm.h"
 #include "nsProxyRelease.h"
 #include "nsNetUtil.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
-#include "TimeStamp.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/TimeStamp.h"
 
 #include "plbase64.h"
-#include "pratom.h"
 #include "prmem.h"
 #include "prnetdb.h"
 #include "prbit.h"
 #include "zlib.h"
 #include <algorithm>
+
+#ifdef MOZ_WIDGET_GONK
+#include "nsINetworkStatsServiceProxy.h"
+#endif
 
 // rather than slurp up all of nsIWebSocket.idl, which lives outside necko, just
 // dupe one constant we need from it
@@ -424,12 +433,12 @@ public:
 
   void IncrementSessionCount()
   {
-    PR_ATOMIC_INCREMENT(&mSessionCount);
+    mSessionCount++;
   }
 
   void DecrementSessionCount()
   {
-    PR_ATOMIC_DECREMENT(&mSessionCount);
+    mSessionCount--;
   }
 
   int32_t SessionCount()
@@ -468,7 +477,7 @@ private:
 
   // SessionCount might be decremented from the main or the socket
   // thread, so manage it with atomic counters
-  int32_t               mSessionCount;
+  Atomic<int32_t>               mSessionCount;
 
   // Queue for websockets that have not completed connecting yet.
   // The first nsOpenConn with a given address will be either be
@@ -952,7 +961,12 @@ WebSocketChannel::WebSocketChannel() :
   mCompressor(nullptr),
   mDynamicOutputSize(0),
   mDynamicOutput(nullptr),
-  mConnectionLogService(nullptr)
+  mPrivateBrowsing(false),
+  mConnectionLogService(nullptr),
+  mCountRecv(0),
+  mCountSent(0),
+  mAppId(0),
+  mIsInBrowser(false)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
 
@@ -1059,6 +1073,16 @@ WebSocketChannel::BeginOpen()
     LOG(("WebSocketChannel::BeginOpen: cannot async open\n"));
     AbortSession(NS_ERROR_UNEXPECTED);
     return;
+  }
+
+  // obtain app info
+  if (localChannel) {
+    NS_GetAppInfo(localChannel, &mAppId, &mIsInBrowser);
+  }
+
+  // obtain active network
+  if (mAppId != NECKO_NO_APP_ID) {
+    GetActiveNetwork();
   }
 
   rv = localChannel->AsyncOpen(this, mHttpChannel);
@@ -1328,7 +1352,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
 
         NS_DispatchToMainThread(new CallOnMessageAvailable(this, utf8Data, -1));
         nsresult rv;
-        if (mConnectionLogService) {
+        if (mConnectionLogService && !mPrivateBrowsing) {
           nsAutoCString host;
           rv = mURI->GetHostPort(host);
           if (NS_SUCCEEDED(rv)) {
@@ -1419,7 +1443,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
                                                            payloadLength));
         // To add the header to 'Networking Dashboard' log
         nsresult rv;
-        if (mConnectionLogService) {
+        if (mConnectionLogService && !mPrivateBrowsing) {
           nsAutoCString host;
           rv = mURI->GetHostPort(host);
           if (NS_SUCCEEDED(rv)) {
@@ -1844,7 +1868,7 @@ WebSocketChannel::CleanupConnection()
   }
 
   nsresult rv;
-  if (mConnectionLogService) {
+  if (mConnectionLogService && !mPrivateBrowsing) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv))
@@ -2678,7 +2702,9 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   if (NS_FAILED(rv))
     return rv;
 
-  if (mConnectionLogService) {
+  mPrivateBrowsing = NS_UsePrivateBrowsing(localChannel);
+
+  if (mConnectionLogService && !mPrivateBrowsing) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv)) {
@@ -2705,6 +2731,9 @@ WebSocketChannel::Close(uint16_t code, const nsACString & reason)
 {
   LOG(("WebSocketChannel::Close() %p\n", this));
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
+
+  // save the networkstats (bug 855949)
+  SaveNetworkStats(true);
 
   if (mRequestedClose) {
     return NS_OK;
@@ -2783,7 +2812,7 @@ WebSocketChannel::SendMsgCommon(const nsACString *aMsg, bool aIsBinary,
   }
 
   nsresult rv;
-  if (mConnectionLogService) {
+  if (mConnectionLogService && !mPrivateBrowsing) {
     nsAutoCString host;
     rv = mURI->GetHostPort(host);
     if (NS_SUCCEEDED(rv)) {
@@ -3032,6 +3061,9 @@ WebSocketChannel::OnInputStreamReady(nsIAsyncInputStream *aStream)
     rv = mSocketIn->Read((char *)buffer, 2048, &count);
     LOG(("WebSocketChannel::OnInputStreamReady: read %u rv %x\n", count, rv));
 
+    // accumulate received bytes
+    CountRecvBytes(count);
+
     if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
       mSocketIn->AsyncWait(this, 0, 0, mSocketThread);
       return NS_OK;
@@ -3110,6 +3142,9 @@ WebSocketChannel::OnOutputStreamReady(nsIAsyncOutputStream *aStream)
       rv = mSocketOut->Write(sndBuf, toSend, &amtSent);
       LOG(("WebSocketChannel::OnOutputStreamReady: write %u rv %x\n",
            amtSent, rv));
+
+      // accumulate sent bytes
+      CountSentBytes(amtSent);
 
       if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
         mSocketOut->AsyncWait(this, 0, 0, nullptr);
@@ -3234,6 +3269,70 @@ WebSocketChannel::OnDataAvailable(nsIRequest *aRequest,
          aCount));
 
   return NS_OK;
+}
+
+nsresult
+WebSocketChannel::GetActiveNetwork()
+{
+#ifdef MOZ_WIDGET_GONK
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsresult result;
+  nsCOMPtr<nsINetworkManager> networkManager = do_GetService("@mozilla.org/network/manager;1", &result);
+
+  if (NS_FAILED(result) || !networkManager) {
+    mActiveNetwork = nullptr;
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  result = networkManager->GetActive(getter_AddRefs(mActiveNetwork));
+
+  return NS_OK;
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
+
+nsresult
+WebSocketChannel::SaveNetworkStats(bool enforce)
+{
+#ifdef MOZ_WIDGET_GONK
+  // Check if the active network and app id are valid.
+  if(!mActiveNetwork || mAppId == NECKO_NO_APP_ID) {
+    return NS_OK;
+  }
+
+  if (mCountRecv <= 0 && mCountSent <= 0) {
+    // There is no traffic, no need to save.
+    return NS_OK;
+  }
+
+  // If |enforce| is false, the traffic amount is saved
+  // only when the total amount exceeds the predefined
+  // threshold.
+  uint64_t totalBytes = mCountRecv + mCountSent;
+  if (!enforce && totalBytes < NETWORK_STATS_THRESHOLD) {
+    return NS_OK;
+  }
+
+  nsresult rv;
+  nsCOMPtr<nsINetworkStatsServiceProxy> mNetworkStatsServiceProxy =
+    do_GetService("@mozilla.org/networkstatsServiceProxy;1", &rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  mNetworkStatsServiceProxy->SaveAppStats(mAppId, mActiveNetwork, PR_Now() / 1000,
+                                          mCountRecv, mCountSent, nullptr);
+
+  // Reset the counters after saving.
+  mCountSent = 0;
+  mCountRecv = 0;
+
+  return NS_OK;
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 } // namespace mozilla::net

@@ -8,7 +8,7 @@
 #endif
 #include <math.h>
 
-#include "mozilla/Constants.h"
+#include "mozilla/Alignment.h"
 
 #include "cairo.h"
 
@@ -21,6 +21,7 @@
 #include "gfxPlatform.h"
 #include "gfxTeeSurface.h"
 #include "GeckoProfiler.h"
+#include "gfx2DGlue.h"
 #include <algorithm>
 
 #if CAIRO_HAS_DWRITE_FONT
@@ -29,6 +30,8 @@
 
 using namespace mozilla;
 using namespace mozilla::gfx;
+
+UserDataKey gfxContext::sDontUseAsSourceKey;
 
 /* This class lives on the stack and allows gfxContext users to easily, and
  * performantly get a gfx::Pattern to use for drawing in their current context.
@@ -49,7 +52,7 @@ public:
       Matrix transform = state.surfTransform;
 
       if (state.patternTransformChanged) {
-        Matrix mat = mContext->mTransform;
+        Matrix mat = mContext->GetDTTransform();
         mat.Invert();
 
         transform = transform * state.patternTransform * mat;
@@ -137,7 +140,19 @@ gfxContext::~gfxContext()
 gfxASurface *
 gfxContext::OriginalSurface()
 {
-    return mSurface;
+    if (mCairo || mSurface) {
+        return mSurface;
+    }
+
+    if (mOriginalDT && mOriginalDT->GetType() == BACKEND_CAIRO) {
+        cairo_surface_t *s =
+            (cairo_surface_t*)mOriginalDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_SURFACE);
+        if (s) {
+            mSurface = gfxASurface::Wrap(s);
+            return mSurface;
+        }
+    }
+    return nullptr;
 }
 
 already_AddRefed<gfxASurface>
@@ -156,6 +171,18 @@ gfxContext::CurrentSurface(gfxFloat *dx, gfxFloat *dy)
         cairo_surface_get_device_offset(s, dx, dy);
     return gfxASurface::Wrap(s);
   } else {
+    if (mDT->GetType() == BACKEND_CAIRO) {
+        cairo_surface_t *s =
+            (cairo_surface_t*)mDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_SURFACE);
+        if (s) {
+            if (dx && dy) {
+                *dx = -CurrentState().deviceOffset.x;
+                *dy = -CurrentState().deviceOffset.y;
+            }
+            return gfxASurface::Wrap(s);
+        }
+    }
+
     if (dx && dy) {
       *dx = *dy = 0;
     }
@@ -169,6 +196,14 @@ gfxContext::GetCairo()
 {
   if (mCairo) {
     return mCairo;
+  }
+
+  if (mDT->GetType() == BACKEND_CAIRO) {
+    cairo_t *ctx =
+      (cairo_t*)mDT->GetNativeSurface(NATIVE_SURFACE_CAIRO_CONTEXT);
+    if (ctx) {
+      return ctx;
+    }
   }
 
   if (mRefCairo) {
@@ -242,25 +277,31 @@ gfxContext::ClosePath()
   }
 }
 
-already_AddRefed<gfxPath> gfxContext::CopyPath() const
+already_AddRefed<gfxPath> gfxContext::CopyPath()
 {
+  nsRefPtr<gfxPath> path;
   if (mCairo) {
-    nsRefPtr<gfxPath> path = new gfxPath(cairo_copy_path(mCairo));
-    return path.forget();
+    path = new gfxPath(cairo_copy_path(mCairo));
   } else {
-    // XXX - This is not yet supported for Azure.
-    return nullptr;
+    EnsurePath();
+    path = new gfxPath(mPath);
   }
+  return path.forget();
 }
 
-void gfxContext::AppendPath(gfxPath* path)
+void gfxContext::SetPath(gfxPath* path)
 {
   if (mCairo) {
+    cairo_new_path(mCairo);
     if (path->mPath->status == CAIRO_STATUS_SUCCESS && path->mPath->num_data != 0)
         cairo_append_path(mCairo, path->mPath);
   } else {
-    // XXX - This is not yet supported for Azure.
-    return;
+    MOZ_ASSERT(path->mMoz2DPath, "Can't mix cairo and azure paths!");
+    MOZ_ASSERT(path->mMoz2DPath->GetBackendType() == mDT->GetType());
+    mPath = path->mMoz2DPath;
+    mPathBuilder = nullptr;
+    mPathIsRect = false;
+    mTransformChanged = false;
   }
 }
 
@@ -536,6 +577,10 @@ gfxContext::DrawSurface(gfxASurface *surface, const gfxSize& size)
     RefPtr<SourceSurface> surf =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
 
+    if (!surf) {
+      return;
+    }
+
     Rect rect(0, 0, Float(size.width), Float(size.height));
     rect.Intersect(Rect(0, 0, Float(surf->GetSize().width), Float(surf->GetSize().height)));
 
@@ -612,8 +657,6 @@ gfxContext::SetMatrix(const gfxMatrix& matrix)
     const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
     cairo_set_matrix(mCairo, &mat);
   } else {
-    Matrix mat;
-    mat.Translate(-CurrentState().deviceOffset.x, -CurrentState().deviceOffset.y);
     ChangeTransform(ToMatrix(matrix));
   }
 }
@@ -726,9 +769,9 @@ gfxContext::UserToDevice(const gfxSize& size) const
   } else {
     const Matrix &matrix = mTransform;
 
-    gfxSize newSize = size;
-    newSize.width = newSize.width * matrix._11 + newSize.height * matrix._12;
-    newSize.height = newSize.width * matrix._21 + newSize.height * matrix._22;
+    gfxSize newSize;
+    newSize.width = size.width * matrix._11 + size.height * matrix._12;
+    newSize.height = size.width * matrix._21 + size.height * matrix._22;
     return newSize;
   }
 }
@@ -1233,6 +1276,7 @@ gfxContext::ClipContainsRect(const gfxRect& aRect)
     for (int i = mStateStack.Length() - 2; i > 0; i--) {
       if (mStateStack[i].clipWasReset) {
         lastReset = i;
+        break;
       }
     }
 
@@ -1351,6 +1395,7 @@ gfxContext::SetSource(gfxASurface *surface, const gfxPoint& offset)
     CurrentState().sourceSurfCairo = surface;
     CurrentState().sourceSurface =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
+    CurrentState().color = Color(0, 0, 0, 0);
   }
 }
 
@@ -1454,6 +1499,10 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
     RefPtr<SourceSurface> sourceSurf =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
 
+    if (!sourceSurf) {
+      return;
+    }
+
     gfxPoint pt = surface->GetDeviceOffset();
 
     // We clip here to bind to the mask surface bounds, see above.
@@ -1473,6 +1522,27 @@ gfxContext::Paint(gfxFloat alpha)
   } else {
     AzureState &state = CurrentState();
 
+    if (state.sourceSurface && !state.sourceSurfCairo &&
+        !state.patternTransformChanged && !state.opIsClear)
+    {
+      // This is the case where a PopGroupToSource has been done and this
+      // paint is executed without changing the transform or the source.
+      Matrix oldMat = mDT->GetTransform();
+
+      IntSize surfSize = state.sourceSurface->GetSize();
+
+      Matrix mat;
+      mat.Translate(-state.deviceOffset.x, -state.deviceOffset.y);
+      mDT->SetTransform(mat);
+
+      mDT->DrawSurface(state.sourceSurface,
+                       Rect(state.sourceSurfaceDeviceOffset, Size(surfSize.width, surfSize.height)),
+                       Rect(Point(), Size(surfSize.width, surfSize.height)),
+                       DrawSurfaceOptions(), DrawOptions(alpha, GetOp()));
+      mDT->SetTransform(oldMat);
+      return;
+    }
+
     Matrix mat = mDT->GetTransform();
     mat.Invert();
     Rect paintRect = mat.TransformBounds(Rect(Point(0, 0), Size(mDT->GetSize())));
@@ -1489,7 +1559,7 @@ gfxContext::Paint(gfxFloat alpha)
 // groups
 
 void
-gfxContext::PushGroup(gfxASurface::gfxContentType content)
+gfxContext::PushGroup(gfxContentType content)
 {
   if (mCairo) {
     cairo_push_group_with_content(mCairo, (cairo_content_t) content);
@@ -1525,20 +1595,20 @@ CopySurface(gfxASurface* aSrc, gfxASurface* aDest, const gfxPoint& aTranslation)
 }
 
 void
-gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
+gfxContext::PushGroupAndCopyBackground(gfxContentType content)
 {
   if (mCairo) {
-    if (content == gfxASurface::CONTENT_COLOR_ALPHA &&
+    if (content == GFX_CONTENT_COLOR_ALPHA &&
       !(GetFlags() & FLAG_DISABLE_COPY_BACKGROUND)) {
       nsRefPtr<gfxASurface> s = CurrentSurface();
-      if ((s->GetAllowUseAsSource() || s->GetType() == gfxASurface::SurfaceTypeTee) &&
-          (s->GetContentType() == gfxASurface::CONTENT_COLOR ||
+      if ((s->GetAllowUseAsSource() || s->GetType() == gfxSurfaceTypeTee) &&
+          (s->GetContentType() == GFX_CONTENT_COLOR ||
               s->GetOpaqueRect().Contains(GetRoundOutDeviceClipExtents(this)))) {
         cairo_push_group_with_content(mCairo, CAIRO_CONTENT_COLOR);
         nsRefPtr<gfxASurface> d = CurrentSurface();
 
-        if (d->GetType() == gfxASurface::SurfaceTypeTee) {
-          NS_ASSERTION(s->GetType() == gfxASurface::SurfaceTypeTee, "Mismatched types");
+        if (d->GetType() == gfxSurfaceTypeTee) {
+          NS_ASSERTION(s->GetType() == gfxSurfaceTypeTee, "Mismatched types");
           nsAutoTArray<nsRefPtr<gfxASurface>,2> ss;
           nsAutoTArray<nsRefPtr<gfxASurface>,2> ds;
           static_cast<gfxTeeSurface*>(s.get())->GetSurfaces(&ss);
@@ -1561,13 +1631,14 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
       gfxRect clipRect = GetRoundOutDeviceClipExtents(this);
       clipExtents = IntRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
     }
-    if (mDT->GetFormat() == FORMAT_B8G8R8X8 ||
-        mDT->GetOpaqueRect().Contains(clipExtents)) {
+    if ((mDT->GetFormat() == FORMAT_B8G8R8X8 ||
+         mDT->GetOpaqueRect().Contains(clipExtents)) &&
+        !mDT->GetUserData(&sDontUseAsSourceKey)) {
       DrawTarget *oldDT = mDT;
       RefPtr<SourceSurface> source = mDT->Snapshot();
       Point oldDeviceOffset = CurrentState().deviceOffset;
 
-      PushNewDT(gfxASurface::CONTENT_COLOR);
+      PushNewDT(GFX_CONTENT_COLOR);
 
       Point offset = CurrentState().deviceOffset - oldDeviceOffset;
       Rect surfRect(0, 0, Float(mDT->GetSize().width), Float(mDT->GetSize().height));
@@ -1624,6 +1695,7 @@ gfxContext::PopGroupToSource()
     Restore();
     CurrentState().sourceSurfCairo = nullptr;
     CurrentState().sourceSurface = src;
+    CurrentState().sourceSurfaceDeviceOffset = deviceOffset;
     CurrentState().pattern = nullptr;
     CurrentState().patternTransformChanged = false;
 
@@ -1691,19 +1763,6 @@ gfxContext::GetUserStrokeExtent()
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
     return ThebesRect(mPath->GetStrokedBounds(CurrentState().strokeOptions, mTransform));
-  }
-}
-
-already_AddRefed<gfxFlattenedPath>
-gfxContext::GetFlattenedPath()
-{
-  if (mCairo) {
-    nsRefPtr<gfxFlattenedPath> path =
-        new gfxFlattenedPath(cairo_copy_path_flat(mCairo));
-    return path.forget();
-  } else {
-    // XXX - Used by SVG, needs fixing.
-    return nullptr;
   }
 }
 
@@ -2074,6 +2133,7 @@ gfxContext::PushClipsToDT(DrawTarget *aDT)
   for (int i = mStateStack.Length() - 2; i > 0; i--) {
     if (mStateStack[i].clipWasReset) {
       lastReset = i;
+      break;
     }
   }
 
@@ -2140,7 +2200,7 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix, bool aUpdatePatternTransfo
 
   if (aUpdatePatternTransform && (state.pattern || state.sourceSurface)
       && !state.patternTransformChanged) {
-    state.patternTransform = mTransform;
+    state.patternTransform = GetDTTransform();
     state.patternTransformChanged = true;
   }
 
@@ -2185,6 +2245,7 @@ gfxContext::GetAzureDeviceSpaceClipBounds()
   for (int i = mStateStack.Length() - 1; i > 0; i--) {
     if (mStateStack[i].clipWasReset) {
       lastReset = i;
+      break;
     }
   }
 
@@ -2223,7 +2284,7 @@ gfxContext::GetDTTransform() const
 }
 
 void
-gfxContext::PushNewDT(gfxASurface::gfxContentType content)
+gfxContext::PushNewDT(gfxContentType content)
 {
   Rect clipBounds = GetAzureDeviceSpaceClipBounds();
   clipBounds.RoundOut();

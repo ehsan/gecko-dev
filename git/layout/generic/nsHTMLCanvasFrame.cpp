@@ -5,20 +5,14 @@
 
 /* rendering object for the HTML <canvas> element */
 
-#include "nsHTMLParts.h"
-#include "nsCOMPtr.h"
-#include "nsIServiceManager.h"
-#include "nsGkAtoms.h"
-
 #include "nsHTMLCanvasFrame.h"
+
+#include "nsGkAtoms.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 #include "Layers.h"
 
-#include "nsTransform2D.h"
-
-#include "gfxContext.h"
 #include <algorithm>
 
 using namespace mozilla;

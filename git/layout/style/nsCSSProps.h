@@ -12,9 +12,8 @@
 #define nsCSSProps_h___
 
 #include "nsString.h"
-#include "nsChangeHint.h"
 #include "nsCSSProperty.h"
-#include "nsStyleStruct.h"
+#include "nsStyleStructFwd.h"
 #include "nsCSSKeywords.h"
 
 // Flags for ParseVariant method
@@ -35,7 +34,7 @@
 #define VARIANT_IDENTIFIER_NO_INHERIT 0x004000 // like above, but excluding
 // 'inherit' and 'initial'
 #define VARIANT_AUTO            0x010000  // A
-#define VARIANT_INHERIT         0x020000  // H eCSSUnit_Initial, eCSSUnit_Inherit
+#define VARIANT_INHERIT         0x020000  // H eCSSUnit_Initial, eCSSUnit_Inherit, eCSSUnit_Unset
 #define VARIANT_NONE            0x040000  // O
 #define VARIANT_NORMAL          0x080000  // M
 #define VARIANT_SYSFONT         0x100000  // eCSSUnit_System_Font
@@ -49,6 +48,8 @@
 #define VARIANT_ELEMENT       0x08000000  // eCSSUnit_Element
 #define VARIANT_POSITIVE_DIMENSION 0x10000000 // Only lengths greater than 0.0
 #define VARIANT_NONNEGATIVE_DIMENSION 0x20000000 // Only lengths greater than or equal to 0.0
+// Keyword used iff gfx.font_rendering.opentype_svg.enabled is true:
+#define VARIANT_OPENTYPE_SVG_KEYWORD 0x40000000
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -171,10 +172,10 @@ static_assert((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // should enforce that the value of this property must be 1 or larger.
 #define CSS_PROPERTY_VALUE_AT_LEAST_ONE           (2<<13)
 
-// Does this property suppor the hashless hex color quirk in quirks mode?
+// Does this property support the hashless hex color quirk in quirks mode?
 #define CSS_PROPERTY_HASHLESS_COLOR_QUIRK         (1<<15)
 
-// Does this property suppor the unitless length quirk in quirks mode?
+// Does this property support the unitless length quirk in quirks mode?
 #define CSS_PROPERTY_UNITLESS_LENGTH_QUIRK        (1<<16)
 
 // Is this property (which must be a shorthand) really an alias?
@@ -185,6 +186,10 @@ static_assert((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 
 // This property is allowed in an @page rule.
 #define CSS_PROPERTY_APPLIES_TO_PAGE_RULE         (1<<19)
+
+// This property's getComputedStyle implementation requires layout to be
+// flushed.
+#define CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH     (1<<20)
 
 /**
  * Types of animatable values.
@@ -438,6 +443,7 @@ public:
   static const int32_t kBackgroundRepeatKTable[];
   static const int32_t kBackgroundRepeatPartKTable[];
   static const int32_t kBackgroundSizeKTable[];
+  static const int32_t kBlendModeKTable[];
   static const int32_t kBorderCollapseKTable[];
   static const int32_t kBorderColorKTable[];
   static const int32_t kBorderImageRepeatKTable[];
@@ -450,11 +456,12 @@ public:
   static const int32_t kBoxPackKTable[];
   static const int32_t kDominantBaselineKTable[];
   static const int32_t kFillRuleKTable[];
+  static const int32_t kFilterFunctionKTable[];
   static const int32_t kImageRenderingKTable[];
   static const int32_t kShapeRenderingKTable[];
   static const int32_t kStrokeLinecapKTable[];
   static const int32_t kStrokeLinejoinKTable[];
-  static const int32_t kStrokeObjectValueKTable[];
+  static const int32_t kStrokeContextValueKTable[];
   static const int32_t kVectorEffectKTable[];
   static const int32_t kTextAnchorKTable[];
   static const int32_t kTextRenderingKTable[];
@@ -469,7 +476,8 @@ public:
   static const int32_t kContentKTable[];
   static const int32_t kCursorKTable[];
   static const int32_t kDirectionKTable[];
-  // Not const because we modify its entries when CSS prefs change.
+  // Not const because we modify its entries when the pref
+  // "layout.css.flexbox.enabled" changes:
   static int32_t kDisplayKTable[];
   static const int32_t kElevationKTable[];
   static const int32_t kEmptyCellsKTable[];
@@ -495,13 +503,15 @@ public:
   static const int32_t kFontVariantNumericKTable[];
   static const int32_t kFontVariantPositionKTable[];
   static const int32_t kFontWeightKTable[];
+  static const int32_t kImageOrientationKTable[];
+  static const int32_t kImageOrientationFlipKTable[];
   static const int32_t kIMEModeKTable[];
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];
   static const int32_t kListStyleKTable[];
   static const int32_t kMaskTypeKTable[];
-  static const int32_t kObjectOpacityKTable[];
-  static const int32_t kObjectPatternKTable[];
+  static const int32_t kContextOpacityKTable[];
+  static const int32_t kContextPatternKTable[];
   static const int32_t kOrientKTable[];
   static const int32_t kOutlineStyleKTable[];
   static const int32_t kOutlineColorKTable[];
@@ -513,7 +523,9 @@ public:
   static const int32_t kPageSizeKTable[];
   static const int32_t kPitchKTable[];
   static const int32_t kPointerEventsKTable[];
-  static const int32_t kPositionKTable[];
+  // Not const because we modify its entries when the pref
+  // "layout.css.sticky.enabled" changes:
+  static int32_t kPositionKTable[];
   static const int32_t kRadialGradientShapeKTable[];
   static const int32_t kRadialGradientSizeKTable[];
   static const int32_t kRadialGradientLegacySizeKTable[];
@@ -525,11 +537,14 @@ public:
   static const int32_t kSpeechRateKTable[];
   static const int32_t kStackSizingKTable[];
   static const int32_t kTableLayoutKTable[];
-  static const int32_t kTextAlignKTable[];
-  static const int32_t kTextAlignLastKTable[];
-  static const int32_t kTextBlinkKTable[];
+  // Not const because we modify its entries when the pref
+  // "layout.css.text-align-true-value.enabled" changes:
+  static int32_t kTextAlignKTable[];
+  static int32_t kTextAlignLastKTable[];
+  static const int32_t kTextCombineHorizontalKTable[];
   static const int32_t kTextDecorationLineKTable[];
   static const int32_t kTextDecorationStyleKTable[];
+  static const int32_t kTextOrientationKTable[];
   static const int32_t kTextOverflowKTable[];
   static const int32_t kTextTransformKTable[];
   static const int32_t kTransitionTimingFunctionKTable[];

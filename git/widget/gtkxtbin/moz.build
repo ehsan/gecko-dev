@@ -12,3 +12,12 @@ EXPORTS += [
 
 LIBRARY_NAME = 'gtkxtbin'
 
+LIBXUL_LIBRARY = True
+
+if CONFIG['MOZ_ENABLE_GTK2']:
+    SOURCES += [
+        'gtk2xtbin.c',
+    ]
+
+EXPORT_LIBRARY = True
+

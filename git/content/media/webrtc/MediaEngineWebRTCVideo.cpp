@@ -6,6 +6,7 @@
 #include "Layers.h"
 #include "ImageTypes.h"
 #include "ImageContainer.h"
+#include "nsMemory.h"
 #include "mtransport/runnable_utils.h"
 
 namespace mozilla {
@@ -73,7 +74,7 @@ MediaEngineWebRTCVideoSource::DeliverFrame(
   const uint8_t lumaBpp = 8;
   const uint8_t chromaBpp = 4;
 
-  layers::PlanarYCbCrImage::Data data;
+  layers::PlanarYCbCrData data;
   data.mYChannel = frame;
   data.mYSize = gfxIntSize(mWidth, mHeight);
   data.mYStride = mWidth * lumaBpp/ 8;
@@ -139,7 +140,7 @@ MediaEngineWebRTCVideoSource::NotifyPull(MediaStreamGraph* aGraph,
   // Don't append if we've already provided a frame that supposedly goes past the current aDesiredTime
   // Doing so means a negative delta and thus messes up handling of the graph
   if (delta > 0) {
-    // NULL images are allowed
+    // nullptr images are allowed
     if (image) {
       segment.AppendFrame(image.forget(), delta, gfxIntSize(mWidth, mHeight));
     } else {
@@ -160,7 +161,8 @@ MediaEngineWebRTCVideoSource::ChooseCapability(const MediaEnginePrefs &aPrefs)
   mCapability.width  = aPrefs.mWidth;
   mCapability.height = aPrefs.mHeight;
 #else
-  int num = mViECapture->NumberOfCapabilities(mUniqueId, KMaxUniqueIdLength);
+  int num = mViECapture->NumberOfCapabilities(NS_ConvertUTF16toUTF8(mUniqueId).get(),
+                                              KMaxUniqueIdLength);
 
   LOG(("ChooseCapability: prefs: %dx%d @%d-%dfps", aPrefs.mWidth, aPrefs.mHeight, aPrefs.mFPS, aPrefs.mMinFPS));
 
@@ -180,7 +182,8 @@ MediaEngineWebRTCVideoSource::ChooseCapability(const MediaEnginePrefs &aPrefs)
   webrtc::CaptureCapability cap;
   bool higher = true;
   for (int i = 0; i < num; i++) {
-    mViECapture->GetCaptureCapability(mUniqueId, KMaxUniqueIdLength, i, cap);
+    mViECapture->GetCaptureCapability(NS_ConvertUTF16toUTF8(mUniqueId).get(),
+                                      KMaxUniqueIdLength, i, cap);
     if (higher) {
       if (i == 0 ||
           (mCapability.width > cap.width && mCapability.height > cap.height)) {
@@ -209,15 +212,13 @@ MediaEngineWebRTCVideoSource::ChooseCapability(const MediaEnginePrefs &aPrefs)
 void
 MediaEngineWebRTCVideoSource::GetName(nsAString& aName)
 {
-  // mDeviceName is UTF8
-  CopyUTF8toUTF16(mDeviceName, aName);
+  aName = mDeviceName;
 }
 
 void
 MediaEngineWebRTCVideoSource::GetUUID(nsAString& aUUID)
 {
-  // mUniqueId is UTF8
-  CopyUTF8toUTF16(mUniqueId, aUUID);
+  aUUID = mUniqueId;
 }
 
 nsresult
@@ -242,7 +243,8 @@ MediaEngineWebRTCVideoSource::Allocate(const MediaEnginePrefs &aPrefs)
 
     ChooseCapability(aPrefs);
 
-    if (mViECapture->AllocateCaptureDevice(mUniqueId, KMaxUniqueIdLength, mCaptureIndex)) {
+    if (mViECapture->AllocateCaptureDevice(NS_ConvertUTF16toUTF8(mUniqueId).get(),
+                                           KMaxUniqueIdLength, mCaptureIndex)) {
       return NS_ERROR_FAILURE;
     }
     mState = kAllocated;
@@ -498,7 +500,7 @@ MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
   NS_ConvertUTF16toUTF8 path(*mSnapshotPath);
   if (vieFile->GetCaptureDeviceSnapshot(mCaptureIndex, path.get()) < 0) {
     delete mSnapshotPath;
-    mSnapshotPath = NULL;
+    mSnapshotPath = nullptr;
     return NS_ERROR_FAILURE;
   }
 
@@ -510,7 +512,7 @@ MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
   nsresult rv = NS_NewLocalFile(*mSnapshotPath, false, getter_AddRefs(file));
 
   delete mSnapshotPath;
-  mSnapshotPath = NULL;
+  mSnapshotPath = nullptr;
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -527,30 +529,23 @@ MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
 void
 MediaEngineWebRTCVideoSource::Init()
 {
-  mDeviceName[0] = '\0'; // paranoia
-  mUniqueId[0] = '\0';
 #ifdef MOZ_B2G_CAMERA
-  nsCString deviceName;
+  nsAutoCString deviceName;
   mCameraManager->GetCameraName(mCaptureIndex, deviceName);
-
-  nsString deviceNameUTF16;
-  deviceNameUTF16.AssignASCII(deviceName.get());
-  char* UTF8Name = ToNewUTF8String(deviceNameUTF16);
-  memcpy(mDeviceName, UTF8Name, strlen(UTF8Name));
-  memcpy(mUniqueId, UTF8Name, strlen(UTF8Name));
-  NS_Free(UTF8Name);
+  CopyUTF8toUTF16(deviceName, mDeviceName);
+  CopyUTF8toUTF16(deviceName, mUniqueId);
 #else
   // fix compile warning for these being unused. (remove once used)
   (void) mFps;
   (void) mMinFps;
 
   LOG((__FUNCTION__));
-  if (mVideoEngine == NULL) {
+  if (mVideoEngine == nullptr) {
     return;
   }
 
   mViEBase = webrtc::ViEBase::GetInterface(mVideoEngine);
-  if (mViEBase == NULL) {
+  if (mViEBase == nullptr) {
     return;
   }
 
@@ -558,15 +553,22 @@ MediaEngineWebRTCVideoSource::Init()
   mViECapture = webrtc::ViECapture::GetInterface(mVideoEngine);
   mViERender = webrtc::ViERender::GetInterface(mVideoEngine);
 
-  if (mViECapture == NULL || mViERender == NULL) {
+  if (mViECapture == nullptr || mViERender == nullptr) {
     return;
   }
 
+  const uint32_t KMaxDeviceNameLength = 128;
+  const uint32_t KMaxUniqueIdLength = 256;
+  char deviceName[KMaxDeviceNameLength];
+  char uniqueId[KMaxUniqueIdLength];
   if (mViECapture->GetCaptureDevice(mCaptureIndex,
-                                    mDeviceName, sizeof(mDeviceName),
-                                    mUniqueId, sizeof(mUniqueId))) {
+                                    deviceName, KMaxDeviceNameLength,
+                                    uniqueId, KMaxUniqueIdLength)) {
     return;
   }
+
+  CopyUTF8toUTF16(deviceName, mDeviceName);
+  CopyUTF8toUTF16(uniqueId, mUniqueId);
 #endif
 
   mInitDone = true;
@@ -612,7 +614,7 @@ MediaEngineWebRTCVideoSource::AllocImpl() {
                                              mCameraThread,
                                              this,
                                              this,
-                                             mWindowId);
+                                             nsGlobalWindow::GetInnerWindowWithId(mWindowId));
   mCameraManager->Register(mDOMCameraControl);
 }
 
@@ -662,7 +664,7 @@ MediaEngineWebRTCVideoSource::SnapshotImpl() {
 
 // nsICameraGetCameraCallback
 nsresult
-MediaEngineWebRTCVideoSource::HandleEvent(nsICameraControl* camera) {
+MediaEngineWebRTCVideoSource::HandleEvent(nsISupports* /* unused */) {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
   mNativeCameraControl = static_cast<nsGonkCameraControl*>(mDOMCameraControl->GetNativeCameraControl().get());

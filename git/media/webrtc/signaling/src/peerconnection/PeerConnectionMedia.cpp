@@ -20,7 +20,6 @@
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "mozilla/Preferences.h"
-#include "jsapi.h"
 #endif
 
 using namespace mozilla;
@@ -112,6 +111,16 @@ void RemoteSourceStreamInfo::DetachMedia_m()
     it->second->ShutdownMedia_m();
   }
   mMediaStream = nullptr;
+}
+
+already_AddRefed<PeerConnectionImpl>
+PeerConnectionImpl::Constructor(const dom::GlobalObject& aGlobal, ErrorResult& rv)
+{
+  nsRefPtr<PeerConnectionImpl> pc = new PeerConnectionImpl(&aGlobal);
+
+  CSFLogDebug(logTag, "Created PeerConnection: %p", pc.get());
+
+  return pc.forget();
 }
 
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
@@ -443,6 +452,20 @@ PeerConnectionMedia::IceStreamReady(NrIceMediaStream *aStream)
   CSFLogDebug(logTag, "%s: %s", __FUNCTION__, aStream->name().c_str());
 }
 
+// This method exists for the unittests.
+// It allows visibility into the pipelines and flows.
+// It returns NULL if no pipeline exists for this track number.
+mozilla::RefPtr<mozilla::MediaPipeline>
+SourceStreamInfo::GetPipeline(int aTrack) {
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+    mPipelines.find(aTrack);
+
+  if (it == mPipelines.end()) {
+    return NULL;
+  }
+
+  return it->second;
+}
 
 void
 LocalSourceStreamInfo::StorePipeline(int aTrack,

@@ -12,11 +12,15 @@ EXPORTS += [
     'nsSAXXMLReader.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsSAXAttributes.cpp',
     'nsSAXLocator.cpp',
     'nsSAXXMLReader.cpp',
 ]
 
 LIBRARY_NAME = 'saxp'
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
 

@@ -147,6 +147,8 @@
           <menuseparator id="appmenu_devtools_separator"/>
           <menuitem id="appmenu_devToolbar"
                     observes="devtoolsMenuBroadcaster_DevToolbar"/>
+          <menuitem id="appmenu_devAppMgr"
+                    observes="devtoolsMenuBroadcaster_DevAppMgr"/>
           <menuitem id="appmenu_chromeDebugger"
                     observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
           <menuitem id="appmenu_browserConsole"
@@ -170,7 +172,8 @@
 #include browser-charsetmenu.inc
 #undef ID_PREFIX
 #undef OMIT_ACCESSKEYS
-          <menuitem label="&goOfflineCmd.label;"
+          <menuitem id="appmenu_offlineMode"
+                    label="&goOfflineCmd.label;"
                     type="checkbox"
                     observes="workOfflineMenuitemState"
                     oncommand="BrowserOffline.toggleOfflineStatus();"/>

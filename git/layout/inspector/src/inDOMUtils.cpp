@@ -7,6 +7,7 @@
 #include "inLayoutUtils.h"
 
 #include "nsIServiceManager.h"
+#include "nsISupportsArray.h"
 #include "nsString.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"
@@ -534,8 +535,6 @@ static void GetOtherValuesForProperty(const uint32_t aParserVariant,
   if (aParserVariant & VARIANT_COLOR) {
     InsertNoDuplicates(aArray, NS_LITERAL_STRING("rgb"));
     InsertNoDuplicates(aArray, NS_LITERAL_STRING("hsl"));
-    InsertNoDuplicates(aArray, NS_LITERAL_STRING("-moz-rgba"));
-    InsertNoDuplicates(aArray, NS_LITERAL_STRING("-moz-hsla"));
     InsertNoDuplicates(aArray, NS_LITERAL_STRING("rgba"));
     InsertNoDuplicates(aArray, NS_LITERAL_STRING("hsla"));
   }
@@ -571,7 +570,9 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
     uint32_t propertyParserVariant = nsCSSProps::ParserVariant(propertyID);
     // Get colors first.
     GetColorsForProperty(propertyParserVariant, array);
-    GetKeywordsForProperty(propertyID, array);
+    if (propertyParserVariant & VARIANT_KEYWORD) {
+      GetKeywordsForProperty(propertyID, array);
+    }
     GetOtherValuesForProperty(propertyParserVariant, array);
   } else {
     // Property is shorthand.
@@ -585,13 +586,16 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
     }
     CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subproperty, propertyID) {
       uint32_t propertyParserVariant = nsCSSProps::ParserVariant(*subproperty);
-      GetKeywordsForProperty(*subproperty, array);
+      if (propertyParserVariant & VARIANT_KEYWORD) {
+        GetKeywordsForProperty(*subproperty, array);
+      }
       GetOtherValuesForProperty(propertyParserVariant, array);
     }
   }
-  // All CSS properties take initial and inherit.
-  InsertNoDuplicates(array, NS_LITERAL_STRING("-moz-initial"));
+  // All CSS properties take initial, inherit and unset.
+  InsertNoDuplicates(array, NS_LITERAL_STRING("initial"));
   InsertNoDuplicates(array, NS_LITERAL_STRING("inherit"));
+  InsertNoDuplicates(array, NS_LITERAL_STRING("unset"));
 
   *aLength = array.Length();
   PRUnichar** ret =

@@ -14,6 +14,7 @@
 
 #ifdef XP_WIN
 #include <io.h>
+#include <windows.h>
 #endif
 
 #ifdef ANDROID
@@ -40,13 +41,13 @@ char*
 NS_strtok(const char *delims, char **str)
 {
   if (!*str)
-    return NULL;
+    return nullptr;
 
   char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
     *str = ret;
-    return NULL;
+    return nullptr;
   }
 
   char *i = ret;
@@ -61,7 +62,7 @@ NS_strtok(const char *delims, char **str)
     ++i;
   } while (*i);
 
-  *str = NULL;
+  *str = nullptr;
   return ret;
 }
 
@@ -270,6 +271,16 @@ void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
 void
 printf_stderr(const char *fmt, ...)
 {
+  if (IsDebuggerPresent()) {
+    char buf[2048];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    buf[sizeof(buf) - 1] = '\0';
+    va_end(args);
+    OutputDebugStringA(buf);
+  }
+
   FILE *fp = _fdopen(_dup(2), "a");
   if (!fp)
       return;

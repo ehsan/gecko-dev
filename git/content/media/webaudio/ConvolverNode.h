@@ -9,7 +9,6 @@
 
 #include "AudioNode.h"
 #include "AudioBuffer.h"
-#include "PlayingRefChangeHandler.h"
 
 namespace mozilla {
 namespace dom {
@@ -55,25 +54,9 @@ public:
     }
     AudioNode::SetChannelCountModeValue(aMode, aRv);
   }
-  virtual void NotifyInputConnected() MOZ_OVERRIDE
-  {
-    mMediaStreamGraphUpdateIndexAtLastInputConnection =
-      mStream->Graph()->GetCurrentGraphUpdateIndex();
-  }
-  bool AcceptPlayingRefRelease(int64_t aLastGraphUpdateIndexProcessed) const
-  {
-    // Reject any requests to release mPlayingRef if the request was issued
-    // before the MediaStreamGraph was aware of the most-recently-added input
-    // connection.
-    return aLastGraphUpdateIndexProcessed >= mMediaStreamGraphUpdateIndexAtLastInputConnection;
-  }
 
 private:
-  friend class PlayingRefChangeHandler<ConvolverNode>;
-
-  int64_t mMediaStreamGraphUpdateIndexAtLastInputConnection;
   nsRefPtr<AudioBuffer> mBuffer;
-  SelfReference<ConvolverNode> mPlayingRef;
   bool mNormalize;
 };
 

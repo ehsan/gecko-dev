@@ -6,14 +6,23 @@
 #ifndef MOZILLA_GFX_CANVASCLIENT_H
 #define MOZILLA_GFX_CANVASCLIENT_H
 
-#include "mozilla/layers/TextureClient.h"
-#include "mozilla/layers/CompositableClient.h"
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
+#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
+#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
+#include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
+#include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
+#include "mozilla/mozalloc.h"           // for operator delete
+
+#include "mozilla/gfx/Point.h"          // for IntSize
+#include "mozilla/gfx/Types.h"          // for SurfaceFormat
 
 namespace mozilla {
-
 namespace layers {
 
 class ClientCanvasLayer;
+class CompositableForwarder;
 
 /**
  * Compositable client for 2d and webgl canvas.
@@ -67,16 +76,17 @@ public:
 
   virtual void Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer) MOZ_OVERRIDE;
 
-  virtual void AddTextureClient(TextureClient* aTexture) MOZ_OVERRIDE
+  virtual bool AddTextureClient(TextureClient* aTexture) MOZ_OVERRIDE
   {
     MOZ_ASSERT((mTextureInfo.mTextureFlags & aTexture->GetFlags()) == mTextureInfo.mTextureFlags);
-    CompositableClient::AddTextureClient(aTexture);
+    return CompositableClient::AddTextureClient(aTexture);
   }
 
   virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat) MOZ_OVERRIDE;
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
+                            TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) MOZ_OVERRIDE;
 
-  virtual void Detach() MOZ_OVERRIDE
+  virtual void OnDetach() MOZ_OVERRIDE
   {
     mBuffer = nullptr;
   }
@@ -132,7 +142,6 @@ public:
 
 private:
   RefPtr<DeprecatedTextureClient> mDeprecatedTextureClient;
-  bool mNeedsUpdate;
 };
 
 }

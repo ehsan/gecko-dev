@@ -9,7 +9,10 @@
 #include "gfxFT2Fonts.h"
 #include "gfxPlatform.h"
 #include "gfxUserFontSet.h"
+#include "nsCOMPtr.h"
 #include "nsTArray.h"
+
+class nsIMemoryReporter;
 
 namespace mozilla {
     namespace dom {
@@ -31,7 +34,7 @@ public:
 
     virtual already_AddRefed<gfxASurface>
     CreateOffscreenSurface(const gfxIntSize& size,
-                           gfxASurface::gfxContentType contentType);
+                           gfxContentType contentType);
     
     virtual gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
     
@@ -78,6 +81,8 @@ public:
 private:
     int mScreenDepth;
     gfxImageFormat mOffscreenFormat;
+
+    nsCOMPtr<nsIMemoryReporter> mFreetypeReporter;
 };
 
 #endif /* GFX_PLATFORM_ANDROID_H */

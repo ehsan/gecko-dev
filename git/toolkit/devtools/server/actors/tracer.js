@@ -276,18 +276,28 @@ TraceActor.prototype = {
    * Called by the engine when a frame is exited. Sends an unsolicited packet to
    * the client carrying requested trace information.
    *
-   * @param aValue object
+   * @param aCompletion object
    *        The debugger completion value for the frame.
    */
-  onExitFrame: function(aValue) {
+  onExitFrame: function(aCompletion) {
     let packet = {
       from: this.actorID,
       type: "exitedFrame",
-      sequence: this._sequence++
+      sequence: this._sequence++,
     };
 
+    if (!aCompletion) {
+      packet.why = "terminated";
+    } else if (aCompletion.hasOwnProperty("return")) {
+      packet.why = "return";
+    } else if (aCompletion.hasOwnProperty("yield")) {
+      packet.why = "yield";
+    } else {
+      packet.why = "throw";
+    }
+
     this._handleEvent(TraceTypes.Events.exitFrame, packet, {
-      value: aValue,
+      value: aCompletion,
       startTime: this._startTime
     });
 
@@ -535,7 +545,7 @@ function timeSinceTraceStarted({ startTime }) {
  *        The type of completion value to serialize (return, throw, or yield).
  */
 function serializeCompletionValue(aType, { value }) {
-  if (typeof value[aType] === "undefined") {
+  if (!Object.hasOwnProperty.call(value, aType)) {
     return undefined;
   }
   return createValueGrip(value[aType], true);
@@ -558,35 +568,41 @@ function serializeCompletionValue(aType, { value }) {
  *        A primitive value or a grip object.
  */
 function createValueGrip(aValue, aUseDescriptor) {
-  let type = typeof aValue;
-
-  if (type === "string" && aValue.length >= DebuggerServer.LONG_STRING_LENGTH) {
-    return {
-      type: "longString",
-      initial: aValue.substring(0, DebuggerServer.LONG_STRING_INITIAL_LENGTH),
-      length: aValue.length
-    };
+  switch (typeof aValue) {
+    case "boolean":
+      return aValue;
+    case "string":
+      if (aValue.length >= DebuggerServer.LONG_STRING_LENGTH) {
+        return {
+          type: "longString",
+          initial: aValue.substring(0, DebuggerServer.LONG_STRING_INITIAL_LENGTH),
+          length: aValue.length
+        };
+      }
+      return aValue;
+    case "number":
+      if (aValue === Infinity) {
+        return { type: "Infinity" };
+      } else if (aValue === -Infinity) {
+        return { type: "-Infinity" };
+      } else if (Number.isNaN(aValue)) {
+        return { type: "NaN" };
+      } else if (!aValue && 1 / aValue === -Infinity) {
+        return { type: "-0" };
+      }
+      return aValue;
+    case "undefined":
+      return { type: "undefined" };
+    case "object":
+      if (aValue === null) {
+        return { type: "null" };
+      }
+      return aUseDescriptor ? objectDescriptor(aValue) : objectGrip(aValue);
+    default:
+      reportException("TraceActor",
+                      new Error("Failed to provide a grip for: " + aValue));
+      return null;
   }
-
-  if (type === "boolean" || type === "string" || type === "number") {
-    return aValue;
-  }
-
-  if (aValue === null) {
-    return { type: "null" };
-  }
-
-  if (aValue === undefined) {
-    return { type: "undefined" };
-  }
-
-  if (typeof(aValue) === "object") {
-    return aUseDescriptor ? objectDescriptor(aValue) : objectGrip(aValue);
-  }
-
-  reportException("TraceActor",
-                  new Error("Failed to provide a grip for: " + aValue));
-  return null;
 }
 
 /**

@@ -6,7 +6,7 @@
 
 MODULE = 'transformiix'
 
-CPP_SOURCES += [
+SOURCES += [
     'txDouble.cpp',
     'txExpandedNameMap.cpp',
     'txList.cpp',
@@ -16,3 +16,13 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'txbase_s'
 
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+LOCAL_INCLUDES += [
+    '../../public',
+    '../xml',
+    '../xpath',
+    '../xslt',
+]

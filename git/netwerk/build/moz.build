@@ -10,7 +10,19 @@ EXPORTS += [
     'nsNetCID.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'nsNetModule.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'necko'
+
+EXPORT_LIBRARY = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

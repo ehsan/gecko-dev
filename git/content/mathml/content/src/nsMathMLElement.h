@@ -7,10 +7,11 @@
 #define nsMathMLElement_h
 
 #include "mozilla/Attributes.h"
+#include "mozilla/dom/ElementInlines.h"
 #include "nsMappedAttributeElement.h"
 #include "nsIDOMElement.h"
-#include "nsILink.h"
 #include "Link.h"
+#include "mozilla/dom/DOMRect.h"
 
 class nsCSSValue;
 
@@ -21,7 +22,6 @@ typedef nsMappedAttributeElement nsMathMLElementBase;
  */
 class nsMathMLElement MOZ_FINAL : public nsMathMLElementBase,
                                   public nsIDOMElement,
-                                  public nsILink,
                                   public mozilla::dom::Link
 {
 public:
@@ -80,8 +80,6 @@ public:
     return mIncrementScriptLevel;
   }
 
-  NS_IMETHOD LinkAdded() MOZ_OVERRIDE { return NS_OK; }
-  NS_IMETHOD LinkRemoved() MOZ_OVERRIDE { return NS_OK; }
   virtual bool IsFocusable(int32_t *aTabIndex = nullptr,
                              bool aWithMouse = false) MOZ_OVERRIDE;
   virtual bool IsLink(nsIURI** aURI) const MOZ_OVERRIDE;

@@ -6,16 +6,22 @@
 
 MODULE = 'editor'
 
-CPP_SOURCES += [
-    'nsComposeTxtSrvFilter.cpp',
+SOURCES += [
     'nsComposerCommands.cpp',
     'nsComposerCommandsUpdater.cpp',
     'nsComposerController.cpp',
     'nsComposerDocumentCommands.cpp',
     'nsComposerRegistration.cpp',
+    'nsComposeTxtSrvFilter.cpp',
     'nsEditingSession.cpp',
     'nsEditorSpellCheck.cpp',
 ]
 
 LIBRARY_NAME = 'composer'
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
 

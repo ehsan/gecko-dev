@@ -9,9 +9,8 @@ TEST_DIRS += ['test']
 MODULE = 'layout'
 
 EXPORTS += [
-    'ScrollbarActivity.h',
-    'Selection.h',
     'nsCanvasFrame.h',
+    'nsDirection.h',
     'nsFrameIdList.h',
     'nsFrameList.h',
     'nsFrameSelection.h',
@@ -20,17 +19,20 @@ EXPORTS += [
     'nsHTMLReflowState.h',
     'nsIAnonymousContentCreator.h',
     'nsIFrame.h',
+    'nsIFrameInlines.h',
     'nsIFrameUtil.h',
     'nsILineIterator.h',
     'nsIObjectFrame.h',
     'nsIPageSequenceFrame.h',
-    'nsIScrollPositionListener.h',
     'nsIScrollableFrame.h',
     'nsIScrollbarOwner.h',
+    'nsIScrollPositionListener.h',
     'nsIStatefulFrame.h',
     'nsObjectFrame.h',
     'nsQueryFrame.h',
     'nsSubDocumentFrame.h',
+    'ScrollbarActivity.h',
+    'Selection.h',
 ]
 
 EXPORTS.mozilla += [
@@ -41,15 +43,13 @@ EXPORTS.mozilla.layout += [
     'FrameChildList.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'FrameChildList.cpp',
-    'ScrollbarActivity.cpp',
-    'TextOverflow.cpp',
     'nsAbsoluteContainingBlock.cpp',
-    'nsBRFrame.cpp',
     'nsBlockFrame.cpp',
     'nsBlockReflowContext.cpp',
     'nsBlockReflowState.cpp',
+    'nsBRFrame.cpp',
     'nsBulletFrame.cpp',
     'nsCanvasFrame.cpp',
     'nsColumnSetFrame.cpp',
@@ -86,9 +86,23 @@ CPP_SOURCES += [
     'nsTextRunTransformations.cpp',
     'nsVideoFrame.cpp',
     'nsViewportFrame.cpp',
+    'ScrollbarActivity.cpp',
+    'StickyScrollContainer.cpp',
+    'TextOverflow.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    CMMSRCS += [
+    SOURCES += [
         'nsPluginUtilsOSX.mm',
     ]
+
+FAIL_ON_WARNINGS = not CONFIG['_MSC_VER']
+
+LIBXUL_LIBRARY = True
+
+MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'gkgeneric_s'
+
+include('/ipc/chromium/chromium-config.mozbuild')
+

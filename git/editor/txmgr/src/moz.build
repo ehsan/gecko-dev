@@ -6,7 +6,7 @@
 
 MODULE = 'txmgr'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsTransactionItem.cpp',
     'nsTransactionList.cpp',
     'nsTransactionManager.cpp',
@@ -15,4 +15,10 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'txmgr'
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
 

@@ -10,7 +10,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "nsTArray.h"
 
 #define BEGIN_QUOTA_NAMESPACE \
@@ -24,14 +24,14 @@
 
 BEGIN_QUOTA_NAMESPACE
 
-#ifdef DEBUG
 void
 AssertIsOnIOThread();
-#else
-inline void
-AssertIsOnIOThread()
-{ }
-#endif
+
+void
+AssertCurrentThreadOwnsQuotaMutex();
+
+bool
+IsOnIOThread();
 
 END_QUOTA_NAMESPACE
 

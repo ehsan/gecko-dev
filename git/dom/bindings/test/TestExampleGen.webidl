@@ -129,17 +129,17 @@ interface TestExampleInterface {
   void passOptionalSelfWithDefault(optional TestInterface? arg = null);
 
   // Non-wrapper-cache interface types
-  [Creator]
+  [NewObject]
   TestNonWrapperCacheInterface receiveNonWrapperCacheInterface();
-  [Creator]
+  [NewObject]
   TestNonWrapperCacheInterface? receiveNullableNonWrapperCacheInterface();
-  [Creator]
+  [NewObject]
   sequence<TestNonWrapperCacheInterface> receiveNonWrapperCacheInterfaceSequence();
-  [Creator]
+  [NewObject]
   sequence<TestNonWrapperCacheInterface?> receiveNullableNonWrapperCacheInterfaceSequence();
-  [Creator]
+  [NewObject]
   sequence<TestNonWrapperCacheInterface>? receiveNonWrapperCacheInterfaceNullableSequence();
-  [Creator]
+  [NewObject]
   sequence<TestNonWrapperCacheInterface?>? receiveNullableNonWrapperCacheInterfaceNullableSequence();
 
   // Non-castable interface types
@@ -253,6 +253,10 @@ interface TestExampleInterface {
   void passUint8ClampedArray(Uint8ClampedArray arg);
   void passFloat32Array(Float32Array arg);
   void passFloat64Array(Float64Array arg);
+  void passSequenceOfArrayBuffers(sequence<ArrayBuffer> arg);
+  void passSequenceOfNullableArrayBuffers(sequence<ArrayBuffer?> arg);
+  void passVariadicTypedArray(Float32Array... arg);
+  void passVariadicNullableTypedArray(Float32Array?... arg);
   Uint8Array receiveUint8Array();
 
   // DOMString types
@@ -324,6 +328,7 @@ interface TestExampleInterface {
   void passOptionalNullableObjectWithDefaultValue(optional object? arg = null);
   void passSequenceOfObject(sequence<object> arg);
   void passSequenceOfNullableObject(sequence<object?> arg);
+  void passNullableSequenceOfObject(sequence<object>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfObject(optional sequence<sequence<object>?>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfNullableObject(optional sequence<sequence<object?>?>? arg);
   object receiveObject();
@@ -331,15 +336,23 @@ interface TestExampleInterface {
 
   // Union types
   void passUnion((object or long) arg);
-  // Commented out tests 2-9 to avoid creating all those unused union types
-  /* void passUnion2((long or boolean) arg);
+  // Some union tests are debug-only to avoid creating all those
+  // unused union types in opt builds.
+#ifdef DEBUG
+  void passUnion2((long or boolean) arg);
   void passUnion3((object or long or boolean) arg);
   void passUnion4((Node or long or boolean) arg);
   void passUnion5((object or boolean) arg);
   void passUnion6((object or DOMString) arg);
   void passUnion7((object or DOMString or long) arg);
   void passUnion8((object or DOMString or boolean) arg);
-  void passUnion9((object or DOMString or long or boolean) arg); */
+  void passUnion9((object or DOMString or long or boolean) arg);
+  void passUnion10(optional (EventInit or long) arg);
+  void passUnion11(optional (CustomEventInit or long) arg);
+  void passUnion12(optional (EventInit or long) arg = 5);
+  void passUnion13(optional (object or long?) arg = null);
+  void passUnion14(optional (object or long?) arg = 5);
+#endif
   void passUnionWithNullable((object? or long) arg);
   void passNullableUnion((object or long)? arg);
   void passOptionalUnion(optional (object or long) arg);
@@ -357,9 +370,38 @@ interface TestExampleInterface {
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
 
+  void passUnionWithDefaultValue1(optional (double or DOMString) arg = "");
+  void passUnionWithDefaultValue2(optional (double or DOMString) arg = 1);
+  void passUnionWithDefaultValue3(optional (double or DOMString) arg = 1.5);
+  void passUnionWithDefaultValue4(optional (float or DOMString) arg = "");
+  void passUnionWithDefaultValue5(optional (float or DOMString) arg = 1);
+  void passUnionWithDefaultValue6(optional (float or DOMString) arg = 1.5);
+  void passUnionWithDefaultValue7(optional (unrestricted double or DOMString) arg = "");
+  void passUnionWithDefaultValue8(optional (unrestricted double or DOMString) arg = 1);
+  void passUnionWithDefaultValue9(optional (unrestricted double or DOMString) arg = 1.5);
+  void passUnionWithDefaultValue10(optional (unrestricted double or DOMString) arg = Infinity);
+  void passUnionWithDefaultValue11(optional (unrestricted float or DOMString) arg = "");
+  void passUnionWithDefaultValue12(optional (unrestricted float or DOMString) arg = 1);
+  void passUnionWithDefaultValue13(optional (unrestricted float or DOMString) arg = Infinity);
+
+  void passNullableUnionWithDefaultValue1(optional (double or DOMString)? arg = "");
+  void passNullableUnionWithDefaultValue2(optional (double or DOMString)? arg = 1);
+  void passNullableUnionWithDefaultValue3(optional (double or DOMString)? arg = null);
+  void passNullableUnionWithDefaultValue4(optional (float or DOMString)? arg = "");
+  void passNullableUnionWithDefaultValue5(optional (float or DOMString)? arg = 1);
+  void passNullableUnionWithDefaultValue6(optional (float or DOMString)? arg = null);
+  void passNullableUnionWithDefaultValue7(optional (unrestricted double or DOMString)? arg = "");
+  void passNullableUnionWithDefaultValue8(optional (unrestricted double or DOMString)? arg = 1);
+  void passNullableUnionWithDefaultValue9(optional (unrestricted double or DOMString)? arg = null);
+  void passNullableUnionWithDefaultValue10(optional (unrestricted float or DOMString)? arg = "");
+  void passNullableUnionWithDefaultValue11(optional (unrestricted float or DOMString)? arg = 1);
+  void passNullableUnionWithDefaultValue12(optional (unrestricted float or DOMString)? arg = null);
+
   //(CanvasPattern or CanvasGradient) receiveUnion();
+  //(object or long) receiveUnion2();
   //(CanvasPattern? or CanvasGradient) receiveUnionContainingNull();
   //(CanvasPattern or CanvasGradient)? receiveNullableUnion();
+  //(object or long)? receiveNullableUnion2();
 
   //attribute (CanvasPattern or CanvasGradient) writableUnion;
   //attribute (CanvasPattern? or CanvasGradient) writableUnionContainingNull;
@@ -401,6 +443,8 @@ interface TestExampleInterface {
   void dontEnforceRangeOrClamp(byte arg);
   void doEnforceRange([EnforceRange] byte arg);
   void doClamp([Clamp] byte arg);
+  [EnforceRange] attribute byte enforcedByte;
+  [Clamp] attribute byte clampedByte;
 
   // Typedefs
   const myLong myLongConstant = 5;

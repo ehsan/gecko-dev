@@ -7,21 +7,21 @@
 let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
 
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
-let blocklistURL = "http://test:80/browser/browser/base/content/test/social/blocklist.xml";
+let blocklistURL = "http://example.org/browser/browser/base/content/test/social/blocklist.xml";
 
 let manifest = { // normal provider
   name: "provider ok",
   origin: "https://example.com",
   sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
   workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-  iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
+  iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
 };
 let manifest_bad = { // normal provider
   name: "provider blocked",
   origin: "https://test1.example.com",
   sidebarURL: "https://test1.example.com/browser/browser/base/content/test/social/social_sidebar.html",
   workerURL: "https://test1.example.com/browser/browser/base/content/test/social/social_worker.js",
-  iconURL: "https://test1.example.com/browser/browser/base/content/test/moz.png"
+  iconURL: "https://test1.example.com/browser/browser/base/content/test/general/moz.png"
 };
 
 function test() {
@@ -155,14 +155,15 @@ var tests = {
     setManifestPref("social.manifest.blocked", manifest_bad);
     try {
       SocialService.addProvider(manifest_bad, function(provider) {
-        // the act of blocking should cause a 'provider-removed' notification
+        // the act of blocking should cause a 'provider-disabled' notification
         // from SocialService.
-        SocialService.registerProviderListener(function providerListener(topic) {
-          if (topic != "provider-removed")
+        SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
+          if (topic != "provider-disabled")
             return;
           SocialService.unregisterProviderListener(providerListener);
+          is(origin, provider.origin, "provider disabled");
           SocialService.getProvider(provider.origin, function(p) {
-            ok(p==null, "blocklisted provider removed");
+            ok(p == null, "blocklisted provider disabled");
             Services.prefs.clearUserPref("social.manifest.blocked");
             resetBlocklist(finish);
           });

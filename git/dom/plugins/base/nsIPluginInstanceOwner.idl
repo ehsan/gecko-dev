@@ -11,8 +11,8 @@ interface nsIDocument;
 
 %{C++
 #include "npapi.h"
-#include "nsNPAPIPluginInstance.h"
-class nsPluginEvent;
+#include "mozilla/EventForwards.h"
+class nsNPAPIPluginInstance;
 %}
 
 [ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);

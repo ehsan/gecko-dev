@@ -22,9 +22,7 @@
 // mmsystem isn't part of WIN32_LEAN_AND_MEAN, so we have
 // to manually include it
 #include <mmsystem.h>
-
-#include <dwmapi.h>
-typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_INFO *info);
+#include "WinUtils.h"
 #endif
 
 #include "mozilla/Util.h"
@@ -37,8 +35,6 @@ typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_I
 #include "prlog.h"
 #include "nsAutoPtr.h"
 #include "nsIDocument.h"
-#include "nsGUIEvent.h"
-#include "nsEventDispatcher.h"
 #include "jsapi.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
@@ -49,11 +45,12 @@ typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_I
 #include "nsPerformance.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "RestyleManager.h"
-
-using mozilla::TimeStamp;
-using mozilla::TimeDuration;
+#include "Layers.h"
+#include "imgIContainer.h"
+#include "nsIFrameRequestCallback.h"
 
 using namespace mozilla;
+using namespace mozilla::widget;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gLog = nullptr;
@@ -306,44 +303,15 @@ protected:
 #ifdef XP_WIN
 /*
  * Uses vsync timing on windows with DWM. Falls back dynamically to fixed rate if required.
- * - Call LoadDll() before usage and UnloadDll() when done (static, nesting unsupported)
  */
 class PreciseRefreshDriverTimerWindowsDwmVsync :
   public PreciseRefreshDriverTimer
 {
 public:
-  static void LoadDll()
-  {
-    if (sDwmGetCompositionTimingInfoPtr) {
-      return; // Already loaded.
-    }
-
-    sDwmDll = ::LoadLibraryW(L"dwmapi.dll");
-    if (sDwmDll) {
-      sDwmGetCompositionTimingInfoPtr = (DwmGetCompositionTimingInfoProc)::GetProcAddress(sDwmDll, "DwmGetCompositionTimingInfo");
-    }
-
-    if (!sDwmDll || !sDwmGetCompositionTimingInfoPtr) {
-      UnloadDll();
-    }
-  }
-
   // Checks if the vsync API is accessible.
-  // Return value is meaningful after calling LoadDll() and before UnloadDll(), and false otherwise.
-  // Even when supported, API calls could still fail when DWM is disabled (can change at runtime)
   static bool IsSupported()
   {
-    return sDwmGetCompositionTimingInfoPtr ? true : false;
-  }
-
-  // OK to call even if never loaded and/or if load failed.
-  static void UnloadDll()
-  {
-    if (sDwmDll) {
-      FreeLibrary(sDwmDll);
-    }
-    sDwmDll = nullptr;
-    sDwmGetCompositionTimingInfoPtr = nullptr;
+    return WinUtils::dwmGetCompositionTimingInfoPtr != nullptr;
   }
 
   PreciseRefreshDriverTimerWindowsDwmVsync(double aRate, bool aPreferHwTiming = false)
@@ -359,11 +327,12 @@ protected:
 
   nsresult GetVBlankInfo(mozilla::TimeStamp &aLastVBlank, mozilla::TimeDuration &aInterval)
   {
-    MOZ_ASSERT(sDwmGetCompositionTimingInfoPtr, "DwmGetCompositionTimingInfoPtr is unavailable (windows vsync)");
+    MOZ_ASSERT(WinUtils::dwmGetCompositionTimingInfoPtr,
+               "DwmGetCompositionTimingInfoPtr is unavailable (windows vsync)");
 
     DWM_TIMING_INFO timingInfo;
     timingInfo.cbSize = sizeof(DWM_TIMING_INFO);
-    HRESULT hr = sDwmGetCompositionTimingInfoPtr(0, &timingInfo); // For the desktop window instead of a specific one.
+    HRESULT hr = WinUtils::dwmGetCompositionTimingInfoPtr(0, &timingInfo); // For the desktop window instead of a specific one.
 
     if (FAILED(hr)) {
       // This happens first time this is called.
@@ -443,14 +412,7 @@ protected:
 
     mTargetTime = newTarget;
   }
-
-private:
-  static HMODULE sDwmDll;
-  static DwmGetCompositionTimingInfoProc sDwmGetCompositionTimingInfoPtr;
 };
-
-HMODULE PreciseRefreshDriverTimerWindowsDwmVsync::sDwmDll = nullptr;
-DwmGetCompositionTimingInfoProc PreciseRefreshDriverTimerWindowsDwmVsync::sDwmGetCompositionTimingInfoPtr = nullptr;
 #endif
 
 /*
@@ -611,10 +573,6 @@ static nsITimer *sDisableHighPrecisionTimersTimer = nullptr;
 /* static */ void
 nsRefreshDriver::InitializeStatics()
 {
-#ifdef XP_WIN
-  PreciseRefreshDriverTimerWindowsDwmVsync::LoadDll();
-#endif
-
 #ifdef PR_LOGGING
   if (!gLog) {
     gLog = PR_NewLogModule("nsRefreshDriver");
@@ -633,8 +591,6 @@ nsRefreshDriver::Shutdown()
   sThrottledRateTimer = nullptr;
 
 #ifdef XP_WIN
-  PreciseRefreshDriverTimerWindowsDwmVsync::UnloadDll();
-
   if (sDisableHighPrecisionTimersTimer) {
     sDisableHighPrecisionTimersTimer->Cancel();
     NS_RELEASE(sDisableHighPrecisionTimersTimer);
@@ -733,9 +689,6 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
 {
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
-
-  mRequests.Init();
-  mStartTable.Init();
 }
 
 nsRefreshDriver::~nsRefreshDriver()
@@ -802,9 +755,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   bool success = array.AppendElement(aObserver) != nullptr;
-
   EnsureTimerStarted(false);
-
   return success;
 }
 
@@ -814,6 +765,18 @@ nsRefreshDriver::RemoveRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   return array.RemoveElement(aObserver);
+}
+
+void
+nsRefreshDriver::AddPostRefreshObserver(nsAPostRefreshObserver* aObserver)
+{
+  mPostRefreshObservers.AppendElement(aObserver);
+}
+
+void
+nsRefreshDriver::RemovePostRefreshObserver(nsAPostRefreshObserver* aObserver)
+{
+  mPostRefreshObservers.RemoveElement(aObserver);
 }
 
 bool
@@ -1096,6 +1059,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     return;
   }
 
+  profiler_tracing("Paint", "RD", TRACING_INTERVAL_START);
+
   /*
    * The timer holds a reference to |this| while calling |Notify|.
    * However, implementations of |WillRefresh| are permitted to destroy
@@ -1110,6 +1075,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       
       if (!mPresContext || !mPresContext->GetPresShell()) {
         StopTimer();
+        profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
         return;
       }
     }
@@ -1127,6 +1093,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       // readded as needed.
       mFrameRequestCallbackDocs.Clear();
 
+      profiler_tracing("Paint", "Scripts", TRACING_INTERVAL_START);
       int64_t eventTime = aNowEpoch / PR_USEC_PER_MSEC;
       for (uint32_t i = 0; i < frameRequestCallbacks.Length(); ++i) {
         const DocumentFrameCallbacks& docCallbacks = frameRequestCallbacks[i];
@@ -1153,6 +1120,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           }
         }
       }
+      profiler_tracing("Paint", "Scripts", TRACING_INTERVAL_END);
 
       // This is the Flush_Style case.
       if (mPresContext && mPresContext->GetPresShell()) {
@@ -1247,6 +1215,11 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     }
 #endif
   }
+
+  for (uint32_t i = 0; i < mPostRefreshObservers.Length(); ++i) {
+    mPostRefreshObservers[i]->DidRefresh();
+  }
+  profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
 }
 
 /* static */ PLDHashOperator

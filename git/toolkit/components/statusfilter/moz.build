@@ -6,9 +6,11 @@
 
 MODULE = 'browser'
 
-CPP_SOURCES += [
+SOURCES += [
     'nsBrowserStatusFilter.cpp',
 ]
 
 LIBRARY_NAME = 'mozbrwsr_s'
+
+LIBXUL_LIBRARY = True
 

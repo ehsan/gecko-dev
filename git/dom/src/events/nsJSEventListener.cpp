@@ -9,10 +9,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsIScriptRuntime.h"
 #include "nsIXPConnect.h"
-#include "nsGUIEvent.h"
-#include "nsContentUtils.h"
 #include "nsIMutableArray.h"
 #include "nsVariant.h"
 #include "nsIDOMBeforeUnloadEvent.h"
@@ -20,6 +17,7 @@
 #include "xpcpublic.h"
 #include "nsJSEnvironment.h"
 #include "nsDOMJSUtils.h"
+#include "mozilla/ContentEvents.h"
 #include "mozilla/Likely.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "nsDOMEvent.h"
@@ -52,7 +50,7 @@ nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
   : nsIJSEventListener(aContext, aScopeObject, aTarget, aType, aHandler)
 {
   if (mScopeObject) {
-    NS_HOLD_JS_OBJECTS(this, nsJSEventListener);
+    mozilla::HoldJSObjects(this);
   }
 }
 
@@ -60,7 +58,7 @@ nsJSEventListener::~nsJSEventListener()
 {
   if (mScopeObject) {
     mScopeObject = nullptr;
-    NS_DROP_JS_OBJECTS(this, nsJSEventListener);
+    mozilla::DropJSObjects(this);
   }
 }
 
@@ -70,9 +68,9 @@ nsJSEventListener::UpdateScopeObject(JS::Handle<JSObject*> aScopeObject)
 {
   if (mScopeObject && !aScopeObject) {
     mScopeObject = nullptr;
-    NS_DROP_JS_OBJECTS(this, nsJSEventListener);
+    mozilla::DropJSObjects(this);
   } else if (aScopeObject && !mScopeObject) {
-    NS_HOLD_JS_OBJECTS(this, nsJSEventListener);
+    mozilla::HoldJSObjects(this);
   }
   mScopeObject = aScopeObject;
 }
@@ -82,7 +80,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSEventListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSEventListener)
   if (tmp->mScopeObject) {
     tmp->mScopeObject = nullptr;
-    NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
+    mozilla::DropJSObjects(tmp);
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mContext)
   }
   tmp->mHandler.ForgetHandler();
@@ -178,11 +176,9 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
     Optional<uint32_t> columnNumber;
 
     NS_ENSURE_TRUE(aEvent, NS_ERROR_UNEXPECTED);
-    nsEvent* event = aEvent->GetInternalNSEvent();
-    if (event->message == NS_LOAD_ERROR &&
-        event->eventStructType == NS_SCRIPT_ERROR_EVENT) {
-      nsScriptErrorEvent *scriptEvent =
-        static_cast<nsScriptErrorEvent*>(event);
+    InternalScriptErrorEvent* scriptEvent =
+      aEvent->GetInternalNSEvent()->AsScriptErrorEvent();
+    if (scriptEvent && scriptEvent->message == NS_LOAD_ERROR) {
       errorMsg = scriptEvent->errorMsg;
       msgOrEvent.SetAsString() = static_cast<nsAString*>(&errorMsg);
 
@@ -213,8 +209,8 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
   if (mHandler.Type() == nsEventHandler::eOnBeforeUnload) {
     MOZ_ASSERT(mEventName == nsGkAtoms::onbeforeunload);
 
-    nsRefPtr<BeforeUnloadEventHandlerNonNull> handler =
-      mHandler.BeforeUnloadEventHandler();
+    nsRefPtr<OnBeforeUnloadEventHandlerNonNull> handler =
+      mHandler.OnBeforeUnloadEventHandler();
     ErrorResult rv;
     nsString retval;
     handler->Call(mTarget, *(aEvent->InternalDOMEvent()), retval, rv);
@@ -275,7 +271,7 @@ NS_NewJSEventListener(nsIScriptContext* aContext, JSObject* aScopeObject,
 {
   MOZ_ASSERT(aContext || aHandler.HasEventHandler(),
              "Must have a handler if we don't have an nsIScriptContext");
-  NS_ENSURE_ARG(aEventType);
+  NS_ENSURE_ARG(aEventType || !NS_IsMainThread());
   nsJSEventListener* it =
     new nsJSEventListener(aContext, aScopeObject, aTarget, aEventType,
                           aHandler);

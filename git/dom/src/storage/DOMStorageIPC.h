@@ -49,7 +49,11 @@ public:
   virtual nsresult AsyncClear(DOMStorageCacheBridge* aCache);
 
   virtual void AsyncClearAll()
-    { mScopesHavingData.Clear(); /* NO-OP on the child process otherwise */ }
+  {
+    if (mScopesHavingData) {
+      mScopesHavingData->Clear(); /* NO-OP on the child process otherwise */
+    }
+  }
 
   virtual void AsyncClearMatchingScope(const nsACString& aScope)
     { /* NO-OP on the child process */ }
@@ -83,7 +87,7 @@ private:
   nsRefPtr<DOMLocalStorageManager> mManager;
 
   // Scopes having data hash, for optimization purposes only
-  nsTHashtable<nsCStringHashKey> mScopesHavingData;
+  nsAutoPtr<nsTHashtable<nsCStringHashKey> > mScopesHavingData;
 
   // List of caches waiting for preload.  This ensures the contract that
   // AsyncPreload call references the cache for time of the preload.
@@ -107,6 +111,10 @@ class DOMStorageDBParent MOZ_FINAL : public PStorageParent
 public:
   DOMStorageDBParent();
   virtual ~DOMStorageDBParent();
+
+  virtual mozilla::ipc::IProtocol*
+  CloneProtocol(Channel* aChannel,
+                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
 
   NS_IMETHOD_(nsrefcnt) AddRef(void);
   NS_IMETHOD_(nsrefcnt) Release(void);

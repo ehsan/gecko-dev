@@ -8,16 +8,10 @@ DIRS += ['ipc']
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
-    'nsIIDBKeyRange.idl',
     'nsIIndexedDatabaseManager.idl',
 ]
 
 XPIDL_MODULE = 'dom_indexeddb'
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/interfaces/base',
-    '-I$(topsrcdir)/dom/interfaces/events',
-]
 
 MODULE = 'dom'
 
@@ -43,7 +37,7 @@ EXPORTS.mozilla.dom.indexedDB += [
     'KeyPath.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'AsyncConnectionHelper.cpp',
     'CheckPermissionsHelper.cpp',
     'Client.cpp',
@@ -67,4 +61,12 @@ CPP_SOURCES += [
     'OpenDatabaseHelper.cpp',
     'TransactionThreadPool.cpp',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'dom_indexeddb_s'
+
+include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -11,9 +11,12 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 
 MODULE = 'xpcom'
 
-CPP_SOURCES += [
-    '$(XPCOM_GLUE_SRC_LCPPSRCS)',
-    'nsStringAPI.cpp',
+include('../objs.mozbuild')
+
+SOURCES += xpcom_glue_src_cppsrcs
+
+SOURCES += [
+    '../nsStringAPI.cpp',
     'nsXPCOMGlue.cpp',
 ]
 
@@ -22,3 +25,9 @@ LIBRARY_NAME = 'xpcomglue'
 EXPORTS += [
     'nsXPCOMGlue.h',
 ]
+
+SDK_LIBRARY = [
+    "%s%s.%s" % (CONFIG['LIB_PREFIX'], 'xpcomglue', CONFIG['LIB_SUFFIX']),
+]
+
+FORCE_STATIC_LIB = True

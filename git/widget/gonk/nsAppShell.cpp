@@ -33,17 +33,20 @@
 #ifdef MOZ_OMX_DECODER
 #include "MediaResourceManagerService.h"
 #endif
+#include "mozilla/TouchEvents.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Hal.h"
+#include "mozilla/MouseEvents.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Services.h"
+#include "mozilla/TextEvents.h"
 #include "nsAppShell.h"
 #include "mozilla/dom/Touch.h"
 #include "nsGkAtoms.h"
-#include "nsGUIEvent.h"
 #include "nsIObserverService.h"
 #include "nsIScreen.h"
 #include "nsScreenManagerGonk.h"
+#include "nsThreadUtils.h"
 #include "nsWindow.h"
 #include "OrientationObserver.h"
 #include "GonkMemoryPressureMonitoring.h"
@@ -53,6 +56,10 @@
 #include "libui/InputReader.h"
 #include "libui/InputDispatcher.h"
 #include "cutils/properties.h"
+
+#ifdef MOZ_NUWA_PROCESS
+#include "ipc/Nuwa.h"
+#endif
 
 #include "GeckoProfiler.h"
 
@@ -138,13 +145,13 @@ struct UserInputData {
 static void
 sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
 {
-    nsMouseEvent event(true, msg, NULL,
-                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
+    WidgetMouseEvent event(true, msg, NULL,
+                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
 
     event.refPoint.x = x;
     event.refPoint.y = y;
     event.time = timeMs;
-    event.button = nsMouseEvent::eLeftButton;
+    event.button = WidgetMouseEvent::eLeftButton;
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;
@@ -155,7 +162,7 @@ sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildr
 }
 
 static void
-addDOMTouch(UserInputData& data, nsTouchEvent& event, int i)
+addDOMTouch(UserInputData& data, WidgetTouchEvent& event, int i)
 {
     const ::Touch& touch = data.motion.touches[i];
     event.touches.AppendElement(
@@ -191,7 +198,7 @@ sendTouchEvent(UserInputData& data, bool* captured)
         break;
     }
 
-    nsTouchEvent event(true, msg, NULL);
+    WidgetTouchEvent event(true, msg, NULL);
 
     event.time = data.timeMs;
 
@@ -214,7 +221,7 @@ sendKeyEventWithMsg(uint32_t keyCode,
                     uint32_t msg,
                     uint64_t timeMs)
 {
-    nsKeyEvent event(true, msg, NULL);
+    WidgetKeyboardEvent event(true, msg, NULL);
     event.keyCode = keyCode;
     event.mKeyNameIndex = keyNameIndex;
     event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
@@ -320,16 +327,18 @@ GeckoPointerController::getBounds(float* outMinX,
 {
     int32_t width, height, orientation;
 
-    mConfig->getDisplayInfo(0, false, &width, &height, &orientation);
+    DisplayViewport viewport;
+
+    mConfig->getDisplayInfo(false, &viewport);
 
     *outMinX = *outMinY = 0;
     if (orientation == DISPLAY_ORIENTATION_90 ||
         orientation == DISPLAY_ORIENTATION_270) {
-        *outMaxX = height;
-        *outMaxY = width;
+        *outMaxX = viewport.deviceHeight;
+        *outMaxY = viewport.deviceWidth;
     } else {
-        *outMaxX = width;
-        *outMaxY = height;
+        *outMaxX = viewport.deviceWidth;
+        *outMaxY = viewport.deviceHeight;
     }
     return true;
 }
@@ -381,6 +390,16 @@ deviceId)
     {
         return new GeckoPointerController(&mConfig);
     };
+    virtual void notifyInputDevicesChanged(const android::Vector<InputDeviceInfo>& inputDevices) {};
+    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const String8& inputDeviceDescriptor)
+    {
+        return NULL;
+    };
+    virtual String8 getDeviceAlias(const InputDeviceIdentifier& identifier)
+    {
+        return String8::empty();
+    };
+
     void setDisplayInfo();
 
 protected:
@@ -453,7 +472,20 @@ GeckoInputReaderPolicy::setDisplayInfo()
                   DISPLAY_ORIENTATION_270,
                   "Orientation enums not matched!");
 
-    mConfig.setDisplayInfo(0, false, gScreenBounds.width, gScreenBounds.height, nsScreenGonk::GetRotation());
+    DisplayViewport viewport;
+    viewport.displayId = 0;
+    viewport.orientation = nsScreenGonk::GetRotation();
+    viewport.physicalRight = viewport.deviceWidth = gScreenBounds.width;
+    viewport.physicalBottom = viewport.deviceHeight = gScreenBounds.height;
+    if (viewport.orientation == DISPLAY_ORIENTATION_90 ||
+        viewport.orientation == DISPLAY_ORIENTATION_270) {
+        viewport.logicalRight = gScreenBounds.height;
+        viewport.logicalBottom = gScreenBounds.width;
+    } else {
+        viewport.logicalRight = gScreenBounds.width;
+        viewport.logicalBottom = gScreenBounds.height;
+    }
+    mConfig.setDisplayInfo(false, viewport);
 }
 
 void GeckoInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig)
@@ -595,16 +627,22 @@ void GeckoInputDispatcher::notifySwitch(const NotifySwitchArgs* args)
     if (!sDevInputAudioJack)
         return;
 
-    switch (args->switchCode) {
-    case SW_HEADPHONE_INSERT:
-        sHeadphoneState = args->switchValue;
-        updateHeadphoneSwitch();
-        break;
-    case SW_MICROPHONE_INSERT:
-        sMicrophoneState = args->switchValue;
-        updateHeadphoneSwitch();
-        break;
+    bool needSwitchUpdate = false;
+
+    if (args->switchMask & (1 << SW_HEADPHONE_INSERT)) {
+        sHeadphoneState = (args->switchValues & (1 << SW_HEADPHONE_INSERT)) ?
+                          AKEY_STATE_DOWN : AKEY_STATE_UP;
+        needSwitchUpdate = true;
     }
+
+    if (args->switchMask & (1 << SW_MICROPHONE_INSERT)) {
+        sMicrophoneState = (args->switchValues & (1 << SW_MICROPHONE_INSERT)) ?
+                           AKEY_STATE_DOWN : AKEY_STATE_UP;
+        needSwitchUpdate = true;
+    }
+
+    if (needSwitchUpdate)
+        updateHeadphoneSwitch();
 }
 
 void GeckoInputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args)
@@ -698,6 +736,11 @@ nsAppShell::Init()
     if (obsServ) {
         obsServ->AddObserver(this, "browser-ui-startup-complete", false);
     }
+
+#ifdef MOZ_NUWA_PROCESS
+    // Make sure main thread was woken up after Nuwa fork.
+    NuwaAddConstructor((void (*)(void *))&NotifyEvent, nullptr);
+#endif
 
     // Delay initializing input devices until the screen has been
     // initialized (and we know the resolution).

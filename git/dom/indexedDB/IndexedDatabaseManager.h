@@ -12,6 +12,9 @@
 #include "nsIIndexedDatabaseManager.h"
 #include "nsIObserver.h"
 
+#include "js/TypeDecls.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/dom/quota/PersistenceType.h"
 #include "mozilla/Mutex.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
@@ -25,16 +28,23 @@ class nsEventChainPostVisitor;
 namespace mozilla {
 namespace dom {
 class TabContext;
+namespace quota {
+class OriginOrPatternString;
+}
 }
 }
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class FileManager;
+class FileManagerInfo;
 
 class IndexedDatabaseManager MOZ_FINAL : public nsIIndexedDatabaseManager,
                                          public nsIObserver
 {
+  typedef mozilla::dom::quota::OriginOrPatternString OriginOrPatternString;
+  typedef mozilla::dom::quota::PersistenceType PersistenceType;
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIINDEXEDDATABASEMANAGER
@@ -76,7 +86,8 @@ public:
 #endif
 
   already_AddRefed<FileManager>
-  GetFileManager(const nsACString& aOrigin,
+  GetFileManager(PersistenceType aPersistenceType,
+                 const nsACString& aOrigin,
                  const nsAString& aDatabaseName);
 
   void
@@ -86,10 +97,12 @@ public:
   InvalidateAllFileManagers();
 
   void
-  InvalidateFileManagersForPattern(const nsACString& aPattern);
+  InvalidateFileManagers(PersistenceType aPersistenceType,
+                         const OriginOrPatternString& aOriginOrPattern);
 
   void
-  InvalidateFileManager(const nsACString& aOrigin,
+  InvalidateFileManager(PersistenceType aPersistenceType,
+                        const nsACString& aOrigin,
                         const nsAString& aDatabaseName);
 
   nsresult
@@ -100,7 +113,8 @@ public:
   // It is intended to be used by mochitests to test correctness of the special
   // reference counting of stored blobs/files.
   nsresult
-  BlockAndGetFileReferences(const nsACString& aOrigin,
+  BlockAndGetFileReferences(PersistenceType aPersistenceType,
+                            const nsACString& aOrigin,
                             const nsAString& aDatabaseName,
                             int64_t aFileId,
                             int32_t* aRefCnt,
@@ -125,6 +139,15 @@ public:
   TabContextMayAccessOrigin(const mozilla::dom::TabContext& aContext,
                             const nsACString& aOrigin);
 
+  static bool
+  DefineConstructors(JSContext* aCx, JS::HandleObject aGlobal);
+
+  static bool
+  DefineIndexedDBGetter(JSContext* aCx, JS::HandleObject aGlobal);
+
+  static bool
+  DefineIndexedDBLazyGetter(JSContext* aCx, JS::HandleObject aGlobal);
+
 private:
   IndexedDatabaseManager();
   ~IndexedDatabaseManager();
@@ -135,10 +158,14 @@ private:
   void
   Destroy();
 
+  static PLDHashOperator
+  InvalidateAndRemoveFileManagers(const nsACString& aKey,
+                                  nsAutoPtr<FileManagerInfo>& aValue,
+                                  void* aUserArg);
+
   // Maintains a list of all file managers per origin. This list isn't
   // protected by any mutex but it is only ever touched on the IO thread.
-  nsClassHashtable<nsCStringHashKey,
-                   nsTArray<nsRefPtr<FileManager> > > mFileManagers;
+  nsClassHashtable<nsCStringHashKey, FileManagerInfo> mFileManagerInfos;
 
   // Lock protecting FileManager.mFileInfos and nsDOMFileBase.mFileInfos
   // It's s also used to atomically update FileInfo.mRefCnt, FileInfo.mDBRefCnt
@@ -146,8 +173,12 @@ private:
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static int32_t sLowDiskSpaceMode;
+  static mozilla::Atomic<int32_t> sLowDiskSpaceMode;
 };
+
+bool
+ResolveConstructors(JSContext* aCx, JS::HandleObject aObj, JS::HandleId aId,
+                    JS::MutableHandleObject aObjp);
 
 END_INDEXEDDB_NAMESPACE
 

@@ -35,11 +35,17 @@ public:
 
     virtual void* GetHWCDevice() = 0;
 
+    virtual void* GetFBSurface() = 0;
+
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
     virtual ANativeWindowBuffer* DequeueBuffer() = 0;
 
     virtual bool QueueBuffer(ANativeWindowBuffer* buf) = 0;
+
+    virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur) = 0;
+
+    virtual void SetFBReleaseFd(int fd) = 0;
 
     float xdpi;
     uint32_t surfaceformat;

@@ -2,14 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ShadowLayers.h"
 #include "SharedRGBImage.h"
-#include "mozilla/layers/LayersSurfaces.h"
-#include "Shmem.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
-#include "mozilla/layers/TextureClient.h"
-#include "mozilla/layers/ImageClient.h"
-#include "gfx2DGlue.h"
+#include "ImageTypes.h"                 // for ImageFormat::SHARED_RGB, etc
+#include "Shmem.h"                      // for Shmem
+#include "gfx2DGlue.h"                  // for ImageFormatToSurfaceFormat, etc
+#include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
+#include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator, etc
+#include "mozilla/layers/ImageClient.h"  // for ImageClient
+#include "mozilla/layers/ImageDataSerializer.h"  // for ImageDataSerializer
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
+#include "mozilla/layers/TextureClient.h"  // for BufferTextureClient, etc
+#include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
+#include "mozilla/mozalloc.h"           // for operator delete, etc
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsDebug.h"                    // for NS_WARNING, NS_ASSERTION
+#include "nsISupportsImpl.h"            // for Image::AddRef, etc
+#include "nsRect.h"                     // for nsIntRect
+#include "nsSize.h"                     // for nsIntSize
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 // Just big enough for a 1080p RGBA32 frame
 #define MAX_FRAME_SIZE (16 * 1024 * 1024)
@@ -44,9 +54,9 @@ CreateSharedRGBImage(ImageContainer *aImageContainer,
                      nsIntSize aSize,
                      gfxImageFormat aImageFormat)
 {
-  NS_ASSERTION(aImageFormat == gfxASurface::ImageFormatARGB32 ||
-               aImageFormat == gfxASurface::ImageFormatRGB24 ||
-               aImageFormat == gfxASurface::ImageFormatRGB16_565,
+  NS_ASSERTION(aImageFormat == gfxImageFormatARGB32 ||
+               aImageFormat == gfxImageFormatRGB24 ||
+               aImageFormat == gfxImageFormatRGB16_565,
                "RGB formats supported only");
 
   if (!aImageContainer) {
@@ -63,19 +73,22 @@ CreateSharedRGBImage(ImageContainer *aImageContainer,
   }
 
   if (gfxPlatform::GetPlatform()->UseDeprecatedTextures()) {
-      nsRefPtr<DeprecatedSharedRGBImage> rgbImageDep = static_cast<DeprecatedSharedRGBImage*>(image.get());
-      rgbImageDep->mSize = gfxIntSize(aSize.width, aSize.height);
-      rgbImageDep->mImageFormat = aImageFormat;
+    nsRefPtr<DeprecatedSharedRGBImage> rgbImageDep = static_cast<DeprecatedSharedRGBImage*>(image.get());
+    rgbImageDep->mSize = gfxIntSize(aSize.width, aSize.height);
+    rgbImageDep->mImageFormat = aImageFormat;
 
-      if (!rgbImageDep->AllocateBuffer(aSize, aImageFormat)) {
-        NS_WARNING("Failed to allocate shared memory for DeprecatedSharedRGBImage");
-        return nullptr;
-      }
-      return rgbImageDep.forget();
+    if (!rgbImageDep->AllocateBuffer(aSize, aImageFormat)) {
+      NS_WARNING("Failed to allocate shared memory for DeprecatedSharedRGBImage");
+      return nullptr;
+    }
+    return rgbImageDep.forget();
   }
   nsRefPtr<SharedRGBImage> rgbImage = static_cast<SharedRGBImage*>(image.get());
-  rgbImage->Allocate(gfx::ToIntSize(aSize),
-                     gfx::ImageFormatToSurfaceFormat(aImageFormat));
+  if (!rgbImage->Allocate(gfx::ToIntSize(aSize),
+                          gfx::ImageFormatToSurfaceFormat(aImageFormat))) {
+    NS_WARNING("Failed to allocate a shared image");
+    return nullptr;
+  }
   return image.forget();
 }
 
@@ -175,6 +188,12 @@ SharedRGBImage::SharedRGBImage(ImageClient* aCompositable)
 SharedRGBImage::~SharedRGBImage()
 {
   MOZ_COUNT_DTOR(SharedRGBImage);
+
+  if (mCompositable->GetAsyncID() != 0 &&
+      !InImageBridgeChildThread()) {
+    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().drop());
+    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().drop());
+  }
 }
 
 bool
@@ -188,8 +207,12 @@ SharedRGBImage::Allocate(gfx::IntSize aSize, gfx::SurfaceFormat aFormat)
 uint8_t*
 SharedRGBImage::GetBuffer()
 {
-  return mTextureClient ? mTextureClient->GetBuffer()
-                        : nullptr;
+  if (!mTextureClient) {
+    return nullptr;
+  }
+
+  ImageDataSerializer serializer(mTextureClient->GetBuffer());
+  return serializer.GetData();
 }
 
 gfxIntSize

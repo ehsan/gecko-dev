@@ -27,7 +27,6 @@
  */
 
 #include "HRTFDatabaseLoader.h"
-
 #include "HRTFDatabase.h"
 
 using namespace mozilla;
@@ -46,7 +45,6 @@ TemporaryRef<HRTFDatabaseLoader> HRTFDatabaseLoader::createAndLoadAsynchronously
     
     if (!s_loaderMap) {
         s_loaderMap = new nsTHashtable<LoaderByRateEntry>();
-        s_loaderMap->Init();
     }
 
     LoaderByRateEntry* entry = s_loaderMap->PutEntry(sampleRate);
@@ -200,7 +198,7 @@ void HRTFDatabaseLoader::shutdown()
 {
     MOZ_ASSERT(NS_IsMainThread());
     if (s_loaderMap) {
-        // Set s_loaderMap to NULL so that the hashtable is not modified on
+        // Set s_loaderMap to nullptr so that the hashtable is not modified on
         // reference release during enumeration.
         nsTHashtable<LoaderByRateEntry>* loaderMap = s_loaderMap;
         s_loaderMap = nullptr;

@@ -548,13 +548,16 @@ let DOMEvents =  {
 DOMEvents.init();
 
 let ContentScroll =  {
+  // The most recent offset set by APZC for the root scroll frame
   _scrollOffset: { x: 0, y: 0 },
 
   init: function() {
-    addMessageListener("Content:SetCacheViewport", this);
+    addMessageListener("Content:SetDisplayPort", this);
     addMessageListener("Content:SetWindowSize", this);
 
-    addEventListener("scroll", this, false);
+    if (Services.prefs.getBoolPref("layers.async-pan-zoom.enabled")) {
+      addEventListener("scroll", this, false);
+    }
     addEventListener("pagehide", this, false);
     addEventListener("MozScrolledAreaChanged", this, false);
   },
@@ -584,7 +587,9 @@ let ContentScroll =  {
   receiveMessage: function(aMessage) {
     let json = aMessage.json;
     switch (aMessage.name) {
-      case "Content:SetCacheViewport": {
+      // Sent to us from chrome when the the apz has requested that the
+      // display port be updated and that content should repaint.
+      case "Content:SetDisplayPort": {
         // Set resolution for root view
         let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         if (json.id == 1) {
@@ -615,9 +620,13 @@ let ContentScroll =  {
 
         // Set the scroll offset for this element if specified
         if (json.scrollX >= 0 || json.scrollY >= 0) {
-          this.setScrollOffsetForElement(element, json.scrollX, json.scrollY)
-          if (json.id == 1)
+          this.setScrollOffsetForElement(element, json.scrollX, json.scrollY);
+          if (element == content.document.documentElement) {
+            // scrollTo can make some small adjustments to the offset before
+            // actually scrolling the document.  To ensure that _scrollOffset
+            // actually matches the offset stored in the window, re-query it.
             this._scrollOffset = this.getScrollOffset(content);
+          }
         }
 
         // Set displayport. We want to set this after setting the scroll offset, because
@@ -652,11 +661,7 @@ let ContentScroll =  {
         break;
 
       case "scroll": {
-        let doc = aEvent.target;
-        if (doc != content.document)
-          break;
-
-        this.sendScroll();
+        this.notifyChromeAboutContentScroll(aEvent.target);
         break;
       }
 
@@ -683,13 +688,46 @@ let ContentScroll =  {
     }
   },
 
-  sendScroll: function sendScroll() {
-    let scrollOffset = this.getScrollOffset(content);
-    if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y)
-      return;
+  /*
+  * DOM scroll handler - if we receive this, content or the dom scrolled
+  * content without going through the apz. This can happen in a lot of
+  * cases, keyboard shortcuts, scroll wheel, or content script. Messages
+  * chrome via a sync call which messages the apz about the update.
+  */
+  notifyChromeAboutContentScroll: function (target) {
+    let isRoot = false;
+    if (target instanceof Ci.nsIDOMDocument) {
+      var window = target.defaultView;
+      var scrollOffset = this.getScrollOffset(window);
+      var element = target.documentElement;
 
-    this._scrollOffset = scrollOffset;
-    sendAsyncMessage("scroll", scrollOffset);
+      if (target == content.document) {
+        if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y) {
+          // Don't send a scroll message back to APZC if it's the same as the
+          // last one set by APZC.  We use this to avoid sending APZC back an
+          // event that it originally triggered.
+          return;
+        }
+        this._scrollOffset = scrollOffset;
+        isRoot = true;
+      }
+    } else {
+      var window = target.currentDoc.defaultView;
+      var scrollOffset = this.getScrollOffsetForElement(target);
+      var element = target;
+    }
+
+    let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    let presShellId = {};
+    utils.getPresShellId(presShellId);
+    let viewId = utils.getViewId(element);
+    // Must be synchronous to prevent redraw getting out of sync from
+    // composition.
+    sendSyncMessage("Browser:ContentScroll",
+      { presShellId: presShellId.value,
+        viewId: viewId,
+        scrollOffset: scrollOffset,
+        isRoot: isRoot });
   }
 };
 

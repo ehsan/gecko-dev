@@ -8,12 +8,11 @@
 #define mozilla_imagelib_FrameBlender_h_
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/TimeStamp.h"
-#include "gfxASurface.h"
-#include "imgFrame.h"
+#include "gfxTypes.h"
 #include "FrameSequence.h"
 #include "nsCOMPtr.h"
-#include "nsISupportsImpl.h"
+
+class imgFrame;
 
 namespace mozilla {
 namespace image {
@@ -64,7 +63,7 @@ public:
 
   void SetSize(nsIntSize aSize) { mSize = aSize; }
 
-  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
+  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
                                                  mozilla::MallocSizeOf aMallocSizeOf) const;
 
   void ResetAnimation();
