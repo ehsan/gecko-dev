@@ -254,7 +254,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
                                      const nsIntRect *aDirtyRect,
                                      nsIFrame* aTransformRoot)
@@ -277,7 +277,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
   return NS_OK;
 }
 
-nsIFrame*
+NS_IMETHODIMP_(nsIFrame*)
 nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
@@ -287,7 +287,7 @@ nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
   return nsSVGUtils::HitTestChildren(this, aPoint);
 }
 
-nsRect
+NS_IMETHODIMP_(nsRect)
 nsSVGDisplayContainerFrame::GetCoveredRegion()
 {
   return nsSVGUtils::GetCoveredRegion(mFrames);
