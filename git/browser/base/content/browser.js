@@ -159,8 +159,6 @@ let gInitialPages = [
 
 #ifdef MOZ_DATA_REPORTING
 #include browser-data-submission-info-bar.js
-
-let gDataNotificationInfoBar = new DataNotificationInfoBar();
 #endif
 
 #ifdef MOZ_SERVICES_SYNC
@@ -172,9 +170,7 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
   const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
   if (WINTASKBAR_CONTRACTID in Cc &&
       Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-    let temp = {};
-    Cu.import("resource:///modules/WindowsPreviewPerTab.jsm", temp);
-    let AeroPeek = temp.AeroPeek;
+    let AeroPeek = Cu.import("resource:///modules/WindowsPreviewPerTab.jsm", {}).AeroPeek;
     return {
       onOpenWindow: function () {
         AeroPeek.onOpenWindow(window);
@@ -1350,10 +1346,9 @@ var gBrowserInit = {
 
 #ifdef XP_WIN
       if (Win7Features) {
-        let tempScope = {};
-        Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm",
-                  tempScope);
-        tempScope.DownloadTaskbarProgress.onBrowserWindowLoad(window);
+        let DownloadTaskbarProgress =
+          Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
+        DownloadTaskbarProgress.onBrowserWindowLoad(window);
       }
 #endif
     }, 10000);
@@ -6648,7 +6643,7 @@ var gIdentityHandler = {
     } else if (state & nsIWebProgressListener.STATE_IS_SECURE) {
       this.setMode(this.IDENTITY_MODE_DOMAIN_VERIFIED);
     } else if (state & nsIWebProgressListener.STATE_IS_BROKEN) {
-      if (gBrowser.docShell.hasMixedActiveContentLoaded) {
+      if (state & nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) {
         this.setMode(this.IDENTITY_MODE_MIXED_ACTIVE_CONTENT);
       } else {
         this.setMode(this.IDENTITY_MODE_MIXED_CONTENT);
@@ -6656,6 +6651,48 @@ var gIdentityHandler = {
     } else {
       this.setMode(this.IDENTITY_MODE_UNKNOWN);
     }
+
+    // Ensure the doorhanger is shown when mixed active content is blocked.
+    if (state & nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT)
+      this.showMixedContentDoorhanger();
+  },
+
+  /**
+   * Display the Mixed Content Blocker doohanger, providing an option
+   * to the user to override mixed content blocking
+   */
+  showMixedContentDoorhanger : function() {
+    // If we've already got an active notification, bail out to avoid showing it repeatedly.
+    if (PopupNotifications.getNotification("mixed-content-blocked", gBrowser.selectedBrowser))
+      return;
+
+    let helplink = document.getElementById("mixed-content-blocked-helplink");
+    helplink.href = Services.urlFormatter.formatURLPref("browser.mixedcontent.warning.infoURL");
+
+    let brandBundle = document.getElementById("bundle_brand");
+    let brandShortName = brandBundle.getString("brandShortName");
+    let messageString = gNavigatorBundle.getFormattedString("mixedContentBlocked.message", [brandShortName]);
+    let action = {
+      label: gNavigatorBundle.getString("mixedContentBlocked.keepBlockingButton.label"),
+      accessKey: gNavigatorBundle.getString("mixedContentBlocked.keepBlockingButton.accesskey"),
+      callback: function() { /* NOP */ }
+    };
+    let secondaryActions = [
+      {
+        label: gNavigatorBundle.getString("mixedContentBlocked.unblock.label"),
+        accessKey: gNavigatorBundle.getString("mixedContentBlocked.unblock.accesskey"),
+        callback: function() {
+          // Reload the page with the content unblocked
+          BrowserReloadWithFlags(nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT);
+        }
+      }
+    ];
+    let options = {
+      dismissed: true,
+    };
+    PopupNotifications.show(gBrowser.selectedBrowser, "mixed-content-blocked",
+                            messageString, "mixed-content-blocked-notification-icon",
+                            action, secondaryActions, options);
   },
 
   /**
@@ -7075,15 +7112,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "gDevToolsBrowser",
                                   "resource:///modules/devtools/gDevTools.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
-  let tempScope = {};
-  Cu.import("resource:///modules/HUDService.jsm", tempScope);
-  try {
-    return tempScope.HUDService.consoleUI;
-  }
-  catch (ex) {
-    Components.utils.reportError(ex);
-    return null;
-  }
+  return Cu.import("resource:///modules/HUDService.jsm", {}).HUDService.consoleUI;
 });
 
 // Prompt user to restart the browser in safe mode

@@ -2608,6 +2608,13 @@ let RIL = {
           destinationId: STK_DEVICE_ID_SIM
         };
         break;
+      case STK_EVENT_TYPE_LANGUAGE_SELECTION:
+        command.deviceId = {
+          sourceId: STK_DEVICE_ID_ME,
+          destinationId: STK_DEVICE_ID_SIM
+        };
+        command.language = command.event.language;
+        break;
     }
     this.sendICCEnvelopeCommand(command);
   },
@@ -2727,6 +2734,11 @@ let RIL = {
     // Timer Value
     if (options.timerValue != null) {
         ComprehensionTlvHelper.writeTimerValueTlv(options.timerValue, true);
+    }
+
+    // Language
+    if (options.language) {
+      ComprehensionTlvHelper.writeLanguageTlv(options.language);
     }
 
     // Calculate and write BER length to 2nd mark
@@ -8730,10 +8742,12 @@ let ICCIOHelper = {
     // description.
     let errorMsg = "ICC I/O Error code " +
                    RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError] +
-                   "EF id = " + options.fileId.toString(16) +
-                   " command = " + options.command.toString(16) +
-                   "(" + options.sw1.toString(16) +
-                   "/" + options.sw2.toString(16) + ")";
+                   " EF id = " + options.fileId.toString(16) +
+                   " command = " + options.command.toString(16);
+    if (options.sw1 && options.sw2) {
+      errorMsg += "(" + options.sw1.toString(16) +
+                  "/" + options.sw2.toString(16) + ")";
+    }
     error(errorMsg);
   },
 };

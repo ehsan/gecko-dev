@@ -1551,9 +1551,9 @@ public:
   already_AddRefed<nsINode> CloneNode(bool aDeep, mozilla::ErrorResult& aError);
   bool IsEqualNode(nsINode* aNode);
   bool IsSupported(const nsAString& aFeature, const nsAString& aVersion);
-  void GetNamespaceURI(nsAString& aNamespaceURI, mozilla::ErrorResult& aError) const
+  void GetNamespaceURI(nsAString& aNamespaceURI) const
   {
-    aError = mNodeInfo->GetNamespaceURI(aNamespaceURI);
+    mNodeInfo->GetNamespaceURI(aNamespaceURI);
   }
 #ifdef MOZILLA_INTERNAL_API
   void GetPrefix(nsAString& aPrefix)
@@ -2001,9 +2001,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
   } \
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI) __VA_ARGS__ \
   { \
-    mozilla::ErrorResult rv; \
-    nsINode::GetNamespaceURI(aNamespaceURI, rv); \
-    return rv.ErrorCode(); \
+    nsINode::GetNamespaceURI(aNamespaceURI); \
+    return NS_OK; \
   } \
   NS_IMETHOD GetPrefix(nsAString& aPrefix) __VA_ARGS__ \
   { \
