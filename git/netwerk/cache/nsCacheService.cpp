@@ -40,12 +40,6 @@
 
 #include "mozilla/net/NeckoCommon.h"
 
-#ifdef XP_MACOSX
-// for chflags()
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-
 using namespace mozilla;
 
 /******************************************************************************
@@ -731,16 +725,6 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
             mDiskCacheParentDirectory = do_QueryInterface(directory, &rv);
     }
     if (mDiskCacheParentDirectory) {
-#ifdef XP_MACOSX
-        // ensure that this directory is not indexed by Spotlight
-        // (bug 718910). it may already exist, so we "just do it."
-        nsAutoCString cachePD;
-        if (NS_SUCCEEDED(mDiskCacheParentDirectory->GetNativePath(cachePD))) {
-            if (chflags(cachePD.get(), UF_HIDDEN)) {
-                NS_WARNING("Failed to set CacheParentDirectory to HIDDEN.");
-            }
-        }
-#endif 
         bool firstSmartSizeRun;
         rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_FIRST_RUN_PREF, 
                                  &firstSmartSizeRun); 
@@ -942,7 +926,7 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
     // Conversion from unsigned int64 to double doesn't work on all platforms.
     // We need to truncate the value at INT64_MAX to make sure we don't
     // overflow.
-    if (bytes > INT64_MAX)
+    if (LL_CMP(bytes, >, INT64_MAX))
         bytes = INT64_MAX;
 
     uint64_t kbytes;

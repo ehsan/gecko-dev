@@ -89,9 +89,6 @@ ScaleFrameImage(imgFrame *aSrcFrame, imgFrame *aDstFrame,
 }
 #endif // MOZ_ENABLE_SKIA
 
-
-#include "sampler.h"
-
 using namespace mozilla;
 using namespace mozilla::image;
 using namespace mozilla::layers;
@@ -2586,7 +2583,6 @@ RasterImage::RequestDecode()
   // large images will decode a bit and post themselves to the event loop
   // to finish decoding.
   if (!mDecoded && !mInDecoder && mHasSourceData) {
-    SAMPLE_LABEL_PRINTF("RasterImage", "DecodeABitOf", "%s", GetURIString());
     DecodeWorker::Singleton()->DecodeABitOf(this);
     return NS_OK;
   }
@@ -2604,8 +2600,6 @@ nsresult
 RasterImage::SyncDecode()
 {
   nsresult rv;
-
-  SAMPLE_LABEL_PRINTF("RasterImage", "SyncDecode", "%s", GetURIString());;
 
   // If we're decoded already, no worries
   if (mDecoded)
@@ -2799,19 +2793,6 @@ RasterImage::ScaleRequest::Stop(RasterImage* aImg)
   request->stopped = true;
 }
 
-static inline bool
-IsDownscale(const gfxSize& scale)
-{
-  if (scale.width > 1.0)
-    return false;
-  if (scale.height > 1.0)
-    return false;
-  if (scale.width == 1.0 && scale.height == 1.0)
-    return false;
-
-  return true;
-}
-
 bool
 RasterImage::CanScale(gfxPattern::GraphicsFilter aFilter,
                       gfxSize aScale)
@@ -2819,7 +2800,8 @@ RasterImage::CanScale(gfxPattern::GraphicsFilter aFilter,
 // The high-quality scaler requires Skia.
 #ifdef MOZ_ENABLE_SKIA
   if (gHQDownscaling && aFilter == gfxPattern::FILTER_GOOD &&
-      !mAnim && mDecoded && IsDownscale(aScale)) {
+      !mAnim && mDecoded &&
+      (aScale.width <= 1.0 && aScale.height <= 1.0)) {
     gfxFloat factor = gHQDownscalingMinFactor / 1000.0;
     return (aScale.width < factor || aScale.height < factor);
   }

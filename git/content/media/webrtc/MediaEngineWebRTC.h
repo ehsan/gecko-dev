@@ -48,6 +48,14 @@ namespace mozilla {
 /**
  * The WebRTC implementation of the MediaEngine interface.
  */
+
+enum WebRTCEngineState {
+  kAllocated,
+  kStarted,
+  kStopped,
+  kReleased
+};
+
 class MediaEngineWebRTCVideoSource : public MediaEngineVideoSource,
                                      public webrtc::ExternalRenderer,
                                      public nsRunnable
@@ -111,7 +119,7 @@ private:
   int mWidth, mHeight;
   TrackID mTrackID;
 
-  MediaEngineState mState;
+  WebRTCEngineState mState;
   mozilla::ReentrantMonitor mMonitor; // Monitor for processing WebRTC frames.
   SourceMediaStream* mSource;
 
@@ -181,7 +189,7 @@ private:
   int mChannel;
   TrackID mTrackID;
   bool mInitDone;
-  MediaEngineState mState;
+  WebRTCEngineState mState;
 
   nsString mDeviceName;
   nsString mDeviceUUID;

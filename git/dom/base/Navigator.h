@@ -162,8 +162,6 @@ public:
   NS_DECL_NSIDOMNAVIGATORCAMERA
 
 private:
-  bool CheckPermission(const char* type);
-
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;

@@ -228,12 +228,6 @@ PowerOff()
 }
 
 void
-StartForceQuitWatchdog(ShutdownMode aMode, int32_t aTimeoutSecs)
-{
-  NS_RUNTIMEABORT("StartForceQuitWatchdog() can't be called from sandboxed contexts.");
-}
-
-void
 EnableSensorNotifications(SensorType aSensor) {
   Hal()->SendEnableSensorNotifications(aSensor);
 }

@@ -364,7 +364,6 @@ function checkIFrame(aFrame, data) {
   checkedCount++;
   if (checkedCount == checksTodo) {
     SpecialPowers.removePermission("browser", "http://example.org");
-    SpecialPowers.removePermission("embed-apps", "http://example.org");
     SimpleTest.finish();
   } else {
     gTestRunner.next();
@@ -390,7 +389,6 @@ function runTest() {
     };
     iframe.addChild = function() {
       SpecialPowers.addPermission("browser", true, iframe.contentDocument);
-      SpecialPowers.addPermission("embed-apps", true, iframe.contentDocument);
 
       var childFrame = document.createElement('iframe');
 

@@ -83,10 +83,7 @@ public:
                                           StructuredCloneReadInfo& aInfo);
 
   static void
-  ClearCloneReadInfo(StructuredCloneReadInfo& aReadInfo);
-
-  static void
-  ClearCloneWriteInfo(StructuredCloneWriteInfo& aWriteInfo);
+  ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
 
   static bool
   DeserializeValue(JSContext* aCx,
@@ -265,9 +262,6 @@ protected:
                     uint8_t aOptionalArgCount,
                     bool aOverwrite,
                     IDBRequest** _retval);
-
-  static void
-  ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;

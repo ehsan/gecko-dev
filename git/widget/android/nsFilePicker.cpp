@@ -21,17 +21,17 @@ NS_IMETHODIMP nsFilePicker::Init(nsIDOMWindow *parent, const nsAString& title,
 
 NS_IMETHODIMP nsFilePicker::AppendFilters(int32_t aFilterMask)
 {
-  if (aFilterMask & filterAudio) {
+  if (aFilterMask == (filterAudio | filterAll)) {
     mMimeTypeFilter.AssignLiteral("audio/*");
     return NS_OK;
   }
 
-  if (aFilterMask & filterImages) {
+  if (aFilterMask == (filterImages | filterAll)) {
     mMimeTypeFilter.AssignLiteral("image/*");
     return NS_OK;
   }
 
-  if (aFilterMask & filterVideo) {
+  if (aFilterMask == (filterVideo | filterAll)) {
     mMimeTypeFilter.AssignLiteral("video/*");
     return NS_OK;
   }
@@ -119,8 +119,8 @@ NS_IMETHODIMP nsFilePicker::Show(int16_t *_retval)
         return NS_ERROR_NOT_IMPLEMENTED;
     nsAutoString filePath;
 
-    if (mExtensionsFilter.IsEmpty() && mMimeTypeFilter.IsEmpty()) {
-      // If neither filters is set show anything we can.
+    if (mExtensionsFilter.IsEmpty() == mMimeTypeFilter.IsEmpty()) {
+      // Both filters or none of them are set. We want to show anything we can.
       mozilla::AndroidBridge::Bridge()->ShowFilePickerForMimeType(filePath, NS_LITERAL_STRING("*/*"));
     } else if (!mExtensionsFilter.IsEmpty()) {
       mozilla::AndroidBridge::Bridge()->ShowFilePickerForExtensions(filePath, mExtensionsFilter);

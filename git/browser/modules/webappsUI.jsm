@@ -11,7 +11,6 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Webapps.jsm");
-Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/WebappsInstaller.jsm");
 Cu.import("resource://gre/modules/WebappOSUtils.jsm");
 
@@ -21,7 +20,7 @@ let webappsUI = {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-uninstall", false);
   },
-
+  
   uninit: function webappsUI_uninit() {
     Services.obs.removeObserver(this, "webapps-ask-install");
     Services.obs.removeObserver(this, "webapps-launch");
@@ -48,7 +47,7 @@ let webappsUI = {
   },
 
   openURL: function(aUrl, aOrigin) {
-    let browserEnumerator = Services.wm.getEnumerator("navigator:browser");
+    let browserEnumerator = Services.wm.getEnumerator("navigator:browser");  
     let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
     // Check each browser instance for our URL
@@ -128,7 +127,7 @@ let webappsUI = {
     };
 
     let requestingURI = aWindow.makeURI(aData.from);
-    let manifest = new ManifestHelper(aData.app.manifest, aData.app.origin);
+    let manifest = new DOMApplicationManifest(aData.app.manifest, aData.app.origin);
 
     let host;
     try {

@@ -71,10 +71,7 @@ nsSystemTimeChangeObserver::AddWindowListenerImpl(nsIDOMWindow* aWindow)
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  nsCOMPtr<nsIWeakReference> windowWeakRef = do_GetWeakReference(aWindow);
-  NS_ASSERTION(windowWeakRef, "nsIDOMWindow implementations shuld support weak ref");
-
-  if (mWindowListeners.IndexOf(windowWeakRef) !=
+  if (mWindowListeners.IndexOf(NS_GetWeakReference(aWindow)) !=
       nsTArray<nsIDOMWindow*>::NoIndex) {
     return NS_OK;
   }
@@ -83,7 +80,7 @@ nsSystemTimeChangeObserver::AddWindowListenerImpl(nsIDOMWindow* aWindow)
     RegisterSystemTimeChangeObserver(sObserver);
   }
 
-  mWindowListeners.AppendElement(windowWeakRef);
+  mWindowListeners.AppendElement(NS_GetWeakReference(aWindow));
   return NS_OK;
 }
 

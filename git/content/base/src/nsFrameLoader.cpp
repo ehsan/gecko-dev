@@ -1487,22 +1487,22 @@ nsFrameLoader::MaybeCreateDocShell()
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
-  if (OwnerIsBrowserFrame()) {
-    nsAutoString manifest;
-    GetOwnerAppManifestURL(manifest);
-    if (!manifest.IsEmpty()) {
-      nsCOMPtr<nsIAppsService> appsService =
-        do_GetService(APPS_SERVICE_CONTRACTID);
-      if (!appsService) {
-        NS_ERROR("Apps Service is not available!");
-        return NS_ERROR_FAILURE;
-      }
-
-      uint32_t appId;
-      appsService->GetAppLocalIdByManifestURL(manifest, &appId);
-
-      mDocShell->SetAppId(appId);
+  if (OwnerIsBrowserFrame() &&
+      mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)) {
+    nsCOMPtr<nsIAppsService> appsService =
+      do_GetService(APPS_SERVICE_CONTRACTID);
+    if (!appsService) {
+      NS_ERROR("Apps Service is not available!");
+      return NS_ERROR_FAILURE;
     }
+
+    nsAutoString manifest;
+    mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifest);
+
+    uint32_t appId;
+    appsService->GetAppLocalIdByManifestURL(manifest, &appId);
+
+    mDocShell->SetAppId(appId);
   }
 
   if (!mNetworkCreated) {
@@ -1981,9 +1981,10 @@ nsFrameLoader::TryRemoteBrowser()
   if (OwnerIsBrowserFrame()) {
     isBrowserElement = true;
 
-    nsAutoString manifest;
-    GetOwnerAppManifestURL(manifest);
-    if (!manifest.IsEmpty()) {
+    if (mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)) {
+      nsAutoString manifest;
+      mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifest);
+
       nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
       if (!appsService) {
         NS_ERROR("Apps Service is not available!");

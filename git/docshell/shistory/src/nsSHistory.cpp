@@ -284,13 +284,13 @@ nsSHistory::CalcMaxTotalViewers()
   // 4096 Mb       8
   uint64_t bytes = PR_GetPhysicalMemorySize();
 
-  if (bytes == 0)
+  if (LL_IS_ZERO(bytes))
     return 0;
 
   // Conversion from unsigned int64 to double doesn't work on all platforms.
   // We need to truncate the value at INT64_MAX to make sure we don't
   // overflow.
-  if (bytes > INT64_MAX)
+  if (LL_CMP(bytes, >, INT64_MAX))
     bytes = INT64_MAX;
 
   uint64_t kbytes;

@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/Util.h"
 
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
@@ -89,7 +88,7 @@ SyncChannel::Send(Message* _msg, Message* reply)
     }
 
     mPendingReply = msg->type() + 1;
-    DebugOnly<int32_t> msgSeqno = msg->seqno();
+    int32_t msgSeqno = msg->seqno();
     mLink->SendMessage(msg.forget());
 
     while (1) {

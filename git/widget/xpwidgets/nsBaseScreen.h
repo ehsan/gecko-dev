@@ -34,8 +34,6 @@ public:
   }
   NS_IMETHOD SetRotation(uint32_t aRotation) { return NS_ERROR_NOT_AVAILABLE; }
 
-  NS_IMETHOD GetContentsScaleFactor(double* aContentsScaleFactor);
-
 protected:
   /**
    * Manually set the current level of brightness locking. This is called after

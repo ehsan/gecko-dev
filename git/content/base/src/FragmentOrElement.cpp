@@ -482,9 +482,10 @@ NS_IMPL_ISUPPORTS1(nsNodeWeakReference,
 nsNodeWeakReference::~nsNodeWeakReference()
 {
   if (mNode) {
-    NS_ASSERTION(mNode->Slots()->mWeakReference == this,
+    NS_ASSERTION(mNode->GetSlots() &&
+                 mNode->GetSlots()->mWeakReference == this,
                  "Weak reference has wrong value");
-    mNode->Slots()->mWeakReference = nullptr;
+    mNode->GetSlots()->mWeakReference = nullptr;
   }
 }
 
@@ -508,7 +509,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsNodeSupportsWeakRefTearoff)
 NS_IMETHODIMP
 nsNodeSupportsWeakRefTearoff::GetWeakReference(nsIWeakReference** aInstancePtr)
 {
-  nsINode::nsSlots* slots = mNode->Slots();
+  nsINode::nsSlots* slots = mNode->GetSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
   if (!slots->mWeakReference) {
     slots->mWeakReference = new nsNodeWeakReference(mNode);
     NS_ENSURE_TRUE(slots->mWeakReference, NS_ERROR_OUT_OF_MEMORY);

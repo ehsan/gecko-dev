@@ -998,6 +998,11 @@ js_ReportErrorAgain(JSContext *cx, const char *message, JSErrorReport *reportp)
     if (!message)
         return;
 
+    if (cx->lastMessage)
+        js_free(cx->lastMessage);
+    cx->lastMessage = JS_strdup(cx, message);
+    if (!cx->lastMessage)
+        return;
     onError = cx->errorReporter;
 
     /*
@@ -1006,11 +1011,11 @@ js_ReportErrorAgain(JSContext *cx, const char *message, JSErrorReport *reportp)
      */
     if (onError) {
         JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook;
-        if (hook && !hook(cx, message, reportp, cx->runtime->debugHooks.debugErrorHookData))
+        if (hook && !hook(cx, cx->lastMessage, reportp, cx->runtime->debugHooks.debugErrorHookData))
             onError = NULL;
     }
     if (onError)
-        onError(cx, message, reportp);
+        onError(cx, cx->lastMessage, reportp);
 }
 
 void
@@ -1208,6 +1213,7 @@ JSContext::JSContext(JSRuntime *rt)
     stack(thisDuringConstruction()),
     parseMapPool_(NULL),
     cycleDetectorSet(thisDuringConstruction()),
+    lastMessage(NULL),
     errorReporter(NULL),
     operationCallback(NULL),
     data(NULL),
@@ -1245,6 +1251,9 @@ JSContext::~JSContext()
     /* Free the stuff hanging off of cx. */
     if (parseMapPool_)
         js_delete(parseMapPool_);
+
+    if (lastMessage)
+        js_free(lastMessage);
 
     JS_ASSERT(!resolvingList);
 }

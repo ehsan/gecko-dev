@@ -45,130 +45,12 @@ ReportBadArg(JSContext *cx, const char *s = "")
     return false;
 }
 
-static bool
-ReportBadLength(JSContext *cx)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_ARRAY_LENGTH);
-    return false;
-}
-
-static bool
-ReportBadLengthOrArg(JSContext *cx, HandleValue v, const char *s = "")
-{
-    return v.isNumber() ? ReportBadLength(cx) : ReportBadArg(cx, s);
-}
-
-static bool
-ReportBadPartition(JSContext *cx)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PAR_ARRAY_BAD_PARTITION);
-    return false;
-}
-
 bool
 ParallelArrayObject::IndexInfo::isInitialized() const
 {
     return (dimensions.length() > 0 &&
             indices.capacity() >= dimensions.length() &&
             partialProducts.length() == dimensions.length());
-}
-
-static inline bool
-OpenDelimiters(const IndexInfo &iv, StringBuffer &sb)
-{
-    JS_ASSERT(iv.isInitialized());
-
-    uint32_t d = iv.dimensions.length() - 1;
-    do {
-        if (iv.indices[d] != 0)
-            break;
-        if (!sb.append('<'))
-            return false;
-    } while (d-- > 0);
-
-    return true;
-}
-
-static inline bool
-CloseDelimiters(const IndexInfo &iv, StringBuffer &sb)
-{
-    JS_ASSERT(iv.isInitialized());
-
-    uint32_t d = iv.dimensions.length() - 1;
-    do {
-        if (iv.indices[d] != iv.dimensions[d] - 1) {
-            if (!sb.append(','))
-                return false;
-            break;
-        }
-
-        if (!sb.append('>'))
-            return false;
-    } while (d-- > 0);
-
-    return true;
-}
-
-// A version of ToUint32 that reports if the input value is malformed: either
-// it is given to us as a negative integer or it overflows.
-static bool
-ToUint32(JSContext *cx, const Value &v, uint32_t *out, bool *malformed)
-{
-    AssertArgumentsAreSane(cx, v);
-    {
-        js::SkipRoot skip(cx, &v);
-        js::MaybeCheckStackRoots(cx);
-    }
-
-    *malformed = false;
-
-    if (v.isInt32()) {
-        int32_t i = v.toInt32();
-        if (i < 0) {
-            *malformed = true;
-            return true;
-        }
-        *out = static_cast<uint32_t>(i);
-        return true;
-    }
-
-    double d;
-    if (v.isDouble()) {
-        d = v.toDouble();
-    } else {
-        if (!ToNumberSlow(cx, v, &d))
-            return false;
-    }
-
-    *out = ToUint32(d);
-
-    if (!MOZ_DOUBLE_IS_FINITE(d) || d != static_cast<double>(*out)) {
-        *malformed = true;
-        return true;
-    }
-
-    return true;
-}
-
-static bool
-GetLength(JSContext *cx, HandleObject obj, uint32_t *length)
-{
-    // If obj's length cannot overflow, just use GetLengthProperty.
-    if (obj->isArray() || obj->isArguments())
-        return GetLengthProperty(cx, obj, length);
-
-    // Otherwise check that we don't overflow uint32.
-    RootedValue value(cx);
-    if (!JSObject::getProperty(cx, obj, obj, cx->names().length, &value))
-        return false;
-
-    bool malformed;
-    if (!ToUint32(cx, value, length, &malformed))
-        return false;
-    if (malformed)
-        return ReportBadLengthOrArg(cx, value);
-
-    return true;
 }
 
 // Check if obj is a parallel array, and if so, cast to pa and initialize
@@ -186,7 +68,7 @@ MaybeGetParallelArrayObjectAndLength(JSContext *cx, HandleObject obj,
         if (!pa->isOneDimensional() && !iv->initialize(cx, pa, 1))
             return false;
         *length = pa->outermostDimension();
-    } else if (!GetLength(cx, obj, length)) {
+    } else if (!GetLengthProperty(cx, obj, length)) {
         return false;
     }
 
@@ -211,7 +93,7 @@ GetElementFromArrayLikeObject(JSContext *cx, HandleObject obj, HandleParallelArr
         return true;
 
     if (obj->isDenseArray() && i < obj->getDenseArrayInitializedLength() &&
-        !js_PrototypeHasIndexedProperties(obj))
+        !js_PrototypeHasIndexedProperties(cx, obj))
     {
         vp.set(obj->getDenseArrayElement(i));
         if (vp.isMagic(JS_ARRAY_HOLE))
@@ -253,7 +135,7 @@ NewDenseCopiedArrayWithType(JSContext *cx, uint32_t length, HandleObject source)
     uint32_t srclen;
     uint32_t copyUpTo;
 
-    if (source->isDenseArray() && !js_PrototypeHasIndexedProperties(source)) {
+    if (source->isDenseArray() && !js_PrototypeHasIndexedProperties(cx, source)) {
         // Optimize for the common case: if we have a dense array source, copy
         // whatever we can, truncating to length. This path doesn't trigger
         // GC, so we don't need to initialize all the array's slots before
@@ -320,14 +202,11 @@ NewDenseArrayWithType(JSContext *cx, uint32_t length)
 // Copy an array like object obj into an IndexVector, indices, using
 // ToUint32.
 static inline bool
-ArrayLikeToIndexVector(JSContext *cx, HandleObject obj, IndexVector &indices,
-                       bool *malformed)
+ArrayLikeToIndexVector(JSContext *cx, HandleObject obj, IndexVector &indices)
 {
     IndexInfo iv(cx);
     RootedParallelArrayObject pa(cx);
     uint32_t length;
-
-    *malformed = false;
 
     if (!MaybeGetParallelArrayObjectAndLength(cx, obj, &pa, &iv, &length))
         return false;
@@ -336,16 +215,12 @@ ArrayLikeToIndexVector(JSContext *cx, HandleObject obj, IndexVector &indices,
         return false;
 
     RootedValue elem(cx);
-    bool malformed_;
     for (uint32_t i = 0; i < length; i++) {
         if (!GetElementFromArrayLikeObject(cx, obj, pa, iv, i, &elem) ||
-            !ToUint32(cx, elem, &indices[i], &malformed_))
+            !ToUint32(cx, elem, &indices[i]))
         {
             return false;
         }
-
-        if (malformed_)
-            *malformed = true;
     }
 
     return true;
@@ -458,11 +333,12 @@ ParallelArrayObject::SequentialMode::build(JSContext *cx, IndexInfo &iv,
     if (!cx->stack.pushInvokeArgs(cx, iv.dimensions.length(), &args))
         return ExecutionFailed;
 
-    for (uint32_t i = 0; i < length; i++, iv.bump()) {
+    for (uint32_t i = 0; i < length; i++) {
         args.setCallee(ObjectValue(*elementalFun));
         args.setThis(UndefinedValue());
 
         // Compute and set indices.
+        iv.fromScalar(i);
         for (size_t j = 0; j < iv.indices.length(); j++)
             args[j].setNumber(iv.indices[j]);
 
@@ -603,16 +479,10 @@ ParallelArrayObject::SequentialMode::scatter(JSContext *cx, HandleParallelArrayO
     RootedValue targetElem(cx);
     for (uint32_t i = 0; i < Min(targetsLength, source->outermostDimension()); i++) {
         uint32_t targetIndex;
-        bool malformed;
 
         if (!GetElementFromArrayLikeObject(cx, targets, targetsPA, tiv, i, &telem) ||
-            !ToUint32(cx, telem, &targetIndex, &malformed))
+            !ToUint32(cx, telem, &targetIndex))
         {
-            return ExecutionFailed;
-        }
-
-        if (malformed) {
-            ReportBadArg(cx, ".prototype.scatter");
             return ExecutionFailed;
         }
 
@@ -1204,7 +1074,7 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
         // When using an array value we can only make one dimensional arrays.
         IndexVector dims(cx);
         uint32_t length;
-        if (!dims.resize(1) || !GetLength(cx, source, &length))
+        if (!dims.resize(1) || !GetLengthProperty(cx, source, &length))
             return false;
         dims[0] = length;
 
@@ -1223,23 +1093,13 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
     // If the length is an array-like object of sizes, the i-th value in the
     // dimension array is the size of the i-th dimension.
     IndexInfo iv(cx);
-    bool malformed;
     if (args[0].isObject()) {
         RootedObject dimObj(cx, &(args[0].toObject()));
-        if (!ArrayLikeToIndexVector(cx, dimObj, iv.dimensions, &malformed))
+        if (!ArrayLikeToIndexVector(cx, dimObj, iv.dimensions))
             return false;
-        if (malformed)
-            return ReportBadLength(cx);
     } else {
-        if (!iv.dimensions.resize(1))
+        if (!iv.dimensions.resize(1) || !ToUint32(cx, args[0], &iv.dimensions[0]))
             return false;
-
-        if (!ToUint32(cx, args[0], &iv.dimensions[0], &malformed))
-            return false;
-        if (malformed) {
-            RootedValue arg0(cx, args[0]);
-            return ReportBadLengthOrArg(cx, arg0);
-        }
     }
 
     // If the first argument wasn't a array-like or had no length, assume
@@ -1247,23 +1107,16 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
     if (iv.dimensions.length() == 0 && !iv.dimensions.append(0))
         return false;
 
-    // Initialize with every dimension packed.
-    if (!iv.initialize(iv.dimensions.length()))
+    if (!iv.initialize(0))
         return false;
-
-    // We checked that each individual dimension does not overflow; now check
-    // that the scalar length does not overflow.
-    uint32_t length = iv.scalarLengthOfDimensions();
-    double d = iv.dimensions[0];
-    for (uint32_t i = 1; i < iv.dimensions.length(); i++)
-        d *= iv.dimensions[i];
-    if (d != static_cast<double>(length))
-        return ReportBadLength(cx);
 
     // Extract second argument, the elemental function.
     RootedObject elementalFun(cx, ValueToCallable(cx, &args[1]));
     if (!elementalFun)
         return false;
+
+    // How long the flattened array will be.
+    uint32_t length = iv.scalarLengthOfDimensions();
 
     // Create backing store.
     RootedObject buffer(cx, NewDenseArrayWithType(cx, length));
@@ -1438,13 +1291,8 @@ ParallelArrayObject::scatter(JSContext *cx, CallArgs args)
     // of the source array.
     uint32_t resultLength;
     if (args.length() >= 4) {
-        bool malformed;
-        if (!ToUint32(cx, args[3], &resultLength, &malformed))
+        if (!ToUint32(cx, args[3], &resultLength))
             return false;
-        if (malformed) {
-            RootedValue arg3(cx, args[3]);
-            return ReportBadLengthOrArg(cx, arg3, ".prototype.scatter");
-        }
     } else {
         resultLength = outer;
     }
@@ -1543,18 +1391,17 @@ ParallelArrayObject::partition(JSContext *cx, CallArgs args)
         return ReportMoreArgsNeeded(cx, "ParallelArray.prototype.partition", "0", "s");
 
     uint32_t newDimension;
-    bool malformed;
-    if (!ToUint32(cx, args[0], &newDimension, &malformed))
+    if (!ToUint32(cx, args[0], &newDimension))
         return false;
-    if (malformed)
-        return ReportBadPartition(cx);
 
     RootedParallelArrayObject obj(cx, as(&args.thisv().toObject()));
 
     // Throw if the outer dimension is not divisible by the new dimension.
     uint32_t outer = obj->outermostDimension();
-    if (newDimension == 0 || outer % newDimension)
-        return ReportBadPartition(cx);
+    if (newDimension == 0 || outer % newDimension) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PAR_ARRAY_BAD_PARTITION);
+        return false;
+    }
 
     IndexVector dims(cx);
     if (!obj->getDimensions(cx, dims))
@@ -1586,20 +1433,12 @@ ParallelArrayObject::get(JSContext *cx, CallArgs args)
     IndexInfo iv(cx);
     if (!iv.initialize(cx, obj, 0))
         return false;
-
-    bool malformed;
-    if (!ArrayLikeToIndexVector(cx, indicesObj, iv.indices, &malformed))
+    if (!ArrayLikeToIndexVector(cx, indicesObj, iv.indices))
         return false;
 
     // Throw if the shape of the index vector is wrong.
     if (iv.indices.length() == 0 || iv.indices.length() > iv.dimensions.length())
         return ReportBadArg(cx, ".prototype.get");
-
-    // Don't throw on overflow, just return undefined.
-    if (malformed) {
-        args.rval().setUndefined();
-        return true;
-    }
 
     return obj->getParallelArrayElement(cx, iv, args.rval());
 }
@@ -1626,32 +1465,66 @@ ParallelArrayObject::lengthGetter(JSContext *cx, CallArgs args)
 }
 
 bool
-ParallelArrayObject::toStringBuffer(JSContext *cx, bool useLocale, StringBuffer &sb)
+ParallelArrayObject::toStringBufferImpl(JSContext *cx, IndexInfo &iv, bool useLocale,
+                                        HandleObject buffer, StringBuffer &sb)
 {
-    if (!JS_CHECK_OPERATION_LIMIT(cx))
+    JS_ASSERT(iv.isInitialized());
+
+    // The dimension we're printing out.
+    uint32_t d = iv.indices.length() + 1;
+
+    // If we still have more dimensions to go.
+    if (d < iv.dimensions.length()) {
+        if (!sb.append('<'))
+            return false;
+
+        iv.indices.infallibleAppend(0);
+        uint32_t length = iv.dimensions[d - 1];
+        for (size_t i = 0; i < length; i++) {
+            iv.indices[d - 1] = i;
+            if (!toStringBufferImpl(cx, iv, useLocale, buffer, sb) ||
+                (i + 1 != length && !sb.append(',')))
+            {
+                return false;
+            }
+        }
+        iv.indices.shrinkBy(1);
+
+        if (!sb.append('>'))
+            return false;
+
+        return true;
+    }
+
+    // We're on the last dimension.
+    if (!sb.append('<'))
         return false;
 
-    RootedParallelArrayObject self(cx, this);
-    IndexInfo iv(cx);
+    uint32_t offset;
+    uint32_t length;
 
-    if (!self->getDimensions(cx, iv.dimensions) || !iv.initialize(iv.dimensions.length()))
-        return false;
-
-    uint32_t length = iv.scalarLengthOfDimensions();
+    // If the array is flat, we can just use the entire extent.
+    if (d == 1) {
+        offset = bufferOffset();
+        length = iv.dimensions[0];
+    } else {
+        offset = bufferOffset() + iv.toScalar();
+        length = iv.partialProducts[d - 2];
+    }
 
     RootedValue tmp(cx);
     RootedValue localeElem(cx);
     RootedId id(cx);
 
-    const Value *start = buffer()->getDenseArrayElements() + bufferOffset();
+    const Value *start = buffer->getDenseArrayElements() + offset;
     const Value *end = start + length;
     const Value *elem;
 
-    for (elem = start; elem < end; elem++, iv.bump()) {
+    for (elem = start; elem < end; elem++) {
         // All holes in parallel arrays are eagerly filled with undefined.
         JS_ASSERT(!elem->isMagic(JS_ARRAY_HOLE));
 
-        if (!OpenDelimiters(iv, sb))
+        if (!JS_CHECK_OPERATION_LIMIT(cx))
             return false;
 
         if (!elem->isNullOrUndefined()) {
@@ -1673,11 +1546,25 @@ ParallelArrayObject::toStringBuffer(JSContext *cx, bool useLocale, StringBuffer 
             }
         }
 
-        if (!CloseDelimiters(iv, sb))
+        if (elem + 1 != end && !sb.append(','))
             return false;
     }
 
+    if (!sb.append('>'))
+        return false;
+
     return true;
+}
+
+bool
+ParallelArrayObject::toStringBuffer(JSContext *cx, bool useLocale, StringBuffer &sb)
+{
+    RootedParallelArrayObject self(cx, this);
+    IndexInfo iv(cx);
+    if (!iv.initialize(cx, self, 0))
+        return false;
+    RootedObject buffer(cx, this->buffer());
+    return toStringBufferImpl(cx, iv, useLocale, buffer, sb);
 }
 
 bool
@@ -1711,7 +1598,7 @@ ParallelArrayObject::toLocaleString(JSContext *cx, CallArgs args)
 }
 
 void
-ParallelArrayObject::mark(JSTracer *trc, RawObject obj)
+ParallelArrayObject::mark(JSTracer *trc, JSObject *obj)
 {
     gc::MarkSlot(trc, &obj->getSlotRef(SLOT_DIMENSIONS), "parallelarray.shape");
     gc::MarkSlot(trc, &obj->getSlotRef(SLOT_BUFFER), "parallelarray.buffer");

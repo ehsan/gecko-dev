@@ -285,12 +285,6 @@ ExternalHelperAppParent::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::SetContentDisposition(uint32_t aContentDisposition)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 ExternalHelperAppParent::GetContentDispositionFilename(nsAString& aContentDispositionFilename)
 {
   if (mContentDispositionFilename.IsEmpty())
@@ -298,12 +292,6 @@ ExternalHelperAppParent::GetContentDispositionFilename(nsAString& aContentDispos
 
   aContentDispositionFilename = mContentDispositionFilename;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::SetContentDispositionFilename(const nsAString& aContentDispositionFilename)
-{
-  return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

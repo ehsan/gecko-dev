@@ -34,8 +34,6 @@
 #include "dombindings.h"
 
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/TextDecoderBinding.h"
-#include "mozilla/dom/TextEncoderBinding.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMMutationObserver.h"
@@ -1097,11 +1095,11 @@ CheckTypeInference(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
 #define CheckTypeInference(cx, clasp, principal) {}
 #endif
 
-namespace xpc {
-
 nsresult
-CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
-                   bool wantXrays, JSObject **global, JSCompartment **compartment)
+xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
+                       nsIPrincipal *principal, nsISupports *ptr,
+                       bool wantXrays, JSObject **global,
+                       JSCompartment **compartment)
 {
     // Make sure that Type Inference is enabled for everything non-chrome.
     // Sandboxes and compilation scopes are exceptions. See bug 744034.
@@ -1138,8 +1136,6 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
 
     return NS_OK;
 }
-
-} // namespace xpc
 
 NS_IMETHODIMP
 nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
@@ -1187,12 +1183,6 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     // XXX Someone who knows why we can assert this should re-check
     //     (after bug 720580).
     MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
-
-    // Init WebIDL binding constructors wanted on all XPConnect globals.
-    if (!TextDecoderBinding::GetProtoObject(aJSContext, global, global) ||
-        !TextEncoderBinding::GetProtoObject(aJSContext, global, global)) {
-        return UnexpectedFailure(NS_ERROR_FAILURE);
-    }
 
     wrappedGlobal.forget(_retval);
     return NS_OK;
@@ -1841,16 +1831,42 @@ nsXPConnect::SyncJSContexts(void)
     return NS_OK;
 }
 
-/* void setFunctionThisTranslator (in nsIIDRef aIID, in nsIXPCFunctionThisTranslator aTranslator); */
+/* nsIXPCFunctionThisTranslator setFunctionThisTranslator (in nsIIDRef aIID, in nsIXPCFunctionThisTranslator aTranslator); */
 NS_IMETHODIMP
 nsXPConnect::SetFunctionThisTranslator(const nsIID & aIID,
-                                       nsIXPCFunctionThisTranslator *aTranslator)
+                                       nsIXPCFunctionThisTranslator *aTranslator,
+                                       nsIXPCFunctionThisTranslator **_retval)
 {
     XPCJSRuntime* rt = GetRuntime();
+    nsIXPCFunctionThisTranslator* old;
     IID2ThisTranslatorMap* map = rt->GetThisTranslatorMap();
+
     {
         XPCAutoLock lock(rt->GetMapLock()); // scoped lock
+        if (_retval) {
+            old = map->Find(aIID);
+            NS_IF_ADDREF(old);
+            *_retval = old;
+        }
         map->Add(aIID, aTranslator);
+    }
+    return NS_OK;
+}
+
+/* nsIXPCFunctionThisTranslator getFunctionThisTranslator (in nsIIDRef aIID); */
+NS_IMETHODIMP
+nsXPConnect::GetFunctionThisTranslator(const nsIID & aIID,
+                                       nsIXPCFunctionThisTranslator **_retval)
+{
+    XPCJSRuntime* rt = GetRuntime();
+    nsIXPCFunctionThisTranslator* old;
+    IID2ThisTranslatorMap* map = rt->GetThisTranslatorMap();
+
+    {
+        XPCAutoLock lock(rt->GetMapLock()); // scoped lock
+        old = map->Find(aIID);
+        NS_IF_ADDREF(old);
+        *_retval = old;
     }
     return NS_OK;
 }

@@ -141,8 +141,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     bool allVarsAliased = script_->compartment()->debugMode();
     bool allArgsAliased = allVarsAliased || script_->argumentsHasVarBinding();
 
-    RootedScript script(cx, script_);
-    for (BindingIter bi(script); bi; bi++) {
+    for (BindingIter bi(script_->bindings); bi; bi++) {
         if (bi->kind() == ARGUMENT)
             escapedSlots[ArgSlot(bi.frameIndex())] = allArgsAliased || bi->aliased();
         else
@@ -1222,10 +1221,11 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
         return;
     }
     struct FreeSSAValues {
+        JSContext *cx;
         SSAValueInfo *values;
-        FreeSSAValues(SSAValueInfo *values) : values(values) {}
+        FreeSSAValues(JSContext *cx, SSAValueInfo *values) : cx(cx), values(values) {}
         ~FreeSSAValues() { js_free(values); }
-    } free(values);
+    } free(cx, values);
 
     SSAValueInfo *stack = values + numSlots;
     uint32_t stackDepth = 0;

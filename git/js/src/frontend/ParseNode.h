@@ -1457,20 +1457,18 @@ LinkUseToDef(ParseNode *pn, Definition *dn)
     pn->pn_lexdef = dn;
 }
 
-class ObjectBox {
-  public:
-    JSObject *object;
+struct ObjectBox {
+    ObjectBox           *traceLink;
+    ObjectBox           *emitLink;
+    JSObject            *object;
 
-    ObjectBox(JSObject *object, ObjectBox *traceLink);
-    bool isFunctionBox() { return object->isFunction(); }
-    FunctionBox *asFunctionBox() { JS_ASSERT(isFunctionBox()); return (FunctionBox *)(this); }
-    void trace(JSTracer *trc);
+    // An ObjectBox can hold a JSObject or a JSFunction.  In the latter case,
+    // the ObjectBox will be embedded within a FunctionBox;  |funbox| points to
+    // that FunctionBox.
+    FunctionBox         *const funbox;
 
-  protected:
-    friend struct CGObjectList;
-
-    ObjectBox *traceLink;
-    ObjectBox *emitLink;
+    ObjectBox(ObjectBox *traceLink, JSObject *obj);
+    ObjectBox(ObjectBox *traceLink, JSFunction *fun, FunctionBox *funbox);
 };
 
 } /* namespace frontend */

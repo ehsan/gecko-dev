@@ -57,6 +57,8 @@ class nsDOMTokenList;
 class ContentUnbinder;
 struct nsRect;
 
+typedef uintptr_t PtrBits;
+
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.

@@ -325,12 +325,6 @@ nsPartChannel::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 nsPartChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
 {
     if (mContentDispositionFilename.IsEmpty())
@@ -339,13 +333,6 @@ nsPartChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilen
     aContentDispositionFilename = mContentDispositionFilename;
     return NS_OK;
 }
-
-NS_IMETHODIMP
-nsPartChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
 
 NS_IMETHODIMP
 nsPartChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)

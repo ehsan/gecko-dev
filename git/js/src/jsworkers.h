@@ -28,9 +28,8 @@ namespace ion {
 struct WorkerThread;
 
 /* Per-runtime state for off thread work items. */
-class WorkerThreadState
+struct WorkerThreadState
 {
-  public:
     /* Available threads. */
     WorkerThread *threads;
     size_t numThreads;

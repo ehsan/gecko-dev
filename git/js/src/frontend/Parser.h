@@ -31,7 +31,10 @@ struct StmtInfoPC : public StmtInfoBase {
 
     uint32_t        blockid;        /* for simplified dominance computation */
 
-    StmtInfoPC(JSContext *cx) : StmtInfoBase(cx) {}
+    /* True if type == STMT_BLOCK and this block is a function body. */
+    bool            isFunctionBodyBlock;
+
+    StmtInfoPC(JSContext *cx) : StmtInfoBase(cx), isFunctionBodyBlock(false) {}
 };
 
 typedef HashSet<JSAtom *> FuncStmtSet;

@@ -82,7 +82,6 @@ var gDownloadCount = 0;
  *                              sourceURI: the download source URI
  *                              downloadName: the display name of the download
  *                              runBeforeStart: a function to run before starting the download
- *                              isPrivate: whether the download is private or not
  */
 function addDownload(aParams)
 {
@@ -114,7 +113,7 @@ function addDownload(aParams)
   var dl = dm.addDownload(Ci.nsIDownloadManager.DOWNLOAD_TYPE_DOWNLOAD,
                           createURI(aParams.sourceURI),
                           createURI(aParams.targetFile), aParams.downloadName, null,
-                          Math.round(Date.now() * 1000), null, persist, aParams.isPrivate);
+                          Math.round(Date.now() * 1000), null, persist);
 
   // This will throw if it isn't found, and that would mean test failure, so no
   // try catch block

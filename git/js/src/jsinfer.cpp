@@ -58,6 +58,11 @@ id_prototype(JSContext *cx) {
 }
 
 static inline jsid
+id_arguments(JSContext *cx) {
+    return NameToId(cx->names().arguments);
+}
+
+static inline jsid
 id_length(JSContext *cx) {
     return NameToId(cx->names().length);
 }
@@ -75,6 +80,18 @@ id_constructor(JSContext *cx) {
 static inline jsid
 id_caller(JSContext *cx) {
     return NameToId(cx->names().caller);
+}
+
+static inline jsid
+id_toString(JSContext *cx)
+{
+    return NameToId(cx->names().toString);
+}
+
+static inline jsid
+id_toSource(JSContext *cx)
+{
+    return NameToId(cx->names().toSource);
 }
 
 #ifdef DEBUG
@@ -385,7 +402,7 @@ TypeSet::add(JSContext *cx, TypeConstraint *constraint, bool callExisting)
 }
 
 void
-TypeSet::print()
+TypeSet::print(JSContext *cx)
 {
     if (flags & TYPE_FLAG_OWN_PROPERTY)
         printf(" [own]");
@@ -2769,7 +2786,7 @@ TypeCompartment::print(JSContext *cx, bool force)
 #ifdef DEBUG
     for (gc::CellIter i(compartment, gc::FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
         TypeObject *object = i.get<TypeObject>();
-        object->print();
+        object->print(cx);
     }
 #endif
 
@@ -3486,7 +3503,7 @@ TypeObject::clearNewScript(JSContext *cx)
 }
 
 void
-TypeObject::print()
+TypeObject::print(JSContext *cx)
 {
     printf("%s : %s",
            TypeObjectString(this),
@@ -3522,7 +3539,7 @@ TypeObject::print()
         Property *prop = getProperty(i);
         if (prop) {
             printf("\n    %s:", TypeIdString(prop->id));
-            prop->types.print();
+            prop->types.print(cx);
         }
     }
 
@@ -4481,7 +4498,7 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
 }
 
 bool
-ScriptAnalysis::integerOperation(jsbytecode *pc)
+ScriptAnalysis::integerOperation(JSContext *cx, jsbytecode *pc)
 {
     JS_ASSERT(uint32_t(pc - script_->code) < script_->length);
 
@@ -5049,18 +5066,18 @@ ScriptAnalysis::printTypes(JSContext *cx)
 
     printf("locals:");
     printf("\n    return:");
-    TypeScript::ReturnTypes(script_)->print();
+    TypeScript::ReturnTypes(script_)->print(cx);
     printf("\n    this:");
-    TypeScript::ThisTypes(script_)->print();
+    TypeScript::ThisTypes(script_)->print(cx);
 
     for (unsigned i = 0; script_->function() && i < script_->function()->nargs; i++) {
         printf("\n    arg%u:", i);
-        TypeScript::ArgTypes(script_, i)->print();
+        TypeScript::ArgTypes(script_, i)->print(cx);
     }
     for (unsigned i = 0; i < script_->nfixed; i++) {
         if (!trackSlot(LocalSlot(script_, i))) {
             printf("\n    local%u:", i);
-            TypeScript::LocalTypes(script_, i)->print();
+            TypeScript::LocalTypes(script_, i)->print(cx);
         }
     }
     printf("\n");
@@ -5079,14 +5096,14 @@ ScriptAnalysis::printTypes(JSContext *cx)
         if (js_CodeSpec[*pc].format & JOF_TYPESET) {
             TypeSet *types = script_->analysis()->bytecodeTypes(pc);
             printf("  typeset %d:", (int) (types - script_->types->typeArray()));
-            types->print();
+            types->print(cx);
             printf("\n");
         }
 
         unsigned defCount = GetDefCount(script_, offset);
         for (unsigned i = 0; i < defCount; i++) {
             printf("  type %d:", i);
-            pushedTypes(offset, i)->print();
+            pushedTypes(offset, i)->print(cx);
             printf("\n");
         }
 

@@ -80,7 +80,7 @@ public:
 
   ~ContinueHelper()
   {
-    IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   }
 
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
@@ -88,8 +88,6 @@ public:
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
                                     jsval* aVal) MOZ_OVERRIDE;
-
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
   virtual nsresult
   PackArgumentsForParentProcess(CursorRequestParams& aParams) MOZ_OVERRIDE;
@@ -372,7 +370,7 @@ IDBCursor::~IDBCursor()
   if (mRooted) {
     NS_DROP_JS_OBJECTS(this, IDBCursor);
   }
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+  IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
 }
 
 nsresult
@@ -853,13 +851,6 @@ ContinueHelper::GetSuccessResult(JSContext* aCx,
   }
 
   return NS_OK;
-}
-
-void
-ContinueHelper::ReleaseMainThreadObjects()
-{
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
-  CursorHelper::ReleaseMainThreadObjects();
 }
 
 nsresult

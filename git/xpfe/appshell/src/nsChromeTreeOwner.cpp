@@ -258,7 +258,8 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
                                   bool aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
   if (!docShellElement)
     return NS_ERROR_FAILURE;
 
@@ -295,7 +296,8 @@ nsChromeTreeOwner::GetPersistence(bool* aPersistPosition,
                                   bool* aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
   if (!docShellElement) 
     return NS_ERROR_FAILURE;
 

@@ -59,10 +59,3 @@ nsBaseScreen::CheckMinimumBrightness()
 
   ApplyMinimumBrightness(brightness);
 }
-
-NS_IMETHODIMP
-nsBaseScreen::GetContentsScaleFactor(double* aContentsScaleFactor)
-{
-  *aContentsScaleFactor = 1.0;
-  return NS_OK;
-}

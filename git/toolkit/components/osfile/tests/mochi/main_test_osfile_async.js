@@ -40,17 +40,6 @@ let always = function always(promise, fun) {
   return p2.promise;
 };
 
-let ensureSuccess = function ensureSuccess(promise, test) {
-  let p2 = Promise.defer();
-  promise.then(function onSuccess(x) {
-    p2.resolve(x);
-  }, function onFailure(err) {
-    test.fail("Uncaught error " + err + "\n" + err.stack);
-    p2.reject(err);
-  });
-
-  return p2.promise;
-};
 
 let maketest = function(prefix, test) {
   let utils = {
@@ -349,7 +338,7 @@ let test_stat = maketest("stat",
 let test_read_write = maketest("read_write",
   function read_write(test) {
     let promise;
-    let array;
+    let buffer;
     let fileSource, fileDest;
     let pathSource;
     let pathDest = OS.Path.join(OS.Constants.Path.tmpDir,
@@ -388,9 +377,9 @@ let test_read_write = maketest("read_write",
       function input_stat_worked(stat) {
         test.info("Input stat worked");
         size = stat.size;
-        array = new Uint8Array(size);
+        buffer = new ArrayBuffer(size);
         test.info("Now calling readTo");
-        return fileSource.readTo(array);
+        return fileSource.readTo(buffer);
       }
     );
 
@@ -398,7 +387,7 @@ let test_read_write = maketest("read_write",
       function read_worked(length) {
         test.info("ReadTo worked");
         test.is(length, size, "ReadTo got all bytes");
-        return fileDest.write(array);
+        return fileDest.write(buffer);
       }
     );
 
@@ -424,9 +413,11 @@ let test_read_write = maketest("read_write",
     promise = promise.then(
       function readall_worked(result) {
         test.info("ReadAll worked");
-        test.is(result.length, size, "ReadAll read all bytes");
-        test.is(Array.prototype.join.call(result),
-                Array.prototype.join.call(array),
+        test.is(result.bytes, size, "ReadAll read all bytes");
+        let result_view = new Uint8Array(result.buffer);
+        let buffer_view = new Uint8Array(buffer);
+        test.is(Array.prototype.join.call(result_view),
+                Array.prototype.join.call(buffer_view),
                 "ReadAll result is correct");
       }
     );
@@ -481,25 +472,25 @@ let test_read_write_all = maketest(
         return OS.File.read(pathSource);
       }
     );
-    promise = ensureSuccess(promise, test);
 
-    let contents;
+    let buffer;
+    let bytes;
     promise = promise.then(
-      function read_complete(result) {
-        test.ok(result, "Obtained contents");
-        contents = result;
+      function read_complete(contents) {
+        test.ok(contents, "Obtained contents");
+        buffer = contents.buffer;
+        bytes = contents.bytes;
         options = {tmpPath: tmpPath};
         optionsBackup = {tmpPath: tmpPath};
-        return OS.File.writeAtomic(pathDest, contents, options);
+        return OS.File.writeAtomic(pathDest, buffer, options);
       }
     );
-    promise = ensureSuccess(promise, test);
 
 // Check that options are not altered
 
     promise = promise.then(
       function atomicWrite_complete(bytesWritten) {
-        test.is(contents.byteLength, bytesWritten, "Wrote the correct number of bytes");
+        test.is(bytes, bytesWritten, "Wrote the correct number of bytes");
         test.is(Object.keys(options).length, Object.keys(optionsBackup).length,
                 "The number of options was not changed");
         for (let k in options) {
@@ -508,7 +499,6 @@ let test_read_write_all = maketest(
         return reference_compare_files(pathSource, pathDest, test);
       }
     );
-    promise = ensureSuccess(promise, test);
 
 // Check that temporary file was removed
 
@@ -518,46 +508,13 @@ let test_read_write_all = maketest(
         test.ok(!(new FileUtils.File(tmpPath).exists()), "Temporary file was removed");
       }
     );
-    promise = ensureSuccess(promise, test);
-
-// Now write a subset
-
-    let START = 10;
-    let LENGTH = 100;
-    promise = promise.then(
-      function() {
-        let view = new Uint8Array(contents.buffer, START, LENGTH);
-        return OS.File.writeAtomic(pathDest, view, {tmpPath: tmpPath});
-      }
-    );
-
-    promise = promise.then(
-      function partial_write_complete(bytesWritten) {
-        test.is(bytesWritten, LENGTH, "Partial write wrote the correct number of bytes");
-        return OS.File.read(pathDest);
-      }
-    );
-
-    promise = promise.then(
-      function read_partial_write_complete(array2) {
-        let view1 = new Uint8Array(contents.buffer, START, LENGTH);
-        test.is(view1.length, array2.length, "Re-read partial write with the correct number of bytes");
-        for (let i = 0; i < LENGTH; ++i) {
-          if (view1[i] != array2[i]) {
-            test.is(view1[i], array2[i], "Offset " + i + " is correct");
-          }
-          test.ok(true, "Compared re-read of partial write");
-        }
-      }
-    );
-    promise = ensureSuccess(promise, test);
 
 // Check that writeAtomic fails if there is no tmpPath
 // FIXME: Remove this as part of bug 793660
 
     promise = promise.then(
       function check_without_tmpPath() {
-        return OS.File.writeAtomic(pathDest, contents, {});
+        return OS.File.writeAtomic(pathDest, buffer, {});
       },
       function onFailure() {
         test.info("Resetting failure");
@@ -590,12 +547,12 @@ let test_position = maketest(
       }
     );
 
-    let view;
+    let buf;
     promise = promise.then(
       function obtained_stat(stat) {
         test.info("Obtained file length");
-        view = new Uint8Array(stat.size);
-        return file.readTo(view);
+        buf = new ArrayBuffer(stat.size);
+        return file.readTo(buf);
       });
 
     promise = promise.then(
@@ -611,18 +568,18 @@ let test_position = maketest(
     promise = promise.then(
       function obtained_position(aPos) {
         test.info("Obtained position");
-        test.is(aPos, view.byteLength, "getPosition returned the end of the file");
+        test.is(aPos, buf.byteLength, "getPosition returned the end of the file");
         return file.setPosition(-CHUNK_SIZE, OS.File.POS_END);
       }
     );
 
-    let view2;
+    let buf2;
     promise = promise.then(
       function changed_position(aPos) {
         test.info("Changed position");
-        test.is(aPos, view.byteLength - CHUNK_SIZE, "setPosition returned the correct position");
-        view2 = new Uint8Array(CHUNK_SIZE);
-        return file.readTo(view2);
+        test.is(aPos, buf.byteLength - CHUNK_SIZE, "setPosition returned the correct position");
+        buf2 = new ArrayBuffer(CHUNK_SIZE);
+        return file.readTo(buf2);
       }
     );
 
@@ -630,8 +587,8 @@ let test_position = maketest(
       function input_file_reread() {
         test.info("Read the end of the file");
         for (let i = 0; i < CHUNK_SIZE; ++i) {
-          if (view2[i] != view[i + view.byteLength - CHUNK_SIZE]) {
-            test.is(view2[i], view[i], "setPosition put us in the right position");
+          if (buf2[i] != buf[i + buf.byteLength - CHUNK_SIZE]) {
+            test.is(buf2[i], buf[i], "setPosition put us in the right position");
           }
         }
       }

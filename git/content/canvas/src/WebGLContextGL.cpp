@@ -1723,7 +1723,7 @@ WebGLContext::GenerateMipmap(WebGLenum target)
     if (IsTextureFormatCompressed(format))
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
-    if (IsExtensionEnabled(WEBGL_depth_texture) &&
+    if (IsExtensionEnabled(WEBGL_depth_texture) && 
         (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL))
         return ErrorInvalidOperation("generateMipmap: "
                                      "A texture that has a base internal format of "
@@ -2669,6 +2669,7 @@ WebGLContext::GetTexParameter(WebGLenum target, WebGLenum pname)
                 return JS::DoubleValue(f);
             }
 
+            
             ErrorInvalidEnumInfo("getTexParameter: parameter", pname);
             break;
 
@@ -4490,7 +4491,7 @@ WebGLContext::GetShaderPrecisionFormat(WebGLenum shadertype, WebGLenum precision
     gl->fGetShaderPrecisionFormat(shadertype, precisiontype, range, &precision);
 
     WebGLShaderPrecisionFormat *retShaderPrecisionFormat
-        = new WebGLShaderPrecisionFormat(this, range[0], range[1], precision);
+        = new WebGLShaderPrecisionFormat(range[0], range[1], precision);
     NS_ADDREF(retShaderPrecisionFormat);
     return retShaderPrecisionFormat;
 }
@@ -4874,7 +4875,7 @@ WebGLContext::TexSubImage2D_base(WebGLenum target, WebGLint level,
             return ErrorInvalidValue("texSubImage2D: with level > 0, width and height must be powers of two");
     }
 
-    if (IsExtensionEnabled(WEBGL_depth_texture) &&
+    if (IsExtensionEnabled(WEBGL_depth_texture) && 
         (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL)) {
         return ErrorInvalidOperation("texSubImage2D: format");
     }

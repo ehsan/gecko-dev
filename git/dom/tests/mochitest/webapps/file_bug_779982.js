@@ -34,7 +34,6 @@ try {
 SpecialPowers.setBoolPref('dom.mozBrowserFramesEnabled', true);
 
 SpecialPowers.addPermission("browser", true, window.document);
-SpecialPowers.addPermission("embed-apps", true, window.document);
 
 var gData = [
   // APP 1
@@ -47,17 +46,17 @@ var gData = [
   },
   {
     app: 'http://example.org/manifest.webapp',
-    action: 'checkInstalled',
+    action: 'isInstalled',
     isnull: false,
     src: fileTestOnCurrentOrigin,
-    message: 'checkInstalled() for app should return true'
+    message: 'isInstalled() for app should return true'
   },
   {
     app: 'http://example.org/manifest.webapp',
-    action: 'checkInstalledWrong',
+    action: 'isInstalledWrong',
     isnull: true,
     src: fileTestOnCurrentOrigin,
-    message: 'checkInstalled() for browser should return true'
+    message: 'isInstalled() for browser should return true'
   },
   // Browser
   {
@@ -69,17 +68,17 @@ var gData = [
   },
   {
     browser: true,
-    action: 'checkInstalled',
+    action: 'isInstalled',
     isnull: false,
     src: fileTestOnCurrentOrigin,
-    message: 'checkInstalled() for browser should return true'
+    message: 'isInstalled() for browser should return true'
   },
   {
     browser: true,
-    action: 'checkInstalledWrong',
+    action: 'isInstalledWrong',
     isnull: true,
     src: fileTestOnCurrentOrigin,
-    message: 'checkInstalled() for browser should return true'
+    message: 'isInstalled() for browser should return true'
   },
 ];
 
@@ -106,7 +105,6 @@ function runTest() {
           }
 
           SpecialPowers.removePermission("browser", window.document);
-          SpecialPowers.removePermission("embed-apps", window.document);
 
           SimpleTest.finish();
         } else {

@@ -1921,11 +1921,14 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   return rv;
 }
 
-bool imgLoader::SupportImageWithMimeType(const char* aMimeType)
+NS_IMETHODIMP imgLoader::SupportImageWithMimeType(const char* aMimeType, bool *_retval)
 {
+  *_retval = false;
   nsAutoCString mimeType(aMimeType);
   ToLowerCase(mimeType);
-  return Image::GetDecoderType(mimeType.get()) != Image::eDecoderType_unknown;
+  *_retval = (Image::GetDecoderType(mimeType.get()) == Image::eDecoderType_unknown)
+    ? false : true;
+  return NS_OK;
 }
 
 NS_IMETHODIMP imgLoader::GetMIMETypeFromContent(nsIRequest* aRequest,

@@ -236,14 +236,6 @@
        }
      };
 
-     /**
-      * Utility function used to determine whether an object is a typed array
-      */
-     let isTypedArray = function isTypedArray(obj) {
-       return typeof obj == "object"
-         && "byteOffset" in obj;
-     };
-     exports.OS.Shared.isTypedArray = isTypedArray;
 
      /**
       * A |Type| of pointers.
@@ -272,7 +264,7 @@
       * Protocol:
       * - |null| returns |null|
       * - a string returns |{string: value}|
-      * - a typed array returns |{ptr: address_of_buffer}|
+      * - an ArrayBuffer returns |{ptr: address_of_buffer}|
       * - a C array returns |{ptr: address_of_buffer}|
       * everything else raises an error
       */
@@ -284,11 +276,8 @@
          return { string: value };
        }
        let normalized;
-       if (isTypedArray(value)) { // Typed array
-         normalized = Types.uint8_t.in_ptr.implementation(value.buffer);
-         if (value.byteOffset != 0) {
-           normalized = exports.OS.Shared.offsetBy(normalized, value.byteOffset);
-         }
+       if ("byteLength" in value) { // ArrayBuffer
+         normalized = Types.uint8_t.in_ptr.implementation(value);
        } else if ("addressOfElement" in value) { // C array
          normalized = value.addressOfElement(0);
        } else if ("isNull" in value) { // C pointer

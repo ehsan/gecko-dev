@@ -60,7 +60,6 @@ nsBaseChannel::nsBaseChannel()
   , mWasOpened(false)
   , mWaitingOnAsyncRedirect(false)
   , mStatus(NS_OK)
-  , mContentDispositionHint(UINT32_MAX)
 {
   mContentType.AssignLiteral(UNKNOWN_CONTENT_TYPE);
 }
@@ -491,38 +490,13 @@ nsBaseChannel::SetContentCharset(const nsACString &aContentCharset)
 NS_IMETHODIMP
 nsBaseChannel::GetContentDisposition(uint32_t *aContentDisposition)
 {
-  // preserve old behavior, fail unless explicitly set.
-  if (mContentDispositionHint == UINT32_MAX) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  *aContentDisposition = mContentDispositionHint;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-  mContentDispositionHint = aContentDisposition;
-  return NS_OK;
+  return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
 nsBaseChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
 {
-  if (!mContentDispositionFilename) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  aContentDispositionFilename = *mContentDispositionFilename;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-  mContentDispositionFilename = new nsString(aContentDispositionFilename);
-  return NS_OK;
+  return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP

@@ -27,6 +27,7 @@
 #include "prtypes.h"
 
 class nsIAtom;
+typedef uintptr_t PtrBits;
 
 typedef void
 (*NSPropertyFunc)(void           *aObject,

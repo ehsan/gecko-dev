@@ -1216,19 +1216,31 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
                         }
 
                         if (translator) {
+                            bool hideFirstParamFromJS = false;
+                            nsIID* newWrapperIID = nullptr;
                             nsCOMPtr<nsISupports> newThis;
+
                             if (NS_FAILED(translator->
                                           TranslateThis((nsISupports*)nativeParams[0].val.p,
+                                                        mInfo, methodIndex,
+                                                        &hideFirstParamFromJS,
+                                                        &newWrapperIID,
                                                         getter_AddRefs(newThis)))) {
+                                goto pre_call_clean_up;
+                            }
+                            if (hideFirstParamFromJS) {
+                                NS_ERROR("HideFirstParamFromJS not supported");
                                 goto pre_call_clean_up;
                             }
                             if (newThis) {
                                 jsval v;
                                 xpcObjectHelper helper(newThis);
                                 JSBool ok =
-                                  XPCConvert::NativeInterface2JSObject(
-                                      ccx, &v, nullptr, helper, nullptr,
-                                      nullptr, false, nullptr);
+                                  XPCConvert::NativeInterface2JSObject(ccx,
+                                                                       &v, nullptr, helper, newWrapperIID,
+                                                                       nullptr, false, nullptr);
+                                if (newWrapperIID)
+                                    nsMemory::Free(newWrapperIID);
                                 if (!ok) {
                                     goto pre_call_clean_up;
                                 }

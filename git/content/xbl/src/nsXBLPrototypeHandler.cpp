@@ -340,9 +340,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                                    handlerText,
                                                    bindingURI.get(), 
                                                    mLineNumber,
-                                                   JSVERSION_LATEST,
-                                                   /* aIsXBL = */ true,
-                                                   aHandler);
+                                                   JSVERSION_LATEST, aHandler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (pWindow) {

@@ -122,11 +122,6 @@ struct SendFileRequest
   PBlob blob;
 };
 
-struct StopSendingFileRequest
-{
-  nsString devicePath;
-};
-
 union Request
 {
   DefaultAdapterPathRequest;
@@ -148,7 +143,6 @@ union Request
   DisconnectHeadsetRequest;
   DisconnectObjectPushRequest;
   SendFileRequest;
-  StopSendingFileRequest;
 };
 
 protocol PBluetooth

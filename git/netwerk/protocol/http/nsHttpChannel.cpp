@@ -1649,7 +1649,13 @@ nsHttpChannel::OpenRedirectChannel(nsresult rv)
 
     notifier.RedirectSucceeded();
 
-    ReleaseListeners();
+    // disconnect from the old listeners...
+    mListener = nullptr;
+    mListenerContext = nullptr;
+
+    // ...and the old callbacks
+    mCallbacks = nullptr;
+    mProgressSink = nullptr;
 
     return NS_OK;
 }
@@ -1710,7 +1716,13 @@ nsHttpChannel::ContinueDoReplaceWithProxy(nsresult rv)
 
     notifier.RedirectSucceeded();
 
-    ReleaseListeners();
+    // disconnect from the old listeners...
+    mListener = nullptr;
+    mListenerContext = nullptr;
+
+    // ...and the old callbacks
+    mCallbacks = nullptr;
+    mProgressSink = nullptr;
 
     return rv;
 }
@@ -2272,7 +2284,13 @@ nsHttpChannel::ContinueProcessFallback(nsresult rv)
 
     notifier.RedirectSucceeded();
 
-    ReleaseListeners();
+    // disconnect from our listener
+    mListener = 0;
+    mListenerContext = 0;
+
+    // and from our callbacks
+    mCallbacks = nullptr;
+    mProgressSink = nullptr;
 
     mFallingBack = true;
 
@@ -4112,8 +4130,13 @@ nsHttpChannel::ContinueProcessRedirection(nsresult rv)
     
     notifier.RedirectSucceeded();
 
-    ReleaseListeners();
+    // disconnect from our listener
+    mListener = 0;
+    mListenerContext = 0;
 
+    // and from our callbacks
+    mCallbacks = nullptr;
+    mProgressSink = nullptr;
     return NS_OK;
 }
 
@@ -4296,10 +4319,8 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     nsresult rv;
 
     rv = NS_CheckPortSafety(mURI);
-    if (NS_FAILED(rv)) {
-        ReleaseListeners();
+    if (NS_FAILED(rv))
         return rv;
-    }
 
     // Remember the cookie header that was set, if any
     const char *cookieHeader = mRequestHead.PeekHeader(nsHttp::Cookie);
@@ -4334,11 +4355,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     if (!mProxyInfo && NS_SUCCEEDED(ResolveProxy()))
         return NS_OK;
 
-    rv = BeginConnect();
-    if (NS_FAILED(rv))
-        ReleaseListeners();
-
-    return rv;
+    return BeginConnect();
 }
 
 nsresult
@@ -4990,6 +5007,8 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     if (mListener) {
         LOG(("  calling OnStopRequest\n"));
         mListener->OnStopRequest(this, mListenerContext, status);
+        mListener = 0;
+        mListenerContext = 0;
     }
 
     if (mCacheEntry) {
@@ -5022,7 +5041,8 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     // We don't need this info anymore
     CleanRedirectCacheChainIfNecessary();
 
-    ReleaseListeners();
+    mCallbacks = nullptr;
+    mProgressSink = nullptr;
     
     return NS_OK;
 }

@@ -20,33 +20,26 @@ let log =
 
 const APPLY_PROMPT_TIMEOUT =
       Services.prefs.getIntPref("b2g.update.apply-prompt-timeout");
-const APPLY_IDLE_TIMEOUT =
-      Services.prefs.getIntPref("b2g.update.apply-idle-timeout");
+const APPLY_WAIT_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.apply-wait-timeout");
 const SELF_DESTRUCT_TIMEOUT =
       Services.prefs.getIntPref("b2g.update.self-destruct-timeout");
-
-const APPLY_IDLE_TIMEOUT_SECONDS = APPLY_IDLE_TIMEOUT / 1000;
-
 
 XPCOMUtils.defineLazyServiceGetter(Services, "aus",
                                    "@mozilla.org/updates/update-service;1",
                                    "nsIApplicationUpdateService");
 
-XPCOMUtils.defineLazyServiceGetter(Services, "idle",
-                                   "@mozilla.org/widget/idleservice;1",
-                                   "nsIIdleService");
 function UpdatePrompt() { }
 
 UpdatePrompt.prototype = {
   classID: Components.ID("{88b3eb21-d072-4e3b-886d-f89d8c49fe59}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdatePrompt,
                                          Ci.nsIRequestObserver,
-                                         Ci.nsIProgressEventSink,
-                                         Ci.nsIObserver]),
+                                         Ci.nsIProgressEventSink]),
 
   _update: null,
   _applyPromptTimer: null,
-  _waitingForIdle: false,
+  _applyWaitTimer: null,
 
   // nsIUpdatePrompt
 
@@ -65,23 +58,16 @@ UpdatePrompt.prototype = {
   },
 
   showUpdateDownloaded: function UP_showUpdateDownloaded(aUpdate, aBackground) {
-    // The update has been downloaded and staged. We send the update-downloaded
-    // event right away. After the user has been idle for a while, we send the
-    // update-prompt-restart event, increasing the chances that we can apply the
-    // update quietly without user intervention.
-    this.sendUpdateEvent("update-downloaded", aUpdate);
-
-    if (Services.idle.idleTime >= APPLY_IDLE_TIMEOUT) {
-      this.showApplyPrompt(aUpdate);
+    if (!this.sendUpdateEvent("update-downloaded", aUpdate,
+                             this.handleDownloadedResult)) {
+      log("Unable to prompt, forcing restart");
+      this.restartProcess();
       return;
     }
 
-    // We haven't been idle long enough, so register an observer
-    log("Update is ready to apply, registering idle timeout of " +
-        APPLY_IDLE_TIMEOUT_SECONDS + " seconds before prompting.");
-
-    this._update = aUpdate;
-    this.waitForIdle();
+    // Schedule a fallback timeout in case the UI is unable to respond or show
+    // a prompt for some reason
+    this._applyPromptTimer = this.createTimer(APPLY_PROMPT_TIMEOUT);
   },
 
   showUpdateError: function UP_showUpdateError(aUpdate) {
@@ -92,32 +78,6 @@ UpdatePrompt.prototype = {
 
   showUpdateHistory: function UP_showUpdateHistory(aParent) { },
   showUpdateInstalled: function UP_showUpdateInstalled() { },
-
-  // Custom functions
-
-  waitForIdle: function UP_waitForIdle() {
-    if (this._waitingForIdle) {
-      return;
-    }
-
-    this._waitingForIdle = true;
-    Services.idle.addIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
-    Services.obs.addObserver(this, "quit-application", false);
-  },
-
-
-  showApplyPrompt: function UP_showApplyPrompt(aUpdate) {
-    if (!this.sendUpdateEvent("update-prompt-apply", aUpdate,
-                             this.handleApplyPromptResult)) {
-      log("Unable to prompt, forcing restart");
-      this.restartProcess();
-      return;
-    }
-
-    // Schedule a fallback timeout in case the UI is unable to respond or show
-    // a prompt for some reason.
-    this._applyPromptTimer = this.createTimer(APPLY_PROMPT_TIMEOUT);
-  },
 
   sendUpdateEvent: function UP_sendUpdateEvent(aType, aUpdate, aCallback) {
     let detail = {
@@ -195,7 +155,7 @@ UpdatePrompt.prototype = {
     }
   },
 
-  handleApplyPromptResult: function UP_handleApplyPromptResult(aDetail) {
+  handleDownloadedResult: function UP_handleDownloadedResult(aDetail) {
     if (this._applyPromptTimer) {
       this._applyPromptTimer.cancel();
       this._applyPromptTimer = null;
@@ -203,8 +163,9 @@ UpdatePrompt.prototype = {
 
     switch (aDetail.result) {
       case "wait":
-        // Wait until the user is idle before prompting to apply the update
-        this.waitForIdle();
+        // Wait for a fixed period of time, allowing the user to temporarily
+        // postpone applying an update
+        this._applyWaitTimer = this.createTimer(APPLY_WAIT_TIMEOUT);
         break;
       case "restart":
         this.finishUpdate();
@@ -248,16 +209,17 @@ UpdatePrompt.prototype = {
   restartProcess: function UP_restartProcess() {
     log("Update downloaded, restarting to apply it");
 
-#ifndef MOZ_WIDGET_GONK
     let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"]
-                     .getService(Ci.nsIAppStartup);
-    appStartup.quit(appStartup.eForceQuit | appStartup.eRestart);
-#else
-    // NB: on Gonk, we rely on the system process manager to restart us.
-    let pmService = Cc["@mozilla.org/power/powermanagerservice;1"]
-                    .getService(Ci.nsIPowerManagerService);
-    pmService.restart();
+                       .getService(Ci.nsIAppStartup);
+    // NB: on Gonk, we rely on the system process manager to restart
+    // us.  Trying to restart here would conflict with the process
+    // manager.  We should be using a runtime check to detect Gonk
+    // instead of this gross ifdef, but the ifdef works for now.
+    appStartup.quit(appStartup.eForceQuit
+#ifndef ANDROID
+                    | appStartup.eRestart
 #endif
+      );
   },
 
   finishOSUpdate: function UP_finishOSUpdate(aOsUpdatePath) {
@@ -274,26 +236,14 @@ UpdatePrompt.prototype = {
     }
   },
 
-  // nsIObserver
-
-  observe: function UP_observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "idle":
-        this._waitingForIdle = false;
-        this.showApplyPrompt(this._update);
-        // Fall through
-      case "quit-application":
-        Services.idle.removeIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
-        Services.obs.removeObserver(this, "quit-application");
-        break;
-    }
-  },
-
   notify: function UP_notify(aTimer) {
     if (aTimer == this._applyPromptTimer) {
       log("Timed out waiting for result, restarting");
       this._applyPromptTimer = null;
       this.finishUpdate();
+    } else if (aTimer == this._applyWaitTimer) {
+      this._applyWaitTimer = null;
+      this.showUpdatePrompt();
     }
   },
 

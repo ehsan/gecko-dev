@@ -5124,7 +5124,7 @@ xml_hasInstance(JSContext *cx, HandleObject obj, MutableHandleValue v, JSBool *b
 }
 
 static void
-xml_trace(JSTracer *trc, RawObject obj)
+xml_trace(JSTracer *trc, JSObject *obj)
 {
     JSXML *xml = (JSXML *) obj->getPrivate();
     /*
@@ -7824,7 +7824,7 @@ struct JSXMLFilter
 };
 
 static void
-xmlfilter_trace(JSTracer *trc, RawObject obj)
+xmlfilter_trace(JSTracer *trc, JSObject *obj)
 {
     JSXMLFilter *filter = (JSXMLFilter *) obj->getPrivate();
     if (!filter)
@@ -7844,7 +7844,7 @@ xmlfilter_trace(JSTracer *trc, RawObject obj)
 }
 
 static void
-xmlfilter_finalize(FreeOp *fop, RawObject obj)
+xmlfilter_finalize(FreeOp *fop, JSObject *obj)
 {
     JSXMLFilter *filter = (JSXMLFilter *) obj->getPrivate();
     if (!filter)

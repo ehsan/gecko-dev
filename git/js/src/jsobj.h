@@ -725,7 +725,7 @@ struct JSObject : public js::ObjectImpl
      * logic across the object vs. shape module wall.
      */
     bool allocSlot(JSContext *cx, uint32_t *slotp);
-    void freeSlot(uint32_t slot);
+    void freeSlot(JSContext *cx, uint32_t slot);
 
   public:
     static bool reportReadOnly(JSContext *cx, jsid id, unsigned report = JSREPORT_ERROR);
@@ -1264,14 +1264,15 @@ LookupName(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
 
 /*
  * Like LookupName except returns the global object if 'name' is not found in
- * any preceding non-global scope.
+ * any preceding non-global scope. This is because assigning to an undeclared
+ * name will add a property to the global object.
  *
  * Additionally, pobjp and propp are not needed by callers so they are not
  * returned.
  */
 extern bool
-LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                            MutableHandleObject objp);
+LookupNameForSet(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
+                 MutableHandleObject objp);
 
 }
 

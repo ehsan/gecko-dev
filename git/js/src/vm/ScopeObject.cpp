@@ -1124,7 +1124,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return false;
 
             Bindings &bindings = script->bindings;
-            BindingIter bi(script);
+            BindingIter bi(script->bindings);
             while (bi && NameToId(bi->name()) != id)
                 bi++;
             if (!bi)
@@ -1395,8 +1395,7 @@ class DebugScopeProxy : public BaseProxyHandler
          * they must be manually appended here.
          */
         if (scope.isCall() && !scope.asCall().isForEval()) {
-            RootedScript script(cx, scope.asCall().callee().script());
-            for (BindingIter bi(script); bi; bi++) {
+            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
                 if (!bi->aliased() && !props.append(NameToId(bi->name())))
                     return false;
             }
@@ -1434,8 +1433,7 @@ class DebugScopeProxy : public BaseProxyHandler
          * a manual search is necessary.
          */
         if (!found && scope.isCall() && !scope.asCall().isForEval()) {
-            RootedScript script(cx, scope.asCall().callee().script());
-            for (BindingIter bi(script); bi; bi++) {
+            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
                 if (!bi->aliased() && NameToId(bi->name()) == id) {
                     found = true;
                     break;

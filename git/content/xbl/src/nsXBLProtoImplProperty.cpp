@@ -217,8 +217,7 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
                                      functionUri.get(),
                                      mGetterText->GetLineNumber(),
                                      JSVERSION_LATEST,
-                                     /* aShared = */ true,
-                                     /* aIsXBL = */ true,
+                                     true,
                                      &getterObject);
 
       // Make sure we free mGetterText here before setting mJSGetterObject, since
@@ -268,8 +267,7 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
                                      functionUri.get(),
                                      mSetterText->GetLineNumber(),
                                      JSVERSION_LATEST,
-                                     /* aShared = */ true,
-                                     /* aIsXBL = */ true,
+                                     true,
                                      &setterObject);
 
       // Make sure we free mSetterText here before setting mJSGetterObject, since

@@ -780,7 +780,7 @@ obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
             return false;
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_UNEXPECTED_TYPE, bytes, "not an object");
-        js_free(bytes);
+        JS_free(cx, bytes);
         return false;
     }
 
@@ -952,7 +952,7 @@ GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char *me
             return false;
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                              bytes, "not an object");
-        js_free(bytes);
+        JS_free(cx, bytes);
         return false;
     }
 
@@ -1762,7 +1762,7 @@ obj_create(JSContext *cx, unsigned argc, Value *vp)
             return false;
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
                              bytes, "not an object or null");
-        js_free(bytes);
+        JS_free(cx, bytes);
         return false;
     }
 
@@ -2081,20 +2081,6 @@ JSFunctionSpec object_static_methods[] = {
     JS_FS_END
 };
 
-/*
- * Get the GC kind to use for scripted 'new' on the given class.
- * FIXME bug 547327: estimate the size from the allocation site.
- */
-static inline gc::AllocKind
-NewObjectGCKind(js::Class *clasp)
-{
-    if (clasp == &ArrayClass || clasp == &SlowArrayClass)
-        return gc::FINALIZE_OBJECT8;
-    if (clasp == &FunctionClass)
-        return gc::FINALIZE_OBJECT2;
-    return gc::FINALIZE_OBJECT4;
-}
-
 JSBool
 js_Object(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -2110,7 +2096,7 @@ js_Object(JSContext *cx, unsigned argc, Value *vp)
     if (!obj) {
         /* Make an object whether this was called with 'new' or not. */
         JS_ASSERT(!argc || vp[2].isNull() || vp[2].isUndefined());
-        gc::AllocKind kind = NewObjectGCKind(&ObjectClass);
+        gc::AllocKind kind = NewObjectGCKind(cx, &ObjectClass);
         obj = NewBuiltinClassInstance(cx, &ObjectClass, kind);
         if (!obj)
             return JS_FALSE;
@@ -2342,7 +2328,7 @@ js_CreateThis(JSContext *cx, Class *newclasp, HandleObject callee)
 
     JSObject *proto = protov.isObjectOrNull() ? protov.toObjectOrNull() : NULL;
     JSObject *parent = callee->getParent();
-    gc::AllocKind kind = NewObjectGCKind(newclasp);
+    gc::AllocKind kind = NewObjectGCKind(cx, newclasp);
     return NewObjectWithClassProto(cx, newclasp, proto, parent, kind);
 }
 
@@ -2363,7 +2349,7 @@ CreateThisForFunctionWithType(JSContext *cx, HandleTypeObject type, JSObject *pa
         return res;
     }
 
-    gc::AllocKind kind = NewObjectGCKind(&ObjectClass);
+    gc::AllocKind kind = NewObjectGCKind(cx, &ObjectClass);
     return NewObjectWithType(cx, type, parent, kind);
 }
 
@@ -2378,7 +2364,7 @@ js_CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject *
             return NULL;
         res = CreateThisForFunctionWithType(cx, type, callee->getParent());
     } else {
-        gc::AllocKind kind = NewObjectGCKind(&ObjectClass);
+        gc::AllocKind kind = NewObjectGCKind(cx, &ObjectClass);
         res = NewObjectWithClassProto(cx, &ObjectClass, proto, callee->getParent(), kind);
     }
 
@@ -2653,6 +2639,7 @@ js::CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, 
 }
 
 struct JSObject::TradeGutsReserved {
+    JSContext *cx;
     Vector<Value> avals;
     Vector<Value> bvals;
     int newafixed;
@@ -2663,7 +2650,7 @@ struct JSObject::TradeGutsReserved {
     HeapSlot *newbslots;
 
     TradeGutsReserved(JSContext *cx)
-        : avals(cx), bvals(cx),
+        : cx(cx), avals(cx), bvals(cx),
           newafixed(0), newbfixed(0),
           newashape(NULL), newbshape(NULL),
           newaslots(NULL), newbslots(NULL)
@@ -2992,7 +2979,7 @@ SetClassObject(JSObject *obj, JSProtoKey key, JSObject *cobj, JSObject *proto)
 }
 
 static void
-ClearClassObject(JSObject *obj, JSProtoKey key)
+ClearClassObject(JSContext *cx, JSObject *obj, JSProtoKey key)
 {
     JS_ASSERT(!obj->getParent());
     if (!obj->isGlobal())
@@ -3140,7 +3127,7 @@ bad:
         JSObject::deleteByValue(cx, obj, StringValue(atom), &rval, false);
     }
     if (cached)
-        ClearClassObject(obj, key);
+        ClearClassObject(cx, obj, key);
     return NULL;
 }
 
@@ -3749,7 +3736,7 @@ JSObject::allocSlot(JSContext *cx, uint32_t *slotp)
 }
 
 void
-JSObject::freeSlot(uint32_t slot)
+JSObject::freeSlot(JSContext *cx, uint32_t slot)
 {
     JS_ASSERT(slot < slotSpan());
 
@@ -4176,8 +4163,8 @@ js::LookupName(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
 }
 
 bool
-js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                                MutableHandleObject objp)
+js::LookupNameForSet(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
+                     MutableHandleObject objp)
 {
     RootedId id(cx, NameToId(name));
 

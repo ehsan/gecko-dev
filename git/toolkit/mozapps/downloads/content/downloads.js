@@ -705,7 +705,7 @@ var gDownloadDNDObserver =
       [url, name] = url.split("\n");
     }
     if (url)
-      saveURL(url, name ? name : url, null, true, true, document);
+      saveURL(url, name ? name : url, null, true, true);
   }
 }
 
@@ -729,7 +729,7 @@ function pasteHandler() {
 
     let uri = Services.io.newURI(url, null, null);
 
-    saveURL(uri.spec, name || uri.spec, null, true, true, document);
+    saveURL(uri.spec, name || uri.spec, null, true, true);
   } catch (ex) {}
 }
 

@@ -2133,11 +2133,9 @@ nsPrintEngine::SetRootView(
     parentView = GetParentViewForRoot();
   }
 
-  if (aPO->mViewManager->GetRootView()) {
+  if (aPO->mPresShell->GetViewManager()->GetRootView()) {
     // Reuse the root view that is already on the root frame.
-    rootView = aPO->mViewManager->GetRootView();
-    // Remove it from its existing parent if necessary
-    aPO->mViewManager->RemoveChild(rootView);
+    rootView = aPO->mPresShell->GetRootFrame()->GetView();
     reinterpret_cast<nsView*>(rootView)->SetParent(reinterpret_cast<nsView*>(parentView));
   } else {
     // Create a child window of the parent that is our "root view/window"

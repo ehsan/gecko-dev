@@ -58,9 +58,9 @@
 // Emulate string comparison (used for sorting) for PRTime and int.
 inline int32_t ComparePRTime(PRTime a, PRTime b)
 {
-  if (a < b)
+  if (LL_CMP(a, <, b))
     return -1;
-  else if (a > b)
+  else if (LL_CMP(a, >, b))
     return 1;
   return 0;
 }

@@ -54,7 +54,6 @@
 
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -1004,8 +1003,11 @@ bool nsXULWindow::LoadPositionFromXUL()
   if (mIsHiddenWindow)
     return false;
 
-  nsCOMPtr<nsIDOMElement> windowElement = GetWindowDOMElement();
-  NS_ENSURE_TRUE(windowElement, false);
+  nsCOMPtr<nsIDOMElement> windowElement;
+  GetWindowDOMElement(getter_AddRefs(windowElement));
+  NS_ASSERTION(windowElement, "no xul:window");
+  if (!windowElement)
+    return false;
 
   int32_t currX = 0;
   int32_t currY = 0;
@@ -1070,8 +1072,11 @@ bool nsXULWindow::LoadSizeFromXUL()
   if (mIsHiddenWindow)
     return false;
 
-  nsCOMPtr<nsIDOMElement> windowElement = GetWindowDOMElement();
-  NS_ENSURE_TRUE(windowElement, false);
+  nsCOMPtr<nsIDOMElement> windowElement;
+  GetWindowDOMElement(getter_AddRefs(windowElement));
+  NS_ASSERTION(windowElement, "no xul:window");
+  if (!windowElement)
+    return false;
 
   int32_t currWidth = 0;
   int32_t currHeight = 0;
@@ -1148,8 +1153,11 @@ bool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
   if (mIsHiddenWindow)
     return false;
 
-  nsCOMPtr<nsIDOMElement> windowElement = GetWindowDOMElement();
-  NS_ENSURE_TRUE(windowElement, false);
+  nsCOMPtr<nsIDOMElement> windowElement;
+  GetWindowDOMElement(getter_AddRefs(windowElement));
+  NS_ASSERTION(windowElement, "no xul:window");
+  if (!windowElement)
+    return false;
 
   nsAutoString stateString;
 
@@ -1235,10 +1243,8 @@ void nsXULWindow::StaggerPosition(int32_t &aRequestedX, int32_t &aRequestedY,
   if (!wm)
     return;
 
-  nsCOMPtr<nsIDOMElement> windowElement = GetWindowDOMElement();
-  if (!windowElement)
-    return;
-
+  nsCOMPtr<nsIDOMElement> windowElement;
+  GetWindowDOMElement(getter_AddRefs(windowElement));
   nsCOMPtr<nsIXULWindow> ourXULWindow(this);
 
   nsAutoString windowType;
@@ -1338,7 +1344,8 @@ void nsXULWindow::StaggerPosition(int32_t &aRequestedX, int32_t &aRequestedY,
 
 void nsXULWindow::SyncAttributesToWidget()
 {
-  nsCOMPtr<nsIDOMElement> windowElement = GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> windowElement;
+  GetWindowDOMElement(getter_AddRefs(windowElement));
   if (!windowElement)
     return;
 
@@ -1403,7 +1410,8 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   if (!mDocShell)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMElement> docShellElement = GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  GetWindowDOMElement(getter_AddRefs(docShellElement));
   if (!docShellElement)
     return NS_ERROR_FAILURE;
 
@@ -1529,22 +1537,25 @@ NS_IMETHODIMP nsXULWindow::GetWindowDOMWindow(nsIDOMWindow** aDOMWindow)
   return NS_OK;
 }
 
-nsIDOMElement*
-nsXULWindow::GetWindowDOMElement() const
+NS_IMETHODIMP nsXULWindow::GetWindowDOMElement(nsIDOMElement** aDOMElement)
 {
-  NS_ENSURE_TRUE(mDocShell, nullptr);
+  NS_ENSURE_STATE(mDocShell);
+  NS_ENSURE_ARG_POINTER(aDOMElement);
+
+  *aDOMElement = nullptr;
 
   nsCOMPtr<nsIContentViewer> cv;
+
   mDocShell->GetContentViewer(getter_AddRefs(cv));
-  NS_ENSURE_TRUE(cv, nullptr);
+  NS_ENSURE_TRUE(cv, NS_ERROR_FAILURE);
 
-  const nsIDocument* document = cv->GetDocument();
-  NS_ENSURE_TRUE(document, nullptr);
+  nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(cv->GetDocument()));
+  NS_ENSURE_TRUE(domdoc, NS_ERROR_FAILURE);
 
-  dom::Element* element = document->GetRootElement();
-  NS_ENSURE_TRUE(element, nullptr);
+  domdoc->GetDocumentElement(aDOMElement);
+  NS_ENSURE_TRUE(*aDOMElement, NS_ERROR_FAILURE);
 
-  return static_cast<nsIDOMElement*>(element->AsDOMNode());
+  return NS_OK;
 }
 
 nsresult nsXULWindow::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
@@ -1977,7 +1988,8 @@ void nsXULWindow::PersistentAttributesDirty(uint32_t aDirtyFlags)
 
 NS_IMETHODIMP nsXULWindow::ApplyChromeFlags()
 {
-  nsCOMPtr<nsIDOMElement> window = GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> window;
+  GetWindowDOMElement(getter_AddRefs(window));
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   if (mChromeLoaded) {

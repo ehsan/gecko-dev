@@ -27,7 +27,7 @@
 #include "nsHTMLMediaElement.h"
 #endif
 #include "nsContentUtils.h"
-#include "imgLoader.h"
+#include "imgILoader.h"
 #include "nsCharsetSource.h"
 #include "nsMimeTypes.h"
 
@@ -462,5 +462,8 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
 }
 
 bool nsContentDLF::IsImageContentType(const char* aContentType) {
-  return imgLoader::SupportImageWithMimeType(aContentType);
+  nsCOMPtr<imgILoader> loader(do_CreateInstance("@mozilla.org/image/loader;1"));
+  bool isDecoderAvailable = false;
+  loader->SupportImageWithMimeType(aContentType, &isDecoderAvailable);
+  return isDecoderAvailable;
 }

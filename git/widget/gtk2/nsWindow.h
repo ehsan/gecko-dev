@@ -281,11 +281,8 @@ public:
     NS_IMETHOD OnIMEFocusChange(bool aFocus);
     NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState);
 
-    // These methods are for toplevel windows only.
-    void               ResizeTransparencyBitmap();
-    void               ApplyTransparencyBitmap();
-    void               ClearTransparencyBitmap();
-
+   void                ResizeTransparencyBitmap();
+   void                ApplyTransparencyBitmap();
    virtual void        SetTransparencyMode(nsTransparencyMode aMode);
    virtual nsTransparencyMode GetTransparencyMode();
    virtual nsresult    ConfigureChildren(const nsTArray<Configuration>& aConfigurations);

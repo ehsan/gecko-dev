@@ -50,18 +50,18 @@ using namespace js;
 using namespace js::gc;
 using namespace js::frontend;
 
-/* static */ unsigned
-Bindings::argumentsVarIndex(JSContext *cx, InternalBindingsHandle bindings)
+unsigned
+Bindings::argumentsVarIndex(JSContext *cx) const
 {
     HandlePropertyName arguments = cx->names().arguments;
-    BindingIter bi(bindings);
+    BindingIter bi(*this);
     while (bi->name() != arguments)
         bi++;
     return bi.frameIndex();
 }
 
 bool
-Bindings::initWithTemporaryStorage(JSContext *cx, InternalBindingsHandle self,
+Bindings::initWithTemporaryStorage(JSContext *cx, InternalHandle<Bindings*> self,
                                    unsigned numArgs, unsigned numVars,
                                    Binding *bindingArray)
 {
@@ -106,7 +106,7 @@ Bindings::initWithTemporaryStorage(JSContext *cx, InternalBindingsHandle self,
         return false;
 #endif
 
-    BindingIter bi(self);
+    BindingIter bi(*self);
     unsigned slot = CallObject::RESERVED_SLOTS;
     for (unsigned i = 0, n = self->count(); i < n; i++, bi++) {
         if (!bi->aliased())
@@ -151,7 +151,7 @@ Bindings::switchToScriptStorage(Binding *newBindingArray)
 }
 
 bool
-Bindings::clone(JSContext *cx, InternalBindingsHandle self,
+Bindings::clone(JSContext *cx, InternalHandle<Bindings*> self,
                 uint8_t *dstScriptData,
                 HandleScript srcScript)
 {
@@ -186,13 +186,13 @@ XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, unsigned numArgs, un
     JSContext *cx = xdr->cx();
 
     if (mode == XDR_ENCODE) {
-        for (BindingIter bi(script); bi; bi++) {
+        for (BindingIter bi(script->bindings); bi; bi++) {
             JSAtom *atom = bi->name();
             if (!XDRAtom(xdr, &atom))
                 return false;
         }
 
-        for (BindingIter bi(script); bi; bi++) {
+        for (BindingIter bi(script->bindings); bi; bi++) {
             uint8_t u8 = (uint8_t(bi->kind()) << 1) | uint8_t(bi->aliased());
             if (!xdr->codeUint8(&u8))
                 return false;
@@ -225,7 +225,7 @@ XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, unsigned numArgs, un
             bindingArray[i] = Binding(name, kind, aliased);
         }
 
-        InternalBindingsHandle bindings(script, &script->bindings);
+        InternalHandle<Bindings*> bindings(script, &script->bindings);
         if (!Bindings::initWithTemporaryStorage(cx, bindings, numArgs, numVars, bindingArray))
             return false;
     }
@@ -261,9 +261,9 @@ Bindings::trace(JSTracer *trc)
 }
 
 bool
-js::FillBindingVector(HandleScript fromScript, BindingVector *vec)
+js::FillBindingVector(Bindings &bindings, BindingVector *vec)
 {
-    for (BindingIter bi(fromScript); bi; bi++) {
+    for (BindingIter bi(bindings); bi; bi++) {
         if (!vec->append(*bi))
             return false;
     }
@@ -1030,7 +1030,7 @@ SourceCompressorThread::abort(SourceCompressionToken *userTok)
 #endif /* JS_THREADSAFE */
 
 void
-JSScript::setScriptSource(ScriptSource *ss)
+JSScript::setScriptSource(JSContext *cx, ScriptSource *ss)
 {
     JS_ASSERT(ss);
     ss->incref();
@@ -1523,7 +1523,7 @@ JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun
     }
     script->staticLevel = uint16_t(staticLevel);
 
-    script->setScriptSource(ss);
+    script->setScriptSource(cx, ss);
     script->sourceStart = bufStart;
     script->sourceEnd = bufEnd;
 
@@ -1709,7 +1709,7 @@ JSScript::fullyInitFromEmitter(JSContext *cx, Handle<JSScript*> script, Bytecode
         JS_ASSERT(!bce->script->noScriptRval);
         script->isGenerator = funbox->isGenerator();
         script->isGeneratorExp = funbox->inGenexpLambda;
-        script->setFunction(funbox->function());
+        script->setFunction(funbox->fun());
     }
 
     /*
@@ -1863,7 +1863,7 @@ GSNCache::purge()
 } /* namespace js */
 
 jssrcnote *
-js_GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc)
+js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     size_t target = pc - script->code;
     if (target >= size_t(script->length))
@@ -2205,7 +2205,6 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     dst->hasSingletons = src->hasSingletons;
     dst->isGenerator = src->isGenerator;
     dst->isGeneratorExp = src->isGeneratorExp;
-    dst->userBit = src->userBit;
 
     /*
      * initScriptCounts updates scriptCountsMap if necessary. The other script
@@ -2553,8 +2552,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, JSScript *script_)
 
     script->needsArgsObj_ = true;
 
-    InternalBindingsHandle bindings(script, &script->bindings);
-    const unsigned var = Bindings::argumentsVarIndex(cx, bindings);
+    const unsigned var = script->bindings.argumentsVarIndex(cx);
 
     /*
      * By design, the apply-arguments optimization is only made when there

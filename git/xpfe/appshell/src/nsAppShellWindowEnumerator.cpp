@@ -222,12 +222,11 @@ NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval)
     return NS_ERROR_INVALID_ARG;
 
   *retval = nullptr;
-  while (mCurrentPosition) {
+  if (mCurrentPosition) {
     nsCOMPtr<nsIDOMWindow> domWindow;
     GetDOMWindow(mCurrentPosition->mWindow, domWindow);
+    CallQueryInterface(domWindow, retval);
     mCurrentPosition = FindNext();
-    if (domWindow)
-      return CallQueryInterface(domWindow, retval);
   }
   return NS_OK;
 }

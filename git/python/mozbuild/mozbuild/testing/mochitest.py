@@ -6,10 +6,10 @@ from __future__ import unicode_literals
 
 import os
 
-from mozbuild.testing.test import TestRunner
+from mozbuild.base import MozbuildObject
 
 
-class MochitestRunner(TestRunner):
+class MochitestRunner(MozbuildObject):
     """Easily run mochitests.
 
     This currently contains just the basics for running mochitests. We may want
@@ -45,6 +45,10 @@ class MochitestRunner(TestRunner):
         suite is the type of mochitest to run. It can be one of ('plain',
         'chrome', 'browser').
         """
+        if test_file is None:
+            raise Exception('test_file must be defined.')
+
+        parsed = self._parse_test_path(test_file)
 
         # TODO hook up harness via native Python
         target = None
@@ -54,17 +58,25 @@ class MochitestRunner(TestRunner):
             target = 'mochitest-chrome'
         elif suite == 'browser':
             target = 'mochitest-browser-chrome'
-        elif suite == 'a11y':
-            target = 'mochitest-a11y'
         else:
             raise Exception('None or unrecognized mochitest suite type.')
 
-        if test_file:
-            path = self._parse_test_path(test_file)['normalized']
-            if not os.path.exists(path):
-                raise Exception('No manifest file was found at %s.' % path)
-            env = {'TEST_PATH': path}
-        else:
-            env = {}
+        env = {'TEST_PATH': parsed['normalized']}
 
-        self._run_make(directory='.', target=target, append_env=env)
+        self._run_make(directory='.', target=target, env=env)
+
+    def _parse_test_path(self, test_path):
+        is_dir = os.path.isdir(test_path)
+
+        if is_dir and not test_path.endswith(os.path.sep):
+            test_path += os.path.sep
+
+        normalized = test_path
+
+        if test_path.startswith(self.topsrcdir):
+            normalized = test_path[len(self.topsrcdir):]
+
+        return {
+            'normalized': normalized,
+            'is_dir': is_dir,
+        }

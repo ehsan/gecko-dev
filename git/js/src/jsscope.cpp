@@ -432,7 +432,7 @@ JSObject::toDictionaryMode(JSContext *cx)
  * SHAPE_CALL_[GS]ETTER macros.
  */
 static inline bool
-NormalizeGetterAndSetter(JSObject *obj,
+NormalizeGetterAndSetter(JSContext *cx, JSObject *obj,
                          jsid id, unsigned attrs, unsigned flags,
                          PropertyOp &getter,
                          StrictPropertyOp &setter)
@@ -462,7 +462,7 @@ JSObject::addProperty(JSContext *cx, jsid id,
         return NULL;
     }
 
-    NormalizeGetterAndSetter(this, id, attrs, flags, getter, setter);
+    NormalizeGetterAndSetter(cx, this, id, attrs, flags, getter, setter);
 
     RootedObject self(cx, this);
 
@@ -592,7 +592,7 @@ JSObject::putProperty(JSContext *cx, jsid id_,
     RootedId id(cx, id_);
     JS_ASSERT(!JSID_IS_VOID(id));
 
-    NormalizeGetterAndSetter(this, id, attrs, flags, getter, setter);
+    NormalizeGetterAndSetter(cx, this, id, attrs, flags, getter, setter);
 
     RootedObject self(cx, this);
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
@@ -725,7 +725,7 @@ JSObject::putProperty(JSContext *cx, jsid id_,
      */
     if (hadSlot && !shape->hasSlot()) {
         if (oldSlot < self->slotSpan())
-            self->freeSlot(oldSlot);
+            self->freeSlot(cx, oldSlot);
         JS_ATOMIC_INCREMENT(&cx->runtime->propertyRemovals);
     }
 
@@ -828,7 +828,7 @@ JSObject::removeProperty(JSContext *cx, jsid id_)
 
     /* If shape has a slot, free its slot number. */
     if (shape->hasSlot()) {
-        self->freeSlot(shape->slot());
+        self->freeSlot(cx, shape->slot());
         JS_ATOMIC_INCREMENT(&cx->runtime->propertyRemovals);
     }
 

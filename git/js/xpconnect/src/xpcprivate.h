@@ -4421,7 +4421,8 @@ GetCompartmentPrivate(JSObject *object)
 
 inline bool IsUniversalXPConnectEnabled(JSCompartment *compartment)
 {
-    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
+    CompartmentPrivate *priv =
+      static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
     if (!priv)
         return false;
     return priv->universalXPConnectEnabled;
@@ -4440,7 +4441,8 @@ inline bool EnableUniversalXPConnect(JSContext *cx)
     JSCompartment *compartment = js::GetContextCompartment(cx);
     if (!compartment)
         return true;
-    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
+    CompartmentPrivate *priv =
+      static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
     if (!priv)
         return true;
     priv->universalXPConnectEnabled = true;

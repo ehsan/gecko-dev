@@ -91,7 +91,7 @@ protected:
    NS_IMETHOD SavePersistentAttributes();
 
    NS_IMETHOD GetWindowDOMWindow(nsIDOMWindow** aDOMWindow);
-   nsIDOMElement* GetWindowDOMElement() const;
+   NS_IMETHOD GetWindowDOMElement(nsIDOMElement** aDOMElement);
 
    // See nsIDocShellTreeOwner for docs on next two methods
    NS_HIDDEN_(nsresult) ContentShellAdded(nsIDocShellTreeItem* aContentShell,

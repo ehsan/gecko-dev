@@ -870,8 +870,6 @@ public class PanZoomController
         mLastZoomFocus = new PointF(detector.getFocusX(), detector.getFocusY());
         cancelTouch();
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY_START, mLastZoomFocus, getMetrics().zoomFactor));
-
         return true;
     }
 
@@ -940,9 +938,6 @@ public class PanZoomController
 
         mLastZoomFocus.set(detector.getFocusX(), detector.getFocusY());
 
-        GeckoEvent event = GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY, mLastZoomFocus, getMetrics().zoomFactor);
-        GeckoAppShell.sendEventToGecko(event);
-
         return true;
     }
 
@@ -956,10 +951,6 @@ public class PanZoomController
 
         // Force a viewport synchronisation
         mTarget.setForceRedraw();
-
-        PointF point = new PointF(detector.getFocusX(), detector.getFocusY());
-        GeckoEvent event = GeckoEvent.createNativeGestureEvent(GeckoEvent.ACTION_MAGNIFY_END, point, getMetrics().zoomFactor);
-        GeckoAppShell.sendEventToGecko(event);
     }
 
     /**

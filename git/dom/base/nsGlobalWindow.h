@@ -390,10 +390,6 @@ public:
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  // WebIDL interface.
-  uint32_t GetLength();
-  already_AddRefed<nsIDOMWindow> IndexedGetter(uint32_t aIndex, bool& aFound);
-
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
 
@@ -925,9 +921,6 @@ protected:
   // Helper for creating performance objects.
   void CreatePerformanceObjectIfNeeded();
 
-  // Outer windows only.
-  nsDOMWindowList* GetWindowList();
-
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -1093,6 +1086,11 @@ protected:
   // window (e.g. when we are closing the tab and therefore are guaranteed to be
   // destroying this window).
   bool                          mDialogsPermanentlyDisabled;
+
+  // Temporary booleans to know if we are currently observing network blips.
+  // Will be hopefully removed after bug 795703.
+  bool mObservingNetworkUpload;
+  bool mObservingNetworkDownload;
 
   nsRefPtr<nsDOMMozURLProperty> mURLProperty;
 

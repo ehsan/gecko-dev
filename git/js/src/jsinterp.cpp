@@ -505,9 +505,9 @@ js::ExecuteKernel(JSContext *cx, HandleScript script, JSObject &scopeChain, cons
         return false;
     TypeScript::SetThis(cx, script, efg.fp()->thisValue());
 
-    Probes::startExecution(script);
+    Probes::startExecution(cx, script);
     bool ok = RunScript(cx, script, efg.fp());
-    Probes::stopExecution(script);
+    Probes::stopExecution(cx, script);
 
     /* Propgate the return value out. */
     if (result)
@@ -1886,9 +1886,8 @@ BEGIN_CASE(JSOP_BINDNAME)
     RootedPropertyName &name = rootName0;
     name = script->getName(regs.pc);
 
-    /* Assigning to an undeclared name adds a property to the global object. */
     RootedObject &scope = rootObject1;
-    if (!LookupNameWithGlobalDefault(cx, name, scopeChain, &scope))
+    if (!LookupNameForSet(cx, name, scopeChain, &scope))
         goto error;
 
     PUSH_OBJECT(*scope);
@@ -2556,7 +2555,9 @@ BEGIN_CASE(JSOP_IMPLICITTHIS)
     scopeObj = cx->stack.currentScriptedScopeChain();
 
     RootedObject &scope = rootObject1;
-    if (!LookupNameWithGlobalDefault(cx, name, scopeObj, &scope))
+    RootedObject &pobj = rootObject2;
+    RootedShape &prop = rootShape0;
+    if (!LookupName(cx, name, scopeObj, &scope, &pobj, &prop))
         goto error;
 
     Value v;

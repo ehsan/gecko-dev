@@ -206,8 +206,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
                                           functionUri.get(),
                                           uncompiledMethod->mBodyText.GetLineNumber(),
                                           JSVERSION_LATEST,
-                                          /* aShared = */ true,
-                                          /* aIsXBL = */ true,
+                                          true,
                                           &methodObject);
 
   // Destroy our uncompiled method and delete our arg list.

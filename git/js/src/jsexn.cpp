@@ -50,10 +50,10 @@ static JSBool
 Exception(JSContext *cx, unsigned argc, Value *vp);
 
 static void
-exn_trace(JSTracer *trc, RawObject obj);
+exn_trace(JSTracer *trc, JSObject *obj);
 
 static void
-exn_finalize(FreeOp *fop, RawObject obj);
+exn_finalize(FreeOp *fop, JSObject *obj);
 
 static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
@@ -248,7 +248,7 @@ struct SuppressErrorsGuard
 };
 
 static void
-SetExnPrivate(JSObject *exnObject, JSExnPrivate *priv);
+SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv);
 
 static bool
 InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
@@ -336,7 +336,7 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
         priv->stackElems[i].ulineno = frames[i].ulineno;
     }
 
-    SetExnPrivate(exnObject, priv);
+    SetExnPrivate(cx, exnObject, priv);
     return true;
 }
 
@@ -348,7 +348,7 @@ GetExnPrivate(JSObject *obj)
 }
 
 static void
-exn_trace(JSTracer *trc, RawObject obj)
+exn_trace(JSTracer *trc, JSObject *obj)
 {
     if (JSExnPrivate *priv = GetExnPrivate(obj)) {
         if (priv->message)
@@ -368,7 +368,7 @@ exn_trace(JSTracer *trc, RawObject obj)
 
 /* NB: An error object's private must be set through this function. */
 static void
-SetExnPrivate(JSObject *exnObject, JSExnPrivate *priv)
+SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv)
 {
     JS_ASSERT(!exnObject->getPrivate());
     JS_ASSERT(exnObject->isError());
@@ -380,7 +380,7 @@ SetExnPrivate(JSObject *exnObject, JSExnPrivate *priv)
 }
 
 static void
-exn_finalize(FreeOp *fop, RawObject obj)
+exn_finalize(FreeOp *fop, JSObject *obj)
 {
     if (JSExnPrivate *priv = GetExnPrivate(obj)) {
         if (JSErrorReport *report = priv->errorReport) {
@@ -909,6 +909,24 @@ static struct exnname { char *name; char *exception; } errortoexnname[] = {
 };
 #endif /* DEBUG */
 
+struct AutoSetGeneratingError
+{
+    JSContext *cx;
+
+    AutoSetGeneratingError(JSContext *cx)
+        : cx(cx)
+    {
+        JS_ASSERT(!cx->generatingError);
+        cx->generatingError = true;
+    }
+
+    ~AutoSetGeneratingError()
+    {
+        JS_ASSERT(cx->generatingError);
+        cx->generatingError = false;
+    }
+};
+
 JSBool
 js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
                     JSErrorCallback callback, void *userRef)
@@ -1188,7 +1206,7 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     JSObject *copyobj = NewObjectWithGivenProto(cx, &ErrorClass, proto, NULL);
     if (!copyobj)
         return NULL;
-    SetExnPrivate(copyobj, copy);
+    SetExnPrivate(cx, copyobj, copy);
     autoFreePrivate.forget();
     autoFreeErrorReport.forget();
     return copyobj;

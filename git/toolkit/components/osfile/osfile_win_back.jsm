@@ -188,11 +188,7 @@
                         /*handle*/ ctypes.voidptr_t);
 
        WinFile.CloseHandle = function(fd) {
-         if (fd == INVALID_HANDLE) {
-           return true;
-         } else {
-           return fd.dispose(); // Returns the value of |CloseHandle|.
-         }
+         return fd.dispose(); // Returns the value of |CloseHandle|.
        };
 
        let _FindClose =
@@ -201,11 +197,7 @@
                         /*handle*/ ctypes.voidptr_t);
 
        WinFile.FindClose = function(handle) {
-         if (handle == INVALID_HANDLE) {
-           return true;
-         } else {
-           return handle.dispose(); // Returns the value of |FindClose|.
-         }
+         return handle.dispose(); // Returns the value of |FindClose|.
        };
 
        // Declare libc functions as functions of |OS.Win.File|

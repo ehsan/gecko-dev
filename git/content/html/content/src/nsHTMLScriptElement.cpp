@@ -217,8 +217,11 @@ NS_IMPL_STRING_ATTR(nsHTMLScriptElement, CrossOrigin, crossorigin)
 nsresult
 nsHTMLScriptElement::GetAsync(bool* aValue)
 {
-  *aValue = mForceAsync || GetBoolAttr(nsGkAtoms::async);
-  return NS_OK;
+  if (mForceAsync) {
+    *aValue = true;
+    return NS_OK;
+  }
+  return GetBoolAttr(nsGkAtoms::async, aValue);
 }
 
 nsresult

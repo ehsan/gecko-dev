@@ -380,6 +380,9 @@ public:
     // Break large OMTC tiled thebes layer painting into small paints.
     static bool UseProgressiveTilePainting();
 
+    // helper method to indicate if we want to use Azure content drawing
+    static bool UseAzureContentDrawing();
+
     static bool OffMainThreadCompositingEnabled();
 
     /**

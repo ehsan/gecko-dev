@@ -103,9 +103,6 @@ struct RunnableMethodTraits<PluginInstanceChild>
 
 PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     : mPluginIface(aPluginIface)
-#if defined(XP_MACOSX)
-    , mContentsScaleFactor(1.0)
-#endif
     , mDrawingModel(kDefaultDrawingModel)
     , mCurrentAsyncSurface(0)
     , mAsyncInvalidateMutex("PluginInstanceChild::mAsyncInvalidateMutex")
@@ -436,11 +433,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         *((NPBool*)aValue) = false;
         return NPERR_NO_ERROR;
     }
-
-    case NPNVcontentsScaleFactor: {
-        *static_cast<double*>(aValue) = mContentsScaleFactor;
-        return NPERR_NO_ERROR;
-    }
 #endif /* NP_NO_QUICKDRAW */
 #endif /* XP_MACOSX */
 
@@ -741,12 +733,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
 #ifdef XP_MACOSX
     // Mac OS X does not define an NPEvent structure. It defines more specific types.
     NPCocoaEvent evcopy = event.event;
-    // event.contentsScaleFactor <= 0 is a signal we shouldn't use it,
-    // for example when AnswerNPP_HandleEvent() is called from elsewhere
-    // in the child process (not via rpc code from the parent process).
-    if (event.contentsScaleFactor > 0) {
-      mContentsScaleFactor = event.contentsScaleFactor;
-    }
 
     // Make sure we reset mCurrentEvent in case of an exception
     AutoRestore<const NPCocoaEvent*> savePreviousEvent(mCurrentEvent);
@@ -832,10 +818,8 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
     PaintTracker pt;
 
     NPCocoaEvent evcopy = event.event;
-    mContentsScaleFactor = event.contentsScaleFactor;
 
     if (evcopy.type == NPCocoaEventDrawRect) {
-        int scaleFactor = ceil(mContentsScaleFactor);
         if (!mShColorSpace) {
             mShColorSpace = CreateSystemColorSpace();
             if (!mShColorSpace) {
@@ -848,9 +832,8 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
         if (!mShContext) {
             void* cgContextByte = mem.get<char>();
             mShContext = ::CGBitmapContextCreate(cgContextByte, 
-                              mWindow.width * scaleFactor,
-                              mWindow.height * scaleFactor, 8, 
-                              mWindow.width * 4 * scaleFactor, mShColorSpace, 
+                              mWindow.width, mWindow.height, 8, 
+                              mWindow.width * 4, mShColorSpace, 
                               kCGImageAlphaPremultipliedFirst |
                               kCGBitmapByteOrder32Host);
     
@@ -917,8 +900,6 @@ PluginInstanceChild::CGDraw(CGContextRef ref, nsIntRect aUpdateRect) {
   drawEvent.data.draw.context = ref;
 
   NPRemoteEvent remoteDrawEvent = {drawEvent};
-  // Signal to AnswerNPP_HandleEvent() not to use this value
-  remoteDrawEvent.contentsScaleFactor = -1.0;
 
   int16_t handled;
   AnswerNPP_HandleEvent(remoteDrawEvent, &handled);
@@ -936,9 +917,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
     PaintTracker pt;
 
     NPCocoaEvent evcopy = event.event;
-    mContentsScaleFactor = event.contentsScaleFactor;
-    RefPtr<MacIOSurface> surf = MacIOSurface::LookupSurface(surfaceid,
-                                                            mContentsScaleFactor);
+    RefPtr<MacIOSurface> surf = MacIOSurface::LookupSurface(surfaceid);
     if (!surf) {
         NS_ERROR("Invalid IOSurface.");
         *handled = false;
@@ -965,7 +944,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
             }
 
             mCARenderer->SetupRenderer(caLayer, mWindow.width, mWindow.height,
-                            mContentsScaleFactor,
                             GetQuirks() & PluginModuleChild::QUIRK_ALLOW_OFFLINE_RENDERER ?
                             ALLOW_OFFLINE_RENDERER : DISALLOW_OFFLINE_RENDERER);
 
@@ -980,8 +958,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
         return false;
     } 
 
-    mCARenderer->Render(mWindow.width, mWindow.height,
-                        mContentsScaleFactor, nullptr);
+    mCARenderer->Render(mWindow.width, mWindow.height, nullptr);
 
     return true;
 
@@ -1207,7 +1184,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     mWindow.height = aWindow.height;
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
-    mContentsScaleFactor = aWindow.contentsScaleFactor;
 
     if (mShContext) {
         // Release the shared context so that it is reallocated
@@ -2792,9 +2768,6 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     mWindow.height = aWindow.height;
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
-#ifdef XP_MACOSX
-    mContentsScaleFactor = aWindow.contentsScaleFactor;
-#endif
 
     if (GetQuirks() & PluginModuleChild::QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT)
         mIsTransparent = true;
@@ -3051,14 +3024,13 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
 
     if (mDoubleBufferCARenderer.HasFrontSurface() &&
         (mDoubleBufferCARenderer.GetFrontSurfaceWidth() != mWindow.width ||
-         mDoubleBufferCARenderer.GetFrontSurfaceHeight() != mWindow.height ||
-         mDoubleBufferCARenderer.GetContentsScaleFactor() != mContentsScaleFactor)) {
+         mDoubleBufferCARenderer.GetFrontSurfaceHeight() != mWindow.height) ) {
         mDoubleBufferCARenderer.ClearFrontSurface();
     }
 
     if (!mDoubleBufferCARenderer.HasFrontSurface()) {
         bool allocSurface = mDoubleBufferCARenderer.InitFrontSurface(
-                                mWindow.width, mWindow.height, mContentsScaleFactor,
+                                mWindow.width, mWindow.height,
                                 GetQuirks() & PluginModuleChild::QUIRK_ALLOW_OFFLINE_RENDERER ?
                                 ALLOW_OFFLINE_RENDERER : DISALLOW_OFFLINE_RENDERER);
         if (!allocSurface) {
@@ -3508,8 +3480,7 @@ PluginInstanceChild::ShowPluginFrame()
         NPRect r = { (uint16_t)rect.y, (uint16_t)rect.x,
                      (uint16_t)rect.YMost(), (uint16_t)rect.XMost() };
         SurfaceDescriptor currSurf;
-        currSurf = IOSurfaceDescriptor(mDoubleBufferCARenderer.GetFrontSurfaceID(),
-                                       mDoubleBufferCARenderer.GetContentsScaleFactor());
+        currSurf = IOSurfaceDescriptor(mDoubleBufferCARenderer.GetFrontSurfaceID());
 
         mHasPainted = true;
 

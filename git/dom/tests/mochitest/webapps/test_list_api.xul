@@ -20,7 +20,7 @@
 
 var props = {
   QueryInterface: "function",
-  checkInstalled: "function",
+  isInstalled: "function",
   getInstalled: "function",
   getSelf: "function",
   install: "function",

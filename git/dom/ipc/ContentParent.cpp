@@ -239,12 +239,12 @@ ContentParent::StartUp()
     }
 
     sKeepAppProcessPreallocated =
-        Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false);
+        Preferences::GetBool("dom.ipc.processPrelauch.enabled", false);
     if (sKeepAppProcessPreallocated) {
         ClearOnShutdown(&sPreallocatedAppProcess);
 
         sPreallocateDelayMs = Preferences::GetUint(
-            "dom.ipc.processPrelaunch.delayMs", 1000);
+            "dom.ipc.processPrelauch.delayMs", 1000);
 
         MOZ_ASSERT(!sPreallocateAppProcessTask);
         ScheduleDelayedPreallocateAppProcess();
@@ -404,10 +404,6 @@ ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
 
     if (gAppContentParents) {
         gAppContentParents->EnumerateRead(&AppendToTArray, &aArray);
-    }
-
-    if (sPreallocatedAppProcess) {
-        aArray.AppendElement(sPreallocatedAppProcess);
     }
 }
 

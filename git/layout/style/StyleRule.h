@@ -183,9 +183,7 @@ public:
     return static_cast<nsCSSPseudoElements::Type>(mPseudoType);
   }
   void SetPseudoType(nsCSSPseudoElements::Type aType) {
-    NS_ASSERTION(static_cast<int32_t>(aType) >= INT16_MIN &&
-                 static_cast<int32_t>(aType) <= INT16_MAX,
-                 "Out of bounds - this will overflow mPseudoType");
+    NS_ASSERTION(aType > INT16_MIN && aType < INT16_MAX, "Out of bounds");
     mPseudoType = static_cast<int16_t>(aType);
   }
 

@@ -22,7 +22,7 @@ ParseContext::blockid()
 inline bool
 ParseContext::atBodyLevel()
 {
-    return !topStmt;
+    return !topStmt || topStmt->isFunctionBodyBlock;
 }
 
 inline

@@ -48,13 +48,14 @@ self.onmessage = function(msg) {
         is(candidate, "This is a test", prefix);
       }},
     { typename: "OS.Shared.Type.char.in_ptr",
-      valuedescr: "Typed array",
+      valuedescr: "ArrayBuffer",
       value: (function() {
-                let view = new Uint8Array(15);
+                let buf = new ArrayBuffer(15);
+                let view = new Uint8Array(buf);
                 for (let i = 0; i < 15; ++i) {
                   view[i] = i;
                 }
-                return view;
+                return buf;
               })(),
       type: OS.Shared.Type.char.in_ptr,
       check: function check_ArrayBuffer(candidate, prefix) {
