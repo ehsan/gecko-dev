@@ -54,57 +54,57 @@ public:
 
 
   virtual bool
-  AnswerInvalidate() MOZ_OVERRIDE;
+  AnswerInvalidate();
 
   virtual bool
   AnswerHasMethod(PPluginIdentifierChild* aId,
-                  bool* aHasMethod) MOZ_OVERRIDE;
+                  bool* aHasMethod);
 
   virtual bool
   AnswerInvoke(PPluginIdentifierChild* aId,
                const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
-               bool* aSuccess) MOZ_OVERRIDE;
+               bool* aSuccess);
 
   virtual bool
   AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                       Variant* aResult,
-                      bool* aSuccess) MOZ_OVERRIDE;
+                      bool* aSuccess);
 
   virtual bool
   AnswerHasProperty(PPluginIdentifierChild* aId,
-                    bool* aHasProperty) MOZ_OVERRIDE;
+                    bool* aHasProperty);
 
   virtual bool
   AnswerGetChildProperty(PPluginIdentifierChild* aId,
                          bool* aHasProperty,
                          bool* aHasMethod,
                          Variant* aResult,
-                         bool* aSuccess) MOZ_OVERRIDE;
+                         bool* aSuccess);
 
   virtual bool
   AnswerSetProperty(PPluginIdentifierChild* aId,
                     const Variant& aValue,
-                    bool* aSuccess) MOZ_OVERRIDE;
+                    bool* aSuccess);
 
   virtual bool
   AnswerRemoveProperty(PPluginIdentifierChild* aId,
-                       bool* aSuccess) MOZ_OVERRIDE;
+                       bool* aSuccess);
 
   virtual bool
   AnswerEnumerate(InfallibleTArray<PPluginIdentifierChild*>* aProperties,
-                  bool* aSuccess) MOZ_OVERRIDE;
+                  bool* aSuccess);
 
   virtual bool
   AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                   Variant* aResult,
-                  bool* aSuccess) MOZ_OVERRIDE;
+                  bool* aSuccess);
 
   virtual bool
-  RecvProtect() MOZ_OVERRIDE;
+  RecvProtect();
 
   virtual bool
-  RecvUnprotect() MOZ_OVERRIDE;
+  RecvUnprotect();
 
   NPObject*
   GetObject(bool aCanResurrect);

@@ -47,56 +47,56 @@ public:
 
   virtual bool
   AnswerHasMethod(PPluginIdentifierParent* aId,
-                  bool* aHasMethod) MOZ_OVERRIDE;
+                  bool* aHasMethod);
 
   virtual bool
   AnswerInvoke(PPluginIdentifierParent* aId,
                const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
-               bool* aSuccess) MOZ_OVERRIDE;
+               bool* aSuccess);
 
   virtual bool
   AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                       Variant* aResult,
-                      bool* aSuccess) MOZ_OVERRIDE;
+                      bool* aSuccess);
 
   virtual bool
   AnswerHasProperty(PPluginIdentifierParent* aId,
-                    bool* aHasProperty) MOZ_OVERRIDE;
+                    bool* aHasProperty);
 
   virtual bool
   AnswerGetParentProperty(PPluginIdentifierParent* aId,
                           Variant* aResult,
-                          bool* aSuccess) MOZ_OVERRIDE;
+                          bool* aSuccess);
 
   virtual bool
   AnswerSetProperty(PPluginIdentifierParent* aId,
                     const Variant& aValue,
-                    bool* aSuccess) MOZ_OVERRIDE;
+                    bool* aSuccess);
 
   virtual bool
   AnswerRemoveProperty(PPluginIdentifierParent* aId,
-                       bool* aSuccess) MOZ_OVERRIDE;
+                       bool* aSuccess);
 
   virtual bool
   AnswerEnumerate(InfallibleTArray<PPluginIdentifierParent*>* aProperties,
-                  bool* aSuccess) MOZ_OVERRIDE;
+                  bool* aSuccess);
 
   virtual bool
   AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                   Variant* aResult,
-                  bool* aSuccess) MOZ_OVERRIDE;
+                  bool* aSuccess);
 
   virtual bool
   AnswerNPN_Evaluate(const nsCString& aScript,
                      Variant* aResult,
-                     bool* aSuccess) MOZ_OVERRIDE;
+                     bool* aSuccess);
 
   virtual bool
-  RecvProtect() MOZ_OVERRIDE;
+  RecvProtect();
 
   virtual bool
-  RecvUnprotect() MOZ_OVERRIDE;
+  RecvUnprotect();
 
   static const NPClass*
   GetClass()
