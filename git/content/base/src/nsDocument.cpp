@@ -1709,7 +1709,7 @@ nsDocument::~nsDocument()
   }
 
   if (mCSSLoader) {
-    // Could be null here if Init() failed or if we have been unlinked.
+    // Could be null here if Init() failed
     mCSSLoader->DropDocumentReference();
   }
 
@@ -2085,10 +2085,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 
   tmp->mPendingTitleChangeEvent.Revoke();
 
-  if (tmp->mCSSLoader) {
-    tmp->mCSSLoader->DropDocumentReference();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mCSSLoader)
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCSSLoader)
 
   for (uint32_t i = 0; i < tmp->mHostObjectURIs.Length(); ++i) {
     nsHostObjectProtocolHandler::RemoveDataEntry(tmp->mHostObjectURIs[i]);

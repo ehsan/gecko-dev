@@ -1753,10 +1753,9 @@ js_strtod(ThreadSafeContext *cx, const CharT *begin, const CharT *end, const Cha
 
     size_t i = 0;
     for (; i < length; i++) {
-        jschar c = s[i];
-        if (c >> 8)
+        if (s[i] >> 8)
             break;
-        chars[i] = char(c);
+        chars[i] = char(s[i]);
     }
     chars[i] = 0;
 

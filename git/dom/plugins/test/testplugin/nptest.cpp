@@ -1081,6 +1081,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
 NPError
 NPP_Destroy(NPP instance, NPSavedData** save)
 {
+  printf("NPP_Destroy\n");
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
 
   if (instanceData->crashOnDestroy)
@@ -1186,6 +1187,7 @@ NPP_SetWindow(NPP instance, NPWindow* window)
 NPError
 NPP_NewStream(NPP instance, NPMIMEType type, NPStream* stream, NPBool seekable, uint16_t* stype)
 {
+  printf("NPP_NewStream\n");
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
 
   if (instanceData->functionToFail == FUNCTION_NPP_NEWSTREAM &&
@@ -1224,6 +1226,7 @@ NPP_NewStream(NPP instance, NPMIMEType type, NPStream* stream, NPBool seekable, 
 NPError
 NPP_DestroyStream(NPP instance, NPStream* stream, NPReason reason)
 {
+  printf("NPP_DestroyStream\n");
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
 
   if (instanceData->functionToFail == FUNCTION_NPP_NEWSTREAM) {
@@ -1290,6 +1293,7 @@ NPP_DestroyStream(NPP instance, NPStream* stream, NPReason reason)
 int32_t
 NPP_WriteReady(NPP instance, NPStream* stream)
 {
+  printf("NPP_WriteReady\n");
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
   instanceData->writeReadyCount++;
   if (instanceData->functionToFail == FUNCTION_NPP_NEWSTREAM) {
@@ -1424,6 +1428,7 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
 void
 NPP_StreamAsFile(NPP instance, NPStream* stream, const char* fname)
 {
+  printf("NPP_StreamAsFile, file=%s\n", fname);
   size_t size;
 
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
@@ -1476,6 +1481,7 @@ NPP_URLNotify(NPP instance, const char* url, NPReason reason, void* notifyData)
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
   URLNotifyData* ndata = static_cast<URLNotifyData*>(notifyData);
 
+  printf("NPP_URLNotify called\n");
   if (&kNotifyData == ndata) {
     if (instanceData->frame.length() > 0) {
       sendBufferToFrame(instance);

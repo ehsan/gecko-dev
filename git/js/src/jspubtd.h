@@ -173,7 +173,7 @@ namespace shadow {
 struct Runtime
 {
     /* Restrict zone access during Minor GC. */
-    bool needsIncrementalBarrier_;
+    bool needsBarrier_;
 
 #ifdef JSGC_GENERATIONAL
   private:
@@ -186,14 +186,14 @@ struct Runtime
         js::gc::StoreBuffer *storeBuffer
 #endif
     )
-      : needsIncrementalBarrier_(false)
+      : needsBarrier_(false)
 #ifdef JSGC_GENERATIONAL
       , gcStoreBufferPtr_(storeBuffer)
 #endif
     {}
 
-    bool needsIncrementalBarrier() const {
-        return needsIncrementalBarrier_;
+    bool needsBarrier() const {
+        return needsBarrier_;
     }
 
 #ifdef JSGC_GENERATIONAL

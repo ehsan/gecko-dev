@@ -4,10 +4,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['MOZ_WEBSPEECH']:
-    MOCHITEST_MANIFESTS += [
-        'ipc/test/mochitest.ini',
-        'test/mochitest.ini',
-    ]
+
+    TEST_DIRS += ['test', 'ipc/test']
 
     XPIDL_MODULE = 'dom_webspeechsynth'
 

@@ -187,7 +187,7 @@ struct Zone : public JS::shadow::Zone,
         if (runtimeFromMainThread()->isHeapCollecting())
             return gcState_ != NoGC;
         else
-            return needsIncrementalBarrier();
+            return needsBarrier();
     }
 
     // If this returns true, all object tracing must be done with a GC marking
@@ -200,7 +200,7 @@ struct Zone : public JS::shadow::Zone,
         if (runtimeFromMainThread()->isHeapCollecting())
             return gcState_ == Mark || gcState_ == MarkGray;
         else
-            return needsIncrementalBarrier();
+            return needsBarrier();
     }
 
     bool wasGCStarted() const { return gcState_ != NoGC; }
@@ -213,15 +213,14 @@ struct Zone : public JS::shadow::Zone,
     // possibly at other times too.
     uint64_t gcNumber();
 
-    bool compileBarriers() const { return compileBarriers(needsIncrementalBarrier()); }
-    bool compileBarriers(bool needsIncrementalBarrier) const {
-        return needsIncrementalBarrier ||
-               runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
+    bool compileBarriers() const { return compileBarriers(needsBarrier()); }
+    bool compileBarriers(bool needsBarrier) const {
+        return needsBarrier || runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
     }
 
     enum ShouldUpdateJit { DontUpdateJit, UpdateJit };
-    void setNeedsIncrementalBarrier(bool needs, ShouldUpdateJit updateJit);
-    const bool *addressOfNeedsIncrementalBarrier() const { return &needsIncrementalBarrier_; }
+    void setNeedsBarrier(bool needs, ShouldUpdateJit updateJit);
+    const bool *addressOfNeedsBarrier() const { return &needsBarrier_; }
 
     js::jit::JitZone *getJitZone(JSContext *cx) { return jitZone_ ? jitZone_ : createJitZone(cx); }
     js::jit::JitZone *jitZone() { return jitZone_; }

@@ -25,19 +25,19 @@ interface MediaKeySession : EventTarget {
 
   readonly attribute unrestricted double expiration;
 
-  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
-  readonly attribute Promise<void> closed;
+  // Promise<any>
+  readonly attribute Promise closed;
 
   // session operations
-  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
+  //Promise<any>
   [NewObject, Throws]
-  Promise<void> update(Uint8Array response);
+  Promise update(Uint8Array response);
 
-  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
+  // Promise<any>
   [NewObject, Throws]
-  Promise<void> close();
+  Promise close();
 
-  // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
+  // Promise<any>
   [NewObject, Throws]
-  Promise<void> remove();
+  Promise remove();
 };

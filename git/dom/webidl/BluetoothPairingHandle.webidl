@@ -13,8 +13,10 @@ interface BluetoothPairingHandle
    */
   readonly attribute DOMString passkey;
 
+  // Promise<void>
   [NewObject, Throws]
-  Promise<void> setPinCode(DOMString aPinCode);
+  Promise setPinCode(DOMString aPinCode);
+  // Promise<void>
   [NewObject, Throws]
-  Promise<void> setPairingConfirmation(boolean aConfirm);
+  Promise setPairingConfirmation(boolean aConfirm);
 };

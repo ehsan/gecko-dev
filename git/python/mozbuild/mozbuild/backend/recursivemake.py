@@ -88,10 +88,10 @@ class BackendMakeFile(object):
     actually change. We use FileAvoidWrite to accomplish this.
     """
 
-    def __init__(self, srcdir, objdir, environment, topobjdir):
+    def __init__(self, srcdir, objdir, environment):
         self.srcdir = srcdir
         self.objdir = objdir
-        self.relobjdir = mozpath.relpath(objdir, topobjdir)
+        self.relobjdir = objdir[len(environment.topobjdir) + 1:]
         self.environment = environment
         self.name = mozpath.join(objdir, 'backend.mk')
 
@@ -341,8 +341,7 @@ class RecursiveMakeBackend(CommonBackend):
 
         if obj.objdir not in self._backend_files:
             self._backend_files[obj.objdir] = \
-                BackendMakeFile(obj.srcdir, obj.objdir, obj.config,
-                    self.environment.topobjdir)
+                BackendMakeFile(obj.srcdir, obj.objdir, obj.config)
         backend_file = self._backend_files[obj.objdir]
 
         CommonBackend.consume_object(self, obj)
@@ -387,8 +386,7 @@ class RecursiveMakeBackend(CommonBackend):
                     if do_unify:
                         # On Windows, path names have a maximum length of 255 characters,
                         # so avoid creating extremely long path names.
-                        unified_prefix = mozpath.relpath(backend_file.objdir,
-                            backend_file.environment.topobjdir)
+                        unified_prefix = backend_file.relobjdir
                         if len(unified_prefix) > 20:
                             unified_prefix = unified_prefix[-20:].split('/', 1)[-1]
                         unified_prefix = unified_prefix.replace('/', '_')
@@ -1205,7 +1203,12 @@ class RecursiveMakeBackend(CommonBackend):
                     yield l
 
         def pretty_relpath(lib):
-            return '$(DEPTH)/%s' % mozpath.relpath(lib.objdir, topobjdir)
+            # If this is an external objdir (i.e., comm-central), use the other
+            # directory instead of $(DEPTH).
+            if lib.objdir.startswith(topobjdir + '/'):
+                return '$(DEPTH)/%s' % lib.relobjdir
+            else:
+                return lib.relobjdir
 
         topobjdir = mozpath.normsep(obj.topobjdir)
         # This will create the node even if there aren't any linked libraries.

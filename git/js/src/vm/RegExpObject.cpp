@@ -217,7 +217,7 @@ static inline void
 MaybeTraceRegExpShared(JSContext *cx, RegExpShared *shared)
 {
     Zone *zone = cx->zone();
-    if (zone->needsIncrementalBarrier())
+    if (zone->needsBarrier())
         shared->trace(zone->barrierTracer());
 }
 

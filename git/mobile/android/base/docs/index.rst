@@ -138,9 +138,6 @@ Events
   Saving or unsaving a resource (reader, bookmark, etc.) for viewing later.
   Note: Only used in JavaScript for now.
 
-``search.1``
-  Sent when the user performs a search. Currently used in the search activity.
-
 ``share.1``
   Sharing content.
 
@@ -150,11 +147,6 @@ Methods
   Action triggered from a banner (such as HomeBanner).
   Note: Only used in JavaScript for now.
 
-``content``
-  Action triggered from a content page.
-
 Sessions
 --------
-``searchactivity.1``
-  Started when the user launches the search activity (onStart) and stopped
-  when they leave the search activity.
+

@@ -22,8 +22,6 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
 import org.mozilla.search.AcceptsSearchQuery.SuggestionAnimation;
@@ -102,8 +100,6 @@ public class PreSearchFragment extends Fragment {
                 if (!TextUtils.isEmpty(query)) {
                     final Rect startBounds = new Rect();
                     view.getGlobalVisibleRect(startBounds);
-
-                    Telemetry.sendUIEvent(TelemetryContract.Event.SEARCH, TelemetryContract.Method.HOMESCREEN, "history");
 
                     searchListener.onSearch(query, new SuggestionAnimation() {
                         @Override

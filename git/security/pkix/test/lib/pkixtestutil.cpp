@@ -31,13 +31,11 @@
 #include "cryptohi.h"
 #include "hasht.h"
 #include "pk11pub.h"
-#include "pkix/pkixnss.h"
+#include "pkixcheck.h"
 #include "pkixder.h"
-#include "prerror.h"
 #include "prinit.h"
 #include "prprf.h"
 #include "secder.h"
-#include "secerr.h"
 
 using namespace std;
 
@@ -148,15 +146,6 @@ TamperOnce(SECItem& item,
   }
 }
 
-Result
-InitInputFromSECItem(const SECItem* secItem, /*out*/ Input& input)
-{
-  if (!secItem) {
-    return Result::FATAL_ERROR_INVALID_ARGS;
-  }
-  return input.Init(secItem->data, secItem->len);
-}
-
 class Output
 {
 public:
@@ -174,10 +163,10 @@ public:
     PR_ASSERT(item->data);
 
     if (numItems >= MaxSequenceItems) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
+      return Fail(SEC_ERROR_INVALID_ARGS);
     }
     if (length + item->len > 65535) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
+      return Fail(SEC_ERROR_INVALID_ARGS);
     }
 
     contents[numItems] = item;
@@ -1336,18 +1325,16 @@ CertID(OCSPResponseContext& context)
   if (!hashAlgorithm) {
     return nullptr;
   }
-  SECItem issuerSECItem = UnsafeMapInputToSECItem(context.certID.issuer);
-  SECItem* issuerNameHash = HashedOctetString(context.arena, issuerSECItem,
+  SECItem* issuerNameHash = HashedOctetString(context.arena,
+                                              context.certID.issuer,
                                               context.certIDHashAlg);
   if (!issuerNameHash) {
     return nullptr;
   }
 
-  SECItem issuerSubjectPublicKeyInfoSECItem =
-    UnsafeMapInputToSECItem(context.certID.issuerSubjectPublicKeyInfo);
   ScopedPtr<CERTSubjectPublicKeyInfo, SECKEY_DestroySubjectPublicKeyInfo>
     spki(SECKEY_DecodeDERSubjectPublicKeyInfo(
-           &issuerSubjectPublicKeyInfoSECItem));
+          &context.certID.issuerSubjectPublicKeyInfo));
   if (!spki) {
     return nullptr;
   }
@@ -1360,10 +1347,8 @@ CertID(OCSPResponseContext& context)
     { SEC_ASN1_INTEGER, 0 },
     { 0 }
   };
-  SECItem serialNumberSECItem =
-    UnsafeMapInputToSECItem(context.certID.serialNumber);
   SECItem* serialNumber = SEC_ASN1EncodeItem(context.arena, nullptr,
-                                             &serialNumberSECItem,
+                                             &context.certID.serialNumber,
                                              serialTemplate);
   if (!serialNumber) {
     return nullptr;

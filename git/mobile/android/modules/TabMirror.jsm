@@ -223,19 +223,6 @@ let TabMirror = function(deviceId, window) {
       Services.androidBridge.handleGeckoMessage(obj);
     }
   }
-
-  return {
-    stop: function() {
-      let obj = {
-        type: "MediaPlayer:End",
-        id: deviceId
-      };
-
-      if (deviceId) {
-        Services.androidBridge.handleGeckoMessage(obj);
-      }
-    }
-  }
 };
 
 
