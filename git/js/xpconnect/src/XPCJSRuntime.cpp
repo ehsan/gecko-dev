@@ -1790,7 +1790,7 @@ private:
         rtTotal += amount;                                                    \
     } while (0)
 
-MOZ_DEFINE_MALLOC_SIZE_OF(JSMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JSMallocSizeOf)
 
 namespace xpc {
 
@@ -2394,10 +2394,10 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 
 } // namespace xpc
 
-class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public nsIMemoryReporter
+class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public MemoryMultiReporter
 {
   public:
-    NS_DECL_ISUPPORTS
+    JSMainRuntimeCompartmentsReporter() {}
 
     typedef js::Vector<nsCString, 0, js::SystemAllocPolicy> Paths;
 
@@ -2436,9 +2436,7 @@ class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public nsIMemoryReporter
     }
 };
 
-NS_IMPL_ISUPPORTS1(JSMainRuntimeCompartmentsReporter, nsIMemoryReporter)
-
-MOZ_DEFINE_MALLOC_SIZE_OF(OrphanMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(OrphanMallocSizeOf)
 
 namespace xpc {
 

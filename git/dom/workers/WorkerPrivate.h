@@ -600,15 +600,6 @@ public:
     return mLoadInfo.mPrincipal;
   }
 
-  // This method allows the principal to be retrieved off the main thread.
-  // Principals are main-thread objects so the caller must ensure that all
-  // access occurs on the main thread.
-  nsIPrincipal*
-  GetPrincipalDontAssertMainThread() const
-  {
-      return mLoadInfo.mPrincipal;
-  }
-
   void
   SetPrincipal(nsIPrincipal* aPrincipal);
 

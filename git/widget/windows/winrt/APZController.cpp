@@ -334,7 +334,7 @@ class TransformedEndEvent : public nsRunnable
 };
 
 void
-APZController::NotifyTransformBegin(const ScrollableLayerGuid& aGuid)
+APZController::NotifyTransformBegin()
 {
   if (NS_IsMainThread()) {
     MetroUtils::FireObserver("apzc-transform-begin", L"");
@@ -345,7 +345,7 @@ APZController::NotifyTransformBegin(const ScrollableLayerGuid& aGuid)
 }
 
 void
-APZController::NotifyTransformEnd(const ScrollableLayerGuid& aGuid)
+APZController::NotifyTransformEnd()
 {
   if (NS_IsMainThread()) {
     MetroUtils::FireObserver("apzc-transform-end", L"");

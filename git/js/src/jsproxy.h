@@ -166,6 +166,8 @@ class JS_FRIEND_API(BaseProxyHandler)
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g);
     virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
     virtual void finalize(JSFreeOp *fop, JSObject *proxy);
+    virtual bool getElementIfPresent(JSContext *cx, HandleObject obj, HandleObject receiver,
+                                     uint32_t index, MutableHandleValue vp, bool *present);
     virtual bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop);
 
     // These two hooks must be overridden, or not overridden, in tandem -- no
@@ -173,9 +175,6 @@ class JS_FRIEND_API(BaseProxyHandler)
     virtual bool watch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                        JS::HandleObject callable);
     virtual bool unwatch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id);
-
-    virtual bool slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
-                       HandleObject result);
 
     /* See comment for weakmapKeyDelegateOp in js/Class.h. */
     virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
@@ -277,6 +276,8 @@ class Proxy
     static bool hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
     static bool get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
                     MutableHandleValue vp);
+    static bool getElementIfPresent(JSContext *cx, HandleObject proxy, HandleObject receiver,
+                                    uint32_t index, MutableHandleValue vp, bool *present);
     static bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
                     bool strict, MutableHandleValue vp);
     static bool keys(JSContext *cx, HandleObject proxy, AutoIdVector &props);
@@ -295,11 +296,9 @@ class Proxy
     static bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
     static bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop);
 
-    static bool watch(JSContext *cx, HandleObject proxy, HandleId id, HandleObject callable);
-    static bool unwatch(JSContext *cx, HandleObject proxy, HandleId id);
-
-    static bool slice(JSContext *cx, HandleObject obj, uint32_t begin, uint32_t end,
-                      HandleObject result);
+    static bool watch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
+                      JS::HandleObject callable);
+    static bool unwatch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id);
 
     /* IC entry path for handling __noSuchMethod__ on access. */
     static bool callProp(JSContext *cx, HandleObject proxy, HandleObject reveiver, HandleId id,
@@ -427,7 +426,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
     typedef BaseProxyHandler::Action Action;
     AutoEnterPolicy(JSContext *cx, BaseProxyHandler *handler,
                     HandleObject wrapper, HandleId id, Action act, bool mayThrow)
-#ifdef JS_DEBUG
+#ifdef DEBUG
         : context(nullptr)
 #endif
     {
@@ -450,7 +449,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
   protected:
     // no-op constructor for subclass
     AutoEnterPolicy()
-#ifdef JS_DEBUG
+#ifdef DEBUG
         : context(nullptr)
 #endif
         {};
@@ -458,7 +457,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
     bool allow;
     bool rv;
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
     JSContext *context;
     mozilla::Maybe<HandleObject> enteredProxy;
     mozilla::Maybe<HandleId> enteredId;
@@ -477,7 +476,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
 
 };
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 class JS_FRIEND_API(AutoWaivePolicy) : public AutoEnterPolicy {
 public:
     AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id)

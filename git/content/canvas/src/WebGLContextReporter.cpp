@@ -85,7 +85,7 @@ WebGLMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
     return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(WebGLMemoryTracker, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED0(WebGLMemoryTracker, MemoryMultiReporter)
 
 StaticRefPtr<WebGLMemoryTracker> WebGLMemoryTracker::sUniqueInstance;
 
@@ -113,7 +113,7 @@ WebGLMemoryTracker::~WebGLMemoryTracker()
     UnregisterWeakMemoryReporter(this);
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(WebGLBufferMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(WebGLBufferMallocSizeOf)
 
 int64_t
 WebGLMemoryTracker::GetBufferCacheMemoryUsed() {
@@ -131,7 +131,7 @@ WebGLMemoryTracker::GetBufferCacheMemoryUsed() {
     return result;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(WebGLShaderMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(WebGLShaderMallocSizeOf)
 
 int64_t
 WebGLMemoryTracker::GetShaderSize() {

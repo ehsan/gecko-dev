@@ -763,7 +763,7 @@ class HashTable : private AllocPolicy
       public:
         // Leaves Ptr uninitialized.
         Ptr() {
-#ifdef JS_DEBUG
+#ifdef DEBUG
             entry_ = (Entry *)0xbad;
 #endif
         }
@@ -919,7 +919,7 @@ class HashTable : private AllocPolicy
         hashShift = sHashBits - sizeLog2;
     }
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
     mutable struct Stats
     {
         uint32_t        searches;       // total number of table searches

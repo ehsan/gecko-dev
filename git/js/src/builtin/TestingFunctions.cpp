@@ -880,17 +880,15 @@ DumpHeapComplete(JSContext *cx, unsigned argc, jsval *vp)
     if (argc > i) {
         Value v = args[i];
         if (v.isString()) {
-            if (!fuzzingSafe) {
-                JSString *str = v.toString();
-                JSAutoByteString fileNameBytes;
-                if (!fileNameBytes.encodeLatin1(cx, str))
-                    return false;
-                const char *fileName = fileNameBytes.ptr();
-                dumpFile = fopen(fileName, "w");
-                if (!dumpFile) {
-                    JS_ReportError(cx, "can't open %s", fileName);
-                    return false;
-                }
+            JSString *str = v.toString();
+            JSAutoByteString fileNameBytes;
+            if (!fileNameBytes.encodeLatin1(cx, str))
+                return false;
+            const char *fileName = fileNameBytes.ptr();
+            dumpFile = fopen(fileName, "w");
+            if (!dumpFile) {
+                JS_ReportError(cx, "can't open %s", fileName);
+                return false;
             }
             ++i;
         }

@@ -209,7 +209,7 @@ typedef HRESULT (WINAPI*D3D11CreateDeviceFunc)(
   ID3D11DeviceContext *ppImmediateContext
 );
 
-class GPUAdapterReporter : public nsIMemoryReporter
+class GPUAdapterReporter : public MemoryMultiReporter
 {
     // Callers must Release the DXGIAdapter after use or risk mem-leak
     static bool GetDXGIAdapter(IDXGIAdapter **DXGIAdapter)
@@ -229,7 +229,7 @@ class GPUAdapterReporter : public nsIMemoryReporter
     }
 
 public:
-    NS_DECL_ISUPPORTS
+    GPUAdapterReporter() {}
 
     NS_IMETHOD
     CollectReports(nsIMemoryReporterCallback* aCb,
@@ -338,8 +338,6 @@ public:
         return NS_OK;
     }
 };
-
-NS_IMPL_ISUPPORTS1(GPUAdapterReporter, nsIMemoryReporter)
 
 static __inline void
 BuildKeyNameFromFontName(nsAString &aName)

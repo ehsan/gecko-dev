@@ -21,6 +21,7 @@
 #include "mozilla/dom/quota/QuotaObject.h"
 #include "mozilla/dom/quota/UsageInfo.h"
 #include "mozilla/unused.h"
+#include "nsContentUtils.h"
 #include "nsIAtom.h"
 #include "nsIFile.h"
 #include "nsIPrincipal.h"
@@ -974,7 +975,7 @@ DeallocEntryChild(PAsmJSCacheEntryChild* aActor)
 namespace {
 
 bool
-OpenFile(nsIPrincipal* aPrincipal,
+OpenFile(JS::Handle<JSObject*> aGlobal,
          OpenMode aOpenMode,
          size_t aSizeToWrite,
          File::AutoClose* aFile)
@@ -997,14 +998,17 @@ OpenFile(nsIPrincipal* aPrincipal,
     return false;
   }
 
+  // This assumes a non-worker global.
+  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
+
   // If we are in a child process, we need to synchronously call into the
   // parent process to open the file and interact with the QuotaManager. The
   // child can then map the file into its address space to perform I/O.
   nsRefPtr<File> file;
   if (IsMainProcess()) {
-    file = new SingleProcessRunnable(aPrincipal, aOpenMode, aSizeToWrite);
+    file = new SingleProcessRunnable(principal, aOpenMode, aSizeToWrite);
   } else {
-    file = new ChildProcessRunnable(aPrincipal, aOpenMode, aSizeToWrite);
+    file = new ChildProcessRunnable(principal, aOpenMode, aSizeToWrite);
   }
 
   if (!file->BlockUntilOpen(aFile)) {
@@ -1024,7 +1028,7 @@ static const uint32_t sAsmJSCookie = 0x600d600d;
 static const size_t sMinCachedModuleLength = 10000;
 
 bool
-OpenEntryForRead(nsIPrincipal* aPrincipal,
+OpenEntryForRead(JS::Handle<JSObject*> aGlobal,
                  const jschar* aBegin,
                  const jschar* aLimit,
                  size_t* aSize,
@@ -1036,7 +1040,7 @@ OpenEntryForRead(nsIPrincipal* aPrincipal,
   }
 
   File::AutoClose file;
-  if (!OpenFile(aPrincipal, eOpenForRead, 0, &file)) {
+  if (!OpenFile(aGlobal, eOpenForRead, 0, &file)) {
     return false;
   }
 
@@ -1078,7 +1082,7 @@ CloseEntryForRead(JS::Handle<JSObject*> global,
 }
 
 bool
-OpenEntryForWrite(nsIPrincipal* aPrincipal,
+OpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                   const jschar* aBegin,
                   const jschar* aEnd,
                   size_t aSize,
@@ -1093,7 +1097,7 @@ OpenEntryForWrite(nsIPrincipal* aPrincipal,
   aSize += sizeof(AsmJSCookieType);
 
   File::AutoClose file;
-  if (!OpenFile(aPrincipal, eOpenForWrite, aSize, &file)) {
+  if (!OpenFile(aGlobal, eOpenForWrite, aSize, &file)) {
     return false;
   }
 

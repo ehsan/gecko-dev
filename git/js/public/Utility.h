@@ -45,7 +45,7 @@ namespace js {}
 #define JS_ALWAYS_TRUE(expr)      MOZ_ALWAYS_TRUE(expr)
 #define JS_ALWAYS_FALSE(expr)     MOZ_ALWAYS_FALSE(expr)
 
-#if defined(JS_DEBUG)
+#if defined(DEBUG)
 # define JS_DIAGNOSTICS_ASSERT(expr) MOZ_ASSERT(expr)
 #elif defined(JS_CRASH_DIAGNOSTICS)
 # define JS_DIAGNOSTICS_ASSERT(expr) do { if (!(expr)) MOZ_CRASH(); } while(0)
@@ -72,7 +72,7 @@ extern JS_PUBLIC_API(void) JS_Abort(void);
 #if defined JS_USE_CUSTOM_ALLOCATOR
 # include "jscustomallocator.h"
 #else
-# ifdef JS_DEBUG
+# ifdef DEBUG
 /*
  * In order to test OOM conditions, when the testing function
  * oomAfterAllocations COUNT is passed, we fail continuously after the NUM'th
@@ -136,7 +136,7 @@ PrintBacktrace()
 # else
 #  define JS_OOM_POSSIBLY_FAIL() do {} while(0)
 #  define JS_OOM_POSSIBLY_FAIL_REPORT(cx) do {} while(0)
-# endif /* JS_DEBUG */
+# endif /* DEBUG */
 
 static inline void* js_malloc(size_t bytes)
 {
@@ -535,7 +535,7 @@ namespace JS {
 
 inline void PoisonPtr(void *v)
 {
-#if defined(JSGC_ROOT_ANALYSIS) && defined(JS_DEBUG)
+#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG)
     uint8_t *ptr = (uint8_t *) v + 3;
     *ptr = JS_FREE_PATTERN;
 #endif
@@ -544,7 +544,7 @@ inline void PoisonPtr(void *v)
 template <typename T>
 inline bool IsPoisonedPtr(T *v)
 {
-#if defined(JSGC_ROOT_ANALYSIS) && defined(JS_DEBUG)
+#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG)
     uint32_t mask = uintptr_t(v) & 0xff000000;
     return mask == uint32_t(JS_FREE_PATTERN << 24);
 #else

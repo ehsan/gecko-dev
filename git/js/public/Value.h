@@ -1740,7 +1740,7 @@ inline Anchor<Value>::~Anchor()
 }
 #endif
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 namespace detail {
 
 struct ValueAlignmentTester { char c; JS::Value v; };
@@ -1752,7 +1752,7 @@ static_assert(sizeof(LayoutAlignmentTester) == 16,
               "jsval_layout must be 16-byte-aligned");
 
 } // namespace detail
-#endif /* JS_DEBUG */
+#endif /* DEBUG */
 
 } // namespace JS
 

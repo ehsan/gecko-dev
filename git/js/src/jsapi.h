@@ -52,7 +52,7 @@ class StableCharPtr : public CharPtr {
     {}
 };
 
-#if defined JS_THREADSAFE && defined JS_DEBUG
+#if defined JS_THREADSAFE && defined DEBUG
 
 class JS_PUBLIC_API(AutoCheckRequestDepth)
 {
@@ -71,9 +71,9 @@ class JS_PUBLIC_API(AutoCheckRequestDepth)
 # define CHECK_REQUEST(cx) \
     ((void) 0)
 
-#endif /* JS_THREADSAFE && JS_DEBUG */
+#endif /* JS_THREADSAFE && DEBUG */
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 /*
  * Assert that we're not doing GC on cx, that we're in a request as
  * needed, and that the compartments for cx and v are correct.
@@ -85,7 +85,7 @@ AssertArgumentsAreSane(JSContext *cx, JS::Handle<JS::Value> v);
 inline void AssertArgumentsAreSane(JSContext *cx, JS::Handle<JS::Value> v) {
     /* Do nothing */
 }
-#endif /* JS_DEBUG */
+#endif /* DEBUG */
 
 class JS_PUBLIC_API(AutoGCRooter) {
   public:
@@ -1370,7 +1370,7 @@ class JSAutoCheckRequest
     JSAutoCheckRequest(JSContext *cx
                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     {
-#if defined JS_THREADSAFE && defined JS_DEBUG
+#if defined JS_THREADSAFE && defined DEBUG
         mContext = cx;
         JS_ASSERT(JS_IsInRequest(JS_GetRuntime(cx)));
 #endif
@@ -1378,14 +1378,14 @@ class JSAutoCheckRequest
     }
 
     ~JSAutoCheckRequest() {
-#if defined JS_THREADSAFE && defined JS_DEBUG
+#if defined JS_THREADSAFE && defined DEBUG
         JS_ASSERT(JS_IsInRequest(JS_GetRuntime(mContext)));
 #endif
     }
 
 
   private:
-#if defined JS_THREADSAFE && defined JS_DEBUG
+#if defined JS_THREADSAFE && defined DEBUG
     JSContext *mContext;
 #endif
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -2033,10 +2033,10 @@ JSVAL_TRACE_KIND(jsval v)
     return (JSGCTraceKind) JSVAL_TRACE_KIND_IMPL(JSVAL_TO_IMPL(v));
 }
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 
 /*
- * Debug-only method to dump the object graph of heap-allocated things.
+ * DEBUG-only method to dump the object graph of heap-allocated things.
  *
  * fp:              file for the dump output.
  * start:           when non-null, dump only things reachable from start
@@ -2075,7 +2075,7 @@ extern JS_PUBLIC_API(bool)
 JS_IsGCMarkingTracer(JSTracer *trc);
 
 /* For assertions only. */
-#ifdef JS_DEBUG
+#ifdef DEBUG
 extern JS_PUBLIC_API(bool)
 JS_IsMarkingGray(JSTracer *trc);
 #endif
@@ -3040,6 +3040,15 @@ extern JS_PUBLIC_API(bool)
 JS_ForwardGetElementTo(JSContext *cx, JSObject *obj, uint32_t index, JSObject *onBehalfOf,
                        JS::MutableHandle<JS::Value> vp);
 
+/*
+ * Get the property with name given by |index|, if it has one.  If
+ * not, |*present| will be set to false and the value of |vp| must not
+ * be relied on.
+ */
+extern JS_PUBLIC_API(bool)
+JS_GetElementIfPresent(JSContext *cx, JSObject *obj, uint32_t index, JSObject *onBehalfOf,
+                       JS::MutableHandle<JS::Value> vp, bool* present);
+
 extern JS_PUBLIC_API(bool)
 JS_SetElement(JSContext *cx, JSObject *obj, uint32_t index, JS::MutableHandle<JS::Value> vp);
 
@@ -3146,13 +3155,13 @@ struct JSPrincipals {
     int32_t refcount;
 #endif
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
     /* A helper to facilitate principals debugging. */
     uint32_t    debugToken;
 #endif
 
     void setDebugToken(uint32_t token) {
-# ifdef JS_DEBUG
+# ifdef DEBUG
         debugToken = token;
 # endif
     }

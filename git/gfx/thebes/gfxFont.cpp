@@ -1360,9 +1360,7 @@ gfxFontFamily::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
  * shaped-word caches to free up memory.
  */
 
-MOZ_DEFINE_MALLOC_SIZE_OF(FontCacheMallocSizeOf)
-
-NS_IMPL_ISUPPORTS1(gfxFontCache::MemoryReporter, nsIMemoryReporter)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FontCacheMallocSizeOf)
 
 NS_IMETHODIMP
 gfxFontCache::MemoryReporter::CollectReports
