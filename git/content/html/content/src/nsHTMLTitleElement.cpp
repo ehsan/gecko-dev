@@ -39,6 +39,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"
@@ -106,8 +107,6 @@ nsHTMLTitleElement::~nsHTMLTitleElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLTitleElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLTitleElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLTitleElement, nsHTMLTitleElement)
 
 // QueryInterface implementation for nsHTMLTitleElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTitleElement)

@@ -1,4 +1,3 @@
-.autoreg
 chrome/classic.jar
 chrome/classic.manifest
 chrome/comm.jar
@@ -619,6 +618,7 @@ components/nsScriptableIO.js
 chrome/chromelist.txt
 modules/JSON.jsm
 #ifdef XP_MACOSX
+LICENSE
 extensions/inspector@mozilla.org/chrome/chromelist.txt
 components/accessibility.xpt
 components/content.xpt
@@ -842,10 +842,3 @@ components/nsUpdateServiceStub.js
 @DLL_PREFIX@sqlite3@DLL_SUFFIX@
 old-homepage-default.properties
 components/microsummaries.xpt
-LICENSE
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
-components/libimgicon.so
-#endif
-#endif
-mozilla-runtime@BIN_SUFFIX@

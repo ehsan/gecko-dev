@@ -528,7 +528,6 @@ LoginManagerPrompter.prototype = {
         var checkbox = { value : false };
         var checkboxLabel = null;
         var epicfail = false;
-        var canAutologin = false;
 
         try {
 
@@ -554,17 +553,6 @@ LoginManagerPrompter.prototype = {
                 selectedLogin = foundLogins[0];
                 this._SetAuthInfo(aAuthInfo, selectedLogin.username,
                                              selectedLogin.password);
-
-                // Allow automatic proxy login
-                if (aAuthInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY &&
-                    !(aAuthInfo.flags & Ci.nsIAuthInformation.PREVIOUS_FAILED) &&
-                    Services.prefs.getBoolPref("signon.autologin.proxy") &&
-                    !this._inPrivateBrowsing) {
-
-                    this.log("Autologin enabled, skipping auth prompt.");
-                    canAutologin = true;
-                }
-
                 checkbox.value = true;
             }
 
@@ -582,10 +570,8 @@ LoginManagerPrompter.prototype = {
                 "Epic fail in promptAuth: " + e + "\n");
         }
 
-        var ok = canAutologin ||
-                 this._promptService.promptAuth(this._window,
-                                                aChannel, aLevel, aAuthInfo,
-                                                checkboxLabel, checkbox);
+        var ok = this._promptService.promptAuth(this._window, aChannel,
+                                aLevel, aAuthInfo, checkboxLabel, checkbox);
 
         // If there's a notification box, use it to allow the user to
         // determine if the login should be saved. If there isn't a

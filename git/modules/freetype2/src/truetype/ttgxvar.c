@@ -682,11 +682,7 @@
       if ( fvar_head.version != (FT_Long)0x00010000L                      ||
            fvar_head.countSizePairs != 2                                  ||
            fvar_head.axisSize != 20                                       ||
-           /* axisCount limit implied by 16-bit instanceSize */
-           fvar_head.axisCount > 0x3ffe                                   ||
            fvar_head.instanceSize != 4 + 4 * fvar_head.axisCount          ||
-           /* instanceCount limit implied by limited range of name IDs */
-           fvar_head.instanceCount > 0x7eff                               ||
            fvar_head.offsetToData + fvar_head.axisCount * 20U +
              fvar_head.instanceCount * fvar_head.instanceSize > table_len )
       {
@@ -697,7 +693,7 @@
       if ( FT_NEW( face->blend ) )
         goto Exit;
 
-      /* cannot overflow 32-bit arithmetic because of limits above */
+      /* XXX: TODO - check for overflows */
       face->blend->mmvar_len =
         sizeof ( FT_MM_Var ) +
         fvar_head.axisCount * sizeof ( FT_Var_Axis ) +

@@ -6832,8 +6832,7 @@ struct DR_State
   PRBool RuleMatches(DR_Rule&          aRule,
                      DR_FrameTreeNode& aNode);
   PRBool GetToken(FILE* aFile,
-                  char* aBuf,
-                  size_t aBufSize);
+                  char* aBuf);
   DR_Rule* ParseRule(FILE* aFile);
   void ParseRulesFile();
   void AddRule(nsTArray<DR_Rule*>& aRules,
@@ -7026,8 +7025,7 @@ PRBool DR_State::IsWhiteSpace(int c) {
 }
 
 PRBool DR_State::GetToken(FILE* aFile,
-                          char* aBuf,
-                          size_t aBufSize)
+                          char* aBuf)
 {
   PRBool haveToken = PR_FALSE;
   aBuf[0] = 0;
@@ -7040,9 +7038,8 @@ PRBool DR_State::GetToken(FILE* aFile,
     haveToken = PR_TRUE;
     aBuf[0] = c;
     // get everything up to the next whitespace char
-    size_t cX;
-    for (cX = 1; cX + 1 < aBufSize ; cX++) {
-      c = getc(aFile);
+    PRInt32 cX;
+    for (cX = 1, c = getc(aFile); ; cX++, c = getc(aFile)) {
       if (c < 0) { // EOF
         ungetc(' ', aFile); 
         break;
@@ -7066,7 +7063,7 @@ DR_Rule* DR_State::ParseRule(FILE* aFile)
   char buf[128];
   PRInt32 doDisplay;
   DR_Rule* rule = nsnull;
-  while (GetToken(aFile, buf, sizeof(buf))) {
+  while (GetToken(aFile, buf)) {
     if (GetNumber(buf, doDisplay)) {
       if (rule) { 
         rule->mDisplay = !!doDisplay;

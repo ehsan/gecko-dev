@@ -3087,16 +3087,18 @@ nsTextPaintStyle::InitCommonColors()
   if (mInitCommonColors)
     return;
 
-  nsIFrame* bgFrame =
-    nsCSSRendering::FindNonTransparentBackgroundFrame(mFrame);
-  NS_ASSERTION(bgFrame, "Cannot find NonTransparentBackgroundFrame.");
+  nsStyleContext* sc = mFrame->GetStyleContext();
+
+  nsStyleContext* bgContext =
+    nsCSSRendering::FindNonTransparentBackground(sc);
+  NS_ASSERTION(bgContext, "Cannot find NonTransparentBackground.");
   nscolor bgColor =
-    bgFrame->GetVisitedDependentColor(eCSSProperty_background_color);
+    bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
   nscolor defaultBgColor = mPresContext->DefaultBackgroundColor();
   mFrameBackgroundColor = NS_ComposeColors(defaultBgColor, bgColor);
 
-  if (bgFrame->IsThemed()) {
+  if (bgContext->GetStyleDisplay()->mAppearance) {
     // Assume a native widget has sufficient contrast always
     mSufficientContrast = 0;
     mInitCommonColors = PR_TRUE;
@@ -3126,17 +3128,12 @@ nsTextPaintStyle::InitCommonColors()
 }
 
 static nsIContent*
-FindElementAncestorForMozSelection(nsIContent* aContent)
+FindElementAncestor(nsINode* aNode)
 {
-  NS_ENSURE_TRUE(aContent, nsnull);
-  while (aContent && aContent->IsInNativeAnonymousSubtree()) {
-    aContent = aContent->GetBindingParent();
+  while (aNode && !aNode->IsNodeOfType(nsINode::eELEMENT)) {
+    aNode = aNode->GetParent();
   }
-  NS_ASSERTION(aContent, "aContent isn't in non-anonymous tree?");
-  while (aContent && !aContent->IsNodeOfType(nsINode::eELEMENT)) {
-    aContent = aContent->GetParent();
-  }
-  return aContent;
+  return static_cast<nsIContent*>(aNode);
 }
 
 PRBool
@@ -3158,8 +3155,7 @@ nsTextPaintStyle::InitSelectionColors()
   mInitSelectionColors = PR_TRUE;
 
   nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(mFrame);
-  nsIContent* selectionContent =
-    FindElementAncestorForMozSelection(nonGeneratedAncestor->GetContent());
+  nsIContent* selectionContent = FindElementAncestor(nonGeneratedAncestor->GetContent());
 
   if (selectionContent &&
       selectionStatus == nsISelectionController::SELECTION_ON) {
@@ -3877,11 +3873,9 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
   }
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    if (nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Intersects(aRect)) {
-      aOutFrames->AppendElement(mFrame);
-    }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) {
+    return nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Contains(aPt) ? mFrame : nsnull;
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
@@ -5132,17 +5126,15 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart,
     // We may need to reflow to recompute the overflow area for
     // spellchecking or IME underline if their underline is thicker than
     // the normal decoration line.
-    if (aType & SelectionTypesWithDecorations) {
-      PRBool didHaveOverflowingSelection =
-        (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
-      nsRect r(nsPoint(0, 0), GetSize());
-      PRBool willHaveOverflowingSelection =
-        aSelected && f->CombineSelectionUnderlineRect(presContext, r);
-      if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
-        presContext->PresShell()->FrameNeedsReflow(f,
-                                                   nsIPresShell::eStyleChange,
-                                                   NS_FRAME_IS_DIRTY);
-      }
+    PRBool didHaveOverflowingSelection =
+      (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
+    nsRect r(nsPoint(0, 0), GetSize());
+    PRBool willHaveOverflowingSelection =
+      aSelected && f->CombineSelectionUnderlineRect(presContext, r);
+    if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
+      presContext->PresShell()->FrameNeedsReflow(f,
+                                                 nsIPresShell::eStyleChange,
+                                                 NS_FRAME_IS_DIRTY);
     }
     // Selection might change anything. Invalidate the overflow area.
     f->InvalidateOverflowRect();

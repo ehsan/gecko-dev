@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -100,10 +101,6 @@ nsHTMLSharedListElement::~nsHTMLSharedListElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLSharedListElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedListElement, nsGenericElement) 
 
-
-DOMCI_DATA(HTMLOListElement, nsHTMLSharedListElement)
-DOMCI_DATA(HTMLDListElement, nsHTMLSharedListElement)
-DOMCI_DATA(HTMLUListElement, nsHTMLSharedListElement)
 
 // QueryInterface implementation for nsHTMLSharedListElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLSharedListElement)

@@ -93,7 +93,7 @@ function add_download_to_db(aStartTimeInRange, aEndTimeInRange, aState)
  * @param aExpected
  *        True if we expect the download to exist, false if we do not.
  */
-function check_existence(aIDs, aExpected)
+function check_existance(aIDs, aExpected)
 {
   let db = dm.DBConnection;
   let stmt = db.createStatement(
@@ -117,14 +117,14 @@ function test_download_start_in_range()
 {
   let id = add_download_to_db(true, false, DOWNLOAD_FINISHED);
   dm.removeDownloadsByTimeframe(START_TIME, END_TIME);
-  check_existence([id], false);
+  check_existance([id], false);
 }
 
 function test_download_end_in_range()
 {
   let id = add_download_to_db(false, true, DOWNLOAD_FINISHED);
   dm.removeDownloadsByTimeframe(START_TIME, END_TIME);
-  check_existence([id], true);
+  check_existance([id], true);
 }
 
 function test_multiple_downloads_in_range()
@@ -133,7 +133,7 @@ function test_multiple_downloads_in_range()
   ids.push(add_download_to_db(true, false, DOWNLOAD_FINISHED));
   ids.push(add_download_to_db(true, false, DOWNLOAD_FINISHED));
   dm.removeDownloadsByTimeframe(START_TIME, END_TIME);
-  check_existence(ids, false);
+  check_existance(ids, false);
 }
 
 function test_no_downloads_in_range()
@@ -142,14 +142,14 @@ function test_no_downloads_in_range()
   ids.push(add_download_to_db(false, true, DOWNLOAD_FINISHED));
   ids.push(add_download_to_db(false, true, DOWNLOAD_FINISHED));
   dm.removeDownloadsByTimeframe(START_TIME, END_TIME);
-  check_existence(ids, true);
+  check_existance(ids, true);
 }
 
 function test_active_download_in_range()
 {
   let id = add_download_to_db(true, false, DOWNLOAD_DOWNLOADING);
   dm.removeDownloadsByTimeframe(START_TIME, END_TIME);
-  check_existence([id], true);
+  check_existance([id], true);
 }
 
 function test_observer_dispatched()

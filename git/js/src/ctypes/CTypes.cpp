@@ -57,19 +57,6 @@ namespace js {
 namespace ctypes {
 
 /*******************************************************************************
-** Helper classes
-*******************************************************************************/
-
-class ScopedContextThread
-{
-public:
-  ScopedContextThread(JSContext* cx) : mCx(cx) { JS_SetContextThread(cx); }
-  ~ScopedContextThread() { JS_ClearContextThread(mCx); }
-private:
-  JSContext* mCx;
-};
-
-/*******************************************************************************
 ** JSAPI function prototypes
 *******************************************************************************/
 
@@ -2602,9 +2589,7 @@ CType::FinalizeProtoClass(JSContext* cx, JSObject* obj)
   if (!JS_GetReservedSlot(cx, obj, SLOT_CLOSURECX, &slot) || JSVAL_IS_VOID(slot))
     return;
 
-  JSContext* closureCx = static_cast<JSContext*>(JSVAL_TO_PRIVATE(slot));
-  JS_SetContextThread(closureCx);
-  JS_DestroyContextNoGC(closureCx);
+  JS_DestroyContextNoGC(static_cast<JSContext*>(JSVAL_TO_PRIVATE(slot)));
 }
 
 void
@@ -4883,14 +4868,7 @@ CClosure::Create(JSContext* cx,
       JS_DestroyContextNoGC(cinfo->cx);
       return NULL;
     }
-
-    JS_ClearContextThread(cinfo->cx);
   }
-
-#ifdef DEBUG
-  // We want *this* context's thread here so use cx instead of cinfo->cx.
-  cinfo->cxThread = JS_GetContextThread(cx);
-#endif
 
   cinfo->closureObj = result;
   cinfo->typeObj = typeObj;
@@ -4981,10 +4959,10 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   JSObject* thisObj = cinfo->thisObj;
   JSObject* jsfnObj = cinfo->jsfnObj;
 
-  ScopedContextThread scopedThread(cx);
-
+#ifdef JS_THREADSAFE
   // Assert that we're on the thread we were created from.
-  JS_ASSERT(cinfo->cxThread == JS_GetContextThread(cx));
+  JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
+#endif
 
   JSAutoRequest ar(cx);
 

@@ -1108,8 +1108,7 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
 
 #define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(_class, _tag)             \
   if (mNodeInfo->Equals(nsGkAtoms::_tag) &&                                   \
-      (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                               \
-       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {                            \
+      aIID.Equals(NS_GET_IID(nsIClassInfo))) {                                \
     foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
     if (!foundInterface) {                                                    \
       *aInstancePtr = nsnull;                                                 \

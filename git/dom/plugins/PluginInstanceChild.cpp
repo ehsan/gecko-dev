@@ -625,8 +625,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
                 return true;
             }
         }
-        CGRect clearRect = ::CGRectMake(0, 0, mWindow.width, mWindow.height);
-        ::CGContextClearRect(mShContext, clearRect);
         evcopy.data.draw.context = mShContext; 
     } else {
         PLUGIN_LOG_DEBUG(("Invalid event type for AnswerNNP_HandleEvent_Shmem."));
@@ -1424,8 +1422,8 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
               }
 
               // See gfxWindowsNativeDrawing, color order doesn't have to match.
-              UpdatePaintClipRect(pRect);
               ::FillRect(mSharedSurfaceDib.GetHDC(), pRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
+              UpdatePaintClipRect(pRect);
               evcopy.wParam = WPARAM(mSharedSurfaceDib.GetHDC());
               if (!mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy))) {
                   mAlphaExtract.doublePass = RENDER_NATIVE;
@@ -1454,7 +1452,6 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
         break;
         case RENDER_BACK_TWO:
               // copy our cached surface back
-              UpdatePaintClipRect(pRect);
               ::BitBlt(mSharedSurfaceDib.GetHDC(),
                        pRect->left,
                        pRect->top,
@@ -1496,13 +1493,8 @@ PluginInstanceChild::AnswerUpdateWindow()
     PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s", FULLFUNCTION));
 
 #if defined(OS_WIN)
-    if (mPluginWindowHWND) {
-        RECT rect;
-        if (GetUpdateRect(GetParent(mPluginWindowHWND), &rect, FALSE)) {
-            ::InvalidateRect(mPluginWindowHWND, &rect, FALSE); 
-        }
-        UpdateWindow(mPluginWindowHWND);
-    }
+    if (mPluginWindowHWND)
+      UpdateWindow(mPluginWindowHWND);
     return true;
 #else
     NS_NOTREACHED("PluginInstanceChild::AnswerUpdateWindow not implemented!");

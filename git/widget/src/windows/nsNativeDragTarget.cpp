@@ -190,7 +190,6 @@ nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
   event.isControl = IsKeyDown(NS_VK_CONTROL);
   event.isMeta    = PR_FALSE;
   event.isAlt     = IsKeyDown(NS_VK_ALT);
-  event.inputSource = static_cast<nsBaseDragService*>(mDragService)->GetInputSource();
 
   mWindow->DispatchEvent(&event, status);
 }

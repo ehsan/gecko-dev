@@ -52,6 +52,7 @@
 #include "nsICSSStyleSheet.h"
 #include "nsCSSLoader.h"
 #include "nsIURL.h"
+#include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
 #include "nsIAtom.h"
@@ -1127,8 +1128,6 @@ DOMCSSStyleRuleImpl::DOMCSSStyleRuleImpl(nsICSSStyleRule* aRule)
 DOMCSSStyleRuleImpl::~DOMCSSStyleRuleImpl()
 {
 }
-
-DOMCI_DATA(CSSStyleRule, DOMCSSStyleRuleImpl)
 
 NS_INTERFACE_MAP_BEGIN(DOMCSSStyleRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSStyleRuleDOMWrapper)

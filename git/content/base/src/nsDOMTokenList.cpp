@@ -57,8 +57,6 @@ nsDOMTokenList::nsDOMTokenList(nsGenericElement *aElement, nsIAtom* aAttrAtom)
 
 nsDOMTokenList::~nsDOMTokenList() { }
 
-DOMCI_DATA(DOMTokenList, nsDOMTokenList)
-
 NS_INTERFACE_TABLE_HEAD(nsDOMTokenList)
   NS_INTERFACE_TABLE1(nsDOMTokenList,
                       nsIDOMDOMTokenList)
@@ -154,10 +152,6 @@ void
 nsDOMTokenList::AddInternal(const nsAttrValue* aAttr,
                             const nsAString& aToken)
 {
-  if (!mElement) {
-    return;
-  }
-
   nsAutoString resultStr;
 
   if (aAttr) {

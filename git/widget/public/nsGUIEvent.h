@@ -50,7 +50,6 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMNSMouseEvent.h"
 #include "nsIDOMDataTransfer.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsWeakPtr.h"
@@ -731,8 +730,7 @@ class nsMouseEvent_base : public nsInputEvent
 {
 public:
   nsMouseEvent_base(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 type)
-  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0),
-    inputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE) {}
+  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0) {}
 
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
@@ -742,9 +740,6 @@ public:
   // Finger or touch pressure of event
   // ranges between 0.0 and 1.0
   float                 pressure;
-
-  // Possible values at nsIDOMNSMouseEvent
-  PRUint16              inputSource;
 };
 
 class nsMouseEvent : public nsMouseEvent_base
@@ -998,6 +993,21 @@ struct nsTextRange
 
 typedef nsTextRange* nsTextRangeArray;
 
+// XXX We should drop this struct because the results are provided by query
+// content events now, so, this struct finished the role.
+struct nsTextEventReply
+{
+  nsTextEventReply()
+    : mReferenceWidget(nsnull)
+  {
+  }
+
+  nsIntRect mCursorPosition;
+  nsIWidget* mReferenceWidget;
+};
+
+typedef struct nsTextEventReply nsTextEventReply;
+
 class nsTextEvent : public nsInputEvent
 {
 public:
@@ -1008,6 +1018,7 @@ public:
   }
 
   nsString          theText;
+  nsTextEventReply  theReply; // OBSOLETE
   PRUint32          rangeCount;
   // Note that the range array may not specify a caret position; in that
   // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
@@ -1023,6 +1034,8 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
   {
   }
+
+  nsTextEventReply theReply; // OBSOLETE
 };
 
 /* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows

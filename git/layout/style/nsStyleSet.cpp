@@ -500,7 +500,6 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
       if (!resultIfVisited) {
         return nsnull;
       }
-      resultIfVisited->SetIsStyleIfVisited();
       result->SetStyleIfVisited(resultIfVisited.forget());
 
       PRBool relevantLinkVisited =

@@ -810,9 +810,6 @@
               this._autoScrollPopup.setAttribute("translucent", /Win|Mac/.test(navigator.platform));
             }
 
-            // this is a list of overflow property values that allow scrolling
-            const scrollingAllowed = ['scroll', 'auto'];
-
             // go upward in the DOM and find any parent element that has a overflow
             // area and can therefore be scrolled
             for (this._scrollable = event.originalTarget; this._scrollable;
@@ -832,18 +829,14 @@
               var overflowy = this._scrollable.ownerDocument.defaultView
                                   .getComputedStyle(this._scrollable, '')
                                   .getPropertyValue('overflow-y');
-              // we already discarded non-multiline selects so allow vertical
-              // scroll for multiline ones directly without checking for a
-              // overflow property
               var scrollVert = this._scrollable.scrollHeight > this._scrollable.clientHeight &&
-                               (this._scrollable instanceof HTMLSelectElement ||
-                                scrollingAllowed.indexOf(overflowy) >= 0);
+                               overflowy != 'hidden' && overflowy != 'visible';
 
               // do not allow horizontal scrolling for select elements, it leads
               // to visual artifacts and is not the expected behavior anyway
               if (!(this._scrollable instanceof HTMLSelectElement) &&
                   this._scrollable.scrollWidth > this._scrollable.clientWidth &&
-                  scrollingAllowed.indexOf(overflowx) >= 0) {
+                  overflowx != 'hidden' && overflowx != 'visible') {
                 this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
                 break;
               }

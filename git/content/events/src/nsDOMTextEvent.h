@@ -57,6 +57,7 @@ public:
   // nsIPrivateTextEvent interface
   NS_IMETHOD GetText(nsString& aText);
   NS_IMETHOD_(already_AddRefed<nsIPrivateTextRangeList>) GetInputRange();
+  NS_IMETHOD_(nsTextEventReply*) GetEventReply();
   
 protected:
   nsString mText;

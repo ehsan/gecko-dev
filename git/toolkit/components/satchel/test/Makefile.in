@@ -61,7 +61,6 @@ MOCHI_TESTS = \
 
 MOCHI_CONTENT = \
 		satchel_common.js \
-		subtst_form_submission_1.html \
 		subtst_privbrowsing.html \
 		$(NULL)
 

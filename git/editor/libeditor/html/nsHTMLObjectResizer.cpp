@@ -64,6 +64,7 @@
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
 
+#include "nsPresContext.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 

@@ -70,6 +70,7 @@ class nsIDocShell;
 class nsIContent;
 class nsIDocument;
 class nsIScriptTimeoutHandler;
+class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;

@@ -221,11 +221,6 @@
     <popup id="toolbar-context-menu"
            onpopupshowing="onViewToolbarsPopupShowing(event);">
       <menuseparator/>
-      <menuitem command="cmd_ToggleTabsOnTop"
-                type="checkbox"
-                label="&viewTabsOnTop.label;"
-                accesskey="&viewTabsOnTop.accesskey;"/>
-      <menuseparator/>
       <menuitem command="cmd_CustomizeToolbars"
                 label="&viewCustomizeToolbar.label;"
                 accesskey="&viewCustomizeToolbar.accesskey;"/>
@@ -355,12 +350,11 @@
     <tooltip id="tabbrowser-tab-tooltip" onpopupshowing="gBrowser.createTooltip(event);"/>
   </popupset>
 
-  <toolbox id="navigator-toolbox"
-           defaultmode="icons" mode="icons"
+  <toolbox id="navigator-toolbox" class="toolbox-top" mode="icons"
 #ifdef WINCE
            defaulticonsize="small" iconsize="small"
 #endif
-           persist="tabsontop">
+           defaultmode="icons">
     <!-- Menu -->
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
              defaultset="menubar-items"
@@ -563,6 +557,7 @@
 
     <toolbar id="TabsToolbar"
              fullscreentoolbar="true"
+             ordinal="100"
              collapsed="true">
       <tabs id="tabbrowser-tabs"
             class="tabbrowser-tabs"

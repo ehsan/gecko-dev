@@ -104,8 +104,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCellElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCellElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLTableCellElement, nsHTMLTableCellElement)
-
 // QueryInterface implementation for nsHTMLTableCellElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTableCellElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCellElement,

@@ -3395,7 +3395,7 @@ void nsWindow::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
 // Deal with all sort of mouse event
 PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
                                     LPARAM lParam, PRBool aIsContextMenuKey,
-                                    PRInt16 aButton, PRUint16 aInputSource)
+                                    PRInt16 aButton)
 {
   PRBool result = PR_FALSE;
 
@@ -3423,7 +3423,6 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
   event.isMeta    = PR_FALSE;
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = aButton;
-  event.inputSource = aInputSource;
 
   nsIntPoint mpScreen = eventPoint + WidgetToScreenOffset();
 
@@ -3580,14 +3579,12 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
         if (sCurrentWindow == NULL || sCurrentWindow != this) {
           if ((nsnull != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos, PR_FALSE, 
-                                               nsMouseEvent::eLeftButton, aInputSource);
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_EXIT, wParam, pos);
           }
           sCurrentWindow = this;
           if (!mInDtor) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
-            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER, wParam, pos, PR_FALSE,
-                                               nsMouseEvent::eLeftButton, aInputSource);
+            sCurrentWindow->DispatchMouseEvent(NS_MOUSE_ENTER, wParam, pos);
           }
         }
       }
@@ -4297,8 +4294,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         userMovedMouse = PR_TRUE;
       }
 
-      result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+      result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam);
       if (userMovedMouse) {
         DispatchPendingEvents();
       }
@@ -4319,7 +4315,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2 seconds */, NULL);
 #endif
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
     }
     break;
@@ -4327,7 +4323,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_LBUTTONUP:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam,
-                                  PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
 
 #ifdef WINCE_WINDOWS_MOBILE
@@ -4348,8 +4344,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // Synthesize an event position because we don't get one from
       // WM_MOUSELEAVE.
       LPARAM pos = lParamToClient(::GetMessagePos());
-      DispatchMouseEvent(NS_MOUSE_EXIT, mouseState, pos, PR_FALSE,
-                         nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+      DispatchMouseEvent(NS_MOUSE_EXIT, mouseState, pos);
     }
     break;
 #endif
@@ -4369,55 +4364,54 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       {
         pos = lParamToClient(lParam);
       }
-
       result = DispatchMouseEvent(NS_CONTEXTMENU, wParam, pos, contextMenukey,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
-                                    nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                    nsMouseEvent::eRightButton);
     }
     break;
 
     case WM_LBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eLeftButton);
       break;
 
     case WM_MBUTTONDOWN:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       DispatchPendingEvents();
     }
     break;
 
     case WM_MBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       DispatchPendingEvents();
       break;
 
     case WM_MBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eMiddleButton);
       break;
 
     case WM_RBUTTONDOWN:
     {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       DispatchPendingEvents();
     }
     break;
 
     case WM_RBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       DispatchPendingEvents();
       break;
 
     case WM_RBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
-                                  nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+                                  nsMouseEvent::eRightButton);
       break;
 
     case WM_APPCOMMAND:
@@ -5437,7 +5431,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
     event.button    = 0;
     event.time      = ::GetMessageTime();
-    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH;
 
     PRBool endFeedback = PR_TRUE;
 
@@ -5478,7 +5471,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = 0;
   event.time      = ::GetMessageTime();
-  event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH;
 
   nsEventStatus status;
   DispatchEvent(&event, status);
@@ -5493,18 +5485,6 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
 }
 #endif // !defined(WINCE)
 
-#if !defined(WINCE)
-PRUint16 nsWindow::GetMouseInputSource()
-{
-  PRUint16 inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE;
-  LPARAM lParamExtraInfo = ::GetMessageExtraInfo();
-  if ((lParamExtraInfo & TABLET_INK_SIGNATURE) == TABLET_INK_CHECK) {
-    inputSource = (lParamExtraInfo & TABLET_INK_TOUCH) ?
-                  nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH : nsIDOMNSMouseEvent::MOZ_SOURCE_PEN;
-  }
-  return inputSource;
-}
-#endif
 /*
  * OnMouseWheel - mouse wheele event processing. This was originally embedded
  * within the message case block. If returning true result should be returned
@@ -5606,18 +5586,8 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
     }
   }
 
-  if (!scrollEvent.delta) {
-    // We store the wheel delta, and it will be used next wheel message, so,
-    // we consume this message actually.  We shouldn't call next wndproc.
-    result = PR_TRUE;
+  if (!scrollEvent.delta)
     return PR_FALSE; // break
-  }
-
-#ifdef MOZ_IPC
-  // The event may go to a plug-in which already dispatched this message.
-  // Then, the event can cause deadlock.  We should unlock the sender here.
-  ::ReplyMessage(isVertical ? 0 : TRUE);
-#endif
 
   scrollEvent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
   scrollEvent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
@@ -6320,23 +6290,6 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
     nsWindowGfx::OnSettingsChangeGfx(wParam);
 }
 
-static PRBool IsOurProcessWindow(HWND aHWND)
-{
-  DWORD processId = 0;
-  ::GetWindowThreadProcessId(aHWND, &processId);
-  return processId == ::GetCurrentProcessId();
-}
-
-static HWND FindOurProcessWindow(HWND aHWND)
-{
-  for (HWND wnd = ::GetParent(aHWND); wnd; wnd = ::GetParent(wnd)) {
-    if (IsOurProcessWindow(wnd)) {
-      return wnd;
-    }
-  }
-  return nsnull;
-}
-
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
 // aHandled indicates whether this was handled at all
@@ -6395,32 +6348,15 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
     // No window is under the pointer
     return PR_FALSE; // break, but continue processing
   }
-
-  nsWindow* destWindow;
-
-  // We don't handle the message if the found window belongs to another
-  // process's top window.  If it belongs window, that is a plug-in's window.
-  // Then, we need to send the message to the plug-in window.
-  if (!IsOurProcessWindow(destWnd)) {
-    HWND ourPluginWnd = FindOurProcessWindow(destWnd);
-    if (!ourPluginWnd) {
-      // Somebody elses window
-      return PR_FALSE; // break, but continue processing
-    }
-    destWindow = GetNSWindowPtr(ourPluginWnd);
-  } else {
-    destWindow = GetNSWindowPtr(destWnd);
+  // We don't care about windows belonging to other processes.
+  DWORD processId = 0;
+  GetWindowThreadProcessId(destWnd, &processId);
+  if (processId != GetCurrentProcessId())
+  {
+    // Somebody elses window
+    return PR_FALSE; // break, but continue processing
   }
-
-  if (destWindow == this && mWindowType == eWindowType_plugin) {
-    // If this is plug-in window, the message came from the plug-in window.
-    // Then, the message should be processed on the parent window.
-    destWindow = static_cast<nsWindow*>(GetParent());
-    NS_ENSURE_TRUE(destWindow, PR_FALSE); // break, but continue processing
-    destWnd = destWindow->mWnd;
-    NS_ENSURE_TRUE(destWnd, PR_FALSE); // break, but continue processing
-  }
-
+  nsWindow* destWindow = GetNSWindowPtr(destWnd);
   if (!destWindow || destWindow->mWindowType == eWindowType_plugin) {
     // Some other app, or a plugin window.
     // Windows directs scrolling messages to the focused window.
@@ -6441,24 +6377,15 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
         // others will call DefWndProc, which itself still forwards back to us.
         // So if we have sent it once, we need to handle it ourself.
 
-#ifdef MOZ_IPC
-        // XXX The message shouldn't come from the plugin window at here.
-        // But the message might come from it due to some bugs.  If it happens,
-        // SendMessage causes deadlock.  For safety, we should unlock the
-        // sender here.
-        ::ReplyMessage(aMsg == WM_MOUSEHWHEEL ? TRUE : 0);
-#endif
-
         // First time we have seen this message.
         // Call the child - either it will consume it, or
         // it will wind it's way back to us,triggering the destWnd case above
         // either way,when the call returns,we are all done with the message,
         sIsProcessing = PR_TRUE;
-        ::SendMessageW(destWnd, aMsg, aWParam, aLParam);
+        if (0 == ::SendMessageW(destWnd, aMsg, aWParam, aLParam))
+          aHandled = PR_TRUE;
         sIsProcessing = PR_FALSE;
-        aHandled = PR_TRUE;
-        aQuitProcessing = PR_TRUE;
-        return PR_FALSE; // break, and stop processing
+        return PR_FALSE; // break, but continue processing
       }
       parentWnd = ::GetParent(parentWnd);
     } // while parentWnd
@@ -6525,11 +6452,6 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
       default:
         return PR_FALSE;
     }
-#ifdef MOZ_IPC
-    // The event may go to a plug-in which already dispatched this message.
-    // Then, the event can cause deadlock.  We should unlock the sender here.
-    ::ReplyMessage(0);
-#endif
     scrollevent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
     scrollevent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
     scrollevent.isMeta    = PR_FALSE;
@@ -7523,7 +7445,7 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
 
 // Deal with all sort of mouse event
 PRBool ChildWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARAM lParam,
-                                       PRBool aIsContextMenuKey, PRInt16 aButton, PRUint16 aInputSource)
+                                       PRBool aIsContextMenuKey, PRInt16 aButton)
 {
   PRBool result = PR_FALSE;
 
@@ -7551,7 +7473,7 @@ PRBool ChildWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam, LPARA
   } // switch
 
   return nsWindow::DispatchMouseEvent(aEventType, wParam, lParam,
-                                      aIsContextMenuKey, aButton, aInputSource);
+                                      aIsContextMenuKey, aButton);
 }
 
 // return the style for a child nsWindow

@@ -1855,8 +1855,9 @@ class AutoIdRooter : private AutoGCRooter
 
 class AutoIdArray : private AutoGCRooter {
   public:
-    AutoIdArray(JSContext *cx, JSIdArray *ida JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, IDARRAY), idArray(ida)
+    AutoIdArray(JSContext *cx, JSIdArray *ida
+                  JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, ida ? ida->length : 0), idArray(ida)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }

@@ -162,26 +162,22 @@ PRBool nsTheoraState::Init() {
     return mActive = PR_FALSE;
   }
 
-  PRInt64 n = mInfo.fps_numerator;
-  PRInt64 d = mInfo.fps_denominator;
+  PRUint32 n = mInfo.fps_numerator;
+  PRUint32 d = mInfo.fps_denominator;
 
   mFrameRate = (n == 0 || d == 0) ?
-    0.0f : static_cast<float>(n) / static_cast<float>(d);
+    0.0 : static_cast<float>(n) / static_cast<float>(d);
 
-  PRInt64 f;
-  if (!MulOverflow(1000, d, f)) {
+  PRUint32 c;
+  if (!MulOverflow32(1000, d, c)) {
     return mActive = PR_FALSE;
   }
-  f /= n;
-  if (f > PR_UINT32_MAX) {
-    return mActive = PR_FALSE;
-  }
-  mFrameDuration = static_cast<PRUint32>(f);
+  mFrameDuration = c / n;
 
   n = mInfo.aspect_numerator;
   d = mInfo.aspect_denominator;
   mAspectRatio = (n == 0 || d == 0) ?
-    1.0f : static_cast<float>(n) / static_cast<float>(d);
+    1.0 : static_cast<float>(n) / static_cast<float>(d);
 
   // Ensure the frame isn't larger than our prescribed maximum.
   PRUint32 pixels;

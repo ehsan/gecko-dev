@@ -54,8 +54,6 @@
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
 #define NS_TARGET_CHAIN_MAY_HAVE_MANAGER        (1 << 2)
 
-static nsEventTargetChainItem* gCachedETCI = nsnull;
-
 // nsEventTargetChainItem represents a single item in the event target chain.
 class nsEventTargetChainItem
 {
@@ -68,13 +66,7 @@ public:
                                         nsPIDOMEventTarget* aTarget,
                                         nsEventTargetChainItem* aChild = nsnull)
   {
-    void* place = nsnull;
-    if (gCachedETCI) {
-      place = gCachedETCI;
-      gCachedETCI = gCachedETCI->mNext;
-    } else {
-      place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
-    }
+    void* place = aAllocator->Alloc(sizeof(nsEventTargetChainItem));
     return place
       ? ::new (place) nsEventTargetChainItem(aTarget, aChild)
       : nsnull;
@@ -92,8 +84,7 @@ public:
     while (item) {
       nsEventTargetChainItem* parent = item->mParent;
       item->~nsEventTargetChainItem();
-      item->mNext = gCachedETCI;
-      gCachedETCI = item;
+      aAllocator->Free(item, sizeof(nsEventTargetChainItem));
       --sCurrentEtciCount;
       item = parent;
     }
@@ -229,11 +220,7 @@ public:
 
   nsCOMPtr<nsPIDOMEventTarget>      mTarget;
   nsEventTargetChainItem*           mChild;
-  union {
-    nsEventTargetChainItem*         mParent;
-     // This is used only when caching ETCI objects.
-    nsEventTargetChainItem*         mNext;
-  };
+  nsEventTargetChainItem*           mParent;
   PRUint16                          mFlags;
   PRUint16                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
@@ -427,7 +414,6 @@ public:
     }
     if (!sEtciPoolUsers) {
       if (nsEventTargetChainItem::MaxEtciCount() > NS_CHAIN_POOL_SIZE) {
-        gCachedETCI = nsnull;
         delete sEtciPool;
         sEtciPool = nsnull;
         nsEventTargetChainItem::ResetMaxEtciCount();
@@ -438,7 +424,6 @@ public:
   static void Shutdown()
   {
     if (!sEtciPoolUsers) {
-      gCachedETCI = nsnull;
       delete sEtciPool;
       sEtciPool = nsnull;
       nsEventTargetChainItem::ResetMaxEtciCount();

@@ -37,6 +37,8 @@
 
 #include "nsIDOMHTMLCanvasElement.h"
 #include "nsGenericHTMLElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -158,8 +160,6 @@ nsHTMLCanvasElement::~nsHTMLCanvasElement()
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
-
-DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
