@@ -664,20 +664,21 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 #endif
 
-// defaults to true on Windows and Mac, because the installer shows this
+pref("browser.EULA.version", 3);
+pref("browser.rights.version", 3);
+
+// defaults to true on Windows and Mac, because the installer shows a EULA
 #ifdef XP_MACOSX
-pref("browser.EULA.3.accepted", true);
+pref("browser.rights.3.shown", true);
 #elifdef XP_WIN
-pref("browser.EULA.3.accepted", true);
+pref("browser.rights.3.shown", true);
 #else
-pref("browser.EULA.3.accepted", false);
+pref("browser.rights.3.shown", false);
 #endif
 
-// if we rev the EULA again, we should bump this so users agree to the new EULA
-pref("browser.EULA.version", 3);
-
 #ifdef DEBUG
-pref("browser.EULA.override", true);
+// Don't show the about:rights notification in debug builds.
+pref("browser.rights.override", true);
 #endif
 
 pref("browser.sessionstore.resume_from_crash", true);
@@ -747,7 +748,7 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // 0 - don't pre-populate anything
 // 1 - pre-populate site URL, but don't fetch certificate
 // 2 - pre-populate site URL and pre-fetch certificate
-pref("browser.ssl_override_behavior", 1);
+pref("browser.ssl_override_behavior", 2);
 
 // Controls the display of domain in the identity box for SSL connections.
 // 0 - do not show domain
@@ -773,3 +774,6 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.com/1/%APP%/%VERSION%/%OS%/%LOCALE%/");
+
+// Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
+pref("security.alternate_certificate_error_page", "certerror");

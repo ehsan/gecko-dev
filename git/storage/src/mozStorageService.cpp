@@ -46,7 +46,7 @@
 #include "prinit.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
-#include "mozStorage.h"
+#include "mozStoragePrivateHelpers.h"
 
 #include "sqlite3.h"
 
@@ -84,9 +84,6 @@ mozStorageService::Init()
     mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;
-
-    nsresult rv = mBackground.initialize();
-    NS_ENSURE_SUCCESS(rv, rv);
 
     // This makes multiple connections to the same database share the same pager
     // cache.  We do not need to lock here with mLock because this function is

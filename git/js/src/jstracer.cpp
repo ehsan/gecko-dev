@@ -51,7 +51,7 @@
 #include <alloca.h>
 #endif
 
-#include "nanojit.h"
+#include "nanojit/nanojit.h"
 #include "jsarray.h"            // higher-level library and API headers
 #include "jsbool.h"
 #include "jscntxt.h"
@@ -1886,13 +1886,20 @@ TraceRecorder::snapshot(ExitType exitType)
     return data;
 }
 
-/* Emit a guard for condition (cond), expecting to evaluate to boolean result (expected). */
+/* Emit a guard for condition (cond), expecting to evaluate to boolean result (expected)
+   and using the supplied side exit if the conditon doesn't hold. */
+LIns*
+TraceRecorder::guard(bool expected, nanojit::LIns* cond, nanojit::LIns* exit)
+{
+    return lir->insGuard(expected ? LIR_xf : LIR_xt, cond, exit);
+}
+
+/* Emit a guard for condition (cond), expecting to evaluate to boolean result (expected)
+   and generate a side exit with type exitType to jump to if the condition does not hold. */
 LIns*
 TraceRecorder::guard(bool expected, LIns* cond, ExitType exitType)
 {
-    return lir->insGuard(expected ? LIR_xf : LIR_xt,
-                         cond,
-                         snapshot(exitType));
+    return guard(expected, cond, snapshot(exitType));
 }
 
 /* Try to match the type of a slot to type t. checkType is used to verify that the type of
@@ -2393,12 +2400,35 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     newifp->frame.pcDisabledSave = 0;
 #endif
 
+    /*
+     * Note that cx->fp->script is still the caller's script; set the callee
+     * inline frame's idea of caller version from its version.
+     */
+    newifp->callerVersion = (JSVersion) cx->fp->script->version;
+
     cx->fp->regs = &newifp->callerRegs;
     cx->fp = &newifp->frame;
 
     if (fun->flags & JSFUN_HEAVYWEIGHT) {
+        /*
+         * Set hookData to null because the failure case for js_GetCallObject
+         * involves it calling the debugger hook.
+         */
+        newifp->hookData = NULL;
         if (!js_GetCallObject(cx, &newifp->frame, newifp->frame.scopeChain))
             return -1;
+    }
+
+    /*
+     * If there's a call hook, invoke it to compute the hookData used by
+     * debuggers that cooperate with the interpreter.
+     */
+    JSInterpreterHook hook = cx->debugHooks->callHook;
+    if (hook) {
+        newifp->hookData = hook(cx, &newifp->frame, JS_TRUE, 0,
+                                cx->debugHooks->callHookData);
+    } else {
+        newifp->hookData = NULL;
     }
 
     // FIXME? we must count stack slots from caller's operand stack up to (but not including)
@@ -4095,19 +4125,45 @@ TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
                                     LIns* dslots_ins, LIns* idx_ins, ExitType exitType)
 {
     jsuint length = ARRAY_DENSE_LENGTH(obj);
-    bool cond = ((jsuint)idx < length && idx < obj->fslots[JSSLOT_ARRAY_LENGTH]);
 
-    LIns* length_ins = stobj_get_fslot(obj_ins, JSSLOT_ARRAY_LENGTH);
-    LIns* capacity_ins = lir->insLoad(LIR_ldp, dslots_ins, 0 - (int)sizeof(jsval));
-
-    LIns* min_ins = lir->ins_choose(lir->ins2(LIR_ult, length_ins, capacity_ins),
-                                    length_ins,
-                                    capacity_ins);
-    
-    // guard(0 <= index && index < min(length, capacity))
-    guard(cond, lir->ins2(LIR_ult, idx_ins, min_ins), exitType);
-
-    return cond;
+    bool cond = (jsuint(idx) < jsuint(obj->fslots[JSSLOT_ARRAY_LENGTH]) && jsuint(idx) < length);
+    if (cond) {
+        /* Guard array length */
+        LIns* exit = guard(true,
+                           lir->ins2(LIR_ult, idx_ins, stobj_get_fslot(obj_ins, JSSLOT_ARRAY_LENGTH)),
+                           exitType)->oprnd2();
+        /* dslots must not be NULL */
+        guard(false,
+              lir->ins_eq0(dslots_ins),
+              exit);
+        /* Guard array capacity */
+        guard(true,
+              lir->ins2(LIR_ult,
+                        idx_ins,
+                        lir->insLoad(LIR_ldp, dslots_ins, 0 - (int)sizeof(jsval))),
+              exit);
+    } else {
+        /* If not idx < length, stay on trace (and read value as undefined). */ 
+        LIns* br1 = lir->insBranch(LIR_jf, 
+                                   lir->ins2(LIR_ult, 
+                                             idx_ins, 
+                                             stobj_get_fslot(obj_ins, JSSLOT_ARRAY_LENGTH)),
+                                   NULL);
+        /* If dslots is NULL, stay on trace (and read value as undefined). */
+        LIns* br2 = lir->insBranch(LIR_jt, lir->ins_eq0(dslots_ins), NULL);
+        /* If not idx < capacity, stay on trace (and read value as undefined). */
+        LIns* br3 = lir->insBranch(LIR_jf,
+                                   lir->ins2(LIR_ult,
+                                             idx_ins,
+                                             lir->insLoad(LIR_ldp, dslots_ins, 0 - (int)sizeof(jsval))),
+                                   NULL);
+        lir->insGuard(LIR_x, lir->insImm(1), snapshot(exitType));
+        LIns* label = lir->ins0(LIR_label);
+        br1->target(label);
+        br2->target(label);
+        br3->target(label);
+    }
+    return cond;    
 }
 
 /*

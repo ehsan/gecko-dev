@@ -213,16 +213,10 @@ SessionStoreService.prototype = {
         // parse the session state into JS objects
         this._initialState = this._safeEval(iniString);
         
-        // if last session crashed, backup the session
         let lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
           this._initialState.session.state == STATE_RUNNING_STR;
         if (lastSessionCrashed) {
-          try {
-            this._writeFile(this._sessionFileBackup, iniString);
-          }
-          catch (ex) { } // nothing else we can do here
-          
           this._recentCrashes = (this._initialState.session &&
                                  this._initialState.session.recentCrashes || 0) + 1;
           
@@ -241,7 +235,16 @@ SessionStoreService.prototype = {
     // remove the session data files if crash recovery is disabled
     if (!this._resume_from_crash)
       this._clearDisk();
-    
+    else { // create a backup if the session data file exists
+      try {
+        if (this._sessionFileBackup.exists())
+          this._sessionFileBackup.remove(false);
+        if (this._sessionFile.exists())
+          this._sessionFile.copyTo(null, this._sessionFileBackup.leafName);
+      }
+      catch (ex) { Cu.reportError(ex); } // file was write-locked?
+    }
+
     // at this point, we've as good as resumed the session, so we can
     // clear the resume_session_once flag, if it's set
     if (this._loadState != STATE_QUITTING &&
@@ -1488,16 +1491,6 @@ SessionStoreService.prototype = {
    *        bool this isn't the restoration of the first window
    */
   restoreWindow: function sss_restoreWindow(aWindow, aState, aOverwriteTabs, aFollowUp) {
-    if (this._restoreCount) {
-      this._restoreCount--;
-      if (this._restoreCount == 0) {
-        // This was the last window restored at startup, notify observers.
-        var observerService = Cc["@mozilla.org/observer-service;1"].
-                              getService(Ci.nsIObserverService);
-        observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
-      }
-    }
-
     if (!aFollowUp) {
       this.windowToFocus = aWindow;
     }
@@ -1508,11 +1501,13 @@ SessionStoreService.prototype = {
     try {
       var root = typeof aState == "string" ? this._safeEval(aState) : aState;
       if (!root.windows[0]) {
+        this._notifyIfAllWindowsRestored();
         return; // nothing to restore
       }
     }
     catch (ex) { // invalid state object - don't restore anything 
       debug(ex);
+      this._notifyIfAllWindowsRestored();
       return;
     }
     
@@ -1579,6 +1574,8 @@ SessionStoreService.prototype = {
     
     this.restoreHistoryPrecursor(aWindow, winData.tabs, (aOverwriteTabs ?
       (parseInt(winData.selected) || 1) : 0), 0, 0);
+
+    this._notifyIfAllWindowsRestored();
   },
 
   /**
@@ -2390,6 +2387,18 @@ SessionStoreService.prototype = {
       throw new Error("JSON conversion failed unexpectedly!");
     
     return str;
+  },
+
+  _notifyIfAllWindowsRestored: function sss_notifyIfAllWindowsRestored() {
+    if (this._restoreCount) {
+      this._restoreCount--;
+      if (this._restoreCount == 0) {
+        // This was the last window restored at startup, notify observers.
+        var observerService = Cc["@mozilla.org/observer-service;1"].
+                              getService(Ci.nsIObserverService);
+        observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
+      }
+    }
   },
 
 /* ........ Storage API .............. */
