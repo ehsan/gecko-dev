@@ -10,29 +10,38 @@ import org.mozilla.gecko.R;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ShapeDrawable;
+import android.graphics.drawable.shapes.PathShape;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.widget.ImageView;
-import android.widget.ImageView.ScaleType;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.ImageView.ScaleType;
 
 /**
- * A view that displays the thumbnail and the title/url for a top/pinned site.
+ * A view that displays the thumbnail and the title/url for a bookmark.
  * If the title/url is longer than the width of the view, they are faded out.
  * If there is no valid url, a default string is shown at 50% opacity.
  * This is denoted by the empty state.
  */
-public class TopSitesGridItemView extends RelativeLayout {
-    private static final String LOGTAG = "GeckoTopSitesGridItemView";
+public class TopBookmarkItemView extends RelativeLayout {
+    private static final String LOGTAG = "GeckoTopBookmarkItemView";
 
     // Empty state, to denote there is no valid url.
     private static final int[] STATE_EMPTY = { android.R.attr.state_empty };
 
+    // A Pin Drawable to denote pinned sites.
+    private static Drawable sPinDrawable = null;
+
     // Child views.
     private final TextView mTitleView;
     private final ImageView mThumbnailView;
+    private final ImageView mPinView;
 
     // Data backing this view.
     private String mTitle;
@@ -44,21 +53,22 @@ public class TopSitesGridItemView extends RelativeLayout {
     // Empty state.
     private boolean mIsEmpty = true;
 
-    public TopSitesGridItemView(Context context) {
+    public TopBookmarkItemView(Context context) {
         this(context, null);
     }
 
-    public TopSitesGridItemView(Context context, AttributeSet attrs) {
-        this(context, attrs, R.attr.topSitesGridItemViewStyle);
+    public TopBookmarkItemView(Context context, AttributeSet attrs) {
+        this(context, attrs, R.attr.topBookmarkItemViewStyle);
     }
 
-    public TopSitesGridItemView(Context context, AttributeSet attrs, int defStyle) {
+    public TopBookmarkItemView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        LayoutInflater.from(context).inflate(R.layout.top_sites_grid_item_view, this);
+        LayoutInflater.from(context).inflate(R.layout.top_bookmark_item_view, this);
 
         mTitleView = (TextView) findViewById(R.id.title);
         mThumbnailView = (ImageView) findViewById(R.id.thumbnail);
+        mPinView = (ImageView) findViewById(R.id.pin);
     }
 
     /**
@@ -125,7 +135,7 @@ public class TopSitesGridItemView extends RelativeLayout {
      */
     public void setPinned(boolean pinned) {
         mIsPinned = pinned;
-        mTitleView.setCompoundDrawablesWithIntrinsicBounds(pinned ? R.drawable.pin : 0, 0, 0, 0);
+        mPinView.setBackgroundDrawable(pinned ? getPinDrawable() : null);
     }
 
     /**
@@ -189,5 +199,27 @@ public class TopSitesGridItemView extends RelativeLayout {
 
         // Refresh for state change.
         refreshDrawableState();
+    }
+
+    /**
+     * @return Drawable to be used as a pin.
+     */
+    private Drawable getPinDrawable() {
+        if (sPinDrawable == null) {
+            int size = getResources().getDimensionPixelSize(R.dimen.top_bookmark_pinsize);
+
+            // Draw a little triangle in the upper right corner.
+            Path path = new Path();
+            path.moveTo(0, 0);
+            path.lineTo(size, 0);
+            path.lineTo(size, size);
+            path.close();
+
+            sPinDrawable = new ShapeDrawable(new PathShape(path, size, size));
+            Paint p = ((ShapeDrawable) sPinDrawable).getPaint();
+            p.setColor(getResources().getColor(R.color.top_bookmark_pin));
+        }
+
+        return sPinDrawable;
     }
 }

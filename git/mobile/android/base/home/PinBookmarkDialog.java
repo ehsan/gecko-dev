@@ -28,12 +28,12 @@ import android.widget.EditText;
 import android.widget.ListView;
 
 /**
- * Dialog fragment that displays frecency search results, for pinning a site, in a GridView.
+ * Dialog fragment that displays frecency search results, for pinning as a bookmark, in a ListView.
  */
-class PinSiteDialog extends DialogFragment {
+class PinBookmarkDialog extends DialogFragment {
     // Listener for url selection
-    public static interface OnSiteSelectedListener {
-        public void onSiteSelected(String url, String title);
+    public static interface OnBookmarkSelectedListener {
+        public void onBookmarkSelected(String url, String title);
     }
 
     // Cursor loader ID for search query
@@ -55,13 +55,13 @@ class PinSiteDialog extends DialogFragment {
     private CursorLoaderCallbacks mLoaderCallbacks;
 
     // Bookmark selected listener
-    private OnSiteSelectedListener mOnSiteSelectedListener;
+    private OnBookmarkSelectedListener mOnBookmarkSelectedListener;
 
-    public static PinSiteDialog newInstance() {
-        return new PinSiteDialog();
+    public static PinBookmarkDialog newInstance() {
+        return new PinBookmarkDialog();
     }
 
-    private PinSiteDialog() {
+    private PinBookmarkDialog() {
     }
 
     @Override
@@ -75,7 +75,7 @@ class PinSiteDialog extends DialogFragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         // All list views are styled to look the same with a global activity theme.
         // If the style of the list changes, inflate it from an XML.
-        return inflater.inflate(R.layout.pin_site_dialog, container, false);
+        return inflater.inflate(R.layout.pin_bookmark_dialog, container, false);
     }
 
     @Override
@@ -102,7 +102,7 @@ class PinSiteDialog extends DialogFragment {
         mList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mOnSiteSelectedListener != null) {
+                if (mOnBookmarkSelectedListener != null) {
                     final Cursor c = mAdapter.getCursor();
                     if (c == null || !c.moveToPosition(position)) {
                         return;
@@ -110,7 +110,7 @@ class PinSiteDialog extends DialogFragment {
 
                     final String url = c.getString(c.getColumnIndexOrThrow(URLColumns.URL));
                     final String title = c.getString(c.getColumnIndexOrThrow(URLColumns.TITLE));
-                    mOnSiteSelectedListener.onSiteSelected(url, title);
+                    mOnBookmarkSelectedListener.onBookmarkSelected(url, title);
                 }
 
                 // Dismiss the fragment and the dialog.
@@ -151,8 +151,8 @@ class PinSiteDialog extends DialogFragment {
         SearchLoader.restart(getLoaderManager(), LOADER_ID_SEARCH, mLoaderCallbacks, mSearchTerm);
     }
 
-    public void setOnSiteSelectedListener(OnSiteSelectedListener listener) {
-        mOnSiteSelectedListener = listener;
+    public void setOnBookmarkSelectedListener(OnBookmarkSelectedListener listener) {
+        mOnBookmarkSelectedListener = listener;
     }
 
     private static class SearchAdapter extends CursorAdapter {
