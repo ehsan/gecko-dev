@@ -5,7 +5,10 @@
 import sys
 import hashlib
 from mozpack.packager.unpack import UnpackFinder
-from collections import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    from simplejson import OrderedDict
 
 '''
 Find files duplicated in a given packaged directory, independently of its

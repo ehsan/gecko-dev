@@ -161,9 +161,6 @@ public:
 
   MediaConduitErrorCode Init(WebrtcAudioConduit *other);
 
-  int GetChannel() { return mChannel; }
-  webrtc::VoiceEngine* GetVoiceEngine() { return mVoiceEngine; }
-
 private:
   WebrtcAudioConduit(const WebrtcAudioConduit& other) MOZ_DELETE;
   void operator=(const WebrtcAudioConduit& other) MOZ_DELETE;
