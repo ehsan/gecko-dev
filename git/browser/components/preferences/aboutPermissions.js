@@ -265,7 +265,7 @@ let PermissionDefaults = {
     return this.DENY;
   },
   set password(aValue) {
-    let value = (aValue != this.DENY);
+    let value = (aValue == this.ALLOW);
     Services.prefs.setBoolPref("signon.rememberSignons", value);
   },
 
@@ -280,7 +280,7 @@ let PermissionDefaults = {
       return this.DENY;
     }
 
-    if (Services.prefs.getIntPref("network.cookie.lifetimePolicy") == this.COOKIE_SESSION) {
+    if (Services.prefs.getIntPref("network.cookie.lifetimePolicy") == this.COOKIE_DENY) {
       return this.SESSION;
     }
     return this.ALLOW;
@@ -303,7 +303,7 @@ let PermissionDefaults = {
     return this.UNKNOWN;
   },
   set geo(aValue) {
-    let value = (aValue != this.DENY);
+    let value = (aValue == this.ALLOW);
     Services.prefs.setBoolPref("geo.enabled", value);
   },
 
@@ -316,7 +316,7 @@ let PermissionDefaults = {
     return this.UNKNOWN;
   },
   set indexedDB(aValue) {
-    let value = (aValue != this.DENY);
+    let value = (aValue == this.ALLOW);
     Services.prefs.setBoolPref("dom.indexedDB.enabled", value);
   },
 

@@ -3449,8 +3449,9 @@ nsDocument::AppendChildTo(nsIContent* aKid, PRBool aNotify)
 }
 
 nsresult
-nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
+  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on document child removal.");
   nsCOMPtr<nsIContent> oldKid = GetChildAt(aIndex);
   if (!oldKid) {
     return NS_OK;
@@ -3462,7 +3463,7 @@ nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
   }
 
   nsresult rv =
-    doRemoveChildAt(aIndex, aNotify, oldKid, mChildren);
+    doRemoveChildAt(aIndex, aNotify, oldKid, mChildren, aMutationEvent);
   mCachedRootElement = nsnull;
   return rv;
 }
@@ -3951,7 +3952,12 @@ nsDocument::BeginUpdate(nsUpdateType aUpdateType)
   }
   
   ++mUpdateNestLevel;
-  nsContentUtils::AddScriptBlocker();
+  if (aUpdateType == UPDATE_CONTENT_MODEL) {
+    nsContentUtils::AddRemovableScriptBlocker();
+  }
+  else {
+    nsContentUtils::AddScriptBlocker();
+  }
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginUpdate, (this, aUpdateType));
 }
 
@@ -3960,7 +3966,12 @@ nsDocument::EndUpdate(nsUpdateType aUpdateType)
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndUpdate, (this, aUpdateType));
 
-  nsContentUtils::RemoveScriptBlocker();
+  if (aUpdateType == UPDATE_CONTENT_MODEL) {
+    nsContentUtils::RemoveRemovableScriptBlocker();
+  }
+  else {
+    nsContentUtils::RemoveScriptBlocker();
+  }
 
   --mUpdateNestLevel;
 

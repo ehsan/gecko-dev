@@ -1700,27 +1700,7 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
     return aSelection->Collapse(rootElement, 0);
   }
 
-  nsresult rv = nsEditor::SelectEntireDocument(aSelection);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Don't select the trailing BR node if we have one
-  PRInt32 selOffset;
-  nsCOMPtr<nsIDOMNode> selNode;
-  rv = GetEndNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMNode> childNode = GetChildAt(selNode, selOffset - 1);
-
-  if (childNode && nsTextEditUtils::IsMozBR(childNode)) {
-    nsCOMPtr<nsIDOMNode> parentNode;
-    PRInt32 parentOffset;
-    rv = GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return aSelection->Extend(parentNode, parentOffset);
-  }
-
-  return NS_OK;
+  return nsEditor::SelectEntireDocument(aSelection);
 }
 
 already_AddRefed<nsPIDOMEventTarget>

@@ -5807,8 +5807,7 @@ nsHTMLEditRules::GetNodesForOperation(nsCOMArray<nsIDOMRange>& inArrayOfRanges,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    NS_ASSERTION(static_cast<PRUint32>(rangeCount) == rangeItemArray.Length(),
-                 "How did that happen?");
+    NS_ASSERTION(rangeCount == rangeItemArray.Length(), "How did that happen?");
 
     // first register ranges for special editor gravity
     for (i = 0; i < rangeCount; i++)

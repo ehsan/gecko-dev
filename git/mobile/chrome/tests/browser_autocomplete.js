@@ -11,14 +11,6 @@ function test() {
   // This test is async
   waitForExplicitFinish();
 
-  // Ensure the form helper is initialized
-  try {
-    FormHelperUI.enabled;
-  }
-  catch(e) {
-    FormHelperUI.init();
-  }
-
   // Need to wait until the page is loaded
   messageManager.addMessageListener("pageshow", function(aMessage) {
     if (newTab && newTab.browser.currentURI.spec != "about:blank") {
@@ -28,9 +20,15 @@ function test() {
     }
   });
 
-  newTab = Browser.addTab(testURL, true);
+  let startupInfo = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup).getStartupInfo();
+  if (!("firstPaint" in startupInfo))
+    waitFor(function() { newTab = Browser.addTab(testURL, true); }, function() {
+      let startupInfo = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup).getStartupInfo();
+      return ("firstPaint" in startupInfo);
+    }, Date.now() + 3000);
+  else
+    newTab = Browser.addTab(testURL, true);
 }
-
 
 //------------------------------------------------------------------------------
 // Iterating tests by shifting test out one by one as runNextTest is called.

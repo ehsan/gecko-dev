@@ -992,7 +992,7 @@ ContextHandler.registerType("link-shareable", function(aState, aElement) {
 });
 
 ContextHandler.registerType("input-text", function(aState, aElement) {
-    return (aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false)) || aElement instanceof Ci.nsIDOMHTMLTextAreaElement;
+    return aElement instanceof Ci.nsIDOMHTMLInputElement;
 });
 
 ["image", "video"].forEach(function(aType) {

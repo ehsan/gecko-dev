@@ -183,8 +183,7 @@ let Util = {
   },
 
   get isKeyboardOpened() {
-    let isChromeWindow = this.isParentProcess() && window["ViewableAreaObserver"];
-    if (isChromeWindow)
+    if (this.isParentProcess())
       return ViewableAreaObserver.isKeyboardOpened;
 
     return (sendSyncMessage("Content:IsKeyboardOpened", {}))[0];
