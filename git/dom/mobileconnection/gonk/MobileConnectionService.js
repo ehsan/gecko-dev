@@ -665,8 +665,8 @@ MobileConnectionProvider.prototype = {
   notifyCFStateChanged: function(aAction, aReason, aNumber, aTimeSeconds,
                                  aServiceClass) {
     this.deliverListenerEvent("notifyCFStateChanged",
-                              [aAction, aReason, aNumber, aTimeSeconds,
-                               aServiceClass]);
+                              [true, aAction, aReason, aNumber, aTimeSeconds,
+                                aServiceClass]);
   },
 
   getSupportedNetworkTypes: function(aTypes) {

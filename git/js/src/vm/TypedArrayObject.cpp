@@ -403,10 +403,6 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     class_constructor(JSContext *cx, unsigned argc, Value *vp)
     {
         CallArgs args = CallArgsFromVp(argc, vp);
-
-        if (!WarnIfNotConstructing(cx, args, "typed array"))
-            return false;
-
         JSObject *obj = create(cx, args);
         if (!obj)
             return false;

@@ -85,7 +85,7 @@ MediaCodec* MediaCodec::Wrap(jobject obj) {
     return ret;
 }
 
-bool MediaCodec::Configure(jobject a0, jobject a1, jobject a2, int32_t a3) {
+void MediaCodec::Configure(jobject a0, jobject a1, jobject a2, int32_t a3) {
     JNIEnv *env = GetJNIForThread();
     if (env->PushLocalFrame(3) != 0) {
         AndroidBridge::HandleUncaughtException(env);
@@ -99,13 +99,8 @@ bool MediaCodec::Configure(jobject a0, jobject a1, jobject a2, int32_t a3) {
     args[3].i = a3;
 
     env->CallVoidMethodA(wrapped_obj, jConfigure, args);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->PopLocalFrame(nullptr);
-        return false;
-    }
+    AndroidBridge::HandleUncaughtException(env);
     env->PopLocalFrame(nullptr);
-    return true;
 }
 
 jobject MediaCodec::CreateByCodecName(const nsAString& a0) {
@@ -161,11 +156,7 @@ int32_t MediaCodec::DequeueInputBuffer(int64_t a0) {
     }
 
     int32_t temp = env->CallIntMethod(wrapped_obj, jDequeueInputBuffer, a0);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->PopLocalFrame(nullptr);
-        return MEDIACODEC_EXCEPTION_INDEX;
-    }
+    AndroidBridge::HandleUncaughtException(env);
     env->PopLocalFrame(nullptr);
     return temp;
 }
@@ -178,11 +169,7 @@ int32_t MediaCodec::DequeueOutputBuffer(jobject a0, int64_t a1) {
     }
 
     int32_t temp = env->CallIntMethod(wrapped_obj, jDequeueOutputBuffer, a0, a1);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->PopLocalFrame(nullptr);
-        return MEDIACODEC_EXCEPTION_INDEX;
-    }
+    AndroidBridge::HandleUncaughtException(env);
     env->PopLocalFrame(nullptr);
     return temp;
 }
@@ -324,7 +311,7 @@ void MediaCodec::SetVideoScalingMode(int32_t a0) {
     env->PopLocalFrame(nullptr);
 }
 
-bool MediaCodec::Start() {
+void MediaCodec::Start() {
     JNIEnv *env = GetJNIForThread();
     if (env->PushLocalFrame(0) != 0) {
         AndroidBridge::HandleUncaughtException(env);
@@ -332,13 +319,8 @@ bool MediaCodec::Start() {
     }
 
     env->CallVoidMethod(wrapped_obj, jStart);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->PopLocalFrame(nullptr);
-        return false;
-    }
+    AndroidBridge::HandleUncaughtException(env);
     env->PopLocalFrame(nullptr);
-    return true;
 }
 
 void MediaCodec::Stop() {

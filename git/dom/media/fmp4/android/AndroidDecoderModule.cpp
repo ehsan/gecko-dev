@@ -276,11 +276,7 @@ nsresult MediaCodecDataDecoder::InitDecoder(jobject aSurface)
     return NS_ERROR_FAILURE;
   }
 
-  if (!mDecoder->Configure(mFormat->wrappedObject(), aSurface, nullptr, 0)) {
-    mCallback->Error();
-    return NS_ERROR_FAILURE;
-  }
-
+  mDecoder->Configure(mFormat->wrappedObject(), aSurface, nullptr, 0);
   mDecoder->Start();
 
   ResetInputBuffers();
