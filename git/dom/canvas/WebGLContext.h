@@ -94,7 +94,7 @@ namespace gfx {
 class SourceSurface;
 }
 
-WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
+WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format, TexType type);
 
 void AssertUintParamCorrect(gl::GLContext* gl, GLenum pname, GLuint shadow);
 
@@ -490,6 +490,9 @@ public:
 
         const TexImageTarget texImageTarget(rawTexImgTarget);
 
+        if (!ValidateTexImageFormatAndType(format, type, WebGLTexImageFunc::TexImage))
+            return;
+
         if (level < 0)
             return ErrorInvalidValue("texImage2D: level is negative");
 
@@ -557,6 +560,9 @@ public:
 
         const TexImageTarget texImageTarget(rawTexImageTarget);
 
+        if (!ValidateTexImageFormatAndType(format, type, WebGLTexImageFunc::TexImage))
+            return;
+
         if (level < 0)
             return ErrorInvalidValue("texSubImage2D: level is negative");
 
@@ -569,7 +575,7 @@ public:
             return ErrorInvalidOperation("texSubImage2D: no texture bound on active texture unit");
         }
         const WebGLTexture::ImageInfo &imageInfo = tex->ImageInfoAt(texImageTarget, level);
-        const TexInternalFormat internalformat = imageInfo.EffectiveInternalFormat();
+        const TexInternalFormat internalformat = imageInfo.InternalFormat();
 
         // Trying to handle the video by GPU directly first
         if (TexImageFromVideoElement(texImageTarget, level,
@@ -1139,6 +1145,8 @@ protected:
                                       GLsizei width, GLsizei height,
                                       uint32_t byteLength, WebGLTexImageFunc func);
 
+    static uint32_t GetBitsPerTexel(TexInternalFormat format, TexType type);
+
     void Invalidate();
     void DestroyResourcesAndContext();
 
@@ -1195,7 +1203,7 @@ protected:
 
     void CopyTexSubImage2D_base(TexImageTarget texImageTarget,
                                 GLint level,
-                                TexInternalFormat internalformat,
+                                GLenum internalformat,
                                 GLint xoffset,
                                 GLint yoffset,
                                 GLint x,
@@ -1355,7 +1363,7 @@ protected:
                    webgl.mColorWriteMask[3] != false;
         }
 
-        explicit ScopedMaskWorkaround(WebGLContext& aWebgl);
+        ScopedMaskWorkaround(WebGLContext& webgl);
 
         ~ScopedMaskWorkaround();
     };

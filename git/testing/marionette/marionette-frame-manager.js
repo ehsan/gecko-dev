@@ -133,7 +133,7 @@ FrameManager.prototype = {
         }
 
         mm.sendAsyncMessage("Marionette:restart", {});
-        return oopFrame.id;
+        return;
       }
     }
 
@@ -149,7 +149,6 @@ FrameManager.prototype = {
 
     aFrame.specialPowersObserver = new specialpowers.SpecialPowersObserver();
     aFrame.specialPowersObserver.init(mm);
-    return oopFrame.id;
   },
 
   /*

@@ -53,8 +53,6 @@ public:
 
         bool IsDeleteRequested() const;
 
-        TexInternalFormat EffectiveInternalFormat() const;
-
         bool HasAlpha() const;
         bool IsReadableFloat() const;
 

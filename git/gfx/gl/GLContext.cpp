@@ -2365,6 +2365,7 @@ GLContext::ResizeScreenBuffer(const IntSize& size)
     return mScreen->Resize(size);
 }
 
+
 void
 GLContext::DestroyScreenBuffer()
 {

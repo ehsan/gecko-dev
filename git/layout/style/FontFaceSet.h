@@ -52,7 +52,7 @@ public:
     friend class FontFaceSet;
 
   public:
-    explicit UserFontSet(FontFaceSet* aFontFaceSet)
+    UserFontSet(FontFaceSet* aFontFaceSet)
       : mFontFaceSet(aFontFaceSet)
     {
     }

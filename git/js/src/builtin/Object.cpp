@@ -15,7 +15,7 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::types;
@@ -170,7 +170,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
     MutableHandleString gsop[2] = {&str0, &str1};
 
     AutoIdVector idv(cx);
-    if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY | JSITER_SYMBOLS, &idv))
+    if (!GetPropertyNames(cx, obj, JSITER_OWNONLY | JSITER_SYMBOLS, &idv))
         return nullptr;
 
     bool comma = false;
@@ -531,20 +531,33 @@ obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif /* JS_OLD_GETTER_SETTER_METHODS */
 
-// ES6 draft rev27 (2014/08/24) 19.1.2.9 Object.getPrototypeOf(O)
+/* ES5 15.2.3.2. */
 bool
 js::obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    /* Steps 1-2. */
-    RootedObject obj(cx, ToObject(cx, args.get(0)));
-    if (!obj)
+    /* Step 1. */
+    if (args.length() == 0) {
+        js_ReportMissingArg(cx, args.calleev(), 0);
         return false;
+    }
 
-    /* Step 3. */
+    if (args[0].isPrimitive()) {
+        RootedValue val(cx, args[0]);
+        char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, NullPtr());
+        if (!bytes)
+            return false;
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                             JSMSG_UNEXPECTED_TYPE, bytes, "not an object");
+        js_free(bytes);
+        return false;
+    }
+
+    /* Step 2. */
+    RootedObject thisObj(cx, &args[0].toObject());
     RootedObject proto(cx);
-    if (!JSObject::getProto(cx, obj, &proto))
+    if (!JSObject::getProto(cx, thisObj, &proto))
         return false;
     args.rval().setObjectOrNull(proto);
     return true;
@@ -813,23 +826,16 @@ js::obj_create(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-// ES6 draft rev27 (2014/08/24) 19.1.2.6 Object.getOwnPropertyDescriptor(O, P)
 bool
 js::obj_getOwnPropertyDescriptor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Steps 1-2.
-    RootedObject obj(cx, ToObject(cx, args.get(0)));
-    if (!obj)
+    RootedObject obj(cx);
+    if (!GetFirstArgumentAsObject(cx, args, "Object.getOwnPropertyDescriptor", &obj))
         return false;
-
-    // Steps 3-4.
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(1), &id))
         return false;
-
-    // Steps 5-7.
     return GetOwnPropertyDescriptor(cx, obj, id, args.rval());
 }
 
@@ -884,7 +890,7 @@ GetOwnPropertyKeys(JSContext *cx, const JS::CallArgs &args, unsigned flags)
 
     // Steps 3-10.
     AutoIdVector keys(cx);
-    if (!GetPropertyKeys(cx, obj, flags, &keys))
+    if (!GetPropertyNames(cx, obj, flags, &keys))
         return false;
 
     // Step 11.

@@ -739,7 +739,7 @@ namespace {
 struct RoleComparator
 {
   const nsDependentSubstring& mRole;
-  explicit RoleComparator(const nsDependentSubstring& aRole) : mRole(aRole) {}
+  RoleComparator(const nsDependentSubstring& aRole) : mRole(aRole) {}
   int operator()(const nsRoleMapEntry& aEntry) const {
     return Compare(mRole, aEntry.ARIARoleString());
   }

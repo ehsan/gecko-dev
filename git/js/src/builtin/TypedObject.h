@@ -631,7 +631,6 @@ class TypedObject : public JSObject
     int32_t offset() const;
     int32_t length() const;
     uint8_t *typedMem() const;
-    uint8_t *typedMemBase() const;
     bool isAttached() const;
     bool maybeForwardedIsAttached() const;
 
@@ -684,13 +683,6 @@ typedef Handle<TypedObject*> HandleTypedObject;
 class OutlineTypedObject : public TypedObject
 {
   public:
-    // The array buffer or inline array owning the memory for this object.
-    static const size_t OWNER_SLOT = 0;
-
-    // For unsized arrays, the length of the array.
-    static const size_t LENGTH_SLOT = 1;
-
-    // Slot holding the data pointer.
     static const size_t DATA_SLOT = 3;
 
     static size_t offsetOfOwnerSlot();
@@ -703,21 +695,23 @@ class OutlineTypedObject : public TypedObject
     // by the JIT.
     static size_t offsetOfDataSlot();
 
+    // Offset of the byte offset slot.
+    static size_t offsetOfByteOffsetSlot();
+
     JSObject &owner() const {
-        return fakeNativeGetReservedSlot(OWNER_SLOT).toObject();
+        return fakeNativeGetReservedSlot(JS_BUFVIEW_SLOT_OWNER).toObject();
     }
 
     JSObject *maybeOwner() const {
-        return fakeNativeGetReservedSlot(OWNER_SLOT).toObjectOrNull();
+        return fakeNativeGetReservedSlot(JS_BUFVIEW_SLOT_OWNER).toObjectOrNull();
     }
 
     uint8_t *outOfLineTypedMem() const {
         return static_cast<uint8_t *>(fakeNativeGetPrivate(DATA_SLOT));
     }
 
-    int32_t unsizedLength() const {
-        MOZ_ASSERT(typeDescr().is<UnsizedArrayTypeDescr>());
-        return fakeNativeGetReservedSlot(LENGTH_SLOT).toInt32();
+    int32_t length() const {
+        return fakeNativeGetReservedSlot(JS_BUFVIEW_SLOT_LENGTH).toInt32();
     }
 
     // Helper for createUnattached()

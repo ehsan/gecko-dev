@@ -11,11 +11,13 @@
 
 #include "jscompartment.h"
 #include "jsfun.h"
+#include "jsobj.h"
 #include "jsutil.h"
 
 #include "gc/Marking.h"
 #include "js/Vector.h"
 #include "vm/GlobalObject.h"
+#include "vm/ObjectImpl.h"
 #include "vm/String.h"
 #include "vm/StringBuffer.h"
 #include "vm/TypedArrayObject.h"
@@ -23,7 +25,7 @@
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
 
 using mozilla::AssertedCast;
@@ -862,7 +864,7 @@ StructMetaTypeDescr::create(JSContext *cx,
 {
     // Obtain names of fields, which are the own properties of `fields`
     AutoIdVector ids(cx);
-    if (!GetPropertyKeys(cx, fields, JSITER_OWNONLY | JSITER_SYMBOLS, &ids))
+    if (!GetPropertyNames(cx, fields, JSITER_OWNONLY | JSITER_SYMBOLS, &ids))
         return nullptr;
 
     // Iterate through each field. Collect values for the various
@@ -1462,15 +1464,18 @@ TypedObject::offset() const
 {
     if (is<InlineOpaqueTypedObject>())
         return 0;
-    return typedMem() - typedMemBase();
+    return fakeNativeGetReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET).toInt32();
 }
 
 int32_t
 TypedObject::length() const
 {
-    if (typeDescr().is<SizedArrayTypeDescr>())
+    MOZ_ASSERT(typeDescr().kind() == type::SizedArray ||
+               typeDescr().kind() == type::UnsizedArray);
+
+    if (is<InlineOpaqueTypedObject>())
         return typeDescr().as<SizedArrayTypeDescr>().length();
-    return as<OutlineTypedObject>().unsizedLength();
+    return as<OutlineTypedObject>().length();
 }
 
 uint8_t *
@@ -1481,18 +1486,6 @@ TypedObject::typedMem() const
     if (is<InlineOpaqueTypedObject>())
         return as<InlineOpaqueTypedObject>().inlineTypedMem();
     return as<OutlineTypedObject>().outOfLineTypedMem();
-}
-
-uint8_t *
-TypedObject::typedMemBase() const
-{
-    MOZ_ASSERT(isAttached());
-    MOZ_ASSERT(is<OutlineTypedObject>());
-
-    JSObject &owner = as<OutlineTypedObject>().owner();
-    if (owner.is<ArrayBufferObject>())
-        return owner.as<ArrayBufferObject>().dataPointer();
-    return owner.as<InlineOpaqueTypedObject>().inlineTypedMem();
 }
 
 bool
@@ -1588,9 +1581,9 @@ OutlineTypedObject::createUnattachedWithClass(JSContext *cx,
         return nullptr;
 
     obj->fakeNativeInitPrivate(nullptr);
-    if (type->kind() == type::UnsizedArray)
-        obj->fakeNativeInitReservedSlot(LENGTH_SLOT, Int32Value(length));
-    obj->fakeNativeInitReservedSlot(OWNER_SLOT, NullValue());
+    obj->fakeNativeInitReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(0));
+    obj->fakeNativeInitReservedSlot(JS_BUFVIEW_SLOT_LENGTH, Int32Value(length));
+    obj->fakeNativeInitReservedSlot(JS_BUFVIEW_SLOT_OWNER, NullValue());
 
     return &obj->as<OutlineTypedObject>();
 }
@@ -1605,7 +1598,8 @@ OutlineTypedObject::attach(JSContext *cx, ArrayBufferObject &buffer, int32_t off
         CrashAtUnhandlableOOM("TypedObject::attach");
 
     fakeNativeInitPrivate(buffer.dataPointer() + offset);
-    fakeNativeSetReservedSlot(OWNER_SLOT, ObjectValue(buffer));
+    fakeNativeSetReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(offset));
+    fakeNativeSetReservedSlot(JS_BUFVIEW_SLOT_OWNER, ObjectValue(buffer));
 }
 
 void
@@ -1626,7 +1620,8 @@ OutlineTypedObject::attach(JSContext *cx, TypedObject &typedObj, int32_t offset)
         fakeNativeInitPrivate(owner->as<InlineOpaqueTypedObject>().inlineTypedMem() + offset);
         PostBarrierTypedArrayObject(this);
 
-        fakeNativeSetReservedSlot(OWNER_SLOT, ObjectValue(*owner));
+        fakeNativeSetReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(offset));
+        fakeNativeSetReservedSlot(JS_BUFVIEW_SLOT_OWNER, ObjectValue(*owner));
     }
 }
 
@@ -1766,7 +1761,7 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
 
     // Mark the owner, watching in case it is moved by the tracer.
     JSObject *oldOwner = typedObj.maybeOwner();
-    gc::MarkSlot(trc, &typedObj.fakeNativeGetSlotRef(OWNER_SLOT), "typed object owner");
+    gc::MarkSlot(trc, &typedObj.fakeNativeGetSlotRef(JS_BUFVIEW_SLOT_OWNER), "typed object owner");
     JSObject *owner = typedObj.maybeOwner();
 
     uint8_t *mem = typedObj.outOfLineTypedMem();
@@ -1796,7 +1791,7 @@ OutlineTypedObject::obj_trace(JSTracer *trc, JSObject *object)
       case type::UnsizedArray:
       {
         SizedTypeDescr &elemType = descr.as<UnsizedArrayTypeDescr>().maybeForwardedElementType();
-        elemType.traceInstances(trc, mem, typedObj.unsizedLength());
+        elemType.traceInstances(trc, mem, typedObj.length());
         break;
       }
     }
@@ -2327,7 +2322,7 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
 /* static */ size_t
 OutlineTypedObject::offsetOfOwnerSlot()
 {
-    return NativeObject::getFixedSlotOffset(OWNER_SLOT);
+    return NativeObject::getFixedSlotOffset(JS_BUFVIEW_SLOT_OWNER);
 }
 
 /* static */ size_t
@@ -2345,11 +2340,17 @@ OutlineTypedObject::offsetOfDataSlot()
     return NativeObject::getPrivateDataOffset(DATA_SLOT);
 }
 
+/* static */ size_t
+OutlineTypedObject::offsetOfByteOffsetSlot()
+{
+    return NativeObject::getFixedSlotOffset(JS_BUFVIEW_SLOT_BYTEOFFSET);
+}
+
 void
 OutlineTypedObject::neuter(void *newData)
 {
-    if (typeDescr().kind() == type::UnsizedArray)
-        fakeNativeSetSlot(LENGTH_SLOT, Int32Value(0));
+    fakeNativeSetSlot(JS_BUFVIEW_SLOT_LENGTH, Int32Value(0));
+    fakeNativeSetSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(0));
     fakeNativeSetPrivate(newData);
 }
 
@@ -2834,8 +2835,10 @@ js::SetTypedObjectOffset(ThreadSafeContext *, unsigned argc, Value *vp)
     int32_t offset = args[1].toInt32();
 
     MOZ_ASSERT(typedObj.isAttached());
+    int32_t oldOffset = typedObj.offset();
 
-    typedObj.fakeNativeSetPrivate(typedObj.typedMemBase() + offset);
+    typedObj.fakeNativeSetPrivate((typedObj.typedMem() - oldOffset) + offset);
+    typedObj.fakeNativeSetReservedSlot(JS_BUFVIEW_SLOT_BYTEOFFSET, Int32Value(offset));
     args.rval().setUndefined();
     return true;
 }

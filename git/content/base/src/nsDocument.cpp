@@ -18,6 +18,10 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 
+#ifdef MOZ_LOGGING
+// so we can get logging even in release builds
+#define FORCE_PR_LOG 1
+#endif
 #include "prlog.h"
 #include "plstr.h"
 #include "prprf.h"
@@ -551,7 +555,7 @@ namespace {
 struct PositionComparator
 {
   Element* const mElement;
-  explicit PositionComparator(Element* const aElement) : mElement(aElement) {}
+  PositionComparator(Element* const aElement) : mElement(aElement) {}
 
   int operator()(void* aElement) const {
     Element* curElement = static_cast<Element*>(aElement);

@@ -42,7 +42,7 @@ if CONFIG['MOZ_WEBRTC']:
         'nsDOMDataChannel.h',
         'nsDOMDataChannelDeclarations.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsDOMDataChannel.cpp',
     ]
     LOCAL_INCLUDES += [
@@ -99,12 +99,10 @@ UNIFIED_SOURCES += [
     'DOMStringList.cpp',
     'Element.cpp',
     'EventSource.cpp',
-    'File.cpp',
     'FileIOObject.cpp',
     'FragmentOrElement.cpp',
     'ImportManager.cpp',
     'Link.cpp',
-    'MultipartFileImpl.cpp',
     'NodeIterator.cpp',
     'nsAtomListUtils.cpp',
     'nsAttrAndChildArray.cpp',
@@ -124,10 +122,11 @@ UNIFIED_SOURCES += [
     'nsCSPService.cpp',
     'nsCSPUtils.cpp',
     'nsDataDocumentContentPolicy.cpp',
-    'nsDocument.cpp',
     'nsDocumentEncoder.cpp',
     'nsDOMAttributeMap.cpp',
+    'nsDOMBlobBuilder.cpp',
     'nsDOMCaretPosition.cpp',
+    'nsDOMFile.cpp',
     'nsDOMFileReader.cpp',
     'nsDOMMutationObserver.cpp',
     'nsDOMSerializer.cpp',
@@ -151,7 +150,6 @@ UNIFIED_SOURCES += [
     'nsMixedContentBlocker.cpp',
     'nsNameSpaceManager.cpp',
     'nsNoDataProtocolContentPolicy.cpp',
-    'nsNodeInfoManager.cpp',
     'nsNodeUtils.cpp',
     'nsPlainTextSerializer.cpp',
     'nsPropertyTable.cpp',
@@ -184,6 +182,12 @@ UNIFIED_SOURCES += [
 
 SOURCES += [
     'nsImageLoadingContent.cpp',
+]
+
+# These files cannot be built in unified mode because they use FORCE_PR_LOG
+SOURCES += [
+    'nsDocument.cpp',
+    'nsNodeInfoManager.cpp',
 ]
 
 # These files cannot be built in unified mode because of OS X headers.
