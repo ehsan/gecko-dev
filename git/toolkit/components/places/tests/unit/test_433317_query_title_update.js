@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,14 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the stylesheet for the pluginfinder XBL binding.
+ * The Original Code is Bug 433317 code.
  *
- * The Initial Developer of the Original Code is
- * Christian Biesinger <cbiesinger@web.de>.
- * Portions created by the Initial Developer are Copyright (C) 2005
+ * The Initial Developer of the Original Code is Mozilla Corp.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Dietrich Ayala <dietrich@mozilla.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,19 +36,33 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-@namespace url(http://www.w3.org/1999/xhtml); /* set default namespace to HTML */
+function run_test() {
+  try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
+  } catch(ex) {
+    do_throw("Unable to initialize Places services");
+  }
 
-embed:-moz-type-unsupported, applet:-moz-type-unsupported,
-object:-moz-has-handlerref:-moz-type-unsupported {
-  -moz-binding: url('chrome://mozapps/content/plugins/missingPlugin.xml#missingPlugin') !important;
-}
+  // create a query bookmark
+  var queryId = bmsvc.insertBookmark(bmsvc.toolbarFolder, uri("place:"),
+                                     0 /* first item */, "test query");
 
-embed:-moz-handler-disabled, applet:-moz-handler-disabled,
-object:-moz-has-handlerref:-moz-handler-disabled {
-  -moz-binding: url('chrome://mozapps/content/plugins/missingPlugin.xml#disabledPlugin') !important;
-}
+  // query for that query
+  var options = histsvc.getNewQueryOptions();
+  var query = histsvc.getNewQuery();
+  query.setFolders([bmsvc.toolbarFolder], 1);
+  var result = histsvc.executeQuery(query, options);
+  var root = result.root;
+  root.containerOpen = true;
+  var queryNode = root.getChild(0);
+  do_check_eq(queryNode.title, "test query");
 
-embed:-moz-handler-blocked, applet:-moz-handler-blocked,
-object:-moz-has-handlerref:-moz-handler-blocked {
-  -moz-binding: url('chrome://mozapps/content/plugins/missingPlugin.xml#blockedPlugin') !important;
+  // change the title
+  bmsvc.setItemTitle(queryId, "foo");
+
+  // confirm the node was updated
+  do_check_eq(queryNode.title, "foo");
 }
