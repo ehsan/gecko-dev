@@ -121,7 +121,6 @@ this.EXPORTED_SYMBOLS = ["PlacesTransactions"];
  */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
@@ -132,18 +131,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console",
                                   "resource://gre/modules/devtools/Console.jsm");
-
-// Updates commands in the undo group of the active window commands.
-// Inactive windows commands will be updated on focus.
-function updateCommandsOnActiveWindow() {
-  // Updating "undo" will cause a group update including "redo".
-  try {
-    let win = Services.focus.activeWindow;
-    if (win)
-      win.updateCommands("undo");
-  }
-  catch(ex) { console.error(ex, "Couldn't update undo commands"); }
-}
 
 // The internal object for managing the transactions history.
 // The public API is included in PlacesTransactions.
@@ -186,7 +173,6 @@ TransactionsHistory.__proto__ = {
       }
     }
     this._undoPosition++;
-    updateCommandsOnActiveWindow();
   },
 
   /**
@@ -215,7 +201,6 @@ TransactionsHistory.__proto__ = {
       }
     }
     this._undoPosition--;
-    updateCommandsOnActiveWindow();
   },
 
   /**
@@ -237,7 +222,6 @@ TransactionsHistory.__proto__ = {
     else {
       this[this.undoPosition].unshift(aTransaction);
     }
-    updateCommandsOnActiveWindow();
   },
 
   /**
@@ -427,7 +411,7 @@ let PlacesTransactions = {
    * @note the returned array is a clone of the history entry and is not
    * kept in sync with the original entry if it changes.
    */
-  entry: function (aIndex) {
+  item: function (aIndex) {
     if (!Number.isInteger(aIndex) || aIndex < 0 || aIndex >= this.length)
       throw new Error("Invalid index");
 
@@ -441,16 +425,6 @@ let PlacesTransactions = {
    * Entries at and past this point are redo entries.
    */
   get undoPosition() TransactionsHistory.undoPosition,
-
-  /**
-   * Shortcut for accessing the top undo entry in the transaction history.
-   */
-  get topUndoEntry() TransactionsHistory.topUndoEntry,
-
-  /**
-   * Shortcut for accessing the top redo entry in the transaction history.
-   */
-  get topRedoEntry() TransactionsHistory.topRedoEntry
 };
 
 /**

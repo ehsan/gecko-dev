@@ -124,38 +124,11 @@ PlacesController.prototype = {
   },
 
   isCommandEnabled: function PC_isCommandEnabled(aCommand) {
-    if (PlacesUIUtils.useAsyncTransactions) {
-      switch (aCommand) {
-      case "cmd_cut":
-      case "placesCmd_cut":
-      case "cmd_copy":
-      case "cmd_paste":
-      case "cmd_delete":
-      case "placesCmd_delete":
-      case "placesCmd_moveBookmarks":
-      case "cmd_paste":
-      case "placesCmd_paste":
-      case "placesCmd_new:folder":
-      case "placesCmd_new:livemark":
-      case "placesCmd_new:bookmark":
-      case "placesCmd_new:separator":
-      case "placesCmd_sortBy:name":
-      case "placesCmd_createBookmark":
-        return false;
-      }
-    }
-
     switch (aCommand) {
     case "cmd_undo":
-      if (!PlacesUIUtils.useAsyncTransactions)
-        return PlacesUtils.transactionManager.numberOfUndoItems > 0;
-
-      return PlacesTransactions.topUndoEntry != null;
+      return PlacesUtils.transactionManager.numberOfUndoItems > 0;
     case "cmd_redo":
-      if (!PlacesUIUtils.useAsyncTransactions)
-        return PlacesUtils.transactionManager.numberOfRedoItems > 0;
-
-      return PlacesTransactions.topRedoEntry != null;
+      return PlacesUtils.transactionManager.numberOfRedoItems > 0;
     case "cmd_cut":
     case "placesCmd_cut":
       var nodes = this._view.selectedNodes;
