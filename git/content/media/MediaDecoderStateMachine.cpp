@@ -1154,9 +1154,9 @@ void MediaDecoderStateMachine::StartPlayback()
   SetPlayStartTime(TimeStamp::Now());
 
   NS_ASSERTION(IsPlaying(), "Should report playing by end of StartPlayback()");
-  nsresult rv = StartAudioThread();
-  NS_ENSURE_SUCCESS_VOID(rv);
-
+  if (NS_FAILED(StartAudioThread())) {
+    DECODER_WARN("Failed to create audio thread");
+  }
   mDecoder->GetReentrantMonitor().NotifyAll();
   mDecoder->UpdateStreamBlockingForStateMachinePlaying();
   DispatchDecodeTasksIfNeeded();
@@ -1212,10 +1212,8 @@ void MediaDecoderStateMachine::ClearPositionChangeFlag()
 MediaDecoderOwner::NextFrameStatus MediaDecoderStateMachine::GetNextFrameStatus()
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (IsBuffering()) {
+  if (IsBuffering() || IsSeeking()) {
     return MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING;
-  } else if (IsSeeking()) {
-    return MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_SEEKING;
   } else if (HaveNextFrameData()) {
     return MediaDecoderOwner::NEXT_FRAME_AVAILABLE;
   }
@@ -1791,12 +1789,15 @@ MediaDecoderStateMachine::StartAudioThread()
   mStopAudioThread = false;
   if (HasAudio() && !mAudioSink) {
     mAudioCompleted = false;
-    mAudioSink = new AudioSink(this, mAudioStartTime,
-                               mInfo.mAudio, mDecoder->GetAudioChannel());
-    // OnAudioSinkError() will be called before Init() returns if an error
-    // occurs during initialization.
+    mAudioSink = new AudioSink(this,
+                               mAudioStartTime, mInfo.mAudio, mDecoder->GetAudioChannel());
     nsresult rv = mAudioSink->Init();
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      DECODER_WARN("Changed state to SHUTDOWN because audio sink initialization failed");
+      SetState(DECODER_STATE_SHUTDOWN);
+      mScheduler->ScheduleAndShutdown();
+      return rv;
+    }
 
     mAudioSink->SetVolume(mVolume);
     mAudioSink->SetPlaybackRate(mPlaybackRate);
@@ -2885,10 +2886,6 @@ void MediaDecoderStateMachine::UpdateReadyState() {
   AssertCurrentThreadInMonitor();
 
   MediaDecoderOwner::NextFrameStatus nextFrameStatus = GetNextFrameStatus();
-  // FIXME: This optimization could result in inconsistent next frame status
-  // between the decoder and state machine when GetNextFrameStatus() is called
-  // by the decoder without updating mLastFrameStatus.
-  // Note not to regress bug 882027 when fixing this bug.
   if (nextFrameStatus == mLastFrameStatus) {
     return;
   }
@@ -3119,25 +3116,6 @@ void MediaDecoderStateMachine::OnAudioSinkComplete()
   UpdateReadyState();
   // Kick the decode thread; it may be sleeping waiting for this to finish.
   mDecoder->GetReentrantMonitor().NotifyAll();
-}
-
-void MediaDecoderStateMachine::OnAudioSinkError()
-{
-  AssertCurrentThreadInMonitor();
-  // AudioSink not used with captured streams, so ignore errors in this case.
-  if (mAudioCaptured) {
-    return;
-  }
-
-  mAudioCompleted = true;
-
-  // Notify media decoder/element about this error.
-  RefPtr<nsIRunnable> task(
-    NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnDecodeError));
-  nsresult rv = mDecodeTaskQueue->Dispatch(task);
-  if (NS_FAILED(rv)) {
-    DECODER_WARN("Failed to dispatch OnDecodeError");
-  }
 }
 
 } // namespace mozilla

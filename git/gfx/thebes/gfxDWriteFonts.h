@@ -30,6 +30,8 @@ public:
 
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption);
 
+    virtual const gfxFont::Metrics& GetMetrics();
+
     virtual uint32_t GetSpaceGlyph();
 
     virtual bool SetupCairoFont(gfxContext *aContext);
@@ -69,8 +71,6 @@ public:
     virtual cairo_scaled_font_t *GetCairoScaledFont();
 
 protected:
-    virtual const Metrics& GetHorizontalMetrics();
-
     bool GetFakeMetricsForArialBlack(DWRITE_FONT_METRICS *aFontMetrics);
 
     void ComputeMetrics(AntialiasOption anAAOption);
@@ -87,7 +87,7 @@ protected:
     nsRefPtr<IDWriteFontFace> mFontFace;
     cairo_font_face_t *mCairoFontFace;
 
-    Metrics *mMetrics;
+    gfxFont::Metrics          *mMetrics;
 
     // cache of glyph widths in 16.16 fixed-point pixels
     nsAutoPtr<nsDataHashtable<nsUint32HashKey,int32_t> > mGlyphWidths;

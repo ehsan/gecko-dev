@@ -301,9 +301,13 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     sourceMapURL_(nullptr),
     tokenbuf(cx),
     cx(cx),
-    mutedErrors(options.mutedErrors()),
+    originPrincipals(options.originPrincipals(cx)),
     strictModeGetter(smg)
 {
+    // The caller must ensure that a reference is held on the supplied principals
+    // throughout compilation.
+    JS_ASSERT_IF(originPrincipals, originPrincipals->refcount > 0);
+
     // Column numbers are computed as offsets from the current line's base, so the
     // initial line's base must be included in the buffer. linebase and userbuf
     // were adjusted above, and if we are starting tokenization part way through
@@ -350,6 +354,7 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
 
 TokenStream::~TokenStream()
 {
+    JS_ASSERT_IF(originPrincipals, originPrincipals->refcount);
 }
 
 // Use the fastest available getc.
@@ -637,7 +642,7 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
     err.report.flags = flags;
     err.report.errorNumber = errorNumber;
     err.report.filename = filename;
-    err.report.isMuted = mutedErrors;
+    err.report.originPrincipals = originPrincipals;
     if (offset == NoOffset) {
         err.report.lineno = 0;
         err.report.column = 0;

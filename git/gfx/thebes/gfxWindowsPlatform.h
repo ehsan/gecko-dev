@@ -186,7 +186,7 @@ public:
 
     nsresult UpdateFontList();
 
-    virtual void GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
+    virtual void GetCommonFallbackFonts(const uint32_t aCh,
                                         int32_t aRunScript,
                                         nsTArray<const char*>& aFontList);
 

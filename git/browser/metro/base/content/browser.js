@@ -1451,7 +1451,7 @@ Tab.prototype = {
 
     browser.setAttribute("type", "content-targetable");
 
-    let useRemote = Services.appinfo.browserTabsRemoteAutostart;
+    let useRemote = Services.appinfo.browserTabsRemote;
     let useLocal = Util.isLocalScheme(aURI);
     browser.setAttribute("remote", (!useLocal && useRemote) ? "true" : "false");
 

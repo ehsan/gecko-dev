@@ -22,9 +22,6 @@ struct nsRect;
 struct nsIntRect;
 
 namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
 namespace layers {
 class LayerManager;
 }
@@ -39,8 +36,6 @@ struct nsSize;
  */
 class nsSVGIntegrationUtils MOZ_FINAL
 {
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-
 public:
   /**
    * Returns true if SVG effects are currently applied to this frame.
@@ -171,7 +166,6 @@ public:
                           nsIFrame*         aTarget,
                           const nsSize&     aPaintServerSize,
                           const gfxIntSize& aRenderSize,
-                          const DrawTarget* aDrawTarget,
                           const gfxMatrix&  aContextMatrix,
                           uint32_t          aFlags);
 };

@@ -469,16 +469,12 @@ private:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const uint32_t& aContentDispositionHint,
-            const nsString& aContentDispositionFilename,
+            const nsString& aContentDispositionFilename, 
             const bool& aForceSave,
             const int64_t& aContentLength,
             const OptionalURIParams& aReferrer,
             PBrowserParent* aBrowser) MOZ_OVERRIDE;
     virtual bool DeallocPExternalHelperAppParent(PExternalHelperAppParent* aService) MOZ_OVERRIDE;
-
-    virtual PCellBroadcastParent* AllocPCellBroadcastParent() MOZ_OVERRIDE;
-    virtual bool DeallocPCellBroadcastParent(PCellBroadcastParent*) MOZ_OVERRIDE;
-    virtual bool RecvPCellBroadcastConstructor(PCellBroadcastParent* aActor) MOZ_OVERRIDE;
 
     virtual PSmsParent* AllocPSmsParent() MOZ_OVERRIDE;
     virtual bool DeallocPSmsParent(PSmsParent*) MOZ_OVERRIDE;
@@ -665,11 +661,6 @@ private:
                           int32_t* aDBRefCnt,
                           int32_t* aSliceRefCnt,
                           bool* aResult) MOZ_OVERRIDE;
-
-    virtual PDocAccessibleParent* AllocPDocAccessibleParent(PDocAccessibleParent*, const uint64_t&) MOZ_OVERRIDE;
-    virtual bool DeallocPDocAccessibleParent(PDocAccessibleParent*) MOZ_OVERRIDE;
-    virtual bool RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc,
-                                               PDocAccessibleParent* aParentDoc, const uint64_t& aParentID) MOZ_OVERRIDE;
 
     // If you add strong pointers to cycle collected objects here, be sure to
     // release these objects in ShutDownProcess.  See the comment there for more

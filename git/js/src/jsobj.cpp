@@ -1267,7 +1267,10 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
     assertSameCompartment(cx, obj);
     JS_ASSERT(it == SEAL || it == FREEZE);
 
-    if (!JSObject::preventExtensions(cx, obj))
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    if (extensible && !JSObject::preventExtensions(cx, obj))
         return false;
 
     AutoIdVector props(cx);

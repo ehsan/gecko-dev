@@ -725,29 +725,18 @@ static const char kFontUtsaah[] = "Utsaah";
 static const char kFontYuGothic[] = "Yu Gothic";
 
 void
-gfxWindowsPlatform::GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
+gfxWindowsPlatform::GetCommonFallbackFonts(const uint32_t aCh,
                                            int32_t aRunScript,
                                            nsTArray<const char*>& aFontList)
 {
-    if (aNextCh == 0xfe0fu) {
-        aFontList.AppendElement(kFontSegoeUIEmoji);
-    }
-
     // Arial is used as the default fallback for system fallback
     aFontList.AppendElement(kFontArial);
 
     if (!IS_IN_BMP(aCh)) {
         uint32_t p = aCh >> 16;
         if (p == 1) { // SMP plane
-            if (aNextCh == 0xfe0eu) {
-                aFontList.AppendElement(kFontSegoeUISymbol);
-                aFontList.AppendElement(kFontSegoeUIEmoji);
-            } else {
-                if (aNextCh != 0xfe0fu) {
-                    aFontList.AppendElement(kFontSegoeUIEmoji);
-                }
-                aFontList.AppendElement(kFontSegoeUISymbol);
-            }
+            aFontList.AppendElement(kFontSegoeUIEmoji);
+            aFontList.AppendElement(kFontSegoeUISymbol);
             aFontList.AppendElement(kFontEbrima);
             aFontList.AppendElement(kFontNirmalaUI);
             aFontList.AppendElement(kFontCambriaMath);
@@ -825,6 +814,7 @@ gfxWindowsPlatform::GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
         case 0x2b:
         case 0x2c:
             aFontList.AppendElement(kFontSegoeUI);
+            aFontList.AppendElement(kFontSegoeUIEmoji);
             aFontList.AppendElement(kFontSegoeUISymbol);
             aFontList.AppendElement(kFontCambria);
             aFontList.AppendElement(kFontMeiryo);

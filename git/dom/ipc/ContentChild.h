@@ -225,10 +225,6 @@ public:
             PBrowserChild* aBrowser) MOZ_OVERRIDE;
     virtual bool DeallocPExternalHelperAppChild(PExternalHelperAppChild *aService) MOZ_OVERRIDE;
 
-    virtual PCellBroadcastChild* AllocPCellBroadcastChild() MOZ_OVERRIDE;
-    PCellBroadcastChild* SendPCellBroadcastConstructor(PCellBroadcastChild* aActor);
-    virtual bool DeallocPCellBroadcastChild(PCellBroadcastChild* aActor) MOZ_OVERRIDE;
-
     virtual PSmsChild* AllocPSmsChild() MOZ_OVERRIDE;
     virtual bool DeallocPSmsChild(PSmsChild*) MOZ_OVERRIDE;
 
@@ -380,8 +376,6 @@ public:
                                          const uint64_t& aID,
                                          const bool& aIsForApp,
                                          const bool& aIsForBrowser) MOZ_OVERRIDE;
-    virtual PDocAccessibleChild* AllocPDocAccessibleChild(PDocAccessibleChild*, const uint64_t&) MOZ_OVERRIDE;
-    virtual bool DeallocPDocAccessibleChild(PDocAccessibleChild*) MOZ_OVERRIDE;
 
 private:
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

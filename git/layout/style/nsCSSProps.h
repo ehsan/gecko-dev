@@ -535,7 +535,6 @@ public:
   static const KTableValue kBoxDirectionKTable[];
   static const KTableValue kBoxOrientKTable[];
   static const KTableValue kBoxPackKTable[];
-  static const KTableValue kClipShapeSizingKTable[];
   static const KTableValue kDominantBaselineKTable[];
   static const KTableValue kFillRuleKTable[];
   static const KTableValue kFilterFunctionKTable[];
@@ -658,7 +657,6 @@ public:
   static const KTableValue kWritingModeKTable[];
   static const KTableValue kHyphensKTable[];
   static const KTableValue kCounterSystemKTable[];
-  static const KTableValue kCounterSymbolsSystemKTable[];
   static const KTableValue kCounterRangeKTable[];
   static const KTableValue kCounterSpeakAsKTable[];
 };

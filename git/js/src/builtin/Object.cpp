@@ -1044,6 +1044,12 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
 
     args.rval().setObject(*obj);
 
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    if (!extensible)
+        return true;
+
     return JSObject::preventExtensions(cx, obj);
 }
 
