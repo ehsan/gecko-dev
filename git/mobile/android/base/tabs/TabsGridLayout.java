@@ -54,8 +54,9 @@ class TabsGridLayout extends GridView
         setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {
-                TabsLayoutItemView item = (TabsLayoutItemView) view;
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
                 item.thumbnail.setImageDrawable(null);
+                item.close.setVisibility(View.VISIBLE);
             }
         });
     }
@@ -80,29 +81,34 @@ class TabsGridLayout extends GridView
             mSelectClickListener = new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    TabsLayoutItemView tab = (TabsLayoutItemView) v;
+                    TabsLayoutItemView tab = (TabsLayoutItemView) v.getTag();
                     Tabs.getInstance().selectTab(tab.id);
-                    autoHidePanel();
+                    TabsGridLayout.this.autoHidePanel();
                 }
             };
         }
 
         @Override
-        View newView(int position, ViewGroup parent) {
-            final TabsLayoutItemView item = (TabsLayoutItemView) super.newView(position, parent);
-            item.setOnClickListener(mSelectClickListener);
-            item.setCloseOnClickListener(mCloseClickListener);
-            return item;
+        public View newView(int position, ViewGroup parent) {
+            View view = super.newView(position, parent);
+
+            // This is nasty and once we change TabsLayoutItemView to an actual view
+            // we can get rid of it.
+            TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+            item.close.setOnClickListener(mCloseClickListener);
+
+            return view;
         }
 
         @Override
         public void bindView(View view, Tab tab) {
             super.bindView(view, tab);
-            ((TabsLayoutItemView) view).close.setVisibility(View.VISIBLE);
+
+            view.setOnClickListener(mSelectClickListener);
 
             // If we're recycling this view, there's a chance it was transformed during
             // the close animation. Remove any of those properties.
-            resetTransforms(view);
+            TabsGridLayout.this.resetTransforms(view);
         }
     }
 
@@ -165,7 +171,8 @@ class TabsGridLayout extends GridView
                 if (view == null)
                     return;
 
-                ((TabsLayoutItemView) view).assignValues(tab);
+                TabsLayoutItemView item = (TabsLayoutItemView) view.getTag();
+                item.assignValues(tab);
                 break;
         }
     }
