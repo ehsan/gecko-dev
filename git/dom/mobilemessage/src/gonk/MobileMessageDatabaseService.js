@@ -780,11 +780,6 @@ MobileMessageDatabaseService.prototype = {
           if (DEBUG) {
             debug("MMS: part[" + i + "]: " + JSON.stringify(part));
           }
-          // Sometimes the part is incomplete because the device reboots when
-          // downloading MMS. Don't need to expose this part to the content.
-          if (!part) {
-            continue;
-          }
 
           let partHeaders = part["headers"];
           let partContent = part["content"];
@@ -832,24 +827,9 @@ MobileMessageDatabaseService.prototype = {
 
     // Normalize address before searching for participant record.
     let normalizedAddress = PhoneNumberUtils.normalize(aAddress, false);
-    let allPossibleAddresses = [normalizedAddress];
-    let parsedAddress = PhoneNumberUtils.parse(normalizedAddress);
-    if (parsedAddress &&
-        allPossibleAddresses.indexOf(parsedAddress.internationalNumber) < 0) {
-      // We only stores international numbers into participant store because
-      // the parsed national number doesn't contain country info and may
-      // duplicate in different country.
-      allPossibleAddresses.push(parsedAddress.internationalNumber);
-    }
-    if (DEBUG) {
-      debug("findParticipantRecordByAddress: allPossibleAddresses = " +
-            JSON.stringify(allPossibleAddresses));
-    }
 
-    // Make a copy here because we may need allPossibleAddresses again.
-    let needles = allPossibleAddresses.slice(0);
-    let request = aParticipantStore.index("addresses").get(needles.pop());
-    request.onsuccess = (function onsuccess(event) {
+    let request = aParticipantStore.index("addresses").get(normalizedAddress);
+    request.onsuccess = (function (event) {
       let participantRecord = event.target.result;
       // 1) First try matching through "addresses" index of participant store.
       //    If we're lucky, return the fetched participant record.
@@ -862,13 +842,8 @@ MobileMessageDatabaseService.prototype = {
         return;
       }
 
-      // Try next possible address again.
-      if (needles.length) {
-        let request = aParticipantStore.index("addresses").get(needles.pop());
-        request.onsuccess = onsuccess.bind(this);
-        return;
-      }
-
+      // Only parse normalizedAddress if it's already an international number.
+      let parsedAddress = PhoneNumberUtils.parseWithMCC(normalizedAddress, null);
       // 2) Traverse throught all participants and check all alias addresses.
       aParticipantStore.openCursor().onsuccess = (function (event) {
         let cursor = event.target.result;
@@ -893,7 +868,7 @@ MobileMessageDatabaseService.prototype = {
         }
 
         let participantRecord = cursor.value;
-        for (let storedAddress of participantRecord.addresses) {
+        for each (let storedAddress in participantRecord.addresses) {
           let match = false;
           if (parsedAddress) {
             // 2-1) If input number is an international one, then a potential
@@ -923,12 +898,11 @@ MobileMessageDatabaseService.prototype = {
           if (aCreate) {
             // In a READ-WRITE transaction, append one more possible address for
             // this participant record.
-            participantRecord.addresses =
-              participantRecord.addresses.concat(allPossibleAddresses);
+            participantRecord.addresses.push(normalizedAddress);
             cursor.update(participantRecord);
           }
           if (DEBUG) {
-            debug("findParticipantRecordByAddress: match "
+            debug("findParticipantRecordByAddress: got "
                   + JSON.stringify(cursor.value));
           }
           aCallback(participantRecord);
