@@ -81,8 +81,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 
- XPCOMUtils.defineLazyModuleGetter(this, "RemotePrompt",
-                                   "resource:///modules/RemotePrompt.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RemotePrompt",
+                                  "resource:///modules/RemotePrompt.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ContentPrefServiceParent",
+                                  "resource://gre/modules/ContentPrefServiceParent.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
                                   "resource:///modules/sessionstore/SessionStore.jsm");
@@ -103,6 +106,19 @@ XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
 
 XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
                                   "resource:///modules/ContentSearch.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "ShellService", function() {
+  try {
+    return Cc["@mozilla.org/browser/shell-service;1"].
+           getService(Ci.nsIShellService);
+  }
+  catch(ex) {
+    return null;
+  }
+});
+
+XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
+                                  "resource:///modules/FormValidationHandler.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -506,11 +522,11 @@ BrowserGlue.prototype = {
     SessionStore.init();
     BrowserUITelemetry.init();
     ContentSearch.init();
+    FormValidationHandler.init();
 
-    if (Services.appinfo.browserTabsRemote) {
-      ContentClick.init();
-      RemotePrompt.init();
-    }
+    ContentClick.init();
+    RemotePrompt.init();
+    ContentPrefServiceParent.init();
 
     LoginManagerParent.init();
 
@@ -712,6 +728,7 @@ BrowserGlue.prototype = {
     }
 #endif
     webrtcUI.uninit();
+    FormValidationHandler.uninit();
   },
 
   // All initial windows have opened.
@@ -748,16 +765,11 @@ BrowserGlue.prototype = {
     }
 
     // Perform default browser checking.
-    var shell;
-    try {
-      shell = Components.classes["@mozilla.org/browser/shell-service;1"]
-        .getService(Components.interfaces.nsIShellService);
-    } catch (e) { }
-    if (shell) {
+    if (ShellService) {
 #ifdef DEBUG
       let shouldCheck = false;
 #else
-      let shouldCheck = shell.shouldCheckDefaultBrowser;
+      let shouldCheck = ShellService.shouldCheckDefaultBrowser;
 #endif
       let willRecoverSession = false;
       try {
@@ -768,7 +780,8 @@ BrowserGlue.prototype = {
       }
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
 
-      let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
+      // startup check, check all assoc
+      let isDefault = ShellService.isDefaultBrowser(true, false);
       try {
         // Report default browser status on startup to telemetry
         // so we can track whether we are the default.
@@ -779,38 +792,7 @@ BrowserGlue.prototype = {
 
       if (shouldCheck && !isDefault && !willRecoverSession) {
         Services.tm.mainThread.dispatch(function() {
-          var win = this.getMostRecentBrowserWindow();
-          var brandBundle = win.document.getElementById("bundle_brand");
-          var shellBundle = win.document.getElementById("bundle_shell");
-
-          var brandShortName = brandBundle.getString("brandShortName");
-          var promptTitle = shellBundle.getString("setDefaultBrowserTitle");
-          var promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage",
-                                                             [brandShortName]);
-          var checkboxLabel = shellBundle.getFormattedString("setDefaultBrowserDontAsk",
-                                                             [brandShortName]);
-          var checkEveryTime = { value: shouldCheck };
-          var ps = Services.prompt;
-          var rv = ps.confirmEx(win, promptTitle, promptMessage,
-                                ps.STD_YES_NO_BUTTONS,
-                                null, null, null, checkboxLabel, checkEveryTime);
-          if (rv == 0) {
-            var claimAllTypes = true;
-#ifdef XP_WIN
-            try {
-              // In Windows 8, the UI for selecting default protocol is much
-              // nicer than the UI for setting file type associations. So we
-              // only show the protocol association screen on Windows 8.
-              // Windows 8 is version 6.2.
-              let version = Cc["@mozilla.org/system-info;1"]
-                              .getService(Ci.nsIPropertyBag2)
-                              .getProperty("version");
-              claimAllTypes = (parseFloat(version) < 6.2);
-            } catch (ex) { }
-#endif
-            shell.setDefaultBrowser(claimAllTypes, false);
-          }
-          shell.shouldCheckDefaultBrowser = checkEveryTime.value;
+          DefaultBrowserCheck.prompt(this.getMostRecentBrowserWindow());
         }.bind(this), Ci.nsIThread.DISPATCH_NORMAL);
       }
     }
@@ -865,8 +847,6 @@ BrowserGlue.prototype = {
     if (!aQuitType)
       aQuitType = "quit";
 
-    var mostRecentBrowserWindow;
-
     // browser.warnOnQuit is a hidden global boolean to override all quit prompts
     // browser.showQuitWarning specifically covers quitting
     // browser.tabs.warnOnClose is the global "warn when closing multiple tabs" pref
@@ -876,6 +856,8 @@ BrowserGlue.prototype = {
     if (sessionWillBeRestored || !Services.prefs.getBoolPref("browser.warnOnQuit"))
       return;
 
+    let win = Services.wm.getMostRecentWindow("navigator:browser");
+
     // On last window close or quit && showQuitWarning, we want to show the
     // quit warning.
     if (!Services.prefs.getBoolPref("browser.showQuitWarning")) {
@@ -884,55 +866,54 @@ BrowserGlue.prototype = {
         // we should show the window closing warning instead. warnAboutClosing
         // tabs checks browser.tabs.warnOnClose and returns if it's ok to close
         // the window. It doesn't actually close the window.
-        mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
-        let allTabs = mostRecentBrowserWindow.gBrowser.closingTabsEnum.ALL;
-        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(allTabs)
+        aCancelQuit.data =
+          !win.gBrowser.warnAboutClosingTabs(win.gBrowser.closingTabsEnum.ALL);
       }
       return;
     }
 
-    // Never show a prompt inside private browsing mode
-    if (allWindowsPrivate)
-      return;
+    let prompt = Services.prompt;
+    let quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
+    let brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
 
-    var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    let appName = brandBundle.GetStringFromName("brandShortName");
+    let quitDialogTitle = quitBundle.formatStringFromName("quitDialogTitle",
+                                                          [appName], 1);
+    let neverAskText = quitBundle.GetStringFromName("neverAsk2");
+    let neverAsk = {value: false};
 
-    var appName = brandBundle.GetStringFromName("brandShortName");
-    var quitTitleString = "quitDialogTitle";
-    var quitDialogTitle = quitBundle.formatStringFromName(quitTitleString, [appName], 1);
+    let choice;
+    if (allWindowsPrivate) {
+      let text = quitBundle.formatStringFromName("messagePrivate", [appName], 1);
+      let flags = prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_0 +
+                  prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_1 +
+                  prompt.BUTTON_POS_0_DEFAULT;
+      choice = prompt.confirmEx(win, quitDialogTitle, text, flags,
+                                quitBundle.GetStringFromName("quitTitle"),
+                                quitBundle.GetStringFromName("cancelTitle"),
+                                null,
+                                neverAskText, neverAsk);
 
-    var message;
-    if (windowcount == 1)
-      message = quitBundle.formatStringFromName("messageNoWindows",
-                                                [appName], 1);
-    else
-      message = quitBundle.formatStringFromName("message",
-                                                [appName], 1);
+      // The order of the buttons differs between the prompt.confirmEx calls
+      // here so we need to fix this for proper handling below.
+      if (choice == 0) {
+        choice = 2;
+      }
+    } else {
+      let text = quitBundle.formatStringFromName(
+        windowcount == 1 ? "messageNoWindows" : "message", [appName], 1);
+      let flags = prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_0 +
+                  prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_1 +
+                  prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_2 +
+                  prompt.BUTTON_POS_0_DEFAULT;
+      choice = prompt.confirmEx(win, quitDialogTitle, text, flags,
+                                quitBundle.GetStringFromName("saveTitle"),
+                                quitBundle.GetStringFromName("cancelTitle"),
+                                quitBundle.GetStringFromName("quitTitle"),
+                                neverAskText, neverAsk);
+    }
 
-    var promptService = Services.prompt;
-
-    var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
-                promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
-                promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2 +
-                promptService.BUTTON_POS_0_DEFAULT;
-
-    var neverAsk = {value:false};
-    var button0Title = quitBundle.GetStringFromName("saveTitle");
-    var button1Title = quitBundle.GetStringFromName("cancelTitle");
-    var button2Title = quitBundle.GetStringFromName("quitTitle");
-    var neverAskText = quitBundle.GetStringFromName("neverAsk2");
-
-    // This wouldn't have been set above since we shouldn't be here for
-    // aQuitType == "lastwindow"
-    mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
-
-    var buttonChoice =
-      promptService.confirmEx(mostRecentBrowserWindow, quitDialogTitle, message,
-                              flags, button0Title, button1Title, button2Title,
-                              neverAskText, neverAsk);
-
-    switch (buttonChoice) {
+    switch (choice) {
     case 2: // Quit
       if (neverAsk.value)
         Services.prefs.setBoolPref("browser.showQuitWarning", false);
@@ -1343,8 +1324,8 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 22;
-    const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
+    const UI_VERSION = 23;
+    const BROWSER_DOCURL = "chrome://browser/content/browser.xul";
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
@@ -1352,28 +1333,22 @@ BrowserGlue.prototype = {
     if (currentUIVersion >= UI_VERSION)
       return;
 
-    this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
-    this._dataSource = this._rdf.GetDataSource("rdf:local-store");
-    this._dirty = false;
+    let xulStore = Cc["@mozilla.org/xul/xulstore;1"].getService(Ci.nsIXULStore);
 
     if (currentUIVersion < 2) {
       // This code adds the customizable bookmarks button.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
       // Need to migrate only if toolbar is customized and the element is not found.
       if (currentset &&
           currentset.indexOf("bookmarks-menu-button-container") == -1) {
         currentset += ",bookmarks-menu-button-container";
-        this._setPersist(toolbarResource, currentsetResource, currentset);
+        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
       }
     }
 
     if (currentUIVersion < 3) {
       // This code merges the reload/stop/go button into the url bar.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
       // Need to migrate only if toolbar is customized and all 3 elements are found.
       if (currentset &&
           currentset.indexOf("reload-button") != -1 &&
@@ -1384,15 +1359,13 @@ BrowserGlue.prototype = {
                                .replace(/(^|,)stop-button($|,)/, "$1$2")
                                .replace(/(^|,)urlbar-container($|,)/,
                                         "$1urlbar-container,reload-button,stop-button$2");
-        this._setPersist(toolbarResource, currentsetResource, currentset);
+        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
       }
     }
 
     if (currentUIVersion < 4) {
       // This code moves the home button to the immediate left of the bookmarks menu button.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
       // Need to migrate only if toolbar is customized and the elements are found.
       if (currentset &&
           currentset.indexOf("home-button") != -1 &&
@@ -1400,34 +1373,31 @@ BrowserGlue.prototype = {
         currentset = currentset.replace(/(^|,)home-button($|,)/, "$1$2")
                                .replace(/(^|,)bookmarks-menu-button-container($|,)/,
                                         "$1home-button,bookmarks-menu-button-container$2");
-        this._setPersist(toolbarResource, currentsetResource, currentset);
+        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
       }
     }
 
     if (currentUIVersion < 5) {
       // This code uncollapses PersonalToolbar if its collapsed status is not
       // persisted, and user customized it or changed default bookmarks.
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "PersonalToolbar");
-      let collapsedResource = this._rdf.GetResource("collapsed");
-      let collapsed = this._getPersist(toolbarResource, collapsedResource);
+      //
       // If the user does not have a persisted value for the toolbar's
       // "collapsed" attribute, try to determine whether it's customized.
-      if (collapsed === null) {
+      if (!xulStore.hasValue(BROWSER_DOCURL, "PersonalToolbar", "collapsed")) {
         // We consider the toolbar customized if it has more than
         // 3 children, or if it has a persisted currentset value.
-        let currentsetResource = this._rdf.GetResource("currentset");
-        let toolbarIsCustomized = !!this._getPersist(toolbarResource,
-                                                     currentsetResource);
-        function getToolbarFolderCount() {
+        let toolbarIsCustomized = xulStore.hasValue(BROWSER_DOCURL,
+                                                    "PersonalToolbar", "currentset");
+        let getToolbarFolderCount = function () {
           let toolbarFolder =
             PlacesUtils.getFolderContents(PlacesUtils.toolbarFolderId).root;
           let toolbarChildCount = toolbarFolder.childCount;
           toolbarFolder.containerOpen = false;
           return toolbarChildCount;
-        }
+        };
 
         if (toolbarIsCustomized || getToolbarFolderCount() > 3) {
-          this._setPersist(toolbarResource, collapsedResource, "false");
+          xulStore.setValue(BROWSER_DOCURL, "PersonalToolbar", "collapsed", "false");
         }
       }
     }
@@ -1443,9 +1413,7 @@ BrowserGlue.prototype = {
 
     if (currentUIVersion < 9) {
       // This code adds the customizable downloads buttons.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
 
       // Since the Downloads button is located in the navigation bar by default,
       // migration needs to happen only if the toolbar was customized using a
@@ -1466,7 +1434,7 @@ BrowserGlue.prototype = {
           currentset = currentset.replace(/(^|,)window-controls($|,)/,
                                           "$1downloads-button,window-controls$2")
         }
-        this._setPersist(toolbarResource, currentsetResource, currentset);
+        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
       }
     }
 
@@ -1496,15 +1464,13 @@ BrowserGlue.prototype = {
     if (currentUIVersion < 12) {
       // Remove bookmarks-menu-button-container, then place
       // bookmarks-menu-button into its position.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
       // Need to migrate only if toolbar is customized.
       if (currentset) {
         if (currentset.contains("bookmarks-menu-button-container")) {
           currentset = currentset.replace(/(^|,)bookmarks-menu-button-container($|,)/,
                                           "$1bookmarks-menu-button$2");
-          this._setPersist(toolbarResource, currentsetResource, currentset);
+          xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
         }
       }
     }
@@ -1525,20 +1491,16 @@ BrowserGlue.prototype = {
     }
 
     if (currentUIVersion < 16) {
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let collapsedResource = this._rdf.GetResource("collapsed");
-      let isCollapsed = this._getPersist(toolbarResource, collapsedResource);
+      let isCollapsed = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "collapsed");
       if (isCollapsed == "true") {
-        this._setPersist(toolbarResource, collapsedResource, "false");
+        xulStore.setValue(BROWSER_DOCURL, "nav-bar", "collapsed", "false");
       }
     }
 
     // Insert the bookmarks-menu-button into the nav-bar if it isn't already
     // there.
     if (currentUIVersion < 17) {
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      let currentset = xulStore.getValue(BROWSER_DOCURL, "nav-bar", "currentset");
       // Need to migrate only if toolbar is customized.
       if (currentset) {
         if (!currentset.contains("bookmarks-menu-button")) {
@@ -1555,7 +1517,7 @@ BrowserGlue.prototype = {
             currentset = currentset.replace(/(^|,)window-controls($|,)/,
                                             "$1bookmarks-menu-button,window-controls$2")
           }
-          this._setPersist(toolbarResource, currentsetResource, currentset);
+          xulStore.setValue(BROWSER_DOCURL, "nav-bar", "currentset", currentset);
         }
       }
     }
@@ -1565,12 +1527,8 @@ BrowserGlue.prototype = {
       let toolbars = ["navigator-toolbox", "nav-bar", "PersonalToolbar",
                       "addon-bar", "TabsToolbar", "toolbar-menubar"];
       for (let resourceName of ["mode", "iconsize"]) {
-        let resource = this._rdf.GetResource(resourceName);
         for (let toolbarId of toolbars) {
-          let toolbar = this._rdf.GetResource(BROWSER_DOCURL + toolbarId);
-          if (this._getPersist(toolbar, resource)) {
-            this._setPersist(toolbar, resource);
-          }
+          xulStore.removeValue(BROWSER_DOCURL, toolbarId, resourceName);
         }
       }
     }
@@ -1593,21 +1551,13 @@ BrowserGlue.prototype = {
 
     if (currentUIVersion < 20) {
       // Remove persisted collapsed state from TabsToolbar.
-      let resource = this._rdf.GetResource("collapsed");
-      let toolbar = this._rdf.GetResource(BROWSER_DOCURL + "TabsToolbar");
-      if (this._getPersist(toolbar, resource)) {
-        this._setPersist(toolbar, resource);
-      }
+      xulStore.removeValue(BROWSER_DOCURL, "TabsToolbar", "collapsed");
     }
 
     if (currentUIVersion < 21) {
       // Make sure the 'toolbarbutton-1' class will always be present from here
       // on out.
-      let button = this._rdf.GetResource(BROWSER_DOCURL + "bookmarks-menu-button");
-      let classResource = this._rdf.GetResource("class");
-      if (this._getPersist(button, classResource)) {
-        this._setPersist(button, classResource);
-      }
+      xulStore.removeValue(BROWSER_DOCURL, "bookmarks-menu-button", "class");
     }
 
     if (currentUIVersion < 22) {
@@ -1616,47 +1566,19 @@ BrowserGlue.prototype = {
       Services.prefs.clearUserPref("browser.syncPromoViewsLeftMap");
     }
 
-    if (this._dirty)
-      this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
-
-    delete this._rdf;
-    delete this._dataSource;
+    if (currentUIVersion < 23) {
+      const kSelectedEnginePref = "browser.search.selectedEngine";
+      if (Services.prefs.prefHasUserValue(kSelectedEnginePref)) {
+        try {
+          let name = Services.prefs.getComplexValue(kSelectedEnginePref,
+                                                    Ci.nsIPrefLocalizedString).data;
+          Services.search.currentEngine = Services.search.getEngineByName(name);
+        } catch (ex) {}
+      }
+    }
 
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
-  },
-
-  _getPersist: function BG__getPersist(aSource, aProperty) {
-    var target = this._dataSource.GetTarget(aSource, aProperty, true);
-    if (target instanceof Ci.nsIRDFLiteral)
-      return target.Value;
-    return null;
-  },
-
-  _setPersist: function BG__setPersist(aSource, aProperty, aTarget) {
-    this._dirty = true;
-    try {
-      var oldTarget = this._dataSource.GetTarget(aSource, aProperty, true);
-      if (oldTarget) {
-        if (aTarget)
-          this._dataSource.Change(aSource, aProperty, oldTarget, this._rdf.GetLiteral(aTarget));
-        else
-          this._dataSource.Unassert(aSource, aProperty, oldTarget);
-      }
-      else {
-        this._dataSource.Assert(aSource, aProperty, this._rdf.GetLiteral(aTarget), true);
-      }
-
-      // Add the entry to the persisted set for this document if it's not there.
-      // This code is mostly borrowed from XULDocument::Persist.
-      let docURL = aSource.ValueUTF8.split("#")[0];
-      let docResource = this._rdf.GetResource(docURL);
-      let persistResource = this._rdf.GetResource("http://home.netscape.com/NC-rdf#persist");
-      if (!this._dataSource.HasAssertion(docResource, persistResource, aSource, true)) {
-        this._dataSource.Assert(docResource, persistResource, aSource, true);
-      }
-    }
-    catch(ex) {}
   },
 
   // ------------------------------
@@ -2202,6 +2124,126 @@ ContentPermissionPrompt.prototype = {
     }
   },
 
+};
+
+let DefaultBrowserCheck = {
+  get OPTIONPOPUP() { return "defaultBrowserNotificationPopup" },
+
+  closePrompt: function(aNode) {
+    if (this._notification) {
+      this._notification.close();
+    }
+  },
+
+  setAsDefault: function() {
+    let claimAllTypes = true;
+#ifdef XP_WIN
+    try {
+      // In Windows 8, the UI for selecting default protocol is much
+      // nicer than the UI for setting file type associations. So we
+      // only show the protocol association screen on Windows 8.
+      // Windows 8 is version 6.2.
+      let version = Services.sysinfo.getProperty("version");
+      claimAllTypes = (parseFloat(version) < 6.2);
+    } catch (ex) { }
+#endif
+    try {
+      ShellService.setDefaultBrowser(claimAllTypes, false);
+    } catch (ex) {
+      Cu.reportError(ex);
+    }
+    this.closePrompt();
+  },
+
+  _createPopup: function(win, bundle) {
+    let doc = win.document;
+    let popup = doc.createElement("menupopup");
+    popup.id = this.OPTIONPOPUP;
+
+    let notNowItem = doc.createElement("menuitem");
+    notNowItem.id = "defaultBrowserNotNow";
+    let label = bundle.getString("setDefaultBrowserNotNow.label");
+    notNowItem.setAttribute("label", label);
+    let accesskey = bundle.getString("setDefaultBrowserNotNow.accesskey");
+    notNowItem.setAttribute("accesskey", accesskey);
+    popup.appendChild(notNowItem);
+
+    let neverItem = doc.createElement("menuitem");
+    neverItem.id = "defaultBrowserNever";
+    let label = bundle.getString("setDefaultBrowserNever.label");
+    neverItem.setAttribute("label", label);
+    let accesskey = bundle.getString("setDefaultBrowserNever.accesskey");
+    neverItem.setAttribute("accesskey", accesskey);
+    popup.appendChild(neverItem);
+
+    popup.addEventListener("command", this);
+
+    let popupset = doc.getElementById("mainPopupSet");
+    popupset.appendChild(popup);
+  },
+
+  handleEvent: function(event) {
+    if (event.type == "command") {
+      if (event.target.id == "defaultBrowserNever") {
+        ShellService.shouldCheckDefaultBrowser = false;
+      }
+      this.closePrompt();
+    }
+  },
+
+  prompt: function(win) {
+    let brandBundle = win.document.getElementById("bundle_brand");
+    let shellBundle = win.document.getElementById("bundle_shell");
+
+    let brandShortName = brandBundle.getString("brandShortName");
+    let promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage2",
+                                                       [brandShortName]);
+
+    let confirmMessage = shellBundle.getFormattedString("setDefaultBrowserConfirm.label",
+                                                        [brandShortName]);
+    let confirmKey = shellBundle.getString("setDefaultBrowserConfirm.accesskey");
+
+    let optionsMessage = shellBundle.getString("setDefaultBrowserOptions.label");
+    let optionsKey = shellBundle.getString("setDefaultBrowserOptions.accesskey");
+
+    let selectedBrowser = win.gBrowser.selectedBrowser;
+    let notificationBox = win.document.getElementById("high-priority-global-notificationbox");
+
+    this._createPopup(win, shellBundle);
+
+    let buttons = [
+      {
+        label: confirmMessage,
+        accessKey: confirmKey,
+        callback: this.setAsDefault.bind(this)
+      },
+      {
+        label: optionsMessage,
+        accessKey: optionsKey,
+        popup: this.OPTIONPOPUP
+      }
+    ];
+
+
+    let iconPixels = win.devicePixelRatio > 1 ? "32" : "16";
+    let iconURL = "chrome://branding/content/icon" + iconPixels + ".png";
+    const priority = notificationBox.PRIORITY_WARNING_HIGH;
+    let callback = this._onNotificationEvent.bind(this);
+    this._notification = notificationBox.appendNotification(promptMessage, "default-browser",
+                                                            iconURL, priority, buttons,
+                                                            callback);
+    this._notification.persistence = -1;
+  },
+
+  _onNotificationEvent: function(eventType) {
+    if (eventType == "removed") {
+      let doc = this._notification.ownerDocument;
+      let popup = doc.getElementById(this.OPTIONPOPUP);
+      popup.removeEventListener("command", this);
+      popup.remove();
+      delete this._notification;
+    }
+  },
 };
 
 var components = [BrowserGlue, ContentPermissionPrompt];

@@ -7,7 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
-
+import org.mozilla.gecko.util.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -70,7 +70,7 @@ public final class NotificationHelper implements GeckoEventListener {
     // Will not include ongoing or persistent notifications that are tied to Gecko's lifecycle.
     private HashMap<String, String> mClearableNotifications;
 
-    private boolean mInitialized = false;
+    private boolean mInitialized;
     private static NotificationHelper sInstance;
 
     private NotificationHelper(Context context) {
@@ -135,9 +135,9 @@ public final class NotificationHelper implements GeckoEventListener {
 
         JSONObject args = new JSONObject();
 
-        // The handler and cookie parameters are optional
+        // The handler and cookie parameters are optional.
         final String handler = data.getQueryParameter(HANDLER_ATTR);
-        final String cookie = i.getStringExtra(COOKIE_ATTR);
+        final String cookie = StringUtils.getStringExtra(i, COOKIE_ATTR);
 
         try {
             args.put(ID_ATTR, id);

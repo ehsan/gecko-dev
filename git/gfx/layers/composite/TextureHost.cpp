@@ -71,7 +71,7 @@ namespace layers {
 class TextureParent : public PTextureParent
 {
 public:
-  TextureParent(CompositableParentManager* aManager);
+  explicit TextureParent(CompositableParentManager* aManager);
 
   ~TextureParent();
 
@@ -398,23 +398,26 @@ BufferTextureHost::DeallocateDeviceData()
 bool
 BufferTextureHost::Lock()
 {
-  mLocked = true;
-  return true;
+  MOZ_ASSERT(!mLocked);
+  if (!MaybeUpload(!mNeedsFullUpdate ? &mMaybeUpdatedRegion : nullptr)) {
+      return false;
+  }
+  mLocked = !!mFirstSource;
+  return mLocked;
 }
 
 void
 BufferTextureHost::Unlock()
 {
+  MOZ_ASSERT(mLocked);
   mLocked = false;
 }
 
 NewTextureSource*
 BufferTextureHost::GetTextureSources()
 {
-  MOZ_ASSERT(mLocked, "should never be called while not locked");
-  if (!MaybeUpload(!mNeedsFullUpdate ? &mMaybeUpdatedRegion : nullptr)) {
-      return nullptr;
-  }
+  MOZ_ASSERT(mLocked);
+  MOZ_ASSERT(mFirstSource);
   return mFirstSource;
 }
 
@@ -478,6 +481,9 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
 
     if (!mCompositor->SupportsEffect(EffectTypes::YCBCR)) {
       RefPtr<gfx::DataSourceSurface> surf = yuvDeserializer.ToDataSourceSurface();
+      if (NS_WARN_IF(!surf)) {
+        return false;
+      }
       if (!mFirstSource) {
         mFirstSource = mCompositor->CreateDataTextureSource(mFlags);
       }
@@ -553,6 +559,7 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
       return false;
     }
   }
+  MOZ_ASSERT(mFirstSource);
   return true;
 }
 
@@ -569,6 +576,9 @@ BufferTextureHost::GetAsSurface()
       return nullptr;
     }
     result = yuvDeserializer.ToDataSourceSurface();
+    if (NS_WARN_IF(!result)) {
+      return nullptr;
+    }
   } else {
     ImageDataDeserializer deserializer(GetBuffer(), GetBufferSize());
     if (!deserializer.IsValid()) {
@@ -585,7 +595,7 @@ ShmemTextureHost::ShmemTextureHost(const ipc::Shmem& aShmem,
                                    ISurfaceAllocator* aDeallocator,
                                    TextureFlags aFlags)
 : BufferTextureHost(aFormat, aFlags)
-, mShmem(new ipc::Shmem(aShmem))
+, mShmem(MakeUnique<ipc::Shmem>(aShmem))
 , mDeallocator(aDeallocator)
 {
   MOZ_COUNT_CTOR(ShmemTextureHost);
@@ -593,8 +603,9 @@ ShmemTextureHost::ShmemTextureHost(const ipc::Shmem& aShmem,
 
 ShmemTextureHost::~ShmemTextureHost()
 {
+  MOZ_ASSERT(!mShmem || (mFlags & TextureFlags::DEALLOCATE_CLIENT),
+             "Leaking our buffer");
   DeallocateDeviceData();
-  delete mShmem;
   MOZ_COUNT_DTOR(ShmemTextureHost);
 }
 
@@ -605,7 +616,6 @@ ShmemTextureHost::DeallocateSharedData()
     MOZ_ASSERT(mDeallocator,
                "Shared memory would leak without a ISurfaceAllocator");
     mDeallocator->DeallocShmem(*mShmem);
-    delete mShmem;
     mShmem = nullptr;
   }
 }
@@ -614,7 +624,6 @@ void
 ShmemTextureHost::ForgetSharedData()
 {
   if (mShmem) {
-    delete mShmem;
     mShmem = nullptr;
   }
 }
@@ -622,7 +631,6 @@ ShmemTextureHost::ForgetSharedData()
 void
 ShmemTextureHost::OnShutdown()
 {
-  delete mShmem;
   mShmem = nullptr;
 }
 
@@ -647,9 +655,9 @@ MemoryTextureHost::MemoryTextureHost(uint8_t* aBuffer,
 
 MemoryTextureHost::~MemoryTextureHost()
 {
+  MOZ_ASSERT(!mBuffer || (mFlags & TextureFlags::DEALLOCATE_CLIENT),
+             "Leaking our buffer");
   DeallocateDeviceData();
-  NS_ASSERTION(!mBuffer || (mFlags & TextureFlags::DEALLOCATE_CLIENT),
-               "Leaking our buffer");
   MOZ_COUNT_DTOR(MemoryTextureHost);
 }
 

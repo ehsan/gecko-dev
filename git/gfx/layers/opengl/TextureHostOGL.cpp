@@ -125,6 +125,9 @@ CompositableDataGonkOGL::gl() const
 
 void CompositableDataGonkOGL::SetCompositor(Compositor* aCompositor)
 {
+  if (gl() && mCompositor != aCompositor) {
+    DeleteTextureIfPresent();
+  }
   mCompositor = static_cast<CompositorOGL*>(aCompositor);
 }
 
@@ -137,7 +140,7 @@ void CompositableDataGonkOGL::ClearData()
 GLuint CompositableDataGonkOGL::GetTexture()
 {
   if (!mTexture) {
-    if (gl()->MakeCurrent()) {
+    if (gl() && gl()->MakeCurrent()) {
       gl()->fGenTextures(1, &mTexture);
     }
   }
@@ -148,7 +151,8 @@ void
 CompositableDataGonkOGL::DeleteTextureIfPresent()
 {
   if (mTexture) {
-    if (gl()->MakeCurrent()) {
+    MOZ_ASSERT(mCompositor);
+    if (gl() && gl()->MakeCurrent()) {
       gl()->fDeleteTextures(1, &mTexture);
     }
     mTexture = 0;
@@ -160,7 +164,10 @@ void
 CompositableDataGonkOGL::BindEGLImage(GLuint aTarget, EGLImage aImage)
 {
   if (mBoundEGLImage != aImage) {
-    gl()->fEGLImageTargetTexture2D(aTarget, aImage);
+    MOZ_ASSERT(gl());
+    if (gl()) {
+      gl()->fEGLImageTargetTexture2D(aTarget, aImage);
+    }
     mBoundEGLImage = aImage;
   }
 }
@@ -184,7 +191,21 @@ TextureHostOGL::SetReleaseFence(const android::sp<android::Fence>& aReleaseFence
     return false;
   }
 
-  mReleaseFence = aReleaseFence;
+  if (!mReleaseFence.get()) {
+    mReleaseFence = aReleaseFence;
+  } else {
+    android::sp<android::Fence> mergedFence = android::Fence::merge(
+                  android::String8::format("TextureHostOGL"),
+                  mReleaseFence, aReleaseFence);
+    if (!mergedFence.get()) {
+      // synchronization is broken, the best we can do is hope fences
+      // signal in order so the new fence will act like a union.
+      // This error handling is same as android::ConsumerBase does.
+      mReleaseFence = aReleaseFence;
+      return false;
+    }
+    mReleaseFence = mergedFence;
+  }
   return true;
 }
 
@@ -239,12 +260,15 @@ TextureHostOGL::WaitAcquireFenceSyncComplete()
     return;
   }
 
+  // Wait sync complete with timeout.
+  // If a source of the fence becomes invalid because of error,
+  // fene complete is not signaled. See Bug 1061435.
   EGLint status = sEGLLibrary.fClientWaitSync(EGL_DISPLAY(),
                                               sync,
                                               0,
-                                              LOCAL_EGL_FOREVER);
+                                              400000000 /*400 usec*/);
   if (status != LOCAL_EGL_CONDITION_SATISFIED) {
-    NS_WARNING("failed to wait native fence sync");
+    NS_ERROR("failed to wait native fence sync");
   }
   MOZ_ALWAYS_TRUE( sEGLLibrary.fDestroySync(EGL_DISPLAY(), sync) );
   mAcquireFence = nullptr;
@@ -296,6 +320,16 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
                                      SurfaceFormatToImageFormat(aSurface->GetFormat()));
     }
     ClearCachedFilter();
+
+    if (aDestRegion &&
+        !aSrcOffset &&
+        !aDestRegion->IsEqual(nsIntRect(0, 0, size.width, size.height))) {
+      // UpdateFromDataSource will ignore our specified aDestRegion since the texture
+      // hasn't been allocated with glTexImage2D yet. Call Resize() to force the
+      // allocation (full size, but no upload), and then we'll only upload the pixels
+      // we care about below.
+      mTexImage->Resize(size);
+    }
   }
 
   mTexImage->UpdateFromDataSource(aSurface, aDestRegion, aSrcOffset);

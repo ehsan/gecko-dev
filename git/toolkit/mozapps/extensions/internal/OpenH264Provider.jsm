@@ -245,6 +245,8 @@ let OpenH264Wrapper = {
 };
 
 let OpenH264Provider = {
+  get name() "OpenH264Provider",
+
   startup: function() {
     configureLogging();
     this._log = Log.repository.getLoggerWithMessagePrefix("Toolkit.OpenH264Provider",
@@ -274,6 +276,16 @@ let OpenH264Provider = {
         this._log.warning("startup() - adding gmp directory failed with " + e.name + " - sandboxing not available?");
       }
     }
+
+    let telemetry = {};
+    if (this.isEnabled) {
+      telemetry[OPENH264_PLUGIN_ID] = {
+	userDisabled: OpenH264Wrapper.userDisabled,
+	version: OpenH264Wrapper.version,
+	applyBackgroundUpdates: OpenH264Wrapper.applyBackgroundUpdates,
+      };
+    }
+    AddonManagerPrivate.setTelemetryDetails("GMP", telemetry);
   },
 
   shutdown: function() {

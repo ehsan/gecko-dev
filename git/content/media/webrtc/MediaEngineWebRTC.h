@@ -192,6 +192,7 @@ public:
   void StopImpl();
   void SnapshotImpl();
   void RotateImage(layers::Image* aImage, uint32_t aWidth, uint32_t aHeight);
+  uint32_t ConvertPixexFormatToFOURCC(int aFormat);
   void Notify(const mozilla::hal::ScreenConfiguration& aConfiguration);
 #endif
 
@@ -384,7 +385,7 @@ private:
 class MediaEngineWebRTC : public MediaEngine
 {
 public:
-  MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
+  explicit MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
 
   // Clients should ensure to clean-up sources video/audio sources
   // before invoking Shutdown on this class.
@@ -400,7 +401,6 @@ private:
 #ifdef MOZ_B2G_CAMERA
     AsyncLatencyLogger::Get()->Release();
 #endif
-    // XXX
     gFarendObserver = nullptr;
   }
 
@@ -410,6 +410,7 @@ private:
 
   // protected with mMutex:
   webrtc::VideoEngine* mScreenEngine;
+  webrtc::VideoEngine* mBrowserEngine;
   webrtc::VideoEngine* mWinEngine;
   webrtc::VideoEngine* mAppEngine;
   webrtc::VideoEngine* mVideoEngine;
@@ -419,11 +420,13 @@ private:
   webrtc::Config mAppEngineConfig;
   webrtc::Config mWinEngineConfig;
   webrtc::Config mScreenEngineConfig;
+  webrtc::Config mBrowserEngineConfig;
 
   // Need this to avoid unneccesary WebRTC calls while enumerating.
   bool mVideoEngineInit;
   bool mAudioEngineInit;
   bool mScreenEngineInit;
+  bool mBrowserEngineInit;
   bool mWinEngineInit;
   bool mAppEngineInit;
   bool mHasTabVideoSource;

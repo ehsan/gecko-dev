@@ -103,7 +103,6 @@ NS_IMPL_FRAMEARENA_HELPERS(nsTreeBodyFrame)
 
 NS_QUERYFRAME_HEAD(nsTreeBodyFrame)
   NS_QUERYFRAME_ENTRY(nsIScrollbarMediator)
-  NS_QUERYFRAME_ENTRY(nsIScrollbarOwner)
   NS_QUERYFRAME_ENTRY(nsTreeBodyFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
 
@@ -111,7 +110,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
 nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 :nsLeafBoxFrame(aPresShell, aContext),
  mSlots(nullptr),
- mImageCache(16),
+ mImageCache(),
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
@@ -174,7 +173,7 @@ nsTreeBodyFrame::Init(nsIContent*       aContent,
 
   if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
     mScrollbarActivity = new ScrollbarActivity(
-                           static_cast<nsIScrollbarOwner*>(this));
+                           static_cast<nsIScrollbarMediator*>(this));
   }
 }
 
@@ -320,7 +319,7 @@ nsTreeBodyFrame::EnsureBoxObject()
   if (!mTreeBoxObject) {
     nsIContent* parent = GetBaseElement();
     if (parent) {
-      nsIDocument* nsDoc = parent->GetDocument();
+      nsIDocument* nsDoc = parent->GetComposedDoc();
       if (!nsDoc) // there may be no document, if we're called from Destroy()
         return;
       ErrorResult ignored;
@@ -2172,7 +2171,7 @@ nsTreeBodyFrame::GetImage(int32_t aRowIndex, nsTreeColumn* aCol, bool aUseContex
     if (styleRequest) {
       styleRequest->Clone(imgNotificationObserver, getter_AddRefs(imageRequest));
     } else {
-      nsIDocument* doc = mContent->GetDocument();
+      nsIDocument* doc = mContent->GetComposedDoc();
       if (!doc)
         // The page is currently being torn down.  Why bother.
         return NS_ERROR_FAILURE;
@@ -2522,7 +2521,7 @@ nsTreeBodyFrame::GetCursor(const nsPoint& aPoint,
   // Check the GetScriptHandlingObject so we don't end up running code when
   // the document is a zombie.
   bool dummy;
-  if (mView && GetContent()->GetCurrentDoc()->GetScriptHandlingObject(dummy)) {
+  if (mView && GetContent()->GetComposedDoc()->GetScriptHandlingObject(dummy)) {
     int32_t row;
     nsTreeColumn* col;
     nsIAtom* child;
@@ -2546,7 +2545,7 @@ nsTreeBodyFrame::GetCursor(const nsPoint& aPoint,
 
 static uint32_t GetDropEffect(WidgetGUIEvent* aEvent)
 {
-  NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
+  NS_ASSERTION(aEvent->mClass == eDragEventClass, "wrong event type");
   WidgetDragEvent* dragEvent = aEvent->AsDragEvent();
   nsContentUtils::SetDataTransferInEvent(dragEvent);
 
@@ -2724,7 +2723,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
       rv = mView->GetParentIndex(parentIndex, &parentIndex);
     }
 
-    NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
+    NS_ASSERTION(aEvent->mClass == eDragEventClass, "wrong event type");
     WidgetDragEvent* dragEvent = aEvent->AsDragEvent();
     nsContentUtils::SetDataTransferInEvent(dragEvent);
 
@@ -2803,7 +2802,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Bail out now if there's no view or we can't run script because the
   // document is a zombie
-  if (!mView || !GetContent()->GetCurrentDoc()->GetWindow())
+  if (!mView || !GetContent ()->GetComposedDoc()->GetWindow())
     return;
 
   aLists.Content()->AppendNewToTop(new (aBuilder)
@@ -4155,48 +4154,85 @@ nsTreeBodyFrame::ScrollHorzInternal(const ScrollParts& aParts, int32_t aPosition
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsTreeBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t aNewIndex)
+void
+nsTreeBodyFrame::ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection)
+{
+  MOZ_ASSERT(aScrollbar != nullptr);
+  ScrollByPages(aDirection);
+}
+
+void
+nsTreeBodyFrame::ScrollByWhole(nsScrollbarFrame* aScrollbar, int32_t aDirection)
+{
+  MOZ_ASSERT(aScrollbar != nullptr); 
+  int32_t newIndex = aDirection < 0 ? 0 : mTopRowIndex;
+  ScrollToRow(newIndex);
+}
+
+void
+nsTreeBodyFrame::ScrollByLine(nsScrollbarFrame* aScrollbar, int32_t aDirection)
+{
+  MOZ_ASSERT(aScrollbar != nullptr);
+  ScrollByLines(aDirection);
+}
+
+void
+nsTreeBodyFrame::RepeatButtonScroll(nsScrollbarFrame* aScrollbar)
 {
   ScrollParts parts = GetScrollParts();
+  int32_t increment = aScrollbar->GetIncrement();
+  int32_t direction = 0;
+  if (increment < 0) {
+    direction = -1;
+  } else if (increment > 0) {
+    direction = 1;
+  }
+  bool isHorizontal = aScrollbar->IsHorizontal();
 
-  if (aScrollbar == parts.mVScrollbar) {
-    if (aNewIndex > aOldIndex)
-      ScrollToRowInternal(parts, mTopRowIndex+1);
-    else if (aNewIndex < aOldIndex)
-      ScrollToRowInternal(parts, mTopRowIndex-1);
+  nsWeakFrame weakFrame(this);
+  if (isHorizontal) {
+    int32_t curpos = aScrollbar->MoveToNewPosition();
+    if (weakFrame.IsAlive()) {
+      ScrollHorzInternal(parts, curpos);
+    }
   } else {
-    nsresult rv = ScrollHorzInternal(parts, aNewIndex);
-    if (NS_FAILED(rv)) return rv;
+    ScrollToRowInternal(parts, mTopRowIndex+direction);
   }
 
-  UpdateScrollbars(parts);
-
-  return NS_OK;
+  if (weakFrame.IsAlive() && mScrollbarActivity) {
+    mScrollbarActivity->ActivityOccurred();
+  }
+  if (weakFrame.IsAlive()) {
+    UpdateScrollbars(parts);
+  }
 }
-  
-NS_IMETHODIMP
-nsTreeBodyFrame::PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t& aNewIndex)
+
+void
+nsTreeBodyFrame::ThumbMoved(nsScrollbarFrame* aScrollbar,
+                            nscoord aOldPos,
+                            nscoord aNewPos)
 {
   ScrollParts parts = GetScrollParts();
   
-  if (aOldIndex == aNewIndex)
-    return NS_OK;
+  if (aOldPos == aNewPos)
+    return;
+
+  nsWeakFrame weakFrame(this);
 
   // Vertical Scrollbar 
   if (parts.mVScrollbar == aScrollbar) {
     nscoord rh = nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
-
-    nscoord newrow = aNewIndex/rh;
+    nscoord newIndex = nsPresContext::AppUnitsToIntCSSPixels(aNewPos);
+    nscoord newrow = newIndex/rh;
     ScrollInternal(parts, newrow);
   // Horizontal Scrollbar
   } else if (parts.mHScrollbar == aScrollbar) {
-    nsresult rv = ScrollHorzInternal(parts, aNewIndex);
-    if (NS_FAILED(rv)) return rv;
+    int32_t newIndex = nsPresContext::AppUnitsToIntCSSPixels(aNewPos);
+    ScrollHorzInternal(parts, newIndex);
   }
-
-  UpdateScrollbars(parts);
-  return NS_OK;
+  if (weakFrame.IsAlive()) {
+    UpdateScrollbars(parts);
+  }
 }
 
 // The style cache.
@@ -4637,7 +4673,7 @@ nsTreeBodyFrame::FireInvalidateEvent(int32_t aStartRowIdx, int32_t aEndRowIdx,
 class nsOverflowChecker : public nsRunnable
 {
 public:
-  nsOverflowChecker(nsTreeBodyFrame* aFrame) : mFrame(aFrame) {}
+  explicit nsOverflowChecker(nsTreeBodyFrame* aFrame) : mFrame(aFrame) {}
   NS_IMETHOD Run() MOZ_OVERRIDE
   {
     if (mFrame.IsAlive()) {

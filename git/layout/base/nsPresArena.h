@@ -118,7 +118,7 @@ private:
     typedef const void* KeyTypePointer;
     KeyTypePointer mKey;
 
-    FreeList(KeyTypePointer aKey)
+    explicit FreeList(KeyTypePointer aKey)
     : mEntrySize(0), mEntriesEverAllocated(0), mKey(aKey) {}
     // Default copy constructor and destructor are ok.
 
@@ -131,6 +131,9 @@ private:
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     { return NS_PTR_TO_INT32(aKey); }
 
+    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+    { return mEntries.SizeOfExcludingThis(aMallocSizeOf); }
+
     enum { ALLOW_MEMMOVE = false };
   };
 
@@ -138,9 +141,6 @@ private:
   static PLDHashOperator UnpoisonFreeList(FreeList* aEntry, void*);
 #endif
   static PLDHashOperator FreeListEnumerator(FreeList* aEntry, void* aData);
-  static size_t SizeOfFreeListEntryExcludingThis(FreeList* aEntry,
-                                                 mozilla::MallocSizeOf aMallocSizeOf,
-                                                 void*);
 
   nsTHashtable<FreeList> mFreeLists;
   PLArenaPool mPool;

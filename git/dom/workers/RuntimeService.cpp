@@ -61,6 +61,7 @@
 #include "nsThreadManager.h"
 #endif
 
+#include "Principal.h"
 #include "ServiceWorker.h"
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
@@ -158,6 +159,7 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
 #define PREF_DOM_WINDOW_DUMP_ENABLED "browser.dom.window.dump.enabled"
 #endif
 
+#define PREF_DOM_FETCH_ENABLED         "dom.fetch.enabled"
 #define PREF_WORKERS_LATEST_JS_VERSION "dom.workers.latestJSVersion"
 
 namespace {
@@ -165,16 +167,12 @@ namespace {
 const uint32_t kNoIndex = uint32_t(-1);
 
 const JS::ContextOptions kRequiredContextOptions =
-  JS::ContextOptions().setDontReportUncaught(true)
-                      .setNoScriptRval(true);
+  JS::ContextOptions().setDontReportUncaught(true);
 
 uint32_t gMaxWorkersPerDomain = MAX_WORKERS_PER_DOMAIN;
 
 // Does not hold an owning reference.
 RuntimeService* gRuntimeService = nullptr;
-
-// Only non-null during the call to Init.
-RuntimeService* gRuntimeServiceDuringInit = nullptr;
 
 #ifdef ENABLE_TESTS
 bool gTestPBackground = false;
@@ -320,12 +318,12 @@ GenerateSharedWorkerKey(const nsACString& aScriptSpec, const nsACString& aName,
 }
 
 void
-LoadRuntimeAndContextOptions(const char* aPrefName, void* /* aClosure */)
+LoadRuntimeOptions(const char* aPrefName, void* /* aClosure */)
 {
   AssertIsOnMainThread();
 
   RuntimeService* rts = RuntimeService::GetService();
-  if (!rts && !gRuntimeServiceDuringInit) {
+  if (!rts) {
     // May be shutting down, just bail.
     return;
   }
@@ -368,29 +366,14 @@ LoadRuntimeAndContextOptions(const char* aPrefName, void* /* aClosure */)
     runtimeOptions.setWerror(true);
   }
 
-  // Common options.
-  JS::ContextOptions commonContextOptions = kRequiredContextOptions;
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("strict"))) {
-    commonContextOptions.setExtraWarnings(true);
+    runtimeOptions.setExtraWarnings(true);
   }
 
-  // Content options.
-  JS::ContextOptions contentContextOptions = commonContextOptions;
-
-  // Chrome options.
-  JS::ContextOptions chromeContextOptions = commonContextOptions;
-#ifdef DEBUG
-  if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("strict.debug"))) {
-    chromeContextOptions.setExtraWarnings(true);
-  }
-#endif
-
-  RuntimeService::SetDefaultRuntimeAndContextOptions(runtimeOptions,
-                                                     contentContextOptions,
-                                                     chromeContextOptions);
+  RuntimeService::SetDefaultRuntimeOptions(runtimeOptions);
 
   if (rts) {
-    rts->UpdateAllWorkerRuntimeAndContextOptions();
+    rts->UpdateAllWorkerRuntimeOptions();
   }
 }
 
@@ -401,7 +384,7 @@ LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */)
   AssertIsOnMainThread();
 
   RuntimeService* rts = RuntimeService::GetService();
-  if (!rts && !gRuntimeServiceDuringInit) {
+  if (!rts) {
     // May be shutting down, just bail.
     return;
   }
@@ -464,7 +447,7 @@ LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */)
 
   RuntimeService* rts = RuntimeService::GetService();
 
-  if (!rts && !gRuntimeServiceDuringInit) {
+  if (!rts) {
     // May be shutting down, just bail.
     return;
   }
@@ -850,9 +833,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
 
   js::SetCTypesActivityCallback(aRuntime, CTypesActivityCallback);
 
-  JS::ContextOptionsRef(workerCx) =
-    aWorkerPrivate->IsChromeWorker() ? settings.chrome.contextOptions
-                                     : settings.content.contextOptions;
+  JS::ContextOptionsRef(workerCx) = kRequiredContextOptions;
 
 #ifdef JS_GC_ZEAL
   JS_SetGCZeal(workerCx, settings.gcZeal, settings.gcZealFrequency);
@@ -872,6 +853,7 @@ public:
                               WORKER_DEFAULT_NURSERY_SIZE),
     mWorkerPrivate(aWorkerPrivate)
   {
+    JS_InitDestroyPrincipalsCallback(Runtime(), DestroyWorkerPrincipals);
   }
 
   ~WorkerJSRuntime()
@@ -1152,6 +1134,28 @@ public:
 #endif
 
 #ifdef ENABLE_TESTS
+  class TestPBackgroundCreateCallback MOZ_FINAL :
+    public nsIIPCBackgroundChildCreateCallback
+  {
+  public:
+    virtual void ActorCreated(PBackgroundChild* actor) MOZ_OVERRIDE
+    {
+      MOZ_RELEASE_ASSERT(actor);
+    }
+
+    virtual void ActorFailed() MOZ_OVERRIDE
+    {
+      MOZ_CRASH("TestPBackground() should not fail GetOrCreateForCurrentThread()");
+    }
+
+  private:
+    ~TestPBackgroundCreateCallback()
+    { }
+
+  public:
+    NS_DECL_ISUPPORTS;
+  };
+
   void
   TestPBackground()
   {
@@ -1159,7 +1163,7 @@ public:
     if (gTestPBackground) {
       // Randomize value to validate workers are not cross-posting messages.
       uint32_t testValue;
-      PRSize randomSize = PR_GetRandomNoise(&testValue, sizeof(testValue));
+      size_t randomSize = PR_GetRandomNoise(&testValue, sizeof(testValue));
       MOZ_RELEASE_ASSERT(randomSize == sizeof(testValue));
       nsCString testStr;
       testStr.AppendInt(testValue);
@@ -1185,6 +1189,11 @@ private:
   ~WorkerThread()
   { }
 };
+
+#ifdef ENABLE_TESTS
+NS_IMPL_ISUPPORTS(RuntimeService::WorkerThread::TestPBackgroundCreateCallback,
+                  nsIIPCBackgroundChildCreateCallback);
+#endif
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -1371,19 +1380,18 @@ RuntimeService::GetOrCreateService()
   AssertIsOnMainThread();
 
   if (!gRuntimeService) {
-    nsRefPtr<RuntimeService> service = new RuntimeService();
-    if (NS_FAILED(service->Init())) {
+    // The observer service now owns us until shutdown.
+    gRuntimeService = new RuntimeService();
+    if (NS_FAILED(gRuntimeService->Init())) {
       NS_WARNING("Failed to initialize!");
-      service->Cleanup();
+      gRuntimeService->Cleanup();
+      gRuntimeService = nullptr;
       return nullptr;
     }
 
 #ifdef ENABLE_TESTS
     gTestPBackground = mozilla::Preferences::GetBool("pbackground.testing", false);
 #endif // ENABLE_TESTS
-
-    // The observer service now owns us until shutdown.
-    gRuntimeService = service;
   }
 
   return gRuntimeService;
@@ -1748,10 +1756,8 @@ RuntimeService::Init()
   // Initialize JSSettings.
   if (!sDefaultJSSettings.gcSettings[0].IsSet()) {
     sDefaultJSSettings.runtimeOptions = JS::RuntimeOptions();
-    sDefaultJSSettings.chrome.contextOptions = kRequiredContextOptions;
     sDefaultJSSettings.chrome.maxScriptRuntime = -1;
     sDefaultJSSettings.chrome.compartmentOptions.setVersion(JSVERSION_LATEST);
-    sDefaultJSSettings.content.contextOptions = kRequiredContextOptions;
     sDefaultJSSettings.content.maxScriptRuntime = MAX_SCRIPT_RUN_TIME_SEC;
 #ifdef JS_GC_ZEAL
     sDefaultJSSettings.gcZealFrequency = JS_DEFAULT_ZEAL_FREQ;
@@ -1799,9 +1805,6 @@ RuntimeService::Init()
     NS_WARNING("Failed to register for offline notification event!");
   }
 
-  NS_ASSERTION(!gRuntimeServiceDuringInit, "This should be null!");
-  gRuntimeServiceDuringInit = this;
-
   if (NS_FAILED(Preferences::RegisterCallback(
                                  LoadJSGCMemoryOptions,
                                  PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX,
@@ -1826,11 +1829,15 @@ RuntimeService::Init()
                                   PREF_DOM_WINDOW_DUMP_ENABLED,
                                   reinterpret_cast<void *>(WORKERPREF_DUMP))) ||
 #endif
-      NS_FAILED(Preferences::RegisterCallback(LoadRuntimeAndContextOptions,
+      NS_FAILED(Preferences::RegisterCallbackAndCall(
+                                  WorkerPrefChanged,
+                                  PREF_DOM_FETCH_ENABLED,
+                                  reinterpret_cast<void *>(WORKERPREF_DOM_FETCH))) ||
+      NS_FAILED(Preferences::RegisterCallback(LoadRuntimeOptions,
                                               PREF_JS_OPTIONS_PREFIX,
                                               nullptr)) ||
       NS_FAILED(Preferences::RegisterCallbackAndCall(
-                                                   LoadRuntimeAndContextOptions,
+                                                   LoadRuntimeOptions,
                                                    PREF_WORKERS_OPTIONS_PREFIX,
                                                    nullptr)) ||
       NS_FAILED(Preferences::RegisterCallbackAndCall(
@@ -1851,9 +1858,6 @@ RuntimeService::Init()
                                                  nullptr))) {
     NS_WARNING("Failed to register pref callbacks!");
   }
-
-  NS_ASSERTION(gRuntimeServiceDuringInit == this, "Should be 'this'!");
-  gRuntimeServiceDuringInit = nullptr;
 
   // We assume atomic 32bit reads/writes. If this assumption doesn't hold on
   // some wacky platform then the worst that could happen is that the close
@@ -2000,12 +2004,16 @@ RuntimeService::Cleanup()
         NS_FAILED(Preferences::UnregisterCallback(PlatformOverrideChanged,
                                                   PREF_GENERAL_PLATFORM_OVERRIDE,
                                                   nullptr)) ||
-        NS_FAILED(Preferences::UnregisterCallback(LoadRuntimeAndContextOptions,
+        NS_FAILED(Preferences::UnregisterCallback(LoadRuntimeOptions,
                                                   PREF_JS_OPTIONS_PREFIX,
                                                   nullptr)) ||
-        NS_FAILED(Preferences::UnregisterCallback(LoadRuntimeAndContextOptions,
+        NS_FAILED(Preferences::UnregisterCallback(LoadRuntimeOptions,
                                                   PREF_WORKERS_OPTIONS_PREFIX,
                                                   nullptr)) ||
+        NS_FAILED(Preferences::UnregisterCallback(
+                                  WorkerPrefChanged,
+                                  PREF_DOM_FETCH_ENABLED,
+                                  reinterpret_cast<void *>(WORKERPREF_DOM_FETCH))) ||
 #if DUMP_CONTROLLED_BY_PREF
         NS_FAILED(Preferences::UnregisterCallback(
                                   WorkerPrefChanged,
@@ -2451,12 +2459,9 @@ RuntimeService::NoteIdleThread(WorkerThread* aThread)
 }
 
 void
-RuntimeService::UpdateAllWorkerRuntimeAndContextOptions()
+RuntimeService::UpdateAllWorkerRuntimeOptions()
 {
-  BROADCAST_ALL_WORKERS(UpdateRuntimeAndContextOptions,
-                        sDefaultJSSettings.runtimeOptions,
-                        sDefaultJSSettings.content.contextOptions,
-                        sDefaultJSSettings.chrome.contextOptions);
+  BROADCAST_ALL_WORKERS(UpdateRuntimeOptions, sDefaultJSSettings.runtimeOptions);
 }
 
 void
@@ -2576,6 +2581,12 @@ RuntimeService::WorkerPrefChanged(const char* aPrefName, void* aClosure)
       Preferences::GetBool(PREF_DOM_WINDOW_DUMP_ENABLED, false);
   }
 #endif
+
+  if (key == WORKERPREF_DOM_FETCH) {
+    key = WORKERPREF_DOM_FETCH;
+    sDefaultPreferences[WORKERPREF_DOM_FETCH] =
+      Preferences::GetBool(PREF_DOM_FETCH_ENABLED, false);
+  }
 
   // This function should never be registered as a callback for a preference it
   // does not handle.
@@ -2798,11 +2809,11 @@ WorkerThreadPrimaryRunnable::Run()
     return rv;
   }
 
+  mThread->SetWorker(mWorkerPrivate);
+
 #ifdef ENABLE_TESTS
   mThread->TestPBackground();
 #endif
-
-  mThread->SetWorker(mWorkerPrivate);
 
   mWorkerPrivate->AssertIsOnWorkerThread();
 

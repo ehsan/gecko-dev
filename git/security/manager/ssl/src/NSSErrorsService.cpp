@@ -17,13 +17,13 @@ namespace mozilla {
 namespace psm {
 
 static_assert(mozilla::pkix::ERROR_BASE ==
-                nsINSSErrorsService::PSM_ERROR_BASE,
-              "mozilla::pkix::ERROR_BASE and "
-                "nsINSSErrorsService::PSM_ERROR_BASE do not match.");
+                nsINSSErrorsService::MOZILLA_PKIX_ERROR_BASE,
+              "MOZILLA_PKIX_ERROR_BASE and "
+                "nsINSSErrorsService::MOZILLA_PKIX_ERROR_BASE do not match.");
 static_assert(mozilla::pkix::ERROR_LIMIT ==
-                nsINSSErrorsService::PSM_ERROR_LIMIT,
-              "PSM_ERROR_LIMIT and "
-                "nsINSSErrorsService::PSM_ERROR_LIMIT do not match.");
+                nsINSSErrorsService::MOZILLA_PKIX_ERROR_LIMIT,
+              "MOZILLA_PKIX_ERROR_LIMIT and "
+                "nsINSSErrorsService::MOZILLA_PKIX_ERROR_LIMIT do not match.");
 
 static bool
 IsPSMError(PRErrorCode error)
