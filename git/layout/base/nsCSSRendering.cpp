@@ -1159,6 +1159,7 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
 
   PRBool isCanvas;
   const nsStyleBackground *color;
+  const nsStyleBorder* border = aForFrame->GetStyleBorder();
 
   if (!FindBackground(aPresContext, aForFrame, &color, &isCanvas)) {
     // we don't want to bail out of moz-appearance is set on a root
@@ -1177,16 +1178,40 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
         
     color = aForFrame->GetStyleBackground();
   }
-
-  if (isCanvas && NS_GET_A(color->mBackgroundColor) == 255) {
-    nsIViewManager* vm = aPresContext->GetViewManager();
-    vm->SetDefaultBackgroundColor(color->mBackgroundColor);
+  if (!isCanvas) {
+    PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
+                          aDirtyRect, aBorderArea, *color, *border,
+                          aUsePrintSettings, aBGClipRect);
+    return;
   }
 
+  nsStyleBackground canvasColor(*color);
+
+  nsIViewManager* vm = aPresContext->GetViewManager();
+
+  if (NS_GET_A(canvasColor.mBackgroundColor) < 255) {
+    // If the window is intended to be opaque, ensure that we always
+    // paint an opaque color for its root element, in case there's no
+    // background at all or a partly transparent image.
+    nsIView* rView;
+    vm->GetRootView(rView);
+    if (!rView->GetParent() &&
+        (!rView->HasWidget() ||
+         rView->GetWidget()->GetTransparencyMode() == eTransparencyOpaque)) {
+      nscolor backColor = aPresContext->DefaultBackgroundColor();
+      NS_ASSERTION(NS_GET_A(backColor) == 255,
+                   "default background color is not opaque");
+
+      canvasColor.mBackgroundColor =
+        NS_ComposeColors(backColor, canvasColor.mBackgroundColor);
+    }
+  }
+
+  vm->SetDefaultBackgroundColor(canvasColor.mBackgroundColor);
+
   PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
-                        aDirtyRect, aBorderArea, *color,
-                        *aForFrame->GetStyleBorder(),
-                        aUsePrintSettings, aBGClipRect);
+                        aDirtyRect, aBorderArea, canvasColor,
+                        *border, aUsePrintSettings, aBGClipRect);
 }
 
 static PRBool
@@ -1432,13 +1457,12 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   nsCOMPtr<imgIContainer> image;
   req->GetImage(getter_AddRefs(image));
 
-  nsIntSize imageIntSize;
-  image->GetWidth(&imageIntSize.width);
-  image->GetHeight(&imageIntSize.height);
-
   nsSize imageSize;
-  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageIntSize.width);
-  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageIntSize.height);
+  image->GetWidth(&imageSize.width);
+  image->GetHeight(&imageSize.height);
+
+  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageSize.width);
+  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageSize.height);
 
   req = nsnull;
 
@@ -1507,10 +1531,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
             // If the current frame is smaller than its container, we
             // need to paint the background color even if the frame
             // itself is opaque.
-            nsIntSize iSize;
+            nsSize iSize;
             image->GetWidth(&iSize.width);
             image->GetHeight(&iSize.height);
-            nsIntRect iframeRect;
+            nsRect iframeRect;
             gfxImgFrame->GetRect(iframeRect);
             if (iSize.width != iframeRect.width ||
                 iSize.height != iframeRect.height) {

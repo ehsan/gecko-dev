@@ -171,11 +171,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "mozAutoDocUpdate.h"
 
-#ifdef MOZ_SMIL
-#include "nsSMILAnimationController.h"
-#include "imgIContainer.h"
-#endif // MOZ_SMIL
-
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -901,7 +896,7 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
     } else {
       doc->SetDisplayDocument(aDisplayDocument);
 
-      rv = aViewer->Init(nsnull, nsIntRect(0, 0, 0, 0));
+      rv = aViewer->Init(nsnull, nsRect(0, 0, 0, 0));
       if (NS_SUCCEEDED(rv)) {
         rv = aViewer->Open(nsnull, nsnull);
       }
@@ -1222,7 +1217,7 @@ public:
 
 protected:
   // Rebuild our list of style sets
-  nsresult GetSets(nsTArray<nsString>& aStyleSets);
+  nsresult GetSets(nsStringArray& aStyleSets);
   
   nsIDocument* mDocument;  // Our document; weak ref.  It'll let us know if it
                            // dies.
@@ -1247,14 +1242,14 @@ nsDOMStyleSheetSetList::nsDOMStyleSheetSetList(nsIDocument* aDocument)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::Item(PRUint32 aIndex, nsAString& aResult)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  if (aIndex >= styleSets.Length()) {
+  if (aIndex >= (PRUint32)styleSets.Count()) {
     SetDOMStringToNull(aResult);
   } else {
-    aResult = styleSets[aIndex];
+    styleSets.StringAt(aIndex, aResult);
   }
 
   return NS_OK;
@@ -1263,11 +1258,11 @@ nsDOMStyleSheetSetList::Item(PRUint32 aIndex, nsAString& aResult)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::GetLength(PRUint32 *aLength)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  *aLength = styleSets.Length();
+  *aLength = (PRUint32)styleSets.Count();
 
   return NS_OK;
 }
@@ -1275,17 +1270,17 @@ nsDOMStyleSheetSetList::GetLength(PRUint32 *aLength)
 NS_IMETHODIMP
 nsDOMStyleSheetSetList::Contains(const nsAString& aString, PRBool *aResult)
 {
-  nsTArray<nsString> styleSets;
+  nsStringArray styleSets;
   nsresult rv = GetSets(styleSets);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  *aResult = styleSets.Contains(aString);
+  *aResult = styleSets.IndexOf(aString) != -1;
 
   return NS_OK;
 }
 
 nsresult
-nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
+nsDOMStyleSheetSetList::GetSets(nsStringArray& aStyleSets)
 {
   if (!mDocument) {
     return NS_OK; // Spec says "no exceptions", and we have no style sets if we
@@ -1299,8 +1294,8 @@ nsDOMStyleSheetSetList::GetSets(nsTArray<nsString>& aStyleSets)
     nsIStyleSheet* sheet = mDocument->GetStyleSheetAt(index);
     NS_ASSERTION(sheet, "Null sheet in sheet list!");
     sheet->GetTitle(title);
-    if (!title.IsEmpty() && !aStyleSets.Contains(title) &&
-        !aStyleSets.AppendElement(title)) {
+    if (!title.IsEmpty() && aStyleSets.IndexOf(title) == -1 &&
+        !aStyleSets.AppendString(title)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
@@ -1781,13 +1776,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mStyleSheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mCatalogSheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mVisitednessChangedURIs)
-
-#ifdef MOZ_SMIL
-  // Traverse animation components
-  if (tmp->mAnimationController) {
-    tmp->mAnimationController->Traverse(&cb);
-  }
-#endif // MOZ_SMIL
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
 
@@ -5267,32 +5255,6 @@ nsDocument::EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData)
   mExternalResourceMap.EnumerateResources(aCallback, aData);
 }
 
-#ifdef MOZ_SMIL
-nsSMILAnimationController*
-nsDocument::GetAnimationController()
-{
-  // We create the animation controller lazily because most documents won't want
-  // one and only SVG documents and the like will call this
-  if (mAnimationController)
-    return mAnimationController;
-
-  mAnimationController = NS_NewSMILAnimationController(this);
-  
-  // If there's a presContext then check the animation mode and pause if
-  // necessary.
-  nsIPresShell *shell = GetPrimaryShell();
-  if (mAnimationController && shell) {
-    nsPresContext *context = shell->GetPresContext();
-    if (context &&
-        context->ImageAnimationMode() == imgIContainer::kDontAnimMode) {
-      mAnimationController->Pause(nsSMILTimeContainer::PAUSE_USERPREF);
-    }
-  }
-
-  return mAnimationController;
-}
-#endif // MOZ_SMIL
-
 struct DirTable {
   const char* mName;
   PRUint8     mValue;
@@ -7141,12 +7103,6 @@ nsDocument::OnPageShow(PRBool aPersisted)
   // Set mIsShowing before firing events, in case those event handlers
   // move us around.
   mIsShowing = PR_TRUE;
-
-#ifdef MOZ_SMIL
-  if (mAnimationController) {
-    mAnimationController->OnPageShow();
-  }
-#endif
   
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, aPersisted);
   DispatchEventToWindow(&event);
@@ -7177,12 +7133,6 @@ nsDocument::OnPageHide(PRBool aPersisted)
   // Set mIsShowing before firing events, in case those event handlers
   // move us around.
   mIsShowing = PR_FALSE;
-
-#ifdef MOZ_SMIL
-  if (mAnimationController) {
-    mAnimationController->OnPageHide();
-  }
-#endif
   
   // Now send out a PageHide event.
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, aPersisted);

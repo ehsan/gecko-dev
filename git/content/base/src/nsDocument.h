@@ -134,9 +134,6 @@ class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
 struct PLEvent;
 class nsChildContentList;
-#ifdef MOZ_SMIL
-class nsSMILAnimationController;
-#endif // MOZ_SMIL
 
 PR_BEGIN_EXTERN_C
 /* Note that these typedefs declare functions, not pointer to
@@ -982,10 +979,6 @@ public:
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
 
-#ifdef MOZ_SMIL
-  nsSMILAnimationController* GetAnimationController();
-#endif // MOZ_SMIL
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
   /**
@@ -1277,10 +1270,6 @@ private:
   nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
-
-#ifdef MOZ_SMIL
-  nsAutoPtr<nsSMILAnimationController> mAnimationController;
-#endif // MOZ_SMIL
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

@@ -112,10 +112,10 @@ NS_IMPL_ISUPPORTS1(nsAccessibleDOMStringList, nsIDOMDOMStringList)
 NS_IMETHODIMP
 nsAccessibleDOMStringList::Item(PRUint32 aIndex, nsAString& aResult)
 {
-  if (aIndex >= mNames.Length()) {
+  if (aIndex >= (PRUint32)mNames.Count()) {
     SetDOMStringToNull(aResult);
   } else {
-    aResult = mNames.ElementAt(aIndex);
+    mNames.StringAt(aIndex, aResult);
   }
 
   return NS_OK;
@@ -124,7 +124,7 @@ nsAccessibleDOMStringList::Item(PRUint32 aIndex, nsAString& aResult)
 NS_IMETHODIMP
 nsAccessibleDOMStringList::GetLength(PRUint32 *aLength)
 {
-  *aLength = mNames.Length();
+  *aLength = (PRUint32)mNames.Count();
 
   return NS_OK;
 }
@@ -132,7 +132,7 @@ nsAccessibleDOMStringList::GetLength(PRUint32 *aLength)
 NS_IMETHODIMP
 nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
 {
-  *aResult = mNames.Contains(aString);
+  *aResult = mNames.IndexOf(aString) > -1;
 
   return NS_OK;
 }
@@ -1337,7 +1337,7 @@ NS_IMETHODIMP nsAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PR
 
   // We have the union of the rectangle, now we need to put it in absolute screen coords
 
-  nsIntRect orgRectPixels = aBoundingFrame->GetScreenRectExternal();
+  nsRect orgRectPixels = aBoundingFrame->GetScreenRectExternal();
   *x += orgRectPixels.x;
   *y += orgRectPixels.y;
 

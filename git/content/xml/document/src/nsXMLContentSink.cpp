@@ -1179,11 +1179,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 #ifdef MOZ_SVG
   if (mDocument &&
       content->GetNameSpaceID() == kNameSpaceID_SVG &&
-      (
-#ifdef MOZ_SMIL
-       content->Tag() == nsGkAtoms::svg ||
-#endif
-       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload))) {
+      content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload)) {
     FlushTags();
 
     nsEvent event(PR_TRUE, NS_SVG_LOAD);

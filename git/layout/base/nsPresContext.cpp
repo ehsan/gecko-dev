@@ -90,10 +90,6 @@
 #include "nsFontFaceLoader.h"
 #include "nsIEventListenerManager.h"
 
-#ifdef MOZ_SMIL
-#include "nsSMILAnimationController.h"
-#endif // MOZ_SMIL
-
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
@@ -1083,30 +1079,6 @@ void nsPresContext::SetImgAnimations(nsIContent *aParent, PRUint16 aMode)
   }
 }
 
-#ifdef MOZ_SMIL
-void
-nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
-                                 PRUint16 aOldMode)
-{
-  nsSMILAnimationController *controller = aDoc->GetAnimationController();
-  if (controller) {
-    switch (aNewMode)
-    {
-      case imgIContainer::kNormalAnimMode:
-      case imgIContainer::kLoopOnceAnimMode:
-        if (aOldMode == imgIContainer::kDontAnimMode)
-          controller->Resume(nsSMILTimeContainer::PAUSE_USERPREF);
-        break;
-
-      case imgIContainer::kDontAnimMode:
-        if (aOldMode != imgIContainer::kDontAnimMode)
-          controller->Pause(nsSMILTimeContainer::PAUSE_USERPREF);
-        break;
-    }
-  }
-}
-#endif // MOZ_SMIL
-
 void
 nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
 {
@@ -1131,10 +1103,6 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
       if (rootContent) {
         SetImgAnimations(rootContent, aMode);
       }
-
-#ifdef MOZ_SMIL
-      SetSMILAnimations(doc, aMode, mImageAnimationMode);
-#endif // MOZ_SMIL
     }
   }
 
@@ -1148,12 +1116,10 @@ nsPresContext::SetImageAnimationModeExternal(PRUint16 aMode)
 }
 
 already_AddRefed<nsIFontMetrics>
-nsPresContext::GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet)
+nsPresContext::GetMetricsFor(const nsFont& aFont)
 {
   nsIFontMetrics* metrics = nsnull;
-  mDeviceContext->GetMetricsFor(aFont, mLangGroup,
-                                aUseUserFontSet ? GetUserFontSet() : nsnull,
-                                metrics);
+  mDeviceContext->GetMetricsFor(aFont, mLangGroup, GetUserFontSet(), metrics);
   return metrics;
 }
 

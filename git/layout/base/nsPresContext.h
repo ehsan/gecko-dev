@@ -287,14 +287,9 @@ public:
 
   /**
    * Get the font metrics for a given font.
-   *
-   * If aUseUserFontSet is false, don't build or use the user font set.
-   * This is intended only for nsRuleNode::CalcLengthWithInitialFont
-   * (which is used from media query matching, which is in turn called
-   * when building the user font set).
    */
   NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
-  GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
+  GetMetricsFor(const nsFont& aFont);
 
   /**
    * Get the default font corresponding to the given ID.  This object is
@@ -513,16 +508,9 @@ public:
 
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
-    if (aZoom == mTextZoom)
-      return;
-
     mTextZoom = aZoom;
-    if (HasCachedStyleData()) {
-      // Media queries could have changed since we changed the meaning
-      // of 'em' units in them.
-      MediaFeatureValuesChanged(PR_TRUE);
+    if (HasCachedStyleData())
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-    }
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -578,7 +566,7 @@ public:
                           mDeviceContext->AppUnitsPerInch()); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
-  nsMargin TwipsToAppUnits(const nsIntMargin &marginInTwips) const
+  nsMargin TwipsToAppUnits(const nsMargin &marginInTwips) const
   { return nsMargin(TwipsToAppUnits(marginInTwips.left), 
                     TwipsToAppUnits(marginInTwips.top),
                     TwipsToAppUnits(marginInTwips.right),
@@ -800,10 +788,6 @@ protected:
   NS_HIDDEN_(void) SysColorChangedInternal();
 
   NS_HIDDEN_(void) SetImgAnimations(nsIContent *aParent, PRUint16 aMode);
-#ifdef MOZ_SMIL
-  NS_HIDDEN_(void) SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
-                                     PRUint16 aOldMode);
-#endif // MOZ_SMIL
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);

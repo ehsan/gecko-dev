@@ -1117,14 +1117,7 @@
                keycode="&openHelp.commandkey;"
 #endif
                phase="capturing">
-      <![CDATA[
-        var helpButton = document.documentElement.getButton("help");
-        if (helpButton.disabled || helpButton.hidden)
-          return;
         this._fireEvent("dialoghelp", this);
-        event.stopPropagation();
-        event.preventDefault();
-      ]]>
       </handler>
     </handlers>
   </binding>

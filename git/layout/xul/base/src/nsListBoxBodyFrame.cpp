@@ -449,7 +449,6 @@ nsListBoxBodyFrame::ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt3
 PRBool
 nsListBoxBodyFrame::ReflowFinished()
 {
-  nsAutoScriptBlocker scriptBlocker;
   // now create or destroy any rows as needed
   CreateRows();
 

@@ -1494,18 +1494,6 @@ nsHttpChannel::ProcessFallback(PRBool *fallingBack)
     return NS_OK;
 }
 
-// Determines if a request is a byte range request for a subrange,
-// i.e. is a byte range request, but not a 0- byte range request.
-static PRBool
-IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
-{
-    if (!aRequestHead.PeekHeader(nsHttp::Range))
-        return PR_FALSE;
-    nsCAutoString byteRange;
-    aRequestHead.GetHeader(nsHttp::Range, byteRange);
-    return !byteRange.EqualsLiteral("bytes=0-");
-}
-
 nsresult
 nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
 {
@@ -1534,16 +1522,13 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
         return NS_OK;
     }
 
-    if (mResuming) {
-        // We don't support caching for requests initiated
-        // via nsIResumableChannel.
+    if (mRequestHead.PeekHeader(nsHttp::Range) || mResuming) {
+        // we don't support caching for byte range requests initiated
+        // by our clients or via nsIResumableChannel.
+        // XXX perhaps we could munge their byte range into the cache
+        // key to make caching sort'a work.
         return NS_OK;
     }
-
-    // Don't cache byte range requests which are subranges, only cache 0-
-    // byte range requests.
-    if (IsSubRangeRequest(mRequestHead))
-        return NS_OK;
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request
@@ -1740,10 +1725,11 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
         return NS_OK;
     }
 
-    // Don't cache byte range requests which are subranges, only cache 0-
-    // byte range requests.
-    if (IsSubRangeRequest(mRequestHead))
+    if (mRequestHead.PeekHeader(nsHttp::Range)) {
+        // we don't support caching for byte range requests initiated
+        // by our clients or via nsIResumableChannel.
         return NS_OK;
+    }
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request

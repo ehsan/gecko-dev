@@ -5582,7 +5582,7 @@ nsDocShell::CaptureState()
             if (rootView) {
                 nsIWidget *widget = rootView->GetWidget();
                 if (widget) {
-                    nsIntRect bounds(0, 0, 0, 0);
+                    nsRect bounds(0, 0, 0, 0);
                     widget->GetBounds(bounds);
                     rv = mOSHE->SetViewerBounds(bounds);
                 }
@@ -5907,7 +5907,7 @@ nsDocShell::RestoreFromHistory()
     // bounds of the root view's widget.
 
     nsIView *rootViewSibling = nsnull, *rootViewParent = nsnull;
-    nsIntRect newBounds(0, 0, 0, 0);
+    nsRect newBounds(0, 0, 0, 0);
 
     nsCOMPtr<nsIPresShell> oldPresShell;
     nsDocShell::GetPresShell(getter_AddRefs(oldPresShell));
@@ -5963,7 +5963,7 @@ nsDocShell::RestoreFromHistory()
     }
 
     // get the previous content viewer size
-    nsIntRect oldBounds(0, 0, 0, 0);
+    nsRect oldBounds(0, 0, 0, 0);
     mLSHE->GetViewerBounds(oldBounds);
 
     // Restore the refresh URI list.  The refresh timers will be restarted
@@ -6537,7 +6537,7 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     nsCOMPtr<nsIWidget> widget;
     NS_ENSURE_SUCCESS(GetMainWidget(getter_AddRefs(widget)), NS_ERROR_FAILURE);
 
-    nsIntRect bounds(x, y, cx, cy);
+    nsRect bounds(x, y, cx, cy);
 
     if (NS_FAILED(mContentViewer->Init(widget, bounds))) {
         mContentViewer = nsnull;
@@ -7797,7 +7797,12 @@ nsDocShell::CheckClassifier(nsIChannel *aChannel)
     nsRefPtr<nsClassifierCallback> classifier = new nsClassifierCallback();
     if (!classifier) return NS_ERROR_OUT_OF_MEMORY;
 
-    nsresult rv = classifier->Start(aChannel, PR_FALSE);
+    nsresult rv = classifier->Start(aChannel);
+    if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
+        rv == NS_ERROR_NOT_AVAILABLE) {
+        // no URI classifier => ignored cases
+        return NS_OK;
+    }
     NS_ENSURE_SUCCESS(rv, rv);
 
     mClassifier = classifier;
@@ -9678,12 +9683,10 @@ nsDocShell::IsOKToLoadURI(nsIURI* aURI)
 // nsClassifierCallback
 //*****************************************************************************
 
-NS_IMPL_ISUPPORTS5(nsClassifierCallback,
+NS_IMPL_ISUPPORTS3(nsClassifierCallback,
                    nsIChannelClassifier,
                    nsIURIClassifierCallback,
-                   nsIRunnable,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
+                   nsIRunnable)
 
 NS_IMETHODIMP
 nsClassifierCallback::Run()
@@ -9708,7 +9711,7 @@ nsClassifierCallback::Run()
 
     // Don't bother to run the classifier on a cached load that was
     // previously classified.
-    if (HasBeenClassified(channel)) {
+    if (HasBeenClassified()) {
         return NS_OK;
     }
 
@@ -9744,12 +9747,7 @@ nsClassifierCallback::Run()
 
     nsCOMPtr<nsIURIClassifier> uriClassifier =
         do_GetService(NS_URICLASSIFIERSERVICE_CONTRACTID, &rv);
-    if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
-        rv == NS_ERROR_NOT_AVAILABLE) {
-        // no URI classifier, ignore this failure.
-        return NS_OK;
-    }
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     PRBool expectCallback;
     rv = uriClassifier->Classify(uri, this, &expectCallback);
@@ -9805,10 +9803,10 @@ nsClassifierCallback::MarkEntryClassified(nsresult status)
 }
 
 PRBool
-nsClassifierCallback::HasBeenClassified(nsIChannel *aChannel)
+nsClassifierCallback::HasBeenClassified()
 {
     nsCOMPtr<nsICachingChannel> cachingChannel =
-        do_QueryInterface(aChannel);
+        do_QueryInterface(mSuspendedChannel);
     if (!cachingChannel) {
         return PR_FALSE;
     }
@@ -9864,26 +9862,15 @@ nsClassifierCallback::OnClassifyComplete(nsresult aErrorCode)
 }
 
 NS_IMETHODIMP
-nsClassifierCallback::Start(nsIChannel *aChannel, PRBool aInstallListener)
+nsClassifierCallback::Start(nsIChannel *aChannel)
 {
     mChannel = aChannel;
-
-    if (aInstallListener) {
-        nsresult rv = aChannel->GetNotificationCallbacks
-            (getter_AddRefs(mNotificationCallbacks));
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        rv = aChannel->SetNotificationCallbacks
-            (static_cast<nsIInterfaceRequestor*>(this));
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     return Run();
 }
 
 NS_IMETHODIMP
 nsClassifierCallback::OnRedirect(nsIChannel *aOldChannel,
-                                 nsIChannel *aNewChannel)
+                                nsIChannel *aNewChannel)
 {
     mChannel = aNewChannel;
 
@@ -9912,37 +9899,4 @@ nsClassifierCallback::Cancel()
     }
 
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClassifierCallback::OnChannelRedirect(nsIChannel *aOldChannel,
-                                        nsIChannel *aNewChannel,
-                                        PRUint32 aFlags)
-{
-    nsresult rv = OnRedirect(aOldChannel, aNewChannel);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (mNotificationCallbacks) {
-        nsCOMPtr<nsIChannelEventSink> sink =
-            do_GetInterface(mNotificationCallbacks);
-        if (sink) {
-            return sink->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
-        }
-    }
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClassifierCallback::GetInterface(const nsIID &aIID, void **aResult)
-{
-    if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {
-        NS_ADDREF_THIS();
-        *aResult = static_cast<nsIChannelEventSink *>(this);
-        return NS_OK;
-    } else if (mNotificationCallbacks) {
-        return mNotificationCallbacks->GetInterface(aIID, aResult);
-    } else {
-        return NS_ERROR_NO_INTERFACE;
-    }
 }

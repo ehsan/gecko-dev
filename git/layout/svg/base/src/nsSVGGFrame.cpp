@@ -42,6 +42,7 @@
 #include "nsSVGMatrix.h"
 #include "nsGkAtoms.h"
 #include "nsSVGUtils.h"
+#include "nsISVGValueUtils.h"
 #include "nsSVGGraphicElement.h"
 
 //----------------------------------------------------------------------

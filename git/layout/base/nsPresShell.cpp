@@ -193,14 +193,6 @@
 #ifdef MOZ_XUL
 #include "nsMenuFrame.h"
 #include "nsTreeBodyFrame.h"
-#include "nsIBoxObject.h"
-#include "nsITreeBoxObject.h"
-#include "nsMenuPopupFrame.h"
-#include "nsITreeColumns.h"
-#include "nsIDOMXULMultSelectCntrlEl.h"
-#include "nsIDOMXULSelectCntrlItemEl.h"
-#include "nsIDOMXULMenuListElement.h"
-
 #endif
 #include "nsPlaceholderFrame.h"
 
@@ -889,12 +881,12 @@ public:
 
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
                                                    nsIRegion* aRegion,
-                                                   nsIntPoint& aPoint,
-                                                   nsIntRect* aScreenRect);
+                                                   nsPoint& aPoint,
+                                                   nsRect* aScreenRect);
 
   virtual already_AddRefed<gfxASurface> RenderSelection(nsISelection* aSelection,
-                                                        nsIntPoint& aPoint,
-                                                        nsIntRect* aScreenRect);
+                                                        nsPoint& aPoint,
+                                                        nsRect* aScreenRect);
 
   //nsIViewObserver interface
 
@@ -1095,8 +1087,8 @@ protected:
                       nsISelection* aSelection,
                       nsIRegion* aRegion,
                       nsRect aArea,
-                      nsIntPoint& aPoint,
-                      nsIntRect* aScreenRect);
+                      nsPoint& aPoint,
+                      nsRect* aScreenRect);
 
   /**
    * Methods to handle changes to user and UA sheet lists that we get
@@ -1194,32 +1186,6 @@ private:
                                  nsIFrame*      aTargetFrame,
                                  nsGUIEvent*    aEvent,
                                  nsEventStatus* aEventStatus);
-
-  /*
-   * This and the next two helper methods are used to target and position the
-   * context menu when the keyboard shortcut is used to open it.
-   *
-   * If another menu is open, the context menu is opened relative to the
-   * active menuitem within the menu, or the menu itself if no item is active.
-   * Otherwise, if the caret is visible, the menu is opened near the caret.
-   * Otherwise, if a selectable list such as a listbox is focused, the
-   * current item within the menu is opened relative to this item.
-   * Otherwise, the context menu is opened at the topleft corner of the
-   * view.
-   *
-   * Returns true if the context menu event should fire and false if it should
-   * not.
-   */
-  PRBool AdjustContextMenuKeyEvent(nsMouseEvent* aEvent);
-
-  // 
-  PRBool PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTargetPt);
-
-  // Get the selected item and coordinates in device pixels relative to root
-  // view for element, first ensuring the element is onscreen
-  void GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
-                                           nsIContent **aTargetToUse,
-                                           nsIntPoint& aTargetPt);
 
   void FireResizeEvent();
   nsRevocableEventPtr<nsRunnableMethod<PresShell> > mResizeEvent;
@@ -5147,8 +5113,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
                                nsISelection* aSelection,
                                nsIRegion* aRegion,
                                nsRect aArea,
-                               nsIntPoint& aPoint,
-                               nsIntRect* aScreenRect)
+                               nsPoint& aPoint,
+                               nsRect* aScreenRect)
 {
   nsPresContext* pc = GetPresContext();
   if (!pc || aArea.width == 0 || aArea.height == 0)
@@ -5157,7 +5123,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
   nsIDeviceContext* deviceContext = pc->DeviceContext();
 
   // use the rectangle to create the surface
-  nsIntRect pixelArea = nsRect::ToOutsidePixels(aArea, pc->AppUnitsPerDevPixel());
+  nsRect pixelArea = aArea;
+  pixelArea.ScaleRoundOut(1.0 / pc->AppUnitsPerDevPixel());
 
   // if the area of the image is larger than the maximum area, scale it down
   float scale = 0.0;
@@ -5261,8 +5228,8 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 already_AddRefed<gfxASurface>
 PresShell::RenderNode(nsIDOMNode* aNode,
                       nsIRegion* aRegion,
-                      nsIntPoint& aPoint,
-                      nsIntRect* aScreenRect)
+                      nsPoint& aPoint,
+                      nsRect* aScreenRect)
 {
   // area will hold the size of the surface needed to draw the node, measured
   // from the root frame.
@@ -5287,11 +5254,12 @@ PresShell::RenderNode(nsIDOMNode* aNode,
 
   if (aRegion) {
     // combine the area with the supplied region
-    nsIntRect rrectPixels;
+    nsRect rrectPixels;
     aRegion->GetBoundingBox(&rrectPixels.x, &rrectPixels.y,
                             &rrectPixels.width, &rrectPixels.height);
 
-    nsRect rrect = nsIntRect::ToAppUnits(rrectPixels, nsPresContext::AppUnitsPerCSSPixel());
+    nsRect rrect = rrectPixels;
+    rrect.ScaleRoundOut(nsPresContext::AppUnitsPerCSSPixel());
     area.IntersectRect(area, rrect);
     
     nsPresContext* pc = GetPresContext();
@@ -5309,8 +5277,8 @@ PresShell::RenderNode(nsIDOMNode* aNode,
 
 already_AddRefed<gfxASurface>
 PresShell::RenderSelection(nsISelection* aSelection,
-                           nsIntPoint& aPoint,
-                           nsIntRect* aScreenRect)
+                           nsPoint& aPoint,
+                           nsRect* aScreenRect)
 {
   // area will hold the size of the surface needed to draw the selection,
   // measured from the root frame.
@@ -5888,12 +5856,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       }
     }
 
-    if (aEvent->message == NS_CONTEXTMENU &&
-        static_cast<nsMouseEvent*>(aEvent)->context == nsMouseEvent::eContextMenuKey) {
-      if (!AdjustContextMenuKeyEvent(static_cast<nsMouseEvent*>(aEvent)))
-        return NS_OK;
-    }
-
     nsAutoHandlingUserInputStatePusher userInpStatePusher(isHandlingUserInput);
 
     nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
@@ -5967,336 +5929,6 @@ PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent, nsEvent* aEvent,
 
   PopCurrentEventInfo();
   return NS_OK;
-}
-
-PRBool
-PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
-{
-#ifdef MOZ_XUL
-  // if a menu is open, open the context menu relative to the active item on the menu.
-  // XXXndeakin Mac doesn't fire mouse-triggered context menus while another
-  // menu is open. Maybe we should prevent keyboard-tiggered context menu events too. 
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
-    nsIFrame* popupFrame = pm->GetTopPopup(ePopupTypeMenu);
-    if (popupFrame) {
-#ifdef XP_MACOSX
-      // context menus should not be opened while another menu is open on Mac,
-      // so return false so that the event is not fired.
-      return PR_FALSE;
-#else
-      nsIFrame* itemFrame = 
-        (static_cast<nsMenuPopupFrame *>(popupFrame))->GetCurrentMenuItem();
-      if (!itemFrame)
-        itemFrame = popupFrame;
-
-      nsCOMPtr<nsIWidget> widget = popupFrame->GetWindow();
-      aEvent->widget = widget;
-      nsIntRect widgetRect(0, 0, 1, 1);
-      widget->WidgetToScreen(widgetRect, widgetRect);
-      aEvent->refPoint = itemFrame->GetScreenRect().BottomLeft() - widgetRect.TopLeft();
-
-      mCurrentEventContent = itemFrame->GetContent();
-      mCurrentEventFrame = itemFrame;
-
-      return PR_TRUE;
-#endif
-    }
-  }
-#endif
-
-  // If we're here because of the key-equiv for showing context menus, we
-  // have to twiddle with the NS event to make sure the context menu comes
-  // up in the upper left of the relevant content area before we create
-  // the DOM event. Since we never call InitMouseEvent() on the event, 
-  // the client X/Y will be 0,0. We can make use of that if the widget is null.
-  mViewManager->GetWidget(getter_AddRefs(aEvent->widget));
-  aEvent->refPoint.x = 0;
-  aEvent->refPoint.y = 0;
-
-  // see if we should use the caret position for the popup
-  nsIntPoint caretPoint;
-  // Beware! This may flush notifications via synchronous
-  // ScrollSelectionIntoView.
-  if (PrepareToUseCaretPosition(aEvent->widget, caretPoint)) {
-    // caret position is good
-    aEvent->refPoint = caretPoint;
-    return PR_TRUE;
-  }
-
-  // If we're here because of the key-equiv for showing context menus, we
-  // have to reset the event target to the currently focused element. Get it
-  // from the focus controller.
-  nsIDocument *doc = GetDocument();
-  if (doc) {
-    nsPIDOMWindow* privWindow = doc->GetWindow();
-    if (privWindow) {
-      nsIFocusController *focusController =
-        privWindow->GetRootFocusController();
-      if (focusController) {
-        nsCOMPtr<nsIDOMElement> currentFocus;
-        focusController->GetFocusedElement(getter_AddRefs(currentFocus));
-        // Reset event coordinates relative to focused frame in view
-        if (currentFocus) {
-          nsCOMPtr<nsIContent> currentPointElement;
-          GetCurrentItemAndPositionForElement(currentFocus,
-                                              getter_AddRefs(currentPointElement),
-                                              aEvent->refPoint);
-          if (currentPointElement) {
-            mCurrentEventContent = currentPointElement;
-            mCurrentEventFrame = nsnull;
-            GetCurrentEventFrame();
-          }
-        }
-      }
-    }
-  }
-
-  return PR_TRUE;
-}
-
-// nsEventListenerManager::PrepareToUseCaretPosition
-//
-//    This checks to see if we should use the caret position for popup context
-//    menus. Returns true if the caret position should be used, and the
-//    coordinates of that position is returned in aTargetPt. This function
-//    will also scroll the window as needed to make the caret visible.
-//
-//    The event widget should be the widget that generated the event, and
-//    whose coordinate system the resulting event's refPoint should be
-//    relative to.  The returned point is in device pixels realtive to the
-//    widget passed in.
-PRBool
-PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTargetPt)
-{
-  nsresult rv;
-
-  // check caret visibility
-  nsRefPtr<nsCaret> caret;
-  rv = GetCaret(getter_AddRefs(caret));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  NS_ENSURE_TRUE(caret, PR_FALSE);
-
-  PRBool caretVisible = PR_FALSE;
-  rv = caret->GetCaretVisible(&caretVisible);
-  if (NS_FAILED(rv) || ! caretVisible)
-    return PR_FALSE;
-
-  // caret selection, this is a temporary weak reference, so no refcounting is 
-  // needed
-  nsISelection* domSelection = caret->GetCaretDOMSelection();
-  NS_ENSURE_TRUE(domSelection, PR_FALSE);
-
-  // since the match could be an anonymous textnode inside a
-  // <textarea> or text <input>, we need to get the outer frame
-  // note: frames are not refcounted
-  nsIFrame* frame = nsnull; // may be NULL
-  nsCOMPtr<nsIDOMNode> node;
-  rv = domSelection->GetFocusNode(getter_AddRefs(node));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  NS_ENSURE_TRUE(node, PR_FALSE);
-  nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  if (content) {
-    nsIContent* nonNative = content->FindFirstNonNativeAnonymous();
-    content = nonNative;
-  }
-
-  if (content) {
-    // It seems like ScrollSelectionIntoView should be enough, but it's
-    // not. The problem is that scrolling the selection into view when it is
-    // below the current viewport will align the top line of the frame exactly
-    // with the bottom of the window. This is fine, BUT, the popup event causes
-    // the control to be re-focused which does this exact call to
-    // ScrollContentIntoView, which has a one-pixel disagreement of whether the
-    // frame is actually in view. The result is that the frame is aligned with
-    // the top of the window, but the menu is still at the bottom.
-    //
-    // Doing this call first forces the frame to be in view, eliminating the
-    // problem. The only difference in the result is that if your cursor is in
-    // an edit box below the current view, you'll get the edit box aligned with
-    // the top of the window. This is arguably better behavior anyway.
-    rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    frame = GetPrimaryFrameFor(content);
-    NS_WARN_IF_FALSE(frame, "No frame for focused content?");
-  }
-
-  // Actually scroll the selection (ie caret) into view. Note that this must
-  // be synchronous since we will be checking the caret position on the screen.
-  //
-  // Be easy about errors, and just don't scroll in those cases. Better to have
-  // the correct menu at a weird place than the wrong menu.
-  // After ScrollSelectionIntoView(), the pending notifications might be
-  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-  nsCOMPtr<nsISelectionController> selCon;
-  if (frame)
-    frame->GetSelectionController(GetPresContext(), getter_AddRefs(selCon));
-  else
-    selCon = static_cast<nsISelectionController *>(this);
-  if (selCon) {
-    rv = selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-                   nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  }
-
-  // get caret position relative to some view (normally the same as the
-  // event widget view, but this is not guaranteed)
-  PRBool isCollapsed;
-  nsIView* view;
-  nsRect caretCoords;
-  rv = caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
-                                  domSelection, &caretCoords, &isCollapsed,
-                                  &view);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-  // in case the view used for caret coordinates was something else, we need
-  // to bring those coordinates into the space of the widget view
-  nsIView* widgetView = nsIView::GetViewFor(aEventWidget);
-  NS_ENSURE_TRUE(widgetView, PR_FALSE);
-  nsPoint viewToWidget;
-  widgetView->GetNearestWidget(&viewToWidget);
-  nsPoint viewDelta = view->GetOffsetTo(widgetView) + viewToWidget;
-
-  // caret coordinates are in app units, convert to pixels
-  nsPresContext* presContext = GetPresContext();
-  aTargetPt.x = presContext->AppUnitsToDevPixels(viewDelta.x + caretCoords.x + caretCoords.width);
-  aTargetPt.y = presContext->AppUnitsToDevPixels(viewDelta.y + caretCoords.y + caretCoords.height);
-
-  return PR_TRUE;
-}
-
-void
-PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
-                                               nsIContent** aTargetToUse,
-                                               nsIntPoint& aTargetPt)
-{
-  nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(aCurrentEl));
-  ScrollContentIntoView(focusedContent, NS_PRESSHELL_SCROLL_ANYWHERE,
-                                        NS_PRESSHELL_SCROLL_ANYWHERE);
-
-  PRBool istree = PR_FALSE, checkLineHeight = PR_TRUE;
-  PRInt32 extraPixelsY = 0, extraTreeY = 0;
-
-#ifdef MOZ_XUL
-  // Set the position to just underneath the current item for multi-select
-  // lists or just underneath the selected item for single-select lists. If
-  // the element is not a list, or there is no selection, leave the position
-  // as is.
-  nsCOMPtr<nsIDOMXULSelectControlItemElement> item;
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
-    do_QueryInterface(aCurrentEl);
-  if (multiSelect) {
-    checkLineHeight = PR_FALSE;
-    
-    PRInt32 currentIndex;
-    multiSelect->GetCurrentIndex(&currentIndex);
-    if (currentIndex >= 0) {
-      nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(aCurrentEl));
-      if (xulElement) {
-        nsCOMPtr<nsIBoxObject> box;
-        xulElement->GetBoxObject(getter_AddRefs(box));
-        nsCOMPtr<nsITreeBoxObject> treeBox(do_QueryInterface(box));
-        // Tree view special case (tree items have no frames)
-        // Get the focused row and add its coordinates, which are already in pixels
-        // XXX Boris, should we create a new interface so that this doesn't
-        // need to know about trees? Something like nsINodelessChildCreator which
-        // could provide the current focus coordinates?
-        if (treeBox) {
-          treeBox->EnsureRowIsVisible(currentIndex);
-          PRInt32 firstVisibleRow, rowHeight;
-          treeBox->GetFirstVisibleRow(&firstVisibleRow);
-          treeBox->GetRowHeight(&rowHeight);
-
-          extraPixelsY = (currentIndex - firstVisibleRow + 1) * rowHeight;
-          istree = PR_TRUE;
-
-          nsCOMPtr<nsITreeColumns> cols;
-          treeBox->GetColumns(getter_AddRefs(cols));
-          if (cols) {
-            nsCOMPtr<nsITreeColumn> col;
-            cols->GetFirstColumn(getter_AddRefs(col));
-            if (col) {
-              nsCOMPtr<nsIDOMElement> colElement;
-              col->GetElement(getter_AddRefs(colElement));
-              nsCOMPtr<nsIContent> colContent(do_QueryInterface(colElement));
-              if (colContent) {
-                nsIFrame* frame = GetPrimaryFrameFor(colContent);
-                if (frame) {
-                  extraTreeY = frame->GetSize().height;
-                }
-              }
-            }
-          }
-        }
-        else {
-          multiSelect->GetCurrentItem(getter_AddRefs(item));
-        }
-      }
-    }
-  }
-  else {
-    // don't check menulists as the selected item will be inside a popup.
-    nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(aCurrentEl);
-    if (!menulist) {
-      checkLineHeight = PR_FALSE;
-      nsCOMPtr<nsIDOMXULSelectControlElement> select =
-        do_QueryInterface(aCurrentEl);
-      if (select)
-        select->GetSelectedItem(getter_AddRefs(item));
-    }
-  }
-
-  if (item)
-    focusedContent = do_QueryInterface(item);
-#endif
-
-  nsIFrame *frame = GetPrimaryFrameFor(focusedContent);
-  if (frame) {
-    nsPoint frameOrigin(0, 0);
-
-    // Get the frame's origin within its view
-    nsIView *view = frame->GetClosestView(&frameOrigin);
-    NS_ASSERTION(view, "No view for frame");
-
-    nsIView *rootView = nsnull;
-    mViewManager->GetRootView(rootView);
-    NS_ASSERTION(rootView, "No root view in pres shell");
-
-    // View's origin within its root view
-    frameOrigin += view->GetOffsetTo(rootView);
-
-    // Start context menu down and to the right from top left of frame
-    // use the lineheight. This is a good distance to move the context
-    // menu away from the top left corner of the frame. If we always 
-    // used the frame height, the context menu could end up far away,
-    // for example when we're focused on linked images.
-    // On the other hand, we want to use the frame height if it's less
-    // than the current line height, so that the context menu appears
-    // associated with the correct frame.
-    nscoord extra = 0;
-    if (!istree) {
-      extra = frame->GetSize().height;
-      if (checkLineHeight) {
-        nsIScrollableView *scrollView =
-          nsLayoutUtils::GetNearestScrollingView(view, nsLayoutUtils::eEither);
-        if (scrollView) {
-          nscoord scrollViewLineHeight;
-          scrollView->GetLineHeight(&scrollViewLineHeight);
-          if (extra > scrollViewLineHeight) {
-            extra = scrollViewLineHeight; 
-          }
-        }
-      }
-    }
-
-    nsPresContext* presContext = GetPresContext();
-    aTargetPt.x = presContext->AppUnitsToDevPixels(frameOrigin.x);
-    aTargetPt.y = presContext->AppUnitsToDevPixels(
-                    frameOrigin.y + extra + extraTreeY) + extraPixelsY;
-  }
-
-  NS_IF_ADDREF(*aTargetToUse = focusedContent);
 }
 
 NS_IMETHODIMP
@@ -7032,35 +6664,6 @@ LogVerifyMessage(nsIFrame* k1, nsIFrame* k2, const char* aMsg,
   printf("  %s\n", aMsg);
 }
 
-static void
-LogVerifyMessage(nsIFrame* k1, nsIFrame* k2, const char* aMsg,
-                 const nsIntRect& r1, const nsIntRect& r2)
-{
-  printf("VerifyReflow Error:\n");
-  nsAutoString name;
-  nsIFrameDebug *frameDebug = do_QueryFrame(k1);
-  if (frameDebug) {
-    fprintf(stdout, "  ");
-    frameDebug->GetFrameName(name);
-    fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
-    fprintf(stdout, " %p ", (void*)k1);
-  }
-  printf("{%d, %d, %d, %d}", r1.x, r1.y, r1.width, r1.height);
-
-  printf(" != \n");
-
-  frameDebug = do_QueryFrame(k2);
-  if (frameDebug) {
-    fprintf(stdout, "  ");
-    frameDebug->GetFrameName(name);
-    fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
-    fprintf(stdout, " %p ", (void*)k2);
-  }
-  printf("{%d, %d, %d, %d}\n", r2.x, r2.y, r2.width, r2.height);
-
-  printf("  %s\n", aMsg);
-}
-
 static PRBool
 CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame, 
              nsPresContext* aSecondPresContext, nsIFrame* aSecondFrame)
@@ -7088,7 +6691,7 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
       }
     }
 
-    nsIntRect r1, r2;
+    nsRect r1, r2;
     nsIView* v1, *v2;
     for (;;) {
       if (((nsnull == k1) && (nsnull != k2)) ||

@@ -79,6 +79,7 @@ class nsIRenderingContext;
 class nsIPageSequenceFrame;
 class nsString;
 class nsAString;
+class nsStringArray;
 class nsCaret;
 class nsStyleContext;
 class nsFrameSelection;
@@ -101,10 +102,10 @@ class gfxContext;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// b86c23c5-602d-4ca6-a968-379b244fed9e
+// b5bc1dd3-9fd3-4fe7-8311-5dfca55ea371
 #define NS_IPRESSHELL_IID \
-{ 0xb86c23c5, 0x602d, 0x4ca6, \
-  { 0xa9, 0x68, 0x37, 0x9b, 0x24, 0x4f, 0xed, 0x9e } }
+{ 0xb5bc1dd3, 0x9fd3, 0x4fe7, \
+  { 0x83, 0x11, 0x5d, 0xfc, 0xa5, 0x5e, 0xa3, 0x71 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -743,8 +744,8 @@ public:
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
                                                    nsIRegion* aRegion,
-                                                   nsIntPoint& aPoint,
-                                                   nsIntRect* aScreenRect) = 0;
+                                                   nsPoint& aPoint,
+                                                   nsRect* aScreenRect) = 0;
 
   /*
    * Renders a selection to a surface and returns it. This method is primarily
@@ -762,8 +763,8 @@ public:
    * as the position can be determined from the displayed frames.
    */
   virtual already_AddRefed<gfxASurface> RenderSelection(nsISelection* aSelection,
-                                                        nsIntPoint& aPoint,
-                                                        nsIntRect* aScreenRect) = 0;
+                                                        nsPoint& aPoint,
+                                                        nsRect* aScreenRect) = 0;
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame);
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame);

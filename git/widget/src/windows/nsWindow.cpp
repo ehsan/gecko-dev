@@ -74,8 +74,6 @@
 #include "prlog.h"
 #include "nsISupportsPrimitives.h"
 
-#include "gfxImageSurface.h"
-
 #ifdef WINCE
 #include "aygshell.h"
 #include "imm.h"
@@ -866,7 +864,7 @@ NS_METHOD nsWindow::EndResizingChildren(void)
   return NS_OK;
 }
 
-NS_METHOD nsWindow::WidgetToScreen(const nsIntRect& aOldRect, nsIntRect& aNewRect)
+NS_METHOD nsWindow::WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect)
 {
   POINT point;
   point.x = aOldRect.x;
@@ -879,7 +877,7 @@ NS_METHOD nsWindow::WidgetToScreen(const nsIntRect& aOldRect, nsIntRect& aNewRec
   return NS_OK;
 }
 
-NS_METHOD nsWindow::ScreenToWidget(const nsIntRect& aOldRect, nsIntRect& aNewRect)
+NS_METHOD nsWindow::ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect)
 {
   POINT point;
   point.x = aOldRect.x;
@@ -915,10 +913,10 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
 // Initialize an event to dispatch
 //
 //-------------------------------------------------------------------------
-void nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
+void nsWindow::InitEvent(nsGUIEvent& event, nsPoint* aPoint)
 {
   if (nsnull == aPoint) {     // use the point from the event
-    // get the message position in client coordinates
+    // get the message position in client coordinates and in twips
     if (mWnd != NULL) {
 
       DWORD pos = ::GetMessagePos();
@@ -1232,7 +1230,7 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 
 nsresult
 nsWindow::StandardWindowCreate(nsIWidget *aParent,
-                               const nsIntRect &aRect,
+                               const nsRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsIDeviceContext *aContext,
                                nsIAppShell *aAppShell,
@@ -1394,7 +1392,7 @@ nsWindow::StandardWindowCreate(nsIWidget *aParent,
 //
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Create(nsIWidget *aParent,
-                           const nsIntRect &aRect,
+                           const nsRect &aRect,
                            EVENT_CALLBACK aHandleEventFunction,
                            nsIDeviceContext *aContext,
                            nsIAppShell *aAppShell,
@@ -1416,7 +1414,7 @@ NS_METHOD nsWindow::Create(nsIWidget *aParent,
 //-------------------------------------------------------------------------
 
 NS_METHOD nsWindow::Create(nsNativeWidget aParent,
-                           const nsIntRect &aRect,
+                           const nsRect &aRect,
                            EVENT_CALLBACK aHandleEventFunction,
                            nsIDeviceContext *aContext,
                            nsIAppShell *aAppShell,
@@ -2167,7 +2165,7 @@ NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 // Get this component dimension
 //
 //-------------------------------------------------------------------------
-NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetBounds(nsRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -2199,7 +2197,7 @@ NS_METHOD nsWindow::GetBounds(nsIntRect &aRect)
 // Get this component dimension
 //
 //-------------------------------------------------------------------------
-NS_METHOD nsWindow::GetClientBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetClientBounds(nsRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -2219,7 +2217,7 @@ NS_METHOD nsWindow::GetClientBounds(nsIntRect &aRect)
 
 //get the bounds, but don't take into account the client size
 
-void nsWindow::GetNonClientBounds(nsIntRect &aRect)
+void nsWindow::GetNonClientBounds(nsRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -2245,7 +2243,7 @@ void nsWindow::GetNonClientBounds(nsIntRect &aRect)
 }
 
 // like GetBounds, but don't offset by the parent
-NS_METHOD nsWindow::GetScreenBounds(nsIntRect &aRect)
+NS_METHOD nsWindow::GetScreenBounds(nsRect &aRect)
 {
   if (mWnd) {
     RECT r;
@@ -2720,7 +2718,7 @@ NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
 // Invalidate this component visible area
 //
 //-------------------------------------------------------------------------
-NS_METHOD nsWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
+NS_METHOD nsWindow::Invalidate(const nsRect & aRect, PRBool aIsSynchronous)
 {
   if (mWnd)
   {
@@ -2899,7 +2897,7 @@ BOOL CALLBACK nsWindow::InvalidateForeignChildWindows(HWND aWnd, LPARAM aMsg)
 //
 //-------------------------------------------------------------------------
 //XXX Scroll is obsolete and should go away soon
-NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect)
+NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
 {
   RECT  trect;
 
@@ -2930,7 +2928,7 @@ NS_IMETHODIMP nsWindow::ScrollWidgets(PRInt32 aDx, PRInt32 aDy)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::ScrollRect(nsIntRect &aRect, PRInt32 aDx, PRInt32 aDy)
+NS_IMETHODIMP nsWindow::ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy)
 {
   RECT  trect;
 
@@ -2962,7 +2960,7 @@ BOOL nsWindow::CallMethod(MethodInfo *info)
     case nsWindow::CREATE:
       NS_ASSERTION(info->nArgs == 7, "Wrong number of arguments to CallMethod");
       Create((nsIWidget*)(info->args[0]),
-             (nsIntRect&)*(nsIntRect*)(info->args[1]),
+             (nsRect&)*(nsRect*)(info->args[1]),
              (EVENT_CALLBACK)(info->args[2]),
              (nsIDeviceContext*)(info->args[3]),
              (nsIAppShell *)(info->args[4]),
@@ -2973,7 +2971,7 @@ BOOL nsWindow::CallMethod(MethodInfo *info)
     case nsWindow::CREATE_NATIVE:
       NS_ASSERTION(info->nArgs == 7, "Wrong number of arguments to CallMethod");
       Create((nsNativeWidget)(info->args[0]),
-             (nsIntRect&)*(nsIntRect*)(info->args[1]),
+             (nsRect&)*(nsRect*)(info->args[1]),
              (EVENT_CALLBACK)(info->args[2]),
              (nsIDeviceContext*)(info->args[3]),
              (nsIAppShell *)(info->args[4]),
@@ -3063,7 +3061,7 @@ PRBool nsWindow::DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                    PRUint32 aFlags)
 {
   nsKeyEvent event(PR_TRUE, aEventType, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
 
   InitEvent(event, &point); // this add ref's event.widget
 
@@ -4204,7 +4202,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
       WORD wNotifyCode = HIWORD(wParam); // notification code
       if ((CBN_SELENDOK == wNotifyCode) || (CBN_SELENDCANCEL == wNotifyCode)) { // Combo box change
         nsGUIEvent event(PR_TRUE, NS_CONTROL_CHANGE, this);
-        nsIntPoint point(0,0);
+        nsPoint point(0,0);
         InitEvent(event, &point); // this add ref's event.widget
         result = DispatchWindowEvent(&event);
       } else if (wNotifyCode == 0) { // Menu selection
@@ -4850,7 +4848,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
         PRInt32 newWidth, newHeight;
         newWidth = PRInt32(r.right - r.left);
         newHeight = PRInt32(r.bottom - r.top);
-        nsIntRect rect(wp->x, wp->y, newWidth, newHeight);
+        nsRect rect(wp->x, wp->y, newWidth, newHeight);
 
 #ifdef MOZ_XUL
         if (eTransparencyTransparent == mTransparencyMode)
@@ -5540,7 +5538,7 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
     return PR_FALSE;
 
   nsGUIEvent event(PR_TRUE, NS_PLUGIN_EVENT, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
   InitEvent(event, &point);
   nsPluginEvent pluginEvent;
   pluginEvent.event = aMsg.message;
@@ -5936,6 +5934,7 @@ ConvertHRGNToRegion(HRGN aRgn)
 //-------------------------------------------------------------------------
 PRBool nsWindow::OnPaint(HDC aDC)
 {
+  nsRect bounds;
   PRBool result = PR_TRUE;
   PAINTSTRUCT ps;
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
@@ -6029,7 +6028,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
                            (PRInt32) mWnd);
 #endif // NS_DEBUG
 
-#ifndef WINCE
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
       if (eTransparencyTransparent == mTransparencyMode) {
@@ -6042,21 +6040,11 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #else
       nsRefPtr<gfxASurface> targetSurface = new gfxWindowsSurface(hDC);
 #endif
-#else
-      nsRefPtr<gfxImageSurface> targetSurface = new gfxImageSurface(gfxIntSize(ps.rcPaint.right - ps.rcPaint.left,
-                                                                               ps.rcPaint.bottom - ps.rcPaint.top),
-                                                                    gfxASurface::ImageFormatRGB24);
-      if (targetSurface && !targetSurface->CairoStatus()) {
-        targetSurface->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
-      }
-#endif
-
 
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
       thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
-#ifndef WINCE
-#if defined(MOZ_XUL)
+#if defined(MOZ_XUL) && !defined(WINCE)
       if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
         thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
       } else if (eTransparencyTransparent == mTransparencyMode) {
@@ -6073,7 +6061,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
       // If we're not doing translucency, then double buffer
       thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
 #endif
-#endif /* ifndef WINCE */
 
       nsCOMPtr<nsIRenderingContext> rc;
       nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
@@ -6099,21 +6086,11 @@ PRBool nsWindow::OnPaint(HDC aDC)
         // that displayed on the screen.
         UpdateTranslucentWindow();
       } else if (result) {
-
-#ifndef WINCE
         // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
         // this, and we'll just end up painting with black.
         thebesContext->PopGroupToSource();
         thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
         thebesContext->Paint();
-#else
-        nsRefPtr<gfxASurface> winSurface = new gfxWindowsSurface(hDC);
-        nsRefPtr<gfxContext> winCtx = new gfxContext(winSurface);
-
-        winCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        winCtx->SetSource(targetSurface);
-        winCtx->Paint();
-#endif
       }
 #endif
     }
@@ -6153,7 +6130,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
 // Send a resize message to the listener
 //
 //-------------------------------------------------------------------------
-PRBool nsWindow::OnResize(nsIntRect &aWindowRect)
+PRBool nsWindow::OnResize(nsRect &aWindowRect)
 {
   // call the event callback
   if (mEventCallback) {
@@ -6207,7 +6184,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     return result;
   }
 
-  nsIntPoint eventPoint;
+  nsPoint eventPoint;
   eventPoint.x = GET_X_LPARAM(lParam);
   eventPoint.y = GET_Y_LPARAM(lParam);
 
@@ -6216,7 +6193,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
                      ? nsMouseEvent::eContextMenuKey
                      : nsMouseEvent::eNormal);
   if (aEventType == NS_CONTEXTMENU && aIsContextMenuKey) {
-    nsIntPoint zero(0, 0);
+    nsPoint zero(0, 0);
     InitEvent(event, &zero);
   } else {
     InitEvent(event, &eventPoint);
@@ -6228,8 +6205,8 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
   event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = aButton;
 
-  nsIntRect mpWidget;
-  nsIntRect mpScreen;
+  nsRect mpWidget;
+  nsRect mpScreen;
   mpWidget.x = eventPoint.x;
   mpWidget.y = eventPoint.y;
   WidgetToScreen(mpWidget, mpScreen);
@@ -6376,7 +6353,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
       if (nsToolkit::gMouseTrailer && !mIsInMouseCapture) {
         nsToolkit::gMouseTrailer->SetMouseTrailerWindow(mWnd);
       }
-      nsIntRect rect;
+      nsRect rect;
       GetBounds(rect);
       rect.x = 0;
       rect.y = 0;
@@ -6420,7 +6397,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
 //
 //-------------------------------------------------------------------------
 #ifdef ACCESSIBILITY
-PRBool nsWindow::DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAcc, nsIntPoint* aPoint)
+PRBool nsWindow::DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAcc, nsPoint* aPoint)
 {
   PRBool result = PR_FALSE;
 
@@ -6667,7 +6644,7 @@ nsWindow::HandleTextEvent(HIMC hIMEContext, PRBool aCheckAttr)
     return;
 
   nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
 
   InitEvent(event, &point);
 
@@ -6694,7 +6671,7 @@ nsWindow::HandleTextEvent(HIMC hIMEContext, PRBool aCheckAttr)
   //
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
-    nsIntRect cursorPosition;
+    nsRect cursorPosition;
     ResolveIMECaretPos(event.theReply.mReferenceWidget,
                        event.theReply.mCursorPosition,
                        this, cursorPosition);
@@ -6765,7 +6742,7 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
     return PR_TRUE;
 
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
   CANDIDATEFORM candForm;
 
   InitEvent(event, &point);
@@ -6776,7 +6753,7 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
   //
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
-    nsIntRect cursorPosition;
+    nsRect cursorPosition;
     ResolveIMECaretPos(event.theReply.mReferenceWidget,
                        event.theReply.mCursorPosition,
                        this, cursorPosition);
@@ -6835,7 +6812,7 @@ nsWindow::HandleEndComposition(void)
   }
 
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
 
   if (gPinYinIMECaretCreated)
   {
@@ -7376,7 +7353,7 @@ PRBool nsWindow::OnIMEReconvert(LPARAM aData, LRESULT *oResult)
   RECONVERTSTRING* pReconv = (RECONVERTSTRING*) aData;
 
   nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
   InitEvent(selection, &point);
   DispatchWindowEvent(&selection);
   if (!selection.mSucceeded)
@@ -7432,7 +7409,7 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
       pCharPosition->dwCharPos > len)
     return PR_FALSE;
 
-  nsIntPoint point(0, 0);
+  nsPoint point(0, 0);
 
   nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
   InitEvent(selection, &point);
@@ -7443,7 +7420,7 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
   PRUint32 offset = selection.mReply.mOffset + pCharPosition->dwCharPos;
   PRBool useCaretRect = selection.mReply.mString.IsEmpty();
 
-  nsIntRect r;
+  nsRect r;
   if (!useCaretRect) {
     nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, this);
     charRect.InitForQueryCharacterRect(offset);
@@ -7465,7 +7442,7 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
     r = caretRect.mReply.mRect;
   }
 
-  nsIntRect screenRect;
+  nsRect screenRect;
   // We always need top level window that is owner window of the popup window
   // even if the content of the popup window has focus.
   ResolveIMECaretPos(GetTopLevelWindow(PR_FALSE), r, nsnull, screenRect);
@@ -7484,9 +7461,9 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 //==========================================================================
 void
 nsWindow::ResolveIMECaretPos(nsIWidget* aReferenceWidget,
-                             nsIntRect& aCursorRect,
+                             nsRect&    aCursorRect,
                              nsIWidget* aNewOriginWidget,
-                             nsIntRect& aOutRect)
+                             nsRect&    aOutRect)
 {
   aOutRect = aCursorRect;
 

@@ -1175,7 +1175,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
   -moz-border-top-colors: rgba(0,0,0,0.35) rgba(255,255,255,0.15);
   color: #ffffff !important;
   /* Implements editBookmarkPanel resizing on folderTree un-collapse. */
-  min-width: 27em;
+  min-width: 300px;
 }
 
 #editBookmarkPanel #editBMPanel_folderTree:focus {
@@ -1470,10 +1470,6 @@ sidebarheader > .tabs-closebutton > .toolbarbutton-text {
 
 toolbarbutton.chevron {
   list-style-image: url("chrome://global/skin/icons/chevron.png") !important;
-}
-
-toolbarbutton.chevron[chromedir="rtl"] {
-  list-style-image: url("chrome://global/skin/icons/chevron-rtl.png") !important;
 }
 
 

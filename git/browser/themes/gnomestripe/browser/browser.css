@@ -1090,7 +1090,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 
 /* Implements editBookmarkPanel resizing on folderTree un-collapse. */
 #editBMPanel_folderTree {
-  min-width: 27em;
+  min-width: 300px;
 }
 
 /* Content area */

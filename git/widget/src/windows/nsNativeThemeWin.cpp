@@ -119,7 +119,7 @@ nsNativeThemeWin::~nsNativeThemeWin() {
   nsUXThemeData::Invalidate();
 }
 
-static void GetNativeRect(const nsIntRect& aSrc, RECT& aDst)
+static void GetNativeRect(const nsRect& aSrc, RECT& aDst) 
 {
   aDst.top = aSrc.y;
   aDst.bottom = aSrc.y + aSrc.height;
@@ -1121,9 +1121,7 @@ RENDER_AGAIN:
     nsUXThemeData::drawThemeBG(theme, hdc, MENU_POPUPSEPARATOR, /* state */ 0, &sepRect, &clipRect);
   }
   // The following widgets need to be RTL-aware
-  else if (aWidgetType == NS_THEME_MENUARROW ||
-           aWidgetType == NS_THEME_RESIZER)
-  {
+  else if (aWidgetType == NS_THEME_MENUARROW) {
     DrawThemeBGRTLAware(theme, hdc, part, state,
                         &widgetRect, &clipRect, IsFrameRTL(aFrame));
   }
@@ -1197,7 +1195,7 @@ NS_IMETHODIMP
 nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
   HANDLE theme = GetTheme(aWidgetType);
   if (!theme)
@@ -1246,7 +1244,7 @@ nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext,
     return NS_ERROR_FAILURE;
 
   // Now compute the delta in each direction and place it in our
-  // nsIntMargin struct.
+  // nsMargin struct.
   aResult->top = contentRect.top - outerRect.top;
   aResult->bottom = outerRect.bottom - contentRect.bottom;
   aResult->left = contentRect.left - outerRect.left;
@@ -1281,7 +1279,7 @@ PRBool
 nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext, 
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
-                                   nsIntMargin* aResult)
+                                   nsMargin* aResult)
 {
   switch (aWidgetType) {
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
@@ -1425,7 +1423,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext,
 NS_IMETHODIMP
 nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
-                                       nsIntSize* aResult, PRBool* aIsOverridable)
+                                       nsSize* aResult, PRBool* aIsOverridable)
 {
   (*aResult).width = (*aResult).height = 0;
   *aIsOverridable = PR_TRUE;
@@ -1754,7 +1752,7 @@ nsresult
 nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
@@ -1831,7 +1829,7 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
 nsresult
 nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
-                                       nsIntSize* aResult, PRBool* aIsOverridable)
+                                       nsSize* aResult, PRBool* aIsOverridable)
 {
   (*aResult).width = (*aResult).height = 0;
   *aIsOverridable = PR_TRUE;
@@ -2204,8 +2202,7 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
     case NS_THEME_RESIZER:    
       aPart = DFC_SCROLL;
 #ifndef WINCE
-      aState = (IsFrameRTL(aFrame)) ?
-               DFCS_SCROLLSIZEGRIPRIGHT : DFCS_SCROLLSIZEGRIP;
+      aState = DFCS_SCROLLSIZEGRIP;
 #else
       aState = 0;
 #endif

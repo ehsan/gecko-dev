@@ -34,6 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsSVGLength.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGSVGElement.h"
@@ -363,21 +364,38 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
                          nsSVGElement *aContent,
                          const nsStyleCoord &aCoord)
 {
+  float val = 0.0f;
+
   switch (aCoord.GetUnit()) {
   case eStyleUnit_Factor:
     // user units
-    return aCoord.GetFactorValue();
+    val = aCoord.GetFactorValue();
+    break;
 
   case eStyleUnit_Coord:
-    return nsPresContext::AppUnitsToFloatCSSPixels(aCoord.GetCoordValue());
+    val = nsPresContext::AppUnitsToFloatCSSPixels(aCoord.GetCoordValue());
+    break;
 
   case eStyleUnit_Percent: {
-      nsSVGSVGElement* ctx = aContent->GetCtx();
-      return ctx ? aCoord.GetPercentValue() * ctx->GetLength(nsSVGUtils::XY) : 0.0f;
+      nsCOMPtr<nsISVGLength> length;
+      NS_NewSVGLength(getter_AddRefs(length),
+                      aCoord.GetPercentValue() * 100.0f,
+                      nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE);
+
+      if (!length)
+        break;
+
+      nsWeakPtr weakCtx =
+        do_GetWeakReference(static_cast<nsGenericElement*>(aContent));
+      length->SetContext(weakCtx, nsSVGUtils::XY);
+      length->GetValue(&val);
+      break;
     }
   default:
-    return 0.0f;
+    break;
   }
+
+  return val;
 }
 
 nsresult
@@ -546,7 +564,8 @@ nsRect
 nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 {
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  nsIntRect rect = nsRect::ToOutsidePixels(aRect, appUnitsPerDevPixel);
+  nsRect rect = aRect;
+  rect.ScaleRoundOutInverse(appUnitsPerDevPixel);
 
   while (aFrame) {
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
@@ -559,7 +578,8 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     aFrame = aFrame->GetParent();
   }
 
-  return nsIntRect::ToAppUnits(rect, appUnitsPerDevPixel);
+  rect.ScaleRoundOut(appUnitsPerDevPixel);
+  return rect;
 }
 
 void
@@ -870,6 +890,28 @@ nsSVGUtils::NotifyChildrenOfSVGChange(nsIFrame *aFrame, PRUint32 aFlags)
   }
 }
 
+void
+nsSVGUtils::AddObserver(nsISupports *aObserver, nsISupports *aTarget)
+{
+  nsISVGValueObserver *observer = nsnull;
+  nsISVGValue *v = nsnull;
+  CallQueryInterface(aObserver, &observer);
+  CallQueryInterface(aTarget, &v);
+  if (observer && v)
+    v->AddObserver(observer);
+}
+
+void
+nsSVGUtils::RemoveObserver(nsISupports *aObserver, nsISupports *aTarget)
+{
+  nsISVGValueObserver *observer = nsnull;
+  nsISVGValue *v = nsnull;
+  CallQueryInterface(aObserver, &observer);
+  CallQueryInterface(aTarget, &v);
+  if (observer && v)
+    v->RemoveObserver(observer);
+}
+
 // ************************************************************
 
 class SVGPaintCallback : public nsSVGFilterPaintCallback
@@ -940,7 +982,8 @@ nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
       if (!aDirtyRect->Intersects(filterFrame->GetFilterBBox(aFrame, nsnull)))
         return;
     } else {
-      nsRect rect = nsIntRect::ToAppUnits(*aDirtyRect, aFrame->PresContext()->AppUnitsPerDevPixel());
+      nsRect rect = *aDirtyRect;
+      rect.ScaleRoundOut(aFrame->PresContext()->AppUnitsPerDevPixel());
       if (!rect.Intersects(aFrame->GetRect()))
         return;
     }

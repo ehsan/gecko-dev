@@ -88,7 +88,7 @@ nsTransformedTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
   return changed;
 }
 
-nsTransformedTextRun*
+gfxTextRun*
 nsTransformingTextRunFactory::MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
                                           const gfxTextRunFactory::Parameters* aParams,
                                           gfxFontGroup* aFontGroup, PRUint32 aFlags,
@@ -98,7 +98,7 @@ nsTransformingTextRunFactory::MakeTextRun(const PRUnichar* aString, PRUint32 aLe
                                       aString, aLength, aFlags, aStyles, aOwnsFactory);
 }
 
-nsTransformedTextRun*
+gfxTextRun*
 nsTransformingTextRunFactory::MakeTextRun(const PRUint8* aString, PRUint32 aLength,
                                           const gfxTextRunFactory::Parameters* aParams,
                                           gfxFontGroup* aFontGroup, PRUint32 aFlags,
@@ -279,7 +279,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     }
 
     if ((i == length || runIsLowercase != isLowercase) && runStart < i) {
-      nsAutoPtr<nsTransformedTextRun> transformedChild;
+      nsAutoPtr<gfxTextRun> transformedChild;
       gfxTextRunCache::AutoTextRun cachedChild;
       gfxTextRun* child;
 
@@ -301,9 +301,6 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
                    "lost some break-before values?");
       child->SetPotentialLineBreaks(0, canBreakBeforeArray.Length(),
           canBreakBeforeArray.Elements(), aRefContext);
-      if (transformedChild) {
-        transformedChild->FinishSettingProperties(aRefContext);
-      }
       aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), runStart, PR_FALSE);
 
       runStart = i;
@@ -391,7 +388,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       GetParametersForInner(aTextRun, &flags, aRefContext);
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
 
-  nsAutoPtr<nsTransformedTextRun> transformedChild;
+  nsAutoPtr<gfxTextRun> transformedChild;
   gfxTextRunCache::AutoTextRun cachedChild;
   gfxTextRun* child;
 
@@ -414,9 +411,6 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
                "Dropped characters or break-before values somewhere!");
   child->SetPotentialLineBreaks(0, canBreakBeforeArray.Length(),
       canBreakBeforeArray.Elements(), aRefContext);
-  if (transformedChild) {
-    transformedChild->FinishSettingProperties(aRefContext);
-  }
 
   if (extraCharsCount > 0) {
     // Now merge multiple characters into one multi-glyph character as required

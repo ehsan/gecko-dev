@@ -59,9 +59,6 @@ class nsAttrValue;
 class nsAttrName;
 class nsTextFragment;
 class nsIDocShell;
-#ifdef MOZ_SMIL
-class nsISMILAttr;
-#endif // MOZ_SMIL
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
@@ -861,16 +858,6 @@ public:
    * Saves the form state of this node and its children.
    */
   virtual void SaveSubtreeState() = 0;
-
-#ifdef MOZ_SMIL
-  /*
-   * Returns a new nsISMILAttr that allows the caller to animate the given
-   * attribute on this element.
-   *
-   * The CALLER OWNS the result and is responsible for deleting it.
-   */
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName) = 0;
-#endif // MOZ_SMIL
 
 private:
   /**

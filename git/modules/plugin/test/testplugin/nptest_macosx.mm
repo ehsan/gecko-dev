@@ -60,15 +60,6 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
   return 0;
 }
 
-static void 
-GetColorsFromRGBA(PRUint32 rgba, float* r, float* g, float* b, float* a)
-{
-  *b = (rgba & 0xFF) / 255.0;
-  *g = ((rgba & 0xFF00) >> 8) / 255.0;
-  *r = ((rgba & 0xFF0000) >> 16) / 255.0;
-  *a = ((rgba & 0xFF000000) >> 24) / 255.0;
-}
-
 void
 pluginDraw(InstanceData* instanceData)
 {
@@ -78,121 +69,99 @@ pluginDraw(InstanceData* instanceData)
   NPP npp = instanceData->npp;
   if (!npp)
     return;
-  
+
   const char* uaString = NPN_UserAgent(npp);
   if (!uaString)
     return;
 
   NPWindow window = instanceData->window;
+
   CGContextRef cgContext = ((NP_CGContext*)(window.window))->context;
+
+  CFStringRef uaCFString = CFStringCreateWithCString(kCFAllocatorDefault, uaString, kCFStringEncodingASCII);
 
   float windowWidth = window.width;
   float windowHeight = window.height;
 
-  switch(instanceData->scriptableObject->drawMode) {
-  case DM_DEFAULT: {
-    CFStringRef uaCFString = CFStringCreateWithCString(kCFAllocatorDefault, uaString, kCFStringEncodingASCII);
-    // save the cgcontext gstate
-    CGContextSaveGState(cgContext);
+  // save the cgcontext gstate
+  CGContextSaveGState(cgContext);
 
-    // we get a flipped context
-    CGContextTranslateCTM(cgContext, 0.0, windowHeight);
-    CGContextScaleCTM(cgContext, 1.0, -1.0);
+  // we get a flipped context
+  CGContextTranslateCTM(cgContext, 0.0, windowHeight);
+  CGContextScaleCTM(cgContext, 1.0, -1.0);
 
-    // draw a gray background for the plugin
-    CGContextAddRect(cgContext, CGRectMake(0, 0, windowWidth, windowHeight));
-    CGContextSetGrayFillColor(cgContext, 0.5, 1.0);
-    CGContextDrawPath(cgContext, kCGPathFill);
+  // draw a gray background for the plugin
+  CGContextAddRect(cgContext, CGRectMake(0, 0, windowWidth, windowHeight));
+  CGContextSetGrayFillColor(cgContext, 0.5, 1.0);
+  CGContextDrawPath(cgContext, kCGPathFill);
 
-    // draw a black frame around the plugin
-    CGContextAddRect(cgContext, CGRectMake(0, 0, windowWidth, windowHeight));
-    CGContextSetGrayStrokeColor(cgContext, 0.0, 1.0);
-    CGContextSetLineWidth(cgContext, 6.0);
-    CGContextStrokePath(cgContext);
+  // draw a black frame around the plugin
+  CGContextAddRect(cgContext, CGRectMake(0, 0, windowWidth, windowHeight));
+  CGContextSetGrayStrokeColor(cgContext, 0.0, 1.0);
+  CGContextSetLineWidth(cgContext, 6.0);
+  CGContextStrokePath(cgContext);
 
-    // draw the UA string using ATSUI
-    CGContextSetGrayFillColor(cgContext, 0.0, 1.0);
-    ATSUStyle atsuStyle;
-    ATSUCreateStyle(&atsuStyle);
-    CFIndex stringLength = CFStringGetLength(uaCFString);
-    UniChar* unicharBuffer = (UniChar*)malloc((stringLength + 1) * sizeof(UniChar));
-    CFStringGetCharacters(uaCFString, CFRangeMake(0, stringLength), unicharBuffer);
-    UniCharCount runLengths = kATSUToTextEnd;
-    ATSUTextLayout atsuLayout;
-    ATSUCreateTextLayoutWithTextPtr(unicharBuffer,
-                                    kATSUFromTextBeginning,
-                                    kATSUToTextEnd,
-                                    stringLength,
-                                    1,
-                                    &runLengths,
-                                    &atsuStyle,
-                                    &atsuLayout);
-    ATSUAttributeTag contextTag = kATSUCGContextTag;
-    ByteCount byteSize = sizeof(CGContextRef);
-    ATSUAttributeValuePtr contextATSUPtr = &cgContext;
-    ATSUSetLayoutControls(atsuLayout, 1, &contextTag, &byteSize, &contextATSUPtr);
-    ATSUTextMeasurement lineAscent, lineDescent;
-    ATSUGetLineControl(atsuLayout,
-                       kATSUFromTextBeginning,
-                       kATSULineAscentTag,
-                       sizeof(ATSUTextMeasurement),
-                       &lineAscent,
-                       &byteSize);
-    ATSUGetLineControl(atsuLayout,
-                       kATSUFromTextBeginning,
-                       kATSULineDescentTag,
-                       sizeof(ATSUTextMeasurement),
-                       &lineDescent,
-                       &byteSize);
-    float lineHeight = FixedToFloat(lineAscent) + FixedToFloat(lineDescent);
-    ItemCount softBreakCount;
-    ATSUBatchBreakLines(atsuLayout,
+  // draw the UA string using ATSUI
+  CGContextSetGrayFillColor(cgContext, 0.0, 1.0);
+  ATSUStyle atsuStyle;
+  ATSUCreateStyle(&atsuStyle);
+  CFIndex stringLength = CFStringGetLength(uaCFString);
+  UniChar* unicharBuffer = (UniChar*)malloc((stringLength + 1) * sizeof(UniChar));
+  CFStringGetCharacters(uaCFString, CFRangeMake(0, stringLength), unicharBuffer);
+  UniCharCount runLengths = kATSUToTextEnd;
+  ATSUTextLayout atsuLayout;
+  ATSUCreateTextLayoutWithTextPtr(unicharBuffer,
+                                  kATSUFromTextBeginning,
+                                  kATSUToTextEnd,
+                                  stringLength,
+                                  1,
+                                  &runLengths,
+                                  &atsuStyle,
+                                  &atsuLayout);
+  ATSUAttributeTag contextTag = kATSUCGContextTag;
+  ByteCount byteSize = sizeof(CGContextRef);
+  ATSUAttributeValuePtr contextATSUPtr = &cgContext;
+  ATSUSetLayoutControls(atsuLayout, 1, &contextTag, &byteSize, &contextATSUPtr);
+  ATSUTextMeasurement lineAscent, lineDescent;
+  ATSUGetLineControl(atsuLayout,
+                     kATSUFromTextBeginning,
+                     kATSULineAscentTag,
+                     sizeof(ATSUTextMeasurement),
+                     &lineAscent,
+                     &byteSize);
+  ATSUGetLineControl(atsuLayout,
+                     kATSUFromTextBeginning,
+                     kATSULineDescentTag,
+                     sizeof(ATSUTextMeasurement),
+                     &lineDescent,
+                     &byteSize);
+  float lineHeight = FixedToFloat(lineAscent) + FixedToFloat(lineDescent);
+  ItemCount softBreakCount;
+  ATSUBatchBreakLines(atsuLayout,
+                      kATSUFromTextBeginning,
+                      stringLength,
+                      FloatToFixed(windowWidth - 10.0),
+                      &softBreakCount);
+  ATSUGetSoftLineBreaks(atsuLayout,
                         kATSUFromTextBeginning,
-                        stringLength,
-                        FloatToFixed(windowWidth - 10.0),
-                        &softBreakCount);
-    ATSUGetSoftLineBreaks(atsuLayout,
-                          kATSUFromTextBeginning,
-                          kATSUToTextEnd,
-                          0, NULL, &softBreakCount);
-    UniCharArrayOffset* softBreaks = (UniCharArrayOffset*)malloc(softBreakCount * sizeof(UniCharArrayOffset));
-    ATSUGetSoftLineBreaks(atsuLayout,
-                          kATSUFromTextBeginning,
-                          kATSUToTextEnd,
-                          softBreakCount, softBreaks, &softBreakCount);
-    UniCharArrayOffset currentDrawOffset = kATSUFromTextBeginning;
-    unsigned int i = 0;
-    while (i < softBreakCount) {
-      ATSUDrawText(atsuLayout, currentDrawOffset, softBreaks[i], FloatToFixed(5.0), FloatToFixed(windowHeight - 5.0 - (lineHeight * (i + 1.0))));
-      currentDrawOffset = softBreaks[i];
-      i++;
-    }
-    ATSUDrawText(atsuLayout, currentDrawOffset, kATSUToTextEnd, FloatToFixed(5.0), FloatToFixed(windowHeight - 5.0 - (lineHeight * (i + 1.0))));
-    free(unicharBuffer);
-    free(softBreaks);
-
-    // restore the cgcontext gstate
-    CGContextRestoreGState(cgContext);
+                        kATSUToTextEnd,
+                        0, NULL, &softBreakCount);
+  UniCharArrayOffset* softBreaks = (UniCharArrayOffset*)malloc(softBreakCount * sizeof(UniCharArrayOffset));
+  ATSUGetSoftLineBreaks(atsuLayout,
+                        kATSUFromTextBeginning,
+                        kATSUToTextEnd,
+                        softBreakCount, softBreaks, &softBreakCount);
+  UniCharArrayOffset currentDrawOffset = kATSUFromTextBeginning;
+  unsigned int i = 0;
+  while (i < softBreakCount) {
+    ATSUDrawText(atsuLayout, currentDrawOffset, softBreaks[i], FloatToFixed(5.0), FloatToFixed(windowHeight - 5.0 - (lineHeight * (i + 1.0))));
+    currentDrawOffset = softBreaks[i];
+    i++;
   }
-  case DM_SOLID_COLOR: {
-    // save the cgcontext gstate
-    CGContextSaveGState(cgContext);
+  ATSUDrawText(atsuLayout, currentDrawOffset, kATSUToTextEnd, FloatToFixed(5.0), FloatToFixed(windowHeight - 5.0 - (lineHeight * (i + 1.0))));
+  free(unicharBuffer);
+  free(softBreaks);
 
-    // we get a flipped context
-    CGContextTranslateCTM(cgContext, 0.0, windowHeight);
-    CGContextScaleCTM(cgContext, 1.0, -1.0);
-
-    // draw a solid background for the plugin
-    CGContextAddRect(cgContext, CGRectMake(0, 0, windowWidth, windowHeight));
-
-    float r,g,b,a;
-    GetColorsFromRGBA(instanceData->scriptableObject->drawColor, &r, &g, &b, &a);
-    CGContextSetRGBFillColor(cgContext, r, g, b, a);
-    CGContextDrawPath(cgContext, kCGPathFill);
-
-    // restore the cgcontext gstate
-    CGContextRestoreGState(cgContext);
-    break;
-  }
-  }
+  // restore the cgcontext gstate
+  CGContextRestoreGState(cgContext);
 }

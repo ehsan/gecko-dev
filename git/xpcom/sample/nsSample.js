@@ -36,7 +36,8 @@ mySample.prototype = {
             iid.equals(Components.interfaces.nsISupports))
             return this;
 
-        throw Components.results.NS_ERROR_NO_INTERFACE;
+        Components.returnCode = Components.results.NS_ERROR_NO_INTERFACE;
+        return null;
     },
 
     val: "<default value>"
