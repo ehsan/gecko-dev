@@ -144,7 +144,7 @@ var LightweightThemeManager = {
 
     var currentTheme = this.currentTheme;
     if (currentTheme && currentTheme.id == aId) {
-      this.themeChanged(null);
+      _prefs.setBoolPref("isThemeSelected", false);
       AddonManagerPrivate.notifyAddonChanged(null, ADDON_TYPE, false);
     }
 
