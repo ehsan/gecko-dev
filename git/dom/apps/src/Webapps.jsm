@@ -542,7 +542,8 @@ let DOMApplicationRegistry = {
         this.getSelf(msg, mm);
         break;
       case "Webapps:Uninstall":
-        this.uninstall(msg, mm);
+        Services.obs.notifyObservers(mm, "webapps-uninstall", JSON.stringify(msg));
+        this.uninstall(msg);
         debug("Webapps:Uninstall");
         break;
       case "Webapps:Launch":
@@ -564,7 +565,8 @@ let DOMApplicationRegistry = {
           mm.sendAsyncMessage("Webapps:GetAll:Return:KO", msg);
         break;
       case "Webapps:InstallPackage":
-        this.installPackage(msg, mm);
+        // always ask for UI to install
+        Services.obs.notifyObservers(mm, "webapps-ask-install", JSON.stringify(msg));
         break;
       case "Webapps:GetBasePath":
         return this.webapps[msg.id].basePath;
@@ -1253,7 +1255,8 @@ let DOMApplicationRegistry = {
     });
   },
 
-  uninstall: function(aData, aMm) {
+  uninstall: function(aData) {
+    let found = false;
     for (let id in this.webapps) {
       let app = this.webapps[id];
       if (app.origin != aData.origin) {
@@ -1263,12 +1266,7 @@ let DOMApplicationRegistry = {
       if (!this.webapps[id].removable)
         return;
 
-      // Clear private data first.
-      this._clearPrivateData(app.localId, false);
-
-      // Then notify observers.
-      Services.obs.notifyObservers(aMm, "webapps-uninstall", JSON.stringify(aData));
-
+      found = true;
       let appNote = JSON.stringify(AppsUtils.cloneAppObject(app));
       appNote.id = id;
 
@@ -1290,11 +1288,11 @@ let DOMApplicationRegistry = {
         Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
         this.broadcastMessage("Webapps:RemoveApp", { id: id });
       }).bind(this));
-
-      return;
     }
 
-    aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+    if (!found) {
+      aData.mm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+    }
   },
 
   getSelf: function(aData, aMm) {
@@ -1605,12 +1603,10 @@ let DOMApplicationRegistry = {
     // Next enumerate the registered observers.
     enumerator = Services.obs.enumerateObservers(topic);
     while (enumerator.hasMoreElements()) {
-      try {
-        let observer = enumerator.getNext().QueryInterface(Ci.nsIObserver);
-        if (observers.indexOf(observer) == -1) {
-          observers.push(observer);
-        }
-      } catch (e) { }
+      let observer = enumerator.getNext();
+      if (observers.indexOf(observer) == -1) {
+        observers.push(observer);
+      }
     }
 
     observers.forEach(function (observer) {
@@ -1634,18 +1630,14 @@ let DOMApplicationRegistry = {
   receiveAppMessage: function(appId, message) {
     switch (message.name) {
       case "Webapps:ClearBrowserData":
-        this._clearPrivateData(appId, true);
+        let subject = {
+          appId: appId,
+          browserOnly: true,
+          QueryInterface: XPCOMUtils.generateQI([Ci.mozIApplicationClearPrivateDataParams])
+        };
+        this._notifyCategoryAndObservers(subject, "webapps-clear-data", null);
         break;
     }
-  },
-
-  _clearPrivateData: function(appId, browserOnly) {
-    let subject = {
-      appId: appId,
-      browserOnly: browserOnly,
-      QueryInterface: XPCOMUtils.generateQI([Ci.mozIApplicationClearPrivateDataParams])
-    };
-    this._notifyCategoryAndObservers(subject, "webapps-clear-data", null);
   }
 };
 
