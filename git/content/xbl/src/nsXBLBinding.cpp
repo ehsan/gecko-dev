@@ -1081,9 +1081,6 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
           if (context) {
             JSContext *cx = (JSContext *)context->GetNativeContext();
  
-            nsCxPusher pusher;
-            pusher.Push(cx);
-
             nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
             nsresult rv = nsContentUtils::XPConnect()->
               WrapNative(cx, global->GetGlobalJSObject(),

@@ -205,7 +205,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
                 jsdobj->ctorURL = jsd_AddAtom(jsdc, ctorURL);
 
             JSD_LOCK_SCRIPTS(jsdc);
-            jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
+            jsdscript = jsd_FindJSDScript(jsdc, script);
             JSD_UNLOCK_SCRIPTS(jsdc);
             if( jsdscript )
             {

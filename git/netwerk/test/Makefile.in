@@ -108,6 +108,7 @@ check::
 
 _RES_FILES 	= urlparse.dat \
 		  urlparse_unx.dat \
+		  jarlist.dat \
 		  $(NULL)
 libs:: $(_RES_FILES)
 	$(INSTALL) $^ $(DIST)/bin/res

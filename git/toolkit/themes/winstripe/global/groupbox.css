@@ -66,5 +66,7 @@ tabpanels caption {
 
 /* !important is needed to override label in global.css */
 .caption-text {
-  margin: 0 2px !important;
+  margin-bottom: 0px !important;
+  -moz-margin-start: 2px !important;
+  -moz-margin-end: 2px !important;
 }

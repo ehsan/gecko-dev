@@ -598,7 +598,9 @@ nsHTMLButtonElement::SaveState()
 PRBool
 nsHTMLButtonElement::RestoreState(nsPresState* aState)
 {
-  if (aState && aState->IsDisabledSet()) {
+  NS_ENSURE_ARG_POINTER(aState);
+
+  if (aState->IsDisabledSet()) {
     SetDisabled(aState->GetDisabled());
   }
 

@@ -41,6 +41,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "XPCWrapper.h"
+#include "jsscope.h"
 
 const PRUint32
 XPCWrapper::sWrappedObjSlot = 1;
@@ -76,7 +77,7 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
 {
   JSObject *obj;
   jsval v;
-
+ 
   obj = JS_THIS_OBJECT(cx, vp);
   if (!obj)
     return JS_FALSE;
@@ -103,7 +104,7 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
     *vp = STRING_TO_JSVAL(str);
   } else {
     // We need to return an [id, value] pair.
-    if (!JS_GetPropertyById(cx, STOBJ_GET_PARENT(obj), id, &v)) {
+    if (!OBJ_GET_PROPERTY(cx, STOBJ_GET_PARENT(obj), id, &v)) {
       return JS_FALSE;
     }
 
@@ -204,23 +205,48 @@ XPCWrapper::AddProperty(JSContext *cx, JSObject *wrapperObj,
     return JS_FALSE;
   }
 
-  JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
-
+  JSProperty *prop;
   JSObject *wrapperObjp;
-  uintN attrs = JSPROP_ENUMERATE;
-  JSPropertyOp getter = nsnull;
-  JSPropertyOp setter = nsnull;
-
-  if (!GetPropertyAttrs(cx, wrapperObj, interned_id, &wrapperObjp, isXOW,
-                        JSRESOLVE_QUALIFIED, &attrs, &getter, &setter, vp)) {
+  if (!OBJ_LOOKUP_PROPERTY(cx, wrapperObj, interned_id, &wrapperObjp, &prop)) {
     return JS_FALSE;
   }
 
-  NS_ASSERTION(wrapperObjp == wrapperObj,
+  NS_ASSERTION(prop && OBJ_IS_NATIVE(wrapperObjp),
                "What weird wrapper are we using?");
 
-  return DefineProperty(cx, innerObj, interned_id, isXOW, *vp,
-                        getter, setter, attrs);
+  JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
+  uintN attrs = JSPROP_ENUMERATE;
+  JSPropertyOp getter = nsnull;
+  JSPropertyOp setter = nsnull;
+  jsval v = *vp;
+  if (isXOW) {
+    JSScopeProperty *sprop = reinterpret_cast<JSScopeProperty *>(prop);
+
+    attrs = sprop->attrs;
+    if (attrs & JSPROP_GETTER) {
+      getter = sprop->getter;
+    }
+    if (attrs & JSPROP_SETTER) {
+      setter = sprop->setter;
+    }
+
+    if (SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(wrapperObjp))) {
+      v = OBJ_GET_SLOT(cx, wrapperObjp, sprop->slot);
+    }
+  }
+
+  OBJ_DROP_PROPERTY(cx, wrapperObjp, prop);
+
+  const uintN interesting_attrs = isXOW
+                                  ? (JSPROP_ENUMERATE |
+                                     JSPROP_READONLY  |
+                                     JSPROP_PERMANENT |
+                                     JSPROP_SHARED    |
+                                     JSPROP_GETTER    |
+                                     JSPROP_SETTER)
+                                  : JSPROP_ENUMERATE;
+  return OBJ_DEFINE_PROPERTY(cx, innerObj, interned_id, v, getter,
+                             setter, (attrs & interesting_attrs), nsnull);
 }
 
 // static
@@ -261,23 +287,23 @@ XPCWrapper::Enumerate(JSContext *cx, JSObject *wrapperObj, JSObject *innerObj)
 
   for (jsint i = 0, n = ida->length; i < n; i++) {
     JSObject *pobj;
+    JSProperty *prop;
 
-    // Note: v doesn't need to be rooted because it will be read out of a
-    // rooted object's slots.
-    jsval v = JSVAL_VOID;
-
-    // Let our NewResolve hook figure out whether this id should be reflected.
-    ok = JS_LookupPropertyWithFlagsById(cx, wrapperObj, ida->vector[i],
-                                        JSRESOLVE_QUALIFIED, &pobj, &v);
+    // Let OBJ_LOOKUP_PROPERTY, in particular our NewResolve hook,
+    // figure out whether this id should be reflected.
+    ok = OBJ_LOOKUP_PROPERTY(cx, wrapperObj, ida->vector[i], &pobj, &prop);
     if (!ok) {
       break;
     }
 
-    if (pobj && pobj != wrapperObj) {
-      // If the resolution actually happened on a different object, define the
-      // property here so that we're sure that enumeration picks it up.
-      ok = JS_DefinePropertyById(cx, wrapperObj, ida->vector[i], JSVAL_VOID,
-                                 nsnull, nsnull, JSPROP_ENUMERATE | JSPROP_SHARED);
+    if (prop) {
+      OBJ_DROP_PROPERTY(cx, pobj, prop);
+    }
+
+    if (pobj != wrapperObj) {
+      ok = OBJ_DEFINE_PROPERTY(cx, wrapperObj, ida->vector[i], JSVAL_VOID,
+                               nsnull, nsnull, JSPROP_ENUMERATE | JSPROP_SHARED,
+                               nsnull);
     }
 
     if (!ok) {
@@ -303,25 +329,38 @@ XPCWrapper::NewResolve(JSContext *cx, JSObject *wrapperObj,
     return JS_FALSE;
   }
 
-  JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
+  JSProperty *prop;
   JSObject *innerObjp;
-  uintN attrs = JSPROP_ENUMERATE;
-  JSPropertyOp getter = nsnull;
-  JSPropertyOp setter = nsnull;
-
-  if (!GetPropertyAttrs(cx, innerObj, interned_id, &innerObjp, isXOW, flags,
-                        &attrs, &getter, &setter, &v)) {
+  if (!OBJ_LOOKUP_PROPERTY(cx, innerObj, interned_id, &innerObjp, &prop)) {
     return JS_FALSE;
   }
 
-  if (!innerObjp) {
+  if (!prop) {
     // Nothing to define.
     return JS_TRUE;
   }
 
-  if (!preserveVal) {
-    v = JSVAL_VOID;
+  JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
+  uintN attrs = JSPROP_ENUMERATE;
+  JSPropertyOp getter = nsnull;
+  JSPropertyOp setter = nsnull;
+  if (isXOW && OBJ_IS_NATIVE(innerObjp)) {
+    JSScopeProperty *sprop = reinterpret_cast<JSScopeProperty *>(prop);
+
+    attrs = sprop->attrs;
+    if (attrs & JSPROP_GETTER) {
+      getter = sprop->getter;
+    }
+    if (attrs & JSPROP_SETTER) {
+      setter = sprop->setter;
+    }
+
+    if (preserveVal && SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(innerObjp))) {
+      v = OBJ_GET_SLOT(cx, innerObjp, sprop->slot);
+    }
   }
+
+  OBJ_DROP_PROPERTY(cx, innerObjp, prop);
 
   jsval oldSlotVal;
   if (!::JS_GetReservedSlot(cx, wrapperObj, sResolvingSlot, &oldSlotVal) ||
@@ -329,8 +368,16 @@ XPCWrapper::NewResolve(JSContext *cx, JSObject *wrapperObj,
     return JS_FALSE;
   }
 
-  JSBool ok = DefineProperty(cx, wrapperObj, interned_id, isXOW, v,
-                             getter, setter, attrs);
+  const uintN interesting_attrs = isXOW
+                                  ? (JSPROP_ENUMERATE |
+                                     JSPROP_READONLY  |
+                                     JSPROP_PERMANENT |
+                                     JSPROP_SHARED    |
+                                     JSPROP_GETTER    |
+                                     JSPROP_SETTER)
+                                  : JSPROP_ENUMERATE;
+  JSBool ok = OBJ_DEFINE_PROPERTY(cx, wrapperObj, interned_id, v, getter,
+                                  setter, (attrs & interesting_attrs), nsnull);
 
   if (ok && (ok = ::JS_SetReservedSlot(cx, wrapperObj, sResolvingSlot,
                                        oldSlotVal))) {
@@ -774,66 +821,4 @@ XPCWrapper::NativeToString(JSContext *cx, XPCWrappedNative *wrappedNative,
 
   *rval = STRING_TO_JSVAL(str);
   return JS_TRUE;
-}
-
-// static
-JSBool
-XPCWrapper::GetPropertyAttrs(JSContext *cx, JSObject *obj,
-                             jsid interned_id, JSObject **objp,
-                             JSBool wantDetails, uintN flags, uintN *attrsp,
-                             JSPropertyOp *getterp, JSPropertyOp *setterp,
-                             jsval *vp)
-{
-  // NB: All parameters must be initialized by this point.
-  if (!JS_LookupPropertyWithFlagsById(cx, obj, interned_id, flags,
-                                      objp, vp)) {
-    return JS_FALSE;
-  }
-
-  if (!*objp) {
-    // Nothing to define.
-    return JS_TRUE;
-  }
-
-  if (!wantDetails) {
-    *vp = JSVAL_VOID;
-  } else {
-    JSBool found;
-    if (!JS_GetPropertyAttrsGetterAndSetterById(cx, *objp, interned_id,
-                                                attrsp, &found,
-                                                getterp, setterp)) {
-      return JS_FALSE;
-    }
-
-    // JS_GetPropertyAttrsGetterAndSetterById returns non scripted getters and
-    // setters, we don't want those.
-    uintN attrs = *attrsp;
-    if (!(attrs & JSPROP_GETTER)) {
-      *getterp = nsnull;
-    }
-    if (!(attrs & JSPROP_SETTER)) {
-      *setterp = nsnull;
-    }
-  }
-
-  return JS_TRUE;
-}
-
-// static
-JSBool
-XPCWrapper::DefineProperty(JSContext *cx, JSObject *obj, jsid interned_id,
-                           JSBool haveDetails, jsval v,
-                           JSPropertyOp getter, JSPropertyOp setter,
-                           uintN attrs)
-{
-  const uintN interesting_attrs = haveDetails
-                                  ? (JSPROP_ENUMERATE |
-                                     JSPROP_READONLY  |
-                                     JSPROP_PERMANENT |
-                                     JSPROP_SHARED    |
-                                     JSPROP_GETTER    |
-                                     JSPROP_SETTER)
-                                  : JSPROP_ENUMERATE;
-  return JS_DefinePropertyById(cx, obj, interned_id, v, getter, setter,
-                               (attrs & interesting_attrs));
 }
