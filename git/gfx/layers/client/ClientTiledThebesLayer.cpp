@@ -13,7 +13,6 @@
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/gfx/Rect.h"           // for Rect, RectTyped
-#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/LayersMessages.h"
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
@@ -64,30 +63,28 @@ ApplyParentLayerToLayerTransform(const gfx::Matrix4x4& aTransform, const ParentL
 }
 
 static gfx::Matrix4x4
-GetTransformToAncestorsParentLayer(Layer* aStart, const LayerMetricsWrapper& aAncestor)
+GetTransformToAncestorsParentLayer(Layer* aStart, Layer* aAncestor)
 {
   gfx::Matrix4x4 transform;
-  const LayerMetricsWrapper& ancestorParent = aAncestor.GetParent();
-  for (LayerMetricsWrapper iter(aStart, LayerMetricsWrapper::StartAt::BOTTOM);
-       ancestorParent ? iter != ancestorParent : iter.IsValid();
-       iter = iter.GetParent()) {
-    transform = transform * iter.GetTransform();
+  Layer* ancestorParent = aAncestor->GetParent();
+  for (Layer* iter = aStart; iter != ancestorParent; iter = iter->GetParent()) {
+    transform = transform * iter->GetTransform();
     // If the layer has a non-transient async transform then we need to apply it here
     // because it will get applied by the APZ in the compositor as well
-    const FrameMetrics& metrics = iter.Metrics();
+    const FrameMetrics& metrics = iter->GetFrameMetrics();
     transform = transform * gfx::Matrix4x4().Scale(metrics.mResolution.scale, metrics.mResolution.scale, 1.f);
   }
   return transform;
 }
 
 void
-ClientTiledThebesLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
-                                          LayerMetricsWrapper* aOutDisplayPortAncestor)
+ClientTiledThebesLayer::GetAncestorLayers(Layer** aOutScrollAncestor,
+                                          Layer** aOutDisplayPortAncestor)
 {
-  LayerMetricsWrapper scrollAncestor;
-  LayerMetricsWrapper displayPortAncestor;
-  for (LayerMetricsWrapper ancestor(this, LayerMetricsWrapper::StartAt::BOTTOM); ancestor; ancestor = ancestor.GetParent()) {
-    const FrameMetrics& metrics = ancestor.Metrics();
+  Layer* scrollAncestor = nullptr;
+  Layer* displayPortAncestor = nullptr;
+  for (Layer* ancestor = this; ancestor; ancestor = ancestor->GetParent()) {
+    const FrameMetrics& metrics = ancestor->GetFrameMetrics();
     if (!scrollAncestor && metrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID) {
       scrollAncestor = ancestor;
     }
@@ -123,8 +120,8 @@ ClientTiledThebesLayer::BeginPaint()
 
   // Get the metrics of the nearest scrollable layer and the nearest layer
   // with a displayport.
-  LayerMetricsWrapper scrollAncestor;
-  LayerMetricsWrapper displayPortAncestor;
+  Layer* scrollAncestor = nullptr;
+  Layer* displayPortAncestor = nullptr;
   GetAncestorLayers(&scrollAncestor, &displayPortAncestor);
 
   if (!displayPortAncestor || !scrollAncestor) {
@@ -138,10 +135,10 @@ ClientTiledThebesLayer::BeginPaint()
   }
 
   TILING_LOG("TILING %p: Found scrollAncestor %p and displayPortAncestor %p\n", this,
-    scrollAncestor.GetLayer(), displayPortAncestor.GetLayer());
+    scrollAncestor, displayPortAncestor);
 
-  const FrameMetrics& scrollMetrics = scrollAncestor.Metrics();
-  const FrameMetrics& displayportMetrics = displayPortAncestor.Metrics();
+  const FrameMetrics& scrollMetrics = scrollAncestor->GetFrameMetrics();
+  const FrameMetrics& displayportMetrics = displayPortAncestor->GetFrameMetrics();
 
   // Calculate the transform required to convert ParentLayer space of our
   // display port ancestor to the Layer space of this layer.
@@ -186,13 +183,7 @@ ClientTiledThebesLayer::BeginPaint()
 bool
 ClientTiledThebesLayer::UseFastPath()
 {
-  LayerMetricsWrapper scrollAncestor;
-  GetAncestorLayers(&scrollAncestor, nullptr);
-  if (!scrollAncestor) {
-    return true;
-  }
-  const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
-
+  const FrameMetrics& parentMetrics = GetParent()->GetFrameMetrics();
   bool multipleTransactionsNeeded = gfxPrefs::UseProgressiveTilePainting()
                                  || gfxPrefs::UseLowPrecisionBuffer()
                                  || !parentMetrics.mCriticalDisplayPort.IsEmpty();

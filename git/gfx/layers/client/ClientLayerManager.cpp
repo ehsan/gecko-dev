@@ -32,7 +32,6 @@
 #include "gfxPrefs.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
-#include "LayerMetricsWrapper.h"
 #endif
 
 namespace mozilla {
@@ -642,26 +641,30 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                               bool aDrawingCritical)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  MOZ_ASSERT(aMetrics.IsScrollable());
-  // This is derived from the code in
-  // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
-  CSSToLayerScale paintScale = aMetrics.LayersPixelsPerCSSPixel();
-  const CSSRect& metricsDisplayPort =
-    (aDrawingCritical && !aMetrics.mCriticalDisplayPort.IsEmpty()) ?
-      aMetrics.mCriticalDisplayPort : aMetrics.mDisplayPort;
-  LayerRect displayPort = (metricsDisplayPort + aMetrics.GetScrollOffset()) * paintScale;
+  Layer* primaryScrollable = GetPrimaryScrollableLayer();
+  if (primaryScrollable) {
+    const FrameMetrics& metrics = primaryScrollable->GetFrameMetrics();
 
-  ScreenPoint scrollOffset;
-  CSSToScreenScale zoom;
-  bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
-    aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
-    scrollOffset, zoom);
-  aMetrics.SetScrollOffset(scrollOffset / zoom);
-  aMetrics.SetZoom(zoom);
-  return ret;
-#else
-  return false;
+    // This is derived from the code in
+    // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
+    CSSToLayerScale paintScale = metrics.LayersPixelsPerCSSPixel();
+    const CSSRect& metricsDisplayPort =
+      (aDrawingCritical && !metrics.mCriticalDisplayPort.IsEmpty()) ?
+        metrics.mCriticalDisplayPort : metrics.mDisplayPort;
+    LayerRect displayPort = (metricsDisplayPort + metrics.GetScrollOffset()) * paintScale;
+
+    ScreenPoint scrollOffset;
+    CSSToScreenScale zoom;
+    bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
+      aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
+      scrollOffset, zoom);
+    aMetrics.SetScrollOffset(scrollOffset / zoom);
+    aMetrics.SetZoom(zoom);
+    return ret;
+  }
 #endif
+
+  return false;
 }
 
 ClientLayer::~ClientLayer()

@@ -9,7 +9,6 @@
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/Effects.h"     // for TexturedEffect, Effect, etc
-#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/TextureHostOGL.h"  // for TextureHostOGL
 #include "nsAString.h"
 #include "nsDebug.h"                    // for NS_WARNING
@@ -368,7 +367,7 @@ TiledContentHost::Composite(EffectChain& aEffectChain,
     // Background colors are only stored on scrollable layers. Grab
     // the one from the nearest scrollable ancestor layer.
     for (Layer* ancestor = GetLayer(); ancestor; ancestor = ancestor->GetParent()) {
-      if (ancestor->HasScrollableFrameMetrics()) {
+      if (ancestor->GetFrameMetrics().IsScrollable()) {
         backgroundColor = ancestor->GetBackgroundColor();
         break;
       }
