@@ -85,7 +85,8 @@ body {
 }
 
 @media (min-resolution: 2dppx) {
-  #element-picker::before {
+  #element-picker::before,
+  #toggle-all::before {
     background-image: url("chrome://browser/skin/devtools/command-pick@2x.png");
     background-size: 64px;
   }

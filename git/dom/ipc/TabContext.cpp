@@ -24,6 +24,7 @@ TabContext::TabContext()
   : mInitialized(false)
   , mOwnAppId(NO_APP_ID)
   , mContainingAppId(NO_APP_ID)
+  , mScrollingBehavior(DEFAULT_SCROLLING)
   , mIsBrowser(false)
 {
 }
@@ -155,7 +156,8 @@ TabContext::SetTabContext(const TabContext& aContext)
 
 bool
 TabContext::SetTabContextForAppFrame(mozIApplication* aOwnApp,
-                                     mozIApplication* aAppFrameOwnerApp)
+                                     mozIApplication* aAppFrameOwnerApp,
+                                     ScrollingBehavior aRequestedBehavior)
 {
   NS_ENSURE_FALSE(mInitialized, false);
 
@@ -179,13 +181,15 @@ TabContext::SetTabContextForAppFrame(mozIApplication* aOwnApp,
   mIsBrowser = false;
   mOwnAppId = ownAppId;
   mContainingAppId = containingAppId;
+  mScrollingBehavior = aRequestedBehavior;
   mOwnApp = aOwnApp;
   mContainingApp = aAppFrameOwnerApp;
   return true;
 }
 
 bool
-TabContext::SetTabContextForBrowserFrame(mozIApplication* aBrowserFrameOwnerApp)
+TabContext::SetTabContextForBrowserFrame(mozIApplication* aBrowserFrameOwnerApp,
+                                         ScrollingBehavior aRequestedBehavior)
 {
   NS_ENSURE_FALSE(mInitialized, false);
 
@@ -200,16 +204,18 @@ TabContext::SetTabContextForBrowserFrame(mozIApplication* aBrowserFrameOwnerApp)
   mIsBrowser = true;
   mOwnAppId = NO_APP_ID;
   mContainingAppId = containingAppId;
+  mScrollingBehavior = aRequestedBehavior;
   mContainingApp = aBrowserFrameOwnerApp;
   return true;
 }
 
 bool
-TabContext::SetTabContextForNormalFrame()
+TabContext::SetTabContextForNormalFrame(ScrollingBehavior aRequestedBehavior)
 {
   NS_ENSURE_FALSE(mInitialized, false);
 
   mInitialized = true;
+  mScrollingBehavior = aRequestedBehavior;
   return true;
 }
 
@@ -217,10 +223,12 @@ IPCTabContext
 TabContext::AsIPCTabContext() const
 {
   if (mIsBrowser) {
-    return IPCTabContext(BrowserFrameIPCTabContext(mContainingAppId));
+    return IPCTabContext(BrowserFrameIPCTabContext(mContainingAppId),
+                         mScrollingBehavior);
   }
 
-  return IPCTabContext(AppFrameIPCTabContext(mOwnAppId, mContainingAppId));
+  return IPCTabContext(AppFrameIPCTabContext(mOwnAppId, mContainingAppId),
+                       mScrollingBehavior);
 }
 
 static already_AddRefed<mozIApplication>
@@ -334,10 +342,12 @@ MaybeInvalidTabContext::MaybeInvalidTabContext(const IPCTabContext& aParams)
 
   bool rv;
   if (isBrowser) {
-    rv = mTabContext.SetTabContextForBrowserFrame(containingApp);
+    rv = mTabContext.SetTabContextForBrowserFrame(containingApp,
+                                                  aParams.scrollingBehavior());
   } else {
     rv = mTabContext.SetTabContextForAppFrame(ownApp,
-                                              containingApp);
+                                              containingApp,
+                                              aParams.scrollingBehavior());
   }
 
   if (!rv) {

@@ -81,7 +81,7 @@ ComputeAccurateDecimalInteger(ExclusiveContext *cx, const CharT *start, const Ch
     int err = 0;
     *dp = js_strtod_harder(cx->dtoaState(), cstr, &estr, &err);
     if (err == JS_DTOA_ENOMEM) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -679,8 +679,8 @@ Int32ToCString(ToCStringBuf *cbuf, int32_t i, size_t *len, int base = 10)
 }
 
 template <AllowGC allowGC>
-static JSString *
-NumberToStringWithBase(ExclusiveContext *cx, double d, int base);
+static JSString * JS_FASTCALL
+js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base);
 
 MOZ_ALWAYS_INLINE bool
 num_toString_impl(JSContext *cx, CallArgs args)
@@ -696,13 +696,13 @@ num_toString_impl(JSContext *cx, CallArgs args)
             return false;
 
         if (d2 < 2 || d2 > 36) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_RADIX);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_RADIX);
             return false;
         }
 
         base = int32_t(d2);
     }
-    JSString *str = NumberToStringWithBase<CanGC>(cx, d, base);
+    JSString *str = js_NumberToStringWithBase<CanGC>(cx, d, base);
     if (!str) {
         JS_ReportOutOfMemory(cx);
         return false;
@@ -712,7 +712,7 @@ num_toString_impl(JSContext *cx, CallArgs args)
 }
 
 bool
-js::num_toString(JSContext *cx, unsigned argc, Value *vp)
+js_num_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsNumber, num_toString_impl>(cx, args);
@@ -726,7 +726,7 @@ num_toLocaleString_impl(JSContext *cx, CallArgs args)
 
     double d = Extract(args.thisv());
 
-    RootedString str(cx, NumberToStringWithBase<CanGC>(cx, d, 10));
+    Rooted<JSString*> str(cx, js_NumberToStringWithBase<CanGC>(cx, d, 10));
     if (!str) {
         JS_ReportOutOfMemory(cx);
         return false;
@@ -862,7 +862,7 @@ num_valueOf_impl(JSContext *cx, CallArgs args)
 }
 
 bool
-js::num_valueOf(JSContext *cx, unsigned argc, Value *vp)
+js_num_valueOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsNumber, num_valueOf_impl>(cx, args);
@@ -884,7 +884,7 @@ ComputePrecisionInRange(JSContext *cx, int minPrecision, int maxPrecision, Handl
 
     ToCStringBuf cbuf;
     if (char *numStr = NumberToCString(cx, &cbuf, prec, 10))
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_PRECISION_RANGE, numStr);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_PRECISION_RANGE, numStr);
     return false;
 }
 
@@ -965,7 +965,7 @@ num_toPrecision_impl(JSContext *cx, CallArgs args)
     double d = Extract(args.thisv());
 
     if (!args.hasDefined(0)) {
-        JSString *str = NumberToStringWithBase<CanGC>(cx, d, 10);
+        JSString *str = js_NumberToStringWithBase<CanGC>(cx, d, 10);
         if (!str) {
             JS_ReportOutOfMemory(cx);
             return false;
@@ -992,13 +992,13 @@ static const JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       num_toSource,          0, 0),
 #endif
-    JS_FN(js_toString_str,       num_toString,          1, 0),
+    JS_FN(js_toString_str,       js_num_toString,       1, 0),
 #if EXPOSE_INTL_API
     JS_SELF_HOSTED_FN(js_toLocaleString_str, "Number_toLocaleString", 0,0),
 #else
     JS_FN(js_toLocaleString_str, num_toLocaleString,     0,0),
 #endif
-    JS_FN(js_valueOf_str,        num_valueOf,           0, 0),
+    JS_FN(js_valueOf_str,        js_num_valueOf,        0, 0),
     JS_FN("toFixed",             num_toFixed,           1, 0),
     JS_FN("toExponential",       num_toExponential,     1, 0),
     JS_FN("toPrecision",         num_toPrecision,       1, 0),
@@ -1031,6 +1031,39 @@ static const JSFunctionSpec number_static_methods[] = {
 };
 
 
+/* NB: Keep this in synch with number_constants[]. */
+enum nc_slot {
+    NC_NaN,
+    NC_POSITIVE_INFINITY,
+    NC_NEGATIVE_INFINITY,
+    NC_MAX_VALUE,
+    NC_MIN_VALUE,
+    NC_MAX_SAFE_INTEGER,
+    NC_MIN_SAFE_INTEGER,
+    NC_EPSILON,
+    NC_LIMIT
+};
+
+/*
+ * Some to most C compilers forbid spelling these at compile time, or barf
+ * if you try, so all but MAX_VALUE are set up by InitRuntimeNumberState
+ * using union jsdpun.
+ */
+static JSConstDoubleSpec number_constants[] = {
+    {"NaN",               0                          },
+    {"POSITIVE_INFINITY", 0                          },
+    {"NEGATIVE_INFINITY", 0                          },
+    {"MAX_VALUE",         1.7976931348623157E+308    },
+    {"MIN_VALUE",         0                          },
+    /* ES6 (April 2014 draft) 20.1.2.6 */
+    {"MAX_SAFE_INTEGER",  9007199254740991           },
+    /* ES6 (April 2014 draft) 20.1.2.10 */
+    {"MIN_SAFE_INTEGER", -9007199254740991,          },
+    /* ES6 (May 2013 draft) 15.7.3.7 */
+    {"EPSILON", 2.2204460492503130808472633361816e-16},
+    {0,0}
+};
+
 /*
  * Set the exception mask to mask all exceptions and set the FPU precision
  * to 53 bit mantissa (64 bit doubles).
@@ -1052,6 +1085,17 @@ bool
 js::InitRuntimeNumberState(JSRuntime *rt)
 {
     FIX_FPU();
+
+    /*
+     * Our NaN must be one particular canonical value, because we rely on NaN
+     * encoding for our value representation.  See Value.h.
+     */
+    number_constants[NC_NaN].val = GenericNaN();
+
+    number_constants[NC_POSITIVE_INFINITY].val = mozilla::PositiveInfinity<double>();
+    number_constants[NC_NEGATIVE_INFINITY].val = mozilla::NegativeInfinity<double>();
+
+    number_constants[NC_MIN_VALUE].val = MinNumberValue<double>();
 
     // XXX If EXPOSE_INTL_API becomes true all the time at some point,
     //     js::InitRuntimeNumberState is no longer fallible, and we should
@@ -1118,7 +1162,7 @@ js::FinishRuntimeNumberState(JSRuntime *rt)
 #endif
 
 JSObject *
-js::InitNumberClass(JSContext *cx, HandleObject obj)
+js_InitNumberClass(JSContext *cx, HandleObject obj)
 {
     MOZ_ASSERT(obj->isNative());
 
@@ -1139,25 +1183,6 @@ js::InitNumberClass(JSContext *cx, HandleObject obj)
 
     if (!LinkConstructorAndPrototype(cx, ctor, numberProto))
         return nullptr;
-
-    /*
-     * Our NaN must be one particular canonical value, because we rely on NaN
-     * encoding for our value representation.  See Value.h.
-     */
-    static JSConstDoubleSpec number_constants[] = {
-        {"NaN",               GenericNaN()               },
-        {"POSITIVE_INFINITY", mozilla::PositiveInfinity<double>() },
-        {"NEGATIVE_INFINITY", mozilla::NegativeInfinity<double>() },
-        {"MAX_VALUE",         1.7976931348623157E+308    },
-        {"MIN_VALUE",         MinNumberValue<double>()   },
-        /* ES6 (April 2014 draft) 20.1.2.6 */
-        {"MAX_SAFE_INTEGER",  9007199254740991           },
-        /* ES6 (April 2014 draft) 20.1.2.10 */
-        {"MIN_SAFE_INTEGER", -9007199254740991,          },
-        /* ES6 (May 2013 draft) 15.7.3.7 */
-        {"EPSILON", 2.2204460492503130808472633361816e-16},
-        {0,0}
-    };
 
     /* Add numeric constants (MAX_VALUE, NaN, &c.) to the Number constructor. */
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
@@ -1249,8 +1274,8 @@ js::NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10
 }
 
 template <AllowGC allowGC>
-static JSString *
-NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
+static JSString * JS_FASTCALL
+js_NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
 {
     ToCStringBuf cbuf;
     char *numStr;
@@ -1289,7 +1314,7 @@ NumberToStringWithBase(ExclusiveContext *cx, double d, int base)
 
         numStr = FracNumberToCString(cx, &cbuf, d, base);
         if (!numStr) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return nullptr;
         }
         MOZ_ASSERT_IF(base == 10,
@@ -1308,7 +1333,7 @@ template <AllowGC allowGC>
 JSString *
 js::NumberToString(ExclusiveContext *cx, double d)
 {
-    return NumberToStringWithBase<allowGC>(cx, d, 10);
+    return js_NumberToStringWithBase<allowGC>(cx, d, 10);
 }
 
 template JSString *
@@ -1330,7 +1355,7 @@ js::NumberToAtom(ExclusiveContext *cx, double d)
     ToCStringBuf cbuf;
     char *numStr = FracNumberToCString(cx, &cbuf, d);
     if (!numStr) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return nullptr;
     }
     MOZ_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
@@ -1348,7 +1373,7 @@ js::NumberToAtom(ExclusiveContext *cx, double d)
 JSFlatString *
 js::NumberToString(JSContext *cx, double d)
 {
-    if (JSString *str = NumberToStringWithBase<CanGC>(cx, d, 10))
+    if (JSString *str = js_NumberToStringWithBase<CanGC>(cx, d, 10))
         return &str->asFlat();
     return nullptr;
 }
@@ -1512,7 +1537,7 @@ js::ToNumberSlow(ExclusiveContext *cx, Value v, double *out)
             }
             if (v.isSymbol()) {
                 if (cx->isJSContext()) {
-                    JS_ReportErrorNumber(cx->asJSContext(), GetErrorMessage, nullptr,
+                    JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr,
                                          JSMSG_SYMBOL_TO_NUMBER);
                 }
                 return false;

@@ -757,7 +757,7 @@ IonScript::New(JSContext *cx, RecompileInfo recompileInfo,
     if (snapshotsListSize >= MAX_BUFFER_SIZE ||
         (bailoutEntries >= MAX_BUFFER_SIZE / sizeof(uint32_t)))
     {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return nullptr;
     }
 
@@ -2111,7 +2111,7 @@ Compile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode 
         return Method_CantCompile;
 
     if (reason == AbortReason_Alloc) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return Method_Error;
     }
 

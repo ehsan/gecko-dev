@@ -88,13 +88,13 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
 PerThreadData::~PerThreadData()
 {
     if (dtoaState)
-        DestroyDtoaState(dtoaState);
+        js_DestroyDtoaState(dtoaState);
 }
 
 bool
 PerThreadData::init()
 {
-    dtoaState = NewDtoaState();
+    dtoaState = js_NewDtoaState();
     if (!dtoaState)
         return false;
 
@@ -212,8 +212,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
 #endif
     largeAllocationFailureCallback(nullptr),
     oomCallback(nullptr),
-    debuggerMallocSizeOf(ReturnZeroSize),
-    lastAnimationTime(0)
+    debuggerMallocSizeOf(ReturnZeroSize)
 {
     setGCStoreBufferPtr(&gc.storeBuffer);
 
@@ -578,7 +577,7 @@ InvokeInterruptCallback(JSContext *cx)
         chars = stableChars.twoByteRange().start().get();
     else
         chars = MOZ_UTF16("(stack not available)");
-    JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
+    JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_WARNING, js_GetErrorMessage, nullptr,
                                    JSMSG_TERMINATED, chars);
 
     return false;
@@ -643,7 +642,7 @@ JSRuntime::createMathCache(JSContext *cx)
 
     MathCache *newMathCache = js_new<MathCache>();
     if (!newMathCache) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return nullptr;
     }
 
@@ -757,7 +756,7 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
     if (p)
         return p;
     if (cx)
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
     return nullptr;
 }
 

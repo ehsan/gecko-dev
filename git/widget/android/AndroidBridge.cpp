@@ -50,7 +50,7 @@ using namespace mozilla::gfx;
 using namespace mozilla::jni;
 using namespace mozilla::widget;
 
-AndroidBridge* AndroidBridge::sBridge = nullptr;
+AndroidBridge* AndroidBridge::sBridge;
 pthread_t AndroidBridge::sJavaUiThread = -1;
 static unsigned sJavaEnvThreadIndex = 0;
 static jobject sGlobalContext = nullptr;
@@ -161,12 +161,14 @@ AndroidBridge::ConstructBridge(JNIEnv *jEnv, Object::Param clsLoader)
 
     PR_NewThreadPrivateIndex(&sJavaEnvThreadIndex, JavaThreadDetachFunc);
 
-    MOZ_ASSERT(!sBridge);
-    sBridge = new AndroidBridge;
-    sBridge->Init(jEnv, clsLoader); // Success or crash
+    AndroidBridge *bridge = new AndroidBridge();
+    if (!bridge->Init(jEnv, clsLoader)) {
+        delete bridge;
+    }
+    sBridge = bridge;
 }
 
-void
+bool
 AndroidBridge::Init(JNIEnv *jEnv, Object::Param clsLoader)
 {
     ALOG_BRIDGE("AndroidBridge::Init");
@@ -242,6 +244,8 @@ AndroidBridge::Init(JNIEnv *jEnv, Object::Param clsLoader)
     // jEnv should NOT be cached here by anything -- the jEnv here
     // is not valid for the real gecko main thread, which is set
     // at SetMainThread time.
+
+    return true;
 }
 
 bool

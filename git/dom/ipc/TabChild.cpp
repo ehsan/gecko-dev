@@ -267,7 +267,7 @@ CSSToParentLayerScale ConvertScaleForRoot(CSSToScreenScale aScale) {
 bool
 TabChildBase::HandlePossibleViewportChange(const ScreenIntSize& aOldScreenSize)
 {
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
+  if (!IsAsyncPanZoomEnabled()) {
     return false;
   }
 
@@ -554,6 +554,12 @@ TabChildBase::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
 
     DispatchMessageManagerMessage(NS_LITERAL_STRING("Viewport:Change"), data);
     return newMetrics;
+}
+
+bool
+TabChildBase::IsAsyncPanZoomEnabled()
+{
+    return mScrolling == ASYNC_PAN_ZOOM;
 }
 
 NS_IMETHODIMP
@@ -901,7 +907,7 @@ TabChild::Observe(nsISupports *aSubject,
       }
     }
   } else if (!strcmp(aTopic, BEFORE_FIRST_PAINT)) {
-    if (gfxPrefs::AsyncPanZoomEnabled()) {
+    if (IsAsyncPanZoomEnabled()) {
       nsCOMPtr<nsIDocument> subject(do_QueryInterface(aSubject));
       nsCOMPtr<nsIDocument> doc(GetDocument());
 
@@ -956,7 +962,7 @@ TabChild::OnLocationChange(nsIWebProgress* aWebProgress,
                            nsIURI *aLocation,
                            uint32_t aFlags)
 {
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
+  if (!IsAsyncPanZoomEnabled()) {
     return NS_OK;
   }
 
@@ -1431,7 +1437,7 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
   context.opener() = openerTabId;
   context.isBrowserElement() = IsBrowserElement();
 
-  IPCTabContext ipcContext(context);
+  IPCTabContext ipcContext(context, mScrolling);
 
   TabId tabId;
   cc->SendAllocateTabId(openerTabId,
@@ -1449,7 +1455,7 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
   unused << Manager()->SendPBrowserConstructor(
       // We release this ref in DeallocPBrowserChild
       nsRefPtr<TabChild>(newChild).forget().take(),
-      tabId, IPCTabContext(context), aChromeFlags,
+      tabId, IPCTabContext(context, mScrolling), aChromeFlags,
       cc->GetID(), cc->IsForApp(), cc->IsForBrowser());
 
   nsAutoCString spec;
@@ -1511,10 +1517,12 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
     return NS_ERROR_ABORT;
   }
 
+  ScrollingBehavior scrolling = DEFAULT_SCROLLING;
   TextureFactoryIdentifier textureFactoryIdentifier;
   uint64_t layersId = 0;
   PRenderFrameChild* renderFrame = newChild->SendPRenderFrameConstructor();
   newChild->SendGetRenderFrameInfo(renderFrame,
+                                   &scrolling,
                                    &textureFactoryIdentifier,
                                    &layersId);
   if (layersId == 0) { // if renderFrame is invalid.
@@ -1524,7 +1532,7 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
 
   // Unfortunately we don't get a window unless we've shown the frame.  That's
   // pretty bogus; see bug 763602.
-  newChild->DoFakeShow(textureFactoryIdentifier, layersId, renderFrame);
+  newChild->DoFakeShow(scrolling, textureFactoryIdentifier, layersId, renderFrame);
 
   for (size_t i = 0; i < frameScripts.Length(); i++) {
     FrameScriptInfo& info = frameScripts[i];
@@ -1846,12 +1854,13 @@ TabChild::CancelCachedFileDescriptorCallback(
 }
 
 void
-TabChild::DoFakeShow(const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+TabChild::DoFakeShow(const ScrollingBehavior& aScrolling,
+                     const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                      const uint64_t& aLayersId,
                      PRenderFrameChild* aRenderFrame)
 {
   ShowInfo info(EmptyString(), false, false, 0, 0);
-  RecvShow(nsIntSize(0, 0), info, aTextureFactoryIdentifier,
+  RecvShow(nsIntSize(0, 0), info, aScrolling, aTextureFactoryIdentifier,
            aLayersId, aRenderFrame, mParentIsActive);
   mDidFakeShow = true;
 }
@@ -1951,6 +1960,7 @@ TabChild::MaybeRequestPreinitCamera()
 bool
 TabChild::RecvShow(const nsIntSize& aSize,
                    const ShowInfo& aInfo,
+                   const ScrollingBehavior& aScrolling,
                    const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                    const uint64_t& aLayersId,
                    PRenderFrameChild* aRenderFrame,
@@ -1970,7 +1980,7 @@ TabChild::RecvShow(const nsIntSize& aSize,
         return false;
     }
 
-    if (!InitRenderingState(aTextureFactoryIdentifier, aLayersId, aRenderFrame)) {
+    if (!InitRenderingState(aScrolling, aTextureFactoryIdentifier, aLayersId, aRenderFrame)) {
         // We can fail to initialize our widget if the <browser
         // remote> has already been destroyed, and we couldn't hook
         // into the parent-process's layer system.  That's not a fatal
@@ -2167,7 +2177,7 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
                               const ScrollableLayerGuid& aGuid,
                               const uint64_t& aInputBlockId)
 {
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
+  if (IsAsyncPanZoomEnabled()) {
     nsCOMPtr<nsIDocument> document(GetDocument());
     APZCCallbackHelper::SendSetTargetAPZCNotification(WebWidget(), document, aEvent, aGuid,
         aInputBlockId, mSetTargetAPZCCallback);
@@ -2177,7 +2187,7 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
   event.widget = mWidget;
   APZCCallbackHelper::DispatchWidgetEvent(event);
 
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
+  if (IsAsyncPanZoomEnabled()) {
     mAPZEventState->ProcessWheelEvent(event, aGuid, aInputBlockId);
   }
   return true;
@@ -2351,7 +2361,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   APZCCallbackHelper::ApplyCallbackTransform(localEvent, aGuid,
       mWidget->GetDefaultScale(), GetPresShellResolution());
 
-  if (localEvent.message == NS_TOUCH_START && gfxPrefs::AsyncPanZoomEnabled()) {
+  if (localEvent.message == NS_TOUCH_START && IsAsyncPanZoomEnabled()) {
     nsCOMPtr<nsIDocument> document = GetDocument();
     APZCCallbackHelper::SendSetTargetAPZCNotification(WebWidget(), document,
         localEvent, aGuid, aInputBlockId, mSetTargetAPZCCallback);
@@ -2360,7 +2370,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   // Dispatch event to content (potentially a long-running operation)
   nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
 
-  if (!gfxPrefs::AsyncPanZoomEnabled()) {
+  if (!IsAsyncPanZoomEnabled()) {
     UpdateTapState(localEvent, status);
     return true;
   }
@@ -2783,7 +2793,8 @@ TabChild::InitTabChildGlobal(FrameScriptLoading aScriptLoading)
 }
 
 bool
-TabChild::InitRenderingState(const TextureFactoryIdentifier& aTextureFactoryIdentifier,
+TabChild::InitRenderingState(const ScrollingBehavior& aScrolling,
+                             const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                              const uint64_t& aLayersId,
                              PRenderFrameChild* aRenderFrame)
 {
@@ -2796,6 +2807,7 @@ TabChild::InitRenderingState(const TextureFactoryIdentifier& aTextureFactoryIden
     }
 
     MOZ_ASSERT(aLayersId != 0);
+    mScrolling = aScrolling;
     mTextureFactoryIdentifier = aTextureFactoryIdentifier;
 
     // Pushing layers transactions directly to a separate

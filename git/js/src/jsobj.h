@@ -1137,7 +1137,7 @@ extern JSObject *
 CreateThis(JSContext *cx, const js::Class *clasp, js::HandleObject callee);
 
 extern JSObject *
-CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto);
+CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, HandleObject parent);
 
 extern NativeObject *
 DeepCloneObjectLiteral(JSContext *cx, HandleNativeObject obj, NewObjectKind newKind = GenericObject);
@@ -1187,10 +1187,11 @@ LookupNameUnqualified(JSContext *cx, HandlePropertyName name, HandleObject scope
 
 }
 
-namespace js {
-
 extern JSObject *
-FindVariableScope(JSContext *cx, JSFunction **funp);
+js_FindVariableScope(JSContext *cx, JSFunction **funp);
+
+
+namespace js {
 
 bool
 LookupPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, JSObject **objp,
@@ -1241,11 +1242,16 @@ XDRObjectLiteral(XDRState<mode> *xdr, MutableHandleNativeObject obj);
 extern JSObject *
 CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj);
 
+} /* namespace js */
+
 extern void
-GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize);
+js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize);
 
 extern bool
-ReportGetterOnlyAssignment(JSContext *cx, bool strict);
+js_ReportGetterOnlyAssignment(JSContext *cx, bool strict);
+
+
+namespace js {
 
 extern JSObject *
 NonNullObject(JSContext *cx, const Value &v);

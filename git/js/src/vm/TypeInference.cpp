@@ -257,8 +257,7 @@ js::ObjectGroupHasProperty(JSContext *cx, ObjectGroup *group, jsid id, const Val
         // properties become unknown.
         if (value.isObject() &&
             !value.toObject().hasLazyGroup() &&
-            ((value.toObject().group()->flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES) ||
-             value.toObject().group()->maybeOriginalUnboxedGroup()))
+            value.toObject().group()->flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES)
         {
             return true;
         }
@@ -1225,7 +1224,7 @@ js::FinishCompilation(JSContext *cx, HandleScript script, CompilerConstraintList
 
     uint32_t index = types.compilerOutputs->length();
     if (!types.compilerOutputs->append(co)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -3041,7 +3040,7 @@ js::AddClearDefiniteFunctionUsesInScript(JSContext *cx, ObjectGroup *group,
                 JSFunction *fun = &singleton->as<JSFunction>();
                 if (!fun->isNative())
                     continue;
-                if (fun->native() != fun_call && fun->native() != fun_apply)
+                if (fun->native() != js_fun_call && fun->native() != js_fun_apply)
                     continue;
             }
             // This is a type set that might have been used when inlining
@@ -4177,7 +4176,7 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
             Sprinter sprinter(cx);
             if (!sprinter.init())
                 return;
-            Disassemble1(cx, script, pc, script->pcToOffset(pc), true, &sprinter);
+            js_Disassemble1(cx, script, pc, script->pcToOffset(pc), true, &sprinter);
             fprintf(stderr, "%s", sprinter.string());
         }
 

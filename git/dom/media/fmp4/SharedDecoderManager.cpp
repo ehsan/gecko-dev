@@ -196,10 +196,8 @@ SharedDecoderProxy::Drain()
 {
   if (mManager->mActiveProxy == this) {
     return mManager->mDecoder->Drain();
-  } else {
-    mCallback->DrainComplete();
-    return NS_OK;
   }
+  return NS_OK;
 }
 
 nsresult

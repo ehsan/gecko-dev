@@ -446,9 +446,7 @@
       </menu>
 #ifndef XP_MACOSX
 # Disabled on Mac because we can't fill native menupopups asynchronously
-      <menuseparator id="menu_readingListSeparator">
-        <observes element="readingListSidebar" attribute="hidden"/>
-      </menuseparator>
+      <menuseparator/>
       <menu id="menu_readingList"
             class="menu-iconic bookmark-item"
             label="&readingList.label;"

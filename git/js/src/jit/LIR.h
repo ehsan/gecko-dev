@@ -492,15 +492,13 @@ class LDefinition
     }
     bool isCompatibleReg(const AnyRegister &r) const {
         if (isFloatReg() && r.isFloat()) {
+#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
             if (type() == FLOAT32)
                 return r.fpu().isSingle();
-            if (type() == DOUBLE)
-                return r.fpu().isDouble();
-            if (type() == INT32X4)
-                return r.fpu().isInt32x4();
-            if (type() == FLOAT32X4)
-                return r.fpu().isFloat32x4();
-            MOZ_CRASH("Unexpected MDefinition type");
+            return r.fpu().isDouble();
+#else
+            return true;
+#endif
         }
         return !isFloatReg() && !r.isFloat();
     }

@@ -417,25 +417,6 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         return DontInline(nullptr, "Non-interpreted target");
     }
 
-    if (info().analysisMode() != Analysis_DefiniteProperties) {
-        // If |this| or an argument has an empty resultTypeSet, don't bother
-        // inlining, as the call is currently unreachable due to incomplete type
-        // information. This does not apply to the definite properties analysis,
-        // in that case we want to inline anyway.
-
-        if (callInfo.thisArg()->emptyResultTypeSet()) {
-            trackOptimizationOutcome(TrackedOutcome::CantInlineUnreachable);
-            return DontInline(nullptr, "Empty TypeSet for |this|");
-        }
-
-        for (size_t i = 0; i < callInfo.argc(); i++) {
-            if (callInfo.getArg(i)->emptyResultTypeSet()) {
-                trackOptimizationOutcome(TrackedOutcome::CantInlineUnreachable);
-                return DontInline(nullptr, "Empty TypeSet for argument");
-            }
-        }
-    }
-
     // Allow constructing lazy scripts when performing the definite properties
     // analysis, as baseline has not been used to warm the caller up yet.
     if (target->isInterpreted() && info().analysisMode() == Analysis_DefiniteProperties) {
@@ -5659,7 +5640,7 @@ IonBuilder::jsop_funcall(uint32_t argc)
     // If |Function.prototype.call| may be overridden, don't optimize callsite.
     TemporaryTypeSet *calleeTypes = current->peek(calleeDepth)->resultTypeSet();
     JSFunction *native = getSingleCallTarget(calleeTypes);
-    if (!native || !native->isNative() || native->native() != &fun_call) {
+    if (!native || !native->isNative() || native->native() != &js_fun_call) {
         CallInfo callInfo(alloc(), false);
         if (!callInfo.init(current, argc))
             return false;
@@ -5742,7 +5723,7 @@ IonBuilder::jsop_funapply(uint32_t argc)
     }
 
     if ((!native || !native->isNative() ||
-        native->native() != fun_apply) &&
+        native->native() != js_fun_apply) &&
         info().analysisMode() != Analysis_DefiniteProperties)
     {
         return abort("fun.apply speculation failed");

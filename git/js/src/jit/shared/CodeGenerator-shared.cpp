@@ -381,46 +381,30 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
       case MIRType_ObjectOrNull:
       case MIRType_Boolean:
       case MIRType_Double:
+      case MIRType_Float32:
       {
         LAllocation *payload = snapshot->payloadOfSlot(*allocIndex);
-        if (payload->isConstant()) {
-            MConstant *constant = mir->toConstant();
-            uint32_t index;
-            masm.propagateOOM(graph.addConstantToPool(constant->value(), &index));
-            alloc = RValueAllocation::ConstantPool(index);
-            break;
-        }
-
         JSValueType valueType =
             (type == MIRType_ObjectOrNull) ? JSVAL_TYPE_OBJECT : ValueTypeFromMIRType(type);
-
-        MOZ_ASSERT(payload->isMemory() || payload->isRegister());
-        if (payload->isMemory())
-            alloc = RValueAllocation::Typed(valueType, ToStackIndex(payload));
-        else if (payload->isGeneralReg())
+        if (payload->isMemory()) {
+            if (type == MIRType_Float32)
+                alloc = RValueAllocation::Float32(ToStackIndex(payload));
+            else
+                alloc = RValueAllocation::Typed(valueType, ToStackIndex(payload));
+        } else if (payload->isGeneralReg()) {
             alloc = RValueAllocation::Typed(valueType, ToRegister(payload));
-        else if (payload->isFloatReg())
-            alloc = RValueAllocation::Double(ToFloatRegister(payload));
-        break;
-      }
-      case MIRType_Float32:
-      case MIRType_Int32x4:
-      case MIRType_Float32x4:
-      {
-        LAllocation *payload = snapshot->payloadOfSlot(*allocIndex);
-        if (payload->isConstant()) {
+        } else if (payload->isFloatReg()) {
+            FloatRegister reg = ToFloatRegister(payload);
+            if (type == MIRType_Float32)
+                alloc = RValueAllocation::Float32(reg);
+            else
+                alloc = RValueAllocation::Double(reg);
+        } else {
             MConstant *constant = mir->toConstant();
             uint32_t index;
             masm.propagateOOM(graph.addConstantToPool(constant->value(), &index));
             alloc = RValueAllocation::ConstantPool(index);
-            break;
         }
-
-        MOZ_ASSERT(payload->isMemory() || payload->isFloatReg());
-        if (payload->isFloatReg())
-            alloc = RValueAllocation::AnyFloat(ToFloatRegister(payload));
-        else
-            alloc = RValueAllocation::AnyFloat(ToStackIndex(payload));
         break;
       }
       case MIRType_MagicOptimizedArguments:
@@ -1091,18 +1075,15 @@ class StoreOp
         masm.storePtr(reg, dump);
     }
     void operator()(FloatRegister reg, Address dump) {
-        if (reg.isDouble())
+#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+        if (reg.isDouble()) {
             masm.storeDouble(reg, dump);
-        else if (reg.isSingle())
+        } else {
             masm.storeFloat32(reg, dump);
-#if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
-        else if (reg.isInt32x4())
-            masm.storeUnalignedInt32x4(reg, dump);
-        else if (reg.isFloat32x4())
-            masm.storeUnalignedFloat32x4(reg, dump);
+        }
+#else
+        masm.storeDouble(reg, dump);
 #endif
-        else
-            MOZ_CRASH("Unexpected register type.");
     }
 };
 
@@ -1143,17 +1124,21 @@ class VerifyOp
     }
     void operator()(FloatRegister reg, Address dump) {
         FloatRegister scratch;
+#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
         if (reg.isDouble()) {
             scratch = ScratchDoubleReg;
             masm.loadDouble(dump, scratch);
             masm.branchDouble(Assembler::DoubleNotEqual, scratch, reg, failure_);
-        } else if (reg.isSingle()) {
+        } else {
             scratch = ScratchFloat32Reg;
             masm.loadFloat32(dump, scratch);
             masm.branchFloat(Assembler::DoubleNotEqual, scratch, reg, failure_);
         }
-
-        // :TODO: (Bug 1133745) Add support to verify SIMD registers.
+#else
+        scratch = ScratchFloat32Reg;
+        masm.loadDouble(dump, scratch);
+        masm.branchDouble(Assembler::DoubleNotEqual, scratch, reg, failure_);
+#endif
     }
 };
 
@@ -1381,19 +1366,16 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
     Register dest = ool->dest();
 
     saveVolatile(dest);
-#if defined(JS_CODEGEN_ARM)
+#ifdef JS_CODEGEN_ARM
     if (ool->needFloat32Conversion()) {
         masm.convertFloat32ToDouble(src, ScratchDoubleReg);
         src = ScratchDoubleReg;
     }
 
 #else
-    FloatRegister srcSingle = src.asSingle();
     if (ool->needFloat32Conversion()) {
-        MOZ_ASSERT(src.isSingle());
         masm.push(src);
         masm.convertFloat32ToDouble(src, src);
-        src = src.asDouble();
     }
 #endif
     masm.setupUnalignedABICall(1, dest);
@@ -1404,9 +1386,9 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
         masm.callWithABI(BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
     masm.storeCallResult(dest);
 
-#if !defined(JS_CODEGEN_ARM)
+#ifndef JS_CODEGEN_ARM
     if (ool->needFloat32Conversion())
-        masm.pop(srcSingle);
+        masm.pop(src);
 #endif
     restoreVolatile(dest);
 

@@ -62,7 +62,7 @@ class RegExpStatics
         buffer->bufferLink = bufferLink;
         bufferLink = buffer;
         if (!buffer->matches.allocOrExpandArray(matches.length())) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         return true;
@@ -486,7 +486,7 @@ RegExpStatics::updateFromMatchPairs(JSContext *cx, JSLinearString *input, MatchP
                                                matchesInput, input);
 
     if (!matches.initArrayFrom(newPairs)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 

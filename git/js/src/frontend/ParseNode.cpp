@@ -569,7 +569,7 @@ ParseNodeAllocator::allocNode()
 
     void *p = alloc.alloc(sizeof (ParseNode));
     if (!p)
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
     return p;
 }
 

@@ -33,22 +33,17 @@ const char DOMProxyHandler::family = 0;
 js::DOMProxyShadowsResult
 DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
 {
-  JS::Rooted<JSObject*> expando(cx, DOMProxyHandler::GetExpandoObject(proxy));
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
-  bool isOverrideBuiltins = !v.isObject() && !v.isUndefined();
-  if (expando) {
+  if (v.isObject()) {
     bool hasOwn;
-    if (!JS_AlreadyHasOwnPropertyById(cx, expando, id, &hasOwn))
+    Rooted<JSObject*> object(cx, &v.toObject());
+    if (!JS_AlreadyHasOwnPropertyById(cx, object, id, &hasOwn))
       return js::ShadowCheckFailed;
 
-    if (hasOwn) {
-      return isOverrideBuiltins ?
-        js::ShadowsViaIndirectExpando : js::ShadowsViaDirectExpando;
-    }
+    return hasOwn ? js::Shadows : js::DoesntShadow;
   }
 
-  if (!isOverrideBuiltins) {
-    // Our expando, if any, didn't shadow, so we're not shadowing at all.
+  if (v.isUndefined()) {
     return js::DoesntShadow;
   }
 
@@ -202,7 +197,7 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
                                         JSREPORT_STRICT_MODE_ERROR,
-                                        js::GetErrorMessage, nullptr,
+                                        js_GetErrorMessage, nullptr,
                                         JSMSG_GETTER_ONLY);
   }
 
@@ -216,7 +211,7 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
   }
 
   bool dummy;
-  return js::DefineOwnProperty(cx, expando, id, desc, &dummy);
+  return js_DefineOwnProperty(cx, expando, id, desc, &dummy);
 }
 
 bool

@@ -663,17 +663,17 @@ CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
 
 extern const JSFunctionSpec function_methods[];
 
-extern bool
-fun_apply(JSContext *cx, unsigned argc, Value *vp);
+} /* namespace js */
 
 extern bool
-fun_call(JSContext *cx, unsigned argc, Value *vp);
+js_fun_apply(JSContext *cx, unsigned argc, js::Value *vp);
+
+extern bool
+js_fun_call(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSObject *
-fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
-         Value *boundArgs, unsigned argslen);
-
-} /* namespace js */
+js_fun_bind(JSContext *cx, js::HandleObject target, js::HandleValue thisArg,
+            js::Value *boundArgs, unsigned argslen);
 
 #ifdef DEBUG
 namespace JS {

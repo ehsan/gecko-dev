@@ -581,7 +581,7 @@ class MOZ_STACK_CLASS ProxyOptions {
 
 JS_FRIEND_API(JSObject *)
 NewProxyObject(JSContext *cx, const BaseProxyHandler *handler, HandleValue priv,
-               JSObject *proto, const ProxyOptions &options = ProxyOptions());
+               JSObject *proto, JSObject *parent, const ProxyOptions &options = ProxyOptions());
 
 JSObject *
 RenewProxyObject(JSContext *cx, JSObject *obj, BaseProxyHandler *handler, Value priv);
@@ -674,9 +674,9 @@ inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id,
 {}
 #endif
 
-extern JS_FRIEND_API(JSObject *)
-InitProxyClass(JSContext *cx, JS::HandleObject obj);
-
 } /* namespace js */
+
+extern JS_FRIEND_API(JSObject *)
+js_InitProxyClass(JSContext *cx, JS::HandleObject obj);
 
 #endif /* js_Proxy_h */
