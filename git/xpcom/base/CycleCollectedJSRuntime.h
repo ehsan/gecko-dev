@@ -18,7 +18,6 @@
 
 class nsCycleCollectionNoteRootCallback;
 class nsIException;
-class nsIRunnable;
 
 namespace js {
 struct Class;
@@ -258,8 +257,6 @@ public:
   already_AddRefed<nsIException> GetPendingException() const;
   void SetPendingException(nsIException* aException);
 
-  nsTArray<nsRefPtr<nsIRunnable>>& GetPromiseMicroTaskQueue();
-
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
 
@@ -308,8 +305,6 @@ private:
   nsRefPtr<IncrementalFinalizeRunnable> mFinalizeRunnable;
 
   nsCOMPtr<nsIException> mPendingException;
-
-  nsTArray<nsRefPtr<nsIRunnable>> mPromiseMicroTaskQueue;
 
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;

@@ -10,6 +10,10 @@ let Reader = {
 
   DEBUG: 0,
 
+  READER_ADD_SUCCESS: 0,
+  READER_ADD_FAILED: 1,
+  READER_ADD_DUPLICATE: 2,
+
   // Don't try to parse the page if it has too many elements (for memory and
   // performance reasons)
   MAX_ELEMS_TO_PARSE: 3000,
@@ -34,7 +38,7 @@ let Reader = {
     },
 
     readerModeActiveCallback: function(tabID) {
-      Reader._addTabToReadingList(tabID);
+      Reader.addTabToReadingList(tabID);
       UITelemetry.addEvent("save.1", "pageaction", null, "reader");
     },
   },
@@ -89,49 +93,50 @@ let Reader = {
     }
   },
 
-  _addTabToReadingList: function(tabID) {
+  addTabToReadingList: function(tabID) {
     let tab = BrowserApp.getTabForId(tabID);
     let currentURI = tab.browser.currentURI;
+    let url = currentURI.spec;
     let urlWithoutRef = currentURI.specIgnoringRef;
 
-    this.getArticleFromCache(urlWithoutRef, (article) => {
-      // If the article is already in the cache, just use that.
-      if (article) {
-        this.addArticleToReadingList(article);
+    let sendResult = function(result, article) {
+      article = article || {};
+
+      Messaging.sendRequest({
+        type: "Reader:AddToList",
+        result: result,
+        title: truncate(article.title, MAX_TITLE_LENGTH),
+        url: truncate(url, MAX_URI_LENGTH),
+        length: article.length,
+        excerpt: article.excerpt
+      });
+    }.bind(this);
+
+    let handleArticle = function(article) {
+      if (!article) {
+        sendResult(this.READER_ADD_FAILED, null);
         return;
       }
 
-      // Otherwise, get the article data from the tab.
-      this.getArticleForTab(tabID, urlWithoutRef, (article) => {
-        if (article) {
-          this.addArticleToReadingList(article);
-        } else {
-          // If there was a problem getting the article, just store the
-          // URL and title from the tab.
-          this.addArticleToReadingList({
-            url: urlWithoutRef,
-            title: tab.browser.contentDocument.title,
-          });
-        }
-      });
-    });
-  },
+      this.storeArticleInCache(article, function(success) {
+        let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
+        sendResult(result, article);
+      }.bind(this));
+    }.bind(this);
 
-  addArticleToReadingList: function(article) {
-    if (!article || !article.url) {
-      Cu.reportError("addArticleToReadingList requires article with valid URL");
-      return;
-    }
+    this.getArticleFromCache(urlWithoutRef, function (article) {
+      // If the article is already in reading list, bail
+      if (article) {
+        sendResult(this.READER_ADD_DUPLICATE, null);
+        return;
+      }
 
-    Messaging.sendRequest({
-      type: "Reader:AddToList",
-      url: truncate(article.url, MAX_URI_LENGTH),
-      title: truncate(article.title || "", MAX_TITLE_LENGTH),
-      length: article.length || 0,
-      excerpt: article.excerpt || "",
-    });
-
-    this.storeArticleInCache(article);
+      if (tabID != null) {
+        this.getArticleForTab(tabID, urlWithoutRef, handleArticle);
+      } else {
+        this.parseDocumentFromURL(urlWithoutRef, handleArticle);
+      }
+    }.bind(this));
   },
 
   getStateForParseOnLoad: function Reader_getStateForParseOnLoad() {
@@ -256,9 +261,10 @@ let Reader = {
     }.bind(this));
   },
 
-  storeArticleInCache: function Reader_storeArticleInCache(article) {
+  storeArticleInCache: function Reader_storeArticleInCache(article, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
+        callback(false);
         return;
       }
 
@@ -269,10 +275,12 @@ let Reader = {
 
       request.onerror = function(event) {
         this.log("Error storing article in the cache DB: " + article.url);
+        callback(false);
       }.bind(this);
 
       request.onsuccess = function(event) {
         this.log("Stored article in the cache DB: " + article.url);
+        callback(true);
       }.bind(this);
     }.bind(this));
   },

@@ -27,7 +27,6 @@ WEBIDL_FILES = [
     'AnimationEvent.webidl',
     'AnimationPlayer.webidl',
     'AnimationTimeline.webidl',
-    'AnonymousContent.webidl',
     'AppInfo.webidl',
     'AppNotificationServiceOptions.webidl',
     'Apps.webidl',

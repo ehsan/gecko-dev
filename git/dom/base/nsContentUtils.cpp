@@ -39,7 +39,6 @@
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/HTMLContentElement.h"
 #include "mozilla/dom/HTMLShadowElement.h"
-#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/TouchEvent.h"
@@ -5082,7 +5081,7 @@ nsContentUtils::LeaveMicroTask()
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (--sMicroTaskLevel == 0) {
-    PerformMainThreadMicroTaskCheckpoint();
+    nsDOMMutationObserver::HandleMutations();
     nsDocument::ProcessBaseElementQueue();
   }
 }
@@ -5106,14 +5105,6 @@ nsContentUtils::SetMicroTaskLevel(uint32_t aLevel)
 {
   MOZ_ASSERT(NS_IsMainThread());
   sMicroTaskLevel = aLevel;
-}
-
-void
-nsContentUtils::PerformMainThreadMicroTaskCheckpoint()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsDOMMutationObserver::HandleMutations();
 }
 
 /* 

@@ -99,19 +99,6 @@ LoadLibraryForEGLOnWindows(const nsAString& filename)
 }
 #endif // XP_WIN
 
-static EGLDisplay
-GetAndInitDisplay(GLLibraryEGL& egl, void* displayType)
-{
-    EGLDisplay display = egl.fGetDisplay(displayType);
-    if (display == EGL_NO_DISPLAY)
-        return EGL_NO_DISPLAY;
-
-    if (!egl.fInitialize(display, nullptr, nullptr))
-        return EGL_NO_DISPLAY;
-
-    return display;
-}
-
 bool
 GLLibraryEGL::EnsureInitialized()
 {
@@ -198,7 +185,6 @@ GLLibraryEGL::EnsureInitialized()
 
     GLLibraryLoader::SymLoadStruct earlySymbols[] = {
         SYMBOL(GetDisplay),
-        SYMBOL(Terminate),
         SYMBOL(GetCurrentSurface),
         SYMBOL(GetCurrentContext),
         SYMBOL(MakeCurrent),
@@ -246,41 +232,35 @@ GLLibraryEGL::EnsureInitialized()
                        "Couldn't find eglQueryStringImplementationANDROID");
 #endif
 
-    mEGLDisplay = GetAndInitDisplay(*this, EGL_DEFAULT_DISPLAY);
+    mEGLDisplay = nullptr;
 
-    const char* vendor = (char*)fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
-    if (vendor && (strstr(vendor, "TransGaming") != 0 ||
-                   strstr(vendor, "Google Inc.") != 0))
+#ifdef XP_WIN
+    // XXX we have no way of knowing if this is ANGLE, or if we're just using
+    // a native EGL on windows.  We don't really do the latter right now, so
+    // let's assume it is ANGLE, and try our special types.
+
+    // D3D11 ANGLE only works with OMTC; there's a bug in the non-OMTC layer
+    // manager, and it's pointless to try to fix it.  We also don't try D3D11
+    // ANGLE if the layer manager is prefering D3D9 (hrm, do we care?)
+    if (gfxPrefs::LayersOffMainThreadCompositionEnabled() &&
+        !gfxPrefs::LayersPreferD3D9())
     {
-        mIsANGLE = true;
+        if (gfxPrefs::WebGLANGLEForceD3D11()) {
+            mEGLDisplay = fGetDisplay(LOCAL_EGL_D3D11_ONLY_DISPLAY_ANGLE);
+        } else if (gfxPrefs::WebGLANGLETryD3D11()) {
+            mEGLDisplay = fGetDisplay(LOCAL_EGL_D3D11_ELSE_D3D9_DISPLAY_ANGLE);
+        }
     }
+#endif
 
-    if (mIsANGLE) {
-        EGLDisplay newDisplay = EGL_NO_DISPLAY;
+    if (!mEGLDisplay)
+        mEGLDisplay = fGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (!fInitialize(mEGLDisplay, nullptr, nullptr))
+        return false;
 
-        // D3D11 ANGLE only works with OMTC; there's a bug in the non-OMTC layer
-        // manager, and it's pointless to try to fix it.  We also don't try
-        // D3D11 ANGLE if the layer manager is prefering D3D9 (hrm, do we care?)
-        if (gfxPrefs::LayersOffMainThreadCompositionEnabled() &&
-            !gfxPrefs::LayersPreferD3D9())
-        {
-            if (gfxPrefs::WebGLANGLEForceD3D11()) {
-                newDisplay = GetAndInitDisplay(*this,
-                                               LOCAL_EGL_D3D11_ONLY_DISPLAY_ANGLE);
-            } else if (gfxPrefs::WebGLANGLETryD3D11()) {
-                newDisplay = GetAndInitDisplay(*this,
-                                               LOCAL_EGL_D3D11_ELSE_D3D9_DISPLAY_ANGLE);
-            }
-        }
-
-        if (newDisplay != EGL_NO_DISPLAY) {
-            DebugOnly<EGLBoolean> success = fTerminate(mEGLDisplay);
-            MOZ_ASSERT(success == LOCAL_EGL_TRUE);
-
-            mEGLDisplay = newDisplay;
-
-            vendor = (char*)fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
-        }
+    const char *vendor = (const char*) fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
+    if (vendor && (strstr(vendor, "TransGaming") != 0 || strstr(vendor, "Google Inc.") != 0)) {
+        mIsANGLE = true;
     }
 
     InitExtensions();

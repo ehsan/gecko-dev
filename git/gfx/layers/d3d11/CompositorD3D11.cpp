@@ -210,6 +210,7 @@ CompositorD3D11::Initialize()
     }
 
     CD3D11_SAMPLER_DESC samplerDesc(D3D11_DEFAULT);
+    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     hr = mDevice->CreateSamplerState(&samplerDesc, byRef(mAttachments->mLinearSamplerState));
     if (FAILED(hr)) {
       return false;
@@ -573,6 +574,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
   IntPoint origin = mCurrentRT->GetOrigin();
   mVSConstants.renderTargetOffset[0] = origin.x;
   mVSConstants.renderTargetOffset[1] = origin.y;
+  mVSConstants.layerQuad = aRect;
 
   mPSConstants.layerOpacity[0] = aOpacity;
 
@@ -625,7 +627,6 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
   mContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
   mContext->VSSetShader(mAttachments->mVSQuadShader[maskType], nullptr, 0);
 
-  const Rect* pTexCoordRect = nullptr;
 
   switch (aEffectChain.mPrimaryEffect->mType) {
   case EffectTypes::SOLID_COLOR: {
@@ -645,7 +646,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
 
-      pTexCoordRect = &texturedEffect->mTextureCoords;
+      mVSConstants.textureCoords = texturedEffect->mTextureCoords;
 
       TextureSourceD3D11* source = texturedEffect->mTexture->AsSourceD3D11();
 
@@ -681,7 +682,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 
       SetSamplerForFilter(Filter::LINEAR);
 
-      pTexCoordRect = &ycbcrEffect->mTextureCoords;
+      mVSConstants.textureCoords = ycbcrEffect->mTextureCoords;
 
       const int Y = 0, Cb = 1, Cr = 2;
       TextureSource* source = ycbcrEffect->mTexture;
@@ -748,8 +749,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 
       SetSamplerForFilter(effectComponentAlpha->mFilter);
 
-      pTexCoordRect = &effectComponentAlpha->mTextureCoords;
-
+      mVSConstants.textureCoords = effectComponentAlpha->mTextureCoords;
       RefPtr<ID3D11ShaderResourceView> views[2];
 
       HRESULT hr;
@@ -774,34 +774,12 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
     NS_WARNING("Unknown shader type");
     return;
   }
-
-  if (pTexCoordRect) {
-    Rect layerRects[4];
-    Rect textureRects[4];
-    size_t rects = DecomposeIntoNoRepeatRects(aRect,
-                                              *pTexCoordRect,
-                                              &layerRects,
-                                              &textureRects);
-    for (size_t i = 0; i < rects; i++) {
-      mVSConstants.layerQuad = layerRects[i];
-      mVSConstants.textureCoords = textureRects[i];
-
-      if (!UpdateConstantBuffers()) {
-        NS_WARNING("Failed to update shader constant buffers");
-        break;
-      }
-      mContext->Draw(4, 0);
-    }
-  } else {
-    mVSConstants.layerQuad = aRect;
-
-    if (!UpdateConstantBuffers()) {
-      NS_WARNING("Failed to update shader constant buffers");
-    } else {
-      mContext->Draw(4, 0);
-    }
+  if (!UpdateConstantBuffers()) {
+    NS_WARNING("Failed to update shader constant buffers");
+    return;
   }
 
+  mContext->Draw(4, 0);
   if (restoreBlendMode) {
     mContext->OMSetBlendState(mAttachments->mPremulBlendState, sBlendFactor, 0xFFFFFFFF);
   }
@@ -882,7 +860,7 @@ CompositorD3D11::EndFrame()
       PaintToTarget();
     }
   }
-
+  
   mCurrentRT = nullptr;
 }
 

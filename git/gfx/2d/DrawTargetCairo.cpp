@@ -510,7 +510,6 @@ NeedIntermediateSurface(const Pattern& aPattern, const DrawOptions& aOptions)
 
 DrawTargetCairo::DrawTargetCairo()
   : mContext(nullptr)
-  , mSurface(nullptr)
   , mLockedBits(nullptr)
 {
 }

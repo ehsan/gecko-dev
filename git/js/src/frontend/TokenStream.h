@@ -105,9 +105,9 @@ struct Token
     // pointer, and it's only initialized a very few places, so having a
     // user-defined constructor won't hurt perf.)  See also bug 920318.
     Token()
-      : pos(0, 0)
+      : type(TOK_ERROR),
+        pos(0, 0)
     {
-        MOZ_MAKE_MEM_UNDEFINED(&type, sizeof(type));
     }
 
     // Mutators
@@ -339,6 +339,7 @@ class MOZ_STACK_CLASS TokenStream
     bool reportStrictModeError(unsigned errorNumber, ...);
     bool strictMode() const { return strictModeGetter && strictModeGetter->strictMode(); }
 
+    void onError();
     static JSAtom *atomize(ExclusiveContext *cx, CharBuffer &cb);
     bool putIdentInTokenbuf(const char16_t *identStart);
 
@@ -347,8 +348,7 @@ class MOZ_STACK_CLASS TokenStream
         bool isEOF:1;           // Hit end of file.
         bool isDirtyLine:1;     // Non-whitespace since start of line.
         bool sawOctalEscape:1;  // Saw an octal character escape.
-        bool hadError:1;        // Hit a syntax error, at start or during a
-                                // token.
+        bool hadError:1;        // Returned TOK_ERROR from getToken.
 
         Flags()
           : isEOF(), isDirtyLine(), sawOctalEscape(), hadError()
@@ -368,21 +368,19 @@ class MOZ_STACK_CLASS TokenStream
         TemplateTail,   // Treat next characters as part of a template string
     };
 
-    // Advance to the next token.  If the token stream encountered an error,
-    // return false.  Otherwise return true and store the token kind in |*ttp|.
-    bool getToken(TokenKind *ttp, Modifier modifier = None) {
+    // Get the next token from the stream, make it the current token, and
+    // return its kind.
+    TokenKind getToken(Modifier modifier = None) {
         // Check for a pushed-back token resulting from mismatching lookahead.
         if (lookahead != 0) {
-            MOZ_ASSERT(!flags.hadError);
             lookahead--;
             cursor = (cursor + 1) & ntokensMask;
             TokenKind tt = currentToken().type;
             MOZ_ASSERT(tt != TOK_EOL);
-            *ttp = tt;
-            return true;
+            return tt;
         }
 
-        return getTokenInternal(ttp, modifier);
+        return getTokenInternal(modifier);
     }
 
     // Push the last scanned token back into the stream.
@@ -392,52 +390,38 @@ class MOZ_STACK_CLASS TokenStream
         cursor = (cursor - 1) & ntokensMask;
     }
 
-    bool peekToken(TokenKind *ttp, Modifier modifier = None) {
-        if (lookahead > 0) {
-            MOZ_ASSERT(!flags.hadError);
-            *ttp = tokens[(cursor + 1) & ntokensMask].type;
-            return true;
-        }
-        if (!getTokenInternal(ttp, modifier))
-            return false;
+    TokenKind peekToken(Modifier modifier = None) {
+        if (lookahead != 0)
+            return tokens[(cursor + 1) & ntokensMask].type;
+        TokenKind tt = getTokenInternal(modifier);
         ungetToken();
-        return true;
+        return tt;
     }
 
-    bool peekTokenPos(TokenPos *posp, Modifier modifier = None) {
-        if (lookahead == 0) {
-            TokenKind tt;
-            if (!getTokenInternal(&tt, modifier))
-                return false;
-            ungetToken();
-            MOZ_ASSERT(lookahead != 0);
-        } else {
-            MOZ_ASSERT(!flags.hadError);
-        }
-        *posp = tokens[(cursor + 1) & ntokensMask].pos;
-        return true;
+    TokenPos peekTokenPos(Modifier modifier = None) {
+        if (lookahead != 0)
+            return tokens[(cursor + 1) & ntokensMask].pos;
+        getTokenInternal(modifier);
+        ungetToken();
+        MOZ_ASSERT(lookahead != 0);
+        return tokens[(cursor + 1) & ntokensMask].pos;
     }
 
     // This is like peekToken(), with one exception:  if there is an EOL
     // between the end of the current token and the start of the next token, it
-    // return true and store TOK_EOL in |*ttp|.  In that case, no token with
-    // TOK_EOL is actually created, just a TOK_EOL TokenKind is returned, and
-    // currentToken() shouldn't be consulted.  (This is the only place TOK_EOL
-    // is produced.)
-    MOZ_ALWAYS_INLINE bool
-    peekTokenSameLine(TokenKind *ttp, Modifier modifier = None) {
-        const Token &curr = currentToken();
+    // returns TOK_EOL.  In that case, no token with TOK_EOL is actually
+    // created, just a TOK_EOL TokenKind is returned, and currentToken()
+    // shouldn't be consulted.  (This is the only place TOK_EOL is produced.)
+    MOZ_ALWAYS_INLINE TokenKind peekTokenSameLine(Modifier modifier = None) {
+       const Token &curr = currentToken();
 
         // If lookahead != 0, we have scanned ahead at least one token, and
         // |lineno| is the line that the furthest-scanned token ends on.  If
         // it's the same as the line that the current token ends on, that's a
         // stronger condition than what we are looking for, and we don't need
         // to return TOK_EOL.
-        if (lookahead != 0 && srcCoords.isOnThisLine(curr.pos.end, lineno)) {
-            MOZ_ASSERT(!flags.hadError);
-            *ttp = tokens[(cursor + 1) & ntokensMask].type;
-            return true;
-        }
+        if (lookahead != 0 && srcCoords.isOnThisLine(curr.pos.end, lineno))
+            return tokens[(cursor + 1) & ntokensMask].type;
 
         // The above check misses two cases where we don't have to return
         // TOK_EOL.
@@ -446,58 +430,35 @@ class MOZ_STACK_CLASS TokenStream
         //   is a newline between the next token and the one after that.
         // The following test is somewhat expensive but gets these cases (and
         // all others) right.
-        TokenKind tmp;
-        if (!getToken(&tmp, modifier))
-            return false;
+        (void)getToken(modifier);
         const Token &next = currentToken();
         ungetToken();
-
-        *ttp = srcCoords.lineNum(curr.pos.end) == srcCoords.lineNum(next.pos.begin)
-             ? next.type
-             : TOK_EOL;
-        return true;
+        return srcCoords.lineNum(curr.pos.end) == srcCoords.lineNum(next.pos.begin)
+               ? next.type
+               : TOK_EOL;
     }
 
     // Get the next token from the stream if its kind is |tt|.
-    bool matchToken(bool *matchedp, TokenKind tt, Modifier modifier = None) {
-        TokenKind token;
-        if (!getToken(&token, modifier))
-            return false;
-        if (token == tt) {
-            *matchedp = true;
-        } else {
-            ungetToken();
-            *matchedp = false;
-        }
-        return true;
+    bool matchToken(TokenKind tt, Modifier modifier = None) {
+        if (getToken(modifier) == tt)
+            return true;
+        ungetToken();
+        return false;
     }
 
     void consumeKnownToken(TokenKind tt) {
-        bool matched;
-        MOZ_ASSERT(lookahead != 0);
-        MOZ_ALWAYS_TRUE(matchToken(&matched, tt));
-        MOZ_ALWAYS_TRUE(matched);
+        JS_ALWAYS_TRUE(matchToken(tt));
     }
 
-    bool matchContextualKeyword(bool *matchedp, Handle<PropertyName*> keyword) {
-        TokenKind token;
-        if (!getToken(&token))
-            return false;
-        if (token == TOK_NAME && currentToken().name() == keyword) {
-            *matchedp = true;
-        } else {
-            *matchedp = false;
-            ungetToken();
-        }
-        return true;
+    bool matchContextualKeyword(Handle<PropertyName*> keyword) {
+        if (getToken() == TOK_NAME && currentToken().name() == keyword)
+            return true;
+        ungetToken();
+        return false;
     }
 
-    bool nextTokenEndsExpr(bool *endsExpr) {
-        TokenKind tt;
-        if (!peekToken(&tt))
-            return false;
-        *endsExpr = isExprEnding[tt];
-        return true;
+    bool nextTokenEndsExpr() {
+        return isExprEnding[peekToken()];
     }
 
     class MOZ_STACK_CLASS Position {
@@ -738,7 +699,7 @@ class MOZ_STACK_CLASS TokenStream
         const char16_t *ptr;            // next char to get
     };
 
-    bool getTokenInternal(TokenKind *ttp, Modifier modifier);
+    TokenKind getTokenInternal(Modifier modifier);
 
     bool getStringOrTemplateToken(int qc, Token **tp);
 

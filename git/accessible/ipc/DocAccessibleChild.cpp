@@ -18,7 +18,9 @@ SerializeTree(Accessible* aRoot, nsTArray<AccessibleData>& aTree)
   uint32_t role = aRoot->Role();
   uint32_t childCount = aRoot->ChildCount();
 
-  aTree.AppendElement(AccessibleData(id, role, childCount));
+  nsString name;
+  aRoot->Name(name);
+  aTree.AppendElement(AccessibleData(id, role, childCount, name));
   for (uint32_t i = 0; i < childCount; i++)
     SerializeTree(aRoot->GetChildAt(i), aTree);
 }
@@ -46,28 +48,6 @@ DocAccessibleChild::RecvState(const uint64_t& aID, uint64_t* aState)
 
   *aState = acc->State();
 
-  return true;
-}
-
-bool
-DocAccessibleChild::RecvName(const uint64_t& aID, nsString* aName)
-{
-  Accessible* acc = mDoc->GetAccessibleByUniqueID((void*)aID);
-  if (!acc)
-    return true;
-
-  acc->Name(*aName);
-  return true;
-}
-
-bool
-DocAccessibleChild::RecvDescription(const uint64_t& aID, nsString* aDesc)
-{
-  Accessible* acc = mDoc->GetAccessibleByUniqueID((void*)aID);
-  if (!acc)
-    return true;
-
-  acc->Description(*aDesc);
   return true;
 }
 }

@@ -320,9 +320,25 @@ AboutReader.prototype = {
       return;
 
     if (this._isReadingListItem == 0) {
-      gChromeWin.Reader.addArticleToReadingList(this._article);
+      let uptime = UITelemetry.uptimeMillis();
+      gChromeWin.Reader.storeArticleInCache(this._article, function(success) {
+        let result = gChromeWin.Reader.READER_ADD_FAILED;
+        if (success) {
+          result = gChromeWin.Reader.READER_ADD_SUCCESS;
+          UITelemetry.addEvent("save.1", "button", uptime, "reader");
+        }
 
-      UITelemetry.addEvent("save.1", "button", null, "reader");
+        let json = JSON.stringify({ fromAboutReader: true, url: this._article.url });
+
+        Messaging.sendRequest({
+          type: "Reader:AddToList",
+          result: result,
+          title: this._article.title,
+          url: this._article.url,
+          length: this._article.length,
+          excerpt: this._article.excerpt
+        });
+      }.bind(this));
     } else {
       Messaging.sendRequest({
         type: "Reader:RemoveFromList",

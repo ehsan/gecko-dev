@@ -264,10 +264,7 @@ class TickSample {
         lr(NULL),
 #endif
         context(NULL),
-        isSamplingCurrentThread(false),
-        threadProfile(nullptr),
-        rssMemory(0),
-        ussMemory(0) {}
+        isSamplingCurrentThread(false) {}
 
   void PopulateContext(void* aContext);
 
