@@ -5,4 +5,3 @@
 
 pref("devtools.webide.showProjectEditor", true);
 pref("devtools.webide.templatesURL", "http://fixme/");
-pref("devtools.webide.lastprojectlocation", "");

@@ -809,10 +809,10 @@ nsWindow::GetGLFrameBufferFormat()
 NS_IMETHODIMP
 nsWindow::SetCursor(nsCursor aCursor)
 {
-    if (mCursor == aCursor && !mUpdateCursor) {
+    if (mCursor == aCursor) {
         return NS_OK;
     }
-    mUpdateCursor = false;
+
     mCursor = aCursor;
     if (mWidget) {
         mWidget->SetCursor(mCursor);

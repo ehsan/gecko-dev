@@ -1212,12 +1212,8 @@ CssRuleView.prototype = {
       return this.previewTooltip.setRelativeImageContent(uri, this.inspector.inspector, dim);
     }
     if (tooltipType === "font") {
-      let prop = target.textContent.toLowerCase();
-
-      if (prop !== "inherit" && prop !== "unset" && prop !== "initial") {
-        return this.previewTooltip.setFontFamilyContent(target.textContent,
-          this.inspector.selection.nodeFront);
-      }
+      this.previewTooltip.setFontFamilyContent(target.textContent);
+      return true;
     }
 
     return false;
