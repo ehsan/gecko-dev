@@ -112,6 +112,10 @@ class nsIOutputStream;
 class nsIParserService;
 class nsITransferable;
 
+#ifdef NS_DEBUG_EDITOR
+static bool gNoisy = false;
+#endif
+
 #ifdef DEBUG
 #include "nsIDOMHTMLDocument.h"         // for nsIDOMHTMLDocument
 #endif
@@ -775,6 +779,10 @@ nsEditor::SetTransactionManager(nsITransactionManager *aTxnManager)
 NS_IMETHODIMP 
 nsEditor::Undo(uint32_t aCount)
 {
+#ifdef NS_DEBUG_EDITOR
+  if (gNoisy) { printf("Editor::Undo ----------\n"); }
+#endif
+
   ForceCompositionEnd();
 
   bool hasTxnMgr, hasTransaction = false;
@@ -816,6 +824,10 @@ NS_IMETHODIMP nsEditor::CanUndo(bool *aIsEnabled, bool *aCanUndo)
 NS_IMETHODIMP 
 nsEditor::Redo(uint32_t aCount)
 {
+#ifdef NS_DEBUG_EDITOR
+  if (gNoisy) { printf("Editor::Redo ----------\n"); }
+#endif
+
   bool hasTxnMgr, hasTransaction = false;
   CanRedo(&hasTxnMgr, &hasTransaction);
   NS_ENSURE_TRUE(hasTransaction, NS_OK);
@@ -2702,6 +2714,10 @@ nsEditor::SplitNodeImpl(nsIDOMNode * aExistingRightNode,
                         nsIDOMNode*  aNewLeftNode,
                         nsIDOMNode*  aParent)
 {
+#ifdef NS_DEBUG_EDITOR
+  if (gNoisy) { printf("SplitNodeImpl: left=%p, right=%p, offset=%d\n", (void*)aNewLeftNode, (void*)aExistingRightNode, aOffset); }
+#endif
+
   NS_ASSERTION(((nullptr!=aExistingRightNode) &&
                 (nullptr!=aNewLeftNode) &&
                 (nullptr!=aParent)),

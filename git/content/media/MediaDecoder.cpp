@@ -1706,7 +1706,7 @@ MediaDecoder::IsWebMEnabled()
 }
 #endif
 
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
 bool
 MediaDecoder::IsRtspEnabled()
 {

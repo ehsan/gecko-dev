@@ -23,6 +23,10 @@
 #include "nsAString.h"
 #include <algorithm>
 
+#ifdef DEBUG
+static bool gNoisy = false;
+#endif
+
 using namespace mozilla;
 
 CreateElementTxn::CreateElementTxn()
@@ -57,6 +61,16 @@ NS_IMETHODIMP CreateElementTxn::Init(nsEditor      *aEditor,
 
 NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    char* nodename = ToNewCString(mTag);
+    printf("Do Create Element parent = %p <%s>, offset = %d\n", 
+           static_cast<void*>(mParent.get()), nodename, mOffsetInParent);
+    nsMemory::Free(nodename);
+  }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
@@ -70,6 +84,13 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   mNewNode = newContent;
   // Try to insert formatting whitespace for the new node:
   mEditor->MarkNodeDirty(mNewNode);
+
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("  newNode = %p\n", static_cast<void*>(mNewNode.get()));
+  }
+#endif
 
   // insert the new node
   if (CreateElementTxn::eAppend == int32_t(mOffsetInParent)) {
@@ -112,6 +133,15 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("Undo Create Element, mParent = %p, node = %p\n",
+           static_cast<void*>(mParent.get()),
+           static_cast<void*>(mNewNode.get()));
+  }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
@@ -122,6 +152,10 @@ NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::RedoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy) { printf("Redo Create Element\n"); }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 

@@ -106,17 +106,12 @@ XPCOMUtils.defineLazyGetter(DownloadUIHelper, "strings", function () {
  *        The nsIDOMWindow to which prompts should be attached, or null to
  *        attach prompts to the most recently active window.
  */
-this.DownloadPrompter = function (aParent)
+function DownloadPrompter(aParent)
 {
-#ifdef MOZ_WIDGET_GONK
-  // On B2G there is no prompter implementation.
-  this._prompter = null;
-#else
   this._prompter = Services.ww.getNewPrompter(aParent);
-#endif
 }
 
-this.DownloadPrompter.prototype = {
+DownloadPrompter.prototype = {
   /**
    * Constants with the different type of prompts.
    */
@@ -146,11 +141,6 @@ this.DownloadPrompter.prototype = {
     const kPrefAlertOnEXEOpen = "browser.download.manager.alertOnEXEOpen";
 
     try {
-      // Always launch in case we have no prompter implementation.
-      if (!this._prompter) {
-        return Promise.resolve(true);
-      }
-
       try {
         if (!Services.prefs.getBoolPref(kPrefAlertOnEXEOpen)) {
           return Promise.resolve(true);
@@ -188,15 +178,14 @@ this.DownloadPrompter.prototype = {
    * @param aPromptType
    *        The type of prompt notification depending on the observer.
    *
-   * @return False to cancel the downloads and continue, true to abort the
+   * @return True to cancel the downloads and continue, false to abort the
    *         operation.
    */
   confirmCancelDownloads: function DP_confirmCancelDownload(aDownloadsCount,
                                                             aPromptType)
   {
-    // Always continue in case we have no prompter implementation, or if there
-    // are no active downloads.
-    if (!this._prompter || aDownloadsCount <= 0) {
+    // If there are no active downloads, then do nothing.
+    if (aDownloadsCount <= 0) {
       return false;
     }
 

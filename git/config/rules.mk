@@ -53,7 +53,7 @@ else
 REPORT_BUILD = $(info $(shell $(PYTHON) $(MOZILLA_DIR)/config/rebuild_check.py $@ $^))
 endif
 else
-REPORT_BUILD = $(info $(notdir $@))
+REPORT_BUILD = $(info $(if $(filter $(DEPTH)/%,$@),$(@:$(DEPTH)/%=%),$(notdir $@)))
 endif
 
 ifeq ($(OS_ARCH),OS2)
@@ -800,7 +800,7 @@ else # !WINNT || GNU_CC
 endif # WINNT && !GNU_CC
 
 ifdef ENABLE_STRIP
-	$(STRIP) $(STRIP_FLAGS) $@
+	$(STRIP) $@
 endif
 ifdef MOZ_POST_PROGRAM_COMMAND
 	$(MOZ_POST_PROGRAM_COMMAND) $@
@@ -856,7 +856,7 @@ else
 endif # WINNT && !GNU_CC
 
 ifdef ENABLE_STRIP
-	$(STRIP) $(STRIP_FLAGS) $@
+	$(STRIP) $@
 endif
 ifdef MOZ_POST_PROGRAM_COMMAND
 	$(MOZ_POST_PROGRAM_COMMAND) $@
@@ -883,6 +883,7 @@ $(filter %.$(LIB_SUFFIX),$(LIBRARY)): $(OBJS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 	$(RM) $(LIBRARY)
 	$(EXPAND_AR) $(AR_FLAGS) $(OBJS) $(SHARED_LIBRARY_LIBS)
+	$(RANLIB) $@
 
 $(filter-out %.$(LIB_SUFFIX),$(LIBRARY)): $(filter %.$(LIB_SUFFIX),$(LIBRARY)) $(OBJS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
 # When we only build a library descriptor, blow out any existing library
@@ -916,12 +917,14 @@ $(IMPORT_LIBRARY): $(SHARED_LIBRARY)
 	$(REPORT_BUILD)
 	$(RM) $@
 	$(IMPLIB) $@ $^
+	$(RANLIB) $@
 endif # OS/2
 
 $(HOST_LIBRARY): $(HOST_OBJS) Makefile
 	$(REPORT_BUILD)
 	$(RM) $@
 	$(EXPAND_LIBS_EXEC) --extract -- $(HOST_AR) $(HOST_AR_FLAGS) $(HOST_OBJS)
+	$(HOST_RANLIB) $@
 
 ifdef HAVE_DTRACE
 ifndef XP_MACOSX
@@ -972,7 +975,7 @@ endif	# WINNT && !GCC
 	@$(RM) foodummyfilefoo $(DELETE_AFTER_LINK)
 	chmod +x $@
 ifdef ENABLE_STRIP
-	$(STRIP) $(STRIP_FLAGS) $@
+	$(STRIP) $@
 endif
 ifdef MOZ_POST_DSO_LIB_COMMAND
 	$(MOZ_POST_DSO_LIB_COMMAND) $@
@@ -1533,10 +1536,12 @@ install_targets_sanity = $(if $(filter-out $(notdir $@),$(notdir $(<))),$(error 
 
 $(sort $(foreach tier,$(INSTALL_TARGETS_TIERS),$(INSTALL_TARGETS_FILES_$(tier)))):
 	$(install_targets_sanity)
+	$(REPORT_BUILD)
 	$(call install_cmd,$(IFLAGS1) "$<" "$(@D)")
 
 $(sort $(foreach tier,$(INSTALL_TARGETS_TIERS),$(INSTALL_TARGETS_EXECUTABLES_$(tier)))):
 	$(install_targets_sanity)
+	$(REPORT_BUILD)
 	$(call install_cmd,$(IFLAGS2) "$<" "$(@D)")
 
 ################################################################################
@@ -1598,6 +1603,7 @@ $(foreach tier,$(PP_TARGETS_TIERS), \
 PP_TARGETS_ALL_RESULTS := $(sort $(foreach tier,$(PP_TARGETS_TIERS),$(PP_TARGETS_RESULTS_$(tier))))
 $(PP_TARGETS_ALL_RESULTS):
 	$(if $(filter-out $(notdir $@),$(notdir $(<:.in=))),$(error Looks like $@ has an unexpected dependency on $< which breaks PP_TARGETS))
+	$(REPORT_BUILD)
 	$(RM) "$@"
 	$(call py_action,preprocessor,--depend $(MDDEPDIR)/$(@F).pp $(PP_TARGET_FLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) "$<" -o "$@")
 

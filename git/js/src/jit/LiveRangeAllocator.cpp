@@ -36,7 +36,9 @@ Requirement::priority() const
 bool
 LiveInterval::Range::contains(const Range *other) const
 {
-    return from <= other->from && to >= other->to;
+    Range pre, inside, post;
+    intersect(other, &pre, &inside, &post);
+    return inside.from == other->from && inside.to == other->to;
 }
 
 void
@@ -418,7 +420,7 @@ LiveRangeAllocator<VREG>::init()
 
     // Build virtual register objects
     for (size_t i = 0; i < graph.numBlocks(); i++) {
-        if (mir->shouldCancel("Create data structures (main loop)"))
+        if (mir->shouldCancel("LSRA create data structures (main loop)"))
             return false;
 
         LBlock *block = graph.getBlock(i);
@@ -496,7 +498,7 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
         return false;
 
     for (size_t i = graph.numBlocks(); i > 0; i--) {
-        if (mir->shouldCancel("Build Liveness Info (main loop)"))
+        if (mir->shouldCancel("LSRA Build Liveness Info (main loop)"))
             return false;
 
         LBlock *block = graph.getBlock(i - 1);

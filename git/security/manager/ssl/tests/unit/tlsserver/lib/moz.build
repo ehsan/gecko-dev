@@ -7,7 +7,6 @@
 MODULE = 'tlsserver'
 
 SOURCES += [
-    'OCSPCommon.cpp',
     'TLSServer.cpp',
 ]
 

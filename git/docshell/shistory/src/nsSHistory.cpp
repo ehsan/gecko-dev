@@ -861,7 +861,7 @@ nsSHistory::Reload(uint32_t aReloadFlags)
   }
   else if (aReloadFlags & nsIWebNavigation::LOAD_FLAGS_ALLOW_MIXED_CONTENT)
   {
-    loadType = nsIDocShellLoadInfo::loadReloadMixedContent;
+    loadType = nsIDocShellLoadInfo::loadMixedContent;
   }
   else
   {

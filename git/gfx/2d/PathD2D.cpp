@@ -345,7 +345,7 @@ PathD2D::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) 
                         sink);
   }
 
-  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, aFillRule);
+  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, mFillRule);
   
   pathBuilder->mCurrentPoint = aTransform * mEndPoint;
   

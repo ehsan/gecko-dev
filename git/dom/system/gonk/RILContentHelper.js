@@ -1116,7 +1116,7 @@ RILContentHelper.prototype = {
       iccContact.email = contact.email[0].value;
     }
 
-    iccContact.contactId = contact.id;
+    iccContact.id = contact.id;
 
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {
       clientId: clientId,
@@ -1848,7 +1848,7 @@ RILContentHelper.prototype = {
       }
 
       let contact = new window.mozContact(prop);
-      contact.id = c.contactId;
+      contact.id = message.iccid + c.recordId;
       return contact;
     });
 

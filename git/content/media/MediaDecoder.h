@@ -188,7 +188,6 @@ destroying the MediaDecoder object.
 #include "MediaStreamGraph.h"
 #include "AudioChannelCommon.h"
 #include "AbstractMediaDecoder.h"
-#include "necko-config.h"
 
 class nsIStreamListener;
 class nsIMemoryReporter;
@@ -772,7 +771,7 @@ public:
 #ifdef MOZ_WEBM
   static bool IsWebMEnabled();
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
+#ifdef MOZ_RTSP
   static bool IsRtspEnabled();
 #endif
 

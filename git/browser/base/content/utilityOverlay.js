@@ -213,7 +213,6 @@ function openLinkIn(url, where, params) {
   var aCharset              = params.charset;
   var aReferrerURI          = params.referrerURI;
   var aRelatedToCurrent     = params.relatedToCurrent;
-  var aDisableMCB           = params.disableMCB;
   var aInBackground         = params.inBackground;
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
   // Currently, this parameter works only for where=="tab" or "current"
@@ -322,8 +321,7 @@ function openLinkIn(url, where, params) {
                        inBackground: loadInBackground,
                        allowThirdPartyFixup: aAllowThirdPartyFixup,
                        relatedToCurrent: aRelatedToCurrent,
-                       isUTF8: aIsUTF8,
-                       disableMCB: aDisableMCB});
+                       isUTF8: aIsUTF8});
     break;
   }
 

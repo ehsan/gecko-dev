@@ -1683,8 +1683,7 @@ ForkJoinSlice::ForkJoinSlice(PerThreadData *perThreadData,
     numSlices(numSlices),
     bailoutRecord(bailoutRecord),
     shared(shared),
-    acquiredContext_(false),
-    nogc_(shared->runtime())
+    acquiredContext_(false)
 {
     /*
      * Unsafely set the zone. This is used to track malloc counters and to

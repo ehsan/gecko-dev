@@ -274,6 +274,15 @@ XMLDocument::SetAsync(bool aAsync)
   return NS_OK;
 }
 
+static void
+ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
+{
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  NS_LITERAL_CSTRING("DOM3 Load"), aDoc,
+                                  nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning);
+}
+
 NS_IMETHODIMP
 XMLDocument::Load(const nsAString& aUrl, bool *aReturn)
 {
@@ -293,7 +302,7 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
     return false;
   }
 
-  WarnOnceAbout(nsIDocument::eUseOfDOM3LoadMethod);
+  ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
 
   nsCOMPtr<nsIDocument> callingDoc = nsContentUtils::GetDocumentFromContext();
 

@@ -55,8 +55,7 @@ public:
   {
   }
   NS_IMETHOD_(void) DescribeGCedNode(bool aIsMarked,
-                                     const char* aObjName,
-                                     uint64_t aCompartmentAddress)
+                                     const char* aObjName)
   {
   }
 

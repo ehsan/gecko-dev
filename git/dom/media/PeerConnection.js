@@ -490,17 +490,13 @@ RTCPeerConnection.prototype = {
       constraints = {};
     }
     this._mustValidateConstraints(constraints, "createOffer passed invalid constraints");
-
-    this._queueOrRun({
-      func: this._createOffer,
-      args: [onSuccess, onError, constraints],
-      wait: true
-    });
-  },
-
-  _createOffer: function(onSuccess, onError, constraints) {
     this._onCreateOfferSuccess = onSuccess;
     this._onCreateOfferFailure = onError;
+
+    this._queueOrRun({ func: this._createOffer, args: [constraints], wait: true });
+  },
+
+  _createOffer: function(constraints) {
     this._getPC().createOffer(constraints);
   },
 
@@ -546,6 +542,12 @@ RTCPeerConnection.prototype = {
   },
 
   setLocalDescription: function(desc, onSuccess, onError) {
+    // TODO -- if we have two setLocalDescriptions in the
+    // queue,this code overwrites the callbacks for the first
+    // one with the callbacks for the second one. See Bug 831759.
+    this._onSetLocalDescriptionSuccess = onSuccess;
+    this._onSetLocalDescriptionFailure = onError;
+
     let type;
     switch (desc.type) {
       case "offer":
@@ -563,19 +565,23 @@ RTCPeerConnection.prototype = {
 
     this._queueOrRun({
       func: this._setLocalDescription,
-      args: [type, desc.sdp, onSuccess, onError],
+      args: [type, desc.sdp],
       wait: true,
       type: desc.type
     });
   },
 
-  _setLocalDescription: function(type, sdp, onSuccess, onError) {
-    this._onSetLocalDescriptionSuccess = onSuccess;
-    this._onSetLocalDescriptionFailure = onError;
+  _setLocalDescription: function(type, sdp) {
     this._getPC().setLocalDescription(type, sdp);
   },
 
   setRemoteDescription: function(desc, onSuccess, onError) {
+    // TODO -- if we have two setRemoteDescriptions in the
+    // queue, this code overwrites the callbacks for the first
+    // one with the callbacks for the second one. See Bug 831759.
+    this._onSetRemoteDescriptionSuccess = onSuccess;
+    this._onSetRemoteDescriptionFailure = onError;
+
     let type;
     switch (desc.type) {
       case "offer":
@@ -593,15 +599,13 @@ RTCPeerConnection.prototype = {
 
     this._queueOrRun({
       func: this._setRemoteDescription,
-      args: [type, desc.sdp, onSuccess, onError],
+      args: [type, desc.sdp],
       wait: true,
       type: desc.type
     });
   },
 
-  _setRemoteDescription: function(type, sdp, onSuccess, onError) {
-    this._onSetRemoteDescriptionSuccess = onSuccess;
-    this._onSetRemoteDescriptionFailure = onError;
+  _setRemoteDescription: function(type, sdp) {
     this._getPC().setRemoteDescription(type, sdp);
   },
 
