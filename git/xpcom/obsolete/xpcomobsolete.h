@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,14 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla.
  *
- * The Initial Developer of the Original Code is
- * Doug Turner <dougt@dougt.org>
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
  *
  * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,33 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsAccelerometerWin_h
-#define nsAccelerometerWin_h
+#ifndef xpcomobsolete_h___
+#define xpcomobsolete_h___
 
-#include "nsAccelerometer.h"
-#include "nsAutoPtr.h"
+#include "nscore.h"
 
-class Sensor
-{
- public:
-  virtual PRBool Startup() = 0;
-  virtual void Shutdown()  = 0;
-  virtual void GetValues(double *x, double *y, double *z) = 0;
-};
-
-class nsAccelerometerWin : public nsAccelerometer
-{
- public:
-  nsAccelerometerWin();
-  ~nsAccelerometerWin();
-
-  void Startup();
-  void Shutdown();
-
-  nsCOMPtr<nsITimer> mUpdateTimer;
-  static void UpdateHandler(nsITimer *aTimer, void *aClosure);
-
-  nsAutoPtr<Sensor> mSensor;
-};
-
+#ifdef _IMPL_NS_COM_OBSOLETE
+#define NS_COM_OBSOLETE NS_EXPORT
+#else
+#define NS_COM_OBSOLETE NS_IMPORT
 #endif
+
+#endif /* !defined(xpcomobsolete_h___) */
