@@ -4,12 +4,6 @@
 let originalTab;
 let newTab;
 
-function isCurrent(tab, msg) {
-  const tolerance = 1;
-  const difference = Math.abs(Date.now() - tab.lastAccessed);
-  ok(difference <= tolerance, msg + " (difference: " + difference + ")");
-}
-
 function test() {
   waitForExplicitFinish();
 
@@ -18,7 +12,7 @@ function test() {
 }
 
 function step2() {
-  isCurrent(originalTab, "selected tab has the current timestamp");
+  is(originalTab.lastAccessed, Date.now(), "selected tab has the current timestamp");
   newTab = gBrowser.addTab("about:blank", {skipAnimation: true});
   setTimeout(step3, 100);
 }
@@ -26,14 +20,15 @@ function step2() {
 function step3() {
   ok(newTab.lastAccessed < Date.now(), "new tab hasn't been selected so far");
   gBrowser.selectedTab = newTab;
-  isCurrent(newTab, "new tab has the current timestamp after being selected");
+  is(newTab.lastAccessed, Date.now(), "new tab has the current timestamp after being selected");
   setTimeout(step4, 100);
 }
 
 function step4() {
   ok(originalTab.lastAccessed < Date.now(),
      "original tab has old timestamp after being deselected");
-  isCurrent(newTab, "new tab has the current timestamp since it's still selected");
+  is(newTab.lastAccessed, Date.now(),
+     "new tab has the current timestamp since it's still selected");
 
   gBrowser.removeTab(newTab);
   finish();
