@@ -61,7 +61,8 @@ CanvasLayerComposite::GetRenderState()
 }
 
 void
-CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
+CanvasLayerComposite::RenderLayer(const nsIntPoint& aOffset,
+                                  const nsIntRect& aClipRect)
 {
   if (!mImageHost || !mImageHost->IsAttached()) {
     return;
@@ -97,6 +98,7 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         transform,
+                        gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(filter),
                         clipRect);
 }

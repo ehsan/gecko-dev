@@ -126,7 +126,6 @@
     _(ConcatPar)                    \
     _(CharCodeAt)                   \
     _(FromCharCode)                 \
-    _(StringSplit)                  \
     _(Int32ToDouble)                \
     _(Float32ToDouble)              \
     _(DoubleToFloat32)              \

@@ -62,10 +62,8 @@ class CompositingRenderTargetOGL : public CompositingRenderTarget
   };
 
 public:
-  CompositingRenderTargetOGL(CompositorOGL* aCompositor, const gfx::IntPoint& aOrigin,
-                             GLuint aTexure, GLuint aFBO)
-    : CompositingRenderTarget(aOrigin)
-    , mInitParams()
+  CompositingRenderTargetOGL(CompositorOGL* aCompositor, GLuint aTexure, GLuint aFBO)
+    : mInitParams()
     , mTransform()
     , mCompositor(aCompositor)
     , mGL(aCompositor->gl())
@@ -85,7 +83,7 @@ public:
                         const gfxMatrix& aTransform)
   {
     RefPtr<CompositingRenderTargetOGL> result
-      = new CompositingRenderTargetOGL(aCompositor, gfx::IntPoint(0, 0), 0, 0);
+      = new CompositingRenderTargetOGL(aCompositor, 0, 0);
     result->mTransform = aTransform;
     result->mInitParams = InitParams(aSize, 0, INIT_MODE_NONE);
     result->mInitParams.mStatus = InitParams::INITIALIZED;

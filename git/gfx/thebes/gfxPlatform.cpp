@@ -15,14 +15,7 @@
 
 #include "gfxPlatform.h"
 
-#ifdef XP_WIN
-#include <process.h>
-#define getpid _getpid
-#endif
-
 #include "nsXULAppAPI.h"
-#include "nsDirectoryServiceUtils.h"
-#include "nsDirectoryServiceDefs.h"
 
 #if defined(XP_WIN)
 #include "gfxWindowsPlatform.h"
@@ -326,23 +319,10 @@ int RecordingPrefChanged(const char *aPrefName, void *aClosure)
     if (prefFileName) {
       fileName.Append(NS_ConvertUTF16toUTF8(prefFileName));
     } else {
-      nsCOMPtr<nsIFile> tmpFile;
-      if (NS_FAILED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile)))) {
-        return 0;
-      }
-      fileName.AppendPrintf("moz2drec_%i_%i.aer", XRE_GetProcessType(), getpid());
-
-      nsresult rv = tmpFile->AppendNative(fileName);
-      if (NS_FAILED(rv))
-        return 0;
-
-      rv = tmpFile->GetNativePath(fileName);
-      if (NS_FAILED(rv))
-        return 0;
+      fileName.AssignLiteral("browserrecording.aer");
     }
 
     gPlatform->mRecorder = Factory::CreateEventRecorderForFile(fileName.BeginReading());
-    printf_stderr("Recording to %s\n", fileName.get());
     Factory::SetGlobalEventRecorder(gPlatform->mRecorder);
   } else {
     Factory::SetGlobalEventRecorder(nullptr);
@@ -938,7 +918,7 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
   }
 
   IntSize size = data->GetSize();
-  gfxImageFormat format = SurfaceFormatToImageFormat(data->GetFormat());
+  gfxImageFormat format = OptimalFormatForContent(ContentForFormat(data->GetFormat()));
 
 
   nsRefPtr<gfxASurface> surf =

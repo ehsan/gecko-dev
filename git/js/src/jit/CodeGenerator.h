@@ -201,7 +201,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitConcatPar(LConcatPar *lir);
     bool visitCharCodeAt(LCharCodeAt *lir);
     bool visitFromCharCode(LFromCharCode *lir);
-    bool visitStringSplit(LStringSplit *lir);
     bool visitFunctionEnvironment(LFunctionEnvironment *lir);
     bool visitForkJoinSlice(LForkJoinSlice *lir);
     bool visitGuardThreadLocalObject(LGuardThreadLocalObject *lir);

@@ -67,8 +67,7 @@ public:
 
   virtual TemporaryRef<CompositingRenderTarget>
     CreateRenderTargetFromSource(const gfx::IntRect& aRect,
-                                 const CompositingRenderTarget* aSource,
-                                 const gfx::IntPoint& aSourcePoint) MOZ_OVERRIDE;
+                                 const CompositingRenderTarget* aSource) MOZ_OVERRIDE;
 
   virtual void SetRenderTarget(CompositingRenderTarget* aSurface) MOZ_OVERRIDE;
   virtual CompositingRenderTarget* GetCurrentRenderTarget() MOZ_OVERRIDE
@@ -94,7 +93,8 @@ public:
                         const gfx::Rect &aClipRect,
                         const EffectChain &aEffectChain,
                         gfx::Float aOpacity,
-                        const gfx::Matrix4x4 &aTransform) MOZ_OVERRIDE;
+                        const gfx::Matrix4x4 &aTransform,
+                        const gfx::Point &aOffset) MOZ_OVERRIDE;
 
   /**
    * Start a new frame. If aClipRectIn is null, sets *aClipRectOut to the

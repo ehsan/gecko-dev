@@ -380,7 +380,7 @@ CompositorD3D11::CreateRenderTarget(const gfx::IntRect& aRect,
     return nullptr;
   }
 
-  RefPtr<CompositingRenderTargetD3D11> rt = new CompositingRenderTargetD3D11(texture, aRect.TopLeft());
+  RefPtr<CompositingRenderTargetD3D11> rt = new CompositingRenderTargetD3D11(texture);
   rt->SetSize(IntSize(aRect.width, aRect.height));
 
   if (aInit == INIT_MODE_CLEAR) {
@@ -393,8 +393,7 @@ CompositorD3D11::CreateRenderTarget(const gfx::IntRect& aRect,
 
 TemporaryRef<CompositingRenderTarget>
 CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
-                                              const CompositingRenderTarget* aSource,
-                                              const gfx::IntPoint &aSourcePoint)
+                                              const CompositingRenderTarget* aSource)
 {
   CD3D11_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM,
                              aRect.width, aRect.height, 1, 1,
@@ -412,11 +411,11 @@ CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
       static_cast<const CompositingRenderTargetD3D11*>(aSource);
 
     D3D11_BOX srcBox;
-    srcBox.left = aSourcePoint.x;
-    srcBox.top = aSourcePoint.y;
+    srcBox.left = aRect.x;
+    srcBox.top = aRect.y;
     srcBox.front = 0;
-    srcBox.right = aSourcePoint.x + aRect.width;
-    srcBox.bottom = aSourcePoint.y + aRect.height;
+    srcBox.right = aRect.XMost();
+    srcBox.bottom = aRect.YMost();
     srcBox.back = 0;
 
     const IntSize& srcSize = sourceD3D11->GetSize();
@@ -432,8 +431,8 @@ CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
   }
 
   RefPtr<CompositingRenderTargetD3D11> rt =
-    new CompositingRenderTargetD3D11(texture, aRect.TopLeft());
-  rt->SetSize(aRect.Size());
+    new CompositingRenderTargetD3D11(texture);
+  rt->SetSize(IntSize(aRect.width, aRect.height));
 
   return rt;
 }
@@ -481,13 +480,13 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
                           const gfx::Rect& aClipRect,
                           const EffectChain& aEffectChain,
                           gfx::Float aOpacity,
-                          const gfx::Matrix4x4& aTransform)
+                          const gfx::Matrix4x4& aTransform,
+                          const gfx::Point& aOffset)
 {
   MOZ_ASSERT(mCurrentRT, "No render target");
   memcpy(&mVSConstants.layerTransform, &aTransform._11, 64);
-  IntPoint origin = mCurrentRT->GetOrigin();
-  mVSConstants.renderTargetOffset[0] = origin.x;
-  mVSConstants.renderTargetOffset[1] = origin.y;
+  mVSConstants.renderTargetOffset[0] = aOffset.x;
+  mVSConstants.renderTargetOffset[1] = aOffset.y;
   mVSConstants.layerQuad = aRect;
 
   mPSConstants.layerOpacity[0] = aOpacity;
@@ -786,7 +785,7 @@ CompositorD3D11::UpdateRenderTarget()
     return;
   }
 
-  mDefaultRT = new CompositingRenderTargetD3D11(backBuf, IntPoint(0, 0));
+  mDefaultRT = new CompositingRenderTargetD3D11(backBuf);
   mDefaultRT->SetSize(mSize);
 }
 

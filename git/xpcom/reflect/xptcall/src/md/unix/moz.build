@@ -155,7 +155,7 @@ if CONFIG['OS_ARCH'] == 'Linux':
                 'xptcstubs_asm_parisc_linux.s',
                 'xptcstubs_pa32.cpp',
             ]
-        elif CONFIG['COMPILE_ENVIRONMENT']:
+        else:
             error('Unknown C++ compiler, xptcall assembly will probably be incorrect.')
 
 if CONFIG['OS_ARCH'] == 'NetBSD':

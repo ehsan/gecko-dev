@@ -176,8 +176,7 @@ class JarFormatter(FlatFormatter):
         return chromepath, entry
 
     def add_manifest(self, entry):
-        if isinstance(entry, ManifestChrome) and \
-                not urlparse(entry.relpath).scheme:
+        if isinstance(entry, ManifestChrome):
             chromepath, entry = self._jarize(entry, entry.relpath)
             assert not self._frozen_chrome
             self._chrome.add(chromepath)

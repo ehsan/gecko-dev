@@ -1,4 +1,4 @@
-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -16,7 +16,6 @@
 #include "mozilla/net/RemoteOpenFileChild.h"
 #include "mozilla/dom/network/TCPSocketChild.h"
 #include "mozilla/dom/network/TCPServerSocketChild.h"
-#include "mozilla/dom/network/UDPSocketChild.h"
 #ifdef MOZ_RTSP
 #include "mozilla/net/RtspControllerChild.h"
 #endif
@@ -24,7 +23,6 @@
 
 using mozilla::dom::TCPSocketChild;
 using mozilla::dom::TCPServerSocketChild;
-using mozilla::dom::UDPSocketChild;
 
 namespace mozilla {
 namespace net {
@@ -207,23 +205,6 @@ bool
 NeckoChild::DeallocPTCPServerSocketChild(PTCPServerSocketChild* child)
 {
   TCPServerSocketChild* p = static_cast<TCPServerSocketChild*>(child);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
-PUDPSocketChild*
-NeckoChild::AllocPUDPSocketChild(const nsCString& aHost,
-                                 const uint16_t& aPort)
-{
-  NS_NOTREACHED("AllocPUDPSocket should not be called");
-  return nullptr;
-}
-
-bool
-NeckoChild::DeallocPUDPSocketChild(PUDPSocketChild* child)
-{
-
-  UDPSocketChild* p = static_cast<UDPSocketChild*>(child);
   p->ReleaseIPDLReference();
   return true;
 }

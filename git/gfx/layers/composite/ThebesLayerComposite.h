@@ -53,7 +53,8 @@ public:
 
   virtual TiledLayerComposer* GetTiledLayerComposer() MOZ_OVERRIDE;
 
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 

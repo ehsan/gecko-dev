@@ -41,9 +41,8 @@ CreateDeprecatedTextureHostD3D9(SurfaceDescriptorType aDescriptorType,
 
 CompositingRenderTargetD3D9::CompositingRenderTargetD3D9(IDirect3DTexture9* aTexture,
                                                          SurfaceInitMode aInit,
-                                                         const gfx::IntRect& aRect)
-  : CompositingRenderTarget(aRect.TopLeft())
-  , mInitMode(aInit)
+                                                         const gfx::IntSize& aSize)
+  : mInitMode(aInit)
   , mInitialized(false)
 {
   MOZ_COUNT_CTOR(CompositingRenderTargetD3D9);
@@ -52,20 +51,19 @@ CompositingRenderTargetD3D9::CompositingRenderTargetD3D9(IDirect3DTexture9* aTex
   mTextures[0] = aTexture;
   HRESULT hr = mTextures[0]->GetSurfaceLevel(0, getter_AddRefs(mSurface));
   NS_ASSERTION(mSurface, "Couldn't create surface for texture");
-  TextureSourceD3D9::SetSize(aRect.Size());
+  TextureSourceD3D9::SetSize(aSize);
 }
 
 CompositingRenderTargetD3D9::CompositingRenderTargetD3D9(IDirect3DSurface9* aSurface,
                                                          SurfaceInitMode aInit,
-                                                         const gfx::IntRect& aRect)
-  : CompositingRenderTarget(aRect.TopLeft())
-  , mSurface(aSurface)
+                                                         const gfx::IntSize& aSize)
+  : mSurface(aSurface)
   , mInitMode(aInit)
   , mInitialized(false)
 {
   MOZ_COUNT_CTOR(CompositingRenderTargetD3D9);
   MOZ_ASSERT(mSurface);
-  TextureSourceD3D9::SetSize(aRect.Size());
+  TextureSourceD3D9::SetSize(aSize);
 }
 
 CompositingRenderTargetD3D9::~CompositingRenderTargetD3D9()

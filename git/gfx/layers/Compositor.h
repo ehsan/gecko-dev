@@ -125,7 +125,8 @@ class CompositingRenderTarget;
 enum SurfaceInitMode
 {
   INIT_MODE_NONE,
-  INIT_MODE_CLEAR
+  INIT_MODE_CLEAR,
+  INIT_MODE_COPY
 };
 
 /**
@@ -247,13 +248,10 @@ public:
    * Creates a Surface that can be used as a rendering target by this
    * compositor, and initializes the surface by copying from aSource.
    * If aSource is null, then the current screen buffer is used as source.
-   *
-   * aSourcePoint specifies the point in aSource to copy data from.
    */
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect& aRect,
-                               const CompositingRenderTarget* aSource,
-                               const gfx::IntPoint& aSourcePoint) = 0;
+                               const CompositingRenderTarget* aSource) = 0;
 
   /**
    * Sets the given surface as the target for subsequent calls to DrawQuad.
@@ -282,12 +280,14 @@ public:
   /**
    * Tell the compositor to actually draw a quad. What to do draw and how it is
    * drawn is specified by aEffectChain. aRect is the quad to draw, in user space.
-   * aTransform transforms from user space to screen space. If texture coords are
+   * aTransform transforms from user space to screen space. aOffset is the
+   * offset of the render target from 0,0 of the screen. If texture coords are
    * required, these will be in the primary effect in the effect chain.
    */
   virtual void DrawQuad(const gfx::Rect& aRect, const gfx::Rect& aClipRect,
                         const EffectChain& aEffectChain,
-                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform) = 0;
+                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform,
+                        const gfx::Point& aOffset) = 0;
 
   /**
    * Start a new frame.
@@ -349,12 +349,14 @@ public:
   void DrawDiagnostics(DiagnosticFlags aFlags,
                        const gfx::Rect& visibleRect,
                        const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform);
+                       const gfx::Matrix4x4& transform,
+                       const gfx::Point& aOffset);
 
   void DrawDiagnostics(DiagnosticFlags aFlags,
                        const nsIntRegion& visibleRegion,
                        const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform);
+                       const gfx::Matrix4x4& transform,
+                       const gfx::Point& aOffset);
 
 
 #ifdef MOZ_DUMP_PAINTING
@@ -430,7 +432,8 @@ protected:
   void DrawDiagnosticsInternal(DiagnosticFlags aFlags,
                                const gfx::Rect& aVisibleRect,
                                const gfx::Rect& aClipRect,
-                               const gfx::Matrix4x4& transform);
+                               const gfx::Matrix4x4& transform,
+                               const gfx::Point& aOffset);
 
   bool ShouldDrawDiagnostics(DiagnosticFlags);
 

@@ -127,12 +127,7 @@ class BaselineCompilerShared
         masm.Push(BaselineFrameReg);
     }
 
-    enum CallVMPhase {
-        POST_INITIALIZE,
-        PRE_INITIALIZE,
-        CHECK_OVER_RECURSED
-    };
-    bool callVM(const VMFunction &fun, CallVMPhase phase=POST_INITIALIZE);
+    bool callVM(const VMFunction &fun, bool preInitialize=false);
 
   public:
     BytecodeAnalysis &analysis() {

@@ -69,8 +69,6 @@ public:
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
 
-  virtual void StreamToSink(PathSink *aSink) const;
-
   virtual FillRule GetFillRule() const { return mFillRule; }
 
   void SetPathOnContext(cairo_t *aContext) const;

@@ -72,7 +72,6 @@ namespace jit {
     _(ConcatPar)                                                            \
     _(CharCodeAt)                                                           \
     _(FromCharCode)                                                         \
-    _(StringSplit)                                                          \
     _(Return)                                                               \
     _(Throw)                                                                \
     _(Box)                                                                  \
