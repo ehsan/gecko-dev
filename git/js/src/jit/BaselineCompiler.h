@@ -135,11 +135,6 @@ namespace jit {
     _(JSOP_SETLOCAL)           \
     _(JSOP_GETARG)             \
     _(JSOP_SETARG)             \
-    _(JSOP_CHECKLEXICAL)       \
-    _(JSOP_INITLEXICAL)        \
-    _(JSOP_CHECKALIASEDLEXICAL) \
-    _(JSOP_INITALIASEDLEXICAL) \
-    _(JSOP_UNINITIALIZED)      \
     _(JSOP_CALL)               \
     _(JSOP_FUNCALL)            \
     _(JSOP_FUNAPPLY)           \
@@ -219,7 +214,6 @@ class BaselineCompiler : public BaselineCompilerSpecific
   private:
     MethodStatus emitBody();
 
-    void emitInitializeLocals(size_t n, const Value &v);
     bool emitPrologue();
     bool emitEpilogue();
 #ifdef JSGC_GENERATIONAL
@@ -272,8 +266,6 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitInitElemGetterSetter();
 
     bool emitFormalArgAccess(uint32_t arg, bool get);
-
-    bool emitUninitializedLexicalCheck(const ValueOperand &val);
 
     bool addPCMappingEntry(bool addIndexEntry);
 

@@ -32,7 +32,7 @@ let test = asyncTest(function*() {
 
   info("Selecting the zero width height DIV");
   let zeroWidthHeight = getNode("#widthHeightZero-div");
-  onBoxModelUpdate = waitForBoxModelUpdate();
+  let onBoxModelUpdate = waitForBoxModelUpdate();
   yield selectAndHighlightNode(zeroWidthHeight, inspector);
   yield onBoxModelUpdate;
 

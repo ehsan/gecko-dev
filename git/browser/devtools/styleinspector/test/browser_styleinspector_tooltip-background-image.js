@@ -42,7 +42,7 @@ let test = asyncTest(function*() {
   yield testTooltipAppearsEvenInEditMode(view);
 
   info("Switching over to the computed-view");
-  ({view} = yield openComputedView());
+  let {view} = yield openComputedView();
 
   info("Testing that the background-image computed style has a tooltip too");
   yield testComputedView(view);

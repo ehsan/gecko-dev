@@ -130,10 +130,6 @@ class ScopeCoordinate
 
     uint32_t hops() const { JS_ASSERT(hops_ < SCOPECOORD_HOPS_LIMIT); return hops_; }
     uint32_t slot() const { JS_ASSERT(slot_ < SCOPECOORD_SLOT_LIMIT); return slot_; }
-
-    bool operator==(const ScopeCoordinate &rhs) const {
-        return hops() == rhs.hops() && slot() == rhs.slot();
-    }
 };
 
 /*
@@ -236,8 +232,6 @@ class CallObject : public ScopeObject
 
     static CallObject *
     create(JSContext *cx, HandleScript script, HandleObject enclosing, HandleFunction callee);
-
-    inline void setAliasedLexicalsToThrowOnTouch(JSScript *script);
 
   public:
     static const Class class_;

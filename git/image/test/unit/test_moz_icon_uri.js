@@ -113,7 +113,7 @@ function run_test() {
   exception = false; // reset exception value
 
   iconURI = uri.QueryInterface(Ci.nsIMozIconURI);
-  fileURL = null;
+  let fileURL = null;
   try {
     fileURL = iconURI.iconURL.QueryInterface(Ci.nsIFileURL);
   } catch (e) {

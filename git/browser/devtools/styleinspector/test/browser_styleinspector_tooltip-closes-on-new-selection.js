@@ -16,7 +16,7 @@ let test = asyncTest(function*() {
   yield testRuleView(view, inspector);
 
   info("Testing computed view tooltip closes on new selection");
-  ({view} = yield openComputedView());
+  let {view} = yield openComputedView();
   yield testComputedView(view, inspector);
 });
 

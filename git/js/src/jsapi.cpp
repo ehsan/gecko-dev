@@ -3218,43 +3218,26 @@ JS_DefineObject(JSContext *cx, HandleObject obj, const char *name, const JSClass
     return nobj;
 }
 
-static inline Value
-ValueFromScalar(double x)
+JS_PUBLIC_API(bool)
+JS_DefineConstDoubles(JSContext *cx, HandleObject obj, const JSConstDoubleSpec *cds)
 {
-    return DoubleValue(x);
-}
-static inline Value
-ValueFromScalar(int32_t x)
-{
-    return Int32Value(x);
-}
+    bool ok;
+    unsigned attrs;
 
-template<typename T>
-static bool
-DefineConstScalar(JSContext *cx, HandleObject obj, const JSConstScalarSpec<T> *cds)
-{
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     JSPropertyOpWrapper noget = GetterWrapper(nullptr);
     JSStrictPropertyOpWrapper noset = SetterWrapper(nullptr);
-    unsigned attrs = JSPROP_READONLY | JSPROP_PERMANENT;
-    for (; cds->name; cds++) {
-        RootedValue value(cx, ValueFromScalar(cds->val));
-        if (!DefineProperty(cx, obj, cds->name, value, noget, noset, attrs, 0))
-            return false;
+    for (ok = true; cds->name; cds++) {
+        RootedValue value(cx, DoubleValue(cds->dval));
+        attrs = cds->flags;
+        if (!attrs)
+            attrs = JSPROP_READONLY | JSPROP_PERMANENT;
+        ok = DefineProperty(cx, obj, cds->name, value, noget, noset, attrs, 0);
+        if (!ok)
+            break;
     }
-    return true;
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineConstDoubles(JSContext *cx, HandleObject obj, const JSConstDoubleSpec *cds)
-{
-    return DefineConstScalar(cx, obj, cds);
-}
-JS_PUBLIC_API(bool)
-JS_DefineConstIntegers(JSContext *cx, HandleObject obj, const JSConstIntegerSpec *cis)
-{
-    return DefineConstScalar(cx, obj, cis);
+    return ok;
 }
 
 JS_PUBLIC_API(bool)
@@ -3724,7 +3707,7 @@ JS_NewPropertyIterator(JSContext *cx, HandleObject obj)
 }
 
 JS_PUBLIC_API(bool)
-JS_NextProperty(JSContext *cx, HandleObject iterobj, MutableHandleId idp)
+JS_NextProperty(JSContext *cx, HandleObject iterobj, jsid *idp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
@@ -3740,10 +3723,10 @@ JS_NextProperty(JSContext *cx, HandleObject iterobj, MutableHandleId idp)
 
         if (!shape->previous()) {
             JS_ASSERT(shape->isEmptyShape());
-            idp.set(JSID_VOID);
+            *idp = JSID_VOID;
         } else {
             iterobj->setPrivateGCThing(const_cast<Shape *>(shape->previous().get()));
-            idp.set(shape->propid());
+            *idp = shape->propid();
         }
     } else {
         /* Non-native case: use the ida enumerated when iterobj was created. */
@@ -3751,9 +3734,9 @@ JS_NextProperty(JSContext *cx, HandleObject iterobj, MutableHandleId idp)
         JS_ASSERT(i <= ida->length);
         STATIC_ASSUME(i <= ida->length);
         if (i == 0) {
-            idp.set(JSID_VOID);
+            *idp = JSID_VOID;
         } else {
-            idp.set(ida->vector[--i]);
+            *idp = ida->vector[--i];
             iterobj->setSlot(JSSLOT_ITER_INDEX, Int32Value(i));
         }
     }
@@ -6160,7 +6143,7 @@ JS_PUBLIC_API(bool)
 JS_ThrowStopIteration(JSContext *cx)
 {
     AssertHeapIsIdle(cx);
-    return ThrowStopIteration(cx);
+    return js_ThrowStopIteration(cx);
 }
 
 JS_PUBLIC_API(bool)

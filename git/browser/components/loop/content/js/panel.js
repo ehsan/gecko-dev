@@ -551,5 +551,3 @@ loop.panel = (function(_, mozL10n) {
     ToSView: ToSView
   };
 })(_, document.mozL10n);
-
-document.addEventListener('DOMContentLoaded', loop.panel.init);

@@ -325,15 +325,6 @@ HasInstance(JSContext *cx, HandleObject obj, HandleValue v, bool *bp);
 extern void
 UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc);
 
-// Unwind all scopes.
-extern void
-UnwindAllScopes(JSContext *cx, ScopeIter &si);
-
-// Compute the pc needed to unwind the scope to the beginning of the block
-// pointed to by the try note.
-extern jsbytecode *
-UnwindScopeToTryPc(JSScript *script, JSTryNote *tn);
-
 /*
  * Unwind for an uncatchable exception. This means not running finalizers, etc;
  * just preserving the basic engine stack invariants.
@@ -449,6 +440,9 @@ ImplicitThisOperation(JSContext *cx, HandleObject scopeObj, HandlePropertyName n
                       MutableHandleValue res);
 
 bool
+IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval);
+
+bool
 RunOnceScriptPrologue(JSContext *cx, HandleScript script);
 
 bool
@@ -478,15 +472,6 @@ SetConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName name, H
                                     JS_PropertyStub, JS_StrictPropertyStub,
                                     JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
 }
-
-void
-ReportUninitializedLexical(JSContext *cx, HandlePropertyName name);
-
-void
-ReportUninitializedLexical(JSContext *cx, HandleScript script, jsbytecode *pc);
-
-void
-ReportUninitializedLexical(JSContext *cx, HandleScript script, jsbytecode *pc, ScopeCoordinate sc);
 
 }  /* namespace js */
 

@@ -34,8 +34,8 @@ let test = asyncTest(function*() {
   allowXUL();
   yield addTab(TEST_URI_XUL);
 
-  ({toolbox, inspector, view} = yield openRuleView());
-  target = getNode("#target");
+  let {toolbox, inspector, view} = yield openRuleView();
+  let target = getNode("#target");
   yield selectNode("#target", inspector);
 
   yield checkSheets(target);

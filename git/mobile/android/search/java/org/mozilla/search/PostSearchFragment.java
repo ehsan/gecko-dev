@@ -4,6 +4,7 @@
 
 package org.mozilla.search;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -27,14 +28,15 @@ import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.search.providers.SearchEngine;
+import org.mozilla.search.providers.SearchEngineManager;
 
 public class PostSearchFragment extends Fragment {
 
     private static final String LOG_TAG = "PostSearchFragment";
 
-    private SearchEngine engine;
-
     private ProgressBar progressBar;
+
+    private SearchEngineManager searchEngineManager;
     private WebView webview;
     private View errorView;
 
@@ -64,16 +66,32 @@ public class PostSearchFragment extends Fragment {
         progressBar = null;
     }
 
-    public void startSearch(SearchEngine engine, String query) {
-        this.engine = engine;
-
-        final String url = engine.resultsUriForQuery(query);
-        // Only load urls if the url is different than the webview's current url.
-        if (!TextUtils.equals(webview.getUrl(), url)) {
-            webview.loadUrl(Constants.ABOUT_BLANK);
-            webview.loadUrl(url);
-        }
+    @Override
+    public void onAttach(Activity activity) {
+        super.onAttach(activity);
+        searchEngineManager = new SearchEngineManager(activity);
     }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        searchEngineManager.destroy();
+        searchEngineManager = null;
+    }
+
+    public void startSearch(final String query) {
+        searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
+            @Override
+            public void execute(SearchEngine engine) {
+                final String url = engine.resultsUriForQuery(query);
+
+                // Load about:blank to avoid flashing old results.
+                webview.loadUrl(Constants.ABOUT_BLANK);
+                webview.loadUrl(url);
+            }
+        });
+    }
+
 
     /**
      * A custom WebViewClient that intercepts every page load. This allows
@@ -90,23 +108,28 @@ public class PostSearchFragment extends Fragment {
             // Reset the error state.
             networkError = false;
 
-            // We keep URLs in the webview that are either about:blank or a search engine result page.
-            if (TextUtils.equals(url, Constants.ABOUT_BLANK) || engine.isSearchResultsPage(url)) {
-                // Keeping the URL in the webview is a noop.
-                return;
-            }
+            searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
+                @Override
+                public void execute(SearchEngine engine) {
+                    // We keep URLs in the webview that are either about:blank or a search engine result page.
+                    if (TextUtils.equals(url, Constants.ABOUT_BLANK) || engine.isSearchResultsPage(url)) {
+                        // Keeping the URL in the webview is a noop.
+                        return;
+                    }
 
-            webview.stopLoading();
+                    webview.stopLoading();
 
-            Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
-                    TelemetryContract.Method.CONTENT, "search-result");
+                    Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
+                            TelemetryContract.Method.CONTENT, "search-result");
 
-            final Intent i = new Intent(Intent.ACTION_VIEW);
+                    final Intent i = new Intent(Intent.ACTION_VIEW);
 
-            // This sends the URL directly to fennec, rather than to Android.
-            i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
-            i.setData(Uri.parse(url));
-            startActivity(i);
+                    // This sends the URL directly to fennec, rather than to Android.
+                    i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
+                    i.setData(Uri.parse(url));
+                    startActivity(i);
+                }
+            });
         }
 
         @Override
@@ -156,7 +179,13 @@ public class PostSearchFragment extends Fragment {
 
         @Override
         public void onReceivedTitle(final WebView view, String title) {
-            view.loadUrl(engine.getInjectableJs());
+
+            searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
+                @Override
+                public void execute(SearchEngine engine) {
+                    view.loadUrl(engine.getInjectableJs());
+                }
+            });
         }
 
         @Override

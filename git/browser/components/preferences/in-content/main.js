@@ -93,8 +93,7 @@ var gMainPane = {
                      gMainPane.enableE10SChange);
     let e10sCheckbox = document.getElementById("e10sAutoStart");
     let e10sPref = document.getElementById("browser.tabs.remote.autostart");
-    let e10sTempPref = document.getElementById("e10sTempPref");
-    e10sCheckbox.checked = e10sPref.value || e10sTempPref.value;
+    e10sCheckbox.checked = e10sPref.value;
 #endif
 
     // Notify observers that the UI is now ready
@@ -108,19 +107,6 @@ var gMainPane = {
   {
     let e10sCheckbox = document.getElementById("e10sAutoStart");
     let e10sPref = document.getElementById("browser.tabs.remote.autostart");
-    let e10sTempPref = document.getElementById("e10sTempPref");
-
-    let prefsToChange;
-    if (e10sCheckbox.checked) {
-      // Enabling e10s autostart
-      prefsToChange = [e10sPref];
-    } else {
-      // Disabling e10s autostart
-      prefsToChange = [e10sPref];
-      if (e10sTempPref.value) {
-       prefsToChange.push(e10sTempPref);
-      }
-    }
 
     const Cc = Components.classes, Ci = Components.interfaces;
     let brandName = document.getElementById("bundleBrand").getString("brandShortName");
@@ -138,15 +124,13 @@ var gMainPane = {
       shouldProceed = !cancelQuit.data;
 
       if (shouldProceed) {
-        for (let prefToChange of prefsToChange) {
-          prefToChange.value = e10sCheckbox.checked;
-        }
+        e10sPref.value = e10sCheckbox.checked;
         Services.startup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
       }
     }
 
     // Revert the checkbox in case we didn't quit
-    e10sCheckbox.checked = e10sPref.value || e10sTempPref.value;
+    e10sCheckbox.checked = e10sPref.value;
   },
 #endif
 

@@ -602,7 +602,7 @@ ConnectionData.prototype = Object.freeze({
             deferred.resolve(result);
             break;
 
-          case Ci.mozIStorageStatementCallback.REASON_CANCELED:
+          case Ci.mozIStorageStatementCallback.REASON_CANCELLED:
             // It is not an error if the user explicitly requested cancel via
             // the onRow handler.
             if (userCancelled) {

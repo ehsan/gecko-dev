@@ -790,7 +790,7 @@ DebuggerClient.prototype = {
       throw Error("'" + request.type + "' bulk packet has no length.");
     }
 
-    request = new Request(request);
+    let request = new Request(request);
     request.format = "bulk";
 
     this._pendingRequests.push(request);

@@ -46,8 +46,7 @@ class DateObject : public JSObject
     }
 
     // Set UTC time to a given time and invalidate cached local time.
-    void setUTCTime(double t);
-    void setUTCTime(double t, MutableHandleValue vp);
+    void setUTCTime(double t, Value *vp = nullptr);
 
     inline double cachedLocalTime(DateTimeInfo *dtInfo);
 

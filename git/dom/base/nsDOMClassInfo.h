@@ -117,7 +117,9 @@ public:
    * transparent one.
    *
    * Note: So ObjectIsNativeWrapper(cx, obj) check usually means "through xray
-   * wrapper this part is not visible".
+   * wrapper this part is not visible" while combined with
+   * || xpc::WrapperFactory::XrayWrapperNotShadowing(obj) it means "through
+   * xray wrapper it is visible only if it does not hide any native property."
    */
   static bool ObjectIsNativeWrapper(JSContext* cx, JSObject* obj);
 

@@ -44,8 +44,7 @@ function test() {
           "The promise was correctly rejected with a meaningful message.");
       }
 
-      let text;
-      [source, text] = yield gControllerSources.getText(source);
+      let [source, text] = yield gControllerSources.getText(source);
       is(gSources.selectedValue, TAB_URL,
         "The correct source is still selected.");
       ok(gEditor.getText().contains("myFunction"),

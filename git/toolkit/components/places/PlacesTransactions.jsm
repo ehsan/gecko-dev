@@ -1188,7 +1188,7 @@ PT.RemoveItem.prototype = {
       for (let item of itemsToRestoreOnUndo) {
         let parentId = yield PlacesUtils.promiseItemId(item.parentGUID);
         let index = "index" in item ?
-                    item.index : PlacesUtils.bookmarks.DEFAULT_INDEX;
+                    index : PlacesUtils.bookmarks.DEFAULT_INDEX;
         let itemId;
         if (item.itemType == bms.TYPE_SEPARATOR) {
           itemId = bms.insertSeparator(parentId, index, item.GUID);

@@ -318,9 +318,7 @@
     _(AssertRangeI)                 \
     _(AssertRangeD)                 \
     _(AssertRangeF)                 \
-    _(AssertRangeV)                 \
-    _(LexicalCheck)                 \
-    _(ThrowUninitializedLexical)
+    _(AssertRangeV)
 
 #if defined(JS_CODEGEN_X86)
 # include "jit/x86/LOpcodes-x86.h"

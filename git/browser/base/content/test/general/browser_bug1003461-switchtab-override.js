@@ -42,7 +42,7 @@ add_task(function* test_switchtab_override() {
   ok(/moz-action:switchtab/.test(gURLBar.value), "switch to tab entry found");
 
   info("Override switch-to-tab");
-  deferred = Promise.defer();
+  let deferred = Promise.defer();
   // In case of failure this would switch tab.
   let onTabSelect = event => {
     deferred.reject(new Error("Should have overridden switch to tab"));

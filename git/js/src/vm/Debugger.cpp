@@ -725,17 +725,15 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
         if (!optObj)
             return false;
 
-        // We handle three sentinel values: missing arguments (overloading
-        // JS_OPTIMIZED_ARGUMENTS), optimized out slots (JS_OPTIMIZED_OUT),
-        // and uninitialized bindings (JS_UNINITIALIZED_LEXICAL).
-        //
+        // We handle two sentinel values: missing arguments (overloading
+        // JS_OPTIMIZED_ARGUMENTS) and optimized out slots (JS_OPTIMIZED_OUT).
         // Other magic values should not have escaped.
         PropertyName *name;
-        switch (vp.whyMagic()) {
-          case JS_OPTIMIZED_ARGUMENTS:   name = cx->names().missingArguments; break;
-          case JS_OPTIMIZED_OUT:         name = cx->names().optimizedOut; break;
-          case JS_UNINITIALIZED_LEXICAL: name = cx->names().uninitialized; break;
-          default: MOZ_CRASH("Unsupported magic value escaped to Debugger");
+        if (vp.whyMagic() == JS_OPTIMIZED_ARGUMENTS) {
+            name = cx->names().missingArguments;
+        } else {
+            MOZ_ASSERT(vp.whyMagic() == JS_OPTIMIZED_OUT);
+            name = cx->names().optimizedOut;
         }
 
         RootedValue trueVal(cx, BooleanValue(true));

@@ -249,7 +249,7 @@ add_task(function* testUpdateButton() {
   wait_for_view_load(gManagerWindow, deferred.resolve);
   yield deferred.promise;
 
-  button = doc.getElementById("detail-findUpdates-btn");
+  let button = doc.getElementById("detail-findUpdates-btn");
   Assert.ok(button != null, "Got detail-findUpdates-btn");
   EventUtils.synthesizeMouseAtCenter(button, { clickCount: 1 }, gManagerWindow);
   yield gInstallDeferred.promise;

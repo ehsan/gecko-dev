@@ -586,13 +586,20 @@ gfxContext::PixelSnappedRectangleAndSetPattern(const gfxRect& rect,
 void
 gfxContext::SetAntialiasMode(AntialiasMode mode)
 {
-  CurrentState().aaMode = mode;
+  if (mode == MODE_ALIASED) {
+    CurrentState().aaMode = gfx::AntialiasMode::NONE;
+  } else if (mode == MODE_COVERAGE) {
+    CurrentState().aaMode = gfx::AntialiasMode::SUBPIXEL;
+  }
 }
 
-AntialiasMode
+gfxContext::AntialiasMode
 gfxContext::CurrentAntialiasMode() const
 {
-  return CurrentState().aaMode;
+  if (CurrentState().aaMode == gfx::AntialiasMode::NONE) {
+    return MODE_ALIASED;
+  }
+  return MODE_COVERAGE;
 }
 
 void

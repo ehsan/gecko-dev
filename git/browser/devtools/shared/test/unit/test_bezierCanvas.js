@@ -7,9 +7,6 @@
 
 // Tests the BezierCanvas API in the CubicBezierWidget module
 
-const Cu = Components.utils;
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let require = devtools.require;
 let {CubicBezier, BezierCanvas} = require("devtools/shared/widgets/CubicBezierWidget");
 
 function run_test() {
@@ -38,8 +35,8 @@ function offsetsGetterReturnsData() {
 
   do_print("offsets getter returns data according to current padding");
 
-  b = new BezierCanvas(getCanvasMock(), getCubicBezier(), [0, 0]);
-  offsets = b.offsets;
+  let b = new BezierCanvas(getCanvasMock(), getCubicBezier(), [0, 0]);
+  let offsets = b.offsets;
 
   do_check_eq(offsets[0].top, "400px");
   do_check_eq(offsets[0].left, "0px");
@@ -60,14 +57,14 @@ function convertsOffsetsToCoordinates() {
   do_check_eq(coordinates[0], 0);
   do_check_eq(coordinates[1], 1.5);
 
-  coordinates = b.offsetsToCoordinates({style: {
+  let coordinates = b.offsetsToCoordinates({style: {
     left: "0px",
     top: "300px"
   }});
   do_check_eq(coordinates[0], 0);
   do_check_eq(coordinates[1], 0);
 
-  coordinates = b.offsetsToCoordinates({style: {
+  let coordinates = b.offsetsToCoordinates({style: {
     left: "200px",
     top: "100px"
   }});

@@ -925,6 +925,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       nsIPrincipal* aPrincipal,
                                       InfallibleTArray<nsString>* aJSONRetVal)
 {
+  AutoSafeJSContext cx;
   nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners =
     mListeners.Get(aMessage);
   if (listeners) {
@@ -955,23 +956,11 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       if (!wrappedJS) {
         continue;
       }
-
-      if (!wrappedJS->GetJSObject()) {
+      JS::Rooted<JSObject*> object(cx, wrappedJS->GetJSObject());
+      if (!object) {
         continue;
       }
-
-      // Note - The ergonomics here will get a lot better with bug 971673:
-      //
-      // AutoEntryScript aes;
-      // if (!aes.Init(wrappedJS->GetJSObject())) {
-      //   continue;
-      // }
-      // JSContext* cx = aes.cx();
-      nsIGlobalObject* nativeGlobal =
-        xpc::GetNativeForGlobal(js::GetGlobalForObjectCrossCompartment(wrappedJS->GetJSObject()));
-      AutoEntryScript aes(nativeGlobal);
-      JSContext* cx = aes.cx();
-      JS::Rooted<JSObject*> object(cx, wrappedJS->GetJSObject());
+      JSAutoCompartment ac(cx, object);
 
       // The parameter for the listener function.
       JS::Rooted<JSObject*> param(cx,

@@ -24,6 +24,12 @@ class XPCWrappedNative;
 
 namespace xpc {
 
+bool
+holder_get(JSContext *cx, JS::HandleObject holder, JS::HandleId id, JS::MutableHandleValue vp);
+bool
+holder_set(JSContext *cx, JS::HandleObject holder, JS::HandleId id, bool strict,
+           JS::MutableHandleValue vp);
+
 namespace XrayUtils {
 
 bool IsXPCWNHolderClass(const JSClass *clasp);
@@ -37,6 +43,9 @@ JSObject *
 GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 
 bool
+IsXrayResolving(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
+
+bool
 HasNativeProperty(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id,
                   bool *hasProp);
 }
@@ -47,6 +56,35 @@ enum XrayType {
     XrayForJSObject,
     XrayForOpaqueObject,
     NotXray
+};
+
+class MOZ_STACK_CLASS ResolvingId {
+public:
+    ResolvingId(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id);
+    ~ResolvingId();
+
+    bool isXrayShadowing(jsid id);
+    bool isResolving(jsid id);
+    static ResolvingId* getResolvingId(JSObject *holder);
+    static JSObject* getHolderObject(JSObject *wrapper);
+    static ResolvingId *getResolvingIdFromWrapper(JSObject *wrapper);
+
+private:
+    friend class AutoSetWrapperNotShadowing;
+    friend class XPCWrappedNativeXrayTraits;
+
+    JS::HandleId mId;
+    JS::RootedObject mHolder;
+    ResolvingId *mPrev;
+    bool mXrayShadowing;
+};
+
+class MOZ_STACK_CLASS ResolvingIdDummy
+{
+public:
+    ResolvingIdDummy(JSContext *cx, JS::HandleObject wrapper, JS::HandleId id)
+    {
+    }
 };
 
 class XrayTraits
@@ -136,6 +174,8 @@ public:
     static bool construct(JSContext *cx, JS::HandleObject wrapper,
                           const JS::CallArgs &args, const js::Wrapper& baseInstance);
 
+    static bool isResolving(JSContext *cx, JSObject *holder, jsid id);
+
     static bool resolveDOMCollectionProperty(JSContext *cx, JS::HandleObject wrapper,
                                              JS::HandleObject holder, JS::HandleId id,
                                              JS::MutableHandle<JSPropertyDescriptor> desc);
@@ -143,6 +183,8 @@ public:
     static XPCWrappedNative* getWN(JSObject *wrapper);
 
     virtual void preserveWrapper(JSObject *target) MOZ_OVERRIDE;
+
+    typedef ResolvingId ResolvingIdImpl;
 
     virtual JSObject* createHolder(JSContext *cx, JSObject *wrapper) MOZ_OVERRIDE;
 
@@ -176,6 +218,13 @@ public:
                      const JS::CallArgs &args, const js::Wrapper& baseInstance);
     static bool construct(JSContext *cx, JS::HandleObject wrapper,
                           const JS::CallArgs &args, const js::Wrapper& baseInstance);
+
+    static bool isResolving(JSContext *cx, JSObject *holder, jsid id)
+    {
+        return false;
+    }
+
+    typedef ResolvingIdDummy ResolvingIdImpl;
 
     virtual void preserveWrapper(JSObject *target) MOZ_OVERRIDE;
 
@@ -237,6 +286,13 @@ public:
         js_ReportIsNotFunction(cx, v);
         return false;
     }
+
+    static bool isResolving(JSContext *cx, JSObject *holder, jsid id)
+    {
+        return false;
+    }
+
+    typedef ResolvingIdDummy ResolvingIdImpl;
 
     bool getPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
                         JS::HandleObject target,
@@ -351,6 +407,13 @@ public:
         js_ReportIsNotFunction(cx, v);
         return false;
     }
+
+    static bool isResolving(JSContext *cx, JSObject *holder, jsid id)
+    {
+        return false;
+    }
+
+    typedef ResolvingIdDummy ResolvingIdImpl;
 
     bool getPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
                         JS::HandleObject target,

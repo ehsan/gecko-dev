@@ -740,7 +740,7 @@ nsContextMenu.prototype = {
 
     // if the document is editable, show context menu like in text inputs
     if (!this.onEditableArea) {
-      win = this.target.ownerDocument.defaultView;
+      var win = this.target.ownerDocument.defaultView;
       if (win) {
         var isEditable = false;
         try {

@@ -17,7 +17,6 @@ describe("loop.CallConnectionWebSocket", function() {
     sandbox.useFakeTimers();
 
     dummySocket = {
-      close: sinon.spy(),
       send: sinon.spy()
     };
     sandbox.stub(window, 'WebSocket').returns(dummySocket);
@@ -134,16 +133,6 @@ describe("loop.CallConnectionWebSocket", function() {
         });
     });
 
-    describe("#close", function() {
-      it("should close the socket", function() {
-        callWebSocket.promiseConnect();
-
-        callWebSocket.close();
-
-        sinon.assert.calledOnce(dummySocket.close);
-      });
-    });
-
     describe("#decline", function() {
       it("should send a terminate message to the server", function() {
         callWebSocket.promiseConnect();
@@ -223,35 +212,7 @@ describe("loop.CallConnectionWebSocket", function() {
           });
 
           sinon.assert.called(callWebSocket.trigger);
-          sinon.assert.calledWithExactly(callWebSocket.trigger, "progress",
-                                         eventData, "init");
-        });
-
-        it("should trigger a progress event with the previous state", function() {
-          var previousEventData = {
-            messageType: "progress",
-            state: "alerting"
-          };
-
-          // This first call is to set the previous state of the object
-          // ready for the main test below.
-          dummySocket.onmessage({
-            data: JSON.stringify(previousEventData)
-          });
-
-          var currentEventData = {
-            messageType: "progress",
-            state: "terminate",
-            reason: "reject"
-          };
-
-          dummySocket.onmessage({
-            data: JSON.stringify(currentEventData)
-          });
-
-          sinon.assert.called(callWebSocket.trigger);
-          sinon.assert.calledWithExactly(callWebSocket.trigger, "progress",
-                                         currentEventData, "alerting");
+          sinon.assert.calledWithExactly(callWebSocket.trigger, "progress", eventData);
         });
 
         it("should trigger a progress:<state> event on the callWebSocket", function() {

@@ -59,7 +59,7 @@ let NotificationTracker = {
 
     let ppmm = Cc["@mozilla.org/parentprocessmessagemanager;1"]
                .getService(Ci.nsIMessageBroadcaster);
-    ppmm.broadcastAsyncMessage("Addons:ChangeNotification", {path: path, count: count});
+    ppmm.broadcastAsyncMessage("Addons:AddNotification", path);
   },
 
   remove: function(path) {
@@ -71,7 +71,7 @@ let NotificationTracker = {
 
     let ppmm = Cc["@mozilla.org/parentprocessmessagemanager;1"]
                .getService(Ci.nsIMessageBroadcaster);
-    ppmm.broadcastAsyncMessage("Addons:ChangeNotification", {path: path, count: tracked._count});
+    ppmm.broadcastAsyncMessage("Addons:RemoveNotification", path);
   },
 
   receiveMessage: function(msg) {
@@ -86,17 +86,16 @@ NotificationTracker.init();
 // getters, and setters. See multiprocessShims.js for an explanation
 // of how these are used. The constructor here just allows one
 // interposition to inherit members from another.
-function Interposition(name, base)
+function Interposition(base)
 {
-  this.name = name;
   if (base) {
     this.methods = Object.create(base.methods);
     this.getters = Object.create(base.getters);
     this.setters = Object.create(base.setters);
   } else {
-    this.methods = Object.create(null);
-    this.getters = Object.create(null);
-    this.setters = Object.create(null);
+    this.methods = {};
+    this.getters = {};
+    this.setters = {};
   }
 }
 
@@ -158,7 +157,7 @@ ContentPolicyParent.init();
 
 // This interposition intercepts calls to add or remove new content
 // policies and forwards these requests to ContentPolicyParent.
-let CategoryManagerInterposition = new Interposition("CategoryManagerInterposition");
+let CategoryManagerInterposition = new Interposition();
 
 CategoryManagerInterposition.methods.addCategoryEntry =
   function(addon, target, category, entry, value, persist, replace) {
@@ -249,7 +248,7 @@ let AboutProtocolParent = {
 };
 AboutProtocolParent.init();
 
-let ComponentRegistrarInterposition = new Interposition("ComponentRegistrarInterposition");
+let ComponentRegistrarInterposition = new Interposition();
 
 ComponentRegistrarInterposition.methods.registerFactory =
   function(addon, target, class_, className, contractID, factory) {
@@ -320,7 +319,7 @@ let TOPIC_WHITELIST = ["content-document-global-created",
 
 // This interposition listens for
 // nsIObserverService.{add,remove}Observer.
-let ObserverInterposition = new Interposition("ObserverInterposition");
+let ObserverInterposition = new Interposition();
 
 ObserverInterposition.methods.addObserver =
   function(addon, target, observer, topic, ownsWeak) {
@@ -458,7 +457,7 @@ let EventTargetParent = {
 
   dispatch: function(browser, type, isTrusted, event) {
     let targets = this.getTargets(browser);
-    for (let target of targets) {
+    for (target of targets) {
       let listeners = this._listeners.get(target);
       if (!listeners) {
         continue;
@@ -484,7 +483,7 @@ EventTargetParent.init();
 
 // This interposition redirects addEventListener and
 // removeEventListener to EventTargetParent.
-let EventTargetInterposition = new Interposition("EventTargetInterposition");
+let EventTargetInterposition = new Interposition();
 
 EventTargetInterposition.methods.addEventListener =
   function(addon, target, type, listener, useCapture, wantsUntrusted) {
@@ -502,7 +501,7 @@ EventTargetInterposition.methods.removeEventListener =
 // process docshell. In the child, each docshell is its own
 // root. However, add-ons expect the root to be the chrome docshell,
 // so we make that happen here.
-let ContentDocShellTreeItemInterposition = new Interposition("ContentDocShellTreeItemInterposition");
+let ContentDocShellTreeItemInterposition = new Interposition();
 
 ContentDocShellTreeItemInterposition.getters.rootTreeItem =
   function(addon, target) {
@@ -570,7 +569,7 @@ let SandboxParent = {
 // This interposition redirects calls to Cu.Sandbox and
 // Cu.evalInSandbox to SandboxParent if the principals are content
 // principals.
-let ComponentsUtilsInterposition = new Interposition("ComponentsUtilsInterposition");
+let ComponentsUtilsInterposition = new Interposition();
 
 ComponentsUtilsInterposition.methods.Sandbox =
   function(addon, target, principal, ...rest) {
@@ -597,7 +596,7 @@ ComponentsUtilsInterposition.methods.evalInSandbox =
 // chrome XUL node into a content document. It doesn't actually do the
 // import, which we can't support. It just avoids throwing an
 // exception.
-let ContentDocumentInterposition = new Interposition("ContentDocumentInterposition");
+let ContentDocumentInterposition = new Interposition();
 
 ContentDocumentInterposition.methods.importNode =
   function(addon, target, node, deep) {
@@ -615,8 +614,7 @@ ContentDocumentInterposition.methods.importNode =
 
 // This interposition ensures that calling browser.docShell from an
 // add-on returns a CPOW around the dochell.
-let RemoteBrowserElementInterposition = new Interposition("RemoteBrowserElementInterposition",
-                                                          EventTargetInterposition);
+let RemoteBrowserElementInterposition = new Interposition(EventTargetInterposition);
 
 RemoteBrowserElementInterposition.getters.docShell = function(addon, target) {
   let remoteChromeGlobal = RemoteAddonsParent.browserToGlobal.get(target);
@@ -627,69 +625,18 @@ RemoteBrowserElementInterposition.getters.docShell = function(addon, target) {
   return remoteChromeGlobal.docShell;
 };
 
-// We use this in place of the real browser.contentWindow if we
-// haven't yet received a CPOW for the child process's window. This
-// happens if the tab has just started loading.
-function makeDummyContentWindow(browser) {
-  let dummyContentWindow = {
-    set location(url) {
-      browser.loadURI(url, null, null);
-    }
-  };
-  return dummyContentWindow;
-}
-
 RemoteBrowserElementInterposition.getters.contentWindow = function(addon, target) {
-  // If we don't have a CPOW yet, just return something we can use for
-  // setting the location. This is useful for tests that create a tab
-  // and immediately set contentWindow.location.
-  if (!target.contentWindowAsCPOW) {
-    return makeDummyContentWindow(target);
-  }
   return target.contentWindowAsCPOW;
 };
 
-let DummyContentDocument = {
-  readyState: "loading"
-};
-
 RemoteBrowserElementInterposition.getters.contentDocument = function(addon, target) {
-  // If we don't have a CPOW yet, just return something we can use to
-  // examine readyState. This is useful for tests that create a new
-  // tab and then immediately start polling readyState.
-  if (!target.contentDocumentAsCPOW) {
-    return DummyContentDocument;
-  }
   return target.contentDocumentAsCPOW;
 };
 
-let TabBrowserElementInterposition = new Interposition("TabBrowserElementInterposition",
-                                                       EventTargetInterposition);
-
-TabBrowserElementInterposition.getters.contentWindow = function(addon, target) {
-  if (!target.selectedBrowser.contentWindowAsCPOW) {
-    return makeDummyContentWindow(target.selectedBrowser);
-  }
-  return target.selectedBrowser.contentWindowAsCPOW;
-};
-
-TabBrowserElementInterposition.getters.contentDocument = function(addon, target) {
-  let browser = target.selectedBrowser;
-  if (!browser.contentDocumentAsCPOW) {
-    return DummyContentDocument;
-  }
-  return browser.contentDocumentAsCPOW;
-};
-
-let ChromeWindowInterposition = new Interposition("ChromeWindowInterposition",
-                                                  EventTargetInterposition);
+let ChromeWindowInterposition = new Interposition(EventTargetInterposition);
 
 ChromeWindowInterposition.getters.content = function(addon, target) {
-  let browser = target.gBrowser.selectedBrowser;
-  if (!browser.contentWindowAsCPOW) {
-    return makeDummyContentWindow(browser);
-  }
-  return browser.contentWindowAsCPOW;
+  return target.gBrowser.selectedBrowser.contentWindowAsCPOW;
 };
 
 let RemoteAddonsParent = {
@@ -727,7 +674,6 @@ let RemoteAddonsParent = {
     register("ContentDocShellTreeItem", ContentDocShellTreeItemInterposition);
     register("ContentDocument", ContentDocumentInterposition);
     register("RemoteBrowserElement", RemoteBrowserElementInterposition);
-    register("TabBrowserElement", TabBrowserElementInterposition);
     register("ChromeWindow", ChromeWindowInterposition);
 
     return result;

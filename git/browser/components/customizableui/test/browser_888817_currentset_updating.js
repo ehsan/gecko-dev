@@ -12,7 +12,7 @@ add_task(function() {
   ok(!CustomizableUI.inDefaultState, "Making the bookmarks toolbar visible takes it out of the default state");
 
   let navbar = document.getElementById(CustomizableUI.AREA_NAVBAR);
-  personalbar = document.getElementById(CustomizableUI.AREA_BOOKMARKS);
+  let personalbar = document.getElementById(CustomizableUI.AREA_BOOKMARKS);
   let navbarCurrentset = navbar.getAttribute("currentset") || navbar.currentSet;
   let personalbarCurrentset = personalbar.getAttribute("currentset") || personalbar.currentSet;
 

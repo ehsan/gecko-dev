@@ -47,8 +47,10 @@ TrackBuffer::TrackBuffer(MediaSourceDecoder* aParentDecoder, const nsACString& a
   : mParentDecoder(aParentDecoder)
   , mType(aType)
   , mLastStartTimestamp(0)
-  , mLastEndTimestamp(0)
+  , mLastEndTimestamp(UnspecifiedNaN<double>())
   , mHasInit(false)
+  , mHasAudio(false)
+  , mHasVideo(false)
 {
   MOZ_COUNT_CTOR(TrackBuffer);
   mTaskQueue = new MediaTaskQueue(GetMediaDecodeThreadPool());
@@ -175,7 +177,7 @@ TrackBuffer::NewDecoder()
   mDecoders.AppendElement(decoder);
 
   mLastStartTimestamp = 0;
-  mLastEndTimestamp = 0;
+  mLastEndTimestamp = UnspecifiedNaN<double>();
   mHasInit = true;
 
   return QueueInitializeDecoder(decoder);
@@ -216,7 +218,11 @@ TrackBuffer::InitializeDecoder(nsRefPtr<SourceBufferDecoder> aDecoder)
     MSE_DEBUG("TrackBuffer(%p): Reader %p failed to initialize rv=%x audio=%d video=%d",
               this, reader, rv, mi.HasAudio(), mi.HasVideo());
     aDecoder->SetTaskQueue(nullptr);
-    RemoveDecoder(aDecoder);
+    {
+        ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
+        mDecoders.RemoveElement(aDecoder);
+    }
+    NS_DispatchToMainThread(new ReleaseDecoderTask(aDecoder));
     return;
   }
 
@@ -229,36 +235,11 @@ TrackBuffer::InitializeDecoder(nsRefPtr<SourceBufferDecoder> aDecoder)
               this, reader, mi.mAudio.mRate, mi.mAudio.mChannels);
   }
 
-  if (!RegisterDecoder(aDecoder)) {
-    // XXX: Need to signal error back to owning SourceBuffer.
-    MSE_DEBUG("TrackBuffer(%p): Reader %p not activated", this, reader);
-    RemoveDecoder(aDecoder);
-    return;
-  }
   MSE_DEBUG("TrackBuffer(%p): Reader %p activated", this, reader);
+  RegisterDecoder(aDecoder);
 }
 
-bool
-TrackBuffer::ValidateTrackFormats(const MediaInfo& aInfo)
-{
-  if (mInfo.HasAudio() != aInfo.HasAudio() ||
-      mInfo.HasVideo() != aInfo.HasVideo()) {
-    MSE_DEBUG("TrackBuffer(%p)::ValidateTrackFormats audio/video track mismatch", this);
-    return false;
-  }
-
-  // TODO: Support dynamic audio format changes.
-  if (mInfo.HasAudio() &&
-      (mInfo.mAudio.mRate != aInfo.mAudio.mRate ||
-       mInfo.mAudio.mChannels != aInfo.mAudio.mChannels)) {
-    MSE_DEBUG("TrackBuffer(%p)::ValidateTrackFormats audio format mismatch", this);
-    return false;
-  }
-
-  return true;
-}
-
-bool
+void
 TrackBuffer::RegisterDecoder(nsRefPtr<SourceBufferDecoder> aDecoder)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
@@ -266,16 +247,14 @@ TrackBuffer::RegisterDecoder(nsRefPtr<SourceBufferDecoder> aDecoder)
   const MediaInfo& info = aDecoder->GetReader()->GetMediaInfo();
   // Initialize the track info since this is the first decoder.
   if (mInitializedDecoders.IsEmpty()) {
-    mInfo = info;
-    mParentDecoder->OnTrackBufferConfigured(this, mInfo);
-  }
-  if (!ValidateTrackFormats(info)) {
+    mHasAudio = info.HasAudio();
+    mHasVideo = info.HasVideo();
+    mParentDecoder->OnTrackBufferConfigured(this, info);
+  } else if ((info.HasAudio() && !mHasAudio) || (info.HasVideo() && !mHasVideo)) {
     MSE_DEBUG("TrackBuffer(%p)::RegisterDecoder with mismatched audio/video tracks", this);
-    return false;
   }
   mInitializedDecoders.AppendElement(aDecoder);
   mParentDecoder->NotifyTimeRangesChanged();
-  return true;
 }
 
 void
@@ -308,12 +287,12 @@ bool
 TrackBuffer::IsReady()
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  MOZ_ASSERT((mInfo.HasAudio() || mInfo.HasVideo()) || mInitializedDecoders.IsEmpty());
-  return HasInitSegment() && (mInfo.HasAudio() || mInfo.HasVideo());
+  MOZ_ASSERT((mHasAudio || mHasVideo) || mInitializedDecoders.IsEmpty());
+  return HasInitSegment() && (mHasAudio || mHasVideo);
 }
 
 void
-TrackBuffer::LastTimestamp(int64_t& aStart, int64_t& aEnd)
+TrackBuffer::LastTimestamp(double& aStart, double& aEnd)
 {
   MOZ_ASSERT(NS_IsMainThread());
   aStart = mLastStartTimestamp;
@@ -321,27 +300,27 @@ TrackBuffer::LastTimestamp(int64_t& aStart, int64_t& aEnd)
 }
 
 void
-TrackBuffer::SetLastStartTimestamp(int64_t aStart)
+TrackBuffer::SetLastStartTimestamp(double aStart)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mLastStartTimestamp = aStart;
 }
 
 void
-TrackBuffer::SetLastEndTimestamp(int64_t aEnd)
+TrackBuffer::SetLastEndTimestamp(double aEnd)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mLastEndTimestamp = aEnd;
 }
 
 bool
-TrackBuffer::ContainsTime(int64_t aTime)
+TrackBuffer::ContainsTime(double aTime)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
     nsRefPtr<dom::TimeRanges> r = new dom::TimeRanges();
     mInitializedDecoders[i]->GetBuffered(r);
-    if (r->Find(double(aTime) / USECS_PER_S) != dom::TimeRanges::NoIndex) {
+    if (r->Find(aTime) != dom::TimeRanges::NoIndex) {
       return true;
     }
   }
@@ -393,14 +372,5 @@ TrackBuffer::Dump(const char* aPath)
   }
 }
 #endif
-
-void
-TrackBuffer::RemoveDecoder(nsRefPtr<SourceBufferDecoder> aDecoder)
-{
-  ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  MOZ_ASSERT(!mInitializedDecoders.Contains(aDecoder));
-  mDecoders.RemoveElement(aDecoder);
-  NS_DispatchToMainThread(new ReleaseDecoderTask(aDecoder));
-}
 
 } // namespace mozilla

@@ -74,15 +74,15 @@ function testSteps()
 
   db.close();
 
-  request = indexedDB.open(name, 1);
+  let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   request.onupgradeneeded = unexpectedSuccessHandler;
-  event = yield undefined;
+  let event = yield undefined;
 
-  db = event.target.result;
+  let db = event.target.result;
 
-  objectStoreNames = []
+  let objectStoreNames = []
   for (let i = 0; i < objectStoreInfo.length; i++) {
     let info = objectStoreInfo[i];
     objectStoreNames.push(info.name);
@@ -99,7 +99,7 @@ function testSteps()
     }
   }
 
-  trans = db.transaction(objectStoreNames);
+  let trans = db.transaction(objectStoreNames);
   for (let i = 0; i < objectStoreInfo.length; i++) {
     let info = objectStoreInfo[i];
   

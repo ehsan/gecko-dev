@@ -41,26 +41,26 @@ function test() {
     ok(true, "The new watch expressions were re-evaluated and the panel got hidden (1).");
 
     // Inspect property of an object.
-    expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
+    let expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
     yield openVarPopup(panel, { line: 17, ch: 10 });
     yield expressionsEvaluated;
     ok(true, "The watch expressions were re-evaluated when a new panel opened (1).");
 
-    popupHiding = once(tooltip, "popuphiding");
-    expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
+    let popupHiding = once(tooltip, "popuphiding");
+    let expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
     tooltip.querySelector("button").click();
     verifyContent("b.a", 2);
     yield promise.all([popupHiding, expressionsEvaluated]);
     ok(true, "The new watch expressions were re-evaluated and the panel got hidden (2).");
 
     // Re-inspect primitive value variable.
-    expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
+    let expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
     yield openVarPopup(panel, { line: 15, ch: 12 });
     yield expressionsEvaluated;
     ok(true, "The watch expressions were re-evaluated when a new panel opened (2).");
 
-    popupHiding = once(tooltip, "popuphiding");
-    expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
+    let popupHiding = once(tooltip, "popuphiding");
+    let expressionsEvaluated = waitForDebuggerEvents(panel, events.FETCHED_WATCH_EXPRESSIONS);
     tooltip.querySelector("button").click();
     verifyContent("b.a", 2);
     yield promise.all([popupHiding, expressionsEvaluated]);

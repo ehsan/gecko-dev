@@ -648,25 +648,25 @@ exports.close = close;
  * Synchronous open(2).
  */
 function openSync(path, flags, mode) {
-  let [ fd, flags_, mode_, file ] =
+  let [ fd, flags, mode, file ] =
       [ { path: path }, Flags(flags), Mode(mode), nsILocalFile(path) ];
 
   nsIFile(fd, file);
 
   // If trying to open file for just read that does not exists
   // need to throw exception as node does.
-  if (!file.exists() && !isWritable(flags_))
+  if (!file.exists() && !isWritable(flags))
     throw FSError("open", "ENOENT", 34, path);
 
   // If we want to open file in read mode we initialize input stream.
-  if (isReadable(flags_)) {
-    let input = FileInputStream(file, flags_, mode_, DEFER_OPEN);
+  if (isReadable(flags)) {
+    let input = FileInputStream(file, flags, mode, DEFER_OPEN);
     nsIFileInputStream(fd, input);
   }
 
   // If we want to open file in write mode we initialize output stream for it.
-  if (isWritable(flags_)) {
-    let output = FileOutputStream(file, flags_, mode_, DEFER_OPEN);
+  if (isWritable(flags)) {
+    let output = FileOutputStream(file, flags, mode, DEFER_OPEN);
     nsIFileOutputStream(fd, output);
   }
 
