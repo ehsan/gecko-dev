@@ -287,18 +287,6 @@ static char* FormatJSStackDump(JSContext* cx, char* buf,
 JSBool
 xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showThisProps)
 {
-    if(char* buf = xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps))
-    {
-        fputs(buf, stdout);
-        JS_smprintf_free(buf);
-    }
-    return JS_TRUE;
-}
-
-char*
-xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
-                 JSBool showThisProps)
-{
     char* buf;
     JSExceptionState *state = JS_SaveExceptionState(cx);
     if(!state)
@@ -307,11 +295,16 @@ xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
     JS_ClearPendingException(cx);
 
     buf = FormatJSStackDump(cx, nsnull, showArgs, showLocals, showThisProps);
-    if(!buf)
+    if(buf)
+    {
+        fputs(buf, stdout);
+        JS_smprintf_free(buf);
+    }
+    else
         puts("Failed to format JavaScript stack for dump");
 
     JS_RestoreExceptionState(cx, state);
-    return buf;
+    return JS_TRUE;
 }
 
 /***************************************************************************/

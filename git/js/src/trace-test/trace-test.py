@@ -1,6 +1,6 @@
-# trace_test.py -- Python harness for JavaScript trace tests.
+# trace-test.py -- Python harness for JavaScript trace tests.
 
-import datetime, os, re, sys, tempfile, traceback
+import datetime, os, re, sys, traceback
 import subprocess
 from subprocess import *
 
@@ -124,39 +124,12 @@ def get_test_cmd(path, jitflags, lib_dir):
     return [ JS ] + jitflags + [ '-e', expr, '-f', os.path.join(lib_dir, 'prolog.js'),
              '-f', path ]
 
-def run_cmd(cmdline, env):
-    # close_fds is not supported on Windows and will cause a ValueError.
-    close_fds = sys.platform != 'win32'
-    p = Popen(cmdline, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds, env=env)
-    out, err = p.communicate()
-    return out.decode(), err.decode(), p.returncode
-
-def tmppath(token):
-    fd, path = tempfile.mkstemp(prefix=token)
-    os.close(fd)
-    return path
-
-def read_and_unlink(path):
-    f = open(path)
-    d = f.read()
-    f.close()
-    os.unlink(path)
-    return d
-
-def run_cmd_avoid_stdio(cmdline, env):
-    stdoutPath, stderrPath = tmppath('jsstdout'), tmppath('jsstderr')
-    env['JS_STDOUT'] = stdoutPath
-    env['JS_STDERR'] = stderrPath       
-    # close_fds is not supported on Windows and will cause a ValueError.
-    close_fds = sys.platform != 'win32'
-    p = Popen(cmdline, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds, env=env)
-    _, __ = p.communicate()
-    return read_and_unlink(stdoutPath), read_and_unlink(stderrPath), p.returncode
-
 def run_test(test, lib_dir):
-    env = os.environ.copy()
     if test.tmflags:
+        env = os.environ.copy()
         env['TMFLAGS'] = test.tmflags
+    else:
+        env = None
     cmd = get_test_cmd(test.path, test.jitflags, lib_dir)
 
     if (test.valgrind and
@@ -173,20 +146,19 @@ def run_test(test, lib_dir):
 
     if OPTIONS.show_cmd:
         print(subprocess.list2cmdline(cmd))
-
-    if OPTIONS.avoid_stdio:
-        out, err, code = run_cmd_avoid_stdio(cmd, env)
-    else:
-        out, err, code = run_cmd(cmd, env)
-
+    # close_fds is not supported on Windows and will cause a ValueError.
+    close_fds = sys.platform != 'win32'
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds, env=env)
+    out, err = p.communicate()
+    out, err = out.decode(), err.decode()
     if OPTIONS.show_output:
         sys.stdout.write(out)
         sys.stdout.write(err)
         sys.stdout.write('Exit code: ' + str(p.returncode) + "\n")
     if test.valgrind:
         sys.stdout.write(err)
-    return (check_output(out, err, code, test.allow_oom, test.error), 
-            out, err, code)
+    return (check_output(out, err, p.returncode, test.allow_oom, test.error), 
+            out, err)
 
 def check_output(out, err, rc, allow_oom, expectedError):
     if expectedError:
@@ -222,15 +194,15 @@ def run_tests(tests, test_dir, lib_dir):
     try:
         for i, test in enumerate(tests):
             doing = 'on %s'%test.path
-            ok, out, err, code = run_test(test, lib_dir)
+            ok, out, err = run_test(test, lib_dir)
             doing = 'after %s'%test.path
 
             if not ok:
-                failures.append([ test, out, err, code ])
+                failures.append(test)
 
             if OPTIONS.tinderbox:
                 if ok:
-                    print('TEST-PASS | trace_test.py | %s'%test.path)
+                    print('TEST-PASS | trace-test.py | %s'%test.path)
                 else:
                     lines = [ _ for _ in out.split('\n') + err.split('\n')
                               if _ != '' ]
@@ -238,7 +210,7 @@ def run_tests(tests, test_dir, lib_dir):
                         msg = lines[-1]
                     else:
                         msg = ''
-                    print('TEST-UNEXPECTED-FAIL | trace_test.py | %s: %s'%
+                    print('TEST-UNEXPECTED-FAIL | trace-test.py | %s: %s'%
                           (test.path, msg))
 
             n = i + 1
@@ -247,7 +219,7 @@ def run_tests(tests, test_dir, lib_dir):
                 pb.update(n)
         complete = True
     except KeyboardInterrupt:
-        print('TEST-UNEXPECTED_FAIL | trace_test.py | %s'%test.path)
+        print('TEST-UNEXPECTED_FAIL | trace-test.py | %s'%test.path)
 
     if pb:
         pb.finish()
@@ -258,13 +230,9 @@ def run_tests(tests, test_dir, lib_dir):
                 out = open(OPTIONS.write_failures, 'w')
                 # Don't write duplicate entries when we are doing multiple failures per job.
                 written = set()
-                for test, fout, ferr, fcode in failures:
+                for test in failures:
                     if test.path not in written:
                         out.write(os.path.relpath(test.path, test_dir) + '\n')
-                        if OPTIONS.write_failure_output:
-                            out.write(fout)
-                            out.write(ferr)
-                            out.write('Exit code: ' + str(fcode) + "\n")
                         written.add(test.path)
                 out.close()
             except IOError:
@@ -274,7 +242,7 @@ def run_tests(tests, test_dir, lib_dir):
                 sys.stderr.write('---\n')
 
         print('FAILURES:')
-        for test, _, __, ___ in failures:
+        for test in failures:
             if OPTIONS.show_failed:
                 print('    ' + subprocess.list2cmdline(get_test_cmd(test.path, test.jitflags, lib_dir)))
             else:
@@ -294,25 +262,7 @@ def parse_jitflags():
                 sys.exit(1)
     return jitflags
 
-def platform_might_be_android():
-    try:
-        # The python package for SL4A provides an |android| module.
-        # If that module is present, we're likely in SL4A-python on
-        # device.  False positives and negatives are possible,
-        # however.
-        import android
-        return True
-    except ImportError:
-        return False
-
-def stdio_might_be_broken():
-    return platform_might_be_android()
-
-JS = None
-OPTIONS = None
-def main(argv):
-    global JS, OPTIONS
-
+if __name__ == '__main__':
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
     test_dir = os.path.join(script_dir, 'tests')
@@ -351,26 +301,12 @@ def main(argv):
                   help='Run all tests with valgrind, if valgrind is in $PATH.')
     op.add_option('--jitflags', dest='jitflags', default='j',
                   help='Example: --jitflags=j,mj to run each test with -j and -m -j')
-    op.add_option('--avoid-stdio', dest='avoid_stdio', action='store_true',
-                  help='Use js-shell file indirection instead of piping stdio.')
-    op.add_option('--write-failure-output', dest='write_failure_output', action='store_true',
-                  help='With --write-failures=FILE, additionally write the output of failed tests to [FILE]')
-    (OPTIONS, args) = op.parse_args(argv)
+    (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         op.error('missing JS_SHELL argument')
     # We need to make sure we are using backslashes on Windows.
     JS, test_args = os.path.normpath(args[0]), args[1:]
     JS = os.path.realpath(JS) # Burst through the symlinks!
-
-    if stdio_might_be_broken():
-        # Prefer erring on the side of caution and not using stdio if
-        # it might be broken on this platform.  The file-redirect
-        # fallback should work on any platform, so at worst by
-        # guessing wrong we might have slowed down the tests a bit.
-        #
-        # XXX technically we could check for broken stdio, but it
-        # really seems like overkill.
-        OPTIONS.avoid_stdio = True
 
     if OPTIONS.retest:
         OPTIONS.read_tests = OPTIONS.retest
@@ -450,6 +386,3 @@ def main(argv):
             sys.exit(1)
         else:
             raise
-
-if __name__ == '__main__':
-    main(sys.argv[1:])
