@@ -11,7 +11,6 @@ import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSContainer;
-import org.mozilla.gecko.util.NativeJSObject;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -142,11 +141,7 @@ public final class EventDispatcher {
 
     public void dispatchEvent(final NativeJSContainer message) {
         // First try native listeners.
-        final String type = message.optString("type", null);
-        if (type == null) {
-            Log.e(LOGTAG, "JSON message must have a type property");
-            return;
-        }
+        final String type = message.getString("type");
 
         final List<NativeEventListener> listeners;
         synchronized (mGeckoThreadNativeListeners) {
@@ -163,12 +158,8 @@ public final class EventDispatcher {
             if (listeners.size() == 0) {
                 Log.w(LOGTAG, "No listeners for " + type);
             }
-            try {
-                for (final NativeEventListener listener : listeners) {
-                    listener.handleMessage(type, message, callback);
-                }
-            } catch (final NativeJSObject.InvalidPropertyException e) {
-                Log.e(LOGTAG, "Exception occurred while handling " + type, e);
+            for (final NativeEventListener listener : listeners) {
+                listener.handleMessage(type, message, callback);
             }
             // If we found native listeners, we assume we don't have any JSON listeners
             // and return early. This assumption is checked when registering listeners.
@@ -179,9 +170,9 @@ public final class EventDispatcher {
             // If we didn't find native listeners, try JSON listeners.
             dispatchEvent(new JSONObject(message.toString()), callback);
         } catch (final JSONException e) {
-            Log.e(LOGTAG, "Cannot parse JSON", e);
+            Log.e(LOGTAG, "Cannot parse JSON");
         } catch (final UnsupportedOperationException e) {
-            Log.e(LOGTAG, "Cannot convert message to JSON", e);
+            Log.e(LOGTAG, "Cannot convert message to JSON");
         }
     }
 

@@ -24,7 +24,7 @@ public class INISection {
     private  boolean mDebug;
 
     // Global properties that aren't inside a section in the file
-    protected Hashtable<String, Object> mProperties;
+    protected Hashtable<String, Object> mProperties = null;
 
     // create a parser. The file will not be read until you attempt to
     // access sections or properties inside it. At that point its read synchronously

@@ -125,7 +125,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
     private RelativeLayout.LayoutParams urlBarEntryShrunkenLayoutParams;
     private ImageView urlBarTranslatingEdge;
     private boolean isSwitchingTabs;
-    private ThemedImageButton tabsButton;
+    private ShapedButton tabsButton;
     private ImageButton backButton;
     private ImageButton forwardButton;
 
@@ -139,7 +139,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
 
     private final ThemedImageView editCancel;
 
-    private List<View> tabletDisplayModeViews;
+    private final View[] tabletDisplayModeViews;
     private boolean hidForwardButtonOnStartEditing;
 
     private boolean shouldShrinkURLBar;
@@ -182,6 +182,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
 
         Tabs.registerOnTabsChangedListener(this);
         isSwitchingTabs = true;
+        isAnimatingEntry = false;
 
         EventDispatcher.getInstance().registerGeckoThreadListener(this,
             "Reader:Click",
@@ -197,7 +198,8 @@ public class BrowserToolbar extends ThemedRelativeLayout
         urlBarEntryDefaultLayoutParams = (RelativeLayout.LayoutParams) urlBarEntry.getLayoutParams();
         // API level 19 adds a RelativeLayout.LayoutParams copy constructor, so we explicitly cast
         // to ViewGroup.MarginLayoutParams to ensure consistency across platforms.
-        urlBarEntryShrunkenLayoutParams = new RelativeLayout.LayoutParams(urlBarEntryDefaultLayoutParams);
+        urlBarEntryShrunkenLayoutParams = new RelativeLayout.LayoutParams(
+                (ViewGroup.MarginLayoutParams) urlBarEntryDefaultLayoutParams);
         // Note: a shrunken phone layout is not displayed on any known devices,
         // and thus shrunken layout params for phone are not maintained.
         if (HardwareUtils.isTablet()) {
@@ -212,7 +214,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
             urlBarTranslatingEdge.getDrawable().setLevel(6000);
         }
 
-        tabsButton = (ThemedImageButton) findViewById(R.id.tabs);
+        tabsButton = (ShapedButton) findViewById(R.id.tabs);
         tabsCounter = (TabCounter) findViewById(R.id.tabs_counter);
         if (Versions.feature11Plus) {
             tabsCounter.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
@@ -279,15 +281,8 @@ public class BrowserToolbar extends ThemedRelativeLayout
                 updateTabCountAndAnimate(Tabs.getInstance().getDisplayCount());
             }
         };
-    }
 
-    public ArrayList<View> populateTabletViews() {
-        if (!HardwareUtils.isTablet()) {
-            // Avoid the runtime and memory overhead for non-tablet devices.
-            return null;
-        }
-
-        final View[] allTabletDisplayModeViews = new View[] {
+        tabletDisplayModeViews = new View[] {
             actionItemBar,
             backButton,
             menuButton,
@@ -295,18 +290,6 @@ public class BrowserToolbar extends ThemedRelativeLayout
             tabsButton,
             tabsCounter,
         };
-        final ArrayList<View> listToPopulate = new ArrayList<View>(allTabletDisplayModeViews.length);
-
-        // Some tablet devices do not display all of the Views but instead rely on visibility
-        // to hide them. Find and return the ones that are relevant to our device.
-        for (final View v : allTabletDisplayModeViews) {
-            // These views should all be initialized and we explicitly do not
-            // check for null because we may be hiding bugs.
-            if (v.getVisibility() == View.VISIBLE) {
-                listToPopulate.add(v);
-            }
-        };
-        return listToPopulate;
     }
 
     @Override
@@ -486,7 +469,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // If the motion event has occurred below the toolbar (due to the scroll
+        // If the motion event has occured below the toolbar (due to the scroll
         // offset), let it pass through to the page.
         if (event != null && event.getY() > getHeight() + ViewHelper.getTranslationY(this)) {
             return false;
@@ -1048,10 +1031,6 @@ public class BrowserToolbar extends ThemedRelativeLayout
     }
 
     private void showEditingOnTablet() {
-        if (tabletDisplayModeViews == null) {
-            tabletDisplayModeViews = populateTabletViews();
-        }
-
         urlBarEntry.setLayoutParams(urlBarEntryShrunkenLayoutParams);
 
         // Hide display elements.
@@ -1188,12 +1167,6 @@ public class BrowserToolbar extends ThemedRelativeLayout
     }
 
     private void stopEditingOnTablet() {
-        if (tabletDisplayModeViews == null) {
-            throw new IllegalStateException("We initialize tabletDisplayModeViews in the " +
-                    "transition to show editing mode and don't expect stop editing to be called " +
-                    "first.");
-        }
-
         urlBarEntry.setLayoutParams(urlBarEntryDefaultLayoutParams);
 
         // Show display elements.

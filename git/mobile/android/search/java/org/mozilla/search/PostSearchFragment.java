@@ -25,7 +25,6 @@ import org.mozilla.gecko.TelemetryContract;
 public class PostSearchFragment extends Fragment {
 
     private static final String LOGTAG = "PostSearchFragment";
-    private static final String ABOUT_BLANK = "about:blank";
 
     private ProgressBar progressBar;
     private WebView webview;
@@ -62,16 +61,16 @@ public class PostSearchFragment extends Fragment {
     }
 
     /**
-     * Test if a given URL should be opened in an external browser.
+     * Test if a given URL is a page of search results.
      * <p>
      * Search results pages will be shown in the embedded view.  Other pages are
      * opened in external browsers.
      *
      * @param url to test.
-     * @return true if <code>url</code> should be sent to Fennec.
+     * @return true if <code>url</code> is a page of search results.
      */
-    private boolean shouldSendToBrowser(String url) {
-        return !(TextUtils.equals(ABOUT_BLANK, url) || url.contains(Constants.YAHOO_WEB_SEARCH_RESULTS_FILTER));
+    protected boolean isSearchResultsPage(String url) {
+        return url.contains(Constants.YAHOO_WEB_SEARCH_RESULTS_FILTER);
     }
 
     public void startSearch(String query) {
@@ -82,7 +81,7 @@ public class PostSearchFragment extends Fragment {
         // Only load URLs if they're different than what's already
         // loaded in the webview.
         if (!TextUtils.equals(webview.getUrl(), url)) {
-            webview.loadUrl(ABOUT_BLANK);
+            webview.loadUrl("about:blank");
             webview.loadUrl(url);
         }
     }
@@ -96,13 +95,13 @@ public class PostSearchFragment extends Fragment {
 
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            if (shouldSendToBrowser(url)) {
-                view.stopLoading();
-
+            if (isSearchResultsPage(url)) {
+                super.onPageStarted(view, url, favicon);
+            } else {
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
                         TelemetryContract.Method.CONTENT, "search-result");
-
-                final Intent i = new Intent(Intent.ACTION_VIEW);
+                view.stopLoading();
+                Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
                 i.setData(Uri.parse(url));
                 startActivity(i);

@@ -56,7 +56,7 @@ import org.mozilla.gecko.preferences.GeckoPreferences;
 import org.mozilla.gecko.prompts.Prompt;
 import org.mozilla.gecko.prompts.PromptListItem;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.tabs.TabsPanel;
+import org.mozilla.gecko.tabspanel.TabsPanel;
 import org.mozilla.gecko.toolbar.AutocompleteHandler;
 import org.mozilla.gecko.toolbar.BrowserToolbar;
 import org.mozilla.gecko.toolbar.ToolbarProgressView;
@@ -155,7 +155,7 @@ public class BrowserApp extends GeckoApp
     private HomePager mHomePager;
     private TabsPanel mTabsPanel;
     private ViewGroup mHomePagerContainer;
-    protected Telemetry.Timer mAboutHomeStartupTimer;
+    protected Telemetry.Timer mAboutHomeStartupTimer = null;
     private ActionModeCompat mActionMode;
     private boolean mShowActionModeEndAnimation;
 
@@ -546,8 +546,7 @@ public class BrowserApp extends GeckoApp
             "Reader:Share",
             "Settings:Show",
             "Telemetry:Gather",
-            "Updater:Launch",
-            "BrowserToolbar:Visibility");
+            "Updater:Launch");
 
         Distribution distribution = Distribution.init(this);
 
@@ -808,8 +807,6 @@ public class BrowserApp extends GeckoApp
             String text = Clipboard.getText();
             if (!TextUtils.isEmpty(text)) {
                 enterEditingMode(text);
-                showBrowserSearch();
-                mBrowserSearch.filter(text, null);
                 Telemetry.sendUIEvent(TelemetryContract.Event.ACTION, TelemetryContract.Method.CONTEXT_MENU, "paste");
             }
             return true;
@@ -948,8 +945,7 @@ public class BrowserApp extends GeckoApp
             "Reader:Share",
             "Settings:Show",
             "Telemetry:Gather",
-            "Updater:Launch",
-            "BrowserToolbar:Visibility");
+            "Updater:Launch");
 
         if (AppConstants.MOZ_ANDROID_BEAM) {
             NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
@@ -1169,17 +1165,6 @@ public class BrowserApp extends GeckoApp
         return (mTabsPanel != null && mTabsPanel.isSideBar());
     }
 
-    private void setBrowserToolbarVisible(final boolean visible) {
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (mDynamicToolbar.isEnabled()) {
-                    mDynamicToolbar.setVisible(visible, VisibilityTransition.IMMEDIATE);
-                }
-            }
-        });
-    }
-
     private void updateSideBarState() {
         if (mMainLayoutAnimator != null)
             mMainLayoutAnimator.stop();
@@ -1336,9 +1321,6 @@ public class BrowserApp extends GeckoApp
 
         } else if ("Updater:Launch".equals(event)) {
             handleUpdaterLaunch();
-
-        } else if ("BrowserToolbar:Visibility".equals(event)) {
-            setBrowserToolbarVisible(message.getBoolean("visible"));
 
         } else {
             super.handleMessage(event, message, callback);

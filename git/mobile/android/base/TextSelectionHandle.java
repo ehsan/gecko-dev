@@ -57,6 +57,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         else
             mHandleType = HandleType.END;
 
+        mIsRTL = false;
         mGeckoPoint = new PointF(0.0f, 0.0f);
 
         mWidth = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_width);

@@ -1072,7 +1072,9 @@ public final class HomeConfig {
             mConfigMap = new HashMap<String, PanelConfig>();
             mConfigOrder = new LinkedList<String>();
             mEventQueue = new LinkedList<GeckoEvent>();
+            mEnabledCount = 0;
 
+            mHasChanged = false;
             mIsFromDefault = configState.isDefault();
 
             initFromState(configState);
