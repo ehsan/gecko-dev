@@ -120,7 +120,7 @@ static const JSWrapObjectCallbacks DefaultWrapObjectCallbacks = {
     nullptr
 };
 
-JSRuntime::JSRuntime(JSRuntime *parentRuntime)
+JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThreads)
   : JS::shadow::Runtime(
 #ifdef JSGC_GENERATIONAL
         &gc.storeBuffer
@@ -223,8 +223,10 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     defaultJSContextCallback(nullptr),
     ctypesActivityCallback(nullptr),
     forkJoinWarmup(0),
+    useHelperThreads_(useHelperThreads),
     parallelIonCompilationEnabled_(true),
     parallelParsingEnabled_(true),
+    isWorkerRuntime_(false),
 #ifdef DEBUG
     enteredPolicy(nullptr),
 #endif

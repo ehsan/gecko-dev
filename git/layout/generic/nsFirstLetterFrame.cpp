@@ -76,7 +76,7 @@ nsFirstLetterFrame::Init(nsIContent*       aContent,
   nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
 }
 
-void
+nsresult
 nsFirstLetterFrame::SetInitialChildList(ChildListID  aListID,
                                         nsFrameList& aChildList)
 {
@@ -89,6 +89,7 @@ nsFirstLetterFrame::SetInitialChildList(ChildListID  aListID,
   }
 
   mFrames.SetFrames(aChildList);
+  return NS_OK;
 }
 
 nsresult
@@ -296,6 +297,7 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
   NS_PRECONDITION(aContinuation, "bad args");
 
   *aContinuation = nullptr;
+  nsresult rv = NS_OK;
 
   nsIPresShell* presShell = aPresContext->PresShell();
   nsPlaceholderFrame* placeholderFrame =
@@ -321,10 +323,10 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
   // except we have to insert it in a different place and we don't want a
   // reflow command to try to be issued.
   nsFrameList temp(continuation, continuation);
-  parent->InsertFrames(kNoReflowPrincipalList, placeholderFrame, temp);
+  rv = parent->InsertFrames(kNoReflowPrincipalList, placeholderFrame, temp);
 
   *aContinuation = continuation;
-  return NS_OK;
+  return rv;
 }
 
 void

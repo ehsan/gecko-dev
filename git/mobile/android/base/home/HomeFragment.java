@@ -196,12 +196,11 @@ abstract class HomeFragment extends Fragment {
             final String message = isPrivate ?
                     getResources().getString(R.string.new_private_tab_opened) :
                     getResources().getString(R.string.new_tab_opened);
-            final String buttonMessage = getResources().getString(R.string.switch_button_message);
             final GeckoApp geckoApp = (GeckoApp) context;
             geckoApp.getButtonToast().show(false,
                     message,
-                    buttonMessage,
-                    R.drawable.switch_button_icon,
+                    null,
+                    R.drawable.select_opened_tab,
                     new ButtonToast.ToastListener() {
                         @Override
                         public void onButtonClicked() {

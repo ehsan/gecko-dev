@@ -5,9 +5,9 @@
 package org.mozilla.gecko.tabspanel;
 
 import org.mozilla.gecko.R;
+
 import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.fxa.login.State;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.tabspanel.TabsPanel.PanelView;
 
 import android.content.Context;
@@ -79,16 +79,9 @@ class RemoteTabsPanel extends FrameLayout implements PanelView {
     }
 
     private RemotePanelType getPanelTypeFromAccountState() {
-        final Context context = getContext();
-        final State accountState = FirefoxAccounts.getFirefoxAccountState(context);
+        final State accountState = FirefoxAccounts.getFirefoxAccountState(getContext());
         if (accountState == null) {
-            // If old Sync exists, we want to show their synced tabs,
-            // rather than the new Sync setup screen.
-            if (SyncAccounts.syncAccountsExist(context)) {
-                return RemotePanelType.CONTAINER;
-            } else {
-                return RemotePanelType.SETUP;
-            }
+            return RemotePanelType.SETUP;
         }
 
         if (accountState.getNeededAction() == State.Action.NeedsVerification) {

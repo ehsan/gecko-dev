@@ -2421,8 +2421,7 @@ let BrowserOnClick = {
         TabCrashReporter.submitCrashReport(browser);
       }
 #endif
-
-      TabCrashReporter.reloadCrashedTabs();
+      openUILinkIn(button.getAttribute("url"), "current");
     }
   },
 
@@ -6962,7 +6961,7 @@ var TabContextMenu = {
     for (let menuItem of menuItems)
       menuItem.disabled = disabled;
 
-#ifdef E10S_TESTING_ONLY
+#ifdef NIGHTLY_BUILD
     menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-remote");
     for (let menuItem of menuItems)
       menuItem.hidden = !gMultiProcessBrowser;

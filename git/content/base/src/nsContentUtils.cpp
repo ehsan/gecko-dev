@@ -39,7 +39,6 @@
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/HTMLContentElement.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/dom/ShadowRoot.h"
@@ -5630,8 +5629,6 @@ nsContentUtils::WrapNative(JSContext *cx, nsISupports *native,
                            nsWrapperCache *cache, const nsIID* aIID,
                            JS::MutableHandle<JS::Value> vp, bool aAllowWrapping)
 {
-  MOZ_ASSERT(cx == GetCurrentJSContext());
-
   if (!native) {
     vp.setNull();
 
@@ -5651,7 +5648,8 @@ nsContentUtils::WrapNative(JSContext *cx, nsISupports *native,
 
   nsresult rv = NS_OK;
   JS::Rooted<JSObject*> scope(cx, JS::CurrentGlobalOrNull(cx));
-  rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
+  AutoPushJSContext context(cx);
+  rv = sXPConnect->WrapNativeToJSVal(context, scope, native, cache, aIID,
                                      aAllowWrapping, vp);
   return rv;
 }
@@ -6113,15 +6111,11 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
                                   nsIDocument* aDocument)
 {
   NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
-  nsCOMPtr<nsIGlobalObject> globalObject =
-    do_QueryInterface(aDocument->GetWindow());
-  if (NS_WARN_IF(!globalObject)) {
-    return true;
-  }
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aDocument->GetWindow());
+  NS_ENSURE_TRUE(sgo, true);
 
-  AutoJSAPI jsapi;
-  JSContext* cx = jsapi.cx();
-  JSAutoCompartment ac(cx, globalObject->GetGlobalJSObject());
+  AutoPushJSContext cx(sgo->GetContext()->GetNativeContext());
+  NS_ENSURE_TRUE(cx, true);
 
   // The pattern has to match the entire value.
   aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);

@@ -58,7 +58,6 @@
 #include "nsThreadManager.h"
 #endif
 
-#include "ServiceWorker.h"
 #include "SharedWorker.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
@@ -781,6 +780,8 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
     }
   }
 
+  JS_SetIsWorkerRuntime(aRuntime);
+
   JS_SetNativeStackQuota(aRuntime, WORKER_CONTEXT_NATIVE_STACK_LIMIT);
 
   // Security policy:
@@ -840,7 +841,8 @@ public:
   // call to JS_SetGCParameter inside CreateJSContextForWorker.
   WorkerJSRuntime(JSRuntime* aParentRuntime, WorkerPrivate* aWorkerPrivate)
     : CycleCollectedJSRuntime(aParentRuntime,
-                              WORKER_DEFAULT_RUNTIME_HEAPSIZE),
+                              WORKER_DEFAULT_RUNTIME_HEAPSIZE,
+                              JS_NO_HELPER_THREADS),
     mWorkerPrivate(aWorkerPrivate)
   {
   }
@@ -1420,9 +1422,7 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       domainInfo->mActiveWorkers.RemoveElement(aWorkerPrivate);
     }
 
-
-    if (aWorkerPrivate->IsSharedWorker() ||
-        aWorkerPrivate->IsServiceWorker()) {
+    if (aWorkerPrivate->IsSharedWorker()) {
       MatchSharedWorkerInfo match(aWorkerPrivate);
       domainInfo->mSharedWorkerInfos.EnumerateRead(FindSharedWorkerInfo,
                                                    &match);
@@ -2078,47 +2078,12 @@ RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
 }
 
 nsresult
-RuntimeService::CreateServiceWorker(const GlobalObject& aGlobal,
-                                    const nsAString& aScriptURL,
-                                    const nsACString& aScope,
-                                    ServiceWorker** aServiceWorker)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
-  MOZ_ASSERT(window);
-
-  nsRefPtr<SharedWorker> sharedWorker;
-  rv = CreateSharedWorkerInternal(aGlobal, aScriptURL, aScope,
-                                  WorkerTypeService,
-                                  getter_AddRefs(sharedWorker));
-
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  nsRefPtr<ServiceWorker> serviceWorker =
-    new ServiceWorker(window, sharedWorker);
-
-  // While it hasn't been parsed, the intention is to only expose ServiceWorkers
-  // to content after it has indeed been parsed.
-  serviceWorker->mState = ServiceWorkerState::Parsed;
-  serviceWorker->mURL = aScriptURL;
-  serviceWorker->mScope = NS_ConvertUTF8toUTF16(aScope);
-
-  serviceWorker.forget(aServiceWorker);
-  return rv;
-}
-
-nsresult
-RuntimeService::CreateSharedWorkerInternal(const GlobalObject& aGlobal,
-                                           const nsAString& aScriptURL,
-                                           const nsACString& aName,
-                                           WorkerType aType,
-                                           SharedWorker** aSharedWorker)
+RuntimeService::CreateSharedWorker(const GlobalObject& aGlobal,
+                                   const nsAString& aScriptURL,
+                                   const nsACString& aName,
+                                   SharedWorker** aSharedWorker)
 {
   AssertIsOnMainThread();
-  MOZ_ASSERT(aType == WorkerTypeShared || aType == WorkerTypeService);
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   MOZ_ASSERT(window);
@@ -2158,13 +2123,17 @@ RuntimeService::CreateSharedWorkerInternal(const GlobalObject& aGlobal,
     ErrorResult rv;
     workerPrivate =
       WorkerPrivate::Constructor(aGlobal, aScriptURL, false,
-                                 aType, aName, &loadInfo, rv);
+                                 WorkerTypeShared, aName,
+                                 &loadInfo, rv);
     NS_ENSURE_TRUE(workerPrivate, rv.ErrorCode());
 
     created = true;
   }
 
-  nsRefPtr<SharedWorker> sharedWorker = new SharedWorker(window, workerPrivate);
+  MOZ_ASSERT(workerPrivate->IsSharedWorker());
+
+  nsRefPtr<SharedWorker> sharedWorker =
+    new SharedWorker(window, workerPrivate);
 
   if (!workerPrivate->RegisterSharedWorker(cx, sharedWorker)) {
     NS_WARNING("Worker is unreachable, this shouldn't happen!");

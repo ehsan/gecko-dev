@@ -34,7 +34,7 @@ static void PrettyUC(nscoord aSize, char* aBuf)
 }
 #endif
 
-void
+nsresult
 nsAbsoluteContainingBlock::SetInitialChildList(nsIFrame*       aDelegatingFrame,
                                                ChildListID     aListID,
                                                nsFrameList&    aChildList)
@@ -44,9 +44,10 @@ nsAbsoluteContainingBlock::SetInitialChildList(nsIFrame*       aDelegatingFrame,
   nsFrame::VerifyDirtyBitSet(aChildList);
 #endif
   mAbsoluteFrames.SetFrames(aChildList);
+  return NS_OK;
 }
 
-void
+nsresult
 nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
                                         ChildListID    aListID,
                                         nsFrameList&   aFrameList)
@@ -64,9 +65,11 @@ nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
   aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  return NS_OK;
 }
 
-void
+nsresult
 nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
                                         ChildListID    aListID,
                                         nsIFrame*      aPrevFrame,
@@ -86,6 +89,8 @@ nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
   aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  return NS_OK;
 }
 
 void

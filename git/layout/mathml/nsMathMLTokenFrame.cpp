@@ -92,30 +92,46 @@ nsMathMLTokenFrame::MarkTextFramesAsTokenMathML()
   }
 }
 
-void
+nsresult
 nsMathMLTokenFrame::SetInitialChildList(ChildListID     aListID,
                                         nsFrameList&    aChildList)
 {
   // First, let the base class do its work
-  nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  if (NS_FAILED(rv))
+    return rv;
+
   MarkTextFramesAsTokenMathML();
+
+  return rv;
 }
 
-void
+nsresult
 nsMathMLTokenFrame::AppendFrames(ChildListID aListID,
                                  nsFrameList& aChildList)
 {
-  nsMathMLContainerFrame::AppendFrames(aListID, aChildList);
+  nsresult rv = nsMathMLContainerFrame::AppendFrames(aListID, aChildList);
+  if (NS_FAILED(rv))
+    return rv;
+
   MarkTextFramesAsTokenMathML();
+
+  return rv;
 }
 
-void
+nsresult
 nsMathMLTokenFrame::InsertFrames(ChildListID aListID,
                                  nsIFrame* aPrevFrame,
                                  nsFrameList& aChildList)
 {
-  nsMathMLContainerFrame::InsertFrames(aListID, aPrevFrame, aChildList);
+  nsresult rv = nsMathMLContainerFrame::InsertFrames(aListID, aPrevFrame,
+                                                     aChildList);
+  if (NS_FAILED(rv))
+    return rv;
+
   MarkTextFramesAsTokenMathML();
+
+  return rv;
 }
 
 void

@@ -27,7 +27,6 @@
 #include "mozilla/gfx/2D.h"
 #include "Units.h"
 #include "mozilla/ToString.h"
-#include "gfxPrefs.h"
 
 #include <limits>
 #include <algorithm>
@@ -2185,11 +2184,7 @@ public:
   static void LogTestDataForPaint(nsIPresShell* aPresShell,
                                   ViewID aScrollId,
                                   const std::string& aKey,
-                                  const std::string& aValue) {
-    if (gfxPrefs::APZTestLoggingEnabled()) {
-      DoLogTestDataForPaint(aPresShell, aScrollId, aKey, aValue);
-    }
-  }
+                                  const std::string& aValue);
 
   /**
    * A convenience overload of LogTestDataForPaint() that accepts any type
@@ -2201,10 +2196,8 @@ public:
                                   ViewID aScrollId,
                                   const std::string& aKey,
                                   const Value& aValue) {
-    if (gfxPrefs::APZTestLoggingEnabled()) {
-      DoLogTestDataForPaint(aPresShell, aScrollId, aKey,
-          mozilla::ToString(aValue));
-    }
+    LogTestDataForPaint(aPresShell, aScrollId, aKey,
+        mozilla::ToString(aValue));
   }
 
  /**
@@ -2238,14 +2231,6 @@ private:
   static bool sInvalidationDebuggingIsEnabled;
   static bool sCSSVariablesEnabled;
   static bool sInterruptibleReflowEnabled;
-
-  /**
-   * Helper function for LogTestDataForPaint().
-   */
-  static void DoLogTestDataForPaint(nsIPresShell* aPresShell,
-                                    ViewID aScrollId,
-                                    const std::string& aKey,
-                                    const std::string& aValue);
 };
 
 MOZ_FINISH_NESTED_ENUM_CLASS(nsLayoutUtils::RepaintMode)

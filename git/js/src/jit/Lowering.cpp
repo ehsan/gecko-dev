@@ -1338,7 +1338,8 @@ bool
 LIRGenerator::visitMathFunction(MMathFunction *ins)
 {
     JS_ASSERT(IsFloatingPointType(ins->type()));
-    JS_ASSERT(ins->type() == ins->input()->type());
+    JS_ASSERT_IF(ins->type() == MIRType_Double, ins->input()->type() == MIRType_Double);
+    JS_ASSERT_IF(ins->type() == MIRType_Float32, ins->input()->type() == MIRType_Float32);
 
     if (ins->type() == MIRType_Double) {
         // Note: useRegisterAtStart is safe here, the temp is not a FP register.

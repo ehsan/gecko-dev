@@ -81,8 +81,6 @@ class ObjectToIdMap
     Table *table_;
 };
 
-class Logging;
-
 class JavaScriptShared
 {
   public:
@@ -126,13 +124,6 @@ class JavaScriptShared
     }
     JSObject *findObjectById(JSContext *cx, uint32_t objId);
 
-    static bool LoggingEnabled() { return sLoggingEnabled; }
-    static bool StackLoggingEnabled() { return sStackLoggingEnabled; }
-
-    friend class Logging;
-
-    virtual bool isParent() = 0;
-
   protected:
     JSRuntime *rt_;
     uintptr_t refcount_;
@@ -142,10 +133,6 @@ class JavaScriptShared
 
     ObjectId lastId_;
     ObjectToIdMap objectIds_;
-
-    static bool sLoggingInitialized;
-    static bool sLoggingEnabled;
-    static bool sStackLoggingEnabled;
 };
 
 // Use 47 at most, to be safe, since jsval privates are encoded as doubles.

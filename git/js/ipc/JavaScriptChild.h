@@ -25,9 +25,6 @@ class JavaScriptChild : public JavaScriptBase<PJavaScriptChild>
 
     void drop(JSObject *obj);
 
-  protected:
-    virtual bool isParent() { return false; }
-
   private:
     bool fail(JSContext *cx, ReturnStatus *rs);
     bool ok(ReturnStatus *rs);

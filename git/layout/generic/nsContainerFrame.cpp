@@ -67,25 +67,41 @@ nsContainerFrame::Init(nsIContent*       aContent,
   }
 }
 
-void
+nsresult
 nsContainerFrame::SetInitialChildList(ChildListID  aListID,
                                       nsFrameList& aChildList)
 {
-  MOZ_ASSERT(mFrames.IsEmpty(),
-             "unexpected second call to SetInitialChildList");
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
+  nsresult  result;
+  if (mFrames.NotEmpty()) {
+    // We already have child frames which means we've already been
+    // initialized
+    NS_NOTREACHED("unexpected second call to SetInitialChildList");
+    result = NS_ERROR_UNEXPECTED;
+  } else if (aListID != kPrincipalList) {
+    // All we know about is the principal child list.
+    NS_NOTREACHED("unknown frame list");
+    result = NS_ERROR_INVALID_ARG;
+  } else {
 #ifdef DEBUG
-  nsFrame::VerifyDirtyBitSet(aChildList);
+    nsFrame::VerifyDirtyBitSet(aChildList);
 #endif
-  mFrames.SetFrames(aChildList);
+    mFrames.SetFrames(aChildList);
+    result = NS_OK;
+  }
+  return result;
 }
 
-void
+nsresult
 nsContainerFrame::AppendFrames(ChildListID  aListID,
                                nsFrameList& aFrameList)
 {
-  MOZ_ASSERT(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
-             "unexpected child list");
+  if (aListID != kPrincipalList) {
+    if (aListID != kNoReflowPrincipalList)
+    {
+      NS_ERROR("unexpected child list");
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
   if (aFrameList.NotEmpty()) {
     mFrames.AppendFrames(this, aFrameList);
 
@@ -97,18 +113,24 @@ nsContainerFrame::AppendFrames(ChildListID  aListID,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
     }
   }
+  return NS_OK;
 }
 
-void
+nsresult
 nsContainerFrame::InsertFrames(ChildListID aListID,
                                nsIFrame* aPrevFrame,
                                nsFrameList& aFrameList)
 {
-  MOZ_ASSERT(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
-             "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
+  if (aListID != kPrincipalList) {
+    if (aListID != kNoReflowPrincipalList)
+    {
+      NS_ERROR("unexpected child list");
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
   if (aFrameList.NotEmpty()) {
     // Insert frames after aPrevFrame
     mFrames.InsertFrames(this, aPrevFrame, aFrameList);
@@ -120,14 +142,20 @@ nsContainerFrame::InsertFrames(ChildListID aListID,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
     }
   }
+  return NS_OK;
 }
 
-void
+nsresult
 nsContainerFrame::RemoveFrame(ChildListID aListID,
                               nsIFrame* aOldFrame)
 {
-  MOZ_ASSERT(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
-             "unexpected child list");
+  if (aListID != kPrincipalList) {
+    if (kNoReflowPrincipalList != aListID)
+    {
+      NS_ERROR("unexpected child list");
+      return NS_ERROR_INVALID_ARG;
+    }
+  }
 
   // Loop and destroy aOldFrame and all of its continuations.
   // Request a reflow on the parent frames involved unless we were explicitly
@@ -154,6 +182,7 @@ nsContainerFrame::RemoveFrame(ChildListID aListID,
       lastParent = parent;
     }
   }
+  return NS_OK;
 }
 
 void

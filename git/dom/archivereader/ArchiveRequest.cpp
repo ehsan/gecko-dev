@@ -8,8 +8,8 @@
 
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/ArchiveRequestBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 
 using namespace mozilla;
 
@@ -131,15 +131,13 @@ ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
 
   nsresult rv;
 
-  nsCOMPtr<nsIGlobalObject> globalObject = do_QueryInterface(GetOwner());
-  if (NS_WARN_IF(!globalObject)) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  NS_ENSURE_STATE(sc);
 
-  AutoJSAPI jsapi;
-  JSContext* cx = jsapi.cx();
+  AutoPushJSContext cx(sc->GetNativeContext());
+  NS_ASSERTION(cx, "Failed to get a context!");
 
-  JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
+  JS::Rooted<JSObject*> global(cx, sc->GetWindowProxy());
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoCompartment ac(cx, global);

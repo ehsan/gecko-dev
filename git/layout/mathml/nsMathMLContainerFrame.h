@@ -79,16 +79,16 @@ public:
               ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
-  virtual void
+  virtual nsresult
   AppendFrames(ChildListID     aListID,
                nsFrameList&    aFrameList) MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList) MOZ_OVERRIDE;
 
-  virtual void
+  virtual nsresult
   RemoveFrame(ChildListID     aListID,
               nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
@@ -416,48 +416,52 @@ public:
 
   // beware, mFrames is not set by nsBlockFrame
   // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
-  virtual void
+  virtual nsresult
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList, "unexpected frame list");
-    nsBlockFrame::SetInitialChildList(aListID, aChildList);
+    nsresult rv = nsBlockFrame::SetInitialChildList(aListID, aChildList);
     // re-resolve our subtree to set any mathml-expected data
     nsMathMLContainerFrame::RebuildAutomaticDataForChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   AppendFrames(ChildListID     aListID,
                nsFrameList&    aFrameList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsBlockFrame::AppendFrames(aListID, aFrameList);
+    nsresult rv = nsBlockFrame::AppendFrames(aListID, aFrameList);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsBlockFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    nsresult rv = nsBlockFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   RemoveFrame(ChildListID     aListID,
               nsIFrame*       aOldFrame) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsBlockFrame::RemoveFrame(aListID, aOldFrame);
+    nsresult rv = nsBlockFrame::RemoveFrame(aListID, aOldFrame);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE {
@@ -492,48 +496,52 @@ public:
   friend nsContainerFrame* NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell,
                                                        nsStyleContext* aContext);
 
-  virtual void
+  virtual nsresult
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList, "unexpected frame list");
-    nsInlineFrame::SetInitialChildList(aListID, aChildList);
+    nsresult rv = nsInlineFrame::SetInitialChildList(aListID, aChildList);
     // re-resolve our subtree to set any mathml-expected data
     nsMathMLContainerFrame::RebuildAutomaticDataForChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   AppendFrames(ChildListID     aListID,
                nsFrameList&    aFrameList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsInlineFrame::AppendFrames(aListID, aFrameList);
+    nsresult rv = nsInlineFrame::AppendFrames(aListID, aFrameList);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsInlineFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    nsresult rv = nsInlineFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
-  virtual void
+  virtual nsresult
   RemoveFrame(ChildListID     aListID,
               nsIFrame*       aOldFrame) MOZ_OVERRIDE
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
-    nsInlineFrame::RemoveFrame(aListID, aOldFrame);
+    nsresult rv = nsInlineFrame::RemoveFrame(aListID, aOldFrame);
     if (MOZ_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
+    return rv;
   }
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE {

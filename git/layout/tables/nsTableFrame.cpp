@@ -332,13 +332,22 @@ nsTableFrame::UnregisterPositionedTablePart(nsIFrame* aFrame,
 
 // XXX this needs to be cleaned up so that the frame constructor breaks out col group
 // frames into a separate child list, bug 343048.
-void
+nsresult
 nsTableFrame::SetInitialChildList(ChildListID     aListID,
                                   nsFrameList&    aChildList)
 {
-  MOZ_ASSERT(mFrames.IsEmpty() && mColGroups.IsEmpty(),
-             "unexpected second call to SetInitialChildList");
-  MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
+
+  if (!mFrames.IsEmpty() || !mColGroups.IsEmpty()) {
+    // We already have child frames which means we've already been
+    // initialized
+    NS_NOTREACHED("unexpected second call to SetInitialChildList");
+    return NS_ERROR_UNEXPECTED;
+  }
+  if (aListID != kPrincipalList) {
+    // All we know about is the principal child list.
+    NS_NOTREACHED("unknown frame list");
+    return NS_ERROR_INVALID_ARG;
+  }
 
   // XXXbz the below code is an icky cesspit that's only needed in its current
   // form for two reasons:
@@ -370,6 +379,8 @@ nsTableFrame::SetInitialChildList(ChildListID     aListID,
       SetFullBCDamageArea();
     }
   }
+
+  return NS_OK;
 }
 
 void nsTableFrame::AttributeChangedFor(nsIFrame*       aFrame,
@@ -2195,7 +2206,7 @@ nsTableFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 
 
-void
+nsresult
 nsTableFrame::AppendFrames(ChildListID     aListID,
                            nsFrameList&    aFrameList)
 {
@@ -2242,6 +2253,8 @@ nsTableFrame::AppendFrames(ChildListID     aListID,
   PresContext()->PresShell()->FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
   SetGeometryDirty();
+
+  return NS_OK;
 }
 
 // Needs to be at file scope or ArrayLength fails to compile.
@@ -2250,7 +2263,7 @@ struct ChildListInsertions {
   nsFrameList mList;
 };
 
-void
+nsresult
 nsTableFrame::InsertFrames(ChildListID     aListID,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList)
@@ -2267,8 +2280,7 @@ nsTableFrame::InsertFrames(ChildListID     aListID,
   if ((aPrevFrame && !aPrevFrame->GetNextSibling()) ||
       (!aPrevFrame && GetChildList(aListID).IsEmpty())) {
     // Treat this like an append; still a workaround for bug 343048.
-    AppendFrames(aListID, aFrameList);
-    return;
+    return AppendFrames(aListID, aFrameList);
   }
 
   // Collect ColGroupFrames into a separate list and insert those separately
@@ -2302,6 +2314,7 @@ nsTableFrame::InsertFrames(ChildListID     aListID,
                              insertions[i].mList);
     }
   }
+  return NS_OK;
 }
 
 void
@@ -2468,7 +2481,7 @@ nsTableFrame::DoRemoveFrame(ChildListID     aListID,
   }
 }
 
-void
+nsresult
 nsTableFrame::RemoveFrame(ChildListID     aListID,
                           nsIFrame*       aOldFrame)
 {
@@ -2502,6 +2515,7 @@ nsTableFrame::RemoveFrame(ChildListID     aListID,
   printf("=== TableFrame::RemoveFrame\n");
   Dump(true, true, true);
 #endif
+  return NS_OK;
 }
 
 /* virtual */ nsMargin

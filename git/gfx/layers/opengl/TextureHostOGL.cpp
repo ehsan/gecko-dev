@@ -116,6 +116,18 @@ FlagsToGLFlags(TextureFlags aFlags)
   return static_cast<gl::TextureImage::Flags>(result);
 }
 
+static GLenum
+WrapMode(gl::GLContext *aGl, TextureFlags aFlags)
+{
+  if ((aFlags & TextureFlags::ALLOW_REPEAT) &&
+      (aGl->IsExtensionSupported(GLContext::ARB_texture_non_power_of_two) ||
+       aGl->IsExtensionSupported(GLContext::OES_texture_npot) ||
+       aGl->IsExtensionSupported(GLContext::IMG_texture_npot))) {
+    return LOCAL_GL_REPEAT;
+  }
+  return LOCAL_GL_CLAMP_TO_EDGE;
+}
+
 CompositableDataGonkOGL::CompositableDataGonkOGL()
  : mTexture(0)
  , mBoundEGLImage(EGL_NO_IMAGE)
@@ -250,7 +262,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       // texture image.
       mTexImage = CreateBasicTextureImage(mGL, size,
                                           gfx::ContentForFormat(aSurface->GetFormat()),
-                                          LOCAL_GL_CLAMP_TO_EDGE,
+                                          WrapMode(mGL, mFlags),
                                           FlagsToGLFlags(mFlags),
                                           SurfaceFormatToImageFormat(aSurface->GetFormat()));
     } else {
@@ -261,7 +273,7 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       mTexImage = CreateTextureImage(mGL,
                                      size,
                                      gfx::ContentForFormat(aSurface->GetFormat()),
-                                     LOCAL_GL_CLAMP_TO_EDGE,
+                                     WrapMode(mGL, mFlags),
                                      FlagsToGLFlags(mFlags),
                                      SurfaceFormatToImageFormat(aSurface->GetFormat()));
     }
@@ -286,7 +298,7 @@ TextureImageTextureSourceOGL::EnsureBuffer(const nsIntSize& aSize,
     mTexImage = CreateTextureImage(mGL,
                                    aSize.ToIntSize(),
                                    aContentType,
-                                   LOCAL_GL_CLAMP_TO_EDGE,
+                                   WrapMode(mGL, mFlags),
                                    FlagsToGLFlags(mFlags));
   }
   mTexImage->Resize(aSize.ToIntSize());
