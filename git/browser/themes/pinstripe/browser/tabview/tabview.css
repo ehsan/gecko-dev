@@ -3,6 +3,7 @@ body {
   font: message-box;
   color: rgba(0, 0, 0, 0.6);
   font-size: 12px;
+  line-height: 16px;
 }
 
 #bg {
@@ -83,14 +84,11 @@ html[dir=rtl] .favicon {
   right: 6px;
   width: 16px;
   height: 16px;
-  background-image: -moz-image-rect(url(chrome://browser/skin/tabview/close.png), 0, 16, 16, 0);
-  background-repeat: no-repeat;
-}
-.close:hover {
-  background-image: -moz-image-rect(url(chrome://browser/skin/tabview/close.png), 0, 32, 16, 16);
-}
-.close:active {
-  background-image: -moz-image-rect(url(chrome://browser/skin/tabview/close.png), 0, 48, 16, 32);
+  background: url(chrome://global/skin/icons/closetab.png) no-repeat;
+  -moz-transition-property: opacity;
+  -moz-transition-duration: 0.5s;
+  -moz-transition-timing-function: ease-out;
+  opacity: 0.2;
 }
 
 html[dir=rtl] .close {
@@ -116,6 +114,7 @@ html[dir=rtl] .expander {
   -moz-transform: scaleX(-1);
 }
 
+.close:hover,
 .expander:hover,
 .appTabIcon:hover {
   -moz-transition-property: opacity;
@@ -125,6 +124,7 @@ html[dir=rtl] .expander {
 }
 
 .favicon img:hover, 
+.close img:hover, 
 .expander img:hover {
   opacity: 1;
   border: none;
@@ -196,17 +196,17 @@ html[dir=rtl] .stack-trayed .tab-title {
 .tabInGroupItem {
   box-shadow: none;
   border-color: transparent;
-  background-color: rgb(240,240,240);
+  background-color: transparent;
   margin: 8px;
 }
 
 .tabInGroupItem .favicon {
-  background-color: rgb(240,240,240);
+  background-color: #EBEBEB;
 }
 
 .groupItem {
   cursor: move;
-  background-color: rgb(240,240,240);
+  background-color: #EBEBEB;
   border-radius: 0.4em;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -214,16 +214,12 @@ html[dir=rtl] .stack-trayed .tab-title {
 
 .groupItem.activeGroupItem {
   box-shadow:
-    rgba(0,0,0,0.8) 2px 2px 8px;
+    rgba(0,0,0,0.6) 1px 1px 5.5px;
 }
 
 html[dir=rtl] .groupItem.activeGroupItem {
   box-shadow:
-    rgba(0,0,0,0.8) -2px 2px 8px;
-}
-
-.groupItem .close {
-  z-index: 10;
+    rgba(0,0,0,0.6) -1px 1px 5.5px;
 }
 
 .phantom {
@@ -249,7 +245,7 @@ html[dir=rtl] .overlay {
   right: 1px;
   -moz-border-start: 1px solid #E1E1E1;
   padding: 0 5px;
-  overflow: -moz-hidden-unscrollable;
+  overflow-x: hidden;
   text-align: start;
   line-height: 0;
 }
@@ -262,6 +258,7 @@ html[dir=rtl] .appTabTrayContainer {
 .appTabTray {
   display: inline-block;
   -moz-column-width: 16px;
+  -moz-column-count: 0;
   -moz-column-gap: 5px;
 }
 
@@ -424,6 +421,7 @@ html[dir=rtl] .acceptsDrop {
 
 .titlebar {
   font-size: 12px;
+  line-height: 18px;
   height: 18px;
 }
 
@@ -468,6 +466,10 @@ input.name:-moz-placeholder {
   color: #CCC;
 }
 
+.title-container {
+  cursor: text;
+}
+
 .title-shield {
   margin-top: 3px;
   -moz-margin-end: 0;
@@ -478,7 +480,6 @@ input.name:-moz-placeholder {
   top: 0;
   width: 100%;
   height: 100%;
-  cursor: text;
 }
 
 html[dir=rtl] .title-shield {

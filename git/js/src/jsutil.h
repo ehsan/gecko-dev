@@ -78,8 +78,6 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 
 #define JS_ALWAYS_TRUE(expr) JS_ASSERT(expr)
 
-#define JS_ALWAYS_FALSE(expr) JS_ASSERT(!(expr))
-
 # ifdef JS_THREADSAFE
 # define JS_THREADSAFE_ASSERT(expr) JS_ASSERT(expr) 
 # else
@@ -92,7 +90,6 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 #define JS_ASSERT_IF(cond,expr) ((void) 0)
 #define JS_NOT_REACHED(reason)
 #define JS_ALWAYS_TRUE(expr)    ((void) (expr))
-#define JS_ALWAYS_FALSE(expr)    ((void) (expr))
 #define JS_THREADSAFE_ASSERT(expr) ((void) 0)
 
 #endif /* defined(DEBUG) */

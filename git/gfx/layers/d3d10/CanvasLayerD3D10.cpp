@@ -78,8 +78,6 @@ CanvasLayerD3D10::Initialize(const Data& aData)
       mTexture = static_cast<ID3D10Texture2D*>(data);
       mIsD2DTexture = PR_TRUE;
       device()->CreateShaderResourceView(mTexture, NULL, getter_AddRefs(mSRView));
-      mHasAlpha =
-        mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA;
       return;
     }
   }
@@ -241,7 +239,7 @@ CanvasLayerD3D10::RenderLayer()
   ID3D10EffectTechnique *technique;
 
   if (mDataIsPremultiplied) {
-    if (!mHasAlpha) {
+    if (mSurface && mSurface->GetContentType() == gfxASurface::CONTENT_COLOR) {
       if (mFilter == gfxPattern::FILTER_NEAREST) {
         technique = effect()->GetTechniqueByName("RenderRGBLayerPremulPoint");
       } else {

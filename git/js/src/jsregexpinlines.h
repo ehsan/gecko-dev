@@ -216,7 +216,7 @@ class RegExpMatchBuilder
     }
 
     bool append(jsid id, Value val) {
-        return !!js_DefineProperty(cx, array, id, &val, js::PropertyStub, js::StrictPropertyStub,
+        return !!js_DefineProperty(cx, array, id, &val, js::PropertyStub, js::PropertyStub,
                                    JSPROP_ENUMERATE);
     }
 
@@ -361,20 +361,11 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *inputstr,
                                          bufCount);
 #else
     int result = jsRegExpExecute(cx, compiled, chars, len, *lastIndex - inputOffset, buf, 
-                                 bufCount);
+                                 bufCount) < 0 ? -1 : buf[0];
 #endif
     if (result == -1) {
         *rval = NullValue();
         return true;
-    }
-
-    if (result < 0) {
-#if ENABLE_YARR_JIT
-        handleYarrError(cx, result);
-#else
-        handlePCREError(cx, result);
-#endif
-        return false;
     }
 
     /* 

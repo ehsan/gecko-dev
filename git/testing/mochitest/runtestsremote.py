@@ -199,19 +199,6 @@ class MochiRemote(Mochitest):
         remoteProfilePath = options.profilePath
         remoteUtilityPath = options.utilityPath
         localAutomation = Automation()
-        localAutomation.IS_WIN32 = False
-        localAutomation.IS_LINUX = False
-        localAutomation.IS_MAC = False
-        localAutomation.UNIXISH = False
-        hostos = sys.platform
-        if (hostos == 'mac' or  hostos == 'darwin'):
-          localAutomation.IS_MAC = True
-        elif (hostos == 'linux' or hostos == 'linux2'):
-          localAutomation.IS_LINUX = True
-          localAutomation.UNIXISH = True
-        elif (hostos == 'win32' or hostos == 'win64'):
-          localAutomation.BIN_SUFFIX = ".exe"
-          localAutomation.IS_WIN32 = True
 
         paths = [options.xrePath, localAutomation.DIST_BIN, self._automation._product, os.path.join('..', self._automation._product)]
         options.xrePath = self.findPath(paths)
@@ -281,8 +268,8 @@ class MochiRemote(Mochitest):
 
 def main():
     scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
-    dm_none = devicemanager.DeviceManager(None, None)
-    auto = RemoteAutomation(dm_none, "fennec")
+    dm = devicemanager.DeviceManager(None, None)
+    auto = RemoteAutomation(dm, "fennec")
     parser = RemoteOptions(auto, scriptdir)
     options, args = parser.parse_args()
 
@@ -307,11 +294,6 @@ def main():
     
     auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
-
-    procName = options.app.split('/')[-1]
-    if (dm.processExist(procName)):
-      dm.killProcess(procName)
-
     sys.exit(mochitest.runTests(options))
     
 if __name__ == "__main__":

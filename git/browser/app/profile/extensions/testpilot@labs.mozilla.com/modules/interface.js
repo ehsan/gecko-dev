@@ -94,37 +94,11 @@ var TestPilotUIBuilder = {
       } catch (e) {
       }
     }
-
-    /* Show and hide Feedback menu items based on version -- if user is on beta channel in
-     * the final version, they get the 'broken' and 'idea' items.  Otherwise they get
-     * 'happy' and 'sad'.*/
-    if (this.isBetaChannel() && this.appVersionIsFinal()) {
-      window.document.getElementById("feedback-menu-happy-button").setAttribute("hidden", "true");
-      window.document.getElementById("feedback-menu-sad-button").setAttribute("hidden", "true");
-    } else {
-      window.document.getElementById("feedback-menu-broken-button").setAttribute("hidden", "true");
-      window.document.getElementById("feedback-menu-idea-button").setAttribute("hidden", "true");
-    }
   },
 
   isBetaChannel: function() {
     // Nightly channel is treated the same as default channel.
     return (this._prefs.getCharPref(UPDATE_CHANNEL_PREF) == "beta");
-  },
-
-  appVersionIsFinal: function() {
-    // Return true iff app version >= 4.0 AND there is no "beta" or "rc" in version string.
-    let appInfo = Cc["@mozilla.org/xre/app-info;1"]
-      .getService(Ci.nsIXULAppInfo);
-    let version = appInfo.version;
-    let versionChecker = Components.classes["@mozilla.org/xpcom/version-comparator;1"]
-      .getService(Components.interfaces.nsIVersionComparator);
-    if (versionChecker.compare(version, "4.0") >= 0) {
-      if (version.indexOf("b") == -1 && version.indexOf("rc") == -1) {
-        return true;
-      }
-    }
-    return false;
   },
 
   buildCorrectInterface: function(window) {
@@ -137,8 +111,8 @@ var TestPilotUIBuilder = {
 
     /* Overlay Feedback XUL if we're in the beta update channel, Test Pilot XUL otherwise.
      * Once the overlay is complete, call buildFeedbackInterface() or buildTestPilotInterface(). */
-    let self = this;
     if (this.isBetaChannel()) {
+      let self = this;
       window.document.loadOverlay("chrome://testpilot/content/feedback-browser.xul",
                                   {observe: function(subject, topic, data) {
                                      if (topic == "xul-overlay-merged") {

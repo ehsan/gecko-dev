@@ -151,7 +151,7 @@ static JSBool
 NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 static JSBool
-NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 static JSBool
 NPObjWrapper_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
@@ -215,7 +215,7 @@ static JSClass sNPObjectMemberClass =
   {
     "NPObject Ambiguous Member class", JSCLASS_HAS_PRIVATE,
     JS_PropertyStub, JS_PropertyStub,
-    JS_PropertyStub, JS_StrictPropertyStub, JS_EnumerateStub,
+    JS_PropertyStub, JS_PropertyStub, JS_EnumerateStub,
     JS_ResolveStub, NPObjectMember_Convert,
     NPObjectMember_Finalize, nsnull, nsnull, NPObjectMember_Call,
     nsnull, nsnull, nsnull, NPObjectMember_Mark, nsnull
@@ -1248,7 +1248,7 @@ NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 }
 
 static JSBool
-NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
+NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -2037,20 +2037,18 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
     return;
   }
 
-  nsCOMPtr<nsIXPConnectWrappedNative> holder;
-  xpc->GetWrappedNativeOfNativeObject(cx, sgo->GetGlobalJSObject(), content,
-                                      NS_GET_IID(nsISupports),
-                                      getter_AddRefs(holder));
-  if (!holder) {
+  nsCOMPtr<nsINode> node(do_QueryInterface(element));
+
+  JSObject *obj;
+  if (!node || !(obj = node->GetWrapper())) {
     return;
   }
 
-  JSObject *obj, *proto;
-  holder->GetJSObject(&obj);
+  JSObject *proto;
 
   JSAutoEnterCompartment ac;
 
-  if (obj && !ac.enter(cx, obj)) {
+  if (!ac.enter(cx, obj)) {
     // Failure to enter compartment, nothing more we can do then.
     return;
   }

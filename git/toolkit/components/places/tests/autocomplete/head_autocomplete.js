@@ -352,10 +352,7 @@ function run_test() {
   if (func)
     func();
 
-  // At this point frecency could still be updating due to latest pages updates.
-  // This is not a problem in real life, but autocomplete tests should return
-  // reliable resultsets, thus we have to wait.
-  waitForAsyncUpdates(ensure_results, this, [search, expected]);
+  ensure_results(search, expected);
 }
 
 // Utility function to remove history pages

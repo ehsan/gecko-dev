@@ -398,7 +398,7 @@ TextRunWordCache::LookupWord(gfxTextRun *aTextRun, gfxFont *aFirstFont,
             aDeferredWords->AppendElement(word);
         } else {
             aTextRun->CopyGlyphDataFrom(existingEntry->mTextRun,
-                existingEntry->mWordOffset, aEnd - aStart, aStart);
+                existingEntry->mWordOffset, aEnd - aStart, aStart, PR_FALSE);
         }
         return PR_TRUE;
     }
@@ -501,11 +501,14 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
             }
         }
         if (aSuccessful) {
-            // Copy the word.
+            // Copy the word. If the source is aNewRun, then
+            // allow CopyGlyphDataFrom to steal the internal data of
+            // aNewRun since that's only temporary anyway.
             PRUint32 sourceOffset = word->mSourceOffset;
             PRUint32 destOffset = word->mDestOffset;
             PRUint32 length = word->mLength;
             nsAutoPtr<gfxTextRun> tmpTextRun;
+            PRBool stealData = source == aNewRun;
             if (wordStartsInsideCluster || wordStartsInsideLigature) {
                 NS_ASSERTION(sourceOffset > 0, "How can the first character be inside a cluster?");
                 if (wordStartsInsideCluster && destOffset > 0 &&
@@ -526,18 +529,13 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
                     // cache). But now the data in aNewRun is no use to us.
                     // We need to find out what the platform would do
                     // if the characters were at the start of the text.
-                    if (source->GetFlags() & gfxFontGroup::TEXT_IS_8BIT) {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetText8Bit() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    } else {
-                        tmpTextRun = fontGroup->
-                            MakeTextRun(source->GetTextUnicode() + sourceOffset,
-                                        length, aParams, source->GetFlags());
-                    }
+                    tmpTextRun = aNewRun->GetFontGroup()->MakeTextRun(
+                        source->GetTextUnicode() + sourceOffset, length, aParams,
+                        aNewRun->GetFlags());
                     if (tmpTextRun) {
                         source = tmpTextRun;
                         sourceOffset = 0;
+                        stealData = PR_TRUE;
                     } else {
                         // If we failed to create the temporary run (OOM),
                         // skip the word, as if aSuccessful had been FALSE.
@@ -551,7 +549,7 @@ TextRunWordCache::FinishTextRun(gfxTextRun *aTextRun, gfxTextRun *aNewRun,
                 }
             }
             aTextRun->CopyGlyphDataFrom(source, sourceOffset, length,
-                                        destOffset);
+                destOffset, stealData);
             // Fill in additional spaces
             PRUint32 endCharIndex;
             if (i + 1 < aDeferredWords.Length()) {

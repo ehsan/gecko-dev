@@ -571,7 +571,6 @@ function ReadManifest(aURL)
                 cond = true;
             } else if (item == "needs-focus") {
                 needs_focus = true;
-                cond = false;
             } else if ((m = item.match(/^asserts\((\d+)(-\d+)?\)$/))) {
                 cond = false;
                 minAsserts = Number(m[1]);
@@ -1124,7 +1123,7 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
     }
     gCurrentCanvas = null;
 
-    ResetRenderingState();
+    SendResetZoom();
 
     switch (gState) {
         case 1:
@@ -1262,11 +1261,6 @@ function DoAssertionCheck(numAsserts)
     StartCurrentTest();
 }
 
-function ResetRenderingState()
-{
-    SendResetRenderingState();
-    // We would want to clear any viewconfig here, if we add support for it
-}
 
 function RegisterMessageListenersAndLoadContentScript()
 {
@@ -1384,7 +1378,7 @@ function SendLoadTest(type, uri, timeout)
     );
 }
 
-function SendResetRenderingState()
+function SendResetZoom()
 {
-    gBrowserMessageManager.sendAsyncMessage("reftest:ResetRenderingState");
+    gBrowserMessageManager.sendAsyncMessage("reftest:ResetZoom");
 }

@@ -346,6 +346,8 @@ var PlacesCommandHook = {
     if (aBrowser.contentWindow == window.content) {
       var starIcon = aBrowser.ownerDocument.getElementById("star-button");
       if (starIcon && isElementVisible(starIcon)) {
+        // Make sure the bookmark properties dialog hangs toward the middle of
+        // the location bar in RTL builds
         if (aShowEditUI)
           StarUI.showEditBookmarkPopup(itemId, starIcon, "bottomcenter topright");
         return;
@@ -477,11 +479,6 @@ var PlacesCommandHook = {
 
 // View for the history menu.
 function HistoryMenu(aPopupShowingEvent) {
-  // Workaround for Bug 610187.  The sidebar does not include all the Places
-  // views definitions, and we don't need them there.
-  // Defining the prototype inheritance in the prototype itself would cause
-  // browser.js to halt on "PlacesMenu is not defined" error.
-  this.__proto__.__proto__ = PlacesMenu.prototype;
   XPCOMUtils.defineLazyServiceGetter(this, "_ss",
                                      "@mozilla.org/browser/sessionstore;1",
                                      "nsISessionStore");
@@ -490,6 +487,8 @@ function HistoryMenu(aPopupShowingEvent) {
 }
 
 HistoryMenu.prototype = {
+  __proto__: PlacesMenu.prototype,
+
   toggleRecentlyClosedTabs: function HM_toggleRecentlyClosedTabs() {
     // enable/disable the Recently Closed Tabs sub menu
     var undoMenu = this._rootElt.getElementsByClassName("recentlyClosedTabsMenu")[0];
@@ -941,10 +940,6 @@ var PlacesStarButton = {
     if (this._hasBookmarksObserver) {
       PlacesUtils.bookmarks.removeObserver(this);
     }
-    if (this._pendingStmt) {
-      this._pendingStmt.cancel();
-      delete this._pendingStmt;
-    }
   },
 
   QueryInterface: XPCOMUtils.generateQI([
@@ -975,29 +970,16 @@ var PlacesStarButton = {
     this._uri = gBrowser.currentURI;
     this._itemIds = [];
 
-    if (this._pendingStmt) {
-      this._pendingStmt.cancel();
-      delete this._pendingStmt;
-    }
+    // Ignore clicks on the star while we update its state.
+    this._ignoreClicks = true;
 
     // We can load about:blank before the actual page, but there is no point in handling that page.
     if (this._uri.spec == "about:blank") {
       return;
     }
 
-    this._pendingStmt = PlacesUtils.asyncGetBookmarkIds(this._uri, function (aItemIds, aURI) {
-      // Safety check that the bookmarked URI equals the tracked one.
-      if (!aURI.equals(this._uri)) {
-        Components.utils.reportError("PlacesStarButton did not receive current URI");
-        return;
-      }
-
-      // It's possible that onItemAdded gets called before the async statement
-      // calls back.  For such an edge case, retain all unique entries from both
-      // arrays.
-      this._itemIds = this._itemIds.filter(
-        function (id) aItemIds.indexOf(id) == -1
-      ).concat(aItemIds);
+    PlacesUtils.asyncGetBookmarkIds(this._uri, function (aItemIds) {
+      this._itemIds = aItemIds;
       this._updateStateInternal();
 
       // Start observing bookmarks if needed.
@@ -1010,7 +992,8 @@ var PlacesStarButton = {
         }
       }
 
-      delete this._pendingStmt;
+      // Finally re-enable the star.
+      this._ignoreClicks = false;
     }, this);
   },
 
@@ -1032,8 +1015,7 @@ var PlacesStarButton = {
 
   onClick: function PSB_onClick(aEvent)
   {
-    // Ignore clicks on the star while we update its state.
-    if (aEvent.button == 0 && !this._pendingStmt) {
+    if (aEvent.button == 0 && !this._ignoreClicks) {
       PlacesCommandHook.bookmarkCurrentPage(this._itemIds.length > 0);
     }
     // Don't bubble to the textbox, to avoid unwanted selection of the address.
@@ -1048,7 +1030,7 @@ var PlacesStarButton = {
       return;
     }
 
-    if (aURI && aURI.equals(this._uri)) {
+    if (aURI.equals(this._uri)) {
       // If a new bookmark has been added to the tracked uri, register it.
       if (this._itemIds.indexOf(aItemId) == -1) {
         this._itemIds.push(aItemId);

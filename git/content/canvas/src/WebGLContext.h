@@ -80,10 +80,6 @@ class WebGLContextBoundObject;
 
 enum FakeBlackStatus { DoNotNeedFakeBlack, DoNeedFakeBlack, DontKnowIfNeedFakeBlack };
 
-struct VertexAttrib0Status {
-    enum { Default, EmulatedUninitializedArray, EmulatedInitializedArray };
-};
-
 struct WebGLTexelFormat {
     enum { Generic, Auto, RGBA8, RGB8, RGBX8, BGRA8, BGR8, BGRX8, RGBA5551, RGBA4444, RGB565, R8, RA8, A8 };
 };
@@ -315,7 +311,6 @@ struct WebGLContextOptions {
 
 class WebGLContext :
     public nsIDOMWebGLRenderingContext,
-    public nsIDOMWebGLRenderingContext_MOZILLA_2_0_BRANCH,
     public nsICanvasRenderingContextInternal,
     public nsSupportsWeakReference
 {
@@ -328,7 +323,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
 
     NS_DECL_NSIDOMWEBGLRENDERINGCONTEXT
-    NS_DECL_NSIDOMWEBGLRENDERINGCONTEXT_MOZILLA_2_0_BRANCH
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
@@ -363,7 +357,6 @@ public:
     nsresult ErrorInvalidEnumInfo(const char *info, PRUint32 enumvalue) {
         return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
     }
-    nsresult ErrorOutOfMemory(const char *fmt = 0, ...);
 
     WebGLTexture *activeBoundTextureForTarget(WebGLenum target) {
         return target == LOCAL_GL_TEXTURE_2D ? mBound2DTextures[mActiveTexture]
@@ -378,7 +371,6 @@ public:
     // all context resources to be lost.
     PRUint32 Generation() { return mGeneration.value(); }
 
-protected:
     void SetDontKnowIfNeedFakeBlack() {
         mFakeBlackStatus = DontKnowIfNeedFakeBlack;
     }
@@ -387,11 +379,11 @@ protected:
     void BindFakeBlackTextures();
     void UnbindFakeBlackTextures();
 
-    int WhatDoesVertexAttrib0Need();
+    PRBool NeedFakeVertexAttrib0();
     void DoFakeVertexAttrib0(WebGLuint vertexCount);
     void UndoFakeVertexAttrib0();
-    void InvalidateFakeVertexAttrib0();
 
+protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
     nsHTMLCanvasElement *HTMLCanvasElement() {
         return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
@@ -442,7 +434,6 @@ protected:
     PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
                                       PRUint32 *texelSize, const char *info);
     PRBool ValidateDrawModeEnum(WebGLenum mode, const char *info);
-    PRBool ValidateAttribIndex(WebGLuint index, const char *info);
 
     void Invalidate();
     void DestroyResourcesAndContext();
@@ -518,9 +509,6 @@ protected:
                                 PRBool *isNull = 0,
                                 PRBool *isDeleted = 0);
 
-    PRInt32 MaxTextureSizeForTarget(WebGLenum target) const {
-        return target == LOCAL_GL_TEXTURE_2D ? mGLMaxTextureSize : mGLMaxCubeMapTextureSize;
-    }
 
     // the buffers bound to the current program's attribs
     nsTArray<WebGLVertexAttribData> mAttribBuffers;
@@ -562,10 +550,7 @@ protected:
     PRBool mBlackTexturesAreInitialized;
 
     WebGLfloat mVertexAttrib0Vector[4];
-    WebGLfloat mFakeVertexAttrib0BufferObjectVector[4];
-    size_t mFakeVertexAttrib0BufferObjectSize;
-    GLuint mFakeVertexAttrib0BufferObject;
-    int mFakeVertexAttrib0BufferStatus;
+    nsAutoArrayPtr<WebGLfloat> mFakeVertexAttrib0Array;
 
     WebGLint mStencilRef;
     WebGLuint mStencilValueMask, mStencilWriteMask;
@@ -681,7 +666,7 @@ public:
 
     WebGLBuffer(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mHasEverBeenBound(PR_FALSE),
+        mName(name), mDeleted(PR_FALSE),
         mByteLength(0), mTarget(LOCAL_GL_NONE), mData(nsnull)
     { }
 
@@ -702,8 +687,6 @@ public:
     }
 
     PRBool Deleted() const { return mDeleted; }
-    PRBool HasEverBeenBound() { return mHasEverBeenBound; }
-    void SetHasEverBeenBound(PRBool x) { mHasEverBeenBound = x; }
     GLuint GLName() const { return mName; }
     GLuint ByteLength() const { return mByteLength; }
     GLenum Target() const { return mTarget; }
@@ -714,25 +697,19 @@ public:
 
     // element array buffers are the only buffers for which we need to keep a copy of the data.
     // this method assumes that the byte length has previously been set by calling SetByteLength.
-    PRBool CopyDataIfElementArray(const void* data) {
+    void CopyDataIfElementArray(const void* data) {
         if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
             mData = realloc(mData, mByteLength);
-            if (!mData)
-                return PR_FALSE;
             memcpy(mData, data, mByteLength);
         }
-        return PR_TRUE;
     }
 
     // same comments as for CopyElementArrayData
-    PRBool ZeroDataIfElementArray() {
+    void ZeroDataIfElementArray() {
         if (mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER) {
             mData = realloc(mData, mByteLength);
-            if (!mData)
-                return PR_FALSE;
             memset(mData, 0, mByteLength);
         }
-        return PR_TRUE;
     }
 
     // same comments as for CopyElementArrayData
@@ -787,7 +764,6 @@ public:
 protected:
     WebGLuint mName;
     PRBool mDeleted;
-    PRBool mHasEverBeenBound;
     GLuint mByteLength;
     GLenum mTarget;
 
@@ -795,7 +771,7 @@ protected:
     PRBool mHasCachedMaxUbyteElement;
     PRUint16 mCachedMaxUshortElement;
     PRBool mHasCachedMaxUshortElement;
-
+    
     void* mData; // in the case of an Element Array Buffer, we keep a copy.
 };
 
@@ -814,7 +790,7 @@ public:
 
     WebGLTexture(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mDeleted(PR_FALSE), mHasEverBeenBound(PR_FALSE), mName(name),
+        mDeleted(PR_FALSE), mName(name),
         mTarget(0),
         mMinFilter(LOCAL_GL_NEAREST_MIPMAP_LINEAR),
         mMagFilter(LOCAL_GL_LINEAR),
@@ -835,8 +811,6 @@ public:
     }
 
     PRBool Deleted() { return mDeleted; }
-    PRBool HasEverBeenBound() { return mHasEverBeenBound; }
-    void SetHasEverBeenBound(PRBool x) { mHasEverBeenBound = x; }
     WebGLuint GLName() { return mName; }
 
     NS_DECL_ISUPPORTS
@@ -847,7 +821,6 @@ protected:
     friend class WebGLFramebuffer;
 
     PRBool mDeleted;
-    PRBool mHasEverBeenBound;
     WebGLuint mName;
 
     // we store information about the various images that are part of
@@ -890,16 +863,6 @@ public:
 
     const ImageInfo& ImageInfoAt(size_t level, size_t face) const {
         return const_cast<WebGLTexture*>(this)->ImageInfoAt(level, face);
-    }
-
-    PRBool HasImageInfoAt(size_t level, size_t face) const {
-        return level <= mMaxLevelWithCustomImages &&
-               face < mFacesCount &&
-               ImageInfoAt(level, 0).mIsDefined;
-    }
-
-    static size_t FaceForTarget(WebGLenum target) {
-        return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
     }
 
 protected:
@@ -962,7 +925,7 @@ public:
         // this function should only be called by bindTexture().
         // it assumes that the GL context is already current.
 
-        PRBool firstTimeThisTextureIsBound = !mHasEverBeenBound;
+        PRBool firstTimeThisTextureIsBound = mTarget == 0;
 
         if (!firstTimeThisTextureIsBound && aTarget != mTarget) {
             mContext->ErrorInvalidOperation("bindTexture: this texture has already been bound to a different target");
@@ -986,18 +949,18 @@ public:
             if (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP && !mContext->gl->IsGLES2())
                 mContext->gl->fTexParameteri(mTarget, LOCAL_GL_TEXTURE_WRAP_R, LOCAL_GL_CLAMP_TO_EDGE);
         }
-
-        mHasEverBeenBound = PR_TRUE;
     }
 
     void SetImageInfo(WebGLenum aTarget, WebGLint aLevel,
                       WebGLsizei aWidth, WebGLsizei aHeight,
-                      WebGLenum aFormat = 0, WebGLenum aType = 0)
-    {
-        if ( (aTarget == LOCAL_GL_TEXTURE_2D) != (mTarget == LOCAL_GL_TEXTURE_2D) )
-            return;
-
-        size_t face = FaceForTarget(aTarget);
+                      WebGLenum aFormat = 0, WebGLenum aType = 0) {
+        size_t face = 0;
+        if (aTarget == LOCAL_GL_TEXTURE_2D) {
+            if (mTarget != LOCAL_GL_TEXTURE_2D) return;
+        } else {
+            if (mTarget == LOCAL_GL_TEXTURE_2D) return;
+            face = aTarget - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+        }
 
         EnsureMaxLevelWithCustomImagesAtLeast(aLevel);
 
@@ -1422,7 +1385,7 @@ public:
         WebGLContextBoundObject(context),
         mName(name),
         mInternalFormat(0),
-        mDeleted(PR_FALSE), mHasEverBeenBound(PR_FALSE), mInitialized(PR_FALSE)
+        mDeleted(PR_FALSE), mInitialized(PR_FALSE)
     { }
 
     void Delete() {
@@ -1432,8 +1395,6 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() const { return mDeleted; }
-    PRBool HasEverBeenBound() { return mHasEverBeenBound; }
-    void SetHasEverBeenBound(PRBool x) { mHasEverBeenBound = x; }
     WebGLuint GLName() const { return mName; }
 
     PRBool Initialized() const { return mInitialized; }
@@ -1450,7 +1411,6 @@ protected:
     WebGLenum mInternalFormat;
 
     PRBool mDeleted;
-    PRBool mHasEverBeenBound;
     PRBool mInitialized;
 
     friend class WebGLFramebuffer;
@@ -1555,7 +1515,7 @@ public:
 
     WebGLFramebuffer(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mHasEverBeenBound(PR_FALSE),
+        mName(name), mDeleted(PR_FALSE),
         mColorAttachment(LOCAL_GL_COLOR_ATTACHMENT0),
         mDepthAttachment(LOCAL_GL_DEPTH_ATTACHMENT),
         mStencilAttachment(LOCAL_GL_STENCIL_ATTACHMENT),
@@ -1569,8 +1529,6 @@ public:
         mDeleted = PR_TRUE;
     }
     PRBool Deleted() { return mDeleted; }
-    PRBool HasEverBeenBound() { return mHasEverBeenBound; }
-    void SetHasEverBeenBound(PRBool x) { mHasEverBeenBound = x; }
     WebGLuint GLName() { return mName; }
 
     nsresult FramebufferRenderbuffer(WebGLenum target,
@@ -1861,7 +1819,6 @@ protected:
 
     WebGLuint mName;
     PRPackedBool mDeleted;
-    PRBool mHasEverBeenBound;
 
     // we only store pointers to attached renderbuffers, not to attached textures, because
     // we will only need to initialize renderbuffers. Textures are already initialized.

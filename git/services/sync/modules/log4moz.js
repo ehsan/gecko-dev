@@ -43,6 +43,8 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
 const MODE_CREATE   = 0x08;
@@ -153,6 +155,8 @@ function LogMessage(loggerName, level, message){
   this.time = Date.now();
 }
 LogMessage.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
   get levelDesc() {
     if (this.level in Log4Moz.Level.Desc)
       return Log4Moz.Level.Desc[this.level];
@@ -174,12 +178,14 @@ function Logger(name, repository) {
   if (!repository)
     repository = Log4Moz.repository;
   this._name = name;
-  this.children = [];
-  this.ownAppenders = [];
-  this.appenders = [];
+  this._appenders = [];
   this._repository = repository;
 }
 Logger.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
+  parent: null,
+
   get name() {
     return this._name;
   },
@@ -197,97 +203,59 @@ Logger.prototype = {
     this._level = level;
   },
 
-  _parent: null,
-  get parent() this._parent,
-  set parent(parent) {
-    if (this._parent == parent) {
-      return;
-    }
-    // Remove ourselves from parent's children
-    if (this._parent) {
-      let index = this._parent.children.indexOf(this);
-      if (index != -1) {
-        this._parent.children.splice(index, 1);
-      }
-    }
-    this._parent = parent;
-    parent.children.push(this);
-    this.updateAppenders();
-  },
-
-  updateAppenders: function updateAppenders() {
-    if (this._parent) {
-      let notOwnAppenders = this._parent.appenders.filter(function(appender) {
-        return this.ownAppenders.indexOf(appender) == -1;
-      }, this);
-      this.appenders = notOwnAppenders.concat(this.ownAppenders);
-    } else {
-      this.appenders = this.ownAppenders.slice();
-    }
-
-    // Update children's appenders.
-    for (let i = 0; i < this.children.length; i++) {
-      this.children[i].updateAppenders();
-    }
+  _appenders: null,
+  get appenders() {
+    if (!this.parent)
+      return this._appenders;
+    return this._appenders.concat(this.parent.appenders);
   },
 
   addAppender: function Logger_addAppender(appender) {
-    if (this.ownAppenders.indexOf(appender) != -1) {
-      return;
+    for (let i = 0; i < this._appenders.length; i++) {
+      if (this._appenders[i] == appender)
+        return;
     }
-    this.ownAppenders.push(appender);
-    this.updateAppenders();
+    this._appenders.push(appender);
   },
 
   removeAppender: function Logger_removeAppender(appender) {
-    let index = this.ownAppenders.indexOf(appender);
-    if (index == -1) {
-      return;
+    let newAppenders = [];
+    for (let i = 0; i < this._appenders.length; i++) {
+      if (this._appenders[i] != appender)
+        newAppenders.push(this._appenders[i]);
     }
-    this.ownAppenders.splice(index, 1);
-    this.updateAppenders();
+    this._appenders = newAppenders;
   },
 
-  log: function Logger_log(level, string) {
-    if (this.level > level)
+  log: function Logger_log(message) {
+    if (this.level > message.level)
       return;
-
-    // Hold off on creating the message object until we actually have
-    // an appender that's responsible.
-    let message;
     let appenders = this.appenders;
     for (let i = 0; i < appenders.length; i++){
-      let appender = appenders[i];
-      if (appender.level > level)
-        continue;
-
-      if (!message)
-        message = new LogMessage(this._name, level, string);
-
-      appender.append(message);
+      appenders[i].append(message);
     }
   },
 
   fatal: function Logger_fatal(string) {
-    this.log(Log4Moz.Level.Fatal, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Fatal, string));
   },
   error: function Logger_error(string) {
-    this.log(Log4Moz.Level.Error, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Error, string));
   },
   warn: function Logger_warn(string) {
-    this.log(Log4Moz.Level.Warn, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Warn, string));
   },
   info: function Logger_info(string) {
-    this.log(Log4Moz.Level.Info, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Info, string));
   },
   config: function Logger_config(string) {
-    this.log(Log4Moz.Level.Config, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Config, string));
   },
   debug: function Logger_debug(string) {
-    this.log(Log4Moz.Level.Debug, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Debug, string));
   },
   trace: function Logger_trace(string) {
-    this.log(Log4Moz.Level.Trace, string);
+    this.log(new LogMessage(this._name, Log4Moz.Level.Trace, string));
   }
 };
 
@@ -298,6 +266,8 @@ Logger.prototype = {
 
 function LoggerRepository() {}
 LoggerRepository.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
   _loggers: {},
 
   _rootLogger: null,
@@ -308,9 +278,10 @@ LoggerRepository.prototype = {
     }
     return this._rootLogger;
   },
-  set rootLogger(logger) {
-    throw "Cannot change the root logger";
-  },
+  // FIXME: need to update all parent values if we do this
+  //set rootLogger(logger) {
+  //  this._rootLogger = logger;
+  //},
 
   _updateParents: function LogRep__updateParents(name) {
     let pieces = name.split('.');
@@ -342,6 +313,8 @@ LoggerRepository.prototype = {
   },
 
   getLogger: function LogRep_getLogger(name) {
+    if (!name)
+      name = this.getLogger.caller.name;
     if (name in this._loggers)
       return this._loggers[name];
     this._loggers[name] = new Logger(name, this);
@@ -359,10 +332,11 @@ LoggerRepository.prototype = {
 // Abstract formatter
 function Formatter() {}
 Formatter.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
   format: function Formatter_format(message) {}
 };
 
-// Basic formatter that doesn't do anything fancy
+// FIXME: should allow for formatting the whole string, not just the date
 function BasicFormatter(dateFormat) {
   if (dateFormat)
     this.dateFormat = dateFormat;
@@ -370,9 +344,32 @@ function BasicFormatter(dateFormat) {
 BasicFormatter.prototype = {
   __proto__: Formatter.prototype,
 
+  _dateFormat: null,
+
+  get dateFormat() {
+    if (!this._dateFormat)
+      this._dateFormat = "%Y-%m-%d %H:%M:%S";
+    return this._dateFormat;
+  },
+
+  set dateFormat(format) {
+    this._dateFormat = format;
+  },
+
   format: function BF_format(message) {
-    return message.time + "\t" + message.loggerName + "\t" + message.levelDesc 
-           + "\t" + message.message + "\n";
+    // Pad a string to a certain length (20) with a character (space)
+    let pad = function BF__pad(str, len, chr) str +
+      new Array(Math.max((len || 20) - str.length + 1, 0)).join(chr || " ");
+
+    // Generate a date string because toLocaleString doesn't work XXX 514803
+    let z = function(n) n < 10 ? "0" + n : n;
+    let d = new Date(message.time);
+    let dateStr = [d.getFullYear(), "-", z(d.getMonth() + 1), "-",
+      z(d.getDate()), " ", z(d.getHours()), ":", z(d.getMinutes()), ":",
+      z(d.getSeconds())].join("");
+
+    return dateStr + "\t" + pad(message.loggerName) + " " + message.levelDesc +
+      "\t" + message.message + "\n";
   }
 };
 
@@ -387,10 +384,15 @@ function Appender(formatter) {
   this._formatter = formatter? formatter : new BasicFormatter();
 }
 Appender.prototype = {
-  level: Log4Moz.Level.All,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+
+  _level: Log4Moz.Level.All,
+  get level() { return this._level; },
+  set level(level) { this._level = level; },
 
   append: function App_append(message) {
-    this.doAppend(this._formatter.format(message));
+    if(this._level <= message.level)
+      this.doAppend(this._formatter.format(message));
   },
   toString: function App_toString() {
     return this._name + " [level=" + this._level +

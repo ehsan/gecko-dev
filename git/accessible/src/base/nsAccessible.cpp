@@ -1005,7 +1005,11 @@ nsAccessible::GetBounds(PRInt32* aX, PRInt32* aY,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  // Flush layout so that all the frame construction, reflow, and styles are
+  // up-to-date since we rely on frames, and styles when calculating state.
+  // We don't flush the display because we don't care about painting.
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+  presShell->FlushPendingNotifications(Flush_Layout);
 
   // This routine will get the entire rectangle for all the frames in this node.
   // -------------------------------------------------------------------------
@@ -1520,6 +1524,14 @@ NS_IMETHODIMP
 nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
+
+  if (!IsDefunct()) {
+    // Flush layout so that all the frame construction, reflow, and styles are
+    // up-to-date since we rely on frames, and styles when calculating state.
+    // We don't flush the display because we don't care about painting.
+    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    presShell->FlushPendingNotifications(Flush_Layout);
+  }
 
   nsresult rv = GetStateInternal(aState, aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);

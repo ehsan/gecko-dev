@@ -39,7 +39,7 @@
 let TabView = {
   _deck: null,
   _window: null,
-  _firstUseExperienced: false,
+  _firstRunExperienced: false,
   _browserKeyHandlerInitialized: false,
   VISIBILITY_IDENTIFIER: "tabview-visibility",
 
@@ -51,16 +51,10 @@ let TabView = {
     let title = gNavigatorBundle.getFormattedString("tabView2.title", [brandShortName]);
     return this.windowTitle = title;
   },
-
+  
   // ----------
-  get firstUseExperienced() {
-    return this._firstUseExperienced;
-  },
-
-  // ----------
-  set firstUseExperienced(val) {
-    if (val != this._firstUseExperienced)
-      Services.prefs.setBoolPref("browser.panorama.experienced_first_run", val);
+  get firstRunExperienced() {
+    return this._firstRunExperienced;
   },
 
   // ----------
@@ -70,7 +64,7 @@ let TabView = {
       Services.prefs.addObserver(
         "browser.panorama.experienced_first_run", this, false);
     } else {
-      this._firstUseExperienced = true;
+      this._firstRunExperienced = true;
 
       if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
         this._setBrowserKeyHandlers();
@@ -105,15 +99,14 @@ let TabView = {
     if (topic == "nsPref:changed") {
       Services.prefs.removeObserver(
         "browser.panorama.experienced_first_run", this);
-      this._firstUseExperienced = true;
-      this._addToolbarButton();
+      this._firstRunExperienced = true;
     }
   },
 
   // ----------
   // Uninitializes TabView.
   uninit: function TabView_uninit() {
-    if (!this._firstUseExperienced) {
+    if (!this._firstRunExperienced) {
       Services.prefs.removeObserver(
         "browser.panorama.experienced_first_run", this);
     }
@@ -141,7 +134,7 @@ let TabView = {
       iframe.flex = 1;
 
       if (typeof callback == "function")
-        window.addEventListener("tabviewframeinitialized", callback, false);
+        iframe.addEventListener("DOMContentLoaded", callback, false);
 
       iframe.setAttribute("src", "chrome://browser/content/tabview.html");
       this._deck.appendChild(iframe);
@@ -329,28 +322,5 @@ let TabView = {
     // there are hidden tabs so initialize the iframe and update the context menu
     if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
       this.updateContextMenu(TabContextMenu.contextTab, event.target);
-  },
-
-  // ----------
-  // Function: _addToolbarButton
-  // Adds the TabView button to the TabsToolbar.
-  _addToolbarButton: function TabView__addToolbarButton() {
-    let buttonId = "tabview-button";
-
-    if (document.getElementById(buttonId))
-      return;
-
-    let toolbar = document.getElementById("TabsToolbar");
-    let currentSet = toolbar.currentSet.split(",");
-
-    let alltabsPos = currentSet.indexOf("alltabs-button");
-    if (-1 == alltabsPos)
-      return;
-
-    currentSet[alltabsPos] += "," + buttonId;
-    currentSet = currentSet.join(",");
-    toolbar.currentSet = currentSet;
-    toolbar.setAttribute("currentset", currentSet);
-    document.persist(toolbar.id, "currentset");
   }
 };

@@ -75,7 +75,7 @@ class GeckoAppShell
 
     static private final Timer mIMETimer = new Timer();
     static private final HashMap<Integer, AlertNotification>
-        mAlertNotifications = new HashMap<Integer, AlertNotification>();
+         mAlertNotifications = new HashMap<Integer, AlertNotification>();
 
     static private final int NOTIFY_IME_RESETINPUTSTATE = 0;
     static private final int NOTIFY_IME_SETOPENSTATE = 1;
@@ -110,19 +110,10 @@ class GeckoAppShell
     }
 
     public static long getFreeSpace() {
-        try {
-            if (sFreeSpace == -1) {
-                File cacheDir = getCacheDir();
-                if (cacheDir != null) {
-                    StatFs cacheStats = new StatFs(cacheDir.getPath());
-                    sFreeSpace = cacheStats.getFreeBlocks() *
-                        cacheStats.getBlockSize();
-                } else {
-                    Log.i("GeckoAppShell", "Unable to get cache dir");
-                }
-            }
-        } catch (Exception e) {
-            Log.e("GeckoAppShell", "exception while stating cache dir: ", e);
+        if (sFreeSpace == -1) {
+            StatFs cacheStats = new StatFs(getCacheDir().getPath());
+            sFreeSpace = cacheStats.getFreeBlocks() * 
+                cacheStats.getBlockSize();
         }
         return sFreeSpace;
     }
@@ -149,7 +140,7 @@ class GeckoAppShell
             inChannel.close();
             outChannel.close();
             outFile.setLastModified(lastModified);
-
+            
             if (transferred == size)
                 inFile.delete();
             else
@@ -186,7 +177,7 @@ class GeckoAppShell
                 if (file.isDirectory())
                     retVal = moveDir(file, dest) ? retVal : false;
                 else
-                    retVal = moveFile(file, dest) ? retVal : false;
+                retVal = moveFile(file, dest) ? retVal : false;
             }
             from.delete();
         } catch(Exception e) {
@@ -203,8 +194,7 @@ class GeckoAppShell
         System.loadLibrary("mozutils");
         GeckoApp geckoApp = GeckoApp.mAppContext;
         String homeDir;
-        if (Build.VERSION.SDK_INT < 8 ||
-            geckoApp.getApplication().getPackageResourcePath().startsWith("/data")) {
+        if (geckoApp.getApplication().getPackageResourcePath().startsWith("/data")) {
             File home = geckoApp.getFilesDir();
             homeDir = home.getPath();
             // handle the application being moved to phone from sdcard
@@ -213,12 +203,11 @@ class GeckoAppShell
                         GeckoApp.mAppContext.getPackageName() + "/mozilla");
             if (oldHome.exists())
                 moveDir(oldHome, profileDir);
-            if (Build.VERSION.SDK_INT >= 8) {
-                File extHome =  geckoApp.getExternalFilesDir(null);
-                File extProf = new File (extHome, "mozilla");
-                if (extHome != null && extProf != null && extProf.exists())
-                    moveDir(extProf, profileDir);
-            }
+
+            File extHome =  geckoApp.getExternalFilesDir(null);
+            File extProf = new File (extHome, "mozilla");
+            if (extHome.exists())
+                moveDir(extProf, profileDir);
         } else {
             File home = geckoApp.getExternalFilesDir(null);
             homeDir = home.getPath();
@@ -231,7 +220,7 @@ class GeckoAppShell
 
             File intHome =  geckoApp.getFilesDir();
             File intProf = new File(intHome, "mozilla");
-            if (intHome != null && intProf != null && intProf.exists())
+            if (intHome.exists())
                 moveDir(intProf, profileDir);
         }
         GeckoAppShell.putenv("HOME=" + homeDir);
@@ -263,15 +252,11 @@ class GeckoAppShell
         long freeSpace = getFreeSpace();
         try {
             File downloadDir = null;
-            File updatesDir  = null;
-            if (Build.VERSION.SDK_INT >= 8) {
-                downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                updatesDir  = GeckoApp.mAppContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            } else {
-                updatesDir = downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
-            }
+            if (Build.VERSION.SDK_INT >= 8)
+                downloadDir = GeckoApp.mAppContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            else
+                downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
             GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
-            GeckoAppShell.putenv("UPDATES_DIRECTORY="   + updatesDir.getPath());
         }
         catch (Exception e) {
             Log.i("GeckoApp", "No download directory has been found: " + e);
@@ -334,7 +319,7 @@ class GeckoAppShell
             }
         } catch (NoSuchElementException e) {}
     }
-
+ 
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
             notifyGeckoOfEvent(e);
@@ -395,7 +380,7 @@ class GeckoAppShell
                 instance = null;
             }
 
-            InputMethodManager imm = (InputMethodManager)
+            InputMethodManager imm = (InputMethodManager) 
                 GeckoApp.surfaceView.getContext().getSystemService(
                     Context.INPUT_METHOD_SERVICE);
             if (imm == null)
@@ -408,7 +393,7 @@ class GeckoAppShell
                 return;
 
             if (GeckoApp.surfaceView.mIMEState !=
-                GeckoSurfaceView.IME_STATE_DISABLED)
+                    GeckoSurfaceView.IME_STATE_DISABLED)
                 imm.showSoftInput(GeckoApp.surfaceView, 0);
             else
                 imm.hideSoftInputFromWindow(
@@ -439,13 +424,13 @@ class GeckoAppShell
         }
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint,
+    public static void notifyIMEEnabled(int state, String typeHint, 
                                         String actionHint) {
         if (GeckoApp.surfaceView == null)
             return;
 
         /* When IME is 'disabled', IME processing is disabled.
-           In addition, the IME UI is hidden */
+            In addition, the IME UI is hidden */
         GeckoApp.surfaceView.mIMEState = state;
         GeckoApp.surfaceView.mIMETypeHint = typeHint;
         GeckoApp.surfaceView.mIMEActionHint = actionHint;
@@ -457,7 +442,7 @@ class GeckoAppShell
             GeckoApp.surfaceView.inputConnection == null)
             return;
 
-        InputMethodManager imm = (InputMethodManager)
+        InputMethodManager imm = (InputMethodManager) 
             GeckoApp.surfaceView.getContext().getSystemService(
                 Context.INPUT_METHOD_SERVICE);
         if (imm == null)
@@ -472,7 +457,7 @@ class GeckoAppShell
     }
 
     public static void enableAccelerometer(boolean enable) {
-        SensorManager sm = (SensorManager)
+        SensorManager sm = (SensorManager) 
             GeckoApp.surfaceView.getContext().getSystemService(Context.SENSOR_SERVICE);
 
         if (enable) {
@@ -541,9 +526,9 @@ class GeckoAppShell
     }
     static void scheduleRestart() {
         Log.i("GeckoAppJava", "scheduling restart");
-        gRestartScheduled = true;
+        gRestartScheduled = true;        
     }
-
+ 
     // "Installs" an application by creating a shortcut
     static void installWebApplication(String aURI, String aTitle, String aIconData) {
         Log.w("GeckoAppJava", "installWebApplication for " + aURI + " [" + aTitle + "]");
@@ -553,7 +538,7 @@ class GeckoAppShell
         shortcutIntent.setClassName(GeckoApp.mAppContext,
                                     GeckoApp.mAppContext.getPackageName() + ".App");
         shortcutIntent.putExtra("args", "--webapp=" + aURI);
-
+        
         Intent intent = new Intent();
         intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
         intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
@@ -563,7 +548,7 @@ class GeckoAppShell
         intent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
         GeckoApp.mAppContext.sendBroadcast(intent);
     }
-
+    
     static String[] getHandlersForMimeType(String aMimeType, String aAction) {
         Intent intent = getIntentForActionString(aAction);
         if (aMimeType != null && aMimeType.length() > 0)
@@ -580,7 +565,7 @@ class GeckoAppShell
     }
 
     static String[] getHandlersForIntent(Intent intent) {
-        PackageManager pm =
+        PackageManager pm = 
             GeckoApp.surfaceView.getContext().getPackageManager();
         List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
         int numAttr = 4;
@@ -632,7 +617,7 @@ class GeckoAppShell
         return type + "/" + subType;
     }
 
-    static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
+    static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName, 
                                    String aClassName, String aAction, String aTitle) {
         Intent intent = getIntentForActionString(aAction);
         if (aAction.equalsIgnoreCase(Intent.ACTION_SEND)) {
@@ -781,7 +766,7 @@ class GeckoAppShell
         mAlertNotifications.remove(notificationID);
 
         NotificationManager notificationManager = (NotificationManager)
-            GeckoApp.mAppContext.getSystemService(Context.NOTIFICATION_SERVICE);
+           GeckoApp.mAppContext.getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(notificationID);
     }
 
@@ -814,7 +799,7 @@ class GeckoAppShell
 
     public static void showInputMethodPicker() {
         InputMethodManager imm = (InputMethodManager) GeckoApp.surfaceView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.showInputMethodPicker();
+        imm.showInputMethodPicker();       
     }
 
     public static void hideProgressDialog() {
@@ -844,28 +829,5 @@ class GeckoAppShell
         if (cm.getActiveNetworkInfo() == null)
             return false;
         return true;
-    }
-
-    public static void setSelectedLocale(String localeCode) {
-        SharedPreferences settings =
-            GeckoApp.mAppContext.getPreferences(Activity.MODE_PRIVATE);
-        settings.edit().putString(GeckoApp.mAppContext.getPackageName() + ".locale",
-                                  localeCode).commit();
-        Locale locale;
-        int index;
-        if ((index = localeCode.indexOf('-')) != -1 ||
-            (index = localeCode.indexOf('_')) != -1) {
-            String langCode = localeCode.substring(0, index);
-            String countryCode = localeCode.substring(index + 1);
-            locale = new Locale(langCode, countryCode);
-        } else {
-            locale = new Locale(localeCode);
-        }
-        Locale.setDefault(locale);
-
-        Resources res = GeckoApp.mAppContext.getBaseContext().getResources();
-        Configuration config = res.getConfiguration();
-        config.locale = locale;
-        res.updateConfiguration(config, res.getDisplayMetrics());
     }
 }

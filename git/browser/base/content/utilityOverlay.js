@@ -206,7 +206,7 @@ function openLinkIn(url, where, params) {
 
   var w = getTopWin();
   if ((where == "tab" || where == "tabshifted") &&
-      w && w.document.documentElement.getAttribute("chromehidden")) {
+      w.document.documentElement.getAttribute("chromehidden")) {
     w = getTopWin(true);
     aRelatedToCurrent = false;
   }

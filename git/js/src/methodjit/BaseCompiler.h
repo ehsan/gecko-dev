@@ -168,13 +168,13 @@ class LinkerHelper : public JSC::LinkBuffer
         if (!ep)
             return ep;
 
+        m_size = masm.size();
         m_code = executableCopy(masm, ep);
         if (!m_code) {
             ep->release();
             js_ReportOutOfMemory(cx);
             return NULL;
         }
-        m_size = masm.size();   // must come after the call to executableCopy()
         return ep;
     }
 
@@ -266,8 +266,7 @@ class AutoReserveICSpace {
     }
 };
 
-# define RESERVE_IC_SPACE(__masm)       AutoReserveICSpace<128> arics(__masm)
-# define CHECK_IC_SPACE()               arics.check()
+# define RESERVE_IC_SPACE(__masm)       AutoReserveICSpace<96> arics(__masm)
 
 /* The OOL path can need a lot of space because we save and restore a lot of registers. The actual
  * sequene varies. However, dumping the literal pool before an OOL block is probably a good idea
@@ -279,7 +278,6 @@ class AutoReserveICSpace {
 # define CHECK_OOL_SPACE()              arics_ool.check()
 #else
 # define RESERVE_IC_SPACE(__masm)       /* Do nothing. */
-# define CHECK_IC_SPACE()               /* Do nothing. */
 # define RESERVE_OOL_SPACE(__masm)      /* Do nothing. */
 # define CHECK_OOL_SPACE()              /* Do nothing. */
 #endif

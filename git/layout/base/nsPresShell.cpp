@@ -225,8 +225,6 @@
 #define NS_TIME_FUNCTION_WITH_DOCURL do{} while(0)
 #endif
 
-#define ANCHOR_SCROLL_FLAGS (SCROLL_OVERFLOW_HIDDEN | SCROLL_NO_PARENT_FRAMES)
-
 #include "nsContentCID.h"
 static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 
@@ -1146,19 +1144,6 @@ protected:
     }
   }
 
-  nsresult HandleRetargetedEvent(nsEvent* aEvent, nsIView* aView,
-                                 nsEventStatus* aStatus, nsIContent* aTarget)
-  {
-    PushCurrentEventInfo(nsnull, nsnull);
-    mCurrentEventContent = aTarget;
-    nsresult rv = NS_OK;
-    if (GetCurrentEventFrame()) {
-      rv = HandleEventInternal(aEvent, aView, aStatus);
-    }
-    PopCurrentEventInfo();
-    return rv;
-  }
-
   nsRefPtr<nsCSSStyleSheet> mPrefStyleSheet; // mStyleSet owns it but we
                                              // maintain a ref, may be null
 #ifdef DEBUG
@@ -1212,7 +1197,6 @@ protected:
   nsCOMPtr<nsIContent> mContentToScrollTo;
   PRIntn mContentScrollVPosition;
   PRIntn mContentScrollHPosition;
-  PRUint32 mContentToScrollToFlags;
 
   class nsDelayedEvent
   {
@@ -3960,7 +3944,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
     if (aScroll) {
       rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_TOP,
                                  NS_PRESSHELL_SCROLL_ANYWHERE,
-                                 ANCHOR_SCROLL_FLAGS);
+                                 SCROLL_OVERFLOW_HIDDEN);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
@@ -4067,7 +4051,7 @@ PresShell::ScrollToAnchor()
 
   nsresult rv = ScrollContentIntoView(mLastAnchorScrolledTo, NS_PRESSHELL_SCROLL_TOP,
                                       NS_PRESSHELL_SCROLL_ANYWHERE,
-                                      ANCHOR_SCROLL_FLAGS);
+                                      SCROLL_OVERFLOW_HIDDEN);
   mLastAnchorScrolledTo = nsnull;
   return rv;
 }
@@ -4263,7 +4247,6 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   mContentToScrollTo = aContent;
   mContentScrollVPosition = aVPercent;
   mContentScrollHPosition = aHPercent;
-  mContentToScrollToFlags = aFlags;
 
   // Flush layout and attempt to scroll in the process.
   currentDoc->FlushPendingNotifications(Flush_InterruptibleLayout);
@@ -4367,7 +4350,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
     }
     rect += container->GetPosition();
     nsIFrame* parent = container->GetParent();
-    if (!parent && !(aFlags & nsIPresShell::SCROLL_NO_PARENT_FRAMES)) {
+    if (!parent) {
       nsPoint extraOffset(0,0);
       parent = nsLayoutUtils::GetCrossDocParentFrame(container, &extraOffset);
       if (parent) {
@@ -4822,9 +4805,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
 
   // If layout could possibly trigger scripts, then it's only safe to flush if
   // it's safe to run script.
-  PRBool hasHadScriptObject;
-  if (mDocument->GetScriptHandlingObject(hasHadScriptObject) ||
-      hasHadScriptObject) {
+  if (mDocument->GetScriptGlobalObject()) {
     isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
   }
 
@@ -4917,7 +4898,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView(mContentToScrollTo, mContentScrollVPosition,
                                 mContentScrollHPosition,
-                                mContentToScrollToFlags);
+                                SCROLL_OVERFLOW_HIDDEN);
         mContentToScrollTo = nsnull;
       }
     }
@@ -4930,16 +4911,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (rootPresContext) {
         rootPresContext->UpdatePluginGeometry();
       }
-#ifdef DEBUG
-      if (!mIsDestroying) {
-        nsIView* rootView;
-        if (NS_SUCCEEDED(mViewManager->GetRootView(rootView)) && rootView) {
-          nsRect bounds = rootView->GetBounds();
-          NS_ASSERTION(bounds.Size() == mPresContext->GetVisibleArea().Size(),
-                       "root view / pres context visible size mismatch");
-        }
-      }
-#endif
     }
 
     PRUint32 updateFlags = NS_VMREFRESH_NO_SYNC;
@@ -6741,12 +6712,11 @@ PresShell::HandleEvent(nsIView         *aView,
 
     // key and IME related events go to the focused frame in this DOM window.
     if (NS_IsEventTargetedAtFocusedContent(aEvent)) {
-      mCurrentEventContent = nsnull;
-
+      NS_ASSERTION(mDocument, "mDocument is null");
       nsCOMPtr<nsPIDOMWindow> window =
         do_QueryInterface(mDocument->GetWindow());
       nsCOMPtr<nsPIDOMWindow> focusedWindow;
-      nsCOMPtr<nsIContent> eventTarget =
+      mCurrentEventContent =
         nsFocusManager::GetFocusedDescendant(window, PR_FALSE,
                                              getter_AddRefs(focusedWindow));
 
@@ -6754,13 +6724,12 @@ PresShell::HandleEvent(nsIView         *aView,
       // no frame, just use the root content. This ensures that key events
       // still get sent to the window properly if nothing is focused or if a
       // frame goes away while it is focused.
-      if (!eventTarget || !eventTarget->GetPrimaryFrame()) {
-        eventTarget = mDocument->GetRootElement();
-      }
+      if (!mCurrentEventContent || !GetCurrentEventFrame())
+        mCurrentEventContent = mDocument->GetRootElement();
 
       if (aEvent->message == NS_KEY_DOWN) {
         NS_IF_RELEASE(gKeyDownTarget);
-        NS_IF_ADDREF(gKeyDownTarget = eventTarget);
+        NS_IF_ADDREF(gKeyDownTarget = mCurrentEventContent);
       }
       else if ((aEvent->message == NS_KEY_PRESS || aEvent->message == NS_KEY_UP) &&
                gKeyDownTarget) {
@@ -6770,10 +6739,10 @@ PresShell::HandleEvent(nsIView         *aView,
         // retarget the event back at the keydown target. This prevents a
         // content area from grabbing the focus from chrome in-between key
         // events.
-        if (eventTarget &&
+        if (mCurrentEventContent &&
             nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) !=
-            nsContentUtils::IsChromeDoc(eventTarget->GetCurrentDoc())) {
-          eventTarget = gKeyDownTarget;
+            nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
+          mCurrentEventContent = gKeyDownTarget;
         }
 
         if (aEvent->message == NS_KEY_UP) {
@@ -6782,23 +6751,6 @@ PresShell::HandleEvent(nsIView         *aView,
       }
 
       mCurrentEventFrame = nsnull;
-      nsIDocument* targetDoc = eventTarget ? eventTarget->GetOwnerDoc() : nsnull;
-      if (targetDoc && targetDoc != mDocument) {
-        PopCurrentEventInfo();
-        nsIPresShell* shell = targetDoc->GetShell();
-        nsCOMPtr<nsIViewObserver> vo = do_QueryInterface(shell);
-        if (vo) {
-          nsIView* root = nsnull;
-          shell->GetViewManager()->GetRootView(root);
-          rv = static_cast<PresShell*>(shell)->HandleRetargetedEvent(aEvent,
-                                                                     root,
-                                                                     aEventStatus,
-                                                                     eventTarget);
-        }
-        return rv;
-      } else {
-        mCurrentEventContent = eventTarget;
-      }
         
       if (!mCurrentEventContent || !GetCurrentEventFrame() ||
           InZombieDocument(mCurrentEventContent)) {
@@ -8216,7 +8168,6 @@ PresShell::Observe(nsISupports* aSubject,
 #ifdef ACCESSIBILITY
   if (!nsCRT::strcmp(aTopic, "a11y-init-or-shutdown")) {
     gIsAccessibilityActive = aData && *aData == '1';
-    return NS_OK;
   }
 #endif
   NS_WARNING("unrecognized topic in PresShell::Observe");

@@ -281,6 +281,7 @@ public:
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
+    void               GrabKeyboard (void);
     void               ReleaseGrabs (void);
 
     enum PluginType {
@@ -399,7 +400,8 @@ private:
 
     PRUint32            mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
-                        mRetryPointerGrab : 1;
+                        mRetryPointerGrab : 1,
+                        mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
     PRInt32             mSizeState;
     PluginType          mPluginType;

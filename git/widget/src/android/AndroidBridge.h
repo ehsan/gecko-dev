@@ -184,8 +184,6 @@ public:
 
     bool IsNetworkLinkKnown();
 
-    void SetSelectedLocale(const nsACString&);
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             // Make sure there is enough space to store a local ref to the
@@ -216,8 +214,6 @@ public:
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
-
-    bool GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt);
 
     void SetKeepScreenOn(bool on);
 
@@ -272,7 +268,6 @@ protected:
     jmethodID jSetKeepScreenOn;
     jmethodID jIsNetworkLinkUp;
     jmethodID jIsNetworkLinkKnown;
-    jmethodID jSetSelectedLocale;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

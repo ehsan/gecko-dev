@@ -1101,7 +1101,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
                          "Seek target should lie inside the first audio block after seek");
             PRInt64 startTime = (audio && audio->mTime < seekTime) ? audio->mTime : seekTime;
             mAudioStartTime = startTime;
-            mPlayDuration = TimeDuration::FromMilliseconds(startTime - mStartTime);
+            mPlayDuration = TimeDuration::FromMilliseconds(startTime);
             if (HasVideo()) {
               nsAutoPtr<VideoData> video(mReader->mVideoQueue.PeekFront());
               if (video) {
@@ -1326,8 +1326,7 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
       clock_time = audio_time;
       // Resync against the audio clock, while we're trusting the
       // audio clock. This ensures no "drift", particularly on Linux.
-      mPlayDuration = TimeDuration::FromMilliseconds(clock_time - mStartTime);
-      mPlayStartTime = TimeStamp::Now();
+      mPlayStartTime = TimeStamp::Now() - TimeDuration::FromMilliseconds(clock_time);
     } else {
       // Sound is disabled on this system. Sync to the system clock.
       TimeDuration t = TimeStamp::Now() - mPlayStartTime + mPlayDuration;
@@ -1337,41 +1336,33 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
       clock_time = NS_MAX(mCurrentFrameTime, clock_time) + mStartTime;
     }
 
-    PRInt64 remainingTime = AUDIO_DURATION_MS;
-
     NS_ASSERTION(clock_time >= mStartTime, "Should have positive clock time.");
-    nsAutoPtr<VideoData> currentFrame;
+    nsAutoPtr<VideoData> videoData;
     if (mReader->mVideoQueue.GetSize() > 0) {
-      VideoData* frame = mReader->mVideoQueue.PeekFront();
-      while (clock_time >= frame->mTime) {
-        mVideoFrameEndTime = frame->mEndTime;
-        currentFrame = frame;
+      VideoData* data = mReader->mVideoQueue.PeekFront();
+      while (clock_time >= data->mTime) {
+        mVideoFrameEndTime = data->mEndTime;
+        videoData = data;
         mReader->mVideoQueue.PopFront();
-        mDecoder->UpdatePlaybackOffset(frame->mOffset);
+        mDecoder->UpdatePlaybackOffset(data->mOffset);
         if (mReader->mVideoQueue.GetSize() == 0)
           break;
-        frame = mReader->mVideoQueue.PeekFront();
-      }
-      // Current frame has already been presented, wait until it's time to
-      // present the next frame.
-      if (frame && !currentFrame) {
-        PRInt64 now = (TimeStamp::Now() - mPlayStartTime + mPlayDuration).ToMilliseconds();
-        remainingTime = frame->mTime - mStartTime - now;
+        data = mReader->mVideoQueue.PeekFront();
       }
     }
 
-    if (currentFrame) {
+    PRInt64 frameDuration = AUDIO_DURATION_MS;
+    if (videoData) {
       // Decode one frame and display it
-      NS_ASSERTION(currentFrame->mTime >= mStartTime, "Should have positive frame time");
+      NS_ASSERTION(videoData->mTime >= mStartTime, "Should have positive frame time");
       {
         MonitorAutoExit exitMon(mDecoder->GetMonitor());
         // If we have video, we want to increment the clock in steps of the frame
         // duration.
-        RenderVideoFrame(currentFrame);
+        RenderVideoFrame(videoData);
       }
-      PRInt64 now = (TimeStamp::Now() - mPlayStartTime + mPlayDuration).ToMilliseconds();
-      remainingTime = currentFrame->mEndTime - mStartTime - now;
-      currentFrame = nsnull;
+      frameDuration = videoData->mEndTime - videoData->mTime;
+      videoData = nsnull;
     }
 
     // Kick the decode thread in case it filled its buffers and put itself
@@ -1399,9 +1390,8 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
     // ready state. Post an update to do so.
     UpdateReadyState();
 
-    if (remainingTime > 0) {
-      Wait(remainingTime);
-    }
+    NS_ASSERTION(frameDuration >= 0, "Frame duration must be positive.");
+    Wait(frameDuration);
   } else {
     if (IsPlaying()) {
       StopPlayback(AUDIO_PAUSE);
@@ -1423,7 +1413,8 @@ void nsBuiltinDecoderStateMachine::Wait(PRUint32 aMs) {
          mState != DECODER_STATE_SHUTDOWN &&
          mState != DECODER_STATE_SEEKING)
   {
-    PRInt64 ms = NS_round((end - now).ToSeconds() * 1000);
+    TimeDuration d = end - now;
+    PRInt64 ms = d.ToSeconds() * 1000;
     if (ms == 0) {
       break;
     }

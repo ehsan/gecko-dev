@@ -95,20 +95,20 @@ resc_trace(JSTracer *trc, JSObject *obj)
 Class js::regexp_statics_class = {
     "RegExpStatics", 
     JSCLASS_HAS_PRIVATE | JSCLASS_MARK_IS_TRACE,
-    PropertyStub,         /* addProperty */
-    PropertyStub,         /* delProperty */
-    PropertyStub,         /* getProperty */
-    StrictPropertyStub,   /* setProperty */
+    PropertyStub,   /* addProperty */
+    PropertyStub,   /* delProperty */
+    PropertyStub,   /* getProperty */
+    PropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub,
     resc_finalize,
-    NULL,                 /* reserved0   */
-    NULL,                 /* checkAccess */
-    NULL,                 /* call        */
-    NULL,                 /* construct   */
-    NULL,                 /* xdrObject   */
-    NULL,                 /* hasInstance */
+    NULL,           /* reserved0   */
+    NULL,           /* checkAccess */
+    NULL,           /* call        */
+    NULL,           /* construct   */
+    NULL,           /* xdrObject   */
+    NULL,           /* hasInstance */
     JS_CLASS_TRACE(resc_trace)
 };
 
@@ -211,7 +211,6 @@ RegExp::handleYarrError(JSContext *cx, int error)
       COMPILE_EMSG(CharacterClassRangeSingleChar, JSMSG_BAD_CLASS_RANGE);
       COMPILE_EMSG(EscapeUnterminated, JSMSG_TRAILING_SLASH);
       COMPILE_EMSG(QuantifierTooLarge, JSMSG_BAD_QUANTIFIER);
-      COMPILE_EMSG(HitRecursionLimit, JSMSG_REGEXP_TOO_COMPLEX);
 #undef COMPILE_EMSG
       default:
         JS_NOT_REACHED("Precondition violation: unknown Yarr error code.");
@@ -225,7 +224,6 @@ RegExp::handlePCREError(JSContext *cx, int error)
     JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, msg_); \
     return
     switch (error) {
-      case -2: REPORT(JSMSG_REGEXP_TOO_COMPLEX);
       case 0: JS_NOT_REACHED("Precondition violation: an error must have occurred.");
       case 1: REPORT(JSMSG_TRAILING_SLASH);
       case 2: REPORT(JSMSG_TRAILING_SLASH);
@@ -324,7 +322,7 @@ DEFINE_GETTER(multiline_getter,  *vp = BooleanValue(re->multiline()))
 DEFINE_GETTER(sticky_getter,     *vp = BooleanValue(re->sticky()))
 
 static JSBool
-lastIndex_setter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
+lastIndex_setter(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     while (obj->getClass() != &js_RegExpClass) {
         obj = obj->getProto();
@@ -425,7 +423,7 @@ DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, 
 
 #define DEFINE_STATIC_SETTER(name, code)                                        \
     static JSBool                                                               \
-    name(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)       \
+    name(JSContext *cx, JSObject *obj, jsid id, jsval *vp)                      \
     {                                                                           \
         RegExpStatics *res = cx->regExpStatics();                               \
         code;                                                                   \
@@ -557,20 +555,20 @@ js::Class js_RegExpClass = {
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(JSObject::REGEXP_CLASS_RESERVED_SLOTS) |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_RegExp),
-    PropertyStub,         /* addProperty */
-    PropertyStub,         /* delProperty */
-    PropertyStub,         /* getProperty */
-    StrictPropertyStub,   /* setProperty */
+    PropertyStub,   /* addProperty */
+    PropertyStub,   /* delProperty */
+    PropertyStub,   /* getProperty */
+    PropertyStub,   /* setProperty */
     regexp_enumerate,
     reinterpret_cast<JSResolveOp>(regexp_resolve),
     ConvertStub,
     regexp_finalize,
-    NULL,                 /* reserved0 */
-    NULL,                 /* checkAccess */
+    NULL,           /* reserved0 */
+    NULL,           /* checkAccess */
     regexp_call,
-    NULL,                 /* construct */
+    NULL,           /* construct */
     js_XDRRegExpObject,
-    NULL,                 /* hasInstance */
+    NULL,           /* hasInstance */
     JS_CLASS_TRACE(regexp_trace)
 };
 
@@ -821,15 +819,10 @@ CompileRegExpAndSwap(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Valu
         return true;
     }
 
-    JSString *sourceStr;
-    if (sourceValue.isUndefined()) {
-        sourceStr = cx->runtime->emptyString;
-    } else {
-        /* Coerce to string and compile. */
-        sourceStr = js_ValueToString(cx, sourceValue);
-        if (!sourceStr)
-            return false;
-    }  
+    /* Coerce to string and compile. */
+    JSString *sourceStr = js_ValueToString(cx, sourceValue);
+    if (!sourceStr)
+        return false;
 
     uintN flags = 0;
     if (argc > 1 && !argv[1].isUndefined()) {
