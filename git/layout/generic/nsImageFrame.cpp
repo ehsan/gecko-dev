@@ -1531,9 +1531,10 @@ nsImageFrame::GetContentForEvent(nsEvent* aEvent,
     nsIntPoint p;
     TranslateEventCoords(
       nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this), p);
+    bool inside = false;
     nsCOMPtr<nsIContent> area = map->GetArea(p.x, p.y);
     if (area) {
-      area.forget(aContent);
+      area.swap(*aContent);
       return NS_OK;
     }
   }

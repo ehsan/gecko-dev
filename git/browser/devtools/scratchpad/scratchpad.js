@@ -156,8 +156,7 @@ var Scratchpad = {
     return {
       filename: this.filename,
       text: this.getText(),
-      executionContext: this.executionContext,
-      saved: this.saved
+      executionContext: this.executionContext
     };
   },
 
@@ -173,7 +172,6 @@ var Scratchpad = {
     if (aState.filename) {
       this.setFilename(aState.filename);
     }
-    this.saved = aState.saved;
 
     if (aState.executionContext == SCRATCHPAD_CONTEXT_BROWSER) {
       this.setBrowserContext();
@@ -491,12 +489,10 @@ var Scratchpad = {
 
   /**
    * Open a new Scratchpad window.
-   *
-   * @return nsIWindow
    */
   openScratchpad: function SP_openScratchpad()
   {
-    return ScratchpadManager.openScratchpad();
+    ScratchpadManager.openScratchpad();
   },
 
   /**
@@ -595,7 +591,7 @@ var Scratchpad = {
     fp.defaultString = "";
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
       this.setFilename(fp.file.path);
-      this.importFromFile(fp.file, false, this.onTextSaved.bind(this));
+      this.importFromFile(fp.file);
     }
   },
 
@@ -610,7 +606,7 @@ var Scratchpad = {
 
     let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
     file.initWithPath(this.filename);
-    this.exportToFile(file, true, false, this.onTextSaved.bind(this));
+    this.exportToFile(file, true);
   },
 
   /**
@@ -623,8 +619,8 @@ var Scratchpad = {
             Ci.nsIFilePicker.modeSave);
     fp.defaultString = "scratchpad.js";
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      this.setFilename(fp.file.path);
-      this.exportToFile(fp.file, true, false, this.onTextSaved.bind(this));
+      document.title = this.filename = fp.file.path;
+      this.exportToFile(fp.file, true);
     }
   },
 
@@ -763,15 +759,6 @@ var Scratchpad = {
                                  this.onContextMenu);
     this.editor.focus();
     this.editor.setCaretOffset(this.editor.getCharCount());
-    
-    if (this.filename && !this.saved) {
-      this.onTextChanged();
-    }
-    else if (this.filename && this.saved) {
-      this.onTextSaved();
-    }
-
-    this._triggerObservers("Ready");
   },
 
   /**
@@ -837,33 +824,6 @@ var Scratchpad = {
   },
 
   /**
-   * This method adds a listener to the editor for text changes. Called when
-   * a scratchpad is saved, opened from file, or restored from a saved file.
-   */
-  onTextSaved: function SP_onTextSaved(aStatus)
-  {
-    if (aStatus && !Components.isSuccessCode(aStatus)) {
-      return;
-    }
-    document.title = document.title.replace(/^\*/, "");
-    this.saved = true;
-    this.editor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
-                                 this.onTextChanged);
-  },
-
-  /**
-   * The scratchpad handler for editor text change events. This handler
-   * indicates that there are unsaved changes in the UI.
-   */
-  onTextChanged: function SP_onTextChanged()
-  {
-    document.title = "*" + document.title;
-    Scratchpad.saved = false;
-    Scratchpad.editor.removeEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
-                                          Scratchpad.onTextChanged);
-  },
-
-  /**
    * The Scratchpad window unload event handler. This method unloads/destroys
    * the source editor.
    *
@@ -881,68 +841,6 @@ var Scratchpad = {
     this.editor.destroy();
     this.editor = null;
   },
-
-  _observers: [],
-
-  /**
-   * Add an observer for Scratchpad events.
-   *
-   * The observer implements IScratchpadObserver := {
-   *   onReady:      Called when the Scratchpad and its SourceEditor are ready.
-   *                 Arguments: (Scratchpad aScratchpad)
-   * }
-   *
-   * All observer handlers are optional.
-   *
-   * @param IScratchpadObserver aObserver
-   * @see removeObserver
-   */
-  addObserver: function SP_addObserver(aObserver)
-  {
-    this._observers.push(aObserver);
-  },
-
-  /**
-   * Remove an observer for Scratchpad events.
-   *
-   * @param IScratchpadObserver aObserver
-   * @see addObserver
-   */
-  removeObserver: function SP_removeObserver(aObserver)
-  {
-    let index = this._observers.indexOf(aObserver);
-    if (index != -1) {
-      this._observers.splice(index, 1);
-    }
-  },
-
-  /**
-   * Trigger named handlers in Scratchpad observers.
-   *
-   * @param string aName
-   *        Name of the handler to trigger.
-   * @param Array aArgs
-   *        Optional array of arguments to pass to the observer(s).
-   * @see addObserver
-   */
-  _triggerObservers: function SP_triggerObservers(aName, aArgs)
-  {
-    // insert this Scratchpad instance as the first argument
-    if (!aArgs) {
-      aArgs = [this];
-    } else {
-      aArgs.unshift(this);
-    }
-
-    // trigger all observers that implement this named handler
-    for (let i = 0; i < this._observers.length; ++i) {
-      let observer = this._observers[i];
-      let handler = observer["on" + aName];
-      if (handler) {
-        handler.apply(observer, aArgs);
-      }
-    }
-  }
 };
 
 XPCOMUtils.defineLazyGetter(Scratchpad, "strings", function () {

@@ -61,6 +61,7 @@
 #include "nsScrollbarFrame.h"
 #include "nsThreadUtils.h"
 #include "mozilla/LookAndFeel.h"
+#include "nsITreeImageListener.h"
 
 class nsOverflowChecker;
 class nsTreeImageListener;

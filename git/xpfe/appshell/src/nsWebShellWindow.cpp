@@ -595,8 +595,7 @@ nsWebShellWindow::OnStateChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsWebShellWindow::OnLocationChange(nsIWebProgress *aProgress,
                                    nsIRequest *aRequest,
-                                   nsIURI *aURI,
-                                   PRUint32 aFlags)
+                                   nsIURI *aURI)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;

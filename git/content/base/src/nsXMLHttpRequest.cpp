@@ -71,7 +71,6 @@
 #include "nsIVariant.h"
 #include "xpcprivate.h"
 #include "nsIParser.h"
-#include "XPCQuickStubs.h"
 #include "nsStringStream.h"
 #include "nsIStreamConverterService.h"
 #include "nsICachingChannel.h"
@@ -1031,8 +1030,15 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponse(JSContext *aCx, jsval *aResult)
       nsString str;
       rv = GetResponseText(str);
       if (NS_FAILED(rv)) return rv;
-      NS_ENSURE_TRUE(xpc_qsStringToJsval(aCx, str, aResult),
-                     NS_ERROR_OUT_OF_MEMORY);
+      if (str.IsVoid()) {
+        *aResult = JSVAL_NULL;
+      } else {
+        nsStringBuffer* buf;
+        *aResult = XPCStringConvert::ReadableToJSVal(aCx, str, &buf);
+        if (buf) {
+          str.ForgetSharedBuffer();
+        }
+      }
     }
     break;
 

@@ -360,23 +360,24 @@ nsXBLProtoImplProperty::Read(nsIScriptContext* aContext,
                              nsIObjectInputStream* aStream,
                              XBLBindingSerializeDetails aType)
 {
+  nsresult rv;
+  void* scriptObject;
+
   if (aType == XBLBinding_Serialize_GetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    JSObject* getterObject;
-    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &getterObject);
+    rv = XBL_DeserializeFunction(aContext, aStream, this, &scriptObject);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mJSGetterObject = getterObject;
+    mJSGetterObject = (JSObject *)scriptObject;
     mJSAttributes |= JSPROP_GETTER | JSPROP_SHARED;
   }
 
   if (aType == XBLBinding_Serialize_SetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    JSObject* setterObject;
-    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &setterObject);
+    rv = XBL_DeserializeFunction(aContext, aStream, this, &scriptObject);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mJSSetterObject = setterObject;
+    mJSSetterObject = (JSObject *)scriptObject;
     mJSAttributes |= JSPROP_SETTER | JSPROP_SHARED;
   }
 

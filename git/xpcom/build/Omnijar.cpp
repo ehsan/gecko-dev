@@ -77,9 +77,8 @@ Omnijar::InitOne(nsIFile *aPath, Type aType)
     } else {
         nsCOMPtr<nsIFile> dir;
         nsDirectoryService::gService->Get(SPROP(aType), NS_GET_IID(nsIFile), getter_AddRefs(dir));
-        NS_NAMED_LITERAL_CSTRING (kOmnijarName, NS_STRINGIFY(OMNIJAR_NAME));
         if (NS_FAILED(dir->Clone(getter_AddRefs(file))) ||
-            NS_FAILED(file->AppendNative(kOmnijarName)))
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("omni.jar"))))
             return;
     }
     bool isFile;

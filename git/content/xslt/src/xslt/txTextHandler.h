@@ -45,7 +45,7 @@
 class txTextHandler : public txAXMLEventHandler
 {
 public:
-    txTextHandler(bool aOnlyText);
+    txTextHandler(MBool aOnlyText);
 
     TX_DECL_TXAXMLEVENTHANDLER
 
@@ -53,7 +53,7 @@ public:
 
 private:
     PRUint32 mLevel;
-    bool mOnlyText;
+    MBool mOnlyText;
 };
 
 #endif

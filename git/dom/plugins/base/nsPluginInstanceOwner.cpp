@@ -118,7 +118,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "gfxXlibNativeRenderer.h"
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "ANPBase.h"
 #include "android_npapi.h"
 #include "AndroidBridge.h"
@@ -1280,7 +1280,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
 
   // Add PARAM and null separator.
   mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING("PARAM"));
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   // Flash expects an empty string on android
   mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING(""));
 #else
@@ -1672,7 +1672,7 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 #endif
 }
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 void nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
 {
   void* javaSurface = mInstance->GetJavaSurface();
@@ -1714,7 +1714,7 @@ void nsPluginInstanceOwner::RemovePluginView()
 
 nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   {
     ANPEvent event;
     event.inSize = sizeof(ANPEvent);
@@ -2527,7 +2527,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   // this code supports windowless plugins
   {
     // The plugin needs focus to receive keyboard and touch events
@@ -2733,7 +2733,7 @@ nsPluginInstanceOwner::PrepareToStop(bool aDelayedStop)
   }
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   RemovePluginView();
 #endif
 
@@ -2833,7 +2833,7 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
 }
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 
 void nsPluginInstanceOwner::Paint(gfxContext* aContext,
                                   const gfxRect& aFrameRect,
@@ -3556,7 +3556,7 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(bool aSetWindow)
   if (mPluginWindowVisible && mPluginDocumentActiveState) {
     mPluginWindow->clipRect.right = mPluginWindow->width;
     mPluginWindow->clipRect.bottom = mPluginWindow->height;
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     if (mInstance) {
       ANPEvent event;
       event.inSize = sizeof(ANPEvent);
@@ -3568,7 +3568,7 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(bool aSetWindow)
   } else {
     mPluginWindow->clipRect.right = 0;
     mPluginWindow->clipRect.bottom = 0;
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     if (mInstance) {
       ANPEvent event;
       event.inSize = sizeof(ANPEvent);

@@ -237,7 +237,7 @@ public:
                               const nsIntRegion& aRegionToInvalidate,
                               void* aCallbackData);
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   /**
    * Dumps this FrameLayerBuilder's retained layer manager's retained
    * layer tree to stderr.
@@ -440,9 +440,6 @@ protected:
 
   // LayerManagerData needs to see DisplayItemDataEntry.
   friend class LayerManagerData;
-
-  // Flash the area within the context clip if paint flashing is enabled.
-  static void FlashPaint(gfxContext *aContext);
 
   /*
    * Get the DisplayItemData array associated with this frame, or null if one

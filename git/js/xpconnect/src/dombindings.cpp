@@ -676,7 +676,7 @@ ListBase<LC>::ensureExpandoObject(JSContext *cx, JSObject *obj)
             return NULL;
 
         js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, ObjectValue(*expando));
-        JS_SetPrivate(cx, expando, js::GetProxyPrivate(obj).toPrivate());
+        expando->setPrivate(js::GetProxyPrivate(obj).toPrivate());
     }
     return expando;
 }

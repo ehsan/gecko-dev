@@ -116,7 +116,7 @@ class Node : public TxObject
     //Node manipulation functions
     virtual Node* appendChild(Node* newChild) = 0;
 
-    virtual bool hasChildNodes() const = 0;
+    virtual MBool hasChildNodes() const = 0;
     
     //From DOM3 26-Jan-2001 WD
     virtual nsresult getBaseURI(nsAString& aURI) = 0;
@@ -125,7 +125,7 @@ class Node : public TxObject
     virtual nsresult getNamespaceURI(nsAString& aNSURI) = 0;
 
     //txXPathNode functions
-    virtual bool getLocalName(nsIAtom** aLocalName) = 0;
+    virtual MBool getLocalName(nsIAtom** aLocalName) = 0;
     virtual PRInt32 getNamespaceID() = 0;
     virtual Node* getXPathParent() = 0;
     virtual PRInt32 compareDocumentPosition(Node* aOther) = 0;
@@ -156,7 +156,7 @@ class NodeDefinition : public Node
     //Child node manipulation functions
     virtual Node* appendChild(Node* newChild);
 
-    bool hasChildNodes() const;
+    MBool hasChildNodes() const;
     
     //From DOM3 26-Jan-2001 WD
     virtual nsresult getBaseURI(nsAString& aURI);
@@ -165,7 +165,7 @@ class NodeDefinition : public Node
     nsresult getNamespaceURI(nsAString& aNSURI);
 
     //txXPathNode functions
-    virtual bool getLocalName(nsIAtom** aLocalName);
+    virtual MBool getLocalName(nsIAtom** aLocalName);
     virtual PRInt32 getNamespaceID();
     virtual Node* getXPathParent();
     virtual PRInt32 compareDocumentPosition(Node* aOther);
@@ -299,10 +299,10 @@ class Element : public NodeDefinition
 
     //txXPathNode functions override
     nsresult getNodeName(nsAString& aName) const;
-    bool getLocalName(nsIAtom** aLocalName);
+    MBool getLocalName(nsIAtom** aLocalName);
     PRInt32 getNamespaceID();
-    bool getAttr(nsIAtom* aLocalName, PRInt32 aNSID, nsAString& aValue);
-    bool hasAttr(nsIAtom* aLocalName, PRInt32 aNSID);
+    MBool getAttr(nsIAtom* aLocalName, PRInt32 aNSID, nsAString& aValue);
+    MBool hasAttr(nsIAtom* aLocalName, PRInt32 aNSID);
 
     // ID getter
     bool getIDValue(nsAString& aValue);
@@ -337,7 +337,7 @@ class Attr : public NodeDefinition
 
     //txXPathNode functions override
     nsresult getNodeName(nsAString& aName) const;
-    bool getLocalName(nsIAtom** aLocalName);
+    MBool getLocalName(nsIAtom** aLocalName);
     PRInt32 getNamespaceID();
     Node* getXPathParent();
     bool equals(nsIAtom *aLocalName, PRInt32 aNamespaceID)
@@ -373,7 +373,7 @@ class ProcessingInstruction : public NodeDefinition
 {
   public:
     //txXPathNode functions override
-    bool getLocalName(nsIAtom** aLocalName);
+    MBool getLocalName(nsIAtom** aLocalName);
 
   private:
     friend class Document;
@@ -415,15 +415,15 @@ public:
         return NS_OK;
     }
 
-    static bool init()
+    static MBool init()
     {
         NS_ASSERTION(!mNamespaces,
                      "called without matching shutdown()");
         if (mNamespaces)
-            return true;
+            return MB_TRUE;
         mNamespaces = new nsStringArray();
         if (!mNamespaces)
-            return false;
+            return MB_FALSE;
         /*
          * Hardwiring some Namespace IDs.
          * no Namespace is 0
@@ -435,10 +435,10 @@ public:
             !mNamespaces->AppendString(NS_LITERAL_STRING("http://www.w3.org/1999/XSL/Transform"))) {
             delete mNamespaces;
             mNamespaces = 0;
-            return false;
+            return MB_FALSE;
         }
 
-        return true;
+        return MB_TRUE;
     }
 
     static void shutdown()

@@ -6283,13 +6283,13 @@ IsFullScreenAndRestrictedKeyEvent(nsIContent* aTarget, const nsEvent* aEvent)
 
   // Bail out if the event is not a key event, or the target's document is
   // not in DOM full screen mode, or full-screen key input is not restricted.
-  nsIDocument *root = nsnull;
+  nsIDocument *doc;
   if (!aTarget ||
       (aEvent->message != NS_KEY_DOWN &&
       aEvent->message != NS_KEY_UP &&
       aEvent->message != NS_KEY_PRESS) ||
-      !(root = nsContentUtils::GetRootDocument(aTarget->OwnerDoc())) ||
-      !root->IsFullScreenDoc() ||
+      !(doc = aTarget->OwnerDoc()) ||
+      !doc->IsFullScreenDoc() ||
       !nsContentUtils::IsFullScreenKeyInputRestricted()) {
     return false;
   }
@@ -6368,10 +6368,9 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       case NS_KEY_UP: {
         nsIDocument *doc = mCurrentEventContent ?
                            mCurrentEventContent->OwnerDoc() : nsnull;
-        nsIDocument* root = nsnull;
-        if (static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE &&
-            (root = nsContentUtils::GetRootDocument(doc)) &&
-            root->IsFullScreenDoc()) {
+        if (doc &&
+            doc->IsFullScreenDoc() &&
+            static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE) {
           // Prevent default action on ESC key press when exiting
           // DOM full-screen mode. This prevents the browser ESC key
           // handler from stopping all loads in the document, which
@@ -6383,7 +6382,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
            // ESC key released while in DOM full-screen mode.
            // Exit full-screen mode.
            NS_DispatchToCurrentThread(
-             NS_NewRunnableMethod(root,
+             NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
                                   &nsIDocument::CancelFullScreen));
           }
         } else if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent)) {

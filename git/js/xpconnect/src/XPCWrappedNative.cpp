@@ -825,8 +825,6 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
     NS_ASSERTION(mSet, "bad ctor param");
 
     DEBUG_TrackNewWrapper(this);
-
-    JS_RegisterReference((void **) &mWrapperWord);
 }
 
 // This ctor is used if this object will NOT have a proto.
@@ -849,8 +847,6 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
     NS_ASSERTION(aSet, "bad ctor param");
 
     DEBUG_TrackNewWrapper(this);
-
-    JS_RegisterReference((void **) &mWrapperWord);
 }
 
 XPCWrappedNative::~XPCWrappedNative()
@@ -900,36 +896,6 @@ XPCWrappedNative::Destroy()
     }
 
     mMaybeScope = nsnull;
-
-    JS_UnregisterReference((void **) &mWrapperWord);
-}
-
-void
-XPCWrappedNative::UpdateScriptableInfo(XPCNativeScriptableInfo *si)
-{
-    NS_ASSERTION(mScriptableInfo, "UpdateScriptableInfo expects an existing scriptable info");
-
-    // Write barrier for incremental GC.
-    JSRuntime* rt = GetRuntime()->GetJSRuntime();
-    if (JS_GetIncrementalGCTracer(rt))
-        mScriptableInfo->Mark();
-
-    mScriptableInfo = si;
-}
-
-void
-XPCWrappedNative::SetProto(XPCWrappedNativeProto* p)
-{
-    NS_ASSERTION(!IsWrapperExpired(), "bad ptr!");
-
-    // Write barrier for incremental GC.
-    if (HasProto()) {
-        JSRuntime* rt = GetRuntime()->GetJSRuntime();
-        if (JS_GetIncrementalGCTracer(rt))
-            GetProto()->TraceJS(JS_GetIncrementalGCTracer(rt));
-    }
-
-    mMaybeProto = p;
 }
 
 // This is factored out so that it can be called publicly
@@ -1135,30 +1101,12 @@ XPCWrappedNative::Init(XPCCallContext& ccx,
     if (!mFlatJSObject)
         return JS_FALSE;
 
-    // In the current JS engine JS_SetPrivate can't fail. But if it *did*
-    // fail then we would not receive our finalizer call and would not be
-    // able to properly cleanup. So, if it fails we null out mFlatJSObject
-    // to indicate the invalid state of this object and return false.
-    if (!JS_SetPrivate(ccx, mFlatJSObject, this)) {
-        mFlatJSObject = nsnull;
-        return JS_FALSE;
-    }
-
     return FinishInit(ccx);
 }
 
 JSBool
 XPCWrappedNative::Init(XPCCallContext &ccx, JSObject *existingJSObject)
 {
-    // In the current JS engine JS_SetPrivate can't fail. But if it *did*
-    // fail then we would not receive our finalizer call and would not be
-    // able to properly cleanup. So, if it fails we null out mFlatJSObject
-    // to indicate the invalid state of this object and return false.
-    if (!JS_SetPrivate(ccx, existingJSObject, this)) {
-        mFlatJSObject = nsnull;
-        return JS_FALSE;
-    }
-
     // Morph the existing object.
     if (!JS_SetReservedSlot(ccx, existingJSObject, 0, JSVAL_VOID))
         return JS_FALSE;
@@ -1176,6 +1124,15 @@ XPCWrappedNative::Init(XPCCallContext &ccx, JSObject *existingJSObject)
 JSBool
 XPCWrappedNative::FinishInit(XPCCallContext &ccx)
 {
+    // In the current JS engine JS_SetPrivate can't fail. But if it *did*
+    // fail then we would not receive our finalizer call and would not be
+    // able to properly cleanup. So, if it fails we null out mFlatJSObject
+    // to indicate the invalid state of this object and return false.
+    if (!JS_SetPrivate(ccx, mFlatJSObject, this)) {
+        mFlatJSObject = nsnull;
+        return JS_FALSE;
+    }
+
     // This reference will be released when mFlatJSObject is finalized.
     // Since this reference will push the refcount to 2 it will also root
     // mFlatJSObject;
@@ -1523,7 +1480,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
                                  "Changing proto is also changing JSObject Classname or "
                                  "helper's nsIXPScriptable flags. This is not allowed!");
 
-                    wrapper->UpdateScriptableInfo(newProto->GetScriptableInfo());
+                    wrapper->mScriptableInfo = newProto->GetScriptableInfo();
                 }
 
                 NS_ASSERTION(!newMap->Find(wrapper->GetIdentityObject()),
@@ -3060,7 +3017,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
     SetProto(newProto);
 
     if (mScriptableInfo == oldProto->GetScriptableInfo())
-        UpdateScriptableInfo(newProto->GetScriptableInfo());
+        mScriptableInfo = newProto->GetScriptableInfo();
 
     return NS_OK;
 }

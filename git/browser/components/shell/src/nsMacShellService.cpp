@@ -235,8 +235,7 @@ nsMacShellService::OnProgressChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsMacShellService::OnLocationChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    nsIURI* aLocation,
-                                    PRUint32 aFlags)
+                                    nsIURI* aLocation)
 {
   return NS_OK;
 }

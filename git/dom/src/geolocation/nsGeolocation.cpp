@@ -84,7 +84,7 @@
 #include "QTMLocationProvider.h"
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidLocationProvider.h"
 #endif
 
@@ -595,7 +595,7 @@ nsresult nsGeolocationService::Init()
     mProviders.AppendObject(provider);
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   provider = new AndroidLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);

@@ -96,7 +96,7 @@
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
-#include "mozilla/GuardObjects.h"
+#include "mozilla/AutoRestore.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Mutex.h"
 #include "nsDataHashtable.h"
@@ -1663,12 +1663,12 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    JS::HeapPtrObject                mGlobalJSObject;
+    JSObject*                        mGlobalJSObject;
 
     // Cached value of Object.prototype
-    JS::HeapPtrObject                mPrototypeJSObject;
+    JSObject*                        mPrototypeJSObject;
     // Cached value of Function.prototype
-    JS::HeapPtrObject                mPrototypeJSFunction;
+    JSObject*                        mPrototypeJSFunction;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
@@ -1685,6 +1685,9 @@ private:
 
     JSBool mNewDOMBindingsEnabled;
 };
+
+JSObject* xpc_CloneJSFunction(XPCCallContext &ccx, JSObject *funobj,
+                              JSObject *parent);
 
 /***************************************************************************/
 // XPCNativeMember represents a single idl declared method, attribute or
@@ -2363,7 +2366,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    JS::HeapPtrObject        mJSProtoObject;
+    JSObject*                mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     PRUint32                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2522,7 +2525,10 @@ public:
          (XPCWrappedNativeProto*)
          (XPC_SCOPE_WORD(mMaybeProto) & ~XPC_SCOPE_MASK) : nsnull;}
 
-    void SetProto(XPCWrappedNativeProto* p);
+    void
+    SetProto(XPCWrappedNativeProto* p)
+        {NS_ASSERTION(!IsWrapperExpired(), "bad ptr!");
+         mMaybeProto = p;}
 
     XPCWrappedNativeScope*
     GetScope() const
@@ -2756,8 +2762,7 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        PRWord newval = PRWord(obj) | (mWrapperWord & FLAG_MASK);
-        JS_ModifyReference((void **)&mWrapperWord, (void *)newval);
+        mWrapperWord = PRWord(obj) | (mWrapperWord & FLAG_MASK);
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -2791,8 +2796,6 @@ protected:
 
     virtual ~XPCWrappedNative();
     void Destroy();
-
-    void UpdateScriptableInfo(XPCNativeScriptableInfo *si);
 
 private:
     enum {

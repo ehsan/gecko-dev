@@ -47,11 +47,9 @@
 
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeEmitter.h"
-#include "vm/GlobalObject-inl.h"
 
 #include "jsobjinlines.h"
 #include "vm/RegExpObject-inl.h"
-#include "vm/RegExpStatics-inl.h"
 
 using namespace js;
 
@@ -136,7 +134,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         script->noScriptRval = true;
         script->code[0] = JSOP_STOP;
         script->code[1] = SRC_NULL;
-        functionProto->initScript(script);
+        functionProto->setScript(script);
         functionProto->getType(cx)->interpretedFunction = functionProto;
         script->hasFunction = true;
     }
@@ -260,8 +258,8 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     JSObject *res = RegExpStatics::create(cx, globalObj);
     if (!res)
         return NULL;
-    globalObj->initSlot(REGEXP_STATICS, ObjectValue(*res));
-    globalObj->initFlags(0);
+    globalObj->setSlot(REGEXP_STATICS, ObjectValue(*res));
+    globalObj->setFlags(0);
 
     return globalObj;
 }
@@ -339,7 +337,7 @@ GlobalObject::clear(JSContext *cx)
 bool
 GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
 {
-    HeapValue &v = getSlotRef(RUNTIME_CODEGEN_ENABLED);
+    Value &v = getSlotRef(RUNTIME_CODEGEN_ENABLED);
     if (v.isUndefined()) {
         JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
 
@@ -347,9 +345,8 @@ GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
          * If there are callbacks, make sure that the CSP callback is installed
          * and that it permits runtime code generation, then cache the result.
          */
-        v.set(compartment(),
-              BooleanValue((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
-                           callbacks->contentSecurityPolicyAllows(cx)));
+        v = BooleanValue((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
+                         callbacks->contentSecurityPolicyAllows(cx));
     }
     return !v.isFalse();
 }

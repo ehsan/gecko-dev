@@ -58,7 +58,6 @@
 #include "vm/Debugger.h"
 
 #include "jsgcinlines.h"
-#include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 
 #if ENABLE_YARR_JIT
@@ -72,8 +71,6 @@ using namespace js::gc;
 JSCompartment::JSCompartment(JSRuntime *rt)
   : rt(rt),
     principals(NULL),
-    needsBarrier_(false),
-    gcIncrementalTracer(NULL),
     gcBytes(0),
     gcTriggerBytes(0),
     gcLastBytes(0),
@@ -87,6 +84,9 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     hasDebugModeCodeToDrop(false),
 #ifdef JS_METHODJIT
     jaegerCompartment_(NULL),
+#endif
+#if ENABLE_YARR_JIT
+    regExpAllocator(NULL),
 #endif
     propertyTree(thisForCtor()),
     emptyArgumentsShape(NULL),
@@ -107,6 +107,10 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 
 JSCompartment::~JSCompartment()
 {
+#if ENABLE_YARR_JIT
+    Foreground::delete_(regExpAllocator);
+#endif
+
 #ifdef JS_METHODJIT
     Foreground::delete_(jaegerCompartment_);
 #endif
@@ -134,6 +138,10 @@ JSCompartment::init(JSContext *cx)
         return false;
 
     if (!scriptFilenameTable.init())
+        return false;
+
+    regExpAllocator = rt->new_<WTF::BumpPointerAllocator>();
+    if (!regExpAllocator)
         return false;
 
     if (!backEdgeTable.init())
@@ -341,16 +349,6 @@ JSCompartment::wrap(JSContext *cx, JSString **strp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, HeapPtrString *strp)
-{
-    AutoValueRooter tvr(cx, StringValue(*strp));
-    if (!wrap(cx, tvr.addr()))
-        return false;
-    *strp = tvr.value().toString();
-    return true;
-}
-
-bool
 JSCompartment::wrap(JSContext *cx, JSObject **objp)
 {
     if (!*objp)
@@ -422,10 +420,10 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
 void
 JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 {
-    JS_ASSERT(trc->runtime->gcCurrentCompartment);
+    JS_ASSERT(trc->context->runtime->gcCurrentCompartment);
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
-        MarkRoot(trc, e.front().key, "cross-compartment wrapper");
+        MarkValue(trc, e.front().key, "cross-compartment wrapper");
 }
 
 void
@@ -440,21 +438,21 @@ JSCompartment::markTypes(JSTracer *trc)
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        MarkRoot(trc, script, "mark_types_script");
+        MarkScript(trc, script, "mark_types_script");
     }
 
     for (size_t thingKind = FINALIZE_OBJECT0;
-         thingKind < FINALIZE_FUNCTION_AND_OBJECT_LIMIT;
+         thingKind <= FINALIZE_FUNCTION_AND_OBJECT_LAST;
          thingKind++) {
         for (CellIterUnderGC i(this, AllocKind(thingKind)); !i.done(); i.next()) {
             JSObject *object = i.get<JSObject>();
             if (!object->isNewborn() && object->hasSingletonType())
-                MarkRoot(trc, object, "mark_types_singleton");
+                MarkObject(trc, *object, "mark_types_singleton");
         }
     }
 
     for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next())
-        MarkRoot(trc, i.get<types::TypeObject>(), "mark_types_scan");
+        MarkTypeObject(trc, i.get<types::TypeObject>(), "mark_types_scan");
 }
 
 void
@@ -462,11 +460,11 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
 {
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        JS_ASSERT_IF(IsAboutToBeFinalized(cx, e.front().key) &&
-                     !IsAboutToBeFinalized(cx, e.front().value),
+        JS_ASSERT_IF(IsAboutToBeFinalized(cx, e.front().key.toGCThing()) &&
+                     !IsAboutToBeFinalized(cx, e.front().value.toGCThing()),
                      e.front().key.isString());
-        if (IsAboutToBeFinalized(cx, e.front().key) ||
-            IsAboutToBeFinalized(cx, e.front().value)) {
+        if (IsAboutToBeFinalized(cx, e.front().key.toGCThing()) ||
+            IsAboutToBeFinalized(cx, e.front().value.toGCThing())) {
             e.removeFront();
         }
     }
@@ -586,7 +584,7 @@ JSCompartment::purge(JSContext *cx)
             JSScript *script = *listHeadp;
             JS_ASSERT(GetGCThingTraceKind(script) == JSTRACE_SCRIPT);
             *listHeadp = NULL;
-            listHeadp = &script->evalHashLink();
+            listHeadp = &script->u.evalHashLink;
         }
     }
 
@@ -829,7 +827,7 @@ JSCompartment::markTrapClosuresIteratively(JSTracer *trc)
         // Put off marking trap state until we know the script is live.
         if (site->trapHandler && !IsAboutToBeFinalized(cx, site->script)) {
             if (site->trapClosure.isMarkable() &&
-                IsAboutToBeFinalized(cx, site->trapClosure))
+                IsAboutToBeFinalized(cx, site->trapClosure.toGCThing()))
             {
                 markedAny = true;
             }
@@ -859,11 +857,4 @@ JSCompartment::sweepBreakpoints(JSContext *cx)
         if (clearTrap)
             site->clearTrap(cx, &e);
     }
-}
-
-GCMarker *
-JSCompartment::createBarrierTracer()
-{
-    JS_ASSERT(!gcIncrementalTracer);
-    return NULL;
 }

@@ -49,7 +49,6 @@
 #include "cairo-quartz.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
                        bool aNeedsBold)
@@ -496,18 +495,3 @@ gfxMacFont::InitMetricsFromATSMetrics(ATSFontRef aFontRef)
 
     mIsValid = true;
 }
-
-RefPtr<ScaledFont>
-gfxMacFont::GetScaledFont()
-{
-  if (!mAzureFont) {
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_MAC_FONT_FACE;
-    nativeFont.mFont = GetCGFontRef();
-    mAzureFont =
-      mozilla::gfx::Factory::CreateScaledFontForNativeFont(nativeFont, GetAdjustedSize());
-  }
-
-  return mAzureFont;
-}
-

@@ -535,8 +535,7 @@ nsChromeTreeOwner::OnStateChange(nsIWebProgress* aWebProgress,
 
 NS_IMETHODIMP nsChromeTreeOwner::OnLocationChange(nsIWebProgress* aWebProgress,
                                                   nsIRequest* aRequest,
-                                                  nsIURI* aLocation,
-                                                  PRUint32 aFlags)
+                                                  nsIURI* aLocation)
 {
   bool itsForYou = true;
 

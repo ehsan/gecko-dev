@@ -440,8 +440,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kNoReqStates,
-    eARIAOrientation
+    kNoReqStates
   },
   {
     "slider",
@@ -451,7 +450,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIAOrientation,
     eARIAReadonly
   },
   {
@@ -651,8 +649,8 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIAOrientation
   nsStateMapEntry(&nsGkAtoms::aria_orientation, eUseFirstState,
-                  "horizontal", states::HORIZONTAL,
-                  "vertical", states::VERTICAL),
+                  "vertical", states::VERTICAL,
+                  "horizontal", states::HORIZONTAL),
 
   // eARIAPressed
   nsStateMapEntry(&nsGkAtoms::aria_pressed, kMixedType,

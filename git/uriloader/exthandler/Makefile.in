@@ -60,11 +60,7 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 OSDIR		= android
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
-OSDIR		= gonk
-else
 OSDIR		= unix
-endif
 endif
 endif
 endif

@@ -64,14 +64,6 @@ EXPORTS += \
 	$(NULL)
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
-EXPORTS += \
-	gfxAndroidPlatform.h \
-	gfxFT2Fonts.h \
-	gfxFT2FontBase.h \
-	$(NULL)
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 EXPORTS += \
 	gfxPlatformMac.h \
@@ -151,11 +143,6 @@ EXPORTS	+= \
 	WGLLibrary.h \
 	gfxDWriteFonts.h \
 	gfxD2DSurface.h \
-	gfxGDIFont.h \
-	gfxGDIFontList.h \
-	gfxPlatformFontList.h \
-	gfxAtoms.h \
-	gfxAtomList.h \
 	$(NULL)
 endif
 
@@ -241,21 +228,6 @@ ACDEFINES +=	-UWIN32_LEAN_AND_MEAN
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS	+= \
-	gfxPDFSurface.h \
-	$(NULL)
-CPPSRCS += \
-	gfxAndroidPlatform.cpp \
-	gfxFT2Fonts.cpp \
-	gfxFT2FontBase.cpp \
-	gfxFT2Utils.cpp \
-	gfxFT2FontList.cpp \
-	gfxPDFSurface.cpp \
-	nsUnicodeRange.cpp \
-	$(NULL)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 EXPORTS	+= \
 	gfxPDFSurface.h \
 	$(NULL)
@@ -382,10 +354,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 GL_PROVIDER = EGL
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
-GL_PROVIDER = EGL
-endif
-
 # Mac is a special snowflake
 ifeq ($(GL_PROVIDER),CGL)
 CMMSRCS += GLContextProvider$(GL_PROVIDER).mm
@@ -409,10 +377,6 @@ CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 CFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-CXXFLAGS += $(CAIRO_FT_CFLAGS)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 CXXFLAGS += $(CAIRO_FT_CFLAGS)
 endif
 

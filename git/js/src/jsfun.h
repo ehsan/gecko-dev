@@ -50,8 +50,6 @@
 #include "jsstr.h"
 #include "jsopcode.h"
 
-#include "gc/Barrier.h"
-
 /*
  * The high two bits of JSFunction.flags encode whether the function is native
  * or interpreted, and if interpreted, what kind of optimized closure form (if
@@ -110,7 +108,7 @@ struct JSFunction : public JSObject_Slots2
                                      reflected as f.length/f.arity */
     uint16          flags;        /* flags, see JSFUN_* below and in jsapi.h */
     union U {
-        struct Native {
+        struct {
             js::Native  native;   /* native method pointer or null */
             js::Class   *clasp;   /* class of objects constructed
                                      by this function */
@@ -197,16 +195,18 @@ struct JSFunction : public JSObject_Slots2
 
     inline void setMethodAtom(JSAtom *atom);
 
-    js::HeapPtrScript &script() const {
+    JSScript *script() const {
         JS_ASSERT(isInterpreted());
-        return *(js::HeapPtrScript *)&u.i.script_;
+        return u.i.script_;
     }
 
-    inline void setScript(JSScript *script_);
-    inline void initScript(JSScript *script_);
+    void setScript(JSScript *script) {
+        JS_ASSERT(isInterpreted());
+        u.i.script_ = script;
+    }
 
     JSScript *maybeScript() const {
-        return isInterpreted() ? script().get() : NULL;
+        return isInterpreted() ? script() : NULL;
     }
 
     JSNative native() const {
@@ -268,10 +268,6 @@ JSObject::getFunctionPrivate() const
 }
 
 namespace js {
-
-struct FlatClosureData {
-    HeapValue upvars[1];
-};
 
 static JS_ALWAYS_INLINE bool
 IsFunctionObject(const js::Value &v)

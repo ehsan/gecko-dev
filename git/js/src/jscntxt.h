@@ -153,8 +153,6 @@ struct PendingProxyOperation {
 };
 
 struct ThreadData {
-    JSRuntime           *rt;
-
     /*
      * If non-zero, we were been asked to call the operation callback as soon
      * as possible.  If the thread has an active request, this contributes
@@ -200,45 +198,23 @@ struct ThreadData {
     LifoAlloc           tempLifoAlloc;
 
   private:
-    /*
-     * Both of these allocators are used for regular expression code which is shared at the
-     * thread-data level.
-     */
-    JSC::ExecutableAllocator    *execAlloc;
-    WTF::BumpPointerAllocator   *bumpAlloc;
-    js::RegExpPrivateCache      *repCache;
+    js::RegExpPrivateCache       *repCache;
 
-    JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
-    WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
-    js::RegExpPrivateCache *createRegExpPrivateCache(JSContext *cx);
+    js::RegExpPrivateCache *createRegExpPrivateCache(JSRuntime *rt);
 
   public:
-    JSC::ExecutableAllocator *getOrCreateExecutableAllocator(JSContext *cx) {
-        if (execAlloc)
-            return execAlloc;
+    js::RegExpPrivateCache *getRegExpPrivateCache() { return repCache; }
 
-        return createExecutableAllocator(cx);
-    }
-
-    WTF::BumpPointerAllocator *getOrCreateBumpPointerAllocator(JSContext *cx) {
-        if (bumpAlloc)
-            return bumpAlloc;
-
-        return createBumpPointerAllocator(cx);
-    }
-
-    js::RegExpPrivateCache *getRegExpPrivateCache() {
-        return repCache;
-    }
-    js::RegExpPrivateCache *getOrCreateRegExpPrivateCache(JSContext *cx) {
+    /* N.B. caller is responsible for reporting OOM. */
+    js::RegExpPrivateCache *getOrCreateRegExpPrivateCache(JSRuntime *rt) {
         if (repCache)
             return repCache;
 
-        return createRegExpPrivateCache(cx);
+        return createRegExpPrivateCache(rt);
     }
 
     /* Called at the end of the global GC sweep phase to deallocate repCache memory. */
-    void purgeRegExpPrivateCache();
+    void purgeRegExpPrivateCache(JSRuntime *rt);
 
     /*
      * The GSN cache is per thread since even multi-cx-per-thread embeddings
@@ -264,7 +240,7 @@ struct ThreadData {
     size_t              noGCOrAllocationCheck;
 #endif
 
-    ThreadData(JSRuntime *rt);
+    ThreadData();
     ~ThreadData();
 
     bool init();
@@ -321,13 +297,12 @@ struct JSThread {
     /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     js::ThreadData      data;
 
-    JSThread(JSRuntime *rt, void *id)
+    JSThread(void *id)
       : id(id),
-        suspendCount(0),
+        suspendCount(0)
 # ifdef DEBUG
-        checkRequestDepth(0),
+      , checkRequestDepth(0)
 # endif
-        data(rt)
     {
         JS_INIT_CLIST(&contextList);
     }
@@ -485,13 +460,11 @@ struct JSRuntime
     /* We access this without the GC lock, however a race will not affect correctness */
     volatile uint32     gcNumFreeArenas;
     uint32              gcNumber;
-    js::GCMarker        *gcIncrementalTracer;
-    void                *gcVerifyData;
+    js::GCMarker        *gcMarkingTracer;
     bool                gcChunkAllocationSinceLastGC;
     int64               gcNextFullGCTime;
     int64               gcJitReleaseTime;
     JSGCMode            gcMode;
-    volatile jsuword    gcBarrierFailed;
     volatile jsuword    gcIsNeeded;
     js::WeakMapBase     *gcWeakMapList;
     js::gcstats::Statistics gcStats;
@@ -549,9 +522,6 @@ struct JSRuntime
      * Additionally, if gzZeal_ == 1 then we perform GCs in select places
      * (during MaybeGC and whenever a GC poke happens). This option is mainly
      * useful to embedders.
-     *
-     * We use gcZeal_ == 4 to enable write barrier verification. See the comment
-     * in jsgc.cpp for more information about this.
      */
 #ifdef JS_GC_ZEAL
     int                 gcZeal_;
@@ -563,7 +533,7 @@ struct JSRuntime
 
     bool needZealousGC() {
         if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
-            if (gcZeal() >= js::gc::ZealAllocThreshold && gcZeal() < js::gc::ZealVerifierThreshold)
+            if (gcZeal() >= 2)
                 gcNextScheduled = gcZealFrequency;
             return true;
         }
@@ -2246,6 +2216,18 @@ namespace js {
 /************************************************************************/
 
 static JS_ALWAYS_INLINE void
+ClearValueRange(Value *vec, uintN len, bool useHoles)
+{
+    if (useHoles) {
+        for (uintN i = 0; i < len; i++)
+            vec[i].setMagic(JS_ARRAY_HOLE);
+    } else {
+        for (uintN i = 0; i < len; i++)
+            vec[i].setUndefined();
+    }
+}
+
+static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Value *vec, size_t len)
 {
     PodZero(vec, len);
@@ -2434,22 +2416,25 @@ class AutoShapeVector : public AutoVectorRooter<const Shape *>
 
 class AutoValueArray : public AutoGCRooter
 {
-    const js::Value *start_;
+    js::Value *start_;
     unsigned length_;
 
   public:
-    AutoValueArray(JSContext *cx, const js::Value *start, unsigned length
+    AutoValueArray(JSContext *cx, js::Value *start, unsigned length
                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoGCRooter(cx, VALARRAY), start_(start), length_(length)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    const Value *start() const { return start_; }
+    Value *start() const { return start_; }
     unsigned length() const { return length_; }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
+
+JSIdArray *
+NewIdArray(JSContext *cx, jsint length);
 
 /*
  * Allocation policy that uses JSRuntime::malloc_ and friends, so that

@@ -105,7 +105,7 @@ class nsDisplayItem;
  */
 
 // All types are defined in nsDisplayItemTypes.h
-#ifdef MOZ_DUMP_PAINTING
+#ifdef NS_DEBUG
 #define NS_DISPLAY_DECL_NAME(n, e) \
   virtual const char* Name() { return n; } \
   virtual Type GetType() { return e; }
@@ -794,7 +794,7 @@ public:
    */
   const nsRect& GetVisibleRect() { return mVisibleRect; }
   
-#ifdef MOZ_DUMP_PAINTING
+#ifdef NS_DEBUG
   /**
    * For debugging and stuff
    */
@@ -1292,7 +1292,7 @@ public:
   nsDisplayGeneric(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                    PaintCallback aPaint, const char* aName, Type aType)
     : nsDisplayItem(aBuilder, aFrame), mPaint(aPaint)
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
       , mName(aName)
 #endif
       , mType(aType)
@@ -1318,7 +1318,7 @@ public:
 
 protected:
   PaintCallback mPaint;
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   const char*   mName;
 #endif
   Type mType;
@@ -2051,10 +2051,6 @@ public:
   NS_DISPLAY_DECL_NAME("SVGEffects", TYPE_SVG_EFFECTS)
 
   nsIFrame* GetEffectsFrame() { return mEffectsFrame; }
-
-#ifdef MOZ_DUMP_PAINTING
-  void PrintEffects(FILE* aOutput);
-#endif
 
 private:
   nsIFrame* mEffectsFrame;

@@ -276,8 +276,7 @@ NS_IMETHODIMP WebBrowserChrome::OnStateChange(nsIWebProgress *progress, nsIReque
 
 NS_IMETHODIMP WebBrowserChrome::OnLocationChange(nsIWebProgress* aWebProgress,
                                                  nsIRequest* aRequest,
-                                                 nsIURI *location,
-                                                 PRUint32 aFlags)
+                                                 nsIURI *location)
 {
   bool isSubFrameLoad = false; // Is this a subframe load
   if (aWebProgress) {

@@ -50,9 +50,8 @@ public:
 
   static nsHTMLLegendElement* FromContent(nsIContent *aContent)
   {
-    if (aContent->IsHTML(nsGkAtoms::legend)) {
+    if (aContent->IsHTML() && aContent->Tag() == nsGkAtoms::legend)
       return static_cast<nsHTMLLegendElement*>(aContent);
-    }
     return nsnull;
   }
 

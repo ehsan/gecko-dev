@@ -1399,17 +1399,20 @@ nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
     if (! doc)
         return NS_ERROR_NOT_INITIALIZED;
 
+    nsresult rv;
     nsCOMPtr<nsIContent> result;
-    nsCOMPtr<nsINodeInfo> nodeInfo =
-        doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID,
-                                            nsIDOMNode::ELEMENT_NODE);
 
-    nsresult rv = NS_NewElement(getter_AddRefs(result), nodeInfo.forget(),
-                                NOT_FROM_PARSER);
+    nsCOMPtr<nsINodeInfo> nodeInfo;
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID,
+                                                   nsIDOMNode::ELEMENT_NODE);
+
+    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo.forget(),
+                       NOT_FROM_PARSER);
     if (NS_FAILED(rv))
         return rv;
 
-    result.forget(aResult);
+    *aResult = result;
+    NS_ADDREF(*aResult);
     return NS_OK;
 }
 

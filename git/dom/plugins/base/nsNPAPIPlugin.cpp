@@ -131,7 +131,7 @@ using mozilla::plugins::PluginModuleParent;
 #include <windows.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "ANPBase.h"
 #include "AndroidBridge.h"
 #include <android/log.h>
@@ -488,7 +488,7 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult)
     return NS_ERROR_FAILURE;
   }
 
-#if defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
+#if defined(XP_MACOSX) || defined(ANDROID)
   if (!pluginLib->HasRequiredFunctions()) {
     NS_WARNING("Not all necessary functions exposed by plugin, it will not load.");
     return NS_ERROR_FAILURE;
@@ -526,7 +526,6 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult)
   if (rv != NS_OK || pluginCallError != NPERR_NO_ERROR) {
     return NS_ERROR_FAILURE;
   }
-#elif defined(MOZ_WIDGET_GONK)
 #else
   rv = pluginLib->NP_Initialize(&sBrowserFuncs, &plugin->mPluginFuncs, &pluginCallError);
   if (rv != NS_OK || pluginCallError != NPERR_NO_ERROR) {
@@ -1646,8 +1645,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   }
 
   obj = JS_ObjectToInnerObject(cx, obj);
-  NS_ABORT_IF_FALSE(obj,
-    "JS_ObjectToInnerObject should never return null with non-null input.");
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
@@ -2301,7 +2298,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     case kLogInterfaceV0_ANPGetValue: {
       LOG("get log interface");
       ANPLogInterfaceV0 *i = (ANPLogInterfaceV0 *) result;
@@ -2487,8 +2484,9 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
 
     case NPPVpluginKeepLibraryInMemory: {
-      NPBool bCached = (result != nsnull);
-      return inst->SetCached(bCached);
+      // This variable is not supported any more but we'll pretend it is
+      // so that plugins don't fail on an error return.
+      return NS_OK;
     }
 
     case NPPVpluginUsesDOMForCursorBool: {
@@ -2517,7 +2515,7 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
     }
 #endif
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   case kRequestDrawingModel_ANPSetValue:
     if (inst)
       inst->SetDrawingModel(NS_PTR_TO_INT32(result));

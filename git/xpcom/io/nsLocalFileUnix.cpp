@@ -113,7 +113,7 @@ static nsresult MacErrorMapper(OSErr inErr);
 #include <libosso.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #include "nsIMIMEService.h"
 #include <linux/magic.h>
@@ -1885,7 +1885,7 @@ nsLocalFile::Launch()
     }
 
     return NS_ERROR_FAILURE;
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     // Try to get a mimetype, if this fails just use the file uri alone
     nsresult rv;
     nsCAutoString type;

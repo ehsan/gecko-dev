@@ -110,11 +110,12 @@ function (aTitle, aContentURL, aCustomizeURL, aPersist)
                                          , type: "bookmark"
                                          , hiddenRows: [ "description"
                                                        , "keyword"
-                                                       , "location" ]
+                                                       , "location"
+                                                       , "loadInSidebar" ]
                                          , uri: uri
                                          , title: aTitle
                                          , loadBookmarkInSidebar: true
-                                         }, win);
+                                         }, win, true);
 }
 
 nsSidebar.prototype.validateSearchEngine =

@@ -79,7 +79,7 @@ StringResult::stringValuePointer()
     return &mValue;
 }
 
-bool StringResult::booleanValue() {
+MBool StringResult::booleanValue() {
    return !mValue.IsEmpty();
 } //-- booleanValue
 

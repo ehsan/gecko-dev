@@ -221,10 +221,7 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     // because HTTP responses such as 404 (Not Found) will still result in
     // a success code and potentially an HTML error page from the server
     // as the resulting data. We don't want to use that as a font.
-    nsCOMPtr<nsIRequest> request;
-    nsCOMPtr<nsIHttpChannel> httpChannel;
-    aLoader->GetRequest(getter_AddRefs(request));
-    httpChannel = do_QueryInterface(request);
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(mChannel);
     if (httpChannel) {
       bool succeeded;
       nsresult rv = httpChannel->GetRequestSucceeded(&succeeded);

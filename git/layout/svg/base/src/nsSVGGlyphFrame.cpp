@@ -751,7 +751,7 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
     if (!aCharacterPositions->SetLength(strLength))
       return false;
 
-    gfxFloat pathScale = textPath->GetOffsetScale();
+    gfxFloat pathScale = textPath->GetPathScale();
 
     CharacterPosition *cp = aCharacterPositions->Elements();
 
@@ -877,7 +877,7 @@ nsSVGGlyphFrame::GetSubStringAdvance(PRUint32 aCharnum,
     gfxFloat pathScale = 1.0;
     nsSVGTextPathFrame *textPath = FindTextPathParent();
     if (textPath)
-      pathScale = textPath->GetOffsetScale();
+      pathScale = textPath->GetPathScale();
     if (dxcount > aFragmentChars) 
       dxcount = aFragmentChars;
     for (PRUint32 i = aCharnum; i < dxcount; i++) {
@@ -1101,7 +1101,7 @@ nsSVGGlyphFrame::SetGlyphPosition(gfxPoint *aPosition, bool aForceGlobalTransfor
 
   gfxFloat pathScale = 1.0;
   if (textPath)
-    pathScale = textPath->GetOffsetScale();
+    pathScale = textPath->GetPathScale();
 
   nsTArray<float> dxList, dyList;
   GetEffectiveDxDy(strLength, dxList, dyList);

@@ -1554,8 +1554,6 @@ nsDocument::nsDocument(const char* aContentType)
 
   // Start out mLastStyleSheetSet as null, per spec
   SetDOMStringToNull(mLastStyleSheetSet);
-  
-  mLinksToUpdate.Init();
 }
 
 static PLDHashOperator
@@ -1954,8 +1952,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   if (tmp->mAnimationController) {
     tmp->mAnimationController->Unlink();
   }
-
-  tmp->mPendingTitleChangeEvent.Revoke();
   
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -4421,7 +4417,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewElement(aReturn, nodeInfo.forget(), NOT_FROM_PARSER);
+  PRInt32 ns = nodeInfo->NamespaceID();
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -6752,7 +6750,8 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+  return NS_NewElement(aResult, aNamespaceID, nodeInfo.forget(),
+                       NOT_FROM_PARSER);
 }
 
 bool
@@ -7972,41 +7971,6 @@ nsIDocument::EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
   mFreezableElements->EnumerateEntries(EnumerateFreezables, &data);
 }
 
-void
-nsIDocument::RegisterPendingLinkUpdate(Link* aLink)
-{
-  mLinksToUpdate.PutEntry(aLink);
-  mHasLinksToUpdate = true;
-}
-
-void
-nsIDocument::UnregisterPendingLinkUpdate(Link* aLink)
-{
-  if (!mHasLinksToUpdate)
-    return;
-    
-  mLinksToUpdate.RemoveEntry(aLink);
-}
-  
-static PLDHashOperator
-EnumeratePendingLinkUpdates(nsPtrHashKey<Link>* aEntry, void* aData)
-{
-  aEntry->GetKey()->GetElement()->UpdateLinkState(aEntry->GetKey()->LinkState());
-  return PL_DHASH_NEXT;
-}
-
-void
-nsIDocument::FlushPendingLinkUpdates() 
-{
-  if (!mHasLinksToUpdate)
-    return;
-    
-  nsAutoScriptBlocker scriptBlocker;
-  mLinksToUpdate.EnumerateEntries(EnumeratePendingLinkUpdates, nsnull);
-  mLinksToUpdate.Clear();
-  mHasLinksToUpdate = false;
-}
-
 already_AddRefed<nsIDocument>
 nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
 {
@@ -8428,7 +8392,7 @@ nsIDocument::SizeOf() const
 }
 
 static void
-DispatchFullScreenChange(nsIDocument* aTarget)
+DispatchFullScreenChange(nsINode* aTarget)
 {
   nsRefPtr<nsPLDOMEvent> e =
     new nsPLDOMEvent(aTarget,
@@ -8571,6 +8535,19 @@ GetCommonAncestor(nsIDocument* aDoc1, nsIDocument* aDoc2)
   return parent;
 }
 
+// Returns the root document in a document hierarchy.
+static nsIDocument*
+GetRootDocument(nsIDocument* aDoc)
+{
+  if (!aDoc)
+    return nsnull;
+  nsIDocument* doc = aDoc;
+  while (doc->GetParentDocument()) {
+    doc = doc->GetParentDocument();
+  }
+  return doc;
+}
+
 class nsCallRequestFullScreen : public nsRunnable
 {
 public:
@@ -8645,14 +8622,14 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   }
 
   // Remember the root document, so that if a full-screen document is hidden
-  // we can reset full-screen state in the remaining visible full-screen documents.
-  sFullScreenRootDoc = do_GetWeakReference(nsContentUtils::GetRootDocument(this));
+  // we can reset full-screen state the remaining visible full-screen documents.
+  sFullScreenRootDoc = do_GetWeakReference(GetRootDocument(this));
 
   // Set the full-screen element. This sets the full-screen style on the
   // element, and the full-screen-ancestor styles on ancestors of the element
   // in this document.
   if (SetFullScreenState(aElement, true)) {
-    DispatchFullScreenChange(aElement->OwnerDoc());
+    DispatchFullScreenChange(aElement);
   }
 
   // Propagate up the document hierarchy, setting the full-screen element as
@@ -8665,7 +8642,7 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   while ((parent = child->GetParentDocument())) {
     Element* element = parent->FindContentForSubDocument(child)->AsElement();
     if (::SetFullScreenState(parent, element, true)) {
-      DispatchFullScreenChange(element->OwnerDoc());
+      DispatchFullScreenChange(element);
     }
     child = parent;
   }

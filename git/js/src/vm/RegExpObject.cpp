@@ -46,7 +46,6 @@
 #include "jsstrinlines.h"
 
 #include "vm/RegExpObject-inl.h"
-#include "vm/RegExpStatics-inl.h"
 
 #ifdef JS_TRACER
 #include "jstracer.h"
@@ -54,8 +53,6 @@ using namespace nanojit;
 #endif
 
 using namespace js;
-using js::detail::RegExpPrivate;
-using js::detail::RegExpPrivateCode;
 
 JS_STATIC_ASSERT(IgnoreCaseFlag == JSREG_FOLD);
 JS_STATIC_ASSERT(GlobalFlag == JSREG_GLOB);
@@ -342,8 +339,7 @@ regexp_finalize(JSContext *cx, JSObject *obj)
 static void
 regexp_trace(JSTracer *trc, JSObject *obj)
 {
-    if (IS_GC_MARKING_TRACER(trc))
-        obj->asRegExp()->purge(trc->context);
+    obj->asRegExp()->purge(trc->context);
 }
 
 Class js::RegExpClass = {

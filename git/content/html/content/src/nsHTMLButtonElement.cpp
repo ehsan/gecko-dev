@@ -551,6 +551,8 @@ nsHTMLButtonElement::Reset()
 NS_IMETHODIMP
 nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
+  nsresult rv = NS_OK;
+
   //
   // We only submit if we were the button pressed
   //
@@ -576,7 +578,7 @@ nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
   // Get the value
   //
   nsAutoString value;
-  nsresult rv = GetValue(value);
+  rv = GetValue(value);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -584,7 +586,9 @@ nsHTMLButtonElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
   //
   // Submit
   //
-  return aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(name, value);
+
+  return rv;
 }
 
 void
@@ -666,3 +670,4 @@ nsHTMLButtonElement::IntrinsicState() const
 
   return state;
 }
+

@@ -386,14 +386,15 @@ var PlacesCommandHook = {
                                        , hiddenRows: [ "description"
                                                      , "location"
                                                      , "loadInSidebar"
+                                                     , "folderPicker"
                                                      , "keyword" ]
-                                       }, window);
+                                       });
     }
     else {
       PlacesUIUtils.showBookmarkDialog({ action: "edit"
                                        , type: "bookmark"
                                        , itemId: itemId
-                                       }, window);
+                                       });
     }
   },
 
@@ -426,7 +427,7 @@ var PlacesCommandHook = {
                                      , type: "folder"
                                      , URIList: pages
                                      , hiddenRows: [ "description" ]
-                                     }, window);
+                                     });
     }
   },
 
@@ -477,7 +478,7 @@ var PlacesCommandHook = {
                                      , hiddenRows: [ "feedLocation"
                                                    , "siteLocation"
                                                    , "description" ]
-                                     }, window);
+                                     });
   },
 
   /**

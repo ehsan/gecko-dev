@@ -193,7 +193,7 @@ PathExpr::evalDescendants(Expr* aStep, const txXPathNode& aNode,
 
     resNodes->addAndTransfer(newSet);
 
-    bool filterWS = aContext->isStripSpaceAllowed(aNode);
+    MBool filterWS = aContext->isStripSpaceAllowed(aNode);
 
     txXPathTreeWalker walker(aNode);
     if (!walker.moveToFirstChild()) {

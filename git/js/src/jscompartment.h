@@ -53,6 +53,9 @@
 #pragma warning(disable:4251) /* Silence warning about JS_FRIEND_API and data members. */
 #endif
 
+namespace JSC { class ExecutableAllocator; }
+namespace WTF { class BumpPointerAllocator; }
+
 namespace js {
 
 /* Holds the number of recording attemps for an address. */
@@ -394,20 +397,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
     js::gc::ArenaLists           arenas;
 
-    bool                         needsBarrier_;
-    js::GCMarker                 *gcIncrementalTracer;
-
-    bool needsBarrier() {
-        return needsBarrier_;
-    }
-
-    js::GCMarker *barrierTracer() {
-        JS_ASSERT(needsBarrier_);
-        if (gcIncrementalTracer)
-            return gcIncrementalTracer;
-        return createBarrierTracer();
-    }
-
     uint32                       gcBytes;
     uint32                       gcTriggerBytes;
     size_t                       gcLastBytes;
@@ -420,7 +409,7 @@ struct JS_FRIEND_API(JSCompartment) {
      * Cleared on every GC, unless the GC happens during analysis (indicated
      * by activeAnalysis, which is implied by activeInference).
      */
-    static const size_t TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 4 * 1024;
+    static const size_t TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
     js::LifoAlloc                typeLifoAlloc;
     bool                         activeAnalysis;
     bool                         activeInference;
@@ -470,6 +459,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     void getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
 #endif
+    WTF::BumpPointerAllocator    *regExpAllocator;
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -484,19 +474,16 @@ struct JS_FRIEND_API(JSCompartment) {
     jsrefcount                   liveDictModeNodes;
 #endif
 
-    typedef js::ReadBarriered<js::EmptyShape> BarrieredEmptyShape;
-    typedef js::ReadBarriered<const js::Shape> BarrieredShape;
-
     /*
      * Runtime-shared empty scopes for well-known built-in objects that lack
      * class prototypes (the usual locus of an emptyShape). Mnemonic: ABCDEW
      */
-    BarrieredEmptyShape          emptyArgumentsShape;
-    BarrieredEmptyShape          emptyBlockShape;
-    BarrieredEmptyShape          emptyCallShape;
-    BarrieredEmptyShape          emptyDeclEnvShape;
-    BarrieredEmptyShape          emptyEnumeratorShape;
-    BarrieredEmptyShape          emptyWithShape;
+    js::EmptyShape               *emptyArgumentsShape;
+    js::EmptyShape               *emptyBlockShape;
+    js::EmptyShape               *emptyCallShape;
+    js::EmptyShape               *emptyDeclEnvShape;
+    js::EmptyShape               *emptyEnumeratorShape;
+    js::EmptyShape               *emptyWithShape;
 
     typedef js::HashSet<js::EmptyShape *,
                         js::DefaultHasher<js::EmptyShape *>,
@@ -513,8 +500,8 @@ struct JS_FRIEND_API(JSCompartment) {
      * dictionary mode). But because all the initial properties are
      * non-configurable, they will always map to fixed slots.
      */
-    BarrieredShape               initialRegExpShape;
-    BarrieredShape               initialStringShape;
+    const js::Shape              *initialRegExpShape;
+    const js::Shape              *initialStringShape;
 
   private:
     enum { DebugFromC = 1, DebugFromJS = 2 };
@@ -539,7 +526,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool wrap(JSContext *cx, js::Value *vp);
     bool wrap(JSContext *cx, JSString **strp);
-    bool wrap(JSContext *cx, js::HeapPtrString *strp);
     bool wrap(JSContext *cx, JSObject **objp);
     bool wrapId(JSContext *cx, jsid *idp);
     bool wrap(JSContext *cx, js::PropertyOp *op);
@@ -637,8 +623,6 @@ struct JS_FRIEND_API(JSCompartment) {
 
   private:
     void sweepBreakpoints(JSContext *cx);
-
-    js::GCMarker *createBarrierTracer();
 
   public:
     js::WatchpointMap *watchpointMap;
