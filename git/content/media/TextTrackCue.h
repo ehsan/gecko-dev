@@ -120,15 +120,20 @@ public:
     CueChanged();
   }
 
-  DirectionSetting Vertical() const
+  void GetVertical(nsAString& aVertical)
   {
-    return mVertical;
+    aVertical = mVertical;
   }
 
-  void SetVertical(const DirectionSetting& aVertical)
+  void SetVertical(const nsAString& aVertical, ErrorResult& aRv)
   {
     if (mVertical == aVertical)
       return;
+
+    if (!aVertical.EqualsLiteral("rl") && !aVertical.EqualsLiteral("lr") && !aVertical.IsEmpty()){
+      aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+      return;
+    }
 
     mReset = true;
     mVertical = aVertical;
@@ -339,7 +344,7 @@ private:
   int32_t mSize;
   bool mPauseOnExit;
   bool mSnapToLines;
-  DirectionSetting mVertical;
+  nsString mVertical;
   int mLine;
   TextTrackCueAlign mAlign;
 

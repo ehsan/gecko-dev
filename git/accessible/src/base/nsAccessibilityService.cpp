@@ -886,12 +886,12 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
 
     newAcc = CreateAccessibleByFrameType(frame, content, aContext);
-    if (!aContext->IsAcceptableChild(newAcc))
-      return nullptr;
+    if (document->BindToDocument(newAcc, nullptr)) {
+      newAcc->AsTextLeaf()->SetText(text);
+      return newAcc;
+    }
 
-    document->BindToDocument(newAcc, nullptr);
-    newAcc->AsTextLeaf()->SetText(text);
-    return newAcc;
+    return nullptr;
   }
 
   bool isHTML = content->IsHTML();
@@ -913,11 +913,9 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
 
     newAcc = new HyperTextAccessibleWrap(content, document);
-    if (!aContext->IsAcceptableChild(newAcc))
-      return nullptr;
-
-    document->BindToDocument(newAcc, aria::GetRoleMap(aNode));
-    return newAcc;
+    if (document->BindToDocument(newAcc, aria::GetRoleMap(aNode)))
+      return newAcc;
+    return nullptr;
   }
 
   nsRoleMapEntry* roleMapEntry = aria::GetRoleMap(aNode);
@@ -1046,11 +1044,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
   }
 
-  if (!newAcc || !aContext->IsAcceptableChild(newAcc))
-    return nullptr;
-
-  document->BindToDocument(newAcc, roleMapEntry);
-  return newAcc;
+  return document->BindToDocument(newAcc, roleMapEntry) ? newAcc : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MOCHITEST_BROWSER_FILES = \
-		browser_css_color.js \
 		browser_eventemitter_basic.js \
 		browser_observableobject.js \
 		browser_layoutHelpers.js \

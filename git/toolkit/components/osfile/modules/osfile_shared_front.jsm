@@ -113,8 +113,7 @@ AbstractFile.prototype = {
    */
   write: function write(buffer, options = {}) {
 
-    let {ptr, bytes} =
-      AbstractFile.normalizeToPointer(buffer, options.bytes || undefined);
+    let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
 
     let pos = 0;
     while (pos < bytes) {

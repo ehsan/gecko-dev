@@ -38,6 +38,10 @@ using mozilla::AutoPushJSContext;
 using mozilla::AutoSafeJSContext;
 using mozilla::dom::XULDocument;
 
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
+
+
 class nsXULPDGlobalObject : public nsISupports
 {
 public:

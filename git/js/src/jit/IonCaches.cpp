@@ -15,7 +15,6 @@
 #include "jit/Ion.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#include "jit/Lowering.h"
 #include "jit/PerfSpewer.h"
 #include "jit/VMFunctions.h"
 #include "vm/Shape.h"
@@ -3403,13 +3402,8 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     BaseIndex target(elements, index, ScaleFromElemWidth(width));
 
     if (arrayType == ScalarTypeRepresentation::TYPE_FLOAT32) {
-        if (LIRGenerator::allowFloat32Optimizations()) {
-            if (!masm.convertConstantOrRegisterToFloat(cx, value, tempFloat, &failures))
-                return false;
-        } else {
-            if (!masm.convertConstantOrRegisterToDouble(cx, value, tempFloat, &failures))
-                return false;
-        }
+        if (!masm.convertConstantOrRegisterToFloat(cx, value, tempFloat, &failures))
+            return false;
         masm.storeToTypedFloatArray(arrayType, tempFloat, target);
     } else if (arrayType == ScalarTypeRepresentation::TYPE_FLOAT64) {
         if (!masm.convertConstantOrRegisterToDouble(cx, value, tempFloat, &failures))

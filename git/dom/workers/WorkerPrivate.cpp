@@ -86,6 +86,9 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf)
 
 namespace {
 
+const char gErrorChars[] = "error";
+const char gMessageChars[] = "message";
+
 template <class T>
 class AutoPtrComparator
 {

@@ -12,8 +12,6 @@ const promise = require("sdk/core/promise");
 let {CssLogic} = require("devtools/styleinspector/css-logic");
 let {InplaceEditor, editableField, editableItem} = require("devtools/shared/inplace-editor");
 let {ELEMENT_STYLE, PSEUDO_ELEMENTS} = require("devtools/server/actors/styles");
-let {colorUtils} = require("devtools/shared/css-color");
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -912,7 +910,7 @@ function TextProperty(aRule, aName, aValue, aPriority)
 {
   this.rule = aRule;
   this.name = aName;
-  this.value = colorUtils.processCSSString(aValue);
+  this.value = aValue;
   this.priority = aPriority;
   this.enabled = true;
   this.updateComputed();
@@ -1002,7 +1000,7 @@ TextProperty.prototype = {
   remove: function TextProperty_remove()
   {
     this.rule.removeProperty(this);
-  },
+  }
 };
 
 
@@ -1050,9 +1048,6 @@ function CssRuleView(aDoc, aStore, aPageStyle)
   this._boundCopy = this._onCopy.bind(this);
   this.element.addEventListener("copy", this._boundCopy);
 
-  this._handlePrefChange = this._handlePrefChange.bind(this);
-  gDevTools.on("pref-changed", this._handlePrefChange);
-
   let options = {
     fixedWidth: true,
     autoSelect: true,
@@ -1080,19 +1075,9 @@ CssRuleView.prototype = {
     return this.element.querySelectorAll(".styleinspector-propertyeditor").length > 0;
   },
 
-  _handlePrefChange: function(event, data) {
-    if (data.pref == "devtools.defaultColorUnit") {
-      let element = this._viewedElement;
-      this._viewedElement = null;
-      this.highlight(element);
-    }
-  },
-
   destroy: function CssRuleView_destroy()
   {
     this.clear();
-
-    gDevTools.off("pref-changed", this._handlePrefChange);
 
     this.element.removeEventListener("copy", this._boundCopy);
     delete this._boundCopy;

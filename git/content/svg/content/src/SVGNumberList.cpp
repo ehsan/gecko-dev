@@ -72,7 +72,7 @@ SVGNumberList::SetValueFromString(const nsAString& aValue)
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
-  if (tokenizer.separatorAfterCurrentToken()) {
+  if (tokenizer.lastTokenEndedWithSeparator()) {
     return NS_ERROR_DOM_SYNTAX_ERR; // trailing comma
   }
   return CopyFrom(temp);

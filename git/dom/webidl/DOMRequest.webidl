@@ -14,6 +14,8 @@ interface DOMRequest : EventTarget {
   readonly attribute any result;
   readonly attribute nsISupports? error;
 
+  [SetterThrows]
   attribute EventHandler onsuccess;
+  [SetterThrows]
   attribute EventHandler onerror;
 };

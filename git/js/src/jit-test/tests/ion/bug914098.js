@@ -1,4 +1,4 @@
-// |jit-test| error: ReferenceError
+// |jit-test| error: TypeError
 
 function ygTreeView(id) {};
 function ygNode() {}

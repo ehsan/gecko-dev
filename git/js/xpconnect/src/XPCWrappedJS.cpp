@@ -598,7 +598,7 @@ nsXPCWrappedJS::GetInterfaceIID(nsIID** iid)
 }
 
 void
-nsXPCWrappedJS::SystemIsBeingShutDown()
+nsXPCWrappedJS::SystemIsBeingShutDown(JSRuntime* rt)
 {
     // XXX It turns out that it is better to leak here then to do any Releases
     // and have them propagate into all sorts of mischief as the system is being
@@ -614,7 +614,7 @@ nsXPCWrappedJS::SystemIsBeingShutDown()
 
     // Notify other wrappers in the chain.
     if (mNext)
-        mNext->SystemIsBeingShutDown();
+        mNext->SystemIsBeingShutDown(rt);
 }
 
 /***************************************************************************/

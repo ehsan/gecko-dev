@@ -78,8 +78,9 @@
 #include "nsIDocShell.h"
 #include "nsIDocCharset.h"
 #include "nsIDocument.h"
+#ifdef MOZ_DISABLE_CRYPTOLEGACY
 #include "Crypto.h"
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#else
 #include "nsIDOMCryptoLegacy.h"
 #endif
 #include "nsIDOMDocument.h"
@@ -3856,16 +3857,12 @@ nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
 
   if (!mCrypto) {
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-    if (XRE_GetProcessType() != GeckoProcessType_Content) {
-      nsresult rv;
-      mCrypto = do_CreateInstance(NS_CRYPTO_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else
+    nsresult rv;
+    mCrypto = do_CreateInstance(NS_CRYPTO_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+#else
+    mCrypto = new Crypto();
 #endif
-    {
-      mCrypto = new Crypto();
-    }
-
     mCrypto->Init(this);
   }
   NS_IF_ADDREF(*aCrypto = mCrypto);
@@ -12059,8 +12056,9 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new EventHandlerNonNull(callable);                           \
     }                                                                        \
-    SetOn##name_(handler);                                                   \
-    return NS_OK;                                                            \
+    ErrorResult rv;                                                          \
+    SetOn##name_(handler, rv);                                               \
+    return rv.ErrorCode();                                                   \
   }
 #define ERROR_EVENT(name_, id_, type_, struct_)                              \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
@@ -12089,8 +12087,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new OnErrorEventHandlerNonNull(callable);                    \
     }                                                                        \
-    elm->SetEventHandler(handler);                                           \
-    return NS_OK;                                                            \
+    return elm->SetEventHandler(handler);                                    \
   }
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                       \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
@@ -12120,8 +12117,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new BeforeUnloadEventHandlerNonNull(callable);               \
     }                                                                        \
-    elm->SetEventHandler(handler);                                           \
-    return NS_OK;                                                            \
+    return elm->SetEventHandler(handler);                                    \
   }
 #define WINDOW_ONLY_EVENT EVENT
 #define TOUCH_EVENT EVENT

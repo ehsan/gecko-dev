@@ -201,14 +201,14 @@ struct Runtime
   public:
     Runtime(
 #ifdef JSGC_GENERATIONAL
-        js::gc::StoreBuffer *storeBuffer
+        js::gc::StoreBuffer *gcStoreBufferPtr
 #endif
     )
       : needsBarrier_(false)
 #ifdef JSGC_GENERATIONAL
       , gcNurseryStart_(0)
       , gcNurseryEnd_(0)
-      , gcStoreBufferPtr_(storeBuffer)
+      , gcStoreBufferPtr_(gcStoreBufferPtr)
 #endif
     {}
 

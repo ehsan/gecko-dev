@@ -52,7 +52,7 @@ public:
   GetOnmessage();
 
   void
-  SetOnmessage(EventHandlerNonNull* aCallback);
+  SetOnmessage(EventHandlerNonNull* aCallback, ErrorResult& aRv);
 
   // Non WebIDL methods
 

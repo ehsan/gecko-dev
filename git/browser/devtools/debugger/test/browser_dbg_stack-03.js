@@ -8,7 +8,7 @@
 const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
 
 let gTab, gDebuggee, gPanel, gDebugger;
-let gFrames, gFramesScrollingInterval;
+let gFrames;
 
 function test() {
   initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
@@ -40,21 +40,18 @@ function performTest() {
         "Should have reached the recurse limit.");
 
       gDebugger.gThreadClient.resume(() => {
-        window.clearInterval(gFramesScrollingInterval);
+        window.clearInterval(scrollingIntervalId);
         closeDebuggerAndFinish(gPanel);
       });
     });
   });
 
-  gFramesScrollingInterval = window.setInterval(() => {
+  let scrollingIntervalId = window.setInterval(() => {
     gFrames.widget._list.scrollByIndex(-1);
   }, 100);
 }
 
 registerCleanupFunction(function() {
-  window.clearInterval(gFramesScrollingInterval);
-  gFramesScrollingInterval = null;
-
   gTab = null;
   gDebuggee = null;
   gPanel = null;

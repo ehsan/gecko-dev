@@ -12,6 +12,8 @@
 #include "nsCRT.h"
 #include "nsIExternalProtocolHandler.h"
 
+static NS_DEFINE_CID(kIOServiceCID, NS_IOSERVICE_CID);
+
 #ifdef DEBUG_BenB_Perf
 #include "prtime.h"
 #include "prinrval.h"

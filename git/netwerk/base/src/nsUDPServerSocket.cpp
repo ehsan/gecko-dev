@@ -15,7 +15,6 @@
 #include "mozilla/Attributes.h"
 #include "nsNetAddr.h"
 #include "nsNetSegmentUtils.h"
-#include "NetworkActivityMonitor.h"
 #include "nsStreamUtils.h"
 #include "nsIPipe.h"
 #include "prerror.h"
@@ -454,9 +453,6 @@ nsUDPServerSocket::InitWithAddress(const NetAddr *aAddr)
   }
 
   PRNetAddrToNetAddr(&addr, &mAddr);
-
-  // create proxy via NetworkActivityMonitor
-  NetworkActivityMonitor::AttachIOLayer(mFD);
 
   // wait until AsyncListen is called before polling the socket for
   // client connections.

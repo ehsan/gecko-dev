@@ -20,7 +20,7 @@ class nsPIDOMWindow;
 namespace mozilla {
 namespace dom {
 
-class OwningTelephonyCallOrTelephonyCallGroup;
+class TelephonyCallOrTelephonyCallGroupReturnValue;
 
 class Telephony MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -84,7 +84,7 @@ public:
   SetSpeakerEnabled(bool aEnabled, ErrorResult& aRv);
 
   void
-  GetActive(Nullable<OwningTelephonyCallOrTelephonyCallGroup>& aValue);
+  GetActive(Nullable<TelephonyCallOrTelephonyCallGroupReturnValue>& aValue);
 
   already_AddRefed<CallsList>
   Calls() const;

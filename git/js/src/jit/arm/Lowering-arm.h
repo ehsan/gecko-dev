@@ -52,9 +52,10 @@ class LIRGeneratorARM : public LIRGeneratorShared
                      MDefinition *lhs, MDefinition *rhs);
     bool lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
                                  MDefinition *lhs, MDefinition *rhs);
-    bool lowerConstantDouble(double d, MInstruction *ins);
-    bool lowerConstantFloat32(float d, MInstruction *ins);
+
     bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
+
+    bool lowerConstantDouble(double d, MInstruction *ins);
     bool lowerDivI(MDiv *div);
     bool lowerModI(MMod *mod);
     bool lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
@@ -71,6 +72,13 @@ class LIRGeneratorARM : public LIRGeneratorShared
     LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
     LGetElementCacheT *newLGetElementCacheT(MGetElementCache *ins);
 
+    bool lowerConstantFloat32(float d, MInstruction *ins) {
+        MOZ_ASSUME_UNREACHABLE("NYI");
+    }
+    bool lowerTruncateFToInt32(MTruncateToInt32 *ins) {
+        MOZ_ASSUME_UNREACHABLE("NYI");
+    }
+
   public:
     bool visitConstant(MConstant *ins);
     bool visitBox(MBox *box);
@@ -84,10 +92,6 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool visitAsmJSStoreHeap(MAsmJSStoreHeap *ins);
     bool visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
     bool visitStoreTypedArrayElementStatic(MStoreTypedArrayElementStatic *ins);
-
-    static bool allowFloat32Optimizations() {
-        return true;
-    }
 };
 
 typedef LIRGeneratorARM LIRGeneratorSpecific;

@@ -18,6 +18,7 @@ interface OfflineAudioContext : AudioContext {
 
     void startRendering();
 
+    [SetterThrows]
     attribute EventHandler oncomplete;
 
 };

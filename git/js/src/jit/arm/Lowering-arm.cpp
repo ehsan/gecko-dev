@@ -62,19 +62,12 @@ LIRGeneratorARM::lowerConstantDouble(double d, MInstruction *mir)
 }
 
 bool
-LIRGeneratorARM::lowerConstantFloat32(float d, MInstruction *mir)
-{
-    return define(new LFloat32(d), mir);
-}
-
-bool
 LIRGeneratorARM::visitConstant(MConstant *ins)
 {
-    if (ins->type() == MIRType_Double)
-        return lowerConstantDouble(ins->value().toDouble(), ins);
-
-    if (ins->type() == MIRType_Float32)
-        return lowerConstantFloat32(ins->value().toDouble(), ins);
+    if (ins->type() == MIRType_Double) {
+        LDouble *lir = new LDouble(ins->value().toDouble());
+        return define(lir, ins);
+    }
 
     // Emit non-double constants at their uses.
     if (ins->canEmitAtUses())

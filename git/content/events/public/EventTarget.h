@@ -74,7 +74,7 @@ protected:
   EventHandlerNonNull* GetEventHandler(nsIAtom* aType,
                                        const nsAString& aTypeString);
   void SetEventHandler(nsIAtom* aType, const nsAString& aTypeString,
-                       EventHandlerNonNull* aHandler);
+                       EventHandlerNonNull* aHandler, ErrorResult& rv);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(EventTarget, NS_EVENTTARGET_IID)

@@ -19,12 +19,6 @@ enum TextTrackCueAlign {
   "right"
 };
 
-enum DirectionSetting {
-  "",
-  "rl",
-  "lr"
-};
-
 [Constructor(double startTime, double endTime, DOMString text),
  Pref="media.webvtt.enabled"]
 interface VTTCue : EventTarget {
@@ -34,7 +28,8 @@ interface VTTCue : EventTarget {
   attribute double startTime;
   attribute double endTime;
   attribute boolean pauseOnExit;
-  attribute DirectionSetting vertical;
+  [SetterThrows]
+  attribute DOMString vertical;
   attribute boolean snapToLines;
   // XXXhumph: https://www.w3.org/Bugs/Public/show_bug.cgi?id=20651
   // attribute (long or AutoKeyword) line;
@@ -46,7 +41,9 @@ interface VTTCue : EventTarget {
   attribute DOMString text;
   DocumentFragment getCueAsHTML();
 
-  attribute EventHandler onenter;
+  [SetterThrows]
+    attribute EventHandler onenter;
 
-  attribute EventHandler onexit;
+  [SetterThrows]
+    attribute EventHandler onexit;
 };

@@ -886,9 +886,8 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
     }
 
     NPIdentifier id;
-    if (v.isString()) {
-      JS::Rooted<JSString*> str(cx, v.toString());
-      str = JS_InternJSString(cx, str);
+    if (JSVAL_IS_STRING(v)) {
+      JSString *str = JS_InternJSString(cx, JSVAL_TO_STRING(v));
       if (!str) {
         PR_Free(*idarray);
         return false;
@@ -1399,8 +1398,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
 
     if (npobj->_class->invoke) {
       JSFunction *fun = ::JS_GetObjectFunction(funobj);
-      JS::Rooted<JSString*> funId(cx, ::JS_GetFunctionId(fun));
-      JSString *name = ::JS_InternJSString(cx, funId);
+      JSString *name = ::JS_InternJSString(cx, ::JS_GetFunctionId(fun));
       NPIdentifier id = StringToNPIdentifier(cx, name);
 
       ok = npobj->_class->invoke(npobj, id, npargs, argc, &v);
