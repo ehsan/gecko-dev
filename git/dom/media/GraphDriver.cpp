@@ -612,7 +612,7 @@ AudioCallbackDriver::Init()
     mNextDriver->SetGraphTime(this, mIterationStart, mIterationEnd,
                                mStateComputedTime, mNextStateComputedTime);
     mGraphImpl->SetCurrentDriver(mNextDriver);
-    bool found = mGraphImpl->RemoveMixerCallback(this);
+    DebugOnly<bool> found = mGraphImpl->RemoveMixerCallback(this);
     NS_WARN_IF_FALSE(!found, "Mixer callback not added when switching?");
     mNextDriver->Start();
     return;
