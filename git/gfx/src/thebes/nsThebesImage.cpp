@@ -629,11 +629,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
 
     ctx->NewPath();
     ctx->SetPattern(pat);
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    ctx->Rectangle(destRect, PR_TRUE);
-#else
     ctx->Rectangle(destRect);
-#endif
     ctx->Fill();
 
     ctx->SetOperator(op);
@@ -660,11 +656,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     if (mSinglePixel && mSinglePixelColor.a == 0.0)
         return NS_OK;
 
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    PRBool doSnap = PR_TRUE;
-#else
     PRBool doSnap = !(thebesContext->CurrentMatrix().HasNonTranslation());
-#endif
     PRBool hasPadding = ((xPadding != 0) || (yPadding != 0));
     gfxImageSurface::gfxImageFormat format = mFormat;
     

@@ -278,29 +278,7 @@ private:
     PRPackedBool mDidGetFlags;
     PRPackedBool mMustFreeName;
 };
-
-class AutoCxPusher {
-public:
-    AutoCxPusher(nsIJSContextStack *aStack, JSContext *cx)
-        : mStack(aStack), mContext(cx)
-    {
-        if (NS_FAILED(mStack->Push(mContext))) {
-            mStack = nsnull;
-        }
-    }
-
-    ~AutoCxPusher()
-    {
-        if (mStack) {
-            mStack->Pop(nsnull);
-        }
-    }
-
-private:
-    nsCOMPtr<nsIJSContextStack> mStack;
-    JSContext *mContext;
-};
-
+ 
 JSContext *
 nsScriptSecurityManager::GetCurrentJSContext()
 {
@@ -399,7 +377,7 @@ nsScriptSecurityManager::GetCxSubjectPrincipal(JSContext *cx)
 ////////////////////
 
 // Table of security levels
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 DeleteCapability(nsHashKey *aKey, void *aData, void* closure)
 {
     NS_Free(aData);
@@ -449,7 +427,7 @@ struct DomainEntry
 #endif
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 DeleteDomainEntry(nsHashKey *aKey, void *aData, void* closure)
 {
     DomainEntry *entry = (DomainEntry*) aData;
@@ -509,8 +487,8 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
     nsresult rv =
         ssm->CheckPropertyAccess(cx, target, STOBJ_GET_CLASS(obj)->name, id,
                                  (mode & JSACC_WRITE) ?
-                                 (PRInt32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY :
-                                 (PRInt32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+                                 nsIXPCSecurityManager::ACCESS_SET_PROPERTY :
+                                 nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
 
     if (NS_FAILED(rv))
         return JS_FALSE; // Security check failed (XXX was an error reported?)
@@ -3419,7 +3397,6 @@ nsScriptSecurityManager::InitPolicies()
     // Get a JS context - we need it to create internalized strings later.
     JSContext* cx = GetSafeJSContext();
     NS_ASSERTION(cx, "failed to get JS context");
-    AutoCxPusher autoPusher(mJSContextStack, cx);
     rv = InitDomainPolicy(cx, "default", mDefaultPolicy);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3452,8 +3429,8 @@ nsScriptSecurityManager::InitPolicies()
 
         nsCAutoString sitesPrefName(
             NS_LITERAL_CSTRING(sPolicyPrefix) +
-            nsDependentCString(nameBegin) +
-            NS_LITERAL_CSTRING(".sites"));
+				    nsDependentCString(nameBegin) +
+				    NS_LITERAL_CSTRING(".sites"));
         nsXPIDLCString domainList;
         rv = mSecurityPref->SecurityGetCharPref(sitesPrefName.get(),
                                                 getter_Copies(domainList));
@@ -3897,9 +3874,9 @@ nsScriptSecurityManager::InitPrefs()
 #ifdef DEBUG_CAPS_HACKER
 
 //typedef PLDHashOperator
-//(* PLDHashEnumerator)(PLDHashTable *table, PLDHashEntryHdr *hdr,
-//                      PRUint32 number, void *arg);
-static PLDHashOperator
+//(* PR_CALLBACK PLDHashEnumerator)(PLDHashTable *table, PLDHashEntryHdr *hdr,
+//                                      PRUint32 number, void *arg);
+PR_STATIC_CALLBACK(PLDHashOperator)
 PrintPropertyPolicy(PLDHashTable *table, PLDHashEntryHdr *entry,
                     PRUint32 number, void *arg)
 {
@@ -3925,7 +3902,7 @@ PrintPropertyPolicy(PLDHashTable *table, PLDHashEntryHdr *entry,
     return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 PrintClassPolicy(PLDHashTable *table, PLDHashEntryHdr *entry,
                  PRUint32 number, void *arg)
 {
@@ -3937,8 +3914,8 @@ PrintClassPolicy(PLDHashTable *table, PLDHashEntryHdr *entry,
 }
 
 // typedef PRBool
-// (* nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
-static PRBool
+// (*PR_CALLBACK nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
+PR_STATIC_CALLBACK(PRBool)
 PrintDomainPolicy(nsHashKey *aKey, void *aData, void* aClosure)
 {
     DomainEntry* de = (DomainEntry*)aData;
@@ -3949,7 +3926,7 @@ PrintDomainPolicy(nsHashKey *aKey, void *aData, void* aClosure)
     return PR_TRUE;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 PrintCapability(nsHashKey *aKey, void *aData, void* aClosure)
 {
     char* cap = (char*)aData;

@@ -91,7 +91,7 @@ NewHeapAtom(const char *value) {
 }
 
 // Hash string ignore case, based on PL_HashString
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 StringHash(PLDHashTable *table, const void *key)
 {
     PLDHashNumber h = 0;
@@ -100,7 +100,7 @@ StringHash(PLDHashTable *table, const void *key)
     return h;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 StringCompare(PLDHashTable *table, const PLDHashEntryHdr *entry,
               const void *testKey)
 {

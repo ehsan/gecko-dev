@@ -132,11 +132,9 @@ nsBulletFrame::IsSelfEmpty()
   return GetStyleList()->mListStyleType == NS_STYLE_LIST_STYLE_NONE;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsBulletFrame::DidSetStyleContext()
 {
-  nsFrame::DidSetStyleContext();
-
   imgIRequest *newRequest = GetStyleList()->mListStyleImage;
 
   if (newRequest) {
@@ -181,6 +179,8 @@ nsBulletFrame::DidSetStyleContext()
       mImageRequest = nsnull;
     }
   }
+
+  return NS_OK;
 }
 
 class nsDisplayBullet : public nsDisplayItem {

@@ -379,6 +379,8 @@ nsNavHistory::PerformAutoComplete()
   if (!mCurrentListener)
     return NS_OK;
 
+  mCurrentResult->SetSearchString(mCurrentSearchString);
+
   nsresult rv;
   // Only do some extra searches on the first chunk
   if (!mCurrentChunkOffset) {
@@ -508,7 +510,6 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   nsresult rv;
   mCurrentResult = do_CreateInstance(NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  mCurrentResult->SetSearchString(aSearchString);
 
   // Use the previous in-progress search by looking at which urls it found if
   // the new search begins with the old one and both aren't empty. We don't run
@@ -522,6 +523,7 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
     // Got nothing before? We won't get anything new, so stop now
     if (mAutoCompleteFinishedSearch && prevMatchCount == 0) {
       // Set up the result to let the listener know that there's nothing
+      mCurrentResult->SetSearchString(mCurrentSearchString);
       mCurrentResult->SetSearchResult(nsIAutoCompleteResult::RESULT_NOMATCH);
       mCurrentResult->SetDefaultIndex(-1);
 

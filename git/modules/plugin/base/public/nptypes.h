@@ -37,8 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * Header file for ensuring that C99 types ([u]int32_t and bool) and
- * true/false macros are available.
+ * Header file for ensuring that C99 types ([u]int32_t and bool) are
+ * available.
  */
 
 #if defined(WIN32) || defined(OS2)
@@ -59,8 +59,6 @@
 
   #ifndef __cplusplus
     typedef int bool;
-    #define true   1
-    #define false  0
   #endif
 #elif defined(bsdi) || defined(FREEBSD) || defined(OPENBSD)
   /*
@@ -77,8 +75,6 @@
 
   #if !defined(__cplusplus)
     typedef int bool;
-    #define true   1
-    #define false  0
   #endif
   #else
   /*
@@ -106,8 +102,6 @@
        * works.
        */
       #define bool int
-      #define true   1
-      #define false  0
     #endif
   #endif
 #endif

@@ -361,17 +361,17 @@ private:
     }
   };
 
-  static PLDHashNumber
+  static PR_CALLBACK PLDHashNumber
   ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey);
 
-  static PRBool
+  static PR_CALLBACK PRBool
   ChildrenHashMatchEntry(PLDHashTable *aTable,
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
   static PLDHashTableOps ChildrenHashOps;
 
-  static PLDHashOperator
+  static PR_CALLBACK PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
                           PRUint32 number, void *arg);
 

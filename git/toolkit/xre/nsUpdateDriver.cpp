@@ -175,7 +175,7 @@ GetXULRunnerStubPath(const char* argv0, nsILocalFile* *aResult)
 }
 #endif /* XP_MACOSX */
 
-static int
+PR_STATIC_CALLBACK(int)
 ScanDirComparator(nsIFile *a, nsIFile *b, void *unused)
 {
   // lexically compare the leaf names of these two files

@@ -86,12 +86,14 @@ class nsISVGChildFrame;
 // SVG Frame state bits
 #define NS_STATE_IS_OUTER_SVG         0x00100000
 
-#define NS_STATE_SVG_DIRTY            0x00200000
+#define NS_STATE_SVG_HAS_MARKERS      0x00200000
+
+#define NS_STATE_SVG_DIRTY            0x00400000
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00400000
+#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00800000
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x01000000
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -233,6 +235,13 @@ public:
   static float CoordToFloat(nsPresContext *aPresContext,
                             nsSVGElement *aContent,
                             const nsStyleCoord &aCoord);
+  /*
+   * Gets an internal frame for an element referenced by a URI.  Note that this
+   * only works for URIs that reference elements within the same document.
+   */
+  static nsresult GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI,
+                                     nsIContent *aContent, nsIPresShell *aPresShell);
+
   /*
    * Return the nearest viewport element
    */

@@ -742,7 +742,7 @@ nsNavBookmarks::RecursiveAddBookmarkHash(PRInt64 aPlaceID,
 //    an Int64 history page ID) as the userArg and removes all redirect
 //    destinations that reference it.
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RemoveBookmarkHashCallback(nsTrimInt64HashKey::KeyType aKey,
                            PRInt64& aPlaceId, void* aUserArg)
 {
@@ -1470,7 +1470,7 @@ nsNavBookmarks::RemoveFolder(PRInt64 aFolderId)
 
   // If this is a container bookmark, try to notify its service.
   if (folderType.Length() > 0) {
-    // There is a type associated with this folder.
+    // There is a type associated with this folder; it's a livemark.
     nsCOMPtr<nsIDynamicContainer> bmcServ = do_GetService(folderType.get());
     if (bmcServ) {
       rv = bmcServ->OnContainerRemoving(aFolderId);
@@ -2066,8 +2066,6 @@ nsNavBookmarks::QueryFolderChildren(PRInt64 aFolderId,
   PRBool results;
 
   nsCOMPtr<nsNavHistoryQueryOptions> options = do_QueryInterface(aOptions, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   PRInt32 index = -1;
   while (NS_SUCCEEDED(mDBGetChildren->ExecuteStep(&results)) && results) {
 
@@ -2095,7 +2093,8 @@ nsNavBookmarks::QueryFolderChildren(PRInt64 aFolderId,
         continue;
       }
     } else if (itemType == TYPE_FOLDER || itemType == TYPE_DYNAMIC_CONTAINER) {
-      if (options->ExcludeReadOnlyFolders()) {
+      if (itemType == TYPE_DYNAMIC_CONTAINER ||
+          (itemType == TYPE_FOLDER && options->ExcludeReadOnlyFolders())) {
         // see if it's read only and skip it
         PRBool readOnly = PR_FALSE;
         GetFolderReadonly(id, &readOnly);

@@ -85,7 +85,7 @@ public:
 private:
     virtual ~nsIOThreadPool();
 
-    static void ThreadFunc(void *);
+    PR_STATIC_CALLBACK(void) ThreadFunc(void *);
 
     // mLock protects all (exceptions during Init and Shutdown)
     PRLock    *mLock;

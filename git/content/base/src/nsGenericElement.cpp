@@ -5072,7 +5072,8 @@ ParseSelectorList(nsINode* aNode,
  * the callbacks returns false, the iteration should be stopped.
  */
 typedef PRBool
-(* ElementMatchedCallback)(nsIContent* aMatchingElement, void* aClosure);
+(* PR_CALLBACK ElementMatchedCallback)(nsIContent* aMatchingElement,
+                                       void* aClosure);
 
 // returning false means stop iteration
 static PRBool
@@ -5168,7 +5169,7 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   return continueIteration;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 FindFirstMatchingElement(nsIContent* aMatchingElement,
                          void* aClosure)
 {
@@ -5204,7 +5205,7 @@ nsGenericElement::doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AppendAllMatchingElements(nsIContent* aMatchingElement,
                           void* aClosure)
 {

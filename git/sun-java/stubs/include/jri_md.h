@@ -121,7 +121,11 @@ extern "C" {
 
 /* OS/2 */
 #elif defined(XP_OS2)
-#	ifdef __declspec
+#	ifdef XP_OS2_VACPP
+#		define JRI_PUBLIC_API(ResultType)	ResultType _Optlink
+#		define JRI_PUBLIC_VAR(VarType)		VarType
+#     		define JRI_CALLBACK
+#	elif defined(__declspec)
 #		define JRI_PUBLIC_API(ResultType)  	__declspec(dllexport) ResultType
 #		define JRI_PUBLIC_VAR(VarType)	   	VarType
 #		define JRI_PUBLIC_VAR_EXP(VarType) 	__declspec(dllexport) VarType

@@ -81,7 +81,7 @@ struct ChildrenHashEntry : public PLDHashEntryHdr {
   nsRuleNode *mRuleNode;
 };
 
-/* static */ PLDHashNumber
+/* static */ PR_CALLBACK PLDHashNumber
 nsRuleNode::ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey)
 {
   const nsRuleNode::Key *key =
@@ -91,7 +91,7 @@ nsRuleNode::ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey)
   return PL_DHashVoidPtrKeyStub(aTable, key->mRule);
 }
 
-/* static */ PRBool
+/* static */ PR_CALLBACK PRBool
 nsRuleNode::ChildrenHashMatchEntry(PLDHashTable *aTable,
                                    const PLDHashEntryHdr *aHdr,
                                    const void *aKey)
@@ -602,7 +602,7 @@ nsRuleNode::operator new(size_t sz, nsPresContext* aPresContext) CPP_THROW_NEW
   return aPresContext->AllocateFromShell(sz);
 }
 
-/* static */ PLDHashOperator
+/* static */ PR_CALLBACK PLDHashOperator
 nsRuleNode::EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                     PRUint32 number, void *arg)
 {
@@ -819,8 +819,8 @@ struct PropertyCheckData {
  * result, and it returns the revised one.
  */
 typedef nsRuleNode::RuleDetail
-  (* CheckCallbackFn)(const nsRuleDataStruct& aData,
-                      nsRuleNode::RuleDetail aResult);
+  (* PR_CALLBACK CheckCallbackFn)(const nsRuleDataStruct& aData,
+                                  nsRuleNode::RuleDetail aResult);
 
 /* the information for all the properties in a style struct */
 struct StructCheckData {
@@ -869,7 +869,7 @@ ExamineCSSRect(const nsCSSRect* aRect,
   }
 }
 
-static nsRuleNode::RuleDetail
+PR_STATIC_CALLBACK(nsRuleNode::RuleDetail)
 CheckFontCallback(const nsRuleDataStruct& aData,
                   nsRuleNode::RuleDetail aResult)
 {
@@ -910,7 +910,7 @@ CheckFontCallback(const nsRuleDataStruct& aData,
   return aResult;
 }
 
-static nsRuleNode::RuleDetail
+PR_STATIC_CALLBACK(nsRuleNode::RuleDetail)
 CheckColorCallback(const nsRuleDataStruct& aData,
                    nsRuleNode::RuleDetail aResult)
 {
@@ -2200,7 +2200,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
 {
   PRBool zoom = PR_FALSE;
   PRInt32 baseSize = (PRInt32) aPresContext->
-    GetDefaultFont(aFont->mGenericID)->size;
+    GetDefaultFont(aFont->mFlags & NS_STYLE_FONT_FACE_MASK)->size;
   if (eCSSUnit_Enumerated == aFontData.mSize.GetUnit()) {
     PRInt32 value = aFontData.mSize.GetIntValue();
     PRInt32 scaler = aPresContext->FontScaler();
@@ -2408,29 +2408,31 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
         (aPresContext->CompatibilityMode() == eCompatibility_NavQuirks &&
          aFontData.mFamilyFromHTML);
     aFont->mFont.systemFont = PR_FALSE;
+    aFont->mFlags &= ~NS_STYLE_FONT_FACE_MASK;
     // Technically this is redundant with the code below, but it's good
     // to have since we'll still want it once we get rid of
     // SetGenericFont (bug 380915).
-    aFont->mGenericID = aGenericFontID;
+    aFont->mFlags |= aGenericFontID;
   }
   else if (eCSSUnit_System_Font == aFontData.mFamily.GetUnit()) {
     aFont->mFont.name = systemFont.name;
     aFont->mFont.familyNameQuirks = PR_FALSE;
     aFont->mFont.systemFont = PR_TRUE;
-    aFont->mGenericID = kGenericFont_NONE;
+    aFont->mFlags &= ~NS_STYLE_FONT_FACE_MASK;
   }
   else if (eCSSUnit_Inherit == aFontData.mFamily.GetUnit()) {
     aInherited = PR_TRUE;
     aFont->mFont.name = aParentFont->mFont.name;
     aFont->mFont.familyNameQuirks = aParentFont->mFont.familyNameQuirks;
     aFont->mFont.systemFont = aParentFont->mFont.systemFont;
-    aFont->mGenericID = aParentFont->mGenericID;
+    aFont->mFlags &= ~NS_STYLE_FONT_FACE_MASK;
+    aFont->mFlags |= (aParentFont->mFlags & NS_STYLE_FONT_FACE_MASK);
   }
   else if (eCSSUnit_Initial == aFontData.mFamily.GetUnit()) {
     aFont->mFont.name = defaultVariableFont->name;
     aFont->mFont.familyNameQuirks = PR_FALSE;
     aFont->mFont.systemFont = defaultVariableFont->systemFont;
-    aFont->mGenericID = kGenericFont_NONE;
+    aFont->mFlags &= ~NS_STYLE_FONT_FACE_MASK;
   }
 
   // When we're in the loop in SetGenericFont, we must ensure that we
@@ -2438,7 +2440,8 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   // to be careful not to touch it when we're called directly from
   // ComputeFontData, because we could have a start struct.
   if (aGenericFontID != kGenericFont_NONE) {
-    aFont->mGenericID = aGenericFontID;
+    aFont->mFlags &= ~NS_STYLE_FONT_FACE_MASK;
+    aFont->mFlags |= aGenericFontID;
   }
 
   // font-style: enum, normal, inherit, initial, -moz-system-font
@@ -2584,7 +2587,7 @@ nsRuleNode::SetGenericFont(nsPresContext* aPresContext,
   contextPath.AppendElement(aContext);
   nsStyleContext* higherContext = aContext->GetParent();
   while (higherContext) {
-    if (higherContext->GetStyleFont()->mGenericID == aGenericFontID) {
+    if (higherContext->GetStyleFont()->mFlags & aGenericFontID) {
       // done walking up the higher contexts
       break;
     }
@@ -5175,7 +5178,7 @@ nsRuleNode::Mark()
     node->mDependentBits |= NS_RULE_NODE_GC_MARK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 SweepRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
                       PRUint32 number, void *arg)
 {

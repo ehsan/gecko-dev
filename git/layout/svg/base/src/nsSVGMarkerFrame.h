@@ -59,10 +59,6 @@ protected:
     mInUse2(PR_FALSE) {}
 
 public:
-  // nsIFrame interface:
-  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
-                              nsIAtom*        aAttribute,
-                              PRInt32         aModType);
   /**
    * Get the "type" of the frame
    *
@@ -123,5 +119,8 @@ private:
   // second recursion prevention flag, for GetCanvasTM()
   PRPackedBool mInUse2;
 };
+
+nsIContent *
+NS_GetSVGMarkerElement(nsIURI *aURI, nsIContent *aContent);
 
 #endif

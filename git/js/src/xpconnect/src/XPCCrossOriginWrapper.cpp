@@ -187,7 +187,7 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
                      XPCWrappedNativeScope *newScope)
 {
   typedef WrappedNative2WrapperMap::Link Link;
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
   WrappedNative2WrapperMap *map = innerObj->GetScope()->GetWrapperMap();
   Link *link;
 
@@ -471,7 +471,7 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp)
     return JS_TRUE;
   }
 
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
   XPCCallContext ccx(NATIVE_CALLER, cx);
   NS_ENSURE_TRUE(ccx.IsValid(), JS_FALSE);
 

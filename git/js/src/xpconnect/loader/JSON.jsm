@@ -44,14 +44,14 @@
  *
  * Usage:
  *
- * var newJSONString = JSONModule.toString( GIVEN_JAVASCRIPT_OBJECT );
- * var newJavaScriptObject = JSONModule.fromString( GIVEN_JSON_STRING );
+ * var newJSONString = JSON.toString( GIVEN_JAVASCRIPT_OBJECT );
+ * var newJavaScriptObject = JSON.fromString( GIVEN_JSON_STRING );
  *
  * Note: For your own safety, Objects/Arrays returned by
- *       JSONModule.fromString aren't instanceof Object/Array.
+ *       JSON.fromString aren't instanceof Object/Array.
  */
 
-var EXPORTED_SYMBOLS = ["JSONModule"];
+var EXPORTED_SYMBOLS = ["JSON"];
 
 // The following code is a loose adaption of Douglas Crockford's code
 // from http://www.json.org/json.js (public domain'd)
@@ -61,7 +61,7 @@ var EXPORTED_SYMBOLS = ["JSONModule"];
 //   silently dropped but always lead to a TypeError.
 // * An optional key blacklist has been added to JSON.toString
 
-var JSONModule = {
+var JSON = {
   /**
    * Converts a JavaScript object into a JSON string.
    *

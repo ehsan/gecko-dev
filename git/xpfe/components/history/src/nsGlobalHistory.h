@@ -230,7 +230,7 @@ protected:
   PRBool AutoCompleteCompare(nsAString& aHistoryURL, 
                              const nsAString& aUserURL,
                              AutocompleteExclude* aExclude);
-  static int
+  PR_STATIC_CALLBACK(int)
   AutoCompleteSortComparison(nsIMdbRow* v1, nsIMdbRow* v2, void *unused);
 
   // AutoCompleteSortClosure - used to pass info into 

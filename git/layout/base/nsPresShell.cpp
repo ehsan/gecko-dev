@@ -375,26 +375,26 @@ protected:
   void DisplayTotals(PRUint32 aTotal, PRUint32 * aDupArray, char * aTitle);
   void DisplayHTMLTotals(PRUint32 aTotal, PRUint32 * aDupArray, char * aTitle);
 
-  static PRIntn RemoveItems(PLHashEntry *he, PRIntn i, void *arg);
-  static PRIntn RemoveIndiItems(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) RemoveItems(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) RemoveIndiItems(PLHashEntry *he, PRIntn i, void *arg);
   void CleanUp();
 
   // stdout Output Methods
-  static PRIntn DoSingleTotal(PLHashEntry *he, PRIntn i, void *arg);
-  static PRIntn DoSingleIndi(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) DoSingleTotal(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) DoSingleIndi(PLHashEntry *he, PRIntn i, void *arg);
 
   void DoGrandTotals();
   void DoIndiTotalsTree();
 
   // HTML Output Methods
-  static PRIntn DoSingleHTMLTotal(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) DoSingleHTMLTotal(PLHashEntry *he, PRIntn i, void *arg);
   void DoGrandHTMLTotals();
 
   // Zero Out the Totals
-  static PRIntn DoClearTotals(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) DoClearTotals(PLHashEntry *he, PRIntn i, void *arg);
 
   // Displays the Diff Totals
-  static PRIntn DoDisplayDiffTotals(PLHashEntry *he, PRIntn i, void *arg);
+  PR_STATIC_CALLBACK(PRIntn) DoDisplayDiffTotals(PLHashEntry *he, PRIntn i, void *arg);
 
   PLHashTable * mCounts;
   PLHashTable * mIndiFrameCounts;
@@ -2089,7 +2089,6 @@ nsresult PresShell::SetPrefFocusRules(void)
     }
     PRUint8 focusRingWidth = mPresContext->FocusRingWidth();
     PRBool focusRingOnAnything = mPresContext->GetFocusRingOnAnything();
-    PRUint8 focusRingStyle = mPresContext->GetFocusRingStyle();
 
     if ((NS_SUCCEEDED(result) && focusRingWidth != 1 && focusRingWidth <= 4 ) || focusRingOnAnything) {
       PRUint32 index = 0;
@@ -2098,10 +2097,7 @@ nsresult PresShell::SetPrefFocusRules(void)
         strRule.AppendLiteral("*|*:link:focus, *|*:visited");    // If we only want focus rings on the normal things like links
       strRule.AppendLiteral(":focus {outline: ");     // For example 3px dotted WindowText (maximum 4)
       strRule.AppendInt(focusRingWidth);
-      if (focusRingStyle == 0) // solid
-        strRule.AppendLiteral("px solid -moz-mac-focusring !important; -moz-outline-radius: 3px;  -moz-outline-offset: 1px; } ");
-      else // dotted
-        strRule.AppendLiteral("px dotted WindowText !important; } ");
+      strRule.AppendLiteral("px dotted WindowText !important; } ");     // For example 3px dotted WindowText
       // insert the rules
       result = mPrefStyleSheet->
         InsertRuleInternal(strRule, sInsertPrefSheetRulesAt, &index);
@@ -2112,10 +2108,7 @@ nsresult PresShell::SetPrefFocusRules(void)
         strRule.AppendLiteral("input[type=\"button\"]::-moz-focus-inner, ");
         strRule.AppendLiteral("input[type=\"submit\"]::-moz-focus-inner { padding: 1px 2px 1px 2px; border: ");
         strRule.AppendInt(focusRingWidth);
-        if (focusRingStyle == 0) // solid
-          strRule.AppendLiteral("px solid transparent !important; } ");
-        else
-          strRule.AppendLiteral("px dotted transparent !important; } ");
+        strRule.AppendLiteral("px dotted transparent !important; } ");
         result = mPrefStyleSheet->
           InsertRuleInternal(strRule, sInsertPrefSheetRulesAt, &index);
         NS_ENSURE_SUCCESS(result, result);
@@ -2368,8 +2361,6 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
   if (mIsDestroying) {
     return NS_OK;
   }
-
-  NS_ASSERTION(!mDidInitialReflow, "Why are we being called?");
 
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   mDidInitialReflow = PR_TRUE;
@@ -4915,30 +4906,13 @@ PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.width),
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.height));
   aThebesContext->Save();
+  aThebesContext->Clip(r);
 
-  aThebesContext->NewPath();
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  aThebesContext->Rectangle(r, PR_TRUE);
-#else
-  aThebesContext->Rectangle(r);
-#endif
-  aThebesContext->Clip();
+  aThebesContext->PushGroup(NS_GET_A(aBackgroundColor) == 0xff ?
+                            gfxASurface::CONTENT_COLOR :
+                            gfxASurface::CONTENT_COLOR_ALPHA);
 
-  // we can avoid using a temporary surface if we're using OPERATOR_OVER
-  // and our background color has no alpha (so we'll be compositing on top
-  // of a fully opaque solid color region)
-  PRBool needsGroup = PR_TRUE;
-  if (aThebesContext->CurrentOperator() == gfxContext::OPERATOR_OVER &&
-      NS_GET_A(aBackgroundColor) == 0xff)
-    needsGroup = PR_FALSE;
-
-  if (needsGroup) {
-    aThebesContext->PushGroup(NS_GET_A(aBackgroundColor) == 0xff ?
-                              gfxASurface::CONTENT_COLOR :
-                              gfxASurface::CONTENT_COLOR_ALPHA);
-
-    aThebesContext->Save();
-  }
+  aThebesContext->Save();
 
   // draw background color
   if (NS_GET_A(aBackgroundColor) > 0) {
@@ -4948,9 +4922,8 @@ PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
   }
 
   // we want the window to be composited as a single image using
-  // whatever operator was set; set OPERATOR_OVER here, which is
-  // either already the case, or overrides the operator in a group.
-  // the original operator will be present when we PopGroup.
+  // whatever operator was set, so set this to the default OVER;
+  // the original operator will be present when we PopGroup
   aThebesContext->SetOperator(gfxContext::OPERATOR_OVER);
 
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
@@ -4997,12 +4970,9 @@ PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
     }
   }
 
-  // if we had to use a group, paint it to the destination now
-  if (needsGroup) {
-    aThebesContext->Restore();
-    aThebesContext->PopGroupToSource();
-    aThebesContext->Paint();
-  }
+  aThebesContext->Restore();
+  aThebesContext->PopGroupToSource();
+  aThebesContext->Paint();
 
   aThebesContext->Restore();
 
@@ -6071,7 +6041,7 @@ StopVideoInstance(PresShell *aShell, nsIContent *aContent)
 #endif
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 FreezeSubDocument(nsIDocument *aDocument, void *aData)
 {
   nsIPresShell *shell = aDocument->GetPrimaryShell();
@@ -6126,7 +6096,7 @@ StartVideoInstance(PresShell *aShell, nsIContent *aContent)
 #endif
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ThawSubDocument(nsIDocument *aDocument, void *aData)
 {
   nsIPresShell *shell = aDocument->GetPrimaryShell();
@@ -6485,9 +6455,9 @@ PresShell::ClearReflowEventStatus()
  */
 
 // Return value says whether to walk children.
-typedef PRBool (* frameWalkerFn)(nsIFrame *aFrame, void *aClosure);
+typedef PRBool (* PR_CALLBACK frameWalkerFn)(nsIFrame *aFrame, void *aClosure);
    
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ReResolveMenusAndTrees(nsIFrame *aFrame, void *aClosure)
 {
   // Trees have a special style cache that needs to be flushed when
@@ -6505,7 +6475,7 @@ ReResolveMenusAndTrees(nsIFrame *aFrame, void *aClosure)
   return PR_TRUE;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ReframeImageBoxes(nsIFrame *aFrame, void *aClosure)
 {
   nsStyleChangeList *list = static_cast<nsStyleChangeList*>(aClosure);

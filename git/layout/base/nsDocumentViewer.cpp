@@ -2067,7 +2067,7 @@ DocumentViewerImpl::RequestWindowClose(PRBool* aCanClose)
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AppendAgentSheet(nsIStyleSheet *aSheet, void *aData)
 {
   nsStyleSet *styleSet = static_cast<nsStyleSet*>(aData);
@@ -2075,7 +2075,7 @@ AppendAgentSheet(nsIStyleSheet *aSheet, void *aData)
   return PR_TRUE;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 PrependUserSheet(nsIStyleSheet *aSheet, void *aData)
 {
   nsStyleSet *styleSet = static_cast<nsStyleSet*>(aData);

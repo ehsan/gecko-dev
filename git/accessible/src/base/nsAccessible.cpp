@@ -220,12 +220,6 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  if (aIID.Equals(NS_GET_IID(nsAccessible))) {
-    *aInstancePtr = static_cast<nsAccessible*>(this);
-    NS_ADDREF_THIS();
-    return NS_OK;
-  }
-
   if (aIID.Equals(NS_GET_IID(nsIAccessibleSelectable))) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
     if (!content) {
@@ -307,19 +301,26 @@ NS_IMETHODIMP nsAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;  // Node shut down
+  }
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+  PRBool canAggregateName = mRoleMapEntry &&
+                            mRoleMapEntry->nameRule == eNameOkFromChildren;
 
-  GetARIAName(aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
+  if (content->IsNodeOfType(nsINode::eHTML)) {
+    return GetHTMLName(aName, canAggregateName);
+  }
 
-  return GetNameInternal(aName);
+  if (content->IsNodeOfType(nsINode::eXUL)) {
+    return GetXULName(aName, canAggregateName);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
@@ -1815,13 +1816,15 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
     return NS_OK;
 
   nsAutoString ids;
-  if (!content->GetAttr(kNameSpaceID_None, aIDProperty, ids))
-    return NS_OK;
-
+  if (!content->GetAttr(kNameSpaceID_None, aIDProperty, ids)) {
+    return NS_ERROR_FAILURE;
+  }
   ids.CompressWhitespace(PR_TRUE, PR_TRUE);
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(content->GetOwnerDoc());
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
+  
+  nsresult rv = NS_ERROR_FAILURE;
 
   // Support idlist as in aria-labelledby="id1 id2 id3"
   while (!ids.IsEmpty()) {
@@ -1846,13 +1849,13 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
       return NS_OK;
     }
     // We have a label content
-    nsresult rv = AppendFlatStringFromSubtree(content, &aName);
+    rv = AppendFlatStringFromSubtree(content, &aName);
     if (NS_SUCCEEDED(rv)) {
       aName.CompressWhitespace();
     }
   }
   
-  return NS_OK;
+  return rv;
 }
 
 /**
@@ -1862,18 +1865,28 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
   */
 nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content) {
-    aLabel.SetIsVoid(PR_TRUE);
+    return NS_ERROR_FAILURE;   // Node shut down
+  }
+
+  // Check for aria-label property
+  nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
     return NS_OK;
+  }
+
+  // Check for aria-labelledby relationship property
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
+  if (NS_SUCCEEDED(rv)) {
+    aLabel = label;
+    return rv;
   }
 
   nsIContent *labelContent = GetHTMLLabelContent(content);
   if (labelContent) {
-    nsAutoString label;
-    nsresult rv = AppendFlatStringFromSubtree(labelContent, &label);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    AppendFlatStringFromSubtree(labelContent, &label);
     label.CompressWhitespace();
     if (!label.IsEmpty()) {
       aLabel = label;
@@ -1881,16 +1894,12 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
     }
   }
 
-  PRBool canAggregateName = mRoleMapEntry ?
-                            mRoleMapEntry->nameRule == eNameOkFromChildren :
-                            aCanAggregateSubtree;
-  if (canAggregateName) {
+  if (aCanAggregateSubtree) {
     // Don't use AppendFlatStringFromSubtree for container widgets like menulist
     nsresult rv = AppendFlatStringFromSubtree(content, &aLabel);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!aLabel.IsEmpty())
+    if (NS_SUCCEEDED(rv) && !aLabel.IsEmpty()) {
       return NS_OK;
+    }
   }
 
   // Still try the title as as fallback method in that case.
@@ -1898,7 +1907,6 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
                         aLabel)) {
     aLabel.SetIsVoid(PR_TRUE);
   }
-
   return NS_OK;
 }
 
@@ -1916,10 +1924,24 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
   */
 nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
-  // CASE #1 (via label attribute) -- great majority of the cases
-  nsresult rv = NS_OK;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "No nsIContent for DOM node");
 
+  // First check for label override via aria-label property
   nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
+    return NS_OK;
+  }
+
+  // Second check for label override via aria-labelledby relationship
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
+  if (NS_SUCCEEDED(rv)) {
+    aLabel = label;
+    return rv;
+  }
+
+  // CASE #1 (via label attribute) -- great majority of the cases
   nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl(do_QueryInterface(mDOMNode));
   if (labeledEl) {
     rv = labeledEl->GetLabel(label);
@@ -1943,10 +1965,6 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
   }
 
   // CASES #2 and #3 ------ label as a child or <label control="id" ... > </label>
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
   if (NS_FAILED(rv) || label.IsEmpty()) {
     label.Truncate();
     nsIContent *labelContent =
@@ -1990,12 +2008,8 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
     parent = parent->GetParent();
   }
 
-  PRBool canAggregateName = mRoleMapEntry ?
-                            mRoleMapEntry->nameRule == eNameOkFromChildren :
-                            aCanAggregateSubtree;
-
-  return canAggregateName ?
-         AppendFlatStringFromSubtree(content, &aLabel) : NS_OK;
+  // Don't use AppendFlatStringFromSubtree for container widgets like menulist
+  return aCanAggregateSubtree? AppendFlatStringFromSubtree(content, &aLabel) : NS_OK;
 }
 
 PRBool nsAccessible::IsNodeRelevant(nsIDOMNode *aNode)
@@ -3565,50 +3579,6 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLe
 {
   return NS_OK;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public methods
-
-nsresult
-nsAccessible::GetARIAName(nsAString& aName)
-{
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
-  // First check for label override via aria-label property
-  nsAutoString label;
-  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
-    aName = label;
-    return NS_OK;
-  }
-  
-  // Second check for label override via aria-labelledby relationship
-  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
-  if (NS_SUCCEEDED(rv))
-    aName = label;
-
-  return rv;
-}
-
-nsresult
-nsAccessible::GetNameInternal(nsAString& aName)
-{
-  nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
-  if (content->IsNodeOfType(nsINode::eHTML))
-    return GetHTMLName(aName, PR_FALSE);
-
-  if (content->IsNodeOfType(nsINode::eXUL))
-    return GetXULName(aName, PR_FALSE);
-
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible private methods
 
 already_AddRefed<nsIAccessible>
 nsAccessible::GetFirstAvailableAccessible(nsIDOMNode *aStartNode, PRBool aRequireLeaf)

@@ -71,7 +71,7 @@ protected:
 
     static PRBool gDisableXULCache;
 
-    static int
+    static int PR_CALLBACK
     DisableXULCacheChangedCallback(const char* aPrefName, void* aClosure);
 
 public:

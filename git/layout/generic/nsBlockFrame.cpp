@@ -390,9 +390,11 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   }
   PRInt32 numInlineLines = 0;
   PRInt32 numBlockLines = 0;
-  if (!mLines.empty()) {
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
+  if (! mLines.empty()) {
+    for (const_line_iterator line = begin_lines(), line_end = end_lines();
+         line != line_end;
+         ++line)
+    {
       if (line->IsBlock())
         numBlockLines++;
       else
@@ -413,33 +415,19 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   aIndent++;
 
   // Output the lines
-  if (!mLines.empty()) {
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
+  if (! mLines.empty()) {
+    for (const_line_iterator line = begin_lines(), line_end = end_lines();
+         line != line_end;
+         ++line)
+    {
       line->List(out, aIndent);
     }
-  }
-
-  // Output the overflow lines.
-  const nsLineList* overflowLines = GetOverflowLines();
-  if (overflowLines && !overflowLines->empty()) {
-    IndentBy(out, aIndent);
-    fputs("Overflow-lines<\n", out);
-    const_line_iterator line = begin_lines(), line_end = end_lines();
-    for ( ; line != line_end; ++line) {
-      line->List(out, aIndent + 1);
-    }
-    IndentBy(out, aIndent);
-    fputs(">\n", out);
   }
 
   nsIAtom* listName = nsnull;
   PRInt32 listIndex = 0;
   for (;;) {
     listName = GetAdditionalChildListName(listIndex++);
-    if (nsGkAtoms::overflowList == listName) {
-      continue; // skip the overflow list - we printed the overflow lines above
-    }
     if (nsnull == listName) {
       break;
     }
@@ -1472,7 +1460,7 @@ nsBlockFrame::ComputeCombinedArea(const nsHTMLReflowState& aReflowState,
 }
 
 nsresult
-nsBlockFrame::MarkLineDirty(line_iterator aLine, const nsLineList* aLineList)
+nsBlockFrame::MarkLineDirty(line_iterator aLine)
 {
   // Mark aLine dirty
   aLine->MarkDirty();
@@ -1488,7 +1476,7 @@ nsBlockFrame::MarkLineDirty(line_iterator aLine, const nsLineList* aLineList)
   // Mark previous line dirty if it's an inline line so that it can
   // maybe pullup something from the line just affected.
   // XXX We don't need to do this if aPrevLine ends in a break-after...
-  if (aLine != (aLineList ? aLineList : &mLines)->front() &&
+  if (aLine != mLines.front() &&
       aLine->IsInline() &&
       aLine.prev()->IsInline()) {
     aLine.prev()->MarkDirty();
@@ -2147,11 +2135,10 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       // Reparent floats whose placeholders are in the line.
       ReparentFloats(toMove->mFirstChild, nextInFlow, collectOverflowFloats, PR_TRUE);
 
-      // Add line to our line list, and set its last child as our new prev-child
+      // Add line to our line list
       if (aState.mPrevChild) {
         aState.mPrevChild->SetNextSibling(toMove->mFirstChild);
       }
-      aState.mPrevChild = toMove->LastChild();
 
       line = mLines.before_insert(end_lines(), toMove);
 
@@ -5200,7 +5187,6 @@ nsBlockInFlowLineIterator::Prev()
   PRBool currentlyInOverflowLines = mInOverflowLines != nsnull;
   while (PR_TRUE) {
     if (currentlyInOverflowLines) {
-      mInOverflowLines = nsnull;
       mLine = mFrame->end_lines();
       if (mLine != mFrame->begin_lines()) {
         --mLine;
@@ -6286,7 +6272,7 @@ nsBlockFrame::ChildIsDirty(nsIFrame* aChild)
     PRBool isValid;
     nsBlockInFlowLineIterator iter(this, aChild, &isValid);
     if (isValid) {
-      iter.GetContainer()->MarkLineDirty(iter.GetLine(), iter.GetLineList());
+      MarkLineDirty(iter.GetLine());
     }
   }
 
@@ -6573,8 +6559,9 @@ nsBlockFrame::RenumberListsFor(nsPresContext* aPresContext,
         if (changed) {
           kidRenumberedABullet = PR_TRUE;
 
-          // The ordinal changed - mark the bullet frame dirty.
-          listItem->ChildIsDirty(listItem->mBullet);
+          // Invalidate the bullet content area since it may look different now
+          nsRect damageRect(nsPoint(0, 0), listItem->mBullet->GetSize());
+          listItem->mBullet->Invalidate(damageRect);
         }
       }
 

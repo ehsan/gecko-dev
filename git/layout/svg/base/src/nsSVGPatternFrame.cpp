@@ -66,21 +66,26 @@ static void printRect(char *msg, nsIDOMSVGRect *aRect);
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext) :
+nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext,
+                                     nsIDOMSVGURIReference *aRef) :
   nsSVGPatternFrameBase(aContext),
   mLoopFlag(PR_FALSE), mPaintLoopFlag(PR_FALSE),
   mNoHRefURI(PR_FALSE)
 {
+  if (aRef) {
+    // Get the hRef
+    aRef->GetHref(getter_AddRefs(mHref));
+  }
 }
 
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-/* virtual */ void
+NS_IMETHODIMP
 nsSVGPatternFrame::DidSetStyleContext()
 {
   nsSVGEffects::InvalidateRenderingObservers(this);
-  nsSVGPatternFrameBase::DidSetStyleContext();
+  return nsSVGPatternFrameBase::DidSetStyleContext();
 }
 
 NS_IMETHODIMP
@@ -432,8 +437,8 @@ nsSVGPatternFrame::GetReferencedPattern()
 
   if (!property) {
     // Fetch our pattern element's xlink:href attribute
-    nsSVGPatternElement *pattern = static_cast<nsSVGPatternElement *>(mContent);
-    const nsString &href = pattern->mStringAttributes[nsSVGPatternElement::HREF].GetAnimValue();
+    nsAutoString href;
+    mHref->GetAnimVal(href);
     if (href.IsEmpty()) {
       mNoHRefURI = PR_TRUE;
       return nsnull; // no URL
@@ -756,7 +761,14 @@ nsIFrame* NS_NewSVGPatternFrame(nsIPresShell*   aPresShell,
     return nsnull;
   }
 
-  return new (aPresShell) nsSVGPatternFrame(aContext);
+  nsCOMPtr<nsIDOMSVGURIReference> ref = do_QueryInterface(aContent);
+  NS_ASSERTION(ref,
+               "NS_NewSVGPatternFrame -- Content doesn't support nsIDOMSVGURIReference");
+
+#ifdef DEBUG_scooter
+  printf("NS_NewSVGPatternFrame\n");
+#endif
+  return new (aPresShell) nsSVGPatternFrame(aContext, ref);
 }
 
 #ifdef DEBUG_scooter

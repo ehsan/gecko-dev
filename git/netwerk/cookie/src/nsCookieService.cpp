@@ -338,7 +338,7 @@ LogSuccess(PRBool aSetCookie, nsIURI *aHostURI, const nsAFlatCString &aCookieStr
  ******************************************************************************/
 
 // comparison function for sorting cookies before sending to a server.
-static int
+PR_STATIC_CALLBACK(int)
 compareCookiesForSending(const void *aElement1,
                          const void *aElement2,
                          void       *aData)
@@ -811,7 +811,7 @@ struct nsGetEnumeratorData
   PRInt64 currentTime;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 COMArrayCallback(nsCookieEntry *aEntry,
                  void          *aArg)
 {
@@ -2013,7 +2013,7 @@ nsCookieService::RemoveAllFromMemory()
   mCookieCount = 0;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 removeExpiredCallback(nsCookieEntry *aEntry,
                       void          *aArg)
 {
@@ -2271,7 +2271,7 @@ nsCookieService::UpdateCookieInList(nsCookie *aCookie, PRInt64 aLastAccessed)
   }
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 findOldestCallback(nsCookieEntry *aEntry,
                    void          *aArg)
 {

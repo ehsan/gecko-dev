@@ -189,10 +189,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 - (id<mozAccessible>)accessible;
 #endif
 
-- (BOOL)isFirstResponder;
-
-- (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
-
 @end
 
 
@@ -2240,18 +2236,13 @@ NSEvent* gLastDragEvent = nil;
                                                           kCorePboardType_urln,
                                                           nil]];
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemMetricsChanged)
+                                           selector:@selector(systemColorChanged)
                                                name:NSControlTintDidChangeNotification
                                              object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemMetricsChanged)
+                                           selector:@selector(systemColorChanged)
                                                name:NSSystemColorsDidChangeNotification
                                              object:nil];
-  [[NSDistributedNotificationCenter defaultCenter] addObserver:self
-                                                      selector:@selector(systemMetricsChanged)
-                                                          name:@"AppleAquaScrollBarVariantChanged"
-                                                        object:nil
-                                            suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately]; 
 
   return self;
 
@@ -2272,7 +2263,6 @@ NSEvent* gLastDragEvent = nil;
     sLastViewEntered = nil;
 
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
   [super dealloc];    
 
@@ -2325,7 +2315,7 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
-- (void)systemMetricsChanged
+- (void)systemColorChanged
 {
   if (!mGeckoChild)
     return;
@@ -5633,21 +5623,8 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
-  // CapsLock state and other modifier states are different:
-  // CapsLock state does not revert when the CapsLock key goes up, as the
-  // modifier state does for other modifier keys on key up. Also,
-  // mLastModifierState is set only when this view is the first responder. We
-  // cannot trust mLastModifierState to accurately reflect the state of CapsLock
-  // since CapsLock maybe have been toggled when another window was active.
-  if ([theEvent keyCode] == kCapsLockKeyCode) {
-    // Fire key down event for caps lock.
-    [self fireKeyEventForFlagsChanged:theEvent keyDown:YES];
-    if (!mGeckoChild)
-      return;
-    // XXX should we fire keyup event too? The keyup event for CapsLock key
-    // is never sent to gecko.
-  } else if ([theEvent type] == NSFlagsChanged) {
-    // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
+  // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
+  if ([theEvent type] == NSFlagsChanged) {
     unsigned int modifiers =
       nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
     const PRUint32 kModifierMaskTable[] =
@@ -5658,16 +5635,26 @@ static BOOL keyUpAlreadySentKeyDown = NO;
     for (PRUint32 i = 0; i < kModifierCount; i++) {
       PRUint32 modifierBit = kModifierMaskTable[i];
       if ((modifiers & modifierBit) != (mLastModifierState & modifierBit)) {
-        BOOL isKeyDown = (modifiers & modifierBit) != 0 ? YES : NO;
+        PRUint32 message = ((modifiers & modifierBit) != 0 ? NS_KEY_DOWN :
+                                                             NS_KEY_UP);
 
-        [self fireKeyEventForFlagsChanged:theEvent keyDown:isKeyDown];
+        // Fire a key event.
+        nsKeyEvent geckoEvent(PR_TRUE, message, nsnull);
+        [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
 
+        // create native EventRecord for use by plugins
+        EventRecord macEvent;
+        ConvertCocoaKeyEventToMacEvent(theEvent, macEvent, message);
+        geckoEvent.nativeMsg = &macEvent;
+
+        mGeckoChild->DispatchWindowEvent(geckoEvent);
         if (!mGeckoChild)
           return;
 
         // Stop if focus has changed.
         // Check to see if we are still the first responder.
-        if (![self isFirstResponder])
+        NSResponder* resp = [[self window] firstResponder];
+        if (resp != (NSResponder*)self)
           break;
       }
     }
@@ -5681,40 +5668,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (BOOL) isFirstResponder
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  NSResponder* resp = [[self window] firstResponder];
-  return (resp == (NSResponder*)self);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
-}
-
-- (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (!mGeckoChild || [theEvent type] != NSFlagsChanged)
-    return;
-
-  nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-  PRUint32 message = keyDown ? NS_KEY_DOWN : NS_KEY_UP;
-
-  // Fire a key event.
-  nsKeyEvent geckoEvent(PR_TRUE, message, nsnull);
-  [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
-
-  // create native EventRecord for use by plugins
-  EventRecord macEvent;
-  ConvertCocoaKeyEventToMacEvent(theEvent, macEvent, message);
-  geckoEvent.nativeMsg = &macEvent;
-
-  mGeckoChild->DispatchWindowEvent(geckoEvent);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
 
 // This method is called when are are about to lose focus.
 // We must always call through to our superclass, even when mGeckoChild is

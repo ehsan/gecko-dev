@@ -591,7 +591,7 @@ ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
 }
 
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*timeout*/)
 {
 
@@ -729,7 +729,7 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     return PR_SUCCESS;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerClose(PRFileDesc *fd)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -744,28 +744,28 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
     return fd->lower->methods->close(fd->lower);
 }
 
-static PRFileDesc*
+static PRFileDesc* PR_CALLBACK
 nsSOCKSIOLayerAccept(PRFileDesc *fd, PRNetAddr *addr, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept
     return fd->lower->methods->accept(fd->lower, addr, timeout);
 }
 
-static PRInt32
+static PRInt32 PR_CALLBACK
 nsSOCKSIOLayerAcceptRead(PRFileDesc *sd, PRFileDesc **nd, PRNetAddr **raddr, void *buf, PRInt32 amount, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept, then read from it
     return sd->lower->methods->acceptread(sd->lower, nd, raddr, buf, amount, timeout);
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerBind(PRFileDesc *fd, const PRNetAddr *addr)
 {
     // TODO: implement SOCKS support for bind (very similar to connect)
     return fd->lower->methods->bind(fd->lower, addr);
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -778,7 +778,7 @@ nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -791,7 +791,7 @@ nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerListen(PRFileDesc *fd, PRIntn backlog)
 {
     // TODO: implement SOCKS support for listen

@@ -271,15 +271,6 @@ namespace nanojit
             sti_type sti;
 		};
 
-		enum {
-			callInfoWords =
-#ifdef NANOJIT_64BIT
-			    2
-#else
-			    1
-#endif
-		};
-
 		uint32_t reference(LIns*) const;
 		LIns* deref(int32_t off) const;
 
@@ -307,7 +298,7 @@ namespace nanojit
 		inline LIns* arg(uint32_t i) {
 			uint32_t c = argc();
 			NanoAssert(i < c);
-			uint8_t* offs = (uint8_t*) (this-callInfoWords-argwords(c));
+			uint8_t* offs = (uint8_t*) (this-argwords(c));
 			return deref(offs[i]);
 		}
 
@@ -408,16 +399,14 @@ namespace nanojit
 
         SideExit *exit();
 
-		inline uint32_t argc() const {
+		inline uint32_t argc() {
 			NanoAssert(isCall());
 			return c.imm8b;
 		}
-		inline size_t callInsWords() const {
-			return argwords(argc()) + callInfoWords + 1;
-		}
-		inline const CallInfo *callInfo() const {
-			return *(const CallInfo **) (this - callInfoWords);
-		}
+        inline uint8_t  fid() const {
+			NanoAssert(isCall());
+			return c.imm8a;
+        }
 	};
 	typedef LIns*		LInsp;
 
@@ -474,20 +463,16 @@ namespace nanojit
 			return isS8(d) ? out->insStorei(value, base, d)
 				: out->insStore(value, base, insImm(d));
 		}
-		virtual LInsp insCall(const CallInfo *call, LInsp args[]) {
-			return out->insCall(call, args);
+		virtual LInsp insCall(uint32_t fid, LInsp args[]) {
+			return out->insCall(fid, args);
 		}
 
 		// convenience
 	    LIns*		insLoadi(LIns *base, int disp);
 	    LIns*		insLoad(LOpcode op, LIns *base, int disp);
-		// Inserts a conditional to execute and branches to execute if
-		// the condition is true and false respectively.
 	    LIns*		ins_choose(LIns* cond, LIns* iftrue, LIns* iffalse);
 	    // Inserts an integer comparison to 0
 	    LIns*		ins_eq0(LIns* oprnd1);
-		// Inserts a binary operation where the second operand is an
-		// integer immediate.
         LIns*       ins2i(LOpcode op, LIns *oprnd1, int32_t);
 		LIns*		qjoin(LInsp lo, LInsp hi);
 		LIns*		insImmPtr(const void *ptr);
@@ -528,22 +513,18 @@ namespace nanojit
 
 	class LirNameMap MMGC_SUBCLASS_DECL
 	{
-		template <class Key>
-		class CountMap : public avmplus::SortedMap<Key, int, avmplus::LIST_NonGCObjects> {
+		class CountMap: public avmplus::SortedMap<int, int, avmplus::LIST_NonGCObjects> {
 		public:
-			CountMap(GC*gc) : avmplus::SortedMap<Key, int, avmplus::LIST_NonGCObjects>(gc) {}
-			int add(Key k) {
+			CountMap(GC*gc) : avmplus::SortedMap<int, int, avmplus::LIST_NonGCObjects>(gc) {};
+			int add(int i) {
 				int c = 1;
-				if (containsKey(k)) {
-					c = 1+get(k);
+				if (containsKey(i)) {
+					c = 1+get(i);
 				}
-				put(k,c);
+				put(i,c);
 				return c;
 			}
-		};
-		CountMap<int> lircounts;
-		CountMap<const CallInfo *> funccounts;
-
+		} lircounts, funccounts;
 		class Entry MMGC_SUBCLASS_DECL 
 		{
 		public:
@@ -618,8 +599,8 @@ namespace nanojit
 		LIns* ins2(LOpcode v, LInsp a, LInsp b) {
 			return v == LIR_2 ? out->ins2(v,a,b) : add(out->ins2(v, a, b));
 		}
-		LIns* insCall(const CallInfo *call, LInsp args[]) {
-			return add(out->insCall(call, args));
+		LIns* insCall(uint32_t fid, LInsp args[]) {
+			return add(out->insCall(fid, args));
 		}
 		LIns* insParam(int32_t i) {
 			return add(out->insParam(i));
@@ -670,7 +651,7 @@ namespace nanojit
 		LInsp find64(uint64_t a, uint32_t &i);
 		LInsp find1(LOpcode v, LInsp a, uint32_t &i);
 		LInsp find2(LOpcode v, LInsp a, LInsp b, uint32_t &i);
-		LInsp findcall(const CallInfo *call, uint32_t argc, LInsp args[], uint32_t &i);
+		LInsp findcall(uint32_t fid, uint32_t argc, LInsp args[], uint32_t &i);
 		LInsp add(LInsp i, uint32_t k);
 		void replace(LInsp i);
 
@@ -678,7 +659,7 @@ namespace nanojit
 		static uint32_t FASTCALL hashimmq(uint64_t);
 		static uint32_t FASTCALL hash1(LOpcode v, LInsp);
 		static uint32_t FASTCALL hash2(LOpcode v, LInsp, LInsp);
-		static uint32_t FASTCALL hashcall(const CallInfo *call, uint32_t argc, LInsp args[]);
+		static uint32_t FASTCALL hashcall(uint32_t fid, uint32_t argc, LInsp args[]);
 	};
 
 	class CseFilter: public LirWriter
@@ -691,7 +672,7 @@ namespace nanojit
 		LIns* ins1(LOpcode v, LInsp);
 		LIns* ins2(LOpcode v, LInsp, LInsp);
 		LIns* insLoad(LOpcode v, LInsp b, LInsp d);
-		LIns* insCall(const CallInfo *call, LInsp args[]);
+		LIns* insCall(uint32_t fid, LInsp args[]);
 		LIns* insGuard(LOpcode op, LInsp cond, SideExit *x);
 	};
 
@@ -752,7 +733,7 @@ namespace nanojit
 			LInsp	insParam(int32_t i);
 			LInsp	insImm(int32_t imm);
 			LInsp	insImmq(uint64_t imm);
-		    LInsp	insCall(const CallInfo *call, LInsp args[]);
+		    LInsp	insCall(uint32_t fid, LInsp args[]);
 			LInsp	insGuard(LOpcode op, LInsp cond, SideExit *x);
 
 			// buffer mgmt

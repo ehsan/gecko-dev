@@ -73,7 +73,7 @@ static PRLogModuleInfo *gExpatDriverLog = PR_NewLogModule("expatdriver");
 /***************************** EXPAT CALL BACKS ******************************/
 // The callback handlers that get called from the expat parser.
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleXMLDeclaration(void *aUserData,
                             const XML_Char *aVersion,
                             const XML_Char *aEncoding,
@@ -86,7 +86,7 @@ Driver_HandleXMLDeclaration(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleStartElement(void *aUserData,
                           const XML_Char *aName,
                           const XML_Char **aAtts)
@@ -98,7 +98,7 @@ Driver_HandleStartElement(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleEndElement(void *aUserData,
                         const XML_Char *aName)
 {
@@ -108,7 +108,7 @@ Driver_HandleEndElement(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleCharacterData(void *aUserData,
                            const XML_Char *aData,
                            int aLength)
@@ -120,7 +120,7 @@ Driver_HandleCharacterData(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleComment(void *aUserData,
                      const XML_Char *aName)
 {
@@ -130,7 +130,7 @@ Driver_HandleComment(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleProcessingInstruction(void *aUserData,
                                    const XML_Char *aTarget,
                                    const XML_Char *aData)
@@ -142,7 +142,7 @@ Driver_HandleProcessingInstruction(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleDefault(void *aUserData,
                      const XML_Char *aData,
                      int aLength)
@@ -154,7 +154,7 @@ Driver_HandleDefault(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleStartCdataSection(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -163,7 +163,7 @@ Driver_HandleStartCdataSection(void *aUserData)
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleEndCdataSection(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -172,7 +172,7 @@ Driver_HandleEndCdataSection(void *aUserData)
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleStartDoctypeDecl(void *aUserData,
                               const XML_Char *aDoctypeName,
                               const XML_Char *aSysid,
@@ -186,7 +186,7 @@ Driver_HandleStartDoctypeDecl(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleEndDoctypeDecl(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -195,7 +195,7 @@ Driver_HandleEndDoctypeDecl(void *aUserData)
   }
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 Driver_HandleExternalEntityRef(void *aExternalEntityRefHandler,
                                const XML_Char *aOpenEntityNames,
                                const XML_Char *aBase,
@@ -214,7 +214,7 @@ Driver_HandleExternalEntityRef(void *aExternalEntityRefHandler,
                                          aPublicId);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleStartNamespaceDecl(void *aUserData,
                                 const XML_Char *aPrefix,
                                 const XML_Char *aUri)
@@ -226,7 +226,7 @@ Driver_HandleStartNamespaceDecl(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleEndNamespaceDecl(void *aUserData,
                               const XML_Char *aPrefix)
 {
@@ -237,7 +237,7 @@ Driver_HandleEndNamespaceDecl(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleNotationDecl(void *aUserData,
                           const XML_Char *aNotationName,
                           const XML_Char *aBase,
@@ -251,7 +251,7 @@ Driver_HandleNotationDecl(void *aUserData,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Driver_HandleUnparsedEntityDecl(void *aUserData,
                                 const XML_Char *aEntityName,
                                 const XML_Char *aBase,

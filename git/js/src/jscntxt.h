@@ -338,7 +338,7 @@ struct JSRuntime {
     JSCList             trapList;
     JSCList             watchPointList;
 
-    /* Client opaque pointers */
+    /* Client opaque pointer */
     void                *data;
 
 #ifdef JS_THREADSAFE
@@ -489,15 +489,6 @@ struct JSRuntime {
     ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
 
     jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
-
-    /*
-     * Runtime-wide flag set to true when any Array prototype has an indexed
-     * property defined on it, creating a hazard for code reading or writing
-     * over a hole from a dense Array instance that is not prepared to look up
-     * the proto chain (the writing case must involve a check for a read-only
-     * element, which cannot be shadowed).
-     */
-    JSBool              anyArrayProtoHasElement;
 
     /*
      * Various metering fields are defined at the end of JSRuntime. In this
@@ -860,9 +851,8 @@ struct JSContext {
     /* Interpreter activation count. */
     uintN               interpLevel;
 
-    /* Client opaque pointers. */
+    /* Client opaque pointer */
     void                *data;
-    void                *data2;
 
     /* GC and thread-safe state. */
     JSStackFrame        *dormantFrameChain; /* dormant stack frame to scan */
@@ -931,15 +921,13 @@ class JSAutoTempValueRooter
         JS_POP_TEMP_ROOT(mContext, &mTvr);
     }
 
-  protected:
-    JSContext *mContext;
-
   private:
 #ifndef AIX
     static void *operator new(size_t);
     static void operator delete(void *, size_t);
 #endif
 
+    JSContext *mContext;
     JSTempValueRooter mTvr;
 };
 

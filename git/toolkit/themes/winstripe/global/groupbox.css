@@ -50,7 +50,7 @@ groupbox {
   padding: 5px;
 }
 
-groupbox:-moz-system-metric(windows-classic) {
+groupbox:not(:-moz-system-metric(windows-default-theme)) {
   border-width: 2px;
   -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
   -moz-border-right-colors: ThreeDHighlight ThreeDShadow;
@@ -71,11 +71,4 @@ caption {
 
 tabpanels caption {
   background-color: menu;
-}
-
-.caption-text {
-  margin-top: 0;
-  margin-bottom: 0;
-  -moz-margin-start: 1px;
-  -moz-margin-end: 2px;
 }

@@ -58,14 +58,21 @@ nsHTMLAreaAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-nsresult
-nsHTMLAreaAccessible::GetNameInternal(nsAString & aName)
+NS_IMETHODIMP
+nsHTMLAreaAccessible::GetName(nsAString & aName)
 {
-  nsresult rv = nsAccessible::GetNameInternal(aName);
-  NS_ENSURE_SUCCESS(rv, rv);
+  aName.Truncate();
 
-  if (!aName.IsEmpty())
-    return NS_OK;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+  
+  if (mRoleMapEntry) {
+    nsresult rv = nsAccessible::GetName(aName);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!aName.IsEmpty()) 
+      return NS_OK;
+  }
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,

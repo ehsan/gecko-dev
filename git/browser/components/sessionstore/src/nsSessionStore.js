@@ -122,9 +122,8 @@ SessionStoreService.prototype = {
                                          Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
 
-  // xul:tab attributes to (re)store (extensions might want to hook in here);
-  // the favicon is always saved for the about:sessionrestore page
-  xulAttributes: ["image"],
+  // xul:tab attributes to (re)store (extensions might want to hook in here)
+  xulAttributes: [],
 
   // set default load state
   _loadState: STATE_STOPPED,
@@ -150,9 +149,6 @@ SessionStoreService.prototype = {
 
   // not-"dirty" windows usually don't need to have their data updated
   _dirtyWindows: {},
-
-  // counts the number of crashes since the last clean start
-  _recentCrashes: 0,
 
 /* ........ Global Event Handlers .............. */
 
@@ -222,14 +218,6 @@ SessionStoreService.prototype = {
             this._writeFile(this._sessionFileBackup, iniString);
           }
           catch (ex) { } // nothing else we can do here
-          
-          this._recentCrashes = (this._initialState.session &&
-                                 this._initialState.session.recentCrashes || 0) + 1;
-          
-          if (this._needsRestorePage(this._initialState, this._recentCrashes))
-            // replace the crashed session with a restore-page-only session
-            this._initialState =
-              { windows: [{ tabs: [{ entries: [{ url: "about:sessionrestore" }] }] }] };
         }
         
         // make sure that at least the first window doesn't have anything hidden
@@ -716,25 +704,17 @@ SessionStoreService.prototype = {
   },
 
   getWindowState: function sss_getWindowState(aWindow) {
-    if (!aWindow.__SSi && !aWindow.__SS_dyingCache)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
-    if (!aWindow.__SSi)
+    if (!aWindow.__SSi && aWindow.__SS_dyingCache)
       return this._toJSONString({ windows: [aWindow.__SS_dyingCache] });
+    
     return this._toJSONString(this._getWindowState(aWindow));
   },
 
   setWindowState: function sss_setWindowState(aWindow, aState, aOverwrite) {
-    if (!aWindow.__SSi)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
     this.restoreWindow(aWindow, "(" + aState + ")", aOverwrite);
   },
 
   getTabState: function sss_getTabState(aTab) {
-    if (!aTab.ownerDocument || !aTab.ownerDocument.defaultView.__SSi)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
     var tabState = this._collectTabData(aTab);
     
     var window = aTab.ownerDocument.defaultView;
@@ -745,9 +725,10 @@ SessionStoreService.prototype = {
 
   setTabState: function sss_setTabState(aTab, aState) {
     var tabState = this._safeEval("(" + aState + ")");
-    if (!tabState.entries || !aTab.ownerDocument || !aTab.ownerDocument.defaultView.__SSi)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
+    if (!tabState.entries) {
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
+      return;
+    }
     tabState._tab = aTab;
     
     var window = aTab.ownerDocument.defaultView;
@@ -755,10 +736,6 @@ SessionStoreService.prototype = {
   },
 
   duplicateTab: function sss_duplicateTab(aWindow, aTab) {
-    if (!aTab.ownerDocument || !aTab.ownerDocument.defaultView.__SSi ||
-        !aWindow.getBrowser)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
     var tabState = this._collectTabData(aTab, true);
     var sourceWindow = aTab.ownerDocument.defaultView;
     this._updateTextAndScrollDataForTab(sourceWindow, aTab.linkedBrowser, tabState, true);
@@ -774,49 +751,61 @@ SessionStoreService.prototype = {
     if (!aWindow.__SSi && aWindow.__SS_dyingCache)
       return aWindow.__SS_dyingCache._closedTabs.length;
     if (!aWindow.__SSi)
-      // XXXzeniko shouldn't we throw here?
       return 0; // not a browser window, or not otherwise tracked by SS.
     
     return this._windows[aWindow.__SSi]._closedTabs.length;
   },
 
-  getClosedTabData: function sss_getClosedTabDataAt(aWindow) {
-    if (!aWindow.__SSi && !aWindow.__SS_dyingCache)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+  closedTabNameAt: function sss_closedTabNameAt(aWindow, aIx) {
+    var tabs;
     
-    if (!aWindow.__SSi)
+    if (aWindow.__SSi && aWindow.__SSi in this._windows)
+      tabs = this._windows[aWindow.__SSi]._closedTabs;
+    else if (aWindow.__SS_dyingCache)
+      tabs = aWindow.__SS_dyingCache._closedTabs;
+    else
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
+    
+    return tabs && aIx in tabs ? tabs[aIx].title : null;
+  },
+
+  getClosedTabData: function sss_getClosedTabDataAt(aWindow) {
+    if (!aWindow.__SSi && aWindow.__SS_dyingCache)
       return this._toJSONString(aWindow.__SS_dyingCache._closedTabs);
+    
     return this._toJSONString(this._windows[aWindow.__SSi]._closedTabs);
   },
 
   undoCloseTab: function sss_undoCloseTab(aWindow, aIndex) {
-    if (!aWindow.__SSi)
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
+    var tab = null;
     var closedTabs = this._windows[aWindow.__SSi]._closedTabs;
 
     // default to the most-recently closed tab
     aIndex = aIndex || 0;
-    if (!(aIndex in closedTabs))
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-    
-    // fetch the data of closed tab, while removing it from the array
-    let closedTab = closedTabs.splice(aIndex, 1).shift();
-    let closedTabState = closedTab.state;
 
-    // create a new tab
-    let browser = aWindow.gBrowser;
-    let tab = closedTabState._tab = browser.addTab();
-      
-    // restore the tab's position
-    browser.moveTabTo(tab, closedTab.pos);
+    if (aIndex in closedTabs) {
+      var browser = aWindow.getBrowser();
 
-    // restore tab content
-    this.restoreHistoryPrecursor(aWindow, [closedTabState], 1, 0, 0);
+      // fetch the data of closed tab, while removing it from the array
+      var closedTab = closedTabs.splice(aIndex, 1).shift();
+      var closedTabState = closedTab.state;
 
-    // focus the tab's content area
-    let content = browser.getBrowserForTab(tab).contentWindow;
-    aWindow.setTimeout(function() { content.focus(); }, 0);
+      // create a new tab
+      tab = closedTabState._tab = browser.addTab();
+        
+      // restore the tab's position
+      browser.moveTabTo(tab, closedTab.pos);
+  
+      // restore tab content
+      this.restoreHistoryPrecursor(aWindow, [closedTabState], 1, 0, 0);
+
+      // focus the tab's content area
+      var content = browser.getBrowserForTab(tab).contentWindow;
+      aWindow.setTimeout(function() { content.focus(); }, 0);
+    }
+    else {
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
+    }
     
     return tab;
   },
@@ -826,11 +815,13 @@ SessionStoreService.prototype = {
       var data = this._windows[aWindow.__SSi].extData || {};
       return data[aKey] || "";
     }
-    if (aWindow.__SS_dyingCache) {
+    else if (aWindow.__SS_dyingCache) {
       data = aWindow.__SS_dyingCache.extData || {};
       return data[aKey] || "";
     }
-    throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+    else {
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
+    }
   },
 
   setWindowValue: function sss_setWindowValue(aWindow, aKey, aStringValue) {
@@ -842,16 +833,15 @@ SessionStoreService.prototype = {
       this.saveStateDelayed(aWindow);
     }
     else {
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
     }
   },
 
   deleteWindowValue: function sss_deleteWindowValue(aWindow, aKey) {
-    if (aWindow.__SSi && this._windows[aWindow.__SSi].extData &&
-        this._windows[aWindow.__SSi].extData[aKey])
+    if (this._windows[aWindow.__SSi].extData[aKey])
       delete this._windows[aWindow.__SSi].extData[aKey];
     else
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
   },
 
   getTabValue: function sss_getTabValue(aTab, aKey) {
@@ -868,16 +858,14 @@ SessionStoreService.prototype = {
   },
 
   deleteTabValue: function sss_deleteTabValue(aTab, aKey) {
-    if (aTab.__SS_extdata && aTab.__SS_extdata[aKey])
+    if (aTab.__SS_extdata[aKey])
       delete aTab.__SS_extdata[aKey];
     else
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+      Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
   },
 
+
   persistTabAttribute: function sss_persistTabAttribute(aName) {
-    if (this.xulAttributes.indexOf(aName) != -1)
-      return; // this attribute is already being tracked
-    
     this.xulAttributes.push(aName);
     this.saveStateDelayed();
   },
@@ -1104,28 +1092,19 @@ SessionStoreService.prototype = {
     let hasContent = false;
 
     for (let i = 0; i < aHistory.count; i++) {
-      let uri = aHistory.getEntryAtIndex(i, false).URI;
+      let uri = aHistory.getEntryAtIndex(i, false).URI.clone();
       // sessionStorage is saved per domain (cf. nsDocShell::GetSessionStorageForURI)
-      let domain = uri.spec;
-      try {
-        if (uri.host)
-          domain = uri.prePath;
-      }
-      catch (ex) { /* this throws for host-less URIs (such as about: or jar:) */ }
-      if (storageData[domain] || !(aFullData || this._checkPrivacyLevel(uri.schemeIs("https"))))
+      if (uri instanceof Ci.nsIURL)
+        uri.path = "";
+      if (storageData[uri.spec] || !(aFullData || this._checkPrivacyLevel(uri.schemeIs("https"))))
         continue;
 
-      let storage, storageItemCount = 0;
-      try {
-        storage = aDocShell.getSessionStorageForURI(uri);
-        storageItemCount = storage.length;
-      }
-      catch (ex) { /* sessionStorage might throw if it's turned off, see bug 458954 */ }
-      if (storageItemCount == 0)
+      let storage = aDocShell.getSessionStorageForURI(uri);
+      if (!storage || storage.length == 0)
         continue;
 
-      let data = storageData[domain] = {};
-      for (let j = 0; j < storageItemCount; j++) {
+      let data = storageData[uri.spec] = {};
+      for (let j = 0; j < storage.length; j++) {
         try {
           let key = storage.key(j);
           let item = storage.getItem(key);
@@ -1221,8 +1200,7 @@ SessionStoreService.prototype = {
     }
     var isHTTPS = this._getURIFromString((aContent.parent || aContent).
                                          document.location.href).schemeIs("https");
-    if (aFullData || this._checkPrivacyLevel(isHTTPS) ||
-        aContent.top.document.location.href == "about:sessionrestore") {
+    if (aFullData || this._checkPrivacyLevel(isHTTPS)) {
       if (aFullData || aUpdateFormData) {
         let formData = this._collectFormDataForFrame(aContent.document);
         if (formData)
@@ -1274,8 +1252,10 @@ SessionStoreService.prototype = {
    *        document reference
    */
   _collectFormDataForFrame: function sss_collectFormDataForFrame(aDocument) {
-    let formNodes = aDocument.evaluate(XPathHelper.restorableFormNodes, aDocument,
-                                       XPathHelper.resolveNS,
+    let formNodesXPath = "//textarea|//select|//xhtml:textarea|//xhtml:select|" +
+      "//input[not(@type) or @type='text' or @type='checkbox' or @type='radio' or @type='file']|" +
+      "//xhtml:input[not(@type) or @type='text' or @type='checkbox' or @type='radio' or @type='file']";
+    let formNodes = aDocument.evaluate(formNodesXPath, aDocument, XPathHelper.resolveNS,
                                        Ci.nsIDOMXPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
     let node = formNodes.iterateNext();
     if (!node)
@@ -2114,12 +2094,7 @@ SessionStoreService.prototype = {
       return;
     
     var oState = this._getCurrentState(aUpdateAll);
-    oState.session = {
-      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
-      lastUpdate: Date.now()
-    };
-    if (this._recentCrashes)
-      oState.session.recentCrashes = this._recentCrashes;
+    oState.session = { state: ((this._loadState == STATE_RUNNING) ? STATE_RUNNING_STR : STATE_STOPPED_STR) };
     
     var stateString = Cc["@mozilla.org/supports-string;1"].
                         createInstance(Ci.nsISupportsString);
@@ -2330,32 +2305,6 @@ SessionStoreService.prototype = {
   },
 
   /**
-   * @param aState is a session state
-   * @param aRecentCrashes is the number of consecutive crashes
-   * @returns whether a restore page will be needed for the session state
-   */
-  _needsRestorePage: function sss_needsRestorePage(aState, aRecentCrashes) {
-    const SIX_HOURS_IN_MS = 6 * 60 * 60 * 1000;
-    
-    // don't wrap a single about:sessionrestore page
-    let winData = aState.windows || null;
-    if (winData && winData.length == 1 && winData[0].tabs &&
-        winData[0].tabs.length == 1 && winData[0].tabs[0].entries &&
-        winData[0].tabs[0].entries.length == 1 &&
-        winData[0].tabs[0].entries[0].url == "about:sessionrestore")
-      return false;
-    
-    let max_resumed_crashes =
-      this._prefBranch.getIntPref("sessionstore.max_resumed_crashes");
-    let sessionAge = aState.session && aState.session.lastUpdate &&
-                     (Date.now() - aState.session.lastUpdate);
-    
-    return max_resumed_crashes != -1 &&
-           (aRecentCrashes > max_resumed_crashes ||
-            sessionAge && sessionAge >= SIX_HOURS_IN_MS);
-  },
-
-  /**
    * safe eval'ing
    */
   _safeEval: function sss_safeEval(aStr) {
@@ -2373,10 +2322,10 @@ SessionStoreService.prototype = {
    * @return the object's JSON representation
    */
   _toJSONString: function sss_toJSONString(aJSObject) {
-    let str = JSONModule.toString(aJSObject, ["_tab", "_hosts", "_formDataSaved"] /* keys to drop */);
+    let str = JSON.toString(aJSObject, ["_tab", "_hosts", "_formDataSaved"] /* keys to drop */);
     
     // sanity check - so that API consumers can just eval this string
-    if (!JSONModule.isMostlyHarmless(str))
+    if (!JSON.isMostlyHarmless(str))
       throw new Error("JSON conversion failed unexpectedly!");
     
     return str;
@@ -2471,24 +2420,6 @@ let XPathHelper = {
     return !/'/.test(aArg) ? "'" + aArg + "'" :
            !/"/.test(aArg) ? '"' + aArg + '"' :
            "concat('" + aArg.replace(/'+/g, "',\"$&\",'") + "')";
-  },
-
-  /**
-   * @returns an XPath query to all savable form field nodes
-   */
-  get restorableFormNodes() {
-    // for a comprehensive list of all available <INPUT> types see
-    // http://mxr.mozilla.org/mozilla-central/search?string=kInputTypeTable
-    let ignoreTypes = ["password", "hidden", "button", "image", "submit", "reset"];
-    // XXXzeniko work-around until lower-case has been implemented (bug 398389)
-    let toLowerCase = '"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"';
-    let ignore = "not(translate(@type, " + toLowerCase + ")='" +
-      ignoreTypes.join("' or translate(@type, " + toLowerCase + ")='") + "')";
-    let formNodesXPath = "//textarea|//select|//xhtml:textarea|//xhtml:select|" +
-      "//input[" + ignore + "]|//xhtml:input[" + ignore + "]";
-    
-    delete this.restorableFormNodes;
-    return (this.restorableFormNodes = formNodesXPath);
   }
 };
 

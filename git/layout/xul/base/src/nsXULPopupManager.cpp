@@ -321,8 +321,8 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
     if (privateEvent) {
       NS_ASSERTION(aPopup, "Expected a popup node");
       nsEvent* event;
-      event = privateEvent->GetInternalNSEvent();
-      if (event) {
+      nsresult rv = privateEvent->GetInternalNSEvent(&event);
+      if (NS_SUCCEEDED(rv) && event) {
         nsIDocument* doc = aPopup->GetCurrentDoc();
         if (doc) {
           nsIPresShell* presShell = doc->GetPrimaryShell();

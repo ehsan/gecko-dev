@@ -842,7 +842,7 @@ nsFaviconService::GetFaviconLinkForIcon(nsIURI* aFaviconURI,
 
 // nsFaviconService::AddFailedFavicon
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ExpireFailedFaviconsCallback(nsCStringHashKey::KeyType aKey,
                              PRUint32& aData,
                              void* userArg)

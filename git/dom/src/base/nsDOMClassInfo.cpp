@@ -625,7 +625,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(Element, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Attr, nsAttributeSH,
-                           NODE_SCRIPTABLE_FLAGS)
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Text, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Comment, nsNodeSH,
@@ -4186,8 +4186,8 @@ nsDOMClassInfo::PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper)
    }
 
    if (doc) {
-     nsCOMPtr<nsINode> n(do_QueryInterface(node));
-     doc->AddReference(n, aWrapper);
+     nsCOMPtr<nsIContent> content(do_QueryInterface(node));
+     doc->AddReference(content, aWrapper);
    }
    return NS_OK;
 }
@@ -6829,18 +6829,6 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
     return NS_OK;
   }
 
-  // If we have a document, make sure one of these is true
-  // (1) it has a script handling object,
-  // (2) has had one, or has been marked to have had one,
-  // (3) we are running a privileged script.
-  // Event handling is possible only if (1). If (2) event handling is prevented.
-  // If document has never had a script handling object,
-  // untrusted scripts (3) shouldn't touch it!
-  PRBool hasHadScriptHandlingObject = PR_FALSE;
-  NS_ENSURE_STATE(doc->GetScriptHandlingObject(hasHadScriptHandlingObject) ||
-                  hasHadScriptHandlingObject ||
-                  IsPrivilegedScript());
-
   nsISupports *native_parent;
 
   if (node->IsNodeOfType(nsINode::eELEMENT | nsINode::eXUL)) {
@@ -8806,9 +8794,11 @@ nsresult
 nsHTMLFormElementSH::FindNamedItem(nsIForm *aForm, JSString *str,
                                    nsISupports **aResult)
 {
+  *aResult = nsnull;
+
   nsDependentJSString name(str);
 
-  *aResult = aForm->ResolveName(name).get();
+  aForm->ResolveName(name, aResult);
 
   if (!*aResult) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aForm));
@@ -8919,7 +8909,8 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
       *statep = INT_TO_JSVAL(0);
 
       if (idp) {
-        PRUint32 count = form->GetElementCount();
+        PRUint32 count = 0;
+        form->GetElementCount(&count);
 
         *idp = INT_TO_JSVAL(count);
       }
@@ -8933,7 +8924,8 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
 
       PRInt32 index = (PRInt32)JSVAL_TO_INT(*statep);
 
-      PRUint32 count = form->GetElementCount();
+      PRUint32 count = 0;
+      form->GetElementCount(&count);
 
       if ((PRUint32)index < count) {
         nsCOMPtr<nsIFormControl> controlNode;

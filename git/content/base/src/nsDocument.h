@@ -136,9 +136,9 @@ PR_BEGIN_EXTERN_C
    functions.  That's the only way in which they differ from
    PLHandleEventProc and PLDestroyEventProc. */
 typedef void*
-(EventHandlerFunc)(PLEvent* self);
+(PR_CALLBACK EventHandlerFunc)(PLEvent* self);
 typedef void
-(EventDestructorFunc)(PLEvent* self);
+(PR_CALLBACK EventDestructorFunc)(PLEvent* self);
 PR_END_EXTERN_C
 
 /**
@@ -310,8 +310,8 @@ public:
     static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     {
-      return (NS_PTR_TO_INT32(aKey->mCallback) >> 2) ^
-             (NS_PTR_TO_INT32(aKey->mData));
+      return NS_PTR_TO_INT32(aKey->mCallback) >> 2 +
+             NS_PTR_TO_INT32(aKey->mData);
     }
     enum { ALLOW_MEMMOVE = PR_TRUE };
     

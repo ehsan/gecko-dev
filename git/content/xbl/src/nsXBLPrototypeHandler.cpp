@@ -404,7 +404,8 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(aEvent);
   if (privateEvent) {
-    PRBool dispatchStopped = privateEvent->IsDispatchStopped();
+    PRBool dispatchStopped;
+    privateEvent->IsDispatchStopped(&dispatchStopped);
     if (dispatchStopped)
       return NS_OK;
   }

@@ -83,7 +83,7 @@ namespace nanojit
 	void Assembler::nInit(AvmCore* core)
 	{
         OSDep::getDate();
-#ifdef NANOJIT_AMD64
+#ifdef NANOJIT_ADM64
         avmplus::AvmCore::cmov_available =
         avmplus::AvmCore::sse2_available = true;
 #endif
@@ -230,7 +230,8 @@ namespace nanojit
 #if defined NANOJIT_IA32
 	void Assembler::asm_call(LInsp ins)
 	{
-        const CallInfo* call = ins->callInfo();
+        uint32_t fid = ins->fid();
+        const CallInfo* call = callInfoFor(fid);
 		// must be signed, not unsigned
 		const uint32_t iargs = call->count_iargs();
 		int32_t fstack = call->count_args() - iargs;
@@ -308,7 +309,8 @@ namespace nanojit
 	void Assembler::asm_call(LInsp ins)
 	{
 		Register fpu_reg = XMM0;
-        const CallInfo* call = ins->callInfo();
+        uint32_t fid = ins->fid();
+        const CallInfo* call = callInfoFor(fid);
 		int n = 0;
         
 		CALL(call);

@@ -844,7 +844,7 @@ struct CapabilityList
   nsCString* denied;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AppendCapability(nsHashKey *aKey, void *aData, void *capListPtr)
 {
   CapabilityList* capList = (CapabilityList*)capListPtr;
@@ -971,7 +971,7 @@ nsPrincipal::GetPreferences(char** aPrefName, char** aID,
   return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
                     void** aData)
 {
@@ -993,7 +993,7 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
   return NS_OK;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 FreeAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey* aKey,
                     void* aData)
 {
@@ -1085,7 +1085,7 @@ nsPrincipal::Read(nsIObjectInputStream* aStream)
   return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 WriteScalarValue(nsIObjectOutputStream* aStream, void* aData)
 {
   PRUint32 value = NS_PTR_TO_INT32(aData);

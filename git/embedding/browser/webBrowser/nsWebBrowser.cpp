@@ -123,7 +123,7 @@ nsWebBrowser::~nsWebBrowser()
    InternalDestroy();
 }
 
-PRBool deleteListener(void *aElement, void *aData) {
+PRBool PR_CALLBACK deleteListener(void *aElement, void *aData) {
     nsWebBrowserListenerState *state = (nsWebBrowserListenerState*)aElement;
     NS_DELETEXPCOM(state);
     return PR_TRUE;
@@ -1647,7 +1647,7 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 }
 
 /* static */
-nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
+nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;

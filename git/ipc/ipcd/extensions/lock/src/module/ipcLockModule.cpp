@@ -84,25 +84,25 @@ struct ipcLockContext
 
 //-----------------------------------------------------------------------------
 
-static void *
+PR_STATIC_CALLBACK(void *)
 ipcLockModule_AllocTable(void *pool, PRSize size)
 {
     return malloc(size);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ipcLockModule_FreeTable(void *pool, void *item)
 {
     free(item);
 }
 
-static PLHashEntry *
+PR_STATIC_CALLBACK(PLHashEntry *)
 ipcLockModule_AllocEntry(void *pool, const void *key)
 {
     return (PLHashEntry *) malloc(sizeof(PLHashEntry));
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ipcLockModule_FreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     PL_strfree((char *) he->key);
@@ -226,7 +226,7 @@ ipcLockModule_ReleaseLock(PRUint32 cid, const char *key)
         PL_HashTableRemove(gLockTable, key);
 }
 
-static PRIntn
+PR_STATIC_CALLBACK(PRIntn)
 ipcLockModule_ReleaseByCID(PLHashEntry *he, PRIntn i, void *arg)
 {
     PRUint32 cid = *(PRUint32 *) arg;
