@@ -70,7 +70,6 @@ public:
   IMPL_EVENT_HANDLER(held)
   IMPL_EVENT_HANDLER(resuming)
   IMPL_EVENT_HANDLER(callschanged)
-  IMPL_EVENT_HANDLER(error)
 
   static already_AddRefed<TelephonyCallGroup>
   Create(Telephony* aTelephony);
@@ -98,9 +97,6 @@ public:
   {
     return mCallState;
   }
-
-  nsresult
-  NotifyError(const nsAString& aName, const nsAString& aMessage);
 
 private:
   TelephonyCallGroup();

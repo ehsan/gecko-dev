@@ -627,18 +627,26 @@ DumpReport(nsIGZFileWriter *aWriter, bool *aIsFirstPtr,
   // Generate the process identifier, which is of the form "$PROCESS_NAME
   // (pid $PID)", or just "(pid $PID)" if we don't have a process name.  If
   // we're the main process, we let $PROCESS_NAME be "Main Process".
-  nsAutoCString process;
+  nsAutoCString processId;
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     // We're the main process.
-    process.AssignLiteral("Main Process ");
+    processId.AssignLiteral("Main Process ");
   } else if (ContentChild *cc = ContentChild::GetSingleton()) {
     // Try to get the process name from ContentChild.
-    cc->GetProcessName(process);
+    nsAutoString processName;
+    cc->GetProcessName(processName);
+    processId.Assign(NS_ConvertUTF16toUTF8(processName));
+    if (!processId.IsEmpty()) {
+      processId.AppendLiteral(" ");
+    }
   }
-  ContentChild::AppendProcessId(process);
+
+  // Add the PID to the identifier.
+  unsigned pid = getpid();
+  processId.Append(nsPrintfCString("(pid %u)", pid));
 
   DUMP(aWriter, "\n    {\"process\": \"");
-  DUMP(aWriter, process);
+  DUMP(aWriter, processId);
 
   DUMP(aWriter, "\", \"path\": \"");
   nsCString path(aPath);

@@ -16,7 +16,6 @@
 #include "nsThreadUtils.h"
 #include "XPCWrapper.h"
 #include "WorkerPrivate.h"
-#include "nsContentUtils.h"
 
 namespace {
 
@@ -167,14 +166,11 @@ GetCurrentJSStack()
   JSContext* cx = nullptr;
 
   if (NS_IsMainThread()) {
-    // Note, in xpcshell nsContentUtils is never initialized, but we still need
-    // to report exceptions.
-    if (nsContentUtils::XPConnect()) {
-      cx = nsContentUtils::XPConnect()->GetCurrentJSContext();
-    } else {
-      nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
-      cx = xpc->GetCurrentJSContext();
-    }
+    // We can't call nsContentUtils::ThreadsafeGetCurrentJSContext, since in
+    // xpcshell nsContentUtils is never initialized, but we still need to
+    // report exceptions.
+    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
+    cx = xpc->GetCurrentJSContext();
   } else {
     cx = workers::GetCurrentThreadJSContext();
   }

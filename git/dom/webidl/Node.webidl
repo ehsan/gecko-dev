@@ -68,9 +68,7 @@ interface Node : EventTarget {
   void normalize();
 
   [Throws]
-  Node cloneNode();
-  [Throws]
-  Node cloneNode(boolean deep);
+  Node cloneNode(optional boolean deep = true);
   boolean isEqualNode(Node? node);
 
   const unsigned short DOCUMENT_POSITION_DISCONNECTED = 0x01;

@@ -355,10 +355,6 @@ str_search(JSContext *cx, unsigned argc, Value *vp);
 bool
 str_split(JSContext *cx, unsigned argc, Value *vp);
 
-bool
-str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp);
-
 } /* namespace js */
 
 extern bool

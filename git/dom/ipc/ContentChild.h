@@ -75,9 +75,7 @@ public:
     }
 
     void SetProcessName(const nsAString& aName);
-    void GetProcessName(nsAString& aName);
-    void GetProcessName(nsACString& aName);
-    static void AppendProcessId(nsACString& aName);
+    const void GetProcessName(nsAString& aName);
 
     PCompositorChild*
     AllocPCompositorChild(mozilla::ipc::Transport* aTransport,

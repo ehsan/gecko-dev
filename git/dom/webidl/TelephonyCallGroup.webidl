@@ -31,5 +31,4 @@ interface TelephonyCallGroup : EventTarget {
   attribute EventHandler onheld;
   attribute EventHandler onresuming;
   attribute EventHandler oncallschanged;
-  attribute EventHandler onerror;
 };

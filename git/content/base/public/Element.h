@@ -646,10 +646,6 @@ public:
 
   already_AddRefed<DOMRectList> GetClientRects();
   already_AddRefed<DOMRect> GetBoundingClientRect();
-  void ScrollIntoView()
-  {
-    ScrollIntoView(true);
-  }
   void ScrollIntoView(bool aTop);
   int32_t ScrollTop()
   {

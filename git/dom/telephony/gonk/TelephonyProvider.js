@@ -574,12 +574,6 @@ TelephonyProvider.prototype = {
     this._notifyAllListeners("conferenceCallStateChanged", [aState]);
   },
 
-  notifyConferenceError: function notifyConferenceError(aName, aMessage) {
-    if (DEBUG) debug("handleConferenceError: " + aName + "." +
-                     " Error details: " + aMessage);
-    this._notifyAllListeners("notifyConferenceError", [aName, aMessage]);
-  },
-
   /**
    * nsIObserver interface.
    */

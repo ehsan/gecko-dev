@@ -1464,7 +1464,7 @@ MmsService.prototype = {
    */
   broadcastSentMessageEvent: function broadcastSentMessageEvent(aDomMessage) {
     // Broadcasting a 'sms-sent' system message to open apps.
-    this.broadcastMmsSystemMessage(kSmsSentObserverTopic, aDomMessage);
+    this.broadcastMmsSystemMessage("sms-sent", aDomMessage);
 
     // Notifying observers an MMS message is sent.
     Services.obs.notifyObservers(aDomMessage, kSmsSentObserverTopic, null);
@@ -1479,7 +1479,7 @@ MmsService.prototype = {
    */
   broadcastReceivedMessageEvent :function broadcastReceivedMessageEvent(aDomMessage) {
     // Broadcasting a 'sms-received' system message to open apps.
-    this.broadcastMmsSystemMessage(kSmsReceivedObserverTopic, aDomMessage);
+    this.broadcastMmsSystemMessage("sms-received", aDomMessage);
 
     // Notifying observers an MMS message is received.
     Services.obs.notifyObservers(aDomMessage, kSmsReceivedObserverTopic, null);
@@ -1707,26 +1707,24 @@ MmsService.prototype = {
                                       address,
                                       null,
                                       deliveryStatus,
-                                      (function notifySetDeliveryResult(aRv, aDomMessage) {
+                                      function notifySetDeliveryResult(aRv, aDomMessage) {
       if (DEBUG) debug("Marking the delivery status is done.");
       // TODO bug 832140 handle !Components.isSuccessCode(aRv)
 
       let topic;
       if (mmsStatus === MMS.MMS_PDU_STATUS_RETRIEVED) {
         topic = kSmsDeliverySuccessObserverTopic;
-
-        // Broadcasting a 'sms-delivery-success' system message to open apps.
-        this.broadcastMmsSystemMessage(topic, aDomMessage);
       } else if (mmsStatus === MMS.MMS_PDU_STATUS_REJECTED) {
         topic = kSmsDeliveryErrorObserverTopic;
-      } else {
+      }
+      if (!topic) {
         if (DEBUG) debug("Needn't fire event for this MMS status. Returning.");
         return;
       }
 
       // Notifying observers the delivery status is updated.
       Services.obs.notifyObservers(aDomMessage, topic, null);
-    }).bind(this));
+    });
   },
 
   /**

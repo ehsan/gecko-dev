@@ -282,12 +282,12 @@ this.PermissionsTable =  { geolocation: {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "input": {
+                           "keyboard": {
                              app: DENY_ACTION,
                              privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "input-manage": {
+                           "inputmethod-manage": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
@@ -298,6 +298,11 @@ this.PermissionsTable =  { geolocation: {
                              certified: ALLOW_ACTION
                            },
                            "audio-capture": {
+                             app: PROMPT_ACTION,
+                             privileged: PROMPT_ACTION,
+                             certified: PROMPT_ACTION
+                           },
+                           "video-capture": {
                              app: PROMPT_ACTION,
                              privileged: PROMPT_ACTION,
                              certified: PROMPT_ACTION

@@ -51,12 +51,6 @@ struct SurfaceDescriptorD3D10 {
   bool hasAlpha;
 };
 
-struct SurfaceDescriptorMacIOSurface {
-  uint32_t surface;
-  double scaleFactor;
-  bool hasAlpha;
-};
-
 struct SharedTextureDescriptor {
   SharedTextureShareType shareType;
   SharedTextureHandle handle;
@@ -182,7 +176,6 @@ union SurfaceDescriptor {
   SurfaceDescriptorX11;
   SharedTextureDescriptor;
   SurfaceStreamDescriptor;
-  SurfaceDescriptorMacIOSurface;
   NewSurfaceDescriptorGralloc;
   YCbCrImage;                 // XXX - deprecated
   SurfaceDescriptorGralloc;   // XXX - deprecated

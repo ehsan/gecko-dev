@@ -29,12 +29,14 @@ struct WatchKey {
     }
 };
 
+struct WatchpointStackValue;
 struct Watchpoint {
     JSWatchPointHandler handler;
-    EncapsulatedPtrObject closure;  /* This is always marked in minor GCs and so doesn't require a postbarrier. */
+    RelocatablePtrObject closure;
     bool held;  /* true if currently running handler */
-    Watchpoint(JSWatchPointHandler handler, JSObject* closure, bool held)
-      : handler(handler), closure(closure), held(held) {}
+
+    inline Watchpoint(const WatchpointStackValue& w);
+    inline Watchpoint &operator=(const WatchpointStackValue& w);
 };
 
 template <>

@@ -14,7 +14,6 @@ EXPORTS.mozilla += [
     'Hal.h',
     'HalImpl.h',
     'HalSandbox.h',
-    'HalScreenConfiguration.h',
     'HalSensor.h',
     'HalTypes.h',
     'HalWakeLock.h',

@@ -33,7 +33,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     ]
 elif CONFIG['OS_ARCH'] == 'Darwin':
     SOURCES += [
-        'mach_override.c',
         'mozPoisonWriteBase.cpp',
         'mozPoisonWriteMac.cpp',
     ]

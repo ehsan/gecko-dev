@@ -43,11 +43,8 @@ function checkMessage(message, delivery, body) {
   ok(message.receiver, "message.receiver");
   is(message.body, body, "message.body");
   is(message.messageClass, "normal", "message.messageClass");
-  ok(message.timestamp instanceof Date, "timestamp is instanceof Date");
-
-  // TODO: bug 788928 - add test cases for deliverysuccess event.
-  ok(message.deliveryTimestamp === null, "deliveryTimestamp is null");
-
+  ok(message.timestamp instanceof Date,
+     "message.timestamp is instanceof " + message.timestamp.constructor);
   is(message.read, true, "message.read");
 }
 
@@ -119,7 +116,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
 
     let message = event.message;
     checkMessage(message, "sending", body);
-    // timestamp is in seconds.
+    // SMSC timestamp is in seconds.
     ok(Math.floor(message.timestamp.getTime() / 1000) >= Math.floor(now / 1000),
        "sent timestamp is valid");
 
