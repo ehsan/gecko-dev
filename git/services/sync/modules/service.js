@@ -774,8 +774,6 @@ WeaveSvc.prototype = {
   _sync: function WeaveSvc__sync() {
     let self = yield;
 
-    yield ClientData.refresh(self.cb);
-
     let engines = Engines.getAll();
     for (let i = 0; i < engines.length; i++) {
       if (this.cancelRequested)
