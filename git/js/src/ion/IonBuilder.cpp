@@ -4630,6 +4630,7 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::TypeSet *types, HandleId id
 {
     JSObject *found = NULL;
     JSObject *foundProto = NULL;
+    Shape *protoShape = NULL;
 
     *funcp = NULL;
 
@@ -4706,9 +4707,10 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::TypeSet *types, HandleId id
         // We only support cases with a single prototype shared. This is
         // overwhelmingly more likely than having multiple different prototype
         // chains with the same custom property function.
-        if (!foundProto)
+        if (!foundProto) {
             foundProto = proto;
-        else if (foundProto != proto)
+            protoShape = shape;
+        } else if (foundProto != proto)
             return true;
     }
 
@@ -4716,13 +4718,13 @@ IonBuilder::TestCommonPropFunc(JSContext *cx, types::TypeSet *types, HandleId id
     if (!found)
         return true;
 
-    JS_ASSERT(foundProto);
+    JS_ASSERT(foundProto && protoShape);
 
     types->addFreeze(cx);
 
     MInstruction *wrapper = MConstant::New(ObjectValue(*foundProto));
     current->add(wrapper);
-    MGuardShape *guard = MGuardShape::New(wrapper, foundProto->lastProperty());
+    MGuardShape *guard = MGuardShape::New(wrapper, protoShape);
     current->add(guard);
 
     // Now we have to freeze all the property typesets to ensure there isn't a
