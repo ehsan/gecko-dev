@@ -7,7 +7,6 @@
 #define _CANVASUTILS_H_
 
 #include "mozilla/CheckedInt.h"
-#include "jsapi.h"
 
 class nsIPrincipal;
 

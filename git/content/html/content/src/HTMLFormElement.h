@@ -21,7 +21,6 @@
 #include "nsRefPtrHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsAsyncDOMEvent.h"
-#include "jsfriendapi.h" // For js::ExpandoAndGeneration
 
 class nsIMutableArray;
 class nsIURI;

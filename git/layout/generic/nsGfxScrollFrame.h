@@ -51,7 +51,8 @@ public:
   nsGfxScrollFrameInner(nsContainerFrame* aOuter, bool aIsRoot);
   ~nsGfxScrollFrameInner();
 
-  mozilla::ScrollbarStyles GetScrollbarStylesFromFrame() const;
+  typedef nsIScrollableFrame::ScrollbarStyles ScrollbarStyles;
+  ScrollbarStyles GetScrollbarStylesFromFrame() const;
 
   // If a child frame was added or removed on the scrollframe,
   // reload our child frame list.
@@ -509,7 +510,7 @@ public:
   virtual nsIFrame* GetScrolledFrame() const MOZ_OVERRIDE {
     return mInner.GetScrolledFrame();
   }
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const {
+  virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
   virtual uint32_t GetScrollbarVisibility() const MOZ_OVERRIDE {
@@ -796,7 +797,7 @@ public:
   virtual nsIFrame* GetScrolledFrame() const MOZ_OVERRIDE {
     return mInner.GetScrolledFrame();
   }
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const {
+  virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
   virtual uint32_t GetScrollbarVisibility() const MOZ_OVERRIDE {

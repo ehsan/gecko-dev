@@ -90,7 +90,7 @@ AsyncChannel::Link::~Link()
 
 AsyncChannel::ProcessLink::ProcessLink(AsyncChannel *aChan)
     : Link(aChan)
-    , mExistingListener(nullptr)
+    , mExistingListener(NULL)
 {
 }
 
@@ -289,8 +289,8 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
     mChannelState(ChannelClosed),
     mWorkerLoop(),
     mChild(false),
-    mChannelErrorTask(nullptr),
-    mLink(nullptr),
+    mChannelErrorTask(NULL),
+    mLink(NULL),
     mWorkerLoopID(-1)
 {
     MOZ_COUNT_CTOR(AsyncChannel);
@@ -525,7 +525,7 @@ AsyncChannel::OnNotifyMaybeChannelError()
     AssertWorkerThread();
     mMonitor->AssertNotCurrentThreadOwns();
 
-    mChannelErrorTask = nullptr;
+    mChannelErrorTask = NULL;
 
     // OnChannelError holds mMonitor when it posts this task and this
     // task cannot be allowed to run until OnChannelError has
@@ -604,7 +604,7 @@ AsyncChannel::Clear()
 
     if (mChannelErrorTask) {
         mChannelErrorTask->Cancel();
-        mChannelErrorTask = nullptr;
+        mChannelErrorTask = NULL;
     }
 }
 

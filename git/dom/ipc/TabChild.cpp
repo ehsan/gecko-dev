@@ -2339,8 +2339,8 @@ TabChild::InitRenderingState()
 
     // This state can't really change during the lifetime of the child.
     sCpowsEnabled = Preferences::GetBool("browser.tabs.remote", false);
-    if (Preferences::GetBool("dom.ipc.cpows.force-enabled", false))
-      sCpowsEnabled = true;
+    if (Preferences::GetBool("dom.ipc.cpows.force-disabled", false))
+      sCpowsEnabled = false;
 
     return true;
 }

@@ -4,13 +4,11 @@
 
 var functionBodies;
 
-function findAllPoints(blockId)
+function suppressAllPoints(id)
 {
-    var points = [];
-    var body;
-
+    var body = null;
     for (var xbody of functionBodies) {
-        if (sameBlockId(xbody.BlockId, blockId)) {
+        if (sameBlockId(xbody.BlockId, id)) {
             assert(!body);
             body = xbody;
         }
@@ -20,12 +18,10 @@ function findAllPoints(blockId)
     if (!("PEdge" in body))
         return;
     for (var edge of body.PEdge) {
-        points.push([body, edge.Index[0]]);
+        body.suppressed[edge.Index[0]] = true;
         if (edge.Kind == "Loop")
-            Array.prototype.push.apply(points, findAllPoints(edge.BlockId));
+            suppressAllPoints(edge.BlockId);
     }
-
-    return points;
 }
 
 function isMatchingDestructor(constructor, edge)
@@ -50,13 +46,19 @@ function isMatchingDestructor(constructor, edge)
     return sameVariable(constructExp.Variable, destructExp.Variable);
 }
 
-function allRAIIGuardedCallPoints(body, isConstructor)
+// Compute the points within a function body where GC is suppressed.
+function computeSuppressedPoints(body)
 {
-    if (!("PEdge" in body))
-        return [];
+    var successors = [];
 
-    var points = [];
-    var successors = getSuccessors(body);
+    if (!("PEdge" in body))
+        return;
+    for (var edge of body.PEdge) {
+        var source = edge.Index[0];
+        if (!(source in successors))
+            successors[source] = [];
+        successors[source].push(edge);
+    }
 
     for (var edge of body.PEdge) {
         if (edge.Kind != "Call")
@@ -66,20 +68,30 @@ function allRAIIGuardedCallPoints(body, isConstructor)
             continue;
         var variable = callee.Variable;
         assert(variable.Kind == "Func");
-        if (!isConstructor(variable.Name[0]))
+        if (!isSuppressConstructor(variable.Name[0]))
             continue;
         if (edge.PEdgeCallInstance.Exp.Kind != "Var")
             continue;
 
-        Array.prototype.push.apply(points, pointsInRAIIScope(body, edge, successors));
+        var seen = [];
+        var worklist = [edge.Index[1]];
+        while (worklist.length) {
+            var point = worklist.pop();
+            if (point in seen)
+                continue;
+            seen[point] = true;
+            body.suppressed[point] = true;
+            if (!(point in successors))
+                continue;
+            for (var nedge of successors[point]) {
+                if (isMatchingDestructor(edge, nedge))
+                    continue;
+                if (nedge.Kind == "Loop")
+                    suppressAllPoints(nedge.BlockId);
+                worklist.push(nedge.Index[1]);
+            }
+        }
     }
 
-    return points;
-}
-
-// Compute the points within a function body where GC is suppressed.
-function computeSuppressedPoints(body)
-{
-    for (var [pbody, id] of allRAIIGuardedCallPoints(body, isSuppressConstructor))
-        pbody.suppressed[id] = true;
+    return [];
 }

@@ -15,7 +15,6 @@ class nsSupportsHashtable;
 class nsXBLPrototypeResources;
 class nsXBLPrototypeBinding;
 struct nsXBLResource;
-class nsIObjectOutputStream;
 
 // *********************************************************************/
 // The XBLResourceLoader class

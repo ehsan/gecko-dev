@@ -11,7 +11,6 @@
 #include "nsContentUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGString.h"
-#include "nsIURI.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(A)
 

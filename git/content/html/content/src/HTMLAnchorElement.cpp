@@ -15,7 +15,6 @@
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsIURI.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 

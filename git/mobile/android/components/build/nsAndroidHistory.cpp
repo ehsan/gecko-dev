@@ -5,7 +5,6 @@
 #include "nsAndroidHistory.h"
 #include "AndroidBridge.h"
 #include "Link.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 using mozilla::dom::Link;

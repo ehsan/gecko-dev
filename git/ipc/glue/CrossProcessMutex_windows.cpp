@@ -19,7 +19,7 @@ CrossProcessMutex::CrossProcessMutex(const char*)
   // We explicitly share this using DuplicateHandle, we do -not- want this to
   // be inherited by child processes by default! So no security attributes are
   // given.
-  mMutex = ::CreateMutexA(nullptr, FALSE, nullptr);
+  mMutex = ::CreateMutexA(NULL, FALSE, NULL);
   if (!mMutex) {
     NS_RUNTIMEABORT("This shouldn't happen - failed to create mutex!");
   }
@@ -66,7 +66,7 @@ CrossProcessMutex::ShareToProcess(ProcessHandle aHandle)
                                      0, FALSE, DUPLICATE_SAME_ACCESS);
 
   if (!succeeded) {
-    return nullptr;
+    return NULL;
   }
 
   return newHandle;

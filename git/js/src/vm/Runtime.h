@@ -663,7 +663,6 @@ typedef Vector<JS::Zone *, 1, SystemAllocPolicy> ZoneVector;
 
 class AutoLockForExclusiveAccess;
 class AutoPauseWorkersForGC;
-struct SelfHostedClass;
 class ThreadDataIter;
 
 } // namespace js
@@ -854,7 +853,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::ion::IonRuntime *ionRuntime_;
 
     JSObject *selfHostingGlobal_;
-    js::SelfHostedClass *selfHostedClasses_;
 
     /* Space for interpreter frames. */
     js::InterpreterStack interpreterStack_;
@@ -900,10 +898,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     bool isSelfHostingGlobal(js::HandleObject global) {
         return global == selfHostingGlobal_;
     }
-    js::SelfHostedClass *selfHostedClasses() {
-        return selfHostedClasses_;
-    }
-    void addSelfHostedClass(js::SelfHostedClass *shClass);
     bool cloneSelfHostedFunctionScript(JSContext *cx, js::Handle<js::PropertyName*> name,
                                        js::Handle<JSFunction*> targetFun);
     bool cloneSelfHostedValue(JSContext *cx, js::Handle<js::PropertyName*> name,

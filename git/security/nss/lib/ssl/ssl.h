@@ -328,7 +328,7 @@ SSL_IMPORT SECStatus SSL_VersionRangeSet(PRFileDesc *fd,
 					 const SSLVersionRange *vrange);
 
 
-/* Values for "policy" argument to SSL_CipherPolicySet */
+/* Values for "policy" argument to SSL_PolicySet */
 /* Values returned by SSL_CipherPolicyGet. */
 #define SSL_NOT_ALLOWED		 0	      /* or invalid or unimplemented */
 #define SSL_ALLOWED		 1
@@ -845,20 +845,24 @@ SSL_IMPORT SECStatus NSS_CmpCertChainWCANames(CERTCertificate *cert,
 SSL_IMPORT SSLKEAType NSS_FindCertKEAType(CERTCertificate * cert);
 
 /* Set cipher policies to a predefined Domestic (U.S.A.) policy.
- * This essentially allows all supported ciphers.
+ * This essentially enables all supported ciphers.
  */
 SSL_IMPORT SECStatus NSS_SetDomesticPolicy(void);
 
 /* Set cipher policies to a predefined Policy that is exportable from the USA
  *   according to present U.S. policies as we understand them.
- * It is the same as NSS_SetDomesticPolicy now.
+ * See documentation for the list.
+ * Note that your particular application program may be able to obtain
+ *   an export license with more or fewer capabilities than those allowed
+ *   by this function.  In that case, you should use SSL_SetPolicy()
+ *   to explicitly allow those ciphers you may legally export.
  */
 SSL_IMPORT SECStatus NSS_SetExportPolicy(void);
 
 /* Set cipher policies to a predefined Policy that is exportable from the USA
  *   according to present U.S. policies as we understand them, and that the 
  *   nation of France will permit to be imported into their country.
- * It is the same as NSS_SetDomesticPolicy now.
+ * See documentation for the list.
  */
 SSL_IMPORT SECStatus NSS_SetFrancePolicy(void);
 

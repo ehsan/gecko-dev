@@ -169,14 +169,14 @@ NativeKeyBindings::Init(NativeKeyBindingsType aType)
 NS_IMPL_ISUPPORTS1(NativeKeyBindings, nsINativeKeyBindings)
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyDown(const nsKeyEvent& aEvent,
+NativeKeyBindings::KeyDown(const nsNativeKeyEvent& aEvent,
                            DoCommandCallback aCallback, void* aCallbackData)
 {
   return false;
 }
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyPress(const nsKeyEvent& aEvent,
+NativeKeyBindings::KeyPress(const nsNativeKeyEvent& aEvent,
                             DoCommandCallback aCallback, void* aCallbackData)
 {
   PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
@@ -184,8 +184,11 @@ NativeKeyBindings::KeyPress(const nsKeyEvent& aEvent,
 
   // Recover the current event, which should always be the key down we are
   // responding to.
+  nsKeyEvent* geckoEvent = aEvent.mGeckoEvent;
 
-  NSEvent* cocoaEvent = reinterpret_cast<NSEvent*>(aEvent.mNativeKeyEvent);
+  MOZ_ASSERT(geckoEvent);
+
+  NSEvent* cocoaEvent = reinterpret_cast<NSEvent*>(geckoEvent->mNativeKeyEvent);
 
   if (!cocoaEvent || [cocoaEvent type] != NSKeyDown) {
     PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
@@ -267,7 +270,7 @@ NativeKeyBindings::KeyPress(const nsKeyEvent& aEvent,
 }
 
 NS_IMETHODIMP_(bool)
-NativeKeyBindings::KeyUp(const nsKeyEvent& aEvent,
+NativeKeyBindings::KeyUp(const nsNativeKeyEvent& aEvent,
                          DoCommandCallback aCallback, void* aCallbackData)
 {
   return false;

@@ -5,15 +5,7 @@
 #ifndef nsContentIndexCache_h__
 #define nsContentIndexCache_h__
 
-#include "js/HashTable.h"
-
-class nsIContent;
-
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
+#include "mozilla/dom/Element.h"
 
 /*
  * A class that computes and caches the indices used for :nth-* pseudo-class

@@ -329,8 +329,7 @@ HTMLLinkElement::GetStyleSheetURL(bool* aIsInline)
   if (href.IsEmpty()) {
     return nullptr;
   }
-  nsCOMPtr<nsIURI> uri = Link::GetURI();
-  return uri.forget();
+  return Link::GetURI();
 }
 
 void

@@ -36,6 +36,7 @@
 #include "jsprf.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/dom/AtomList.h"
+#include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Attributes.h"

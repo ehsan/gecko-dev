@@ -10,7 +10,6 @@
 #include "jsfriendapi.h"
 #include "jsapi.h"
 #include "mozilla/dom/BindingDeclarations.h"
-#include "nsWrapperCache.h"
 
 namespace mozilla {
 namespace dom {
