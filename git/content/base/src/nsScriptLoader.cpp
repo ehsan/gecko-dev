@@ -48,6 +48,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
+#include "Element.h"
 #include "nsGkAtoms.h"
 #include "nsNetUtil.h"
 #include "nsIScriptGlobalObject.h"
@@ -79,6 +80,7 @@
 static PRLogModuleInfo* gCspPRLog;
 #endif
 
+using namespace mozilla::dom;
 
 //////////////////////////////////////////////////////////////
 // Per-request data structure
@@ -384,11 +386,11 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // Default script language is whatever the root content specifies
+  // Default script language is whatever the root element specifies
   // (which may come from a header or http-meta tag), or if there
-  // is no root content, from the script global object.
-  nsCOMPtr<nsIContent> rootContent = mDocument->GetRootContent();
-  PRUint32 typeID = rootContent ? rootContent->GetScriptTypeID() :
+  // is no root element, from the script global object.
+  Element* rootElement = mDocument->GetRootElement();
+  PRUint32 typeID = rootElement ? rootElement->GetScriptTypeID() :
                                   context->GetScriptTypeID();
   PRUint32 version = 0;
   nsAutoString language, type, src;
@@ -564,7 +566,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       }
 
       if (readyToRun) {
-        nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
+        nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
           &nsScriptLoader::ProcessPendingRequests));
       }
 
@@ -636,7 +638,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // If there weren't any pending requests before, and this one is
   // ready to execute, do that as soon as it's safe.
   if (!request->mLoading && !hadPendingRequests && ReadyToExecuteScripts()) {
-    nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
+    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
       &nsScriptLoader::ProcessPendingRequests));
   }
 
@@ -794,7 +796,7 @@ void
 nsScriptLoader::ProcessPendingRequestsAsync()
 {
   if (GetFirstPendingRequest() || !mPendingChildLoaders.IsEmpty()) {
-    nsCOMPtr<nsIRunnable> ev = new nsRunnableMethod<nsScriptLoader>(this,
+    nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this,
       &nsScriptLoader::ProcessPendingRequests);
 
     NS_DispatchToCurrentThread(ev);

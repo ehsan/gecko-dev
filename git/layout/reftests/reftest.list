@@ -17,9 +17,6 @@ include abs-pos/reftest.list
 # backgrounds/
 include backgrounds/reftest.list
 
-# dom/
-include dom/reftest.list
-
 # bidi/
 include bidi/reftest.list
 
@@ -40,6 +37,9 @@ include bugs/reftest.list
 
 # canvas 2D
 include canvas/reftest.list
+
+# css default pseudo class tests
+include css-default/reftest.list
 
 # css @import tests
 include css-import/reftest.list
@@ -77,6 +77,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# dom/
+include dom/reftest.list
 
 # editor/
 include editor/reftest.list

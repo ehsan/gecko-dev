@@ -83,7 +83,6 @@
 #include "nsIContentHandler.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIDOMWindow.h"
-#include "nsIExtensionManager.h"
 #include "nsIFastLoadService.h" // for PLATFORM_FASL_SUFFIX
 #include "nsIGenericFactory.h"
 #include "nsIIOService2.h"
@@ -110,6 +109,8 @@
 #include "nsIWidget.h"
 #include "nsIDocShell.h"
 #include "nsAppShellCID.h"
+
+#include "mozilla/FunctionTimer.h"
 
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
@@ -149,6 +150,7 @@
 #ifdef XP_UNIX
 #include <sys/stat.h>
 #include <unistd.h>
+#include <pwd.h>
 #endif
 
 #ifdef XP_BEOS
@@ -2702,6 +2704,8 @@ typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
+  NS_TIME_FUNCTION;
+
 #ifdef MOZ_SPLASHSCREEN
   nsSplashScreen *splashScreen = nsnull;
 #endif
@@ -2716,6 +2720,18 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
   SetupErrorHandling(argv[0]);
+
+#ifdef XP_UNIX
+  const char *home = PR_GetEnv("HOME");
+  if (!home || !*home) {
+    struct passwd *pw = getpwuid(geteuid());
+    if (!pw || !pw->pw_dir) {
+      Output(PR_TRUE, "Could not determine HOME directory");
+      return 1;
+    }
+    SaveWordToEnv("HOME", nsDependentCString(pw->pw_dir));
+  }
+#endif
 
 #ifdef MOZ_ACCESSIBILITY_ATK
   // Reset GTK_MODULES, strip atk-bridge if exists
@@ -3317,6 +3333,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     MOZ_SPLASHSCREEN_UPDATE(30);
 
+    NS_TIME_FUNCTION_MARK("Next: ScopedXPCOMStartup");
+
     // Allows the user to forcefully bypass the restart process at their
     // own risk. Useful for debugging or for tinderboxes where child 
     // processes can be problematic.
@@ -3347,6 +3365,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         }
       }
 #endif
+
+      NS_TIME_FUNCTION_MARK("Next: AppStartup");
+
       {
         if (startOffline) {
           nsCOMPtr<nsIIOService2> io (do_GetService("@mozilla.org/network/io-service;1"));
@@ -3416,42 +3437,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           /* Special-case services that need early access to the command
              line. */
-          nsCOMPtr<nsIObserverService> obsService
-            (do_GetService("@mozilla.org/observer-service;1"));
+          nsCOMPtr<nsIObserverService> obsService =
+            mozilla::services::GetObserverService();
           if (obsService) {
             obsService->NotifyObservers(cmdLine, "command-line-startup", nsnull);
           }
 
-          NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
-          rv = appStartup->CreateHiddenWindow();
-          NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
-          NS_ENSURE_SUCCESS(rv, 1);
+          NS_TIME_FUNCTION_MARK("Next: prepare for Run");
 
-          MOZ_SPLASHSCREEN_UPDATE(50);
-
-#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-          nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
-          if (toolkit && !desktopStartupID.IsEmpty()) {
-            toolkit->SetDesktopStartupID(desktopStartupID);
-          }
-#endif
-
-          // Extension Compatibility Checking and Startup
-          if (gAppData->flags & NS_XRE_ENABLE_EXTENSION_MANAGER) {
-            nsCOMPtr<nsIExtensionManager> em(do_GetService("@mozilla.org/extensions/manager;1"));
-            NS_ENSURE_TRUE(em, 1);
-
-            if (upgraded) {
-              rv = em->CheckForMismatches(&needsRestart);
-              if (NS_FAILED(rv)) {
-                needsRestart = PR_FALSE;
-                upgraded = PR_FALSE;
-              }
-            }
-            
-            if (!upgraded || !needsRestart)
-              em->Start(&needsRestart);
-          }
+          if (!upgraded)
+            appStartup->GetNeedsRestart(&needsRestart);
 
           // We want to restart no more than 2 times. The first restart,
           // NO_EM_RESTART == "0" , and the second time, "1".
@@ -3479,6 +3474,22 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           SaveToEnv("XRE_BINARY_PATH=");
 
           if (!shuttingDown) {
+            NS_TIME_FUNCTION_MARK("Next: CreateHiddenWindow");
+
+            NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
+            rv = appStartup->CreateHiddenWindow();
+            NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
+            NS_ENSURE_SUCCESS(rv, 1);
+
+            MOZ_SPLASHSCREEN_UPDATE(50);
+
+#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
+            nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
+            if (toolkit && !desktopStartupID.IsEmpty()) {
+              toolkit->SetDesktopStartupID(desktopStartupID);
+            }
+#endif
+
 #ifdef XP_MACOSX
             // we re-initialize the command-line service and do appleevents munging
             // after we are sure that we're not restarting
@@ -3498,8 +3509,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
             MOZ_SPLASHSCREEN_UPDATE(70);
 
-            nsCOMPtr<nsIObserverService> obsService
-              (do_GetService("@mozilla.org/observer-service;1"));
+            nsCOMPtr<nsIObserverService> obsService =
+              mozilla::services::GetObserverService();
             if (obsService)
               obsService->NotifyObservers(nsnull, "final-ui-startup", nsnull);
 
@@ -3530,6 +3541,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             nativeApp->Enable();
           }
 
+          NS_TIME_FUNCTION_MARK("Next: Run");
+
           MOZ_SPLASHSCREEN_UPDATE(90);
           {
             NS_TIMELINE_ENTER("appStartup->Run");
@@ -3540,6 +3553,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
               gLogConsoleErrors = PR_TRUE;
             }
           }
+
+          NS_TIME_FUNCTION_MARK("Next: Finish");
 
           // Check for an application initiated restart.  This is one that
           // corresponds to nsIAppStartup.quit(eRestart)

@@ -137,7 +137,11 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 
 namespace mozilla {
   class IHistory;
-}
+
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
 
 extern const char kLoadAsData[];
 
@@ -232,8 +236,8 @@ public:
    * This method fills the |aArray| with all ancestor nodes of |aNode|
    * including |aNode| at the zero index.
    */
-  static nsresult GetAncestors(nsIDOMNode* aNode,
-                               nsTArray<nsIDOMNode*>* aArray);
+  static nsresult GetAncestors(nsINode* aNode,
+                               nsTArray<nsINode*>& aArray);
 
   /*
    * This method fills |aAncestorNodes| with all ancestor nodes of |aNode|
@@ -583,8 +587,10 @@ public:
   static void UnregisterPrefCallback(const char *aPref,
                                      PrefChangedFunc aCallback,
                                      void * aClosure);
-  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
-  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable);
+  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable,
+                                  PRBool aDefault = PR_FALSE);
+  static void AddIntPrefVarCache(const char* aPref, PRInt32* aVariable,
+                                 PRInt32 aDefault = 0);
   static nsIPrefBranch2 *GetPrefBranch()
   {
     return sPrefBranch;
@@ -1360,7 +1366,7 @@ public:
    * If aContent is an HTML element with a DOM level 0 'name', then
    * return the name. Otherwise return null.
    */
-  static nsIAtom* IsNamedItem(nsIContent* aContent);
+  static nsIAtom* IsNamedItem(mozilla::dom::Element* aElement);
 
   /**
    * Get the application manifest URI for this document.  The manifest URI

@@ -49,6 +49,7 @@
 #include "nsIBrowserDOMWindow.h"
 #include "nsIComponentManager.h"
 #include "nsIContent.h"
+#include "Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOM3Document.h"
@@ -85,6 +86,7 @@
 #include "nsIChannelEventSink.h"
 #include "nsIUploadChannel.h"
 #include "nsISecurityEventSink.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIJSContextStack.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -222,6 +224,8 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsContentErrors.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
+
+using namespace mozilla::dom;
 
 // Number of documents currently loading
 static PRInt32 gNumberOfDocumentsLoading = 0;
@@ -2833,13 +2837,13 @@ PrintDocTree(nsIDocShellTreeItem * aParentNode, int aLevel)
   if (vm) {
     vm->GetWidget(getter_AddRefs(widget));
   }
-  nsIContent* rootContent = doc->GetRootContent();
+  Element* rootElement = doc->GetRootElement();
 
   printf("DS %p  Ty %s  Doc %p DW %p EM %p CN %p\n",  
     (void*)parentAsDocShell.get(), 
     type==nsIDocShellTreeItem::typeChrome?"Chr":"Con", 
      (void*)doc, (void*)domwin.get(),
-     (void*)presContext->EventStateManager(), (void*)rootContent);
+     (void*)presContext->EventStateManager(), (void*)rootElement);
 
   if (childWebshellCount > 0) {
     for (PRInt32 i=0;i<childWebshellCount;i++) {
@@ -6088,6 +6092,8 @@ nsDocShell::EnsureContentViewer()
         return NS_OK;
     if (mIsBeingDestroyed)
         return NS_ERROR_FAILURE;
+
+    NS_TIME_FUNCTION;
 
     nsIPrincipal* principal = nsnull;
     nsCOMPtr<nsIURI> baseURI;
@@ -10123,7 +10129,7 @@ nsDocShell::AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
 
     if (!visited) {
         nsCOMPtr<nsIObserverService> obsService =
-            do_GetService("@mozilla.org/observer-service;1");
+            mozilla::services::GetObserverService();
         if (obsService) {
             obsService->NotifyObservers(aURI, NS_LINK_VISITED_EVENT_TOPIC, nsnull);
         }
@@ -10295,6 +10301,8 @@ nsDocShell::EnsureScriptEnvironment()
     if (mIsBeingDestroyed) {
         return NS_ERROR_NOT_AVAILABLE;
     }
+
+    NS_TIME_FUNCTION;
 
 #ifdef DEBUG
     NS_ASSERTION(!mInEnsureScriptEnv,

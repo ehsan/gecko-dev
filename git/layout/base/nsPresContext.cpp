@@ -95,6 +95,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
+#include "Element.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
@@ -115,6 +116,7 @@
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
+using namespace mozilla::dom;
 
 static nscolor
 MakeColorPref(const char *colstr)
@@ -1173,9 +1175,9 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
   if (mShell != nsnull) {
     nsIDocument *doc = mShell->GetDocument();
     if (doc) {
-      nsIContent *rootContent = doc->GetRootContent();
-      if (rootContent) {
-        SetImgAnimations(rootContent, aMode);
+      Element *rootElement = doc->GetRootElement();
+      if (rootElement) {
+        SetImgAnimations(rootElement, aMode);
       }
 
 #ifdef MOZ_SMIL
@@ -1470,8 +1472,7 @@ nsPresContext::ThemeChanged()
     sThemeChanged = PR_TRUE;
 
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::ThemeChangedInternal);
+      NS_NewRunnableMethod(this, &nsPresContext::ThemeChangedInternal);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingThemeChanged = PR_TRUE;
     }
@@ -1515,8 +1516,7 @@ nsPresContext::SysColorChanged()
   if (!mPendingSysColorChanged) {
     sLookAndFeelChanged = PR_TRUE;
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::SysColorChangedInternal);
+      NS_NewRunnableMethod(this, &nsPresContext::SysColorChangedInternal);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingSysColorChanged = PR_TRUE;
     }
@@ -1582,8 +1582,7 @@ nsPresContext::PostMediaFeatureValuesChangedEvent()
 {
   if (!mPendingMediaFeatureValuesChanged) {
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                         &nsPresContext::HandleMediaFeatureValuesChangedEvent);
+      NS_NewRunnableMethod(this, &nsPresContext::HandleMediaFeatureValuesChangedEvent);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingMediaFeatureValuesChanged = PR_TRUE;
     }
@@ -1968,8 +1967,7 @@ nsPresContext::RebuildUserFontSet()
   // change reflow).
   if (!mPostedFlushUserFontSet) {
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                     &nsPresContext::HandleRebuildUserFontSet);
+      NS_NewRunnableMethod(this, &nsPresContext::HandleRebuildUserFontSet);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPostedFlushUserFontSet = PR_TRUE;
     }
@@ -2111,8 +2109,7 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
   if (!IsDOMPaintEventPending()) {
     // No event is pending. Dispatch one now.
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::FireDOMPaintEvent);
+      NS_NewRunnableMethod(this, &nsPresContext::FireDOMPaintEvent);
     NS_DispatchToCurrentThread(ev);
   }
 

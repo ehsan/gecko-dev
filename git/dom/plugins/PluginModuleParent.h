@@ -126,6 +126,7 @@ public:
         return mNPNIface;
     }
 
+    PluginProcessParent* Process() const { return mSubprocess; }
     base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 
     bool OkToCleanup() const {
@@ -163,6 +164,9 @@ protected:
 
     NS_OVERRIDE
     virtual bool AnswerProcessSomeEvents();
+
+    NS_OVERRIDE virtual bool
+    RecvProcessNativeEventsInRPCCall();
 
     virtual bool
     RecvAppendNotesToCrashReport(const nsCString& aNotes);

@@ -246,9 +246,6 @@ public:
     virtual bool
     AnswerPluginGotFocus();
 
-    virtual bool
-    RecvSetNestedEventState(const bool& aState);
-
 #if defined(OS_MACOSX)
     void Invalidate();
 #endif // definied(OS_MACOSX)

@@ -96,7 +96,6 @@
 #ifdef MOZ_RDF
 #define RDF_MODULES \
     MODULE(nsRDFModule) \
-    MODULE(nsXPIntlModule) \
     MODULE(nsWindowDataSourceModule)
 #else
 #define RDF_MODULES
@@ -143,13 +142,6 @@
     MODULE(nsPluginModule)
 #else
 #define PLUGINS_MODULES
-#endif
-
-#ifdef MOZ_XPINSTALL
-#define XPINSTALL_MODULES \
-    MODULE(nsSoftwareUpdate)
-#else
-#define XPINSTALL_MODULES
 #endif
 
 #ifdef MOZ_JSDEBUGGER
@@ -264,16 +256,15 @@
     COMPOSER_MODULE                          \
     MODULE(nsChromeModule)                   \
     MODULE(application)                      \
-    MODULE(nsFindComponent)                  \
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
     XULENABLED_MODULES                       \
+    MODULE(AddonsModule)                     \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
-    XPINSTALL_MODULES                        \
     JSDEBUGGER_MODULES                       \
     MODULE(BOOT)                             \
     MODULE(NSS)                              \
