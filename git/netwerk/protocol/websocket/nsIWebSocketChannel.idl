@@ -9,7 +9,6 @@ interface nsIInterfaceRequestor;
 interface nsILoadGroup;
 interface nsIWebSocketListener;
 interface nsIInputStream;
-interface nsILoadInfo;
 
 #include "nsISupports.idl"
 
@@ -20,7 +19,7 @@ interface nsILoadInfo;
  * We are also making it scriptable for now, but this may change once we have
  * WebSockets for Workers.
  */
-[scriptable, uuid(3fb248c2-c0fc-4516-9c58-505a92ad8c64)]
+[scriptable, uuid(9ee5874c-ec39-4bc2-b2d7-194a4c98c9d2)]
 interface nsIWebSocketChannel : nsISupports
 {
     /**
@@ -48,14 +47,9 @@ interface nsIWebSocketChannel : nsISupports
     readonly attribute nsISupports securityInfo;
 
     /**
-     * The load group of of the websocket
+     * The load group of the websockets code.
      */
     attribute nsILoadGroup loadGroup;
-
-    /**
-     * The load info of the websocket
-     */
-    attribute nsILoadInfo loadInfo;
 
     /**
      * Sec-Websocket-Protocol value

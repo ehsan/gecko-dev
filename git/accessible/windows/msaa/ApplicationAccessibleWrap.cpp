@@ -79,7 +79,10 @@ ApplicationAccessibleWrap::get_appName(BSTR* aName)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString name;
-  AppName(name);
+  nsresult rv = GetAppName(name);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (name.IsEmpty())
     return S_FALSE;
 
@@ -103,7 +106,10 @@ ApplicationAccessibleWrap::get_appVersion(BSTR* aVersion)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString version;
-  AppVersion(version);
+  nsresult rv = GetAppVersion(version);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (version.IsEmpty())
     return S_FALSE;
 
@@ -125,7 +131,10 @@ ApplicationAccessibleWrap::get_toolkitName(BSTR* aName)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString name;
-  PlatformName(name);
+  nsresult rv = GetPlatformName(name);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (name.IsEmpty())
     return S_FALSE;
 
@@ -149,7 +158,10 @@ ApplicationAccessibleWrap::get_toolkitVersion(BSTR* aVersion)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString version;
-  PlatformVersion(version);
+  nsresult rv = GetPlatformVersion(version);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (version.IsEmpty())
     return S_FALSE;
 
