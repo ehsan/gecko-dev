@@ -6200,7 +6200,6 @@ var gPageStyleMenu = {
         menuItem.setAttribute("label", currentStyleSheet.title);
         menuItem.setAttribute("data", currentStyleSheet.title);
         menuItem.setAttribute("checked", !currentStyleSheet.disabled && !styleDisabled);
-        menuItem.setAttribute("oncommand", "gPageStyleMenu.switchStyleSheet(this.getAttribute('data'));");
         menuPopup.appendChild(menuItem);
         currentStyleSheets[currentStyleSheet.title] = menuItem;
       } else if (currentStyleSheet.disabled) {
@@ -6212,6 +6211,7 @@ var gPageStyleMenu = {
     persistentOnly.setAttribute("checked", !altStyleSelected && !styleDisabled);
     persistentOnly.hidden = (window.content.document.preferredStyleSheetSet) ? haveAltSheets : false;
     sep.hidden = (noStyle.hidden && persistentOnly.hidden) || !haveAltSheets;
+    return true;
   },
 
   _stylesheetInFrame: function (frame, title) {
@@ -6225,7 +6225,9 @@ var gPageStyleMenu = {
     for (let i = 0; i < docStyleSheets.length; ++i) {
       let docStyleSheet = docStyleSheets[i];
 
-      if (docStyleSheet.title)
+      if (title == "_nostyle")
+        docStyleSheet.disabled = true;
+      else if (docStyleSheet.title)
         docStyleSheet.disabled = (docStyleSheet.title != title);
       else if (docStyleSheet.disabled)
         docStyleSheet.disabled = false;
@@ -6233,7 +6235,7 @@ var gPageStyleMenu = {
   },
 
   _stylesheetSwitchAll: function (frameset, title) {
-    if (!title || this._stylesheetInFrame(frameset, title))
+    if (!title || title == "_nostyle" || this._stylesheetInFrame(frameset, title))
       this._stylesheetSwitchFrame(frameset, title);
 
     for (let i = 0; i < frameset.frames.length; i++)
