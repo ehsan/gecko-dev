@@ -75,8 +75,6 @@
 #include "jstracer.h"
 #include "jsxml.h"
 
-#include "jsatominlines.h"
-
 #include "jsautooplen.h"        // generated headers last
 #include "imacros.c.out"
 
@@ -2214,7 +2212,7 @@ struct UpvarVarTraits {
     }
 
     static uint32 native_slot(uint32 argc, int32 slot) {
-        return 3 /*callee,this,arguments*/ + argc + slot;
+        return 2 /*callee,this*/ + argc + slot;
     }
 };
 
@@ -3252,7 +3250,7 @@ class SlotMap : public SlotVisitorBase
      *                          before recording began. Caller can go through slot list and mark
      *                          such slots as undemotable.
      */
-    JS_REQUIRES_STACK TypeConsensus
+    TypeConsensus
     checkTypes(TreeInfo* ti)
     {
         if (ti->typeMap.length() < slotOffset || length() != ti->typeMap.length() - slotOffset)
@@ -3278,7 +3276,7 @@ class SlotMap : public SlotVisitorBase
         slots.add(SlotInfo(vp, isNumber(*vp) && isPromoteInt(mRecorder.get(vp))));
     }
 
-    JS_REQUIRES_STACK void
+    void
     markUndemotes()
     {
         for (unsigned i = 0; i < length(); i++) {
@@ -3287,7 +3285,7 @@ class SlotMap : public SlotVisitorBase
         }
     }
 
-    JS_REQUIRES_STACK virtual void
+    virtual void
     adjustTypes()
     {
         for (unsigned i = 0; i < length(); i++) {
@@ -3370,7 +3368,7 @@ class DefaultSlotMap : public SlotMap
 JS_REQUIRES_STACK TypeConsensus
 TraceRecorder::selfTypeStability(SlotMap& slotMap)
 {
-    debug_only_printf(LC_TMTracer, "Checking type stability against self=%p\n", (void*)fragment);
+    debug_only_printf(LC_TMTracer, "Checking type stability against self=%p\n", fragment);
     TypeConsensus consensus = slotMap.checkTypes(treeInfo);
 
     /* Best case: loop jumps back to its own header */
@@ -3399,7 +3397,7 @@ TraceRecorder::peerTypeStability(SlotMap& slotMap, VMFragment** pPeer)
     for (; peer != NULL; peer = (VMFragment*)peer->peer) {
         if (!peer->vmprivate || peer == fragment)
             continue;
-        debug_only_printf(LC_TMTracer, "Checking type stability against peer=%p\n", (void*)peer);
+        debug_only_printf(LC_TMTracer, "Checking type stability against peer=%p\n", peer);
         TypeConsensus consensus = slotMap.checkTypes((TreeInfo*)peer->vmprivate);
         if (consensus == TypeConsensus_Okay) {
             *pPeer = peer;
@@ -5195,18 +5193,10 @@ LeaveTree(InterpState& state, VMSideExit* lr)
              * but we have it now. Box it.
              */
             JSTraceType* typeMap = getStackTypeMap(innermost);
-
-            /*
-             * If there's a tree call around the point that we deep exited at,
-             * then state.sp and state.rp were restored to their original
-             * values before the tree call and sp might be less than deepBailSp,
-             * which we sampled when we were told to deep bail.
-             */
-            JS_ASSERT(state.deepBailSp >= state.stackBase && state.sp <= state.deepBailSp);
             NativeToValue(cx,
                           cx->fp->regs->sp[-1],
                           typeMap[innermost->numStackSlots - 1],
-                          (jsdouble *) state.deepBailSp + innermost->sp_adj / sizeof(jsdouble) - 1);
+                          (jsdouble *) state.sp + innermost->sp_adj / sizeof(jsdouble) - 1);
         }
         JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
         if (tm->prohibitFlush && --tm->prohibitFlush == 0 && tm->needFlush)
@@ -6234,10 +6224,7 @@ js_DeepBail(JSContext *cx)
     debug_only_print0(LC_TMTracer, "Deep bail.\n");
     LeaveTree(*tracecx->interpState, tracecx->bailExit);
     tracecx->bailExit = NULL;
-
-    InterpState* state = tracecx->interpState;
-    state->builtinStatus |= JSBUILTIN_BAILED;
-    state->deepBailSp = state->sp;
+    tracecx->interpState->builtinStatus |= JSBUILTIN_BAILED;
 }
 
 JS_REQUIRES_STACK jsval&
@@ -7682,26 +7669,16 @@ TraceRecorder::getThis(LIns*& this_ins)
      * global object obtained throught the scope chain.
      */
     JSObject* obj = js_GetWrappedObject(cx, JSVAL_TO_OBJECT(thisv));
-    JSObject* inner = obj;
-    OBJ_TO_INNER_OBJECT(cx, inner);
+    OBJ_TO_INNER_OBJECT(cx, obj);
     if (!obj)
         return JSRS_ERROR;
 
-    JS_ASSERT(original == thisv ||
-              original == OBJECT_TO_JSVAL(inner) ||
-              original == OBJECT_TO_JSVAL(obj));
-
-    // If the returned this object is the unwrapped inner or outer object,
-    // then we need to use the wrapped outer object.
-    LIns* is_inner = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(inner));
-    LIns* is_outer = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(obj));
-    LIns* wrapper = INS_CONSTPTR(JSVAL_TO_OBJECT(thisv));
-
-    this_ins = lir->ins_choose(is_inner,
-                               wrapper,
-                               lir->ins_choose(is_outer,
-                                               wrapper,
-                                               this_ins));
+    JS_ASSERT(original == thisv || original == OBJECT_TO_JSVAL(obj));
+    this_ins = lir->ins_choose(lir->ins2(LIR_eq,
+                                         this_ins,
+                                         INS_CONSTPTR(obj)),
+                               INS_CONSTPTR(JSVAL_TO_OBJECT(thisv)),
+                               this_ins);
 
     return JSRS_CONTINUE;
 }
