@@ -165,31 +165,45 @@ nsSVGAnimationElement::GetTargetElement(nsIDOMSVGElement** aTarget)
   return NS_OK;
 }
 
+/* float getStartTime(); */
 NS_IMETHODIMP
 nsSVGAnimationElement::GetStartTime(float* retval)
 {
-  // XXX
-  *retval = 0.f;
-  NS_NOTYETIMPLEMENTED("nsSVGAnimationElement::GetStartTime");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  nsSMILTimeValue startTime = mTimedElement.GetStartTime();
+  if (startTime.IsResolved()) {
+    *retval = double(startTime.GetMillis()) / PR_MSEC_PER_SEC;
+  } else {
+    *retval = 0.f;
+  }
+
+  return NS_OK;
 }
 
+/* float getCurrentTime(); */
 NS_IMETHODIMP
 nsSVGAnimationElement::GetCurrentTime(float* retval)
 {
-  // XXX
-  *retval = 0.f;
-  NS_NOTYETIMPLEMENTED("nsSVGAnimationElement::GetCurrentTime");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  nsSMILTimeContainer* root = GetTimeContainer();
+  if (root) {
+    *retval = double(root->GetCurrentTime()) / PR_MSEC_PER_SEC;
+  } else {
+    *retval = 0.f;
+  }
+  return NS_OK;
 }
 
+/* float getSimpleDuration() raises( DOMException ); */
 NS_IMETHODIMP
 nsSVGAnimationElement::GetSimpleDuration(float* retval)
 {
-  // XXX
-  *retval = 0.f;
-  NS_NOTYETIMPLEMENTED("nsSVGAnimationElement::GetSimpleDuration");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  nsSMILTimeValue simpleDur = mTimedElement.GetSimpleDuration();
+  if (!simpleDur.IsResolved()) {
+    *retval = 0.f;
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+  }
+
+  *retval = double(simpleDur.GetMillis()) / PR_MSEC_PER_SEC;
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -372,12 +386,7 @@ nsSVGAnimationElement::BeginElementAt(float offset)
 
   ownerSVG->RequestSample();
 
-  // We ignore the return code. The SMIL version of this interface has a void
-  // return type and no exception specification so there's no way to indicate
-  // that begin failed (e.g. because the element has restart="none").
-  mTimedElement.BeginElementAt(offset, mTimedDocumentRoot);
-
-  return NS_OK;
+  return mTimedElement.BeginElementAt(offset, mTimedDocumentRoot);
 }
 
 /* void endElement (); */
@@ -397,8 +406,5 @@ nsSVGAnimationElement::EndElementAt(float offset)
 
   ownerSVG->RequestSample();
 
-  // As with BeginElementAt, ignore the return code.
-  mTimedElement.EndElementAt(offset, mTimedDocumentRoot);
-
-  return NS_OK;
+  return mTimedElement.EndElementAt(offset, mTimedDocumentRoot);
 }
