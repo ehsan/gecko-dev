@@ -47,7 +47,6 @@
 #include "nsILocalFile.h"
 #include "mozilla/Module.h"
 #include "mozilla/ModuleLoader.h"
-#include "nsXULAppAPI.h"
 #include "nsNativeComponentLoader.h"
 #include "nsIFactory.h"
 #include "nsIInterfaceRequestor.h"
@@ -63,7 +62,6 @@
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
 #include "nsInterfaceHashtable.h"
-#include "nsClassHashtable.h"
 #include "nsTArray.h"
 
 struct nsFactoryEntry;
@@ -159,14 +157,8 @@ public:
     static void InitializeStaticModules();
     static void InitializeModuleLocations();
 
-    struct ComponentLocation
-    {
-        NSLocationType type;
-        nsCOMPtr<nsILocalFile> location;
-    };
-
     static nsTArray<const mozilla::Module*>* sStaticModules;
-    static nsTArray<ComponentLocation>* sModuleLocations;
+    static nsCOMArray<nsILocalFile>* sModuleLocations;
 
     nsNativeModuleLoader mNativeModuleLoader;
 
@@ -183,10 +175,10 @@ public:
             , mFailed(false)
         { }
 
-        KnownModule(nsILocalFile* aFile)
+        KnownModule(nsILocalFile* aFile, mozilla::ModuleLoader* aLoader)
             : mModule(NULL)
             , mFile(aFile)
-            , mLoader(NULL)
+            , mLoader(aLoader)
             , mLoaded(false)
             , mFailed(false)
         { }
@@ -197,7 +189,6 @@ public:
                 mModule->unloaded();
         }
 
-        bool EnsureLoader();
         bool Load();
 
         const mozilla::Module* Module() const
@@ -213,10 +204,7 @@ public:
         bool mFailed;
     };
 
-    // The KnownModule is kept alive by these members, it is referenced by pointer
-    // from the factory entries.
-    nsTArray< nsAutoPtr<KnownModule> > mKnownStaticModules;
-    nsClassHashtable<nsHashableHashKey, KnownModule> mKnownFileModules;
+    nsTArray< nsAutoPtr<KnownModule> > mKnownModules;
 
     void RegisterModule(const mozilla::Module* aModule,
                         nsILocalFile* aFile);
@@ -224,36 +212,9 @@ public:
                           KnownModule* aModule);
     void RegisterContractID(const mozilla::Module::ContractIDEntry* aEntry);
 
-    void RegisterLocation(NSLocationType aType, nsILocalFile* aLocation);
-
-    // Register XPT/XPTJAR files, and fills aManifests with .manifest
-    // files, which must be registered after all DLLs so that networking is
-    // registered.
-    void RegisterDirectory(NSLocationType aType, nsILocalFile* aDirectory,
-                           nsCOMArray<nsILocalFile>& aManifests);
-    void RegisterFile(NSLocationType aType, nsILocalFile* aFile,
-                      nsCOMArray<nsILocalFile>& aManifests);
-
-    void RegisterManifestFile(NSLocationType aType, nsILocalFile* aFile);
-
-    struct ManifestProcessingContext
-    {
-        ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile)
-            : mType(aType)
-            , mFile(aFile)
-        { }
-        ~ManifestProcessingContext() { }
-
-        NSLocationType mType;
-        nsCOMPtr<nsILocalFile> mFile;
-    };
-
-    void ManifestBinaryComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
-    void ManifestComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
-    void ManifestContract(ManifestProcessingContext& cx, int lineno, char* const * argv);
-    void ManifestCategory(ManifestProcessingContext& cx, int lineno, char* const * argv);
-
-    void RereadChromeManifests();
+    void RegisterLocation(nsILocalFile* aLocation);
+    void RegisterDirectory(nsILocalFile* aDirectory);
+    void RegisterFile(nsILocalFile* aFile);
 
     // Shutdown
     enum {

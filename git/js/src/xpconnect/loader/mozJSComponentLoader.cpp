@@ -755,7 +755,7 @@ mozJSComponentLoader::LoadModule(nsILocalFile* aComponentFile)
 
     JSCLAutoErrorReporterSetter aers(cx, mozJSLoaderErrorReporter);
 
-    jsval NSGetFactory_val;
+    jsval argv[2], retval, NSGetFactory_val;
 
     if (!JS_GetProperty(cx, entry->global, "NSGetFactory", &NSGetFactory_val) ||
         JSVAL_IS_VOID(NSGetFactory_val)) {
@@ -772,14 +772,14 @@ mozJSComponentLoader::LoadModule(nsILocalFile* aComponentFile)
     }
     
     JSObject *jsGetFactoryObj;
-    if (!JS_ValueToObject(cx, NSGetFactory_val, &jsGetFactoryObj) ||
+    if (!JS_ValueToObject(cx, retval, &jsGetFactoryObj) ||
         !jsGetFactoryObj) {
         /* XXX report error properly */
         return NULL;
     }
 
     rv = xpc->WrapJS(cx, jsGetFactoryObj,
-                     NS_GET_IID(xpcIJSGetFactory), getter_AddRefs(entry->getfactoryobj));
+                     NS_GET_IID(xpcIJSGetFactory), getter_AddRefs(entry->getfactory));
     if (NS_FAILED(rv)) {
         /* XXX report error properly */
 #ifdef DEBUG
@@ -793,7 +793,9 @@ mozJSComponentLoader::LoadModule(nsILocalFile* aComponentFile)
         return NULL;
 
     // The hash owns the ModuleEntry now, forget about it
-    return entry.forget();
+    entry.forget();
+
+    return entry;
 }
 
 // Some stack based classes for cleaning up on early return
@@ -1375,13 +1377,6 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
     return NS_OK;
 }
 
-/* static */ PLDHashOperator
-mozJSComponentLoader::ClearModules(nsIHashable* key, ModuleEntry*& entry, void* cx)
-{
-    entry->Clear();
-    return PL_DHASH_REMOVE;
-}
-    
 void
 mozJSComponentLoader::UnloadModules()
 {
@@ -1389,8 +1384,7 @@ mozJSComponentLoader::UnloadModules()
 
     mInProgressImports.Clear();
     mImports.Clear();
-
-    mModules.Enumerate(ClearModules, NULL);
+    mModules.Clear();
 
     // Destroying our context will force a GC.
     JS_DestroyContext(mContext);
@@ -1664,21 +1658,6 @@ mozJSComponentLoader::Observe(nsISupports *subject, const char *topic,
     }
 
     return NS_OK;
-}
-
-/* static */ already_AddRefed<nsIFactory>
-mozJSComponentLoader::ModuleEntry::GetFactory(const mozilla::Module& module,
-                                              const mozilla::Module::CIDEntry& entry)
-{
-    const ModuleEntry& self = static_cast<const ModuleEntry&>(module);
-    NS_ASSERTION(self.getfactoryobj, "Handing out an uninitialized module?");
-
-    nsCOMPtr<nsIFactory> f;
-    nsresult rv = self.getfactoryobj->Get(*entry.cid, getter_AddRefs(f));
-    if (NS_FAILED(rv))
-        return NULL;
-
-    return f.forget();
 }
 
 //----------------------------------------------------------------------

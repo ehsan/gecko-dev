@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,12 +15,11 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Christopher Blizzard.
- * Portions created by the Initial Developer are Copyright (C) 2001
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Christopher Blizzard <blizzard@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,36 +35,39 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef gtkmozembed_internal_h
-#define gtkmozembed_internal_h
+#include "nsCOMPtr.h"
+#include "mozilla/ModuleUtils.h"
 
-#include "nsIWebBrowser.h"
-#include "nsXPCOM.h"
+#include "nsIServiceManager.h"
+#include "nsIComponentManager.h"
+#include "nsIChromeRegistry.h"
+#include "nscore.h"
+#include "nsChromeProtocolHandler.h"
+#include "nsChromeRegistry.h"
 
-struct nsModuleComponentInfo;
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsChromeRegistry, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsChromeProtocolHandler)
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
+NS_DEFINE_NAMED_CID(NS_CHROMEREGISTRY_CID);
+NS_DEFINE_NAMED_CID(NS_CHROMEPROTOCOLHANDLER_CID);
 
-GTKMOZEMBED_API(void,
-  gtk_moz_embed_get_nsIWebBrowser, (GtkMozEmbed *embed,
-                                    nsIWebBrowser **retval))
-GTKMOZEMBED_API(PRUnichar*,
-  gtk_moz_embed_get_title_unichar, (GtkMozEmbed *embed))
+static const mozilla::Module::CIDEntry kChromeCIDs[] = {
+    { &kNS_CHROMEREGISTRY_CID, false, NULL, nsChromeRegistryConstructor },
+    { &kNS_CHROMEPROTOCOLHANDLER_CID, false, NULL, nsChromeProtocolHandlerConstructor },
+    { NULL }
+};
 
-GTKMOZEMBED_API(PRUnichar*,
-  gtk_moz_embed_get_js_status_unichar, (GtkMozEmbed *embed))
+static const mozilla::Module::ContractIDEntry kChromeContracts[] = {
+    { NS_CHROMEREGISTRY_CONTRACTID, &kNS_CHROMEREGISTRY_CID },
+    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "chrome", &kNS_CHROMEPROTOCOLHANDLER_CID },
+    { NULL }
+};
 
-GTKMOZEMBED_API(PRUnichar*,
-  gtk_moz_embed_get_link_message_unichar, (GtkMozEmbed *embed))
+static const mozilla::Module kChromeModule = {
+    mozilla::Module::kVersion,
+    kChromeCIDs,
+    kChromeContracts
+};
 
-GTKMOZEMBED_API(void,
-  gtk_moz_embed_set_directory_service_provider, (nsIDirectoryServiceProvider *appFileLocProvider))
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* gtkmozembed_internal_h */
+NSMODULE_DEFN(nsChromeModule) = &kChromeModule;
 

@@ -89,7 +89,6 @@
 #include "nsTArray.h"
 #include "prio.h"
 #include "mozilla/FunctionTimer.h"
-#include "ManifestParser.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -314,8 +313,7 @@ nsComponentManagerImpl::InitializeStaticModules()
         sStaticModules->AppendElement(*staticModules);
 }
 
-nsTArray<nsComponentManagerImpl::ComponentLocation>*
-nsComponentManagerImpl::sModuleLocations;
+nsCOMArray<nsILocalFile>* nsComponentManagerImpl::sModuleLocations;
 
 /* static */ void
 nsComponentManagerImpl::InitializeModuleLocations()
@@ -323,7 +321,7 @@ nsComponentManagerImpl::InitializeModuleLocations()
     if (sModuleLocations)
         return;
 
-    sModuleLocations = new nsTArray<ComponentLocation>;
+    sModuleLocations = new nsCOMArray<nsILocalFile>;
 }
 
 nsresult nsComponentManagerImpl::Init()
@@ -343,8 +341,6 @@ nsresult nsComponentManagerImpl::Init()
 
     mFactories.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
     mContractIDs.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
-    mLoaderMap.Init();
-    mKnownFileModules.Init();
 
     mMon = nsAutoMonitor::NewMonitor("nsComponentManagerImpl");
     if (mMon == nsnull)
@@ -360,17 +356,11 @@ nsresult nsComponentManagerImpl::Init()
     InitializeStaticModules();
     InitializeModuleLocations();
 
-    ComponentLocation* l = sModuleLocations->InsertElementAt(0);
-    l->type = NS_COMPONENT_LOCATION;
-    l->location = appComponents;
-
     PRBool equals = PR_FALSE;
     appComponents->Equals(greComponents, &equals);
-    if (!equals) {
-        l = sModuleLocations->InsertElementAt(0);
-        l->type = NS_COMPONENT_LOCATION;
-        l->location = greComponents;
-    }
+    if (!equals)
+        sModuleLocations->InsertObjectAt(greComponents, 0);
+    sModuleLocations->InsertObjectAt(appComponents, 0);
 
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG,
            ("nsComponentManager: Initialized."));
@@ -387,10 +377,8 @@ nsresult nsComponentManagerImpl::Init()
     for (PRUint32 i = 0; i < sStaticModules->Length(); ++i)
         RegisterModule((*sStaticModules)[i], NULL);
 
-    for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
-        ComponentLocation& l = sModuleLocations->ElementAt(i);
-        RegisterLocation(l.type, l.location);
-    }
+    for (PRInt32 i = 0; i < sModuleLocations->Count(); ++i)
+        RegisterLocation((*sModuleLocations)[i]);
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(false);
 
@@ -406,12 +394,7 @@ nsComponentManagerImpl::RegisterModule(const mozilla::Module* aModule,
     nsAutoMonitor mon(mMon);
 
     KnownModule* m = new KnownModule(aModule, aFile);
-    if (aFile) {
-        nsCOMPtr<nsIHashable> h = do_QueryInterface(aFile);
-        mKnownFileModules.Put(h, m);
-    }
-    else
-        mKnownStaticModules.AppendElement(m);
+    mKnownModules.AppendElement(m);
 
     if (aModule->mCIDs) {
         const mozilla::Module::CIDEntry* entry;
@@ -434,7 +417,7 @@ nsComponentManagerImpl::RegisterModule(const mozilla::Module* aModule,
                                  entry->entry,
                                  entry->value);
     }
-};
+}
 
 void
 nsComponentManagerImpl::RegisterCIDEntry(const mozilla::Module::CIDEntry* aEntry,
@@ -469,26 +452,18 @@ nsComponentManagerImpl::RegisterContractID(const mozilla::Module::ContractIDEntr
 }
 
 void
-nsComponentManagerImpl::RegisterLocation(NSLocationType aType,
-                                         nsILocalFile* aLocation)
+nsComponentManagerImpl::RegisterLocation(nsILocalFile* aLocation)
 {
-    nsCOMArray<nsILocalFile> manifests;
-
     PRBool directory = PR_FALSE;
     aLocation->IsDirectory(&directory);
     if (directory)
-        RegisterDirectory(aType, aLocation, manifests);
+        RegisterDirectory(aLocation);
     else
-        RegisterFile(aType, aLocation, manifests);
-
-    for (PRInt32 i = 0; i < manifests.Count(); ++i)
-        RegisterManifestFile(aType, manifests[i]);
+        RegisterFile(aLocation);
 }
 
 void
-nsComponentManagerImpl::RegisterDirectory(NSLocationType aType,
-                                          nsILocalFile* aDirectory,
-                                          nsCOMArray<nsILocalFile>& aManifests)
+nsComponentManagerImpl::RegisterDirectory(nsILocalFile* aDirectory)
 {
     nsCOMPtr<nsISimpleEnumerator> entries;
     aDirectory->GetDirectoryEntries(getter_AddRefs(entries));
@@ -503,224 +478,37 @@ nsComponentManagerImpl::RegisterDirectory(NSLocationType aType,
         if (!f)
             continue;
 
-        RegisterFile(aType, f, aManifests);
+        RegisterFile(f);
     }
 }
 
-static void
-GetExtension(nsILocalFile* file, nsCString& extension)
+void
+nsComponentManagerImpl::RegisterFile(nsILocalFile* aFile)
 {
-    file->GetNativePath(extension);
+    nsCString extension;
+    aFile->GetNativePath(extension);
 
     PRInt32 dotPos = extension.RFindChar('.');
     if (kNotFound == dotPos)
-        extension.Truncate();
-    else
-        extension.Cut(0, dotPos + 1);
-}
-
-void
-nsComponentManagerImpl::RegisterFile(NSLocationType aType,
-                                     nsILocalFile* aFile,
-                                     nsCOMArray<nsILocalFile>& aManifests)
-{
-    nsCString extension;
-    GetExtension(aFile, extension);
-
-    if (NS_COMPONENT_LOCATION == aType) {
-        if (extension.EqualsLiteral("xpt")) {
-            xptiInterfaceInfoManager::GetSingleton()
-                ->RegisterFile(aFile,
-                               xptiInterfaceInfoManager::XPT);
-        }
-        else if (extension.EqualsLiteral("jar")) {
-            xptiInterfaceInfoManager::GetSingleton()
-                ->RegisterFile(aFile,
-                               xptiInterfaceInfoManager::ZIP);
-        }
-    }
-
-    if (extension.LowerCaseEqualsLiteral("manifest"))
-        aManifests.AppendObject(aFile);
-}
-
-namespace {
-struct AutoCloseFD
-{
-    AutoCloseFD()
-        : mFD(NULL)
-    { }
-    ~AutoCloseFD() {
-        if (mFD)
-            PR_Close(mFD);
-    }
-    operator PRFileDesc*() {
-        return mFD;
-    }
-
-    PRFileDesc** operator&() {
-        NS_ASSERTION(!mFD, "Re-opening a file");
-        return &mFD;
-    }
-
-    PRFileDesc* mFD;
-};
-
-} // anonymous namespace
-
-void
-nsComponentManagerImpl::RegisterManifestFile(NSLocationType aType,
-                                             nsILocalFile* aFile)
-{
-    nsresult rv;
-
-    AutoCloseFD fd;
-    rv = aFile->OpenNSPRFileDesc(PR_RDONLY, 0444, &fd);
-    if (NS_FAILED(rv))
         return;
 
-    PRFileInfo64 fileInfo;
-    if (PR_SUCCESS != PR_GetOpenFileInfo64(fd, &fileInfo))
-        return;
-
-    if (fileInfo.size > PRInt64(PR_INT32_MAX))
-        return;
-
-    nsAutoArrayPtr<char> data(new char[PRInt32(fileInfo.size + 1)]);
-
-    for (PRInt32 totalRead = 0; totalRead < fileInfo.size; ) {
-        PRInt32 read = PR_Read(fd, data + totalRead, PRInt32(fileInfo.size));
-        if (read < 0)
+    extension.Cut(0, dotPos + 1);
+    if (extension.LowerCaseEqualsLiteral(NAKED_DLL_SUFFIX)) {
+        const mozilla::Module* m = mNativeModuleLoader.LoadModule(aFile);
+        if (!m)
             return;
-        totalRead += read;
+        RegisterModule(m, aFile);
     }
-
-    data[fileInfo.size] = '\0';
-    ParseManifest(aType, aFile, data);
-}
-
-void
-nsComponentManagerImpl::ManifestBinaryComponent(ManifestProcessingContext& cx, int lineno, char *const * argv)
-{
-    char* file = argv[0];
-
-    nsCOMPtr<nsIFile> cfile;
-    cx.mFile->GetParent(getter_AddRefs(cfile));
-    nsCOMPtr<nsILocalFile> clfile = do_QueryInterface(cfile);
-
-    nsresult rv = clfile->AppendRelativeNativePath(nsDependentCString(file));
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Couldn't append relative path?");
-        return;
+    else if (extension.EqualsLiteral("xpt")) {
+        xptiInterfaceInfoManager::GetSingleton()
+            ->RegisterFile(aFile,
+                           xptiInterfaceInfoManager::XPT);
     }
-
-    const mozilla::Module* m = mNativeModuleLoader.LoadModule(clfile);
-    if (!m) {
-        // XXX report load error
-        return;
+    else if (extension.EqualsLiteral("jar")) {
+        xptiInterfaceInfoManager::GetSingleton()
+            ->RegisterFile(aFile,
+                           xptiInterfaceInfoManager::ZIP);
     }
-    RegisterModule(m, clfile);
-}
-
-void
-nsComponentManagerImpl::ManifestComponent(ManifestProcessingContext& cx, int lineno, char *const * argv)
-{
-    char* id = argv[0];
-    char* file = argv[1];
-
-    nsID cid;
-    if (!cid.Parse(id)) {
-        // XXX report parse error
-        return;
-    }
-
-    nsAutoMonitor mon(mMon);
-    nsFactoryEntry* f = mFactories.Get(cid);
-    if (f) {
-        // XXX report double-register error
-        return;
-    }
-
-    nsCOMPtr<nsIFile> cfile;
-    cx.mFile->GetParent(getter_AddRefs(cfile));
-    nsCOMPtr<nsILocalFile> clfile = do_QueryInterface(cfile);
-
-    nsresult rv = clfile->AppendRelativeNativePath(nsDependentCString(file));
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Couldn't append relative path?");
-        return;
-    }
-
-    nsCOMPtr<nsIHashable> h = do_QueryInterface(clfile);
-    KnownModule* km = mKnownFileModules.Get(h);
-    if (!km) {
-        km = new KnownModule(clfile);
-        mKnownFileModules.Put(h, km);
-    }
-
-    void* place;
-
-    PL_ARENA_ALLOCATE(place, &mArena, sizeof(nsCID));
-    nsID* permanentCID = static_cast<nsID*>(place);
-    *permanentCID = cid;
-
-    PL_ARENA_ALLOCATE(place, &mArena, sizeof(mozilla::Module::CIDEntry));
-    mozilla::Module::CIDEntry* e = new (place) mozilla::Module::CIDEntry();
-    e->cid = permanentCID;
-
-    f = new nsFactoryEntry(e, km);
-    mFactories.Put(cid, f);
-}
-
-void
-nsComponentManagerImpl::ManifestContract(ManifestProcessingContext& cx, int lineno, char *const * argv)
-{
-    char* contract = argv[0];
-    char* id = argv[1];
-
-    nsID cid;
-    if (!cid.Parse(id)) {
-        // XXX report parse error
-        return;
-    }
-
-    nsAutoMonitor mon(mMon);
-    nsFactoryEntry* f = mFactories.Get(cid);
-    if (!f) {
-        // XXX report unregistered CID
-        return;
-    }
-
-    mContractIDs.Put(nsDependentCString(contract), f);
-}
-
-void
-nsComponentManagerImpl::ManifestCategory(ManifestProcessingContext& cx, int lineno, char *const * argv)
-{
-    char* category = argv[0];
-    char* key = argv[1];
-    char* value = argv[2];
-
-    nsCategoryManager::GetSingleton()->
-        AddCategoryEntry(category, key, value);
-}
-
-void
-nsComponentManagerImpl::RereadChromeManifests()
-{
-    NS_ERROR("XXX Not done!");
-}
-
-bool
-nsComponentManagerImpl::KnownModule::EnsureLoader()
-{
-    if (!mLoader) {
-        nsCString extension;
-        GetExtension(mFile, extension);
-
-        mLoader = nsComponentManagerImpl::gComponentManager->LoaderForExtension(extension);
-    }
-    return !!mLoader;
 }
 
 bool
@@ -729,8 +517,6 @@ nsComponentManagerImpl::KnownModule::Load()
     if (mFailed)
         return false;
     if (!mModule) {
-        if (!EnsureLoader())
-            return false;
         mModule = mLoader->LoadModule(mFile);
         if (!mModule) {
             mFailed = true;
@@ -764,8 +550,6 @@ nsresult nsComponentManagerImpl::Shutdown(void)
     // Release all cached factories
     mContractIDs.Clear();
     mFactories.Clear(); // XXX release the objects, don't just clear
-    mLoaderMap.Clear();
-    mKnownFileModules.Clear();
 
     mLoaderData.Clear();
 
@@ -1460,13 +1244,23 @@ nsComponentManagerImpl::LoaderForExtension(const nsACString& aExt)
     return loader.forget();
 }
 
+static void
+ReportLoadFailure(nsIFile* aFile, nsIConsoleService* aCS)
+{
+    nsAutoString message;
+    aFile->GetPath(message);
+    message.Insert(NS_LITERAL_STRING("Failed to load XPCOM component: "), 0);
+
+    aCS->LogStringMessage(message.get());
+}
+
 NS_IMETHODIMP
 nsComponentManagerImpl::RegisterFactory(const nsCID& aClass,
                                         const char* aName,
                                         const char* aContractID,
                                         nsIFactory* aFactory)
 {
-    nsAutoPtr<nsFactoryEntry> f = new nsFactoryEntry(aFactory);
+    nsAutoPtr<nsFactoryEntry> f(new nsFactoryEntry(aFactory));
 
     nsAutoMonitor mon(mMon);
     nsFactoryEntry* oldf = mFactories.Get(aClass);
@@ -1624,7 +1418,7 @@ nsFactoryEntry::GetFactory()
             mFactory = mModule->Module()->getfactory(*mModule->Module(),
                                                     *mCIDEntry);
         }
-        else if (mCIDEntry->getfactory) {
+        if (mCIDEntry->getfactory) {
             mFactory = mCIDEntry->getfactory(*mModule->Module(), *mCIDEntry);
         }
         else {
@@ -1687,17 +1481,14 @@ XRE_AddStaticComponent(const mozilla::Module* aComponent)
 }
 
 EXPORT_XPCOM_API(nsresult)
-XRE_AddComponentLocation(NSLocationType aType, nsILocalFile* aLocation)
+XRE_AddComponentLocation(nsILocalFile* aLocation)
 {
     nsComponentManagerImpl::InitializeModuleLocations();
-    nsComponentManagerImpl::ComponentLocation* c = 
-        nsComponentManagerImpl::sModuleLocations->AppendElement();
-    c->type = aType;
-    c->location = aLocation;
+    nsComponentManagerImpl::sModuleLocations->AppendObject(aLocation);
 
     if (nsComponentManagerImpl::gComponentManager &&
         nsComponentManagerImpl::NORMAL == nsComponentManagerImpl::gComponentManager->mStatus)
-        nsComponentManagerImpl::gComponentManager->RegisterLocation(aType, aLocation);
+        nsComponentManagerImpl::gComponentManager->RegisterLocation(aLocation);
 
     return NS_OK;
 }
