@@ -746,6 +746,9 @@ JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32 maxbytes)
 {
     if (!js_NewRuntimeWasCalled) {
+#ifdef MOZ_ETW
+        EventRegisterMozillaSpiderMonkey();
+#endif
 #ifdef DEBUG
         /*
          * This code asserts that the numbers associated with the error names
@@ -786,22 +789,18 @@ JS_NewRuntime(uint32 maxbytes)
         return NULL;
     }
 
-    Probes::createRuntime(rt);
     return rt;
 }
 
 JS_PUBLIC_API(void)
 JS_DestroyRuntime(JSRuntime *rt)
 {
-    Probes::destroyRuntime(rt);
     Foreground::delete_(rt);
 }
 
 JS_PUBLIC_API(void)
 JS_ShutDown(void)
 {
-    Probes::shutdown();
-
 #ifdef MOZ_TRACEVIS
     StopTraceVis();
 #endif
@@ -810,6 +809,10 @@ JS_ShutDown(void)
     js_CleanupLocks();
 #endif
     PRMJ_NowShutdown();
+
+#ifdef MOZ_ETW
+    EventUnregisterMozillaSpiderMonkey();
+#endif
 }
 
 JS_PUBLIC_API(void *)

@@ -152,6 +152,7 @@ OS_LIBS += \
 	-framework SystemConfiguration \
 	-framework QuickTime \
 	-framework IOKit \
+	-lcrypto \
 	$(TK_LIBS) \
 	$(NULL)
 endif

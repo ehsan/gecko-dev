@@ -905,7 +905,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
  *
  ******************************************************************************/
 
-NSUInteger TextInputHandler::sLastModifierState = 0;
+PRBool TextInputHandler::sLastModifierState = PR_FALSE;
 
 // static
 CFArrayRef
