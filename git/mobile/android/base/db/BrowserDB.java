@@ -68,8 +68,6 @@ public class BrowserDB {
         @RobocopTarget
         public Cursor getBookmarksInFolder(ContentResolver cr, long folderId);
 
-        public Cursor getReadingList(ContentResolver cr);
-
         public boolean isVisited(ContentResolver cr, String uri);
 
         public int getReadingListCount(ContentResolver cr);
@@ -101,8 +99,6 @@ public class BrowserDB {
         public void addReadingListItem(ContentResolver cr, String title, String uri);
 
         public void removeReadingListItemWithURL(ContentResolver cr, String uri);
-
-        public void removeReadingListItem(ContentResolver cr, int id);
 
         public LoadFaviconResult getFaviconForUrl(ContentResolver cr, String uri);
 
@@ -220,11 +216,6 @@ public class BrowserDB {
         return sDb.getBookmarksInFolder(cr, folderId);
     }
 
-    @RobocopTarget
-    public static Cursor getReadingList(ContentResolver cr) {
-        return sDb.getReadingList(cr);
-    }
-
     public static String getUrlForKeyword(ContentResolver cr, String keyword) {
         return sDb.getUrlForKeyword(cr, keyword);
     }
@@ -277,10 +268,6 @@ public class BrowserDB {
 
     public static void removeReadingListItemWithURL(ContentResolver cr, String uri) {
         sDb.removeReadingListItemWithURL(cr, uri);
-    }
-
-    public static void removeReadingListItem(ContentResolver cr, int id) {
-        sDb.removeReadingListItem(cr, id);
     }
 
     public static LoadFaviconResult getFaviconForFaviconUrl(ContentResolver cr, String faviconURL) {

@@ -823,8 +823,6 @@ js::ObjectMayHaveExtraIndexedProperties(JSObject *obj)
             return true;
         if (obj->getDenseInitializedLength() > 0)
             return true;
-        if (obj->is<TypedArrayObject>())
-            return true;
     }
 
     return false;
@@ -2042,7 +2040,7 @@ js::array_push(JSContext *cx, unsigned argc, Value *vp)
 
     /* Fast path for native objects with dense elements. */
     do {
-        if (!obj->isNative() || obj->is<TypedArrayObject>())
+        if (!obj->isNative())
             break;
 
         if (obj->is<ArrayObject>() && !obj->as<ArrayObject>().lengthIsWritable())

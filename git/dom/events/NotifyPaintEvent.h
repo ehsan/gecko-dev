@@ -7,10 +7,10 @@
 #define mozilla_dom_NotifyPaintEvent_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/Event.h"
-#include "mozilla/dom/NotifyPaintEventBinding.h"
 #include "nsIDOMNotifyPaintEvent.h"
+#include "nsDOMEvent.h"
 #include "nsPresContext.h"
+#include "mozilla/dom/NotifyPaintEventBinding.h"
 
 class nsPaintRequestList;
 
@@ -20,7 +20,7 @@ namespace dom {
 class DOMRect;
 class DOMRectList;
 
-class NotifyPaintEvent : public Event,
+class NotifyPaintEvent : public nsDOMEvent,
                          public nsIDOMNotifyPaintEvent
 {
 
@@ -36,10 +36,10 @@ public:
   NS_DECL_NSIDOMNOTIFYPAINTEVENT
 
   // Forward to base class
-  NS_FORWARD_TO_EVENT_NO_SERIALIZATION_NO_DUPLICATION
+  NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION
   NS_IMETHOD DuplicatePrivateData() MOZ_OVERRIDE
   {
-    return Event::DuplicatePrivateData();
+    return nsDOMEvent::DuplicatePrivateData();
   }
   NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;

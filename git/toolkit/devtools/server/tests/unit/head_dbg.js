@@ -15,8 +15,7 @@ Services.prefs.setBoolPref("devtools.debugger.log", true);
 // Enable remote debugging for the relevant tests.
 Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
 
-const { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-const DevToolsUtils = devtools.require("devtools/toolkit/DevToolsUtils.js");
+Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 function tryImport(url) {
   try {

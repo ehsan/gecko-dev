@@ -5,6 +5,8 @@
 # Don't create a dependency on mozglue
 MOZ_GLUE_LDFLAGS =
 
+STL_FLAGS=
+
 LIBS = \
   $(XPCOM_STANDALONE_STATICRUNTIME_GLUE_LDOPTS) \
   $(NULL)
@@ -14,6 +16,10 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 LIBS            += \
 		$(TK_LIBS) \
 		$(NULL)
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+RCINCLUDE = xulrunner-stub.rc
 endif
 
 ifndef MOZ_WINCONSOLE

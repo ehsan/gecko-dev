@@ -10,7 +10,6 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
-#include "mozilla/dom/Event.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/UIEvent.h"
 
@@ -26,6 +25,7 @@
 #include "nsIWidget.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsDOMEvent.h"
 #include "nsGkAtoms.h"
 #include "nsIFormControl.h"
 #include "nsIComboboxControlFrame.h"
@@ -5918,7 +5918,7 @@ nsEventStateManager::Prefs::OnChange(const char* aPrefName, void*)
 {
   nsDependentCString prefName(aPrefName);
   if (prefName.EqualsLiteral("dom.popup_allowed_events")) {
-    Event::PopupAllowedEventsChanged();
+    nsDOMEvent::PopupAllowedEventsChanged();
   }
 }
 

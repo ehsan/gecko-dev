@@ -31,7 +31,7 @@ class nsXBLProtoImplField;
 // Instances of this class are owned by the nsXBLDocumentInfo object returned
 // by XBLDocumentInfo().  Consumers who want to refcount things should refcount
 // that.
-class nsXBLPrototypeBinding MOZ_FINAL
+class nsXBLPrototypeBinding
 {
 public:
   nsIContent* GetBindingElement() const { return mBinding; }

@@ -1193,13 +1193,23 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
 
     uint32_t targetOffset = mCompositionStart;
 
+    nsAutoTArray<TextRange, 4> textRanges;
     if (!aIsCommit) {
         // NOTE: SetTextRangeList() assumes that mDispatchedCompositionString
         //       has been updated already.
-        textEvent.mRanges = CreateTextRangeArray();
-        targetOffset += textEvent.mRanges->TargetClauseOffset();
+        SetTextRangeList(textRanges);
+        for (uint32_t i = 0; i < textRanges.Length(); i++) {
+            TextRange& range = textRanges[i];
+            if (range.mRangeType == NS_TEXTRANGE_SELECTEDRAWTEXT ||
+                range.mRangeType == NS_TEXTRANGE_SELECTEDCONVERTEDTEXT) {
+                targetOffset += range.mStartOffset;
+                break;
+            }
+        }
     }
 
+    textEvent.rangeCount = textRanges.Length();
+    textEvent.rangeArray = textRanges.Elements();
     textEvent.theText = mDispatchedCompositionString.get();
 
     mCompositionState = aIsCommit ?
@@ -1222,13 +1232,13 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
     return true;
 }
 
-already_AddRefed<TextRangeArray>
-nsGtkIMModule::CreateTextRangeArray()
+void
+nsGtkIMModule::SetTextRangeList(nsTArray<TextRange> &aTextRangeList)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): CreateTextRangeArray", this));
+        ("GtkIMModule(%p): SetTextRangeList", this));
 
-    nsRefPtr<TextRangeArray> textRangeArray = new TextRangeArray();
+    NS_PRECONDITION(aTextRangeList.IsEmpty(), "aTextRangeList must be empty");
 
     gchar *preedit_string;
     gint cursor_pos;
@@ -1240,7 +1250,7 @@ nsGtkIMModule::CreateTextRangeArray()
             ("    preedit_string is null"));
         pango_attr_list_unref(feedback_list);
         g_free(preedit_string);
-        return textRangeArray.forget();
+        return;
     }
 
     PangoAttrIterator* iter;
@@ -1250,7 +1260,7 @@ nsGtkIMModule::CreateTextRangeArray()
             ("    FAILED, iterator couldn't be allocated"));
         pango_attr_list_unref(feedback_list);
         g_free(preedit_string);
-        return textRangeArray.forget();
+        return;
     }
 
     /*
@@ -1316,7 +1326,7 @@ nsGtkIMModule::CreateTextRangeArray()
             uniStr = nullptr;
         }
 
-        textRangeArray->AppendElement(range);
+        aTextRangeList.AppendElement(range);
 
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    mStartOffset=%u, mEndOffset=%u, mRangeType=%s",
@@ -1334,7 +1344,7 @@ nsGtkIMModule::CreateTextRangeArray()
     }
     range.mEndOffset = range.mStartOffset;
     range.mRangeType = NS_TEXTRANGE_CARETPOSITION;
-    textRangeArray->AppendElement(range);
+    aTextRangeList.AppendElement(range);
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    mStartOffset=%u, mEndOffset=%u, mRangeType=%s",
@@ -1344,8 +1354,6 @@ nsGtkIMModule::CreateTextRangeArray()
     pango_attr_iterator_destroy(iter);
     pango_attr_list_unref(feedback_list);
     g_free(preedit_string);
-
-    return textRangeArray.forget();
 }
 
 void

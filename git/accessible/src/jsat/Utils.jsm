@@ -169,13 +169,6 @@ this.Utils = {
     return this.isContentProcess;
   },
 
-  get stringBundle() {
-    delete this.stringBundle;
-    this.stringBundle = Services.strings.createBundle(
-      'chrome://global/locale/AccessFu.properties');
-    return this.stringBundle;
-  },
-
   getMessageManager: function getMessageManager(aBrowser) {
     try {
       return aBrowser.QueryInterface(Ci.nsIFrameLoaderOwner).
@@ -245,24 +238,6 @@ this.Utils = {
       accText.getRangeExtents(aStart, aEnd, objX, objY, objW, objH,
                               Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
       return new Rect(objX.value, objY.value, objW.value, objH.value);
-  },
-
-  isInSubtree: function isInSubtree(aAccessible, aSubTreeRoot) {
-    let acc = aAccessible;
-    while (acc) {
-      if (acc == aSubTreeRoot) {
-        return true;
-      }
-
-      try {
-        acc = acc.parent;
-      } catch (x) {
-        Logger.debug('Failed to get parent:', x);
-        acc = null;
-      }
-    }
-
-    return false;
   },
 
   inHiddenSubtree: function inHiddenSubtree(aAccessible) {
@@ -583,13 +558,8 @@ PivotContext.prototype = {
   _getAncestry: function _getAncestry(aAccessible) {
     let ancestry = [];
     let parent = aAccessible;
-    try {
-      while (parent && (parent = parent.parent)) {
-       ancestry.push(parent);
-      }
-    } catch (e) {
-      // A defunct accessible will raise an exception geting parent.
-      Logger.debug('Failed to get parent:', x);
+    while (parent && (parent = parent.parent)) {
+      ancestry.push(parent);
     }
     return ancestry.reverse();
   },
@@ -805,23 +775,18 @@ this.PrefCache = function PrefCache(aName, aCallback, aRunCallbackNow) {
 
 PrefCache.prototype = {
   _getValue: function _getValue(aBranch) {
-    try {
-      if (!this.type) {
-        this.type = aBranch.getPrefType(this.name);
-      }
-      switch (this.type) {
-        case Ci.nsIPrefBranch.PREF_STRING:
-          return aBranch.getCharPref(this.name);
-        case Ci.nsIPrefBranch.PREF_INT:
-          return aBranch.getIntPref(this.name);
-        case Ci.nsIPrefBranch.PREF_BOOL:
-          return aBranch.getBoolPref(this.name);
-        default:
-          return null;
-      }
-    } catch (x) {
-      // Pref does not exist.
-      return null;
+    if (!this.type) {
+      this.type = aBranch.getPrefType(this.name);
+    }
+    switch (this.type) {
+      case Ci.nsIPrefBranch.PREF_STRING:
+        return aBranch.getCharPref(this.name);
+      case Ci.nsIPrefBranch.PREF_INT:
+        return aBranch.getIntPref(this.name);
+      case Ci.nsIPrefBranch.PREF_BOOL:
+        return aBranch.getBoolPref(this.name);
+      default:
+        return null;
     }
   },
 

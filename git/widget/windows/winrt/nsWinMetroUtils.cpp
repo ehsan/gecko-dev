@@ -378,7 +378,7 @@ nsWinMetroUtils::GetSupported(bool *aSupported)
   if (NS_SUCCEEDED(rv)) {
     rv = regKey->Open(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
                       metroRegValuePath,
-                      nsIWindowsRegKey::ACCESS_ALL);
+                      nsIWindowsRegKey::ACCESS_WRITE);
     if (NS_SUCCEEDED(rv)) {
       rv = regKey->ReadIntValue(metroRegValueName, &value);
       if (NS_SUCCEEDED(rv)) {

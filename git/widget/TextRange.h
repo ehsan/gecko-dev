@@ -8,10 +8,8 @@
 
 #include <stdint.h>
 
-#include "nsAutoPtr.h"
 #include "nsColor.h"
 #include "nsStyleConsts.h"
-#include "nsTArray.h"
 
 namespace mozilla {
 
@@ -126,6 +124,7 @@ struct TextRangeStyle
  * mozilla::TextRange
  ******************************************************************************/
 
+// Sync with nsIPrivateTextRange.h when you change these constants.
 #define NS_TEXTRANGE_CARETPOSITION         0x01
 #define NS_TEXTRANGE_RAWINPUT              0x02
 #define NS_TEXTRANGE_SELECTEDRAWTEXT       0x03
@@ -160,36 +159,11 @@ struct TextRange
 
 /******************************************************************************
  * mozilla::TextRangeArray
+ *
+ * XXX This should be replaced with nsTArray<TextRange>.
  ******************************************************************************/
-class TextRangeArray MOZ_FINAL : public nsAutoTArray<TextRange, 10>
-{
-  NS_INLINE_DECL_REFCOUNTING(TextRangeArray)
 
-public:
-  bool IsComposing() const
-  {
-    for (uint32_t i = 0; i < Length(); ++i) {
-      if (ElementAt(i).IsClause()) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Returns target clase offset.  If there are selected clauses, this returns
-  // the first selected clause offset.  Otherwise, 0.
-  uint32_t TargetClauseOffset() const
-  {
-    for (uint32_t i = 0; i < Length(); ++i) {
-      const TextRange& range = ElementAt(i);
-      if (range.mRangeType == NS_TEXTRANGE_SELECTEDRAWTEXT ||
-          range.mRangeType == NS_TEXTRANGE_SELECTEDCONVERTEDTEXT) {
-        return range.mStartOffset;
-      }
-    }
-    return 0;
-  }
-};
+typedef TextRange* TextRangeArray;
 
 } // namespace mozilla
 

@@ -107,6 +107,7 @@ static eCMSMode gCMSMode = eCMSMode_Off;
 static int gCMSIntent = -2;
 
 static void ShutdownCMS();
+static void MigratePrefs();
 
 #include "mozilla/gfx/2D.h"
 using namespace mozilla::gfx;
@@ -323,8 +324,12 @@ gfxPlatform::Init()
     }
     gEverInitialized = true;
 
-    // Initialize the preferences by creating the singleton.
-    gfxPrefs::GetSingleton();
+    /* Pref migration hook. */
+    MigratePrefs();
+
+    // Initialize the preferences by creating the singleton.  This should
+    // be done after the preference migration using MigratePrefs().
+    gfxPrefs::One();
 
     gGfxPlatformPrefsLock = new Mutex("gfxPlatform::gGfxPlatformPrefsLock");
 
@@ -501,7 +506,7 @@ gfxPlatform::Shutdown()
 
     delete gGfxPlatformPrefsLock;
 
-    gfxPrefs::DestroySingleton();
+    gfxPrefs::Destroy();
 
     delete gPlatform;
     gPlatform = nullptr;
@@ -1742,6 +1747,21 @@ static void ShutdownCMS()
     gCMSIntent = -2;
     gCMSMode = eCMSMode_Off;
     gCMSInitialized = false;
+}
+
+static void MigratePrefs()
+{
+    /* Migrate from the boolean color_management.enabled pref - we now use
+       color_management.mode.  These calls should be made before gfxPrefs
+       is initialized, otherwise we may not pick up the correct values
+       with the gfxPrefs functions.
+    */
+    if (Preferences::HasUserValue(GFX_PREF_CMS_ENABLED_OBSOLETE)) {
+        if (Preferences::GetBool(GFX_PREF_CMS_ENABLED_OBSOLETE, false)) {
+            Preferences::SetInt(GFX_PREF_CMS_MODE, static_cast<int32_t>(eCMSMode_All));
+        }
+        Preferences::ClearUser(GFX_PREF_CMS_ENABLED_OBSOLETE);
+    }
 }
 
 // default SetupClusterBoundaries, based on Unicode properties;

@@ -161,9 +161,6 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime, JSUseHelperThreads useHelperThrea
     checkRequestDepth(0),
 # endif
 #endif
-#ifdef DEBUG
-    activeContext(nullptr),
-#endif
     gcInitialized(false),
     gcSystemAvailableChunkListHead(nullptr),
     gcUserAvailableChunkListHead(nullptr),

@@ -478,9 +478,11 @@ this.PlacesUtils = {
    *          Used instead of the node's URI if provided.
    *          This is useful for wrapping a container as TYPE_X_MOZ_URL,
    *          TYPE_HTML or TYPE_UNICODE.
-   * @return  A string serialization of the node
+   * @param   aForceCopy
+   *          Does a full copy, resolving folder shortcuts.
+   * @returns A string serialization of the node
    */
-  wrapNode: function PU_wrapNode(aNode, aType, aOverrideURI) {
+  wrapNode: function PU_wrapNode(aNode, aType, aOverrideURI, aForceCopy) {
     // when wrapping a node, we want all the items, even if the original
     // query options are excluding them.
     // this can happen when copying from the left hand pane of the bookmarks
@@ -488,9 +490,9 @@ this.PlacesUtils = {
     // @return [node, shouldClose]
     function convertNode(cNode) {
       if (PlacesUtils.nodeIsFolder(cNode) &&
-          cNode.type != Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT &&
           asQuery(cNode).queryOptions.excludeItems) {
-        return [PlacesUtils.getFolderContents(cNode.itemId, false, true).root, true];
+        let concreteId = PlacesUtils.getConcreteItemId(cNode);
+        return [PlacesUtils.getFolderContents(concreteId, false, true).root, true];
       }
 
       // If we didn't create our own query, do not alter the node's open state.
@@ -528,7 +530,7 @@ this.PlacesUtils = {
         };
 
         let [node, shouldClose] = convertNode(aNode);
-        this._serializeNodeAsJSONToOutputStream(node, writer);
+        this._serializeNodeAsJSONToOutputStream(node, writer, true, aForceCopy);
         if (shouldClose)
           node.containerOpen = false;
 
@@ -1107,17 +1109,25 @@ this.PlacesUtils = {
    *          An nsIOutputStream. NOTE: it only uses the write(str, len)
    *          method of nsIOutputStream. The caller is responsible for
    *          closing the stream.
+   * @param   aIsUICommand
+   *          Boolean - If true, modifies serialization so that each node self-contained.
+   *          For Example, tags are serialized inline with each bookmark.
+   * @param   aResolveShortcuts
+   *          Converts folder shortcuts into actual folders. 
+   * @param   aExcludeItems
+   *          An array of item ids that should not be written to the backup.
    */
-  _serializeNodeAsJSONToOutputStream: function (aNode, aStream) {
+  _serializeNodeAsJSONToOutputStream:
+  function PU__serializeNodeAsJSONToOutputStream(aNode, aStream, aIsUICommand,
+                                                aResolveShortcuts,
+                                                aExcludeItems) {
     function addGenericProperties(aPlacesNode, aJSNode) {
       aJSNode.title = aPlacesNode.title;
       aJSNode.id = aPlacesNode.itemId;
       if (aJSNode.id != -1) {
         var parent = aPlacesNode.parent;
-        if (parent) {
+        if (parent)
           aJSNode.parent = parent.itemId;
-          aJSNode.parentReadOnly = PlacesUtils.nodeIsReadOnly(parent);
-        }
         var dateAdded = aPlacesNode.dateAdded;
         if (dateAdded)
           aJSNode.dateAdded = dateAdded;
@@ -1135,6 +1145,10 @@ this.PlacesUtils = {
             //anno.value = unescape(encodeURIComponent(anno.value));
             if (anno.name == PlacesUtils.LMANNO_FEEDURI)
               aJSNode.livemark = 1;
+            if (anno.name == PlacesUtils.READ_ONLY_ANNO && aResolveShortcuts) {
+              // When copying a read-only node, remove the read-only annotation.
+              return false;
+            }
             return true;
           });
         } catch(ex) {}
@@ -1154,8 +1168,9 @@ this.PlacesUtils = {
           aJSNode.keyword = keyword;
       }
 
-      if (aPlacesNode.tags)
-        aJSNode.tags = aPlacesNode.tags;
+      var tags = aIsUICommand ? aPlacesNode.tags : null;
+      if (tags)
+        aJSNode.tags = tags;
 
       // last character-set
       var uri = PlacesUtils._uri(aPlacesNode.uri);
@@ -1175,11 +1190,12 @@ this.PlacesUtils = {
       if (concreteId != -1) {
         // This is a bookmark or a tag container.
         if (PlacesUtils.nodeIsQuery(aPlacesNode) ||
-            concreteId != aPlacesNode.itemId) {
+            (concreteId != aPlacesNode.itemId && !aResolveShortcuts)) {
           aJSNode.type = PlacesUtils.TYPE_X_MOZ_PLACE;
           aJSNode.uri = aPlacesNode.uri;
           // folder shortcut
-          aJSNode.concreteId = concreteId;
+          if (aIsUICommand)
+            aJSNode.concreteId = concreteId;
         }
         else { // Bookmark folder or a shortcut we should convert to folder.
           aJSNode.type = PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER;
@@ -1220,6 +1236,8 @@ this.PlacesUtils = {
         var cc = aSourceNode.childCount;
         for (var i = 0; i < cc; ++i) {
           var childNode = aSourceNode.getChild(i);
+          if (aExcludeItems && aExcludeItems.indexOf(childNode.itemId) != -1)
+            continue;
           appendConvertedNode(aSourceNode.getChild(i), i, children);
         }
         if (!wasOpen)
@@ -1243,8 +1261,6 @@ this.PlacesUtils = {
 
       var parent = bNode.parent;
       var grandParent = parent ? parent.parent : null;
-      if (grandParent)
-        node.grandParentId = grandParent.itemId;
 
       if (PlacesUtils.nodeIsURI(bNode)) {
         // Tag root accept only folder nodes

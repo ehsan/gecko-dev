@@ -634,6 +634,9 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
           errorID = "certErrorTrust_UnknownIssuer";
         break;
       }
+      case SEC_ERROR_INADEQUATE_KEY_USAGE:
+        // Should get an individual string in the future
+        // For now, use the same as CaInvalid
       case SEC_ERROR_CA_CERT_INVALID:
         errorID = "certErrorTrust_CaInvalid";
         break;

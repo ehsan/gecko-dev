@@ -1080,6 +1080,10 @@ RemoteBlob<Parent>::MaybeSetInputStream(const ConstructorParamsType& aParams)
     mInputStreamParams =
       aParams.optionalInputStreamParams().get_InputStreamParams();
   }
+  else {
+    MOZ_ASSERT(aParams.blobParams().type() ==
+               ChildBlobConstructorParams::TMysteryBlobConstructorParams);
+  }
 }
 
 template <>

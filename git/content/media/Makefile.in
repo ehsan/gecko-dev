@@ -6,3 +6,5 @@ include $(topsrcdir)/config/rules.mk
 
 CFLAGS   += $(GSTREAMER_CFLAGS)
 CXXFLAGS += $(GSTREAMER_CFLAGS)
+
+AudioNodeEngineNEON.$(OBJ_SUFFIX): CXXFLAGS += -mfpu=neon

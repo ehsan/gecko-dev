@@ -2583,7 +2583,7 @@ WorkerThreadPrimaryRunnable::Run()
 
   mThread->SetWorker(nullptr);
 
-  mWorkerPrivate->ScheduleDeletion(WorkerPrivate::WorkerRan);
+  mWorkerPrivate->ScheduleDeletion();
 
   // It is no longer safe to touch mWorkerPrivate.
   mWorkerPrivate = nullptr;

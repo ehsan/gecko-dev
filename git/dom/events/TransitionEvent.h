@@ -5,17 +5,17 @@
 #ifndef mozilla_dom_TransitionEvent_h_
 #define mozilla_dom_TransitionEvent_h_
 
-#include "mozilla/EventForwards.h"
-#include "mozilla/dom/Event.h"
-#include "mozilla/dom/TransitionEventBinding.h"
+#include "nsDOMEvent.h"
 #include "nsIDOMTransitionEvent.h"
+#include "mozilla/EventForwards.h"
+#include "mozilla/dom/TransitionEventBinding.h"
 
 class nsAString;
 
 namespace mozilla {
 namespace dom {
 
-class TransitionEvent : public Event,
+class TransitionEvent : public nsDOMEvent,
                         public nsIDOMTransitionEvent
 {
 public:
@@ -24,7 +24,7 @@ public:
                   InternalTransitionEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_TO_EVENT
+  NS_FORWARD_TO_NSDOMEVENT
   NS_DECL_NSIDOMTRANSITIONEVENT
 
   static already_AddRefed<TransitionEvent>

@@ -8,6 +8,7 @@
 
 #include "nsICompositionStringSynthesizer.h"
 #include "nsString.h"
+#include "nsTArray.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TextRange.h"
@@ -31,7 +32,7 @@ public:
 private:
   nsWeakPtr mWindow; // refers an instance of nsPIDOMWindow
   nsString mString;
-  nsRefPtr<TextRangeArray> mClauses;
+  nsAutoTArray<TextRange, 10> mClauses;
   TextRange mCaret;
 
   nsIWidget* GetWidget();

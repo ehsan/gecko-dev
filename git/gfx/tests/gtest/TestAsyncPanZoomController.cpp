@@ -33,20 +33,20 @@ class Task;
 class AsyncPanZoomControllerTester : public ::testing::Test {
 protected:
   virtual void SetUp() {
-    gfxPrefs::GetSingleton();
+    gfxPrefs::One();
   }
   virtual void TearDown() {
-    gfxPrefs::DestroySingleton();
+    gfxPrefs::Destroy();
   }
 };
 
 class APZCTreeManagerTester : public ::testing::Test {
 protected:
   virtual void SetUp() {
-    gfxPrefs::GetSingleton();
+    gfxPrefs::One();
   }
   virtual void TearDown() {
-    gfxPrefs::DestroySingleton();
+    gfxPrefs::Destroy();
   }
 };
 

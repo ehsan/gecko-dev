@@ -567,7 +567,7 @@ nsPluginTag::InvalidateBlocklistState()
   mCachedBlocklistStateValid = false;
 }
 
-NS_IMETHODIMP
+nsresult
 nsPluginTag::GetLastModifiedTime(PRTime* aLastModifiedTime)
 {
   MOZ_ASSERT(aLastModifiedTime);

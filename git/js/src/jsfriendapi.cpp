@@ -394,12 +394,6 @@ js::GetGlobalForObjectCrossCompartment(JSObject *obj)
 }
 
 JS_FRIEND_API(void)
-js::SetPendingExceptionCrossContext(JSContext *cx, JS::HandleValue v)
-{
-    cx->setPendingException(v);
-}
-
-JS_FRIEND_API(void)
 js::AssertSameCompartment(JSContext *cx, JSObject *obj)
 {
     assertSameCompartment(cx, obj);
@@ -1155,14 +1149,6 @@ js::SetDefaultJSContextCallback(JSRuntime *rt, DefaultJSContextCallback cb)
 {
     rt->defaultJSContextCallback = cb;
 }
-
-#ifdef DEBUG
-JS_FRIEND_API(void)
-js::Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx)
-{
-    rt->activeContext = cx;
-}
-#endif
 
 JS_FRIEND_API(void)
 js::SetCTypesActivityCallback(JSRuntime *rt, CTypesActivityCallback cb)

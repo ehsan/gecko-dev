@@ -11,14 +11,14 @@
  */
 
 callback LifecycleCreatedCallback = void();
-callback LifecycleAttachedCallback = void();
-callback LifecycleDetachedCallback = void();
+callback LifecycleEnteredViewCallback = void();
+callback LifecycleLeftViewCallback = void();
 callback LifecycleAttributeChangedCallback = void(DOMString attrName, DOMString? oldValue, DOMString? newValue);
 
 dictionary LifecycleCallbacks {
   LifecycleCreatedCallback? createdCallback;
-  LifecycleAttachedCallback? attachedCallback;
-  LifecycleDetachedCallback? detachedCallback;
+  LifecycleEnteredViewCallback? enteredViewCallback;
+  LifecycleLeftViewCallback? leftViewCallback;
   LifecycleAttributeChangedCallback? attributeChangedCallback;
 };
 

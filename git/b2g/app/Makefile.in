@@ -28,6 +28,8 @@ LIBS += \
 endif
 endif
 
+STL_FLAGS=
+
 LIBS += $(JEMALLOC_LIBS)
 
 LIBS += \

@@ -58,7 +58,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
-#include "mozilla/dom/Event.h"
+#include "nsDOMEvent.h"
 #include "nsRDFCID.h"
 #include "nsStyleConsts.h"
 #include "nsXPIDLString.h"
@@ -1185,7 +1185,7 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                 // handling.
                 nsCOMPtr<nsIDOMEvent> domEvent = aVisitor.mDOMEvent;
                 while (domEvent) {
-                    Event* event = domEvent->InternalDOMEvent();
+                    nsDOMEvent* event = domEvent->InternalDOMEvent();
                     NS_ENSURE_STATE(!SameCOMIdentity(event->GetOriginalTarget(),
                                                      commandContent));
                     nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =

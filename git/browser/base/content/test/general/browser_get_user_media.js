@@ -81,31 +81,17 @@ function promiseMessage(aMessage, aAction) {
 function promisePopupNotification(aName, aShown) {
   let deferred = Promise.defer();
 
-  waitForCondition(() => PopupNotifications.getNotification(aName),
+  // If aShown is true, the notification is expected to be opened by
+  // default and we wait for the panel to be populated; for dismissed
+  // notifications, we are happy as soon as we find the icon.
+  waitForCondition(() => PopupNotifications.getNotification(aName) &&
+                         (!aShown || PopupNotifications.panel.firstChild),
                    () => {
-    let notification = PopupNotifications.getNotification(aName);
-    ok(!!notification, aName + " notification appeared");
-
-    if (!notification || !aShown) {
-      deferred.resolve();
-      return;
-    }
-
-    // If aShown is true, the notification is expected to be opened by
-    // default, so we check that the panel has been populated.
-    if (PopupNotifications.panel.firstChild) {
-      ok(true, "notification panel populated");
-      deferred.resolve();
-    }
-    else {
-      todo(false, "We shouldn't have to force re-open the panel, see bug 976544");
-      notification.reshow();
-      waitForCondition(() => PopupNotifications.panel.firstChild,
-                       () => {
-        ok(PopupNotifications.panel.firstChild, "notification panel populated");
-        deferred.resolve();
-      }, "timeout waiting for notification to be reshown");
-    }
+    ok(!!PopupNotifications.getNotification(aName),
+       aName + " notification appeared");
+    if (aShown)
+      ok(PopupNotifications.panel.firstChild, "notification panel populated");
+    deferred.resolve();
   }, "timeout waiting for popup notification " + aName);
 
   return deferred.promise;

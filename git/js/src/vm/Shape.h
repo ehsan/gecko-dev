@@ -1660,15 +1660,21 @@ MarkNonNativePropertyFound(MutableHandleShape propp)
 
 template <AllowGC allowGC>
 static inline void
-MarkDenseOrTypedArrayElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+MarkDenseElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }
 
 static inline bool
-IsImplicitDenseOrTypedArrayElement(Shape *prop)
+IsImplicitDenseElement(Shape *prop)
 {
     return prop == reinterpret_cast<Shape*>(1);
+}
+
+static inline uint8_t
+GetShapeAttributes(HandleShape shape)
+{
+    return IsImplicitDenseElement(shape) ? JSPROP_ENUMERATE : shape->attributes();
 }
 
 } // namespace js

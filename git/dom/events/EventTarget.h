@@ -10,6 +10,7 @@
 #include "nsWrapperCache.h"
 #include "nsIAtom.h"
 
+class nsDOMEvent;
 class nsIDOMWindow;
 class nsIDOMEventListener;
 
@@ -19,7 +20,6 @@ class ErrorResult;
 
 namespace dom {
 
-class Event;
 class EventListener;
 class EventHandlerNonNull;
 template <class T> struct Nullable;
@@ -48,7 +48,7 @@ public:
                                    EventListener* aCallback,
                                    bool aCapture,
                                    ErrorResult& aRv);
-  bool DispatchEvent(Event& aEvent, ErrorResult& aRv);
+  bool DispatchEvent(nsDOMEvent& aEvent, ErrorResult& aRv);
 
   // Note, this takes the type in onfoo form!
   EventHandlerNonNull* GetEventHandler(const nsAString& aType)

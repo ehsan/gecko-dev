@@ -134,11 +134,6 @@ this.AccessFu = {
       this.readyCallback();
       delete this.readyCallback;
     }
-
-    if (Utils.MozBuildApp !== 'mobile/android') {
-      this.announce(
-        Utils.stringBundle.GetStringFromName('screenReaderStarted'));
-    }
   },
 
   /**
@@ -153,11 +148,6 @@ this.AccessFu = {
     Logger.info('Disabled');
 
     Utils.win.document.removeChild(this.stylesheet.get());
-
-    if (Utils.MozBuildApp !== 'mobile/android') {
-      this.announce(
-        Utils.stringBundle.GetStringFromName('screenReaderStopped'));
-    }
 
     for each (let mm in Utils.AllMessageManagers) {
       mm.sendAsyncMessage('AccessFu:Stop');
@@ -309,7 +299,7 @@ this.AccessFu = {
       case 'Accessibility:Focus':
         this._focused = JSON.parse(aData);
         if (this._focused) {
-          this.autoMove({ forcePresent: true, noOpIfOnScreen: true });
+          this.showCurrent(true);
         }
         break;
       case 'Accessibility:MoveByGranularity':
@@ -353,11 +343,10 @@ this.AccessFu = {
           // We delay this for half a second so the awesomebar could close,
           // and we could use the current coordinates for the content item.
           // XXX TODO figure out how to avoid magic wait here.
-	  this.autoMove({
-	    delay: 500,
-	    forcePresent: true,
-	    noOpIfOnScreen: true,
-	    moveMethod: 'moveFirst' });
+          Utils.win.setTimeout(
+            function () {
+              this.showCurrent(false);
+            }.bind(this), 500);
         }
         break;
       }
@@ -373,13 +362,14 @@ this.AccessFu = {
     }
   },
 
-  autoMove: function autoMove(aOptions) {
+  showCurrent: function showCurrent(aMove) {
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    mm.sendAsyncMessage('AccessFu:AutoMove', aOptions);
+    mm.sendAsyncMessage('AccessFu:ShowCurrent', { move: aMove });
   },
 
   announce: function announce(aAnnouncement) {
-    this._output(Presentation.announce(aAnnouncement), Utils.CurrentBrowser);
+    this._output(Presentation.announce(aAnnouncement),
+                 Utils.CurrentBrowser);
   },
 
   // So we don't enable/disable twice
@@ -525,8 +515,7 @@ var Output = {
 
     init: function init() {
       let window = Utils.win;
-      this.webspeechEnabled = !!window.speechSynthesis &&
-        !!window.SpeechSynthesisUtterance;
+      this.webspeechEnabled = !!window.speechSynthesis;
 
       let settingsToGet = 2;
       let settingsCallback = (aName, aSetting) => {

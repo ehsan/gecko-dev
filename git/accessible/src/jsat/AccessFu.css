@@ -38,6 +38,7 @@
 
 #announce-box:not(.showing) {
   opacity: 0.0;
+  margin: 0.1em;
   -moz-transition: opacity 0.4s linear;
 }
 

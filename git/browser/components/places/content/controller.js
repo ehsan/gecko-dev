@@ -291,8 +291,8 @@ PlacesController.prototype = {
    * @param aIsMoveCommand
    *        True if the command for which this method is called only moves the
    *        selected items to another container, false otherwise.
-   * @return true if all nodes in the selection can be removed,
-   *         false otherwise.
+   * @returns true if all nodes in the selection can be removed,
+   *          false otherwise.
    */
   _hasRemovableSelection: function PC__hasRemovableSelection(aIsMoveCommand) {
     var ranges = this._view.removableSelectionRanges;
@@ -356,9 +356,9 @@ PlacesController.prototype = {
    * Looks at the data on the clipboard to see if it is paste-able.
    * Paste-able data is:
    *   - in a format that the view can receive
-   * @return true if: - clipboard data is of a TYPE_X_MOZ_PLACE_* flavor,
-   *                  - clipboard data is of type TEXT_UNICODE and
-   *                    is a valid URI.
+   * @returns true if: - clipboard data is of a TYPE_X_MOZ_PLACE_* flavor,
+                       - clipboard data is of type TEXT_UNICODE and
+                         is a valid URI.
    */
   _isClipboardDataPasteable: function PC__isClipboardDataPasteable() {
     // if the clipboard contains TYPE_X_MOZ_PLACE_* data, it is definitely
@@ -413,10 +413,10 @@ PlacesController.prototype = {
    *    "separator"         node is a separator line
    *    "host"              node is a host
    *
-   * @return an array of objects corresponding the selected nodes. Each
-   *         object has each of the properties above set if its corresponding
-   *         node matches the rule. In addition, the annotations names for each
-   *         node are set on its corresponding object as properties.
+   * @returns an array of objects corresponding the selected nodes. Each
+   *          object has each of the properties above set if its corresponding
+   *          node matches the rule. In addition, the annotations names for each
+   *          node are set on its corresponding object as properties.
    * Notes:
    *   1) This can be slow, so don't call it anywhere performance critical!
    *   2) A single-object array corresponding the root node is returned if
@@ -503,8 +503,8 @@ PlacesController.prototype = {
    *          the context menu item
    * @param   aMetaData
    *          meta data about the selection
-   * @return true if the conditions (see buildContextMenu) are satisfied
-   *         and the item can be displayed, false otherwise.
+   * @returns true if the conditions (see buildContextMenu) are satisfied
+   *          and the item can be displayed, false otherwise.
    */
   _shouldShowMenuItem: function PC__shouldShowMenuItem(aMenuItem, aMetaData) {
     var selectiontype = aMenuItem.getAttribute("selectiontype");
@@ -782,7 +782,7 @@ PlacesController.prototype = {
    *          Node to check for containment.
    * @param   pastFolders
    *          List of folders the calling function has already traversed
-   * @return true if the node should be skipped, false otherwise.
+   * @returns true if the node should be skipped, false otherwise.
    */
   _shouldSkipNode: function PC_shouldSkipNode(node, pastFolders) {
     /**
@@ -791,7 +791,7 @@ PlacesController.prototype = {
      *          The node to check for containment for
      * @param   parent
      *          The parent container to check for containment in
-     * @return true if node is a member of parent's children, false otherwise.
+     * @returns true if node is a member of parent's children, false otherwise.
      */
     function isContainedBy(node, parent) {
       var cursor = node.parent;
@@ -1008,6 +1008,7 @@ PlacesController.prototype = {
    */
   setDataTransfer: function PC_setDataTransfer(aEvent) {
     let dt = aEvent.dataTransfer;
+    let doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
 
     let result = this._view.result;
     let didSuppressNotifications = result.suppressNotifications;
@@ -1015,7 +1016,7 @@ PlacesController.prototype = {
       result.suppressNotifications = true;
 
     function addData(type, index, overrideURI) {
-      let wrapNode = PlacesUtils.wrapNode(node, type, overrideURI);
+      let wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
       dt.mozSetDataAt(type, wrapNode, index);
     }
 
@@ -1115,10 +1116,11 @@ PlacesController.prototype = {
 
       let livemarkInfo = this.getCachedLivemarkInfo(node);
       let overrideURI = livemarkInfo ? livemarkInfo.feedURI.spec : null;
+      let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
 
       contents.forEach(function (content) {
         content.entries.push(
-          PlacesUtils.wrapNode(node, content.type, overrideURI)
+          PlacesUtils.wrapNode(node, content.type, overrideURI, resolveShortcuts)
         );
       });
     }, this);
@@ -1260,13 +1262,6 @@ PlacesController.prototype = {
       if (ip.index != PlacesUtils.bookmarks.DEFAULT_INDEX)
         insertionIndex = ip.index + i;
 
-      // If this is not a copy, check for safety that we can move the source,
-      // otherwise report an error and fallback to a copy.
-      if (action != "copy" && !PlacesControllerDragHelper.canMoveUnwrappedNode(items[i])) {
-        Components.utils.reportError("Tried to move an unmovable Places node, " +
-                                     "reverting to a copy operation.");
-        action = "copy";
-      }
       transactions.push(
         PlacesUIUtils.makeTransaction(items[i], type, ip.itemId,
                                       insertionIndex, action == "copy")
@@ -1309,7 +1304,7 @@ PlacesController.prototype = {
    * @param aNode
    *        a places result node.
    * @return true if there's a cached mozILivemarkInfo object for
-   *         aNode, false otherwise.
+   * aNode, false otherwise.
    */
   hasCachedLivemarkInfo: function PC_hasCachedLivemarkInfo(aNode)
     this._cachedLivemarkInfoObjects.has(aNode),
@@ -1343,8 +1338,8 @@ let PlacesControllerDragHelper = {
    * mouse is dragging over one of its submenus
    * @param   node
    *          The container node
-   * @return true if the user is dragging over a node within the hierarchy of
-   *         the container, false otherwise.
+   * @returns true if the user is dragging over a node within the hierarchy of
+   *          the container, false otherwise.
    */
   draggingOverChildNode: function PCDH_draggingOverChildNode(node) {
     let currentNode = this.currentDropTarget;
@@ -1357,7 +1352,7 @@ let PlacesControllerDragHelper = {
   },
 
   /**
-   * @return The current active drag session. Returns null if there is none.
+   * @returns The current active drag session. Returns null if there is none.
    */
   getSession: function PCDH__getSession() {
     return this.dragService.getCurrentSession();
@@ -1443,28 +1438,13 @@ let PlacesControllerDragHelper = {
     return true;
   },
 
-  /**
-   * Determines if an unwrapped node can be moved.
-   *
-   * @param   aUnwrappedNode
-   *          A node unwrapped by PlacesUtils.unwrapNodes().
-   * @return True if the node can be moved, false otherwise.
-   */
-  canMoveUnwrappedNode: function (aUnwrappedNode) {
-    return aUnwrappedNode.id > 0 &&
-           !PlacesUtils.isRootItem(aUnwrappedNode.id) &&
-           aUnwrappedNode.parent != PlacesUtils.placesRootId &&
-           aUnwrappedNode.parent != PlacesUtils.tagsFolderId &&
-           aUnwrappedNode.grandParentId != PlacesUtils.tagsFolderId &&
-           !aUnwrappedNode.parentReadOnly;
-  },
 
   /**
    * Determines if a node can be moved.
    *
    * @param   aNode
    *          A nsINavHistoryResultNode node.
-   * @return True if the node can be moved, false otherwise.
+   * @returns True if the node can be moved, false otherwise.
    */
   canMoveNode:
   function PCDH_canMoveNode(aNode) {
@@ -1498,7 +1478,7 @@ let PlacesControllerDragHelper = {
    *          A bookmark folder id.
    * @param   [optional] aParentId
    *          The parent id of the folder.
-   * @return True if the container can be moved to the target.
+   * @returns True if the container can be moved to the target.
    */
   canMoveContainer:
   function PCDH_canMoveContainer(aId, aParentId) {
@@ -1575,13 +1555,6 @@ let PlacesControllerDragHelper = {
         transactions.push(tagTxn);
       }
       else {
-        // If this is not a copy, check for safety that we can move the source,
-        // otherwise report an error and fallback to a copy.
-        if (!doCopy && !PlacesControllerDragHelper.canMoveUnwrappedNode(unwrapped)) {
-          Components.utils.reportError("Tried to move an unmovable Places node, " +
-                                       "reverting to a copy operation.");
-          doCopy = true;
-        }
         transactions.push(PlacesUIUtils.makeTransaction(unwrapped,
                           flavor, insertionPoint.itemId,
                           index, doCopy));

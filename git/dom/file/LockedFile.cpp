@@ -7,7 +7,6 @@
 #include "LockedFile.h"
 
 #include "nsIAppShell.h"
-#include "nsIDOMEvent.h"
 #include "nsIDOMFile.h"
 #include "nsIFileStorage.h"
 #include "nsISeekableStream.h"
@@ -16,6 +15,7 @@
 #include "nsEventDispatcher.h"
 #include "nsNetUtil.h"
 #include "nsDOMClassInfoID.h"
+#include "nsDOMEvent.h"
 #include "nsJSUtils.h"
 #include "nsStringStream.h"
 #include "nsWidgetsCID.h"

@@ -2134,10 +2134,7 @@ static inline bool
 ClassCanHaveExtraProperties(const Class *clasp)
 {
     JS_ASSERT(clasp->resolve);
-    return clasp->resolve != JS_ResolveStub
-        || clasp->ops.lookupGeneric
-        || clasp->ops.getGeneric
-        || IsTypedArrayClass(clasp);
+    return clasp->resolve != JS_ResolveStub || clasp->ops.lookupGeneric || clasp->ops.getGeneric;
 }
 
 static inline bool

@@ -33,7 +33,6 @@ from .data import (
     JARManifest,
     LibraryDefinition,
     LocalInclude,
-    PerSourceFlag,
     PreprocessedTestWebIDLFile,
     PreprocessedWebIDLFile,
     Program,
@@ -217,7 +216,6 @@ class TreeMetadataEmitter(LoggingMixin):
             'ANDROID_GENERATED_RESFILES',
             'ANDROID_RES_DIRS',
             'CPP_UNIT_TESTS',
-            'DISABLE_STL_WRAPPING',
             'EXPORT_LIBRARY',
             'EXTRA_ASSEMBLER_FLAGS',
             'EXTRA_COMPILE_FLAGS',
@@ -242,7 +240,6 @@ class TreeMetadataEmitter(LoggingMixin):
             'OS_LIBS',
             'RCFILE',
             'RESFILE',
-            'RCINCLUDE',
             'DEFFILE',
             'SDK_LIBRARY',
             'WIN32_EXE_LDFLAGS',
@@ -309,11 +306,6 @@ class TreeMetadataEmitter(LoggingMixin):
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo
         if no_pgo_sources:
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo_sources
-
-        sources_with_flags = [f for f in sources if sources[f].flags]
-        for f in sources_with_flags:
-            ext = mozpath.splitext(f)[1]
-            yield PerSourceFlag(sandbox, f, sources[f].flags)
 
         exports = sandbox.get('EXPORTS')
         if exports:

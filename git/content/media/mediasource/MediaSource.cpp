@@ -30,56 +30,15 @@ class JSObject;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaSourceLog;
-#define MSE_DEBUG(...) PR_LOG(gMediaSourceLog, PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)
 #else
-#define MSE_DEBUG(...)
+#define LOG(type, msg)
 #endif
 
 // Arbitrary limit.
 static const unsigned int MAX_SOURCE_BUFFERS = 16;
 
 namespace mozilla {
-
-static const char* const gMediaSourceTypes[6] = {
-  "video/webm",
-  "audio/webm",
-  "video/mp4",
-  "audio/mp4",
-  "audio/mpeg",
-  nullptr
-};
-
-static nsresult
-IsTypeSupported(const nsAString& aType)
-{
-  if (aType.IsEmpty()) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-  }
-  // TODO: Further restrict this to formats in the spec.
-  nsContentTypeParser parser(aType);
-  nsAutoString mimeType;
-  nsresult rv = parser.GetType(mimeType);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-  bool found = false;
-  for (uint32_t i = 0; gMediaSourceTypes[i]; ++i) {
-    if (mimeType.EqualsASCII(gMediaSourceTypes[i])) {
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-  // Check aType against HTMLMediaElement list of MIME types.  Since we've
-  // already restricted the container format, this acts as a specific check
-  // of any specified "codecs" parameter of aType.
-  if (dom::HTMLMediaElement::GetCanPlay(aType) == CANPLAY_NO) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-  return NS_OK;
-}
 
 namespace dom {
 
@@ -144,9 +103,7 @@ MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
 already_AddRefed<SourceBuffer>
 MediaSource::AddSourceBuffer(const nsAString& aType, ErrorResult& aRv)
 {
-  nsresult rv = mozilla::IsTypeSupported(aType);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
+  if (!IsTypeSupportedInternal(aType, aRv)) {
     return nullptr;
   }
   if (mSourceBuffers->Length() >= MAX_SOURCE_BUFFERS) {
@@ -159,15 +116,15 @@ MediaSource::AddSourceBuffer(const nsAString& aType, ErrorResult& aRv)
   }
   nsContentTypeParser parser(aType);
   nsAutoString mimeType;
-  rv = parser.GetType(mimeType);
+  nsresult rv = parser.GetType(mimeType);
   if (NS_FAILED(rv)) {
     aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
   nsRefPtr<SourceBuffer> sourceBuffer = new SourceBuffer(this, NS_ConvertUTF16toUTF8(mimeType));
   mSourceBuffers->Append(sourceBuffer);
-  MSE_DEBUG("%p AddSourceBuffer(Type=%s) -> %p", this,
-            NS_ConvertUTF16toUTF8(mimeType).get(), sourceBuffer.get());
+  LOG(PR_LOG_DEBUG, ("%p AddSourceBuffer(Type=%s) -> %p", this,
+                     NS_ConvertUTF16toUTF8(mimeType).get(), sourceBuffer.get()));
   return sourceBuffer.forget();
 }
 
@@ -208,45 +165,21 @@ MediaSource::EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, Er
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-
-  SetReadyState(MediaSourceReadyState::Ended);
-  mSourceBuffers->Ended();
-  if (!aError.WasPassed()) {
-    // TODO:
-    // Run duration change algorithm.
-    // DurationChange(highestDurationOfSourceBuffers, aRv);
-    // if (aRv.Failed()) {
-    //   return;
-    // }
-    // Notify media element that all data is now available.
-    return;
-  }
-  switch (aError.Value()) {
-  case MediaSourceEndOfStreamError::Network:
-    // TODO: If media element has a readyState of:
-    //   HAVE_NOTHING -> run resource fetch algorithm
-    // > HAVE_NOTHING -> run "interrupted" steps of resource fetch
-    break;
-  case MediaSourceEndOfStreamError::Decode:
-    // TODO: If media element has a readyState of:
-    //   HAVE_NOTHING -> run "unsupported" steps of resource fetch
-    // > HAVE_NOTHING -> run "corrupted" steps of resource fetch
-    break;
-  default:
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-  }
+  EndOfStreamInternal(aError, aRv);
 }
 
 /* static */ bool
-MediaSource::IsTypeSupported(const GlobalObject&, const nsAString& aType)
+MediaSource::IsTypeSupported(const GlobalObject& aGlobal,
+                             const nsAString& aType)
 {
-  return NS_SUCCEEDED(mozilla::IsTypeSupported(aType));
+  ErrorResult unused;
+  return IsTypeSupportedInternal(aType, unused);
 }
 
 bool
 MediaSource::Attach(MediaSourceDecoder* aDecoder)
 {
-  MSE_DEBUG("%p Attaching decoder %p owner %p", this, aDecoder, aDecoder->GetOwner());
+  LOG(PR_LOG_DEBUG, ("%p Attaching decoder %p owner %p", this, aDecoder, aDecoder->GetOwner()));
   MOZ_ASSERT(aDecoder);
   if (mReadyState != MediaSourceReadyState::Closed) {
     return false;
@@ -260,7 +193,7 @@ MediaSource::Attach(MediaSourceDecoder* aDecoder)
 void
 MediaSource::Detach()
 {
-  MSE_DEBUG("%p Detaching decoder %p owner %p", this, mDecoder.get(), mDecoder->GetOwner());
+  LOG(PR_LOG_DEBUG, ("%p Detaching decoder %p owner %p", this, mDecoder.get(), mDecoder->GetOwner()));
   MOZ_ASSERT(mDecoder);
   mDecoder->DetachMediaSource();
   mDecoder = nullptr;
@@ -320,14 +253,14 @@ MediaSource::SetReadyState(MediaSourceReadyState aState)
 void
 MediaSource::DispatchSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Dispatching event %s to MediaSource", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Dispatching event %s to MediaSource", this, aName));
   DispatchTrustedEvent(NS_ConvertUTF8toUTF16(aName));
 }
 
 void
 MediaSource::QueueAsyncSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Queuing event %s to MediaSource", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Queuing event %s to MediaSource", this, aName));
   nsCOMPtr<nsIRunnable> event = new AsyncEventRunner<MediaSource>(this, aName);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
@@ -348,6 +281,82 @@ MediaSource::DurationChange(double aNewDuration, ErrorResult& aRv)
   }
   // TODO: If partial audio frames/text cues exist, clamp duration based on mSourceBuffers.
   // TODO: Update media element's duration and run element's duration change algorithm.
+}
+
+void
+MediaSource::EndOfStreamInternal(const Optional<MediaSourceEndOfStreamError>& aError, ErrorResult& aRv)
+{
+  SetReadyState(MediaSourceReadyState::Ended);
+  mSourceBuffers->Ended();
+  if (!aError.WasPassed()) {
+    // TODO:
+    // Run duration change algorithm.
+    // DurationChange(highestDurationOfSourceBuffers, aRv);
+    // if (aRv.Failed()) {
+    //   return;
+    // }
+    // Notify media element that all data is now available.
+    return;
+  }
+  switch (aError.Value()) {
+  case MediaSourceEndOfStreamError::Network:
+    // TODO: If media element has a readyState of:
+    //   HAVE_NOTHING -> run resource fetch algorithm
+    // > HAVE_NOTHING -> run "interrupted" steps of resource fetch
+    break;
+  case MediaSourceEndOfStreamError::Decode:
+    // TODO: If media element has a readyState of:
+    //   HAVE_NOTHING -> run "unsupported" steps of resource fetch
+    // > HAVE_NOTHING -> run "corrupted" steps of resource fetch
+    break;
+  default:
+    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+  }
+}
+
+static const char* const gMediaSourceTypes[6] = {
+  "video/webm",
+  "audio/webm",
+  "video/mp4",
+  "audio/mp4",
+  "audio/mpeg",
+  nullptr
+};
+
+/* static */ bool
+MediaSource::IsTypeSupportedInternal(const nsAString& aType, ErrorResult& aRv)
+{
+  if (aType.IsEmpty()) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    return false;
+  }
+  // TODO: Further restrict this to formats in the spec.
+  nsContentTypeParser parser(aType);
+  nsAutoString mimeType;
+  nsresult rv = parser.GetType(mimeType);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return false;
+  }
+  bool found = false;
+  for (uint32_t i = 0; gMediaSourceTypes[i]; ++i) {
+    if (mimeType.EqualsASCII(gMediaSourceTypes[i])) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return false;
+  }
+  // Check aType against HTMLMediaElement list of MIME types.  Since we've
+  // already restricted the container format, this acts as a specific check
+  // of any specified "codecs" parameter of aType.
+  if (HTMLMediaElement::GetCanPlay(aType) == CANPLAY_NO) {
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return false;
+  }
+  return true;
 }
 
 nsPIDOMWindow*

@@ -42,9 +42,9 @@ public:
   bool ShiftKey();
   bool MetaKey();
 
-  already_AddRefed<Event> GetSourceEvent()
+  already_AddRefed<nsDOMEvent> GetSourceEvent()
   {
-    nsRefPtr<Event> e =
+    nsRefPtr<nsDOMEvent> e =
       mSourceEvent ? mSourceEvent->InternalDOMEvent() : nullptr;
     return e.forget();
   }
@@ -55,7 +55,7 @@ public:
                         int32_t aDetail,
                         bool aCtrlKey, bool aAltKey,
                         bool aShiftKey, bool aMetaKey,
-                        Event* aSourceEvent,
+                        nsDOMEvent* aSourceEvent,
                         ErrorResult& aRv)
   {
     aRv = InitCommandEvent(aType, aCanBubble, aCancelable, aView, aDetail,

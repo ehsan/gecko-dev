@@ -5,9 +5,9 @@
 #ifndef mozilla_dom_DeviceMotionEvent_h_
 #define mozilla_dom_DeviceMotionEvent_h_
 
+#include "nsDOMEvent.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/DeviceMotionEventBinding.h"
-#include "mozilla/dom/Event.h"
 
 namespace mozilla {
 namespace dom {
@@ -88,23 +88,23 @@ protected:
   Nullable<double> mX, mY, mZ;
 };
 
-class DeviceMotionEvent MOZ_FINAL : public Event
+class DeviceMotionEvent MOZ_FINAL : public nsDOMEvent
 {
 public:
 
   DeviceMotionEvent(EventTarget* aOwner,
                     nsPresContext* aPresContext,
                     WidgetEvent* aEvent)
-    : Event(aOwner, aPresContext, aEvent)
+    : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
   }
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  // Forward to Event
-  NS_FORWARD_TO_EVENT
+  // Forward to nsDOMEvent
+  NS_FORWARD_TO_NSDOMEVENT
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DeviceMotionEvent, Event)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DeviceMotionEvent, nsDOMEvent)
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE

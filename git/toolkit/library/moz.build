@@ -16,10 +16,9 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     ]
     if not CONFIG['GNU_CC']:
         LOCAL_INCLUDES += [
-            '/widget/windows',
-            '/xpcom/base',
-        ]
-        RCINCLUDE = 'xulrunner.rc'
+	    '/widget/windows',
+	    '/xpcom/base',
+	]
 
 # component libraries
 additional_defines = (

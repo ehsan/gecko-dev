@@ -143,22 +143,19 @@ var commandsPeerConnection = [
       var myPc = myTest.pcLocal;
 
       function onIceConnectedSuccess () {
-        ok(true, "pc_local: ICE switched to 'connected' state");
+        ok(true, "pc_local: ICE switched to connected state");
         myTest.next();
       };
       function onIceConnectedFailed () {
-        ok(false, "pc_local: ICE failed to switch to 'connected' state: " + myPc.iceConnectionState());
+        ok(false, "pc_local: ICE failed to switch to connected");
         myTest.next();
       };
 
       if (myPc.isIceConnected()) {
         ok(true, "pc_local: ICE is in connected state");
         myTest.next();
-      } else if (myPc.isIceConnectionPending()) {
-        myPc.waitForIceConnected(onIceConnectedSuccess, onIceConnectedFailed);
       } else {
-        ok(false, "pc_local: ICE is already in bad state: " + myPc.iceConnectionState());
-        myTest.next();
+        myPc.waitForIceConnected(onIceConnectedSuccess, onIceConnectedFailed);
       }
     }
   ],
@@ -169,22 +166,19 @@ var commandsPeerConnection = [
       var myPc = myTest.pcRemote;
 
       function onIceConnectedSuccess () {
-        ok(true, "pc_remote: ICE switched to 'connected' state");
+        ok(true, "pc_remote: ICE switched to connected state");
         myTest.next();
       };
       function onIceConnectedFailed () {
-        ok(false, "pc_remote: ICE failed to switch to 'connected' state: " + myPc.iceConnectionState());
+        ok(false, "pc_remote: ICE failed to switch to connected");
         myTest.next();
       };
 
       if (myPc.isIceConnected()) {
         ok(true, "pc_remote: ICE is in connected state");
         myTest.next();
-      } else if (myPc.isIceConnectionPending()) {
-        myPc.waitForIceConnected(onIceConnectedSuccess, onIceConnectedFailed);
       } else {
-        ok(false, "pc_remote: ICE is already in bad state: " + myPc.iceConnectionState());
-        myTest.next();
+        myPc.waitForIceConnected(onIceConnectedSuccess, onIceConnectedFailed);
       }
     }
   ],

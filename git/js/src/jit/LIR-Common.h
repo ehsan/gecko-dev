@@ -328,21 +328,13 @@ class LNewSlots : public LCallInstructionHelper<1, 0, 3>
     }
 };
 
-class LNewArray : public LInstructionHelper<1, 0, 1>
+class LNewArray : public LInstructionHelper<1, 0, 0>
 {
   public:
     LIR_HEADER(NewArray)
 
-    LNewArray(const LDefinition &temp) {
-        setTemp(0, temp);
-    }
-
     const char *extraName() const {
         return mir()->shouldUseVM() ? "VMCall" : nullptr;
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
     }
 
     MNewArray *mir() const {
@@ -350,21 +342,13 @@ class LNewArray : public LInstructionHelper<1, 0, 1>
     }
 };
 
-class LNewObject : public LInstructionHelper<1, 0, 1>
+class LNewObject : public LInstructionHelper<1, 0, 0>
 {
   public:
     LIR_HEADER(NewObject)
 
-    LNewObject(const LDefinition &temp) {
-        setTemp(0, temp);
-    }
-
     const char *extraName() const {
         return mir()->shouldUseVM() ? "VMCall" : nullptr;
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
     }
 
     MNewObject *mir() const {
@@ -446,18 +430,10 @@ class LNewDenseArrayPar : public LCallInstructionHelper<1, 2, 3>
 //   (1) An inline allocation of the call object is attempted.
 //   (2) Otherwise, a callVM create a new object.
 //
-class LNewDeclEnvObject : public LInstructionHelper<1, 0, 1>
+class LNewDeclEnvObject : public LInstructionHelper<1, 0, 0>
 {
   public:
     LIR_HEADER(NewDeclEnvObject);
-
-    LNewDeclEnvObject(const LDefinition &temp) {
-        setTemp(0, temp);
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
 
     MNewDeclEnvObject *mir() const {
         return mir_->toNewDeclEnvObject();
@@ -473,18 +449,13 @@ class LNewDeclEnvObject : public LInstructionHelper<1, 0, 1>
 //       call object.
 //   (2) Otherwise, an inline allocation of the call object is attempted.
 //
-class LNewCallObject : public LInstructionHelper<1, 1, 1>
+class LNewCallObject : public LInstructionHelper<1, 1, 0>
 {
   public:
     LIR_HEADER(NewCallObject)
 
-    LNewCallObject(const LAllocation &slots, const LDefinition &temp) {
+    LNewCallObject(const LAllocation &slots) {
         setOperand(0, slots);
-        setTemp(0, temp);
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
     }
 
     const LAllocation *slots() {
@@ -912,21 +883,16 @@ class LCreateThisWithProto : public LCallInstructionHelper<1, 2, 0>
 
 // Allocate an object for |new| on the caller-side.
 // Always performs object initialization with a fast path.
-class LCreateThisWithTemplate : public LInstructionHelper<1, 0, 1>
+class LCreateThisWithTemplate : public LInstructionHelper<1, 0, 0>
 {
   public:
     LIR_HEADER(CreateThisWithTemplate)
 
-    LCreateThisWithTemplate(const LDefinition &temp) {
-        setTemp(0, temp);
-    }
+    LCreateThisWithTemplate()
+    { }
 
     MCreateThisWithTemplate *mir() const {
         return mir_->toCreateThisWithTemplate();
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
     }
 };
 
@@ -3430,20 +3396,16 @@ class LLambdaForSingleton : public LCallInstructionHelper<1, 1, 0>
     }
 };
 
-class LLambda : public LInstructionHelper<1, 1, 1>
+class LLambda : public LInstructionHelper<1, 1, 0>
 {
   public:
     LIR_HEADER(Lambda)
 
-    LLambda(const LAllocation &scopeChain, const LDefinition &temp) {
+    LLambda(const LAllocation &scopeChain) {
         setOperand(0, scopeChain);
-        setTemp(0, temp);
     }
     const LAllocation *scopeChain() {
         return getOperand(0);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
     }
     const MLambda *mir() const {
         return mir_->toLambda();

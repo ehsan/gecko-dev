@@ -2349,7 +2349,7 @@ WorkerPrivateParent<Derived>::NotifyPrivate(JSContext* aCx, Status aStatus)
 #endif
 
     // Worker never got a chance to run, go ahead and delete it.
-    self->ScheduleDeletion(WorkerPrivate::WorkerNeverRan);
+    self->ScheduleDeletion();
     return true;
   }
 
@@ -4251,13 +4251,13 @@ WorkerPrivate::IsOnCurrentThread(bool* aIsOnCurrentThread)
 }
 
 void
-WorkerPrivate::ScheduleDeletion(WorkerRanOrNot aRanOrNot)
+WorkerPrivate::ScheduleDeletion()
 {
   AssertIsOnWorkerThread();
   MOZ_ASSERT(mChildWorkers.IsEmpty());
   MOZ_ASSERT(mSyncLoopStack.IsEmpty());
 
-  ClearMainEventQueue(aRanOrNot);
+  ClearMainEventQueue();
 
   if (WorkerPrivate* parent = GetParent()) {
     nsRefPtr<WorkerFinishedRunnable> runnable =
@@ -4474,27 +4474,18 @@ WorkerPrivate::ProcessAllControlRunnablesLocked()
 }
 
 void
-WorkerPrivate::ClearMainEventQueue(WorkerRanOrNot aRanOrNot)
+WorkerPrivate::ClearMainEventQueue()
 {
   AssertIsOnWorkerThread();
+
+  nsIThread* currentThread = NS_GetCurrentThread();
+  MOZ_ASSERT(currentThread);
 
   MOZ_ASSERT(!mCancelAllPendingRunnables);
   mCancelAllPendingRunnables = true;
 
-  if (WorkerNeverRan == aRanOrNot) {
-    for (uint32_t count = mPreStartRunnables.Length(), index = 0;
-         index < count;
-         index++) {
-      nsRefPtr<WorkerRunnable> runnable = mPreStartRunnables[index].forget();
-      static_cast<nsIRunnable*>(runnable.get())->Run();
-    }
-  } else {
-    nsIThread* currentThread = NS_GetCurrentThread();
-    MOZ_ASSERT(currentThread);
-
-    NS_ProcessPendingEvents(currentThread);
-    MOZ_ASSERT(!NS_HasPendingEvents(currentThread));
-  }
+  NS_ProcessPendingEvents(currentThread);
+  MOZ_ASSERT(!NS_HasPendingEvents(currentThread));
 
   MOZ_ASSERT(mCancelAllPendingRunnables);
   mCancelAllPendingRunnables = false;
@@ -5040,7 +5031,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
   // If this is the first time our status has changed then we need to clear the
   // main event queue.
   if (previousStatus == Running) {
-    ClearMainEventQueue(WorkerRan);
+    ClearMainEventQueue();
   }
 
   // If we've run the close handler, we don't need to do anything else.
