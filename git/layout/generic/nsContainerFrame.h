@@ -134,10 +134,12 @@ public:
    * into the principal child list after aFrame.
    * @note calling this method on a block frame is illegal. Use
    * nsBlockFrame::CreateContinuationFor() instead.
-   * @return the next-in-flow <b>if and only if</b> one is created. If
-   *         a next-in-flow already exists, nullptr will be returned.
+   * @param aNextInFlowResult will contain the next-in-flow
+   *        <b>if and only if</b> one is created. If a next-in-flow already
+   *        exists aNextInFlowResult is set to nullptr.
+   * @return NS_OK if a next-in-flow already exists or is successfully created.
    */
-  nsIFrame* CreateNextInFlow(nsIFrame* aFrame);
+  nsresult CreateNextInFlow(nsIFrame*  aFrame, nsIFrame*& aNextInFlowResult);
 
   /**
    * Delete aNextInFlow and its next-in-flows.

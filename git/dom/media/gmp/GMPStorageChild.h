@@ -42,11 +42,14 @@ public:
   void ReadComplete(GMPErr aStatus, const uint8_t* aBytes, uint32_t aLength);
   void WriteComplete(GMPErr aStatus);
 
+  void MarkClosed();
+
 private:
   ~GMPRecordImpl() {}
   const nsCString mName;
   GMPRecordClient* const mClient;
   GMPStorageChild* const mOwner;
+  bool mIsClosed;
 };
 
 class GMPStorageChild : public PGMPStorageChild
@@ -68,14 +71,10 @@ public:
                const uint8_t* aData,
                uint32_t aDataSize);
 
-  GMPErr Close(const nsCString& aRecordName);
+  GMPErr Close(GMPRecordImpl* aRecord);
 
   GMPErr EnumerateRecords(RecvGMPRecordIteratorPtr aRecvIteratorFunc,
                           void* aUserArg);
-
-private:
-  bool HasRecord(const nsCString& aRecordName);
-  already_AddRefed<GMPRecordImpl> GetRecord(const nsCString& aRecordName);
 
 protected:
   ~GMPStorageChild() {}
@@ -93,7 +92,6 @@ protected:
   virtual bool RecvShutdown() MOZ_OVERRIDE;
 
 private:
-  Monitor mMonitor;
   nsRefPtrHashtable<nsCStringHashKey, GMPRecordImpl> mRecords;
   GMPChild* mPlugin;
 
@@ -103,7 +101,6 @@ private:
       : mFunc(aFunc)
       , mUserArg(aUserArg)
     {}
-    RecordIteratorContext() {}
     RecvGMPRecordIteratorPtr mFunc;
     void* mUserArg;
   };

@@ -14,7 +14,6 @@
 
 class nsEditor;
 class nsIContent;
-class nsINode;
 
 namespace mozilla {
 namespace dom {

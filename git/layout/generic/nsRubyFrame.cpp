@@ -321,7 +321,8 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
     }
 
     // Create continuations for the base container
-    nsIFrame* newBaseContainer = CreateNextInFlow(aBaseContainer);
+    nsIFrame* newBaseContainer;
+    CreateNextInFlow(aBaseContainer, newBaseContainer);
     // newBaseContainer is null if there are existing next-in-flows.
     // We only need to move and push if there were not.
     if (newBaseContainer) {
@@ -332,7 +333,8 @@ nsRubyFrame::ReflowSegment(nsPresContext* aPresContext,
       // Create continuations for text containers
       nsIFrame* newLastChild = newBaseContainer;
       for (uint32_t i = 0; i < rtcCount; i++) {
-        nsIFrame* newTextContainer = CreateNextInFlow(textContainers[i]);
+        nsIFrame* newTextContainer;
+        CreateNextInFlow(textContainers[i], newTextContainer);
         MOZ_ASSERT(newTextContainer, "Next-in-flow of rtc should not exist "
                    "if the corresponding rbc does not");
         mFrames.RemoveFrame(newTextContainer);

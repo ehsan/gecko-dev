@@ -105,7 +105,7 @@ IntelWebMVideoDecoder::Create(WebMReader* aReader)
 {
   nsAutoPtr<IntelWebMVideoDecoder> decoder(new IntelWebMVideoDecoder(aReader));
 
-  decoder->mTaskQueue = aReader->GetVideoTaskQueue();
+  decoder->mTaskQueue = aReader->GetTaskQueue();
   NS_ENSURE_TRUE(decoder->mTaskQueue, nullptr);
 
   return decoder.forget();

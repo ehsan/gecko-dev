@@ -585,8 +585,9 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
 
   const nsStyleTableBorder* cellTableStyle;
   cellTableStyle = aCell->StyleTableBorder();
-  if (NS_STYLE_TABLE_EMPTY_CELLS_SHOW != cellTableStyle->mEmptyCells &&
-      aCell->GetContentEmpty() && !mIsBorderCollapse) {
+  if (!(NS_STYLE_TABLE_EMPTY_CELLS_SHOW == cellTableStyle->mEmptyCells ||
+        NS_STYLE_TABLE_EMPTY_CELLS_SHOW_BACKGROUND == cellTableStyle->mEmptyCells)
+      && aCell->GetContentEmpty() && !mIsBorderCollapse) {
     return NS_OK;
   }
 
