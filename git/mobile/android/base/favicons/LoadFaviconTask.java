@@ -474,6 +474,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
     private void processResult(Bitmap image) {
         Favicons.removeLoadTask(mId);
+
         Bitmap scaled = image;
 
         // Notify listeners, scaling if required.

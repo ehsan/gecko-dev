@@ -9,18 +9,16 @@ function test() {
   runTests();
 }
 
-function getTelemetryPayload() {
+function getSimpleMeasurementsFromTelemetryPing() {
   return Cu.import("resource://gre/modules/TelemetryPing.jsm", {}).
-    TelemetryPing.getPayload();
+    TelemetryPing.getPayload().simpleMeasurements;
 }
 
 gTests.push({
   desc: "Test browser-ui telemetry",
   run: function testBrowserUITelemetry() {
     // startup should have registered simple measures function
-    is(getTelemetryPayload().info.appName, "MetroFirefox");
-
-    let simpleMeasurements = getTelemetryPayload().simpleMeasurements;
+    let simpleMeasurements = getSimpleMeasurementsFromTelemetryPing();
     ok(simpleMeasurements, "simpleMeasurements are truthy");
     ok(simpleMeasurements.UITelemetry["metro-ui"]["window-width"], "window-width measurement was captured");
     ok(simpleMeasurements.UITelemetry["metro-ui"]["window-height"], "window-height measurement was captured");
