@@ -721,19 +721,6 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener)
-{
-  // Always permit this in debug builds.
-#ifndef DEBUG
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-#endif
-
-  nsJSContext::CycleCollectNow(aListener);
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsDOMWindowUtils::ProcessUpdates()
