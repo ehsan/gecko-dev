@@ -143,16 +143,13 @@ public:
    *
    * It is expected that Created*Buffer() will be followed by a
    * Painted*Buffer() in the same transaction, so that
-   * |aInitialFrontBuffer| is never actually drawn to screen.  It is
-   * OK if it is drawn though.
+   * |aInitialFrontBuffer| is never actually drawn to screen.
    */
   /**
    * |aBufferRect| is the screen rect covered by |aInitialFrontBuffer|.
    */
   void CreatedThebesBuffer(ShadowableLayer* aThebes,
-                           const nsIntRegion& aFrontValidRegion,
-                           float aXResolution, float aYResolution,
-                           const nsIntRect& aBufferRect,
+                           nsIntRect aBufferRect,
                            const SurfaceDescriptor& aInitialFrontBuffer);
   /**
    * For the next two methods, |aSize| is the size of
@@ -329,13 +326,19 @@ class ShadowLayerManager : public LayerManager
 public:
   virtual ~ShadowLayerManager() {}
 
+  PRBool HasForwarder() { return !!mForwarder; }
+
+  void SetForwarder(PLayersParent* aForwarder)
+  {
+    NS_ASSERTION(!aForwarder || !HasForwarder(), "stomping live forwarder?");
+    mForwarder = aForwarder;
+  }
+
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Shadow"); }
 
-  void DestroySharedSurface(gfxSharedImageSurface* aSurface,
-                            PLayersParent* aDeallocator);
+  void DestroySharedSurface(gfxSharedImageSurface* aSurface);
 
-  void DestroySharedSurface(SurfaceDescriptor* aSurface,
-                            PLayersParent* aDeallocator);
+  void DestroySharedSurface(SurfaceDescriptor* aSurface);
 
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer() = 0;
@@ -347,9 +350,11 @@ public:
   static void PlatformSyncBeforeReplyUpdate();
 
 protected:
-  ShadowLayerManager() {}
+  ShadowLayerManager() : mForwarder(NULL) {}
 
   PRBool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
+
+  PLayersParent* mForwarder;
 };
 
 
@@ -388,25 +393,6 @@ protected:
 class ShadowThebesLayer : public ThebesLayer
 {
 public:
-  /**
-   * CONSTRUCTION PHASE ONLY
-   */
-  void SetParent(PLayersParent* aParent)
-  {
-    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
-    mAllocator = aParent;
-  }
-
-  /**
-   * CONSTRUCTION PHASE ONLY
-   *
-   * Override the front buffer and its valid region with the specified
-   * values.  This is called when a new buffer has been created.
-   */
-  virtual void SetFrontBuffer(const ThebesBuffer& aNewFront,
-                              const nsIntRegion& aValidRegion,
-                              float aXResolution, float aYResolution) = 0;
-
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
     NS_RUNTIMEABORT("ShadowThebesLayers can't fill invalidated regions");
@@ -453,27 +439,14 @@ public:
   MOZ_LAYER_DECL_NAME("ShadowThebesLayer", TYPE_SHADOW)
 
 protected:
-  ShadowThebesLayer(LayerManager* aManager, void* aImplData)
-    : ThebesLayer(aManager, aImplData)
-    , mAllocator(nsnull)
-  {}
-
-  PLayersParent* mAllocator;
+  ShadowThebesLayer(LayerManager* aManager, void* aImplData) :
+    ThebesLayer(aManager, aImplData) {}
 };
 
 
 class ShadowCanvasLayer : public CanvasLayer
 {
 public:
-  /**
-   * CONSTRUCTION PHASE ONLY
-   */
-  void SetParent(PLayersParent* aParent)
-  {
-    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
-    mAllocator = aParent;
-  }
-
   /**
    * CONSTRUCTION PHASE ONLY
    *
@@ -494,27 +467,14 @@ public:
   MOZ_LAYER_DECL_NAME("ShadowCanvasLayer", TYPE_SHADOW)
 
 protected:
-  ShadowCanvasLayer(LayerManager* aManager, void* aImplData)
-    : CanvasLayer(aManager, aImplData)
-    , mAllocator(nsnull)
-  {}
-
-  PLayersParent* mAllocator;
+  ShadowCanvasLayer(LayerManager* aManager, void* aImplData) :
+    CanvasLayer(aManager, aImplData) {}
 };
 
 
 class ShadowImageLayer : public ImageLayer
 {
 public:
-  /**
-   * CONSTRUCTION PHASE ONLY
-   */
-  void SetParent(PLayersParent* aParent)
-  {
-    NS_ABORT_IF_FALSE(!mAllocator, "Stomping parent?");
-    mAllocator = aParent;
-  }
-
   /**
    * CONSTRUCTION PHASE ONLY
    *
@@ -542,12 +502,8 @@ public:
   MOZ_LAYER_DECL_NAME("ShadowImageLayer", TYPE_SHADOW)
 
 protected:
-  ShadowImageLayer(LayerManager* aManager, void* aImplData)
-    : ImageLayer(aManager, aImplData)
-    , mAllocator(nsnull)
-  {}
-
-  PLayersParent* mAllocator;
+  ShadowImageLayer(LayerManager* aManager, void* aImplData) :
+    ImageLayer(aManager, aImplData) {}
 };
 
 

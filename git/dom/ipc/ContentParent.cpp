@@ -45,7 +45,6 @@
 #include "mozilla/net/NeckoParent.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -62,6 +61,11 @@
 #include "nsIDOMGeoGeolocation.h"
 
 #include "mozilla/dom/ExternalHelperAppParent.h"
+
+#ifdef ANDROID
+#include "AndroidBridge.h"
+using namespace mozilla;
+#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -181,10 +185,101 @@ ContentParent::IsAlive()
 }
 
 bool
-ContentParent::RecvReadPrefs(nsCString* prefs)
+ContentParent::RecvGetPrefType(const nsCString& prefName,
+                               PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetPrefType(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetBoolPref(const nsCString& prefName,
+                               PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetBoolPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetIntPref(const nsCString& prefName,
+                              PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetIntPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetCharPref(const nsCString& prefName,
+                               nsCString* retValue, nsresult* rv)
 {
     EnsurePrefService();
-    mPrefService->SerializePreferences(*prefs);
+    *rv = mPrefService->GetCharPref(prefName.get(), getter_Copies(*retValue));
+    return true;
+}
+
+bool
+ContentParent::RecvGetPrefLocalizedString(const nsCString& prefName,
+                                          nsString* retValue, nsresult* rv)
+{
+    EnsurePrefService();
+    nsCOMPtr<nsIPrefLocalizedString> string;
+    *rv = mPrefService->GetComplexValue(prefName.get(),
+            NS_GET_IID(nsIPrefLocalizedString), getter_AddRefs(string));
+
+    if (NS_SUCCEEDED(*rv))
+      string->GetData(getter_Copies(*retValue));
+
+    return true;
+}
+
+bool
+ContentParent::RecvPrefHasUserValue(const nsCString& prefName,
+                                    PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefHasUserValue(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvPrefIsLocked(const nsCString& prefName,
+                                PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefIsLocked(prefName.get(), retValue);
+        
+    return true;
+}
+
+bool
+ContentParent::RecvGetChildList(const nsCString& domain,
+                                nsTArray<nsCString>* list, nsresult* rv)
+{
+    EnsurePrefService();
+
+    PRUint32 count;
+    char **childArray;
+    *rv = mPrefService->GetChildList(domain.get(), &count, &childArray);
+
+    if (NS_SUCCEEDED(*rv)) {
+      list->SetCapacity(count);
+      for (PRUint32 i = 0; i < count; ++i)
+        *(list->AppendElement()) = childArray[i];
+    }
+        
     return true;
 }
 
@@ -272,10 +367,7 @@ ContentParent::Observe(nsISupports* aSubject,
     if (!strcmp(aTopic, "nsPref:changed")) {
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
-        nsCString prefBuffer;
-        nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-        prefs->SerializePreference(strData, prefBuffer);
-        if (!SendPreferenceUpdate(prefBuffer))
+        if (!SendNotifyRemotePrefObserver(strData))
             return NS_ERROR_NOT_AVAILABLE;
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC)) {
@@ -476,6 +568,33 @@ ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
     return NS_OK;
 }
 
+
+bool 
+ContentParent::RecvNotifyIMEChange(const nsString& aText, 
+                                   const PRUint32& aTextLen, 
+                                   const int& aStart, const int& aEnd, 
+                                   const int& aNewEnd)
+{
+#ifdef ANDROID
+    AndroidBridge::Bridge()->NotifyIMEChange(aText.get(), aTextLen,
+                                             aStart, aEnd, aNewEnd);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool 
+ContentParent::RecvNotifyIME(const int& aType, const int& aStatus)
+{
+#ifdef ANDROID
+    AndroidBridge::Bridge()->NotifyIME(aType, aStatus);
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool
 ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                          const nsString& aText, const PRBool& aTextClickable,
@@ -516,27 +635,22 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 bool
 ContentParent::RecvGeolocationStart()
 {
-  if (mGeolocationWatchID == -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
   }
+  geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
   return true;
 }
 
 bool
 ContentParent::RecvGeolocationStop()
 {
-  if (mGeolocationWatchID != -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->ClearWatch(mGeolocationWatchID);
-    mGeolocationWatchID = -1;
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
   }
+  geo->ClearWatch(mGeolocationWatchID);
   return true;
 }
 

@@ -3254,9 +3254,7 @@ HeadsUpDisplay.prototype = {
     menuPopup.appendChild(this.makeXULNode("menuseparator"));
 
     let clearItem = this.makeXULNode("menuitem");
-    clearItem.setAttribute("label", this.getStr("clearConsoleCmd.label"));
-    clearItem.setAttribute("accesskey",
-                           this.getStr("clearConsoleCmd.accesskey"));
+    clearItem.setAttribute("label", this.getStr("itemClear"));
     clearItem.setAttribute("hudId", this.hudId);
     clearItem.setAttribute("buttonType", "clear");
     clearItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");

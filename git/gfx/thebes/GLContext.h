@@ -1337,7 +1337,6 @@ public:
 inline void
 GLDebugPrintError(GLContext* aCx, const char* const aFile, int aLine)
 {
-    aCx->MakeCurrent();
     GLenum err = aCx->fGetError();
     if (err) {
         printf_stderr("GL ERROR: 0x%04x at %s:%d\n", err, aFile, aLine);
