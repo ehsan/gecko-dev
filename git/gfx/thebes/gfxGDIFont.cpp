@@ -4,6 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxGDIFont.h"
+
+#include "mozilla/MemoryReporting.h"
+
 #include "gfxGDIShaper.h"
 #include "gfxUniscribeShaper.h"
 #include "gfxHarfBuzzShaper.h"
@@ -37,7 +40,7 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
                        bool aNeedsBold,
                        AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption),
-      mFont(NULL),
+      mFont(nullptr),
       mFontFace(nullptr),
       mMetrics(nullptr),
       mSpaceGlyph(0),
@@ -540,7 +543,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
     AutoSelectFont fs(dc, GetHFONT());
 
     int devWidth;
-    if (GetCharWidthI(dc, aGID, 1, NULL, &devWidth)) {
+    if (GetCharWidthI(dc, aGID, 1, nullptr, &devWidth)) {
         // ensure width is positive, 16.16 fixed-point value
         width = (devWidth & 0x7fff) << 16;
         mGlyphWidths.Put(aGID, width);
@@ -551,7 +554,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 }
 
 void
-gfxGDIFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
@@ -560,7 +563,7 @@ gfxGDIFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
 }
 
 void
-gfxGDIFont::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+gfxGDIFont::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);

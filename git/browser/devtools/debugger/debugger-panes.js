@@ -18,6 +18,8 @@ function SourcesView() {
   this._onSourceSelect = this._onSourceSelect.bind(this);
   this._onSourceClick = this._onSourceClick.bind(this);
   this._onBreakpointRemoved = this._onBreakpointRemoved.bind(this);
+  this._onSourceCheck = this._onSourceCheck.bind(this);
+  this._onStopBlackBoxing = this._onStopBlackBoxing.bind(this);
   this._onBreakpointClick = this._onBreakpointClick.bind(this);
   this._onBreakpointCheckboxClick = this._onBreakpointCheckboxClick.bind(this);
   this._onConditionalPopupShowing = this._onConditionalPopupShowing.bind(this);
@@ -34,20 +36,28 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the SourcesView");
 
-    this.widget = new SideMenuWidget(document.getElementById("sources"));
+    this.widget = new SideMenuWidget(document.getElementById("sources"), {
+      showCheckboxes: true,
+      showArrows: true
+    });
     this.emptyText = L10N.getStr("noSourcesText");
     this.unavailableText = L10N.getStr("noMatchingSourcesText");
+    this._blackBoxCheckboxTooltip = L10N.getStr("blackBoxCheckboxTooltip");
 
     this._commandset = document.getElementById("debuggerCommands");
     this._popupset = document.getElementById("debuggerPopupset");
     this._cmPopup = document.getElementById("sourceEditorContextMenu");
     this._cbPanel = document.getElementById("conditional-breakpoint-panel");
     this._cbTextbox = document.getElementById("conditional-breakpoint-panel-textbox");
+    this._editorDeck = document.getElementById("editor-deck");
+    this._stopBlackBoxButton = document.getElementById("black-boxed-message-button");
 
     window.addEventListener("Debugger:EditorLoaded", this._onEditorLoad, false);
     window.addEventListener("Debugger:EditorUnloaded", this._onEditorUnload, false);
     this.widget.addEventListener("select", this._onSourceSelect, false);
     this.widget.addEventListener("click", this._onSourceClick, false);
+    this.widget.addEventListener("check", this._onSourceCheck, false);
+    this._stopBlackBoxButton.addEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.addEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.addEventListener("popupshown", this._onConditionalPopupShown, false);
     this._cbPanel.addEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -70,6 +80,8 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     window.removeEventListener("Debugger:EditorUnloaded", this._onEditorUnload, false);
     this.widget.removeEventListener("select", this._onSourceSelect, false);
     this.widget.removeEventListener("click", this._onSourceClick, false);
+    this.widget.removeEventListener("check", this._onSourceCheck, false);
+    this._stopBlackBoxButton.removeEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShown, false);
     this._cbPanel.removeEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -109,6 +121,8 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this.push([label, url, group], {
       staged: aOptions.staged, /* stage the item to be appended later? */
       attachment: {
+        checkboxState: !aSource.isBlackBoxed,
+        checkboxTooltip: this._blackBoxCheckboxTooltip,
         source: aSource
       }
     });
@@ -629,6 +643,18 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     if (DebuggerView.editorSource != selectedSource) {
       DebuggerView.editorSource = selectedSource;
     }
+
+    this.maybeShowBlackBoxMessage();
+  },
+
+  /**
+   * Show or hide the black box message vs. source editor depending on if the
+   * selected source is black boxed or not.
+   */
+  maybeShowBlackBoxMessage: function () {
+    const source = DebuggerController.activeThread.source(
+      DebuggerView.editorSource);
+    this._editorDeck.selectedIndex = source.isBlackBoxed ? 1 : 0;
   },
 
   /**
@@ -637,6 +663,22 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   _onSourceClick: function() {
     // Use this container as a filtering target.
     DebuggerView.Filtering.target = this;
+  },
+
+  /**
+   * The check listener for the sources container.
+   */
+  _onSourceCheck: function({ detail: { checked }, target }) {
+    let item = this.getItemForElement(target);
+    DebuggerController.SourceScripts.blackBox(item.attachment.source, !checked);
+  },
+
+  /**
+   * The click listener for the stop black boxing button.
+   */
+  _onStopBlackBoxing: function() {
+    DebuggerController.SourceScripts.blackBox(DebuggerView.editorSource,
+                                              false);
   },
 
   /**
@@ -1641,16 +1683,17 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
   _startSearch: function(aQuery) {
     this._searchedToken = aQuery;
 
-    DebuggerController.SourceScripts.fetchSources(DebuggerView.Sources.values, {
-      onFinished: this._performGlobalSearch
-    });
+    // Start fetching as many sources as possible, then perform the search.
+    DebuggerController.SourceScripts
+      .getTextForSources(DebuggerView.Sources.values)
+      .then(this._performGlobalSearch);
   },
 
   /**
    * Finds string matches in all the sources stored in the controller's cache,
    * and groups them by location and line number.
    */
-  _performGlobalSearch: function() {
+  _performGlobalSearch: function(aSources) {
     // Get the currently searched token from the filtering input.
     let token = this._searchedToken;
 
@@ -1667,9 +1710,8 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
 
     // Prepare the results map, containing search details for each line.
     let globalResults = new GlobalResults();
-    let sourcesCache = DebuggerController.SourceScripts.getCache();
 
-    for (let [location, contents] of sourcesCache) {
+    for (let [location, contents] of aSources) {
       // Verify that the search token is found anywhere in the source.
       if (!contents.toLowerCase().contains(lowerCaseToken)) {
         continue;
@@ -1689,7 +1731,7 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
         let lineNumber = i;
         let lineResults = new LineResults();
 
-        lowerCaseLine.split(lowerCaseToken).reduce(function(prev, curr, index, {length}) {
+        lowerCaseLine.split(lowerCaseToken).reduce((prev, curr, index, { length }) => {
           let prevLength = prev.length;
           let currLength = curr.length;
           let unmatched = line.substr(prevLength, currLength);

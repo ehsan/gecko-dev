@@ -4,17 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/AliasAnalysis.h"
+
 #include <stdio.h>
 
-#include "MIR.h"
-#include "AliasAnalysis.h"
-#include "MIRGraph.h"
-#include "Ion.h"
-#include "IonBuilder.h"
-#include "IonSpewer.h"
+#include "ion/Ion.h"
+#include "ion/IonBuilder.h"
+#include "ion/IonSpewer.h"
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
 
 using namespace js;
 using namespace js::ion;
+
+using mozilla::Array;
 
 // Iterates over the flags in an AliasSet.
 class AliasSetIterator
@@ -117,7 +120,7 @@ IonSpewAliasInfo(const char *pre, MDefinition *ins, const char *post)
 bool
 AliasAnalysis::analyze()
 {
-    FixedArityList<MDefinitionVector, AliasSet::NumCategories> stores;
+    Array<MDefinitionVector, AliasSet::NumCategories> stores;
 
     // Initialize to the first instruction.
     MDefinition *firstIns = *graph_.begin()->begin();

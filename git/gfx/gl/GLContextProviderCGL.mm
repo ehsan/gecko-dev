@@ -94,7 +94,9 @@ public:
         : GLContext(caps, shareContext, isOffscreen),
           mContext(context),
           mTempTextureName(0)
-    {}
+    {
+        SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
+    }
 
     ~GLContextCGL()
     {
@@ -136,7 +138,13 @@ public:
 
         if (mContext) {
             [mContext makeCurrentContext];
-            GLint swapInt = 1;
+            // Use non-blocking swap in "ASAP mode".
+            // ASAP mode means that rendering is iterated as fast as possible.
+            // ASAP mode is entered when layout.frame_rate=0 (requires restart).
+            // If swapInt is 1, then glSwapBuffers will block and wait for a vblank signal.
+            // When we're iterating as fast as possible, however, we want a non-blocking
+            // glSwapBuffers, which will happen when swapInt==0.
+            GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == 0 ? 0 : 1;
             [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
         }
         return true;
@@ -145,6 +153,8 @@ public:
     virtual bool IsCurrent() {
         return [NSOpenGLContext currentContext] == mContext;
     }
+
+    virtual GLenum GetPreferredARGB32Format() MOZ_OVERRIDE { return LOCAL_GL_BGRA; }
 
     bool SetupLookupFunction()
     {
@@ -200,8 +210,9 @@ public:
                                         SharedTextureHandle sharedHandle,
                                         SharedHandleDetails& details)
     {
+        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
         details.mTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
-        details.mProgramType = RGBARectLayerProgramType;
+        details.mTextureFormat = surf->HasAlpha() ? FORMAT_R8G8B8A8 : FORMAT_R8G8B8X8;
         return true;
     }
 
@@ -209,8 +220,7 @@ public:
                                     SharedTextureHandle sharedHandle)
     {
         MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
-        surf->CGLTexImageIOSurface2D(mContext, LOCAL_GL_RGBA, LOCAL_GL_BGRA,
-                                     LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+        surf->CGLTexImageIOSurface2D(mContext);
         return true;
     }
 

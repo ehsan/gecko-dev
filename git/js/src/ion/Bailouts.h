@@ -8,9 +8,10 @@
 #define ion_Bailouts_h
 
 #include "jstypes.h"
+
+#include "ion/IonFrameIterator.h"
+#include "ion/IonFrames.h"
 #include "vm/Stack.h"
-#include "IonFrameIterator.h"
-#include "IonFrames.h"
 
 namespace js {
 namespace ion {

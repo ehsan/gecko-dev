@@ -24,6 +24,9 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMMediaStream)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMMediaStream)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(DOMMediaStream)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMMediaStream)
   tmp->Destroy();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
@@ -255,8 +258,7 @@ DOMMediaStream::CreateDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
     mTrackTypesAvailable |= HINT_CONTENTS_VIDEO;
     break;
   default:
-    MOZ_NOT_REACHED("Unhandled track type");
-    return nullptr;
+    MOZ_CRASH("Unhandled track type");
   }
   mTracks.AppendElement(track);
 

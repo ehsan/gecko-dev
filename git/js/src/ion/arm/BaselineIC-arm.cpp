@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/BaselineJIT.h"
-#include "ion/BaselineIC.h"
 #include "ion/BaselineCompiler.h"
 #include "ion/BaselineHelpers.h"
+#include "ion/BaselineIC.h"
+#include "ion/BaselineJIT.h"
 #include "ion/IonLinker.h"
 
 using namespace js;
@@ -196,8 +196,7 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         }
         break;
       default:
-        JS_NOT_REACHED("Unhandled op for BinaryArith_Int32.");
-        return false;
+        MOZ_ASSUME_UNREACHABLE("Unhandled op for BinaryArith_Int32.");
     }
 
     EmitReturnFromIC(masm);
@@ -248,8 +247,7 @@ ICUnaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.ma_rsb(R0.payloadReg(), Imm32(0), R0.payloadReg());
         break;
       default:
-        JS_NOT_REACHED("Unexpected op");
-        return false;
+        MOZ_ASSUME_UNREACHABLE("Unexpected op");
     }
 
     EmitReturnFromIC(masm);

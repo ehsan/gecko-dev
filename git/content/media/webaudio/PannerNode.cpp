@@ -15,6 +15,8 @@ namespace dom {
 
 using namespace std;
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(PannerNode)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PannerNode)
   if (tmp->Context()) {
     tmp->Context()->UnregisterPannerNode(tmp);
@@ -210,6 +212,14 @@ JSObject*
 PannerNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return PannerNodeBinding::Wrap(aCx, aScope, this);
+}
+
+void PannerNode::DestroyMediaStream()
+{
+  if (Context()) {
+    Context()->UnregisterPannerNode(this);
+  }
+  AudioNode::DestroyMediaStream();
 }
 
 // Those three functions are described in the spec.

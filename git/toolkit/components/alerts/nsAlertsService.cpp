@@ -24,7 +24,7 @@ using namespace mozilla;
 
 using mozilla::dom::ContentChild;
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
+NS_IMPL_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
 
 nsAlertsService::nsAlertsService()
 {
@@ -86,7 +86,6 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
   }
 
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->CloseNotification(aAlertName);
   mozilla::AndroidBridge::Bridge()->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertCookie,
                                                           aAlertListener, aAlertName);
   return NS_OK;

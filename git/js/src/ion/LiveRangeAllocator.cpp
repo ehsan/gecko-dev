@@ -4,12 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/LiveRangeAllocator.h"
+
 #include "mozilla/DebugOnly.h"
 
-#include "LiveRangeAllocator.h"
-
-#include "BacktrackingAllocator.h"
-#include "LinearScan.h"
+#include "ion/BacktrackingAllocator.h"
+#include "ion/LinearScan.h"
 
 using namespace js;
 using namespace js::ion;
@@ -30,8 +30,7 @@ Requirement::priority() const
         return 2;
 
       default:
-        JS_NOT_REACHED("Unknown requirement kind.");
-        return -1;
+        MOZ_ASSUME_UNREACHABLE("Unknown requirement kind.");
     }
 }
 
@@ -403,7 +402,7 @@ LiveRangeAllocator<VREG>::init()
     if (!RegisterAllocator::init())
         return false;
 
-    liveIn = lir->mir()->allocate<BitSet*>(graph.numBlockIds());
+    liveIn = mir->allocate<BitSet*>(graph.numBlockIds());
     if (!liveIn)
         return false;
 
@@ -417,7 +416,7 @@ LiveRangeAllocator<VREG>::init()
 
     fixedIntervalsUnion = new LiveInterval(0);
 
-    if (!vregs.init(lir->mir(), graph.numVirtualRegisters()))
+    if (!vregs.init(mir, graph.numVirtualRegisters()))
         return false;
 
     // Build virtual register objects

@@ -25,6 +25,8 @@
 
 namespace mozilla {
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(WebAudioDecodeJob)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebAudioDecodeJob)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOutput)
@@ -66,7 +68,7 @@ public:
   explicit BufferDecoder(MediaResource* aResource);
   virtual ~BufferDecoder();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   // This has to be called before decoding begins
   void BeginDecoding(nsIThread* aDecodeThread)
@@ -126,7 +128,7 @@ private:
   nsRefPtr<MediaResource> mResource;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS0(BufferDecoder)
+NS_IMPL_ISUPPORTS0(BufferDecoder)
 
 BufferDecoder::BufferDecoder(MediaResource* aResource)
   : mReentrantMonitor("BufferDecoder")
@@ -462,8 +464,7 @@ MediaDecodeTask::RunNextPhase()
     break;
   case PhaseEnum::Decode:
   case PhaseEnum::Done:
-    MOZ_NOT_REACHED("Invalid phase Decode");
-    break;
+    MOZ_CRASH("Invalid phase Decode");
   }
 }
 

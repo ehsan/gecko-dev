@@ -66,7 +66,7 @@ class Database MOZ_FINAL : public nsIObserver
   typedef mozilla::storage::StatementCache<mozIStorageAsyncStatement> AsyncStatementCache;
 
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   Database();
@@ -122,7 +122,7 @@ public:
    */
   void DispatchToAsyncThread(nsIRunnable* aEvent) const
   {
-    if (mShuttingDown) {
+    if (mClosed) {
       return;
     }
     nsCOMPtr<nsIEventTarget> target = do_GetInterface(mMainConn);
@@ -297,6 +297,7 @@ private:
   int32_t mDBPageSize;
   uint16_t mDatabaseStatus;
   bool mShuttingDown;
+  bool mClosed;
 };
 
 } // namespace places

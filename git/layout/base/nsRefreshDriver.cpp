@@ -36,7 +36,6 @@ typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_I
 #include "nsComponentManagerUtils.h"
 #include "prlog.h"
 #include "nsAutoPtr.h"
-#include "nsCSSFrameConstructor.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -49,6 +48,7 @@ typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_I
 #include "nsNPAPIPluginInstance.h"
 #include "nsPerformance.h"
 #include "mozilla/dom/WindowBinding.h"
+#include "RestyleManager.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
@@ -654,11 +654,16 @@ nsRefreshDriver::DefaultInterval()
 // Compute the interval to use for the refresh driver timer, in milliseconds.
 // outIsDefault indicates that rate was not explicitly set by the user
 // so we might choose other, more appropriate rates (e.g. vsync, etc)
+// layout.frame_rate=0 indicates "ASAP mode".
+// In ASAP mode rendering is iterated as fast as possible (typically for stress testing).
+// A target rate of 10k is used internally instead of special-handling 0.
+// Backends which block on swap/present/etc should try to not block
+// when layout.frame_rate=0 - to comply with "ASAP" as much as possible.
 double
 nsRefreshDriver::GetRegularTimerInterval(bool *outIsDefault) const
 {
   int32_t rate = Preferences::GetInt("layout.frame_rate", -1);
-  if (rate <= 0) {
+  if (rate < 0) {
     rate = DEFAULT_FRAME_RATE;
     if (outIsDefault) {
       *outIsDefault = true;
@@ -668,6 +673,11 @@ nsRefreshDriver::GetRegularTimerInterval(bool *outIsDefault) const
       *outIsDefault = false;
     }
   }
+
+  if (rate == 0) {
+    rate = 10000;
+  }
+
   return 1000.0 / rate;
 }
 
@@ -723,8 +733,6 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
 {
   mMostRecentRefreshEpochTime = JS_Now();
   mMostRecentRefresh = TimeStamp::Now();
-
-  mPaintFlashing = Preferences::GetBool("nglayout.debug.paint_flashing");
 
   mRequests.Init();
   mStartTable.Init();
@@ -1159,7 +1167,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
             continue;
           NS_ADDREF(shell);
           mStyleFlushObservers.RemoveElement(shell);
-          shell->FrameConstructor()->mObservingRefreshDriver = false;
+          shell->GetPresContext()->RestyleManager()->mObservingRefreshDriver = false;
           shell->FlushPendingNotifications(ChangesToFlush(Flush_Style, false));
           NS_RELEASE(shell);
         }

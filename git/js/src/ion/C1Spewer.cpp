@@ -6,17 +6,16 @@
 
 #ifdef DEBUG
 
+#include "ion/C1Spewer.h"
+
 #include <stdarg.h>
 #include <time.h>
 
-#include "IonBuilder.h"
-#include "Ion.h"
-#include "C1Spewer.h"
-#include "MIRGraph.h"
-#include "LIR.h"
-#include "LinearScan.h"
-
-#include "jsscriptinlines.h"
+#include "ion/Ion.h"
+#include "ion/IonBuilder.h"
+#include "ion/LinearScan.h"
+#include "ion/LIR.h"
+#include "ion/MIRGraph.h"
 
 using namespace js;
 using namespace js::ion;

@@ -8,6 +8,7 @@
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
+#include "gfx2DGlue.h"
 
 namespace mozilla {
 namespace gl {
@@ -20,6 +21,25 @@ TextureImage::Create(GLContext* gl,
                      TextureImage::Flags flags)
 {
     return gl->CreateTextureImage(size, contentType, wrapMode, flags);
+}
+
+bool
+TextureImage::UpdateFromDataSource(gfx::DataSourceSurface *aSurface,
+                                   const nsIntRegion* aDestRegion,
+                                   const gfx::IntPoint* aSrcPoint)
+{
+    nsIntRegion destRegion = aDestRegion ? *aDestRegion
+                                         : nsIntRect(0, 0,
+                                                     aSurface->GetSize().width,
+                                                     aSurface->GetSize().height);
+    nsIntPoint thebesSrcPoint = aSrcPoint ? nsIntPoint(aSrcPoint->x, aSrcPoint->y)
+                                          : nsIntPoint(0, 0);
+    RefPtr<gfxASurface> thebesSurf
+        = new gfxImageSurface(aSurface->GetData(),
+                              ThebesIntSize(aSurface->GetSize()),
+                              aSurface->Stride(),
+                              SurfaceFormatToImageFormat(aSurface->GetFormat()));
+    return DirectUpdate(thebesSurf, destRegion, thebesSrcPoint);
 }
 
 BasicTextureImage::~BasicTextureImage()
@@ -56,7 +76,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     nsIntRect rgnSize = mUpdateRegion.GetBounds();
     if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(rgnSize)) {
         NS_ERROR("update outside of image");
-        return NULL;
+        return nullptr;
     }
 
     ImageFormat format =
@@ -66,8 +86,8 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
         GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
 
     if (!mUpdateSurface || mUpdateSurface->CairoStatus()) {
-        mUpdateSurface = NULL;
-        return NULL;
+        mUpdateSurface = nullptr;
+        return nullptr;
     }
 
     mUpdateSurface->SetDeviceOffset(gfxPoint(-rgnSize.x, -rgnSize.y));
@@ -98,7 +118,7 @@ BasicTextureImage::EndUpdate()
 
     bool relative = FinishedSurfaceUpdate();
 
-    mShaderType =
+    mTextureFormat =
         mGLContext->UploadSurfaceToTexture(mUpdateSurface,
                                            mUpdateRegion,
                                            mTexture,
@@ -156,7 +176,7 @@ BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
         region = aRegion;
     }
 
-    mShaderType =
+    mTextureFormat =
         mGLContext->UploadSurfaceToTexture(aSurf,
                                            region,
                                            mTexture,
@@ -182,7 +202,7 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            NULL);
+                            nullptr);
 
     mTextureState = Allocated;
     mSize = aSize;
@@ -201,7 +221,7 @@ TiledTextureImage::TiledTextureImage(GLContext* aGL,
     , mGL(aGL)
     , mTextureState(Created)
 {
-    if (!(aFlags & TextureImage::ForceSingleTile) && mGL->WantsSmallTiles()) {
+    if (!(aFlags & TextureImage::DisallowBigImage) && mGL->WantsSmallTiles()) {
       mTileSize = 256;
     } else {
       mGL->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mTileSize);
@@ -268,7 +288,7 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
     } while (NextTile() || (mTextureState != Valid));
     mCurrentImage = oldCurrentImage;
 
-    mShaderType = mImages[0]->GetShaderProgramType();
+    mTextureFormat = mImages[0]->GetTextureFormat();
     mTextureState = Valid;
     return result;
 }
@@ -380,7 +400,7 @@ TiledTextureImage::EndUpdate()
         mImages[mCurrentImage]->EndUpdate();
         mInUpdate = false;
         mTextureState = Valid;
-        mShaderType = mImages[mCurrentImage]->GetShaderProgramType();
+        mTextureFormat = mImages[mCurrentImage]->GetTextureFormat();
         return;
     }
 
@@ -407,7 +427,7 @@ TiledTextureImage::EndUpdate()
 
     mUpdateSurface = nullptr;
     mInUpdate = false;
-    mShaderType = mImages[0]->GetShaderProgramType();
+    mTextureFormat = mImages[0]->GetTextureFormat();
     mTextureState = Valid;
 }
 

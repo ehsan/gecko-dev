@@ -4,11 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/shared/Lowering-shared-inl.h"
+
 #include "ion/LIR.h"
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
-#include "Lowering-shared.h"
-#include "Lowering-shared-inl.h"
 
 using namespace js;
 using namespace ion;
@@ -72,7 +72,7 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
         MResumePoint *mir = *it;
-        for (size_t j = 0; j < mir->numOperands(); ++i, ++j) {
+        for (size_t j = 0, e = mir->numOperands(); j < e; ++i, ++j) {
             MDefinition *ins = mir->getOperand(j);
 
             LAllocation *type = snapshot->typeOfSlot(i);
@@ -124,7 +124,7 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
         MResumePoint *mir = *it;
-        for (size_t j = 0; j < mir->numOperands(); ++i, ++j) {
+        for (size_t j = 0, e = mir->numOperands(); j < e; ++i, ++j) {
             MDefinition *def = mir->getOperand(j);
 
             if (def->isPassArg())

@@ -17,7 +17,7 @@ const CALL_STACK_PAGE_SIZE = 25; // frames
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/BreadcrumbsWidget.jsm");
@@ -29,8 +29,17 @@ Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Parser",
   "resource:///modules/devtools/Parser.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
-  "resource://gre/modules/devtools/NetworkHelper.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
+  "resource://gre/modules/devtools/Loader.jsm");
+
+Object.defineProperty(this, "NetworkHelper", {
+  get: function() {
+    return devtools.require("devtools/toolkit/webconsole/network-helper");
+  },
+  configurable: true,
+  enumerable: true
+});
+
 
 /**
  * Object defining the debugger controller components.
@@ -73,7 +82,7 @@ let DebuggerController = {
       window.removeEventListener("DOMContentLoaded", this.startupDebugger, true);
     }
 
-    let deferred = this._startup = Promise.defer();
+    let deferred = this._startup = promise.defer();
 
     DebuggerView.initialize(() => {
       DebuggerView._isInitialized = true;
@@ -108,7 +117,7 @@ let DebuggerController = {
       window.removeEventListener("unload", this.shutdownDebugger, true);
     }
 
-    let deferred = this._shutdown = Promise.defer();
+    let deferred = this._shutdown = promise.defer();
 
     DebuggerView.destroy(() => {
       DebuggerView._isDestroyed = true;
@@ -142,7 +151,7 @@ let DebuggerController = {
       return this._connection.promise;
     }
 
-    let deferred = this._connection = Promise.defer();
+    let deferred = this._connection = promise.defer();
 
     if (!window._isChromeDebugger) {
       let target = this._target;
@@ -213,7 +222,6 @@ let DebuggerController = {
       DebuggerView._handleTabNavigation();
 
       // Discard all the old sources.
-      DebuggerController.SourceScripts.clearCache();
       DebuggerController.Parser.clearCache();
       SourceUtils.clearCache();
       return;
@@ -315,7 +323,8 @@ let DebuggerController = {
    * away old scripts and get sources again.
    */
   reconfigureThread: function(aUseSourceMaps) {
-    this.client.reconfigureThread(aUseSourceMaps, (aResponse) => {
+    this.client.reconfigureThread({ useSourceMaps: aUseSourceMaps },
+                                  (aResponse) => {
       if (aResponse.error) {
         let msg = "Couldn't reconfigure thread: " + aResponse.message;
         Cu.reportError(msg);
@@ -423,6 +432,7 @@ function StackFrames() {
   this._onResumed = this._onResumed.bind(this);
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
+  this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
@@ -437,6 +447,7 @@ StackFrames.prototype = {
   currentEvaluation: null,
   currentException: null,
   currentReturnedValue: null,
+  _dontSwitchSources: false,
 
   /**
    * Connect to the current thread client.
@@ -447,6 +458,7 @@ StackFrames.prototype = {
     this.activeThread.addListener("resumed", this._onResumed);
     this.activeThread.addListener("framesadded", this._onFrames);
     this.activeThread.addListener("framescleared", this._onFramesCleared);
+    this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
     this._handleTabNavigation();
   },
 
@@ -462,6 +474,7 @@ StackFrames.prototype = {
     this.activeThread.removeListener("resumed", this._onResumed);
     this.activeThread.removeListener("framesadded", this._onFrames);
     this.activeThread.removeListener("framescleared", this._onFramesCleared);
+    this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
   },
 
   /**
@@ -591,16 +604,40 @@ StackFrames.prototype = {
     // Make sure the debugger view panes are visible.
     DebuggerView.showInstrumentsPane();
 
+    this._refillFrames();
+  },
+
+  /**
+   * Fill the StackFrames view with the frames we have in the cache, compressing
+   * frames which have black boxed sources into single frames.
+   */
+  _refillFrames: function() {
     // Make sure all the previous stackframes are removed before re-adding them.
     DebuggerView.StackFrames.empty();
 
+    let previousBlackBoxed = null;
     for (let frame of this.activeThread.cachedFrames) {
-      let { depth, where: { url, line } } = frame;
+      let { depth, where: { url, line }, source } = frame;
+
+      let isBlackBoxed = source
+        ? this.activeThread.source(source).isBlackBoxed
+        : false;
       let frameLocation = NetworkHelper.convertToUnicode(unescape(url));
       let frameTitle = StackFrameUtils.getFrameTitle(frame);
 
-      DebuggerView.StackFrames.addFrame(frameTitle, frameLocation, line, depth);
+      if (isBlackBoxed) {
+        if (previousBlackBoxed == url) {
+          continue;
+        }
+        previousBlackBoxed = url;
+      } else {
+        previousBlackBoxed = null;
+      }
+
+      DebuggerView.StackFrames.addFrame(
+        frameTitle, frameLocation, line, depth, isBlackBoxed);
     }
+
     if (this.currentFrame == null) {
       DebuggerView.StackFrames.selectedDepth = 0;
     }
@@ -627,6 +664,17 @@ StackFrames.prototype = {
   },
 
   /**
+   * Handler for the debugger's blackboxchange notification.
+   */
+  _onBlackBoxChange: function() {
+    if (this.activeThread.state == "paused") {
+      this._dontSwitchSources = true;
+      this.currentFrame = null;
+      this._refillFrames();
+    }
+  },
+
+  /**
    * Called soon after the thread client's framescleared notification.
    */
   _afterFramesCleared: function() {
@@ -647,8 +695,10 @@ StackFrames.prototype = {
    *
    * @param number aDepth
    *        The depth of the frame in the stack.
+   * @param boolean aDontSwitchSources
+   *        Flag on whether or not we want to switch the selected source.
    */
-  selectFrame: function(aDepth) {
+  selectFrame: function(aDepth, aDontSwitchSources) {
     // Make sure the frame at the specified depth exists first.
     let frame = this.activeThread.cachedFrames[this.currentFrame = aDepth];
     if (!frame) {
@@ -661,8 +711,11 @@ StackFrames.prototype = {
       return;
     }
 
+    let noSwitch = this._dontSwitchSources;
+    this._dontSwitchSources = false;
+
     // Move the editor's caret to the proper url and line.
-    DebuggerView.updateEditor(url, line);
+    DebuggerView.updateEditor(url, line, { noSwitch: noSwitch });
     // Highlight the breakpoint at the specified url and line if it exists.
     DebuggerView.Sources.highlightBreakpoint(url, line);
     // Don't display the watch expressions textbox inputs in the pane.
@@ -821,11 +874,11 @@ StackFrames.prototype = {
     // having the whole watch expressions array throw because of a single
     // faulty expression, simply convert it to a string describing the error.
     // There's no other information necessary to be offered in such cases.
-    let sanitizedExpressions = list.map(function(str) {
+    let sanitizedExpressions = list.map((aString) => {
       // Reflect.parse throws when it encounters a syntax error.
       try {
-        Parser.reflectionAPI.parse(str);
-        return str; // Watch expression can be executed safely.
+        Parser.reflectionAPI.parse(aString);
+        return aString; // Watch expression can be executed safely.
       } catch (e) {
         return "\"" + e.name + ": " + e.message + "\""; // Syntax error.
       }
@@ -835,13 +888,13 @@ StackFrames.prototype = {
       this.syncedWatchExpressions =
         this.currentWatchExpressions =
           "[" +
-            sanitizedExpressions.map(function(str)
+            sanitizedExpressions.map((aString) =>
               "eval(\"" +
                 "try {" +
                   // Make sure all quotes are escaped in the expression's syntax,
                   // and add a newline after the statement to avoid comments
                   // breaking the code integrity inside the eval block.
-                  str.replace(/"/g, "\\$&") + "\" + " + "'\\n'" + " + \"" +
+                  aString.replace(/"/g, "\\$&") + "\" + " + "'\\n'" + " + \"" +
                 "} catch (e) {" +
                   "e.name + ': ' + e.message;" + // TODO: Bug 812765, 812764.
                 "}" +
@@ -862,13 +915,10 @@ StackFrames.prototype = {
  * source script cache.
  */
 function SourceScripts() {
-  this._cache = new Map(); // Can't use a WeakMap because keys are strings.
   this._onNewGlobal = this._onNewGlobal.bind(this);
   this._onNewSource = this._onNewSource.bind(this);
   this._onSourcesAdded = this._onSourcesAdded.bind(this);
-  this._onFetch = this._onFetch.bind(this);
-  this._onTimeout = this._onTimeout.bind(this);
-  this._onFinished = this._onFinished.bind(this);
+  this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
 }
 
 SourceScripts.prototype = {
@@ -883,6 +933,7 @@ SourceScripts.prototype = {
     dumpn("SourceScripts is connecting...");
     this.debuggerClient.addListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.addListener("newSource", this._onNewSource);
+    this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
     this._handleTabNavigation();
   },
 
@@ -897,6 +948,7 @@ SourceScripts.prototype = {
     window.clearTimeout(this._newSourceTimeout);
     this.debuggerClient.removeListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.removeListener("newSource", this._onNewSource);
+    this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
   },
 
   /**
@@ -944,7 +996,7 @@ SourceScripts.prototype = {
     // ..or the first entry if there's none selected yet after a while
     else {
       window.clearTimeout(this._newSourceTimeout);
-      this._newSourceTimeout = window.setTimeout(function() {
+      this._newSourceTimeout = window.setTimeout(() => {
         // If after a certain delay the preferred source still wasn't received,
         // just give up on waiting and display the first entry.
         if (!container.selectedValue) {
@@ -1005,167 +1057,137 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Gets a specified source's text.
-   *
-   * @param object aSource
-   *        The source object coming from the active thread.
-   * @param function aCallback
-   *        Function called after the source text has been loaded.
-   * @param function aTimeout
-   *        Function called when the source text takes too long to fetch.
+   * Handler for the debugger client's 'blackboxchange' notification.
    */
-  getText: function(aSource, aCallback, aTimeout) {
-    // If already loaded, return the source text immediately.
-    if (aSource.loaded) {
-      aCallback(aSource);
-      return;
+  _onBlackBoxChange: function (aEvent, { url, isBlackBoxed }) {
+    const item = DebuggerView.Sources.getItemByValue(url);
+    if (item) {
+      DebuggerView.Sources.callMethod("checkItem", item.target, !isBlackBoxed);
     }
+    DebuggerView.Sources.maybeShowBlackBoxMessage();
+  },
 
-    // If the source text takes too long to fetch, invoke a timeout to
-    // avoid blocking any operations.
-    if (aTimeout) {
-      var fetchTimeout = window.setTimeout(() => {
-        aSource._fetchingTimedOut = true;
-        aTimeout(aSource);
-      }, FETCH_SOURCE_RESPONSE_DELAY);
-    }
-
-    // Get the source text from the active thread.
-    this.activeThread.source(aSource).source((aResponse) => {
-      if (aTimeout) {
-        window.clearTimeout(fetchTimeout);
+  /**
+   * Set the black boxed status of the given source.
+   *
+   * @param Object aSource
+   *        The source form.
+   * @param bool aBlackBoxFlag
+   *        True to black box the source, false to un-black box it.
+   */
+  blackBox: function(aSource, aBlackBoxFlag) {
+    const sourceClient = this.activeThread.source(aSource);
+    sourceClient[aBlackBoxFlag ? "blackBox" : "unblackBox"](function({ error, message }) {
+      if (error) {
+        let msg = "Could not toggle black boxing for "
+          + aSource.url + ": " + message;
+        dumpn(msg);
+        return void Cu.reportError(msg);
       }
-      if (aResponse.error) {
-        Cu.reportError("Error loading: " + aSource.url + "\n" + aResponse.message);
-        return void aCallback(aSource);
-      }
-      aSource.loaded = true;
-      aSource.text = aResponse.source;
-      aCallback(aSource);
     });
   },
 
   /**
-   * Gets all the fetched sources.
+   * Gets a specified source's text.
    *
-   * @return array
-   *         An array containing [url, text] entries for the fetched sources.
+   * @param object aSource
+   *        The source object coming from the active thread.
+   * @param function aOnTimeout [optional]
+   *        Function called when the source text takes a long time to fetch,
+   *        but not necessarily failing. Long fetch times don't cause the
+   *        rejection of the returned promise.
+   * @param number aDelay [optional]
+   *        The amount of time it takes to consider a source slow to fetch.
+   *        If unspecified, it defaults to a predefined value.
+   * @return object
+   *         A promise that is resolved after the source text has been fetched.
    */
-  getCache: function() {
-    let sources = [];
-    for (let source of this._cache) {
-      sources.push(source);
+  getTextForSource: function(aSource, aOnTimeout, aDelay = FETCH_SOURCE_RESPONSE_DELAY) {
+    // Fetch the source text only once.
+    if (aSource._fetched) {
+      return aSource._fetched;
     }
-    return sources.sort(([first], [second]) => first > second);
-  },
 
-  /**
-   * Clears all the fetched sources from cache.
-   */
-  clearCache: function() {
-    this._cache.clear();
+    let deferred = promise.defer();
+    aSource._fetched = deferred.promise;
+
+    // If the source text takes a long time to fetch, invoke a callback.
+    if (aOnTimeout) {
+      var fetchTimeout = window.setTimeout(() => aOnTimeout(aSource), aDelay);
+    }
+
+    // Get the source text from the active thread.
+    this.activeThread.source(aSource).source((aResponse) => {
+      if (aOnTimeout) {
+        window.clearTimeout(fetchTimeout);
+      }
+      if (aResponse.error) {
+        deferred.reject([aSource, aResponse.message]);
+      } else {
+        deferred.resolve([aSource, aResponse.source]);
+      }
+    });
+
+    return deferred.promise;
   },
 
   /**
    * Starts fetching all the sources, silently.
    *
    * @param array aUrls
-   *        The urls for the sources to fetch.
-   * @param object aCallbacks [optional]
-   *        An object containing the callback functions to invoke:
-   *          - onFetch: optional, called after each source is fetched
-   *          - onTimeout: optional, called when a source takes too long to fetch
-   *          - onFinished: called when all the sources are fetched
+   *        The urls for the sources to fetch. If fetching a source's text
+   *        takes too long, it will be discarded.
+   * @return object
+   *         A promise that is resolved after source texts have been fetched.
    */
-  fetchSources: function(aUrls, aCallbacks = {}) {
-    this._fetchQueue = new Set();
-    this._fetchCallbacks = aCallbacks;
+  getTextForSources: function(aUrls) {
+    let deferred = promise.defer();
+    let pending = new Set(aUrls);
+    let fetched = [];
 
-    // Add each new source which needs to be fetched in a queue.
+    // Can't use Promise.all, because if one fetch operation is rejected, then
+    // everything is considered rejected, thus no other subsequent source will
+    // be getting fetched. We don't want that. Something like Q's allSettled
+    // would work like a charm here.
+
+    // Try to fetch as many sources as possible.
     for (let url of aUrls) {
-      if (!this._cache.has(url)) {
-        this._fetchQueue.add(url);
+      let sourceItem = DebuggerView.Sources.getItemByValue(url);
+      let sourceClient = sourceItem.attachment.source;
+      this.getTextForSource(sourceClient, onTimeout).then(onFetch, onError);
+    }
+
+    /* Called if fetching a source takes too long. */
+    function onTimeout(aSource) {
+      onError([aSource]);
+    }
+
+    /* Called if fetching a source finishes successfully. */
+    function onFetch([aSource, aText]) {
+      // If fetching the source has previously timed out, discard it this time.
+      if (!pending.has(aSource.url)) {
+        return;
+      }
+      pending.delete(aSource.url);
+      fetched.push([aSource.url, aText]);
+      maybeFinish();
+    }
+
+    /* Called if fetching a source failed because of an error. */
+    function onError([aSource, aError]) {
+      pending.delete(aSource.url);
+      maybeFinish();
+    }
+
+    /* Called every time something interesting happens while fetching sources. */
+    function maybeFinish() {
+      if (pending.size == 0) {
+        deferred.resolve(fetched.sort(([aFirst], [aSecond]) => aFirst > aSecond));
       }
     }
 
-    // If all the sources were already fetched, don't do anything special.
-    if (this._fetchQueue.size == 0) {
-      this._onFinished();
-      return;
-    }
-
-    // Start fetching each new source.
-    for (let url of this._fetchQueue) {
-      let sourceItem = DebuggerView.Sources.getItemByValue(url);
-      let sourceObject = sourceItem.attachment.source;
-      this.getText(sourceObject, this._onFetch, this._onTimeout);
-    }
-  },
-
-  /**
-   * Called when a source has been fetched via fetchSources().
-   *
-   * @param object aSource
-   *        The source object coming from the active thread.
-   */
-  _onFetch: function(aSource) {
-    // Remember the source in a cache so we don't have to fetch it again.
-    this._cache.set(aSource.url, aSource.text);
-
-    // Fetch completed before timeout, remove the source from the fetch queue.
-    this._fetchQueue.delete(aSource.url);
-
-    // If this fetch was eventually completed at some point after a timeout,
-    // don't call any subsequent event listeners.
-    if (aSource._fetchingTimedOut) {
-      return;
-    }
-
-    // Invoke the source fetch callback if provided via fetchSources();
-    if (this._fetchCallbacks.onFetch) {
-      this._fetchCallbacks.onFetch(aSource);
-    }
-
-    // Check if all sources were fetched and stored in the cache.
-    if (this._fetchQueue.size == 0) {
-      this._onFinished();
-    }
-  },
-
-  /**
-   * Called when a source's text takes too long to fetch via fetchSources().
-   *
-   * @param object aSource
-   *        The source object coming from the active thread.
-   */
-  _onTimeout: function(aSource) {
-    // Remove the source from the fetch queue.
-    this._fetchQueue.delete(aSource.url);
-
-    // Invoke the source timeout callback if provided via fetchSources();
-    if (this._fetchCallbacks.onTimeout) {
-      this._fetchCallbacks.onTimeout(aSource);
-    }
-
-    // Check if the remaining sources were fetched and stored in the cache.
-    if (this._fetchQueue.size == 0) {
-      this._onFinished();
-    }
-  },
-
-  /**
-   * Called when all the sources have been fetched.
-   */
-  _onFinished: function() {
-    // Invoke the finish callback if provided via fetchSources();
-    if (this._fetchCallbacks.onFinished) {
-      this._fetchCallbacks.onFinished();
-    }
-  },
-
-  _cache: null,
-  _fetchQueue: null,
-  _fetchCallbacks: null
+    return deferred.promise;
+  }
 };
 
 /**

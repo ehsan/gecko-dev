@@ -4,14 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/JSONSpewer.h"
+
 #include <stdarg.h>
 
-#include "JSONSpewer.h"
-#include "LIR.h"
-#include "MIR.h"
-#include "MIRGraph.h"
-#include "LinearScan.h"
-#include "RangeAnalysis.h"
+#include "ion/LinearScan.h"
+#include "ion/LIR.h"
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
+#include "ion/RangeAnalysis.h"
+
 using namespace js;
 using namespace js::ion;
 
@@ -251,7 +253,7 @@ JSONSpewer::spewMDef(MDefinition *def)
     endList();
 
     beginListProperty("inputs");
-    for (size_t i = 0; i < def->numOperands(); i++)
+    for (size_t i = 0, e = def->numOperands(); i < e; i++)
         integerValue(def->getOperand(i)->id());
     endList();
 

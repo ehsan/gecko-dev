@@ -7,10 +7,11 @@
 #ifndef ion_BacktrackingAllocator_h
 #define ion_BacktrackingAllocator_h
 
-#include "LiveRangeAllocator.h"
+#include "mozilla/Array.h"
 
 #include "ds/PriorityQueue.h"
 #include "ds/SplayTree.h"
+#include "ion/LiveRangeAllocator.h"
 
 // Backtracking priority queue based register allocator based on that described
 // in the following blog post:
@@ -160,7 +161,7 @@ class BacktrackingAllocator : public LiveRangeAllocator<BacktrackingVirtualRegis
 
         PhysicalRegister() : allocatable(false) {}
     };
-    FixedArityList<PhysicalRegister, AnyRegister::Total> registers;
+    mozilla::Array<PhysicalRegister, AnyRegister::Total> registers;
 
     // Ranges of code which are considered to be hot, for which good allocation
     // should be prioritized.

@@ -292,7 +292,7 @@ OptionsView.prototype = {
       window.removeEventListener("Debugger:OptionsPopupHidden", reconfigure, false);
 
       // The popup panel needs more time to hide after triggering onpopuphidden.
-      window.setTimeout(function() {
+      window.setTimeout(() => {
         DebuggerController.reconfigureThread(pref);
       }, POPUP_HIDDEN_DELAY);
     }
@@ -424,8 +424,10 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
    *        The line number to be displayed in the list.
    * @param number aDepth
    *        The frame depth specified by the debugger.
+   * @param boolean aIsBlackBoxed
+   *        Whether or not the frame is black boxed.
    */
-  addFrame: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth) {
+  addFrame: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth, aIsBlackBoxed) {
     // Create the element node and menu entry for the stack frame item.
     let frameView = this._createFrameView.apply(this, arguments);
     let menuEntry = this._createMenuEntry.apply(this, arguments);
@@ -471,29 +473,35 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
    *        The line number to be displayed in the list.
    * @param number aDepth
    *        The frame depth specified by the debugger.
+   * @param boolean aIsBlackBoxed
+   *        Whether or not the frame is black boxed.
    * @return nsIDOMNode
    *         The stack frame view.
    */
-  _createFrameView: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth) {
-    let frameDetails =
-      SourceUtils.trimUrlLength(
-        SourceUtils.getSourceLabel(aSourceLocation),
-        STACK_FRAMES_SOURCE_URL_MAX_LENGTH,
-        STACK_FRAMES_SOURCE_URL_TRIM_SECTION) + SEARCH_LINE_FLAG + aLineNumber;
-
-    let frameTitleNode = document.createElement("label");
-    frameTitleNode.className = "plain dbg-stackframe-title breadcrumbs-widget-item-tag";
-    frameTitleNode.setAttribute("value", aFrameTitle);
-
-    let frameDetailsNode = document.createElement("label");
-    frameDetailsNode.className = "plain dbg-stackframe-details breadcrumbs-widget-item-id";
-    frameDetailsNode.setAttribute("value", frameDetails);
-
+  _createFrameView: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth, aIsBlackBoxed) {
     let container = document.createElement("hbox");
     container.id = "stackframe-" + aDepth;
     container.className = "dbg-stackframe";
 
-    container.appendChild(frameTitleNode);
+    let frameDetails = SourceUtils.trimUrlLength(
+      SourceUtils.getSourceLabel(aSourceLocation),
+      STACK_FRAMES_SOURCE_URL_MAX_LENGTH,
+      STACK_FRAMES_SOURCE_URL_TRIM_SECTION);
+
+    if (aIsBlackBoxed) {
+      container.classList.add("dbg-stackframe-black-boxed");
+    } else {
+      let frameTitleNode = document.createElement("label");
+      frameTitleNode.className = "plain dbg-stackframe-title breadcrumbs-widget-item-tag";
+      frameTitleNode.setAttribute("value", aFrameTitle);
+      container.appendChild(frameTitleNode);
+
+      frameDetails += SEARCH_LINE_FLAG + aLineNumber;
+    }
+
+    let frameDetailsNode = document.createElement("label");
+    frameDetailsNode.className = "plain dbg-stackframe-details breadcrumbs-widget-item-id";
+    frameDetailsNode.setAttribute("value", frameDetails);
     container.appendChild(frameDetailsNode);
 
     return container;
@@ -510,10 +518,12 @@ StackFramesView.prototype = Heritage.extend(WidgetMethods, {
    *        The line number to be displayed in the list.
    * @param number aDepth
    *        The frame depth specified by the debugger.
+   * @param boolean aIsBlackBoxed
+   *        Whether or not the frame is black boxed.
    * @return object
    *         An object containing the stack frame command and menu item.
    */
-  _createMenuEntry: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth) {
+  _createMenuEntry: function(aFrameTitle, aSourceLocation, aLineNumber, aDepth, aIsBlackBoxed) {
     let frameDescription =
       SourceUtils.trimUrlLength(
         SourceUtils.getSourceLabel(aSourceLocation),
@@ -707,6 +717,7 @@ FilterView.prototype = {
 
     this._searchbox = document.getElementById("searchbox");
     this._searchboxHelpPanel = document.getElementById("searchbox-help-panel");
+    this._filterLabel = document.getElementById("filter-label");
     this._globalOperatorButton = document.getElementById("global-operator-button");
     this._globalOperatorLabel = document.getElementById("global-operator-label");
     this._functionOperatorButton = document.getElementById("function-operator-button");
@@ -737,6 +748,8 @@ FilterView.prototype = {
     this._lineOperatorButton.setAttribute("label", SEARCH_LINE_FLAG);
     this._variableOperatorButton.setAttribute("label", SEARCH_VARIABLE_FLAG);
 
+    this._filterLabel.setAttribute("value",
+      L10N.getFormatStr("searchPanelFilter", this._fileSearchKey));
     this._globalOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelGlobal", this._globalSearchKey));
     this._functionOperatorLabel.setAttribute("value",
@@ -744,7 +757,7 @@ FilterView.prototype = {
     this._tokenOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelToken", this._tokenSearchKey));
     this._lineOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelLine", this._lineSearchKey));
+      L10N.getFormatStr("searchPanelGoToLine", this._lineSearchKey));
     this._variableOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelVariable", this._variableSearchKey));
 
@@ -780,7 +793,7 @@ FilterView.prototype = {
         placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", this._fileSearchKey);
         break;
       case DebuggerView.Sources:
-        placeholder = L10N.getFormatStr("emptyFilterText", this._fileSearchKey);
+        placeholder = L10N.getFormatStr("emptySearchText", this._fileSearchKey);
         break;
     }
     this._searchbox.setAttribute("placeholder", placeholder);
@@ -1189,7 +1202,7 @@ FilterView.prototype = {
   _doSearch: function(aOperator = "") {
     this._searchbox.focus();
     this._searchbox.value = ""; // Need to clear value beforehand. Bug 779738.
-    this._searchbox.value = aOperator;
+    this._searchbox.value = aOperator + DebuggerView.getEditorSelectionText();
   },
 
   /**
@@ -1446,16 +1459,17 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
   _startSearch: function(aQuery) {
     this._searchedToken = aQuery;
 
-    DebuggerController.SourceScripts.fetchSources(DebuggerView.Sources.values, {
-      onFinished: this._performFunctionSearch
-    });
+    // Start fetching as many sources as possible, then perform the search.
+    DebuggerController.SourceScripts
+      .getTextForSources(DebuggerView.Sources.values)
+      .then(this._performFunctionSearch);
   },
 
   /**
    * Finds function matches in all the sources stored in the cache, and groups
    * them by location and line number.
    */
-  _performFunctionSearch: function() {
+  _performFunctionSearch: function(aSources) {
     // Get the currently searched token from the filtering input.
     // Continue parsing even if the searched token is an empty string, to
     // cache the syntax tree nodes generated by the reflection API.
@@ -1463,19 +1477,18 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
 
     // Make sure the currently displayed source is parsed first. Once the
     // maximum allowed number of resutls are found, parsing will be halted.
-    let sourcesCache = DebuggerController.SourceScripts.getCache();
     let currentUrl = DebuggerView.Sources.selectedValue;
-    sourcesCache.sort(function([sourceUrl]) sourceUrl == currentUrl ? -1 : 1);
+    aSources.sort(([sourceUrl]) => sourceUrl == currentUrl ? -1 : 1);
 
     // If not searching for a specific function, only parse the displayed source.
     if (!token) {
-      sourcesCache.splice(1);
+      aSources.splice(1);
     }
 
     // Prepare the results array, containing search details for each source.
     let searchResults = [];
 
-    for (let [location, contents] of sourcesCache) {
+    for (let [location, contents] of aSources) {
       let parserMethods = DebuggerController.Parser.get(location, contents);
       let sourceResults = parserMethods.getNamedFunctionDefinitions(token);
 

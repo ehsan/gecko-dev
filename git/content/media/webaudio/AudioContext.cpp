@@ -49,8 +49,8 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
                            uint32_t aLength,
                            float aSampleRate)
   : mSampleRate(aIsOffline ? aSampleRate : IdealAudioRate())
-  , mDestination(new AudioDestinationNode(this, aIsOffline,
-                                          aNumberOfChannels,
+  , mDestination(new AudioDestinationNode(MOZ_THIS_IN_INITIALIZER_LIST(),
+                                          aIsOffline, aNumberOfChannels,
                                           aLength, aSampleRate))
   , mNumberOfChannels(aNumberOfChannels)
   , mIsOffline(aIsOffline)
@@ -406,6 +406,9 @@ void
 AudioContext::UnregisterPannerNode(PannerNode* aNode)
 {
   mPannerNodes.RemoveEntry(aNode);
+  if (mListener) {
+    mListener->UnregisterPannerNode(aNode);
+  }
 }
 
 void

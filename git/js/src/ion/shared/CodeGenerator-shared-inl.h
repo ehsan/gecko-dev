@@ -7,6 +7,8 @@
 #ifndef ion_shared_CodeGenerator_shared_inl_h
 #define ion_shared_CodeGenerator_shared_inl_h
 
+#include "ion/shared/CodeGenerator-shared.h"
+
 namespace js {
 namespace ion {
 
@@ -17,8 +19,7 @@ ToInt32(const LAllocation *a)
         return a->toConstant()->toInt32();
     if (a->isConstantIndex())
         return a->toConstantIndex()->index();
-    JS_NOT_REACHED("this is not a constant!");
-    return -1;
+    MOZ_ASSUME_UNREACHABLE("this is not a constant!");
 }
 static inline double
 ToDouble(const LAllocation *a)

@@ -248,7 +248,8 @@ DelayNode::DelayNode(AudioContext* aContext, double aMaxDelay)
               ChannelCountMode::Max,
               ChannelInterpretation::Speakers)
   , mMediaStreamGraphUpdateIndexAtLastInputConnection(0)
-  , mDelay(new AudioParam(this, SendDelayToStream, 0.0f))
+  , mDelay(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+                          SendDelayToStream, 0.0f))
 {
   DelayNodeEngine* engine = new DelayNodeEngine(this, aContext->Destination());
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);

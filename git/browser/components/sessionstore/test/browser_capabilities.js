@@ -30,6 +30,11 @@ function runTests() {
   docShell.allowImages = false;
   docShell.allowMetaRedirects = false;
 
+  // Now reload the document to ensure that these capabilities
+  // are taken into account
+  browser.reload();
+  yield whenBrowserLoaded(browser);
+
   // Check that we correctly save disallowed features.
   let disallowedState = JSON.parse(ss.getTabState(tab));
   let disallow = new Set(disallowedState.disallow.split(","));
@@ -38,7 +43,7 @@ function runTests() {
   is(disallow.size, 2, "two capabilities disallowed");
 
   // Reuse the tab to restore a new, clean state into it.
-  ss.setTabState(tab, JSON.stringify({ entries: [{url: "about:home"}] }));
+  ss.setTabState(tab, JSON.stringify({ entries: [{url: "about:robots"}] }));
   yield waitForLoad(browser);
 
   // After restoring disallowed features must be available again.
@@ -52,7 +57,7 @@ function runTests() {
 
   // Check that docShell flags are set.
   ok(!docShell.allowImages, "images not allowed");
-  ok(!docShell.allowMetaRedirects, "meta redirects not allowed")
+  ok(!docShell.allowMetaRedirects, "meta redirects not allowed");
 
   // Check that we correctly restored features as disabled.
   state = JSON.parse(ss.getTabState(tab));

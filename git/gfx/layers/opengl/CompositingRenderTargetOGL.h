@@ -23,7 +23,6 @@ namespace layers {
 
 class CompositingRenderTargetOGL : public CompositingRenderTarget
 {
-  typedef gfxASurface::gfxContentType ContentType;
   typedef mozilla::gl::GLContext GLContext;
 
   // For lazy initialisation of the GL stuff
@@ -151,6 +150,13 @@ public:
     return gfx::IntSize(0, 0);
   }
 
+  gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE
+  {
+    // XXX - Should it be implemented ? is the above assert true ?
+    MOZ_ASSERT(false, "Not implemented");
+    return gfx::FORMAT_UNKNOWN;
+  }
+
   const gfxMatrix& GetTransform() {
     return mTransform;
   }
@@ -160,7 +166,7 @@ public:
   {
     MOZ_ASSERT(mInitParams.mStatus == InitParams::INITIALIZED);
     CompositorOGL* compositorOGL = static_cast<CompositorOGL*>(aCompositor);
-    return mGL->GetTexImage(mTextureHandle, true, compositorOGL->GetFBOLayerProgramType());
+    return mGL->GetTexImage(mTextureHandle, true, compositorOGL->GetFBOFormat());
   }
 #endif
 
@@ -185,9 +191,9 @@ private:
     GLenum result = mGL->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
     if (result != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
       nsAutoCString msg;
-      msg.AppendPrintf("Framebuffer not complete -- error 0x%x, aFBOTextureTarget 0x%x, aRect.width %d, aRect.height %d",
-                       result, mInitParams.mFBOTextureTarget, mInitParams.mSize.width, mInitParams.mSize.height);
-      NS_RUNTIMEABORT(msg.get());
+      msg.AppendPrintf("Framebuffer not complete -- error 0x%x, aFBOTextureTarget 0x%x, mFBO %d, mTextureHandle %d, aRect.width %d, aRect.height %d",
+                       result, mInitParams.mFBOTextureTarget, mFBO, mTextureHandle, mInitParams.mSize.width, mInitParams.mSize.height);
+      NS_ERROR(msg.get());
     }
 
     mCompositor->PrepareViewport(mInitParams.mSize, mTransform);

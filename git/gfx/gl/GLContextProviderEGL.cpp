@@ -67,7 +67,7 @@ using namespace android;
 // a little helper
 class AutoDestroyHWND {
 public:
-    AutoDestroyHWND(HWND aWnd = NULL)
+    AutoDestroyHWND(HWND aWnd = nullptr)
         : mWnd(aWnd)
     {
     }
@@ -84,7 +84,7 @@ public:
 
     HWND forget() {
         HWND w = mWnd;
-        mWnd = NULL;
+        mWnd = nullptr;
         return w;
     }
 
@@ -120,6 +120,7 @@ public:
 
 #include "gfxCrashReporterUtils.h"
 
+using namespace mozilla::gfx;
 
 #if defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_WIDGET_GONK)
 static bool gUseBackingSurface = true;
@@ -269,7 +270,7 @@ public:
         , mTemporaryEGLImageTexture(0)
     {
         // any EGL contexts will always be GLESv2
-        SetIsGLES2(true);
+        SetProfileVersion(ContextProfile::OpenGLES, 200);
 
 #ifdef DEBUG
         printf_stderr("Initializing context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
@@ -554,7 +555,7 @@ public:
 #else
             EGLConfig config;
             CreateConfig(&config);
-            mSurface = CreateSurfaceForWindow(NULL, config);
+            mSurface = CreateSurfaceForWindow(nullptr, config);
 #endif
         }
         return sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
@@ -569,7 +570,7 @@ public:
             sEGLLibrary.fMakeCurrent(EGL_DISPLAY(), EGL_NO_SURFACE, EGL_NO_SURFACE,
                                      EGL_NO_CONTEXT);
             sEGLLibrary.fDestroySurface(EGL_DISPLAY(), mSurface);
-            mSurface = NULL;
+            mSurface = nullptr;
         }
     }
 
@@ -981,7 +982,7 @@ bool GLContextEGL::GetSharedHandleDetails(SharedTextureShareType shareType,
         SurfaceTextureWrapper* surfaceWrapper = reinterpret_cast<SurfaceTextureWrapper*>(wrapper);
 
         details.mTarget = LOCAL_GL_TEXTURE_EXTERNAL;
-        details.mProgramType = RGBALayerExternalProgramType;
+        details.mTextureFormat = FORMAT_R8G8B8A8;
         surfaceWrapper->SurfaceTexture()->GetTransformMatrix(details.mTextureTransform);
         break;
     }
@@ -989,7 +990,7 @@ bool GLContextEGL::GetSharedHandleDetails(SharedTextureShareType shareType,
 
     case SharedHandleType::Image:
         details.mTarget = LOCAL_GL_TEXTURE_2D;
-        details.mProgramType = RGBALayerProgramType;
+        details.mTextureFormat = FORMAT_R8G8B8A8;
         break;
 
     default:
@@ -1117,21 +1118,21 @@ public:
 
         if (gUseBackingSurface) {
             if (mUpdateFormat != gfxASurface::ImageFormatARGB32) {
-                mShaderType = RGBXLayerProgramType;
+                mTextureFormat = FORMAT_R8G8B8X8;
             } else {
-                mShaderType = RGBALayerProgramType;
+                mTextureFormat = FORMAT_R8G8B8A8;
             }
             Resize(aSize);
         } else {
             if (mUpdateFormat == gfxASurface::ImageFormatRGB16_565) {
-                mShaderType = RGBXLayerProgramType;
+                mTextureFormat = FORMAT_R8G8B8X8;
             } else if (mUpdateFormat == gfxASurface::ImageFormatRGB24) {
                 // RGB24 means really RGBX for Thebes, which means we have to
                 // use the right shader and ignore the uninitialized alpha
                 // value.
-                mShaderType = BGRXLayerProgramType;
+                mTextureFormat = FORMAT_B8G8R8X8;
             } else {
-                mShaderType = BGRALayerProgramType;
+                mTextureFormat = FORMAT_B8G8R8A8;
             }
         }
     }
@@ -1190,7 +1191,7 @@ public:
         //printf_stderr("BeginUpdate with updateRect [%d %d %d %d]\n", mUpdateRect.x, mUpdateRect.y, mUpdateRect.width, mUpdateRect.height);
         if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(mUpdateRect)) {
             NS_ERROR("update outside of image");
-            return NULL;
+            return nullptr;
         }
 
         if (mBackingSurface) {
@@ -1296,7 +1297,7 @@ public:
             region = aRegion;
         }
 
-        mShaderType =
+        mTextureFormat =
           mGLContext->UploadSurfaceToTexture(aSurf,
                                               region,
                                               mTexture,
@@ -1356,7 +1357,7 @@ public:
                                     0,
                                     GLFormatForImage(mUpdateFormat),
                                     GLTypeForImage(mUpdateFormat),
-                                    NULL);
+                                    nullptr);
         }
 
         mTextureState = Allocated;
