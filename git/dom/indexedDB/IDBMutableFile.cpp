@@ -169,7 +169,6 @@ IDBMutableFile::Create(IDBDatabase* aDatabase,
                                                               &group,
                                                               &origin,
                                                               nullptr,
-                                                              nullptr,
                                                               nullptr)))) {
     return nullptr;
   }
@@ -319,6 +318,11 @@ IDBMutableFile::Open(FileMode aMode, ErrorResult& aError)
 
   if (QuotaManager::IsShuttingDown() || FileService::IsShuttingDown()) {
     aError.Throw(NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
+    return nullptr;
+  }
+
+  if (mInvalidated) {
+    aError.Throw(NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR);
     return nullptr;
   }
 

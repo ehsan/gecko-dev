@@ -21,7 +21,6 @@
 #include "ArrayCluster.h"
 #include "Client.h"
 #include "PersistenceType.h"
-#include "StoragePrivilege.h"
 
 #define QUOTA_MANAGER_CONTRACTID "@mozilla.org/dom/quota/manager;1"
 
@@ -334,7 +333,6 @@ public:
                  PersistenceType aPersistenceType,
                  nsACString* aGroup,
                  nsACString* aOrigin,
-                 StoragePrivilege* aPrivilege,
                  bool* aIsApp,
                  bool* aHasUnlimStoragePerm);
 
@@ -343,7 +341,6 @@ public:
                        PersistenceType aPersistenceType,
                        nsACString* aGroup,
                        nsACString* aOrigin,
-                       StoragePrivilege* aPrivilege,
                        bool* aIsApp,
                        bool* aHasUnlimStoragePerm);
 
@@ -352,14 +349,12 @@ public:
                     PersistenceType aPersistenceType,
                     nsACString* aGroup,
                     nsACString* aOrigin,
-                    StoragePrivilege* aPrivilege,
                     bool* aIsApp,
                     bool* aHasUnlimStoragePerm);
 
   static void
   GetInfoForChrome(nsACString* aGroup,
                    nsACString* aOrigin,
-                   StoragePrivilege* aPrivilege,
                    bool* aIsApp,
                    bool* aHasUnlimStoragePerm);
 

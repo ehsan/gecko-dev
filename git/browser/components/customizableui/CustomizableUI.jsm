@@ -51,10 +51,17 @@ const kSubviewEvents = [
 ];
 
 /**
+ * The method name to use for ES6 iteration. If Symbols are enabled in
+ * this build, use Symbol.iterator; otherwise "@@iterator".
+ */
+const JS_HAS_SYMBOLS = typeof Symbol === "function";
+const kIteratorSymbol = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
+
+/**
  * The current version. We can use this to auto-add new default widgets as necessary.
  * (would be const but isn't because of testing purposes)
  */
-let kVersion = 3;
+let kVersion = 4;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed
@@ -210,7 +217,7 @@ let CustomizableUIInternal = {
       "bookmarks-menu-button",
       "downloads-button",
       "home-button",
-      "loop-button-throttled",
+      "loop-button",
     ];
 
     if (Services.prefs.getBoolPref(kPrefWebIDEInNavbar)) {
@@ -312,6 +319,10 @@ let CustomizableUIInternal = {
     if (currentVersion < 2) {
       // Nuke the old 'loop-call-button' out of orbit.
       CustomizableUI.removeWidgetFromArea("loop-call-button");
+    }
+
+    if (currentVersion < 4) {
+      CustomizableUI.removeWidgetFromArea("loop-button-throttled");
     }
   },
 
@@ -2699,7 +2710,7 @@ this.CustomizableUI = {
    *     for (let window of CustomizableUI.windows) { ... }
    */
   windows: {
-    "@@iterator": function*() {
+    *[kIteratorSymbol]() {
       for (let [window,] of gBuildWindows)
         yield window;
     }

@@ -254,9 +254,7 @@
       <method name="offerNewEngine">
         <parameter name="aEngine"/>
         <body><![CDATA[
-          var allbrowsers = getBrowser().mPanelContainer.childNodes;
-          for (var tab = 0; tab < allbrowsers.length; tab++) {
-            var browser = getBrowser().getBrowserAtIndex(tab);
+          for (let browser of gBrowser.browsers) {
             if (browser.hiddenEngines) {
               // XXX This will need to be changed when engines are identified by
               // URL rather than title; see bug 335102.
@@ -281,9 +279,7 @@
       <method name="hideNewEngine">
         <parameter name="aEngine"/>
         <body><![CDATA[
-          var allbrowsers = getBrowser().mPanelContainer.childNodes;
-          for (var tab = 0; tab < allbrowsers.length; tab++) {
-            var browser = getBrowser().getBrowserAtIndex(tab);
+          for (let browser of gBrowser.browsers) {
             if (browser.engines) {
               // XXX This will need to be changed when engines are identified by
               // URL rather than title; see bug 335102.
@@ -322,7 +318,7 @@
           var text = this._stringBundle.getFormattedString("searchtip", [name]);
 
           if (Services.prefs.getBoolPref("browser.search.showOneOffButtons"))
-            this._textbox.placeholder = "Search";
+            this._textbox.placeholder = this._stringBundle.getString("searchPlaceholder");
           else
             this._textbox.placeholder = name;
 
@@ -633,6 +629,12 @@
         ]]></body>
       </method>
 
+      <method name="inputChanged">
+        <body><![CDATA[
+          this.updateGoButtonVisibility();
+        ]]></body>
+      </method>
+
       <method name="updateGoButtonVisibility">
         <body><![CDATA[
           document.getAnonymousElementByAttribute(this, "anonid",
@@ -661,8 +663,8 @@
       </method>
     </implementation>
     <handlers>
-      <handler event="input" action="this.updateGoButtonVisibility();"/>
-      <handler event="drop" action="this.updateGoButtonVisibility();"/>
+      <handler event="input" action="this.inputChanged();"/>
+      <handler event="drop" action="this.inputChanged();"/>
       <handler event="focus">
       <![CDATA[
         if (this._textbox.value)

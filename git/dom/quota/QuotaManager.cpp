@@ -389,8 +389,7 @@ public:
                            void* aClosure);
 
   void
-  DeleteFiles(QuotaManager* aQuotaManager,
-              PersistenceType aPersistenceType);
+  DeleteFiles(QuotaManager* aQuotaManager);
 
 private:
   ~ResetOrClearRunnable() {}
@@ -1271,7 +1270,7 @@ QuotaManager::DecreaseUsageForOrigin(PersistenceType aPersistenceType,
                                      const nsACString& aOrigin,
                                      int64_t aSize)
 {
-  AssertIsOnIOThread();
+  MOZ_ASSERT(!NS_IsMainThread());
 
   MutexAutoLock lock(mQuotaMutex);
 
@@ -2295,6 +2294,7 @@ QuotaManager::ResetOrClearCompleted()
 
   mInitializedOrigins.Clear();
   mTemporaryStorageInitialized = false;
+  mStorageAreaInitialized = false;
 
   ReleaseIOThreadObjects();
 }
@@ -2357,7 +2357,6 @@ QuotaManager::GetInfoFromURI(nsIURI* aURI,
                              PersistenceType aPersistenceType,
                              nsACString* aGroup,
                              nsACString* aOrigin,
-                             StoragePrivilege* aPrivilege,
                              bool* aIsApp,
                              bool* aHasUnlimStoragePerm)
 {
@@ -2373,7 +2372,7 @@ QuotaManager::GetInfoFromURI(nsIURI* aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = GetInfoFromPrincipal(principal, aPersistenceType, aGroup, aOrigin,
-                            aPrivilege, aIsApp, aHasUnlimStoragePerm);
+                            aIsApp, aHasUnlimStoragePerm);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -2383,7 +2382,6 @@ static nsresult
 TryGetInfoForAboutURI(nsIPrincipal* aPrincipal,
                       nsACString& aGroup,
                       nsACString& aASCIIOrigin,
-                      StoragePrivilege* aPrivilege,
                       bool* aIsApp,
                       bool* aHasUnlimStoragePerm)
 {
@@ -2431,10 +2429,6 @@ TryGetInfoForAboutURI(nsIPrincipal* aPrincipal,
   aGroup.Assign(origin);
   aASCIIOrigin.Assign(origin);
 
-  if (aPrivilege) {
-    *aPrivilege = Content;
-  }
-
   if (aIsApp) {
     *aIsApp = false;
   }
@@ -2461,7 +2455,6 @@ QuotaManager::GetInfoFromPrincipal(nsIPrincipal* aPrincipal,
                                    PersistenceType aPersistenceType,
                                    nsACString* aGroup,
                                    nsACString* aOrigin,
-                                   StoragePrivilege* aPrivilege,
                                    bool* aIsApp,
                                    bool* aHasUnlimStoragePerm)
 {
@@ -2470,15 +2463,14 @@ QuotaManager::GetInfoFromPrincipal(nsIPrincipal* aPrincipal,
 
   if (aGroup && aOrigin) {
     nsresult rv = TryGetInfoForAboutURI(aPrincipal, *aGroup, *aOrigin,
-                                        aPrivilege, aIsApp,
-                                        aHasUnlimStoragePerm);
+                                        aIsApp, aHasUnlimStoragePerm);
     if (NS_SUCCEEDED(rv)) {
       return NS_OK;
     }
   }
 
   if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
-    GetInfoForChrome(aGroup, aOrigin, aPrivilege, aIsApp, aHasUnlimStoragePerm);
+    GetInfoForChrome(aGroup, aOrigin, aIsApp, aHasUnlimStoragePerm);
     return NS_OK;
   }
 
@@ -2538,10 +2530,6 @@ QuotaManager::GetInfoFromPrincipal(nsIPrincipal* aPrincipal,
     aOrigin->Assign(jarPrefix + origin);
   }
 
-  if (aPrivilege) {
-    *aPrivilege = Content;
-  }
-
   if (aIsApp) {
     *aIsApp = aPrincipal->GetAppStatus() !=
                 nsIPrincipal::APP_STATUS_NOT_INSTALLED;
@@ -2573,7 +2561,6 @@ QuotaManager::GetInfoFromWindow(nsPIDOMWindow* aWindow,
                                 PersistenceType aPersistenceType,
                                 nsACString* aGroup,
                                 nsACString* aOrigin,
-                                StoragePrivilege* aPrivilege,
                                 bool* aIsApp,
                                 bool* aHasUnlimStoragePerm)
 {
@@ -2587,8 +2574,7 @@ QuotaManager::GetInfoFromWindow(nsPIDOMWindow* aWindow,
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
 
   nsresult rv = GetInfoFromPrincipal(principal, aPersistenceType, aGroup,
-                                     aOrigin, aPrivilege, aIsApp,
-                                     aHasUnlimStoragePerm);
+                                     aOrigin, aIsApp, aHasUnlimStoragePerm);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -2598,7 +2584,6 @@ QuotaManager::GetInfoFromWindow(nsPIDOMWindow* aWindow,
 void
 QuotaManager::GetInfoForChrome(nsACString* aGroup,
                                nsACString* aOrigin,
-                               StoragePrivilege* aPrivilege,
                                bool* aIsApp,
                                bool* aHasUnlimStoragePerm)
 {
@@ -2610,9 +2595,6 @@ QuotaManager::GetInfoForChrome(nsACString* aGroup,
   }
   if (aOrigin) {
     ChromeOrigin(*aOrigin);
-  }
-  if (aPrivilege) {
-    *aPrivilege = Chrome;
   }
   if (aIsApp) {
     *aIsApp = false;
@@ -2697,13 +2679,13 @@ QuotaManager::GetUsageForURI(nsIURI* aURI,
   bool isApp;
   nsresult rv = GetInfoFromURI(aURI, aAppId, aInMozBrowserOnly,
                                PERSISTENCE_TYPE_PERSISTENT, &persistentGroup,
-                               &origin, nullptr, &isApp, nullptr);
+                               &origin, &isApp, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString temporaryGroup;
   rv = GetInfoFromURI(aURI, aAppId, aInMozBrowserOnly,
                       PERSISTENCE_TYPE_TEMPORARY, &temporaryGroup,
-                      nullptr, nullptr, nullptr, nullptr);
+                      nullptr, nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   OriginOrPatternString oops = OriginOrPatternString::FromOrigin(origin);
@@ -2789,7 +2771,7 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
   // Figure out which origin we're dealing with.
   nsCString origin;
   rv = GetInfoFromURI(aURI, aAppId, aInMozBrowserOnly, PERSISTENCE_TYPE_INVALID,
-                      nullptr, &origin, nullptr, nullptr, nullptr);
+                      nullptr, &origin, nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX We don't care about the group, no need to update it for persistence
@@ -4446,8 +4428,7 @@ ResetOrClearRunnable::InvalidateOpenedStorages(
 }
 
 void
-ResetOrClearRunnable::DeleteFiles(QuotaManager* aQuotaManager,
-                                  PersistenceType aPersistenceType)
+ResetOrClearRunnable::DeleteFiles(QuotaManager* aQuotaManager)
 {
   AssertIsOnIOThread();
   NS_ASSERTION(aQuotaManager, "Don't pass me null!");
@@ -4458,7 +4439,7 @@ ResetOrClearRunnable::DeleteFiles(QuotaManager* aQuotaManager,
     do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  rv = directory->InitWithPath(aQuotaManager->GetStoragePath(aPersistenceType));
+  rv = directory->InitWithPath(aQuotaManager->GetStoragePath());
   NS_ENSURE_SUCCESS_VOID(rv);
 
   rv = directory->Remove(true);
@@ -4506,8 +4487,7 @@ ResetOrClearRunnable::Run()
       AdvanceState();
 
       if (mClear) {
-        DeleteFiles(quotaManager, PERSISTENCE_TYPE_PERSISTENT);
-        DeleteFiles(quotaManager, PERSISTENCE_TYPE_TEMPORARY);
+        DeleteFiles(quotaManager);
       }
 
       quotaManager->RemoveQuota();
