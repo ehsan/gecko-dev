@@ -14,8 +14,6 @@ public:
     MozQWidget(nsWindow* receiver, QWidget *parent,
                const char *name, int f);
 
-    ~MozQWidget();
-
     /**
      * Mozilla helper.
      */
