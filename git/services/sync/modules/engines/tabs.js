@@ -41,8 +41,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const TAB_TIME_ATTR = "weave.tabEngine.lastUsed.timeStamp";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/util.js");
 Cu.import("resource://weave/async.js");
@@ -192,13 +190,6 @@ TabStore.prototype = {
     return this._sessionStore;
   },
 
-  get _windowMediator() {
-    let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-                 .getService(Ci.nsIWindowMediator);
-    this.__defineGetter__("_windowMediator", function() { return wm;});
-    return this._windowMediator;
-  },
-
   get _json() {
     let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
     this.__defineGetter__("_json", function() {return json;});
@@ -220,46 +211,38 @@ TabStore.prototype = {
   },
 
   _addFirefoxTabsToRecord: function TabStore__addFirefoxTabs(record) {
-    // Iterate through each tab of each window
-    let enumerator = this._windowMediator.getEnumerator("navigator:browser");
-    while (enumerator.hasMoreElements()) {
-      let window = enumerator.getNext();
-      let tabContainer = window.getBrowser().tabContainer;
-      for each (let tabChild in tabContainer.childNodes) {
-        if (!tabChild.QueryInterface)
-          continue;
-        let tab = tabChild.QueryInterface(Ci.nsIDOMNode);
-        if (!tab)
-          continue;
-        let tabState = this._json.decode(this._sessionStore.getTabState(tab));
+    let session = this._json.decode(this._sessionStore.getBrowserState());
+    for (let i = 0; i < session.windows.length; i++) {
+      let window = session.windows[i];
+      /* For some reason, session store uses one-based array index
+       references, (f.e. in the "selectedWindow" and each tab's
+       "index" properties), so we convert them to and from
+       JavaScript's zero-based indexes as needed. */
+      let windowID = i + 1;
+
+      for (let j = 0; j < window.tabs.length; j++) {
+        let tab = window.tabs[j];
+	//this._sessionStore.getTabState(tab));
 	// Skip empty (i.e. just-opened, no history yet) tabs:
-	if (tabState.entries.length == 0)
+	if (tab.entries.length == 0)
 	  continue;
-
-        // Get the time the tab was last used
-        let lastUsedTimestamp = tab.getAttribute(TAB_TIME_ATTR);
-
-        // Get title of current page
-	let currentPage = tabState.entries[tabState.entries.length - 1];
+	let currentPage = tab.entries[tab.entries.length - 1];
 	/* TODO not always accurate -- if you've hit Back in this tab,
          * then the current page might not be the last entry. Deal
-         * with this later. */
-
-        // Get url history
+         * with this later.
+         */
+        this._log.debug("Wrapping a tab with title " + currentPage.title);
         let urlHistory = [];
 	// Include URLs in reverse order; max out at 10, and skip nulls.
-	for (let i = tabState.entries.length -1; i >= 0; i--) {
-          let entry = tabState.entries[i];
+	for (let i = tab.entries.length -1; i >= 0; i--) {
+          let entry = tab.entries[i];
 	  if (entry && entry.url)
 	    urlHistory.push(entry.url);
 	  if (urlHistory.length >= 10)
 	    break;
 	}
-
-        // add tab to record
-        this._log.debug("Wrapping a tab with title " + currentPage.title);
-        this._log.debug("And timestamp " + lastUsedTimestamp);
-        record.addTab(currentPage.title, urlHistory, lastUsedTimestamp);
+        // TODO add last-visited date for this tab... but how?
+        record.addTab(currentPage.title, urlHistory);
       }
     }
   },
@@ -272,19 +255,10 @@ TabStore.prototype = {
       let title = tab.browser.contentDocument.title;
       let url = tab.browser.contentWindow.location.toString();
       let urlHistory = [url];
-
-      // TODO how to get older entries in urlHistory? without session store?
-      // can we use BrowserUI._getHistory somehow?
-
-      // Get the time the tab was last used
-      /* let lastUsedTimestamp = tab.getAttribute(TAB_TIME_ATTR);
-      if (!lastUsedTimestamp) */
-      // TODO that doesn't work: tab.getAttribute is not a function on Fennec.
-      let lastUsedTimestamp = "0";
-
       this._log.debug("Wrapping a tab with title " + title);
-      this._log.debug("And timestamp " + lastUsedTimestamp);
-      record.addTab(title, urlHistory, lastUsedTimestamp);
+      // TODO how to get older entries in urlHistory?
+      // can we use BrowserUI._getHistory somehow?
+      record.addTab(title, urlHistory);
       // TODO add last-visited date for this tab... but how?
     }
   },
@@ -365,6 +339,9 @@ TabStore.prototype = {
 
 };
 
+/* TODO let's have TabTracker keep track of open/close switch events
+ * and maintain most-recently used date of each tab...
+ */
 
 function TabTracker() {
   this._TabTracker_init();
@@ -379,88 +356,40 @@ TabTracker.prototype = {
   _TabTracker_init: function TabTracker__init() {
     this._init();
 
-    // TODO Figure out how this will work on Fennec.
-
-    // Register as an observer so we can catch windows opening and closing:
+    // Register me as an observer!!  Listen for tabs opening and closing:
+    // TODO We need to also register with any windows that are ALREDY
+    // open.  On Fennec maybe try to get this from getBrowser(), which is
+    // defined differently but should still exist...
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"]
 	       .getService(Ci.nsIWindowWatcher);
     ww.registerNotification(this);
-
-    /* Also directly register the listeners for any browser window alread
-     * open: */
-    let wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                   .getService(Components.interfaces.nsIWindowMediator);
-    let enumerator = wm.getEnumerator("navigator:browser");
-    while (enumerator.hasMoreElements()) {
-      this._registerListenersForWindow(enumerator.getNext());
-    }
-  },
-
-  _registerListenersForWindow: function TabTracker__registerListen(window) {
-    if (! window.getBrowser) {
-      return;
-    }
-    let browser = window.getBrowser();
-    if (! browser.tabContainer) {
-      return;
-    }
-    //this._log.trace("Registering tab listeners in new window.\n");
-    dump("Tab listeners registered!\n");
-    let container = browser.tabContainer;
-    container.addEventListener("TabOpen", this.onTabOpened, false);
-    container.addEventListener("TabClose", this.onTabClosed, false);
-    container.addEventListener("TabSelect", this.onTabSelected, false);
-  },
-
-  _unRegisterListenersForWindow: function TabTracker__unregister(window) {
-    if (! window.getBrowser) {
-      return;
-    }
-    let browser = window.getBrowser();
-    if (! browser.tabContainer) {
-      return;
-    }
-    let container = browser.tabContainer;
-    container.removeEventListener("TabOpen", this.onTabOpened, false);
-    container.removeEventListener("TabClose", this.onTabClosed, false);
-    container.removeEventListener("TabSelect", this.onTabSelected, false);
   },
 
   observe: function TabTracker_observe(aSubject, aTopic, aData) {
-    /* Called when a window opens or closes.  Make sure that every
-     * window has the appropriate listeners registered. */
+    this._log.trace("Spotted window open/close");
     let window = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    // TODO figure out how this will work in Fennec.
+    // Ignore windows that don't have tabContainers.
+    // TODO: Fennec windows don't have tabContainers, but we still want
+    // to register an observer in them.
+    if (! window.getBrowser)
+      return;
+    let browser = window.getBrowser();
+    if (! browser.tabContainer)
+      return;
+    let container = browser.tabContainer;
     if (aTopic == "domwindowopened") {
-      this._registerListenersForWindow(window);
+      container.addEventListener("TabOpen", this.onTabChanged, false);
+      container.addEventListener("TabClose", this.onTabChanged, false);
     } else if (aTopic == "domwindowclosed") {
-      this._unRegisterListenersForWindow(window);
+      container.removeEventListener("TabOpen", this.onTabChanged, false);
+      container.removeEventListener("TabClose", this.onTabChanged, false);
     }
+    // TODO
   },
 
-  onTabOpened: function TabTracker_onTabOpened(event) {
-    // Store a timestamp in the tab to track when it was last used
-    //this._log.trace("Tab opened.\n");
-    dump("Tab opened.\n");
-    event.target.setAttribute(TAB_TIME_ATTR, event.timeStamp);
-    //this._log.debug("Tab timestamp set to " + event.target.getAttribute(TAB_TIME_ATTR) + "\n");
-    this._score += 50;
+  onTabChanged: function TabTracker_onTabChanged(event) {
+    this._score += 10; // meh?  meh.
   },
-
-  onTabClosed: function TabTracker_onTabSelected(event) {
-    //this._log.trace("Tab closed.\n");
-    this._score += 10;
-  },
-
-  onTabSelected: function TabTracker_onTabSelected(event) {
-    // Update the tab's timestamp
-    dump("Tab selected.\n");
-    //this._log.trace("Tab selected.\n");
-    event.target.setAttribute(TAB_TIME_ATTR, event.timeStamp);
-    //this._log.debug("Tab timestamp set to " + event.target.getAttribute(TAB_TIME_ATTR) + "\n");
-    this._score += 10;
-  },
-  // TODO: Also listen for tabs loading new content?
 
   get changedIDs() {
     // The record for my own client is always the only changed record.
@@ -469,13 +398,8 @@ TabTracker.prototype = {
     return obj;
   },
 
-  /* Score is pegged to 100, which means tabs are always synced.
-   * Is this the right thing to do?  Or should we be using the score
-   * calculated from tab open/close/select events (see above)?  Note that
-   * we should definitely listen for tabs loading new content if we want to
-   * go that way.  But tabs loading new content happens so often that it
-   * might be easier to just always sync.
-   */
+  // TODO this hard-coded score is a hack; replace with maybe +25 or +35
+  // per tab open event.
   get score() {
     return 100;
   }
