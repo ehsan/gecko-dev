@@ -77,8 +77,9 @@ nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor(bool aRunsToCompletion)
 
 nsHtml5TreeOpExecutor::~nsHtml5TreeOpExecutor()
 {
+  NS_ASSERTION(mOpQueue.IsEmpty(), "Somehow there's stuff in the op queue.");
+  
   if (gBackgroundFlushList && isInList()) {
-    mOpQueue.Clear();
     remove();
     if (gBackgroundFlushList->isEmpty()) {
       delete gBackgroundFlushList;
@@ -89,7 +90,6 @@ nsHtml5TreeOpExecutor::~nsHtml5TreeOpExecutor()
       }
     }
   }
-  NS_ASSERTION(mOpQueue.IsEmpty(), "Somehow there's stuff in the op queue.");
 }
 
 // nsIContentSink
