@@ -235,25 +235,13 @@ struct BaseRect {
     return IsEqualEdges(aRect) || (IsEmpty() && aRect.IsEmpty());
   }
 
-  friend Sub operator+(Sub aSub, const Point& aPoint)
+  Sub operator+(const Point& aPoint) const
   {
-    aSub += aPoint;
-    return aSub;
+    return Sub(x + aPoint.x, y + aPoint.y, width, height);
   }
-  friend Sub operator-(Sub aSub, const Point& aPoint)
+  Sub operator-(const Point& aPoint) const
   {
-    aSub -= aPoint;
-    return aSub;
-  }
-  friend Sub operator+(Sub aSub, const SizeT& aSize)
-  {
-    aSub += aSize;
-    return aSub;
-  }
-  friend Sub operator-(Sub aSub, const SizeT& aSize)
-  {
-    aSub -= aSize;
-    return aSub;
+    return Sub(x - aPoint.x, y - aPoint.y, width, height);
   }
   Sub& operator+=(const Point& aPoint)
   {
@@ -265,18 +253,7 @@ struct BaseRect {
     MoveBy(-aPoint);
     return *static_cast<Sub*>(this);
   }
-  Sub& operator+=(const SizeT& aSize)
-  {
-    width += aSize.width;
-    height += aSize.height;
-    return *static_cast<Sub*>(this);
-  }
-  Sub& operator-=(const SizeT& aSize)
-  {
-    width -= aSize.width;
-    height -= aSize.height;
-    return *static_cast<Sub*>(this);
-  }
+
   // Find difference as a Margin
   MarginT operator-(const Sub& aRect) const
   {
