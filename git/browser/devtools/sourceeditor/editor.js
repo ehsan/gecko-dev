@@ -509,7 +509,16 @@ Editor.prototype = {
    * Returns whether a marker of a specified class exists in a line's gutter.
    */
   hasMarker: function (line, gutterName, markerClass) {
-    let marker = this.getMarker(line, gutterName);
+    let cm = editors.get(this);
+    let info = cm.lineInfo(line);
+    if (!info)
+      return false;
+
+    let gutterMarkers = info.gutterMarkers;
+    if (!gutterMarkers)
+      return false;
+
+    let marker = gutterMarkers[gutterName];
     if (!marker)
       return false;
 
@@ -550,19 +559,6 @@ Editor.prototype = {
 
     let cm = editors.get(this);
     cm.lineInfo(line).gutterMarkers[gutterName].classList.remove(markerClass);
-  },
-
-  getMarker: function(line, gutterName) {
-    let cm = editors.get(this);
-    let info = cm.lineInfo(line);
-    if (!info)
-      return null;
-
-    let gutterMarkers = info.gutterMarkers;
-    if (!gutterMarkers)
-      return null;
-
-    return gutterMarkers[gutterName];
   },
 
   /**
