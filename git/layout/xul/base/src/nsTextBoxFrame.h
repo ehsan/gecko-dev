@@ -86,8 +86,7 @@ public:
 
   void PaintTitle(nsRenderingContext& aRenderingContext,
                   const nsRect&        aDirtyRect,
-                  nsPoint              aPt,
-                  const nscolor*       aOverrideColor);
+                  nsPoint              aPt);
 
   nsRect GetComponentAlphaBounds();
 
@@ -95,7 +94,6 @@ public:
 
 protected:
   friend class nsAsyncAccesskeyUpdate;
-  friend class nsDisplayXULTextBox;
   // Should be called only by nsAsyncAccesskeyUpdate.
   // Returns PR_TRUE if accesskey was updated.
   PRBool UpdateAccesskey(nsWeakFrame& aWeakThis);
@@ -135,6 +133,12 @@ private:
   void DrawText(nsRenderingContext& aRenderingContext,
                          const nsRect&        aTextRect,
                          const nscolor*       aOverrideColor);
+
+  void PaintOneShadow(gfxContext *     aCtx,
+                      const nsRect&    aTextRect,
+                      nsCSSShadowItem* aShadowDetails,
+                      const nscolor&   aForegroundColor,
+                      const nsRect&    aDirtyRect);
 
   nsString mTitle;
   nsString mCroppedTitle;

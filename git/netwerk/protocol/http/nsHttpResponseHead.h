@@ -51,7 +51,8 @@
 class nsHttpResponseHead
 {
 public:
-    nsHttpResponseHead() : mVersion(NS_HTTP_VERSION_1_1)
+    nsHttpResponseHead() : mHeaders(nsHttpHeaderArray::HTTP_RESPONSE_HEADERS)
+                         , mVersion(NS_HTTP_VERSION_1_1)
                          , mStatus(200)
                          , mContentLength(LL_MAXUINT)
                          , mCacheControlNoStore(PR_FALSE)

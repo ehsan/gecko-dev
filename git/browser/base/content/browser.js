@@ -519,6 +519,13 @@ var gPopupBlockerObserver = {
     else
       blockedPopupAllowSite.removeAttribute("disabled");
 
+    var item = aEvent.target.lastChild;
+    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
+      var next = item.previousSibling;
+      item.parentNode.removeChild(item);
+      item = next;
+    }
+
     var foundUsablePopupURI = false;
     var pageReport = gBrowser.pageReport;
     if (pageReport) {
@@ -581,13 +588,6 @@ var gPopupBlockerObserver = {
   onPopupHiding: function (aEvent) {
     if (aEvent.target.anchorNode.id == "page-report-button")
       aEvent.target.anchorNode.removeAttribute("open");
-
-    let item = aEvent.target.lastChild;
-    while (item && item.getAttribute("observes") != "blockedPopupsSeparator") {
-      let next = item.previousSibling;
-      item.parentNode.removeChild(item);
-      item = next;
-    }
   },
 
   showBlockedPopup: function (aEvent)
@@ -2617,6 +2617,24 @@ function PageProxyClickHandler(aEvent)
     middleMousePaste(aEvent);
 }
 
+function BrowserImport()
+{
+#ifdef XP_MACOSX
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:MigrationWizard");
+  if (win)
+    win.focus();
+  else {
+    window.openDialog("chrome://browser/content/migration/migration.xul",
+                      "migration", "centerscreen,chrome,resizable=no");
+  }
+#else
+  window.openDialog("chrome://browser/content/migration/migration.xul",
+                    "migration", "modal,centerscreen,chrome,resizable=no");
+#endif
+}
+
 /**
  *  Handle load of some pages (about:*) so that we can make modifications
  *  to the DOM for unprivileged pages.
@@ -2981,8 +2999,9 @@ function FillInHTMLTooltip(tipElement)
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&
-          (!(tipElement instanceof SVGElement) ||
-           tipElement.parentNode.nodeType == Node.DOCUMENT_NODE)) {
+          !(tipElement instanceof SVGElement &&
+            tipElement.parentNode instanceof SVGElement &&
+            !(tipElement.parentNode instanceof SVGForeignObjectElement))) {
         lookingForSVGTitle = false;
       }
       if (lookingForSVGTitle) {
@@ -5462,7 +5481,7 @@ function hrefAndLinkNodeForClickEvent(event)
   // If there is no linkNode, try simple XLink.
   let href, baseURI;
   node = event.target;
-  while (node && !href) {
+  while (node) {
     if (node.nodeType == Node.ELEMENT_NODE) {
       href = node.getAttributeNS("http://www.w3.org/1999/xlink", "href");
       if (href)
@@ -8116,6 +8135,8 @@ let gPrivateBrowsingUI = {
 
     this._setPBMenuTitle("stop");
 
+    document.getElementById("menu_import").setAttribute("disabled", "true");
+
     // Disable the Clear Recent History... menu item when in PB mode
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
@@ -8162,6 +8183,8 @@ let gPrivateBrowsingUI = {
     if (gURLBar) {
       gURLBar.editor.transactionManager.clear();
     }
+
+    document.getElementById("menu_import").removeAttribute("disabled");
 
     // Re-enable the Clear Recent History... menu item on exit of PB mode
     // temporary fix until bug 463607 is fixed

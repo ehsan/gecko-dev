@@ -72,6 +72,7 @@
 #include "nsIURI.h"
 #include "nsScriptLoader.h"
 #include "nsIRadioGroupContainer.h"
+#include "nsIScriptEventManager.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIRequest.h"
 #include "nsILoadGroup.h"
@@ -698,6 +699,7 @@ public:
 
   virtual void FlushPendingNotifications(mozFlushType aType);
   virtual void FlushExternalResources(mozFlushType aType);
+  virtual nsIScriptEventManager* GetScriptEventManager();
   virtual void SetXMLDeclaration(const PRUnichar *aVersion,
                                  const PRUnichar *aEncoding,
                                  const PRInt32 aStandalone);
@@ -786,7 +788,7 @@ public:
 
   virtual nsresult Init();
   
-  virtual void AddXMLEventsContent(nsIContent * aXMLEventsElement);
+  virtual nsresult AddXMLEventsContent(nsIContent * aXMLEventsElement);
 
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
@@ -1109,6 +1111,8 @@ protected:
   nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
   nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
+
+  nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
 
   // Our update nesting level
   PRUint32 mUpdateNestLevel;

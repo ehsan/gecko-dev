@@ -63,8 +63,7 @@ public:
                                      const Point &aDest,
                                      const Color &aColor,
                                      const Point &aOffset,
-                                     Float aSigma,
-                                     CompositionOp aOperator)
+                                     Float aSigma)
   { }
 
   virtual void ClearRect(const Rect &aRect)

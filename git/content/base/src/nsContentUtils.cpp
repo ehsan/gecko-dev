@@ -564,9 +564,6 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onMozTouchMove,                NS_MOZTOUCH_MOVE, EventNameType_None, NS_MOZTOUCH_EVENT },
     { nsGkAtoms::onMozTouchUp,                  NS_MOZTOUCH_UP, EventNameType_None, NS_MOZTOUCH_EVENT },
 
-    { nsGkAtoms::ondevicemotion,                NS_DEVICE_MOTION, EventNameType_None, NS_EVENT },
-    { nsGkAtoms::ondeviceorientation,           NS_DEVICE_ORIENTATION, EventNameType_None, NS_EVENT },
-
     { nsGkAtoms::ontransitionend,               NS_TRANSITION_END, EventNameType_None, NS_TRANSITION_EVENT },
     { nsGkAtoms::onanimationstart,              NS_ANIMATION_START, EventNameType_None, NS_ANIMATION_EVENT },
     { nsGkAtoms::onanimationend,                NS_ANIMATION_END, EventNameType_None, NS_ANIMATION_EVENT },
@@ -4076,8 +4073,7 @@ nsContentUtils::IsSystemPrincipal(nsIPrincipal* aPrincipal)
 void
 nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
                             nsIURI *aLinkURI, const nsString &aTargetSpec,
-                            PRBool aClick, PRBool aIsUserTriggered,
-                            PRBool aIsTrusted)
+                            PRBool aClick, PRBool aIsUserTriggered)
 {
   NS_ASSERTION(aPresContext, "Need a nsPresContext");
   NS_PRECONDITION(aLinkURI, "No link URI");
@@ -4112,8 +4108,7 @@ nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
 
   // Only pass off the click event if the script security manager says it's ok.
   if (NS_SUCCEEDED(proceed)) {
-    handler->OnLinkClick(aContent, aLinkURI, aTargetSpec.get(), nsnull, nsnull,
-                         aIsTrusted);
+    handler->OnLinkClick(aContent, aLinkURI, aTargetSpec.get());
   }
 }
 

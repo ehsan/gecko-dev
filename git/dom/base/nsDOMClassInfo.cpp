@@ -1707,9 +1707,6 @@ jsid nsDOMClassInfo::sOntouchcancel_id   = JSID_VOID;
 jsid nsDOMClassInfo::sOnbeforeprint_id   = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterprint_id    = JSID_VOID;
 
-jsid nsDOMClassInfo::sOndevicemotion_id       = JSID_VOID;
-jsid nsDOMClassInfo::sOndeviceorientation_id  = JSID_VOID;
-
 static const JSClass *sObjectClass = nsnull;
 
 /**
@@ -2046,9 +2043,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOntouchcancel_id,   cx, "ontouchcancel");
   SET_JSID_TO_STRING(sOnbeforeprint_id,   cx, "onbeforeprint");
   SET_JSID_TO_STRING(sOnafterprint_id,   cx, "onafterprint");
-
-  SET_JSID_TO_STRING(sOndevicemotion_id,      cx, "ondevicemotion");
-  SET_JSID_TO_STRING(sOndeviceorientation_id, cx, "ondeviceorientation");
   
   return NS_OK;
 }
@@ -2396,6 +2390,7 @@ nsDOMClassInfo::Init()
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
       DOM_CLASSINFO_MAP_END
     } else {
@@ -2406,6 +2401,7 @@ nsDOMClassInfo::Init()
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
       DOM_CLASSINFO_MAP_END
     }
   } else {
@@ -2416,6 +2412,7 @@ nsDOMClassInfo::Init()
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
       DOM_CLASSINFO_MAP_END
     } else {
@@ -2425,6 +2422,7 @@ nsDOMClassInfo::Init()
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
         DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
       DOM_CLASSINFO_MAP_END
     }
   }
@@ -7655,9 +7653,7 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
             id == sOndragover_id     ||
             id == sOndragstart_id    ||
             id == sOndrop_id         ||
-            id == sOndurationchange_id ||
-            id == sOndeviceorientation_id ||
-            id == sOndevicemotion_id );
+            id == sOndurationchange_id);
   case 'e' :
     return (id == sOnerror_id ||
             id == sOnemptied_id ||

@@ -3,7 +3,6 @@ Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/policies.js");
 
 function login_handling(handler) {
   return function (request, response) {
@@ -58,6 +57,7 @@ function run_test() {
   try {
     Service.serverURL = "http://localhost:8080/";
     Service.clusterURL = "http://localhost:8080/";
+    Svc.Prefs.set("autoconnect", false);
 
     _("Force the initial state.");
     Status.service = STATUS_OK;
@@ -68,6 +68,7 @@ function run_test() {
     do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_USERNAME);
     do_check_false(Service.isLoggedIn);
+    do_check_false(Svc.Prefs.get("autoconnect"));
 
     _("Try again with username and password set.");
     Service.username = "johndoe";
@@ -76,6 +77,7 @@ function run_test() {
     do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_PASSPHRASE);
     do_check_false(Service.isLoggedIn);
+    do_check_false(Svc.Prefs.get("autoconnect"));
 
     _("Success if passphrase is set.");
     Service.passphrase = "foo";
@@ -83,6 +85,7 @@ function run_test() {
     do_check_eq(Status.service, STATUS_OK);
     do_check_eq(Status.login, LOGIN_SUCCEEDED);
     do_check_true(Service.isLoggedIn);
+    do_check_true(Svc.Prefs.get("autoconnect"));
 
     _("We can also pass username, password and passphrase to login().");
     Service.login("janedoe", "incorrectpassword", "bar");
@@ -98,6 +101,7 @@ function run_test() {
     do_check_eq(Status.service, STATUS_OK);
     do_check_eq(Status.login, LOGIN_SUCCEEDED);
     do_check_true(Service.isLoggedIn);
+    do_check_true(Svc.Prefs.get("autoconnect"));
     
     _("Calling login() with parameters when the client is unconfigured sends notification.");
     let notified = false;
@@ -112,14 +116,17 @@ function run_test() {
     do_check_eq(Status.service, STATUS_OK);
     do_check_eq(Status.login, LOGIN_SUCCEEDED);
     do_check_true(Service.isLoggedIn);
+    do_check_true(Svc.Prefs.get("autoconnect"));
 
     _("Logout.");
     Service.logout();
     do_check_false(Service.isLoggedIn);
+    do_check_false(Svc.Prefs.get("autoconnect"));
 
     _("Logging out again won't do any harm.");
     Service.logout();
     do_check_false(Service.isLoggedIn);
+    do_check_false(Svc.Prefs.get("autoconnect"));
 
     /*
      * Testing login-on-sync.
@@ -148,9 +155,9 @@ function run_test() {
     
     // Stub scheduleNextSync. This gets called within checkSyncStatus if we're
     // ready to sync, so use it as an indicator.
-    let scheduleNextSyncF = SyncScheduler.scheduleNextSync;
+    let scheduleNextSyncF = Service._scheduleNextSync;
     let scheduleCalled = false;
-    SyncScheduler.scheduleNextSync = function(wait) {
+    Service._scheduleNextSync = function(wait) {
       scheduleCalled = true;
       scheduleNextSyncF.call(this, wait);
     }
@@ -170,16 +177,16 @@ function run_test() {
     _("We're ready to sync if locked.");
     Service.enabled = true;
     Services.io.offline = false;
-    SyncScheduler.checkSyncStatus();
+    Service._checkSyncStatus();
     do_check_true(scheduleCalled);
     
     scheduleCalled = false;
     mpLocked = false;
     
     _("... and not if not.");
-    SyncScheduler.checkSyncStatus();
+    Service._checkSyncStatus();
     do_check_false(scheduleCalled);
-    SyncScheduler.scheduleNextSync = scheduleNextSyncF;
+    Service._scheduleNextSync = scheduleNextSyncF;
     
     // TODO: need better tests around master password prompting. See Bug 620583.
 
@@ -194,13 +201,13 @@ function run_test() {
                              throw "User canceled Master Password entry";
                            });
     
-    let oldClearSyncTriggers = SyncScheduler.clearSyncTriggers;
+    let oldClearSyncTriggers = Service._clearSyncTriggers;
     let oldLockedSync = Service._lockedSync;
     
     let cSTCalled = false;
     let lockedSyncCalled = false;
     
-    SyncScheduler.clearSyncTriggers = function() { cSTCalled = true; };
+    Service._clearSyncTriggers = function() { cSTCalled = true; };
     Service._lockedSync = function() { lockedSyncCalled = true; };
     
     _("If master password is canceled, login fails and we report lockage.");

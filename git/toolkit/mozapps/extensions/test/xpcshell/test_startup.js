@@ -126,11 +126,6 @@ function run_test() {
   }, "startupcache-invalidate", false);
 
   startupManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
@@ -174,13 +169,6 @@ function run_test_1() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, ["addon1@tests.mozilla.org",
-                                      "addon2@tests.mozilla.org",
-                                      "addon3@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -274,11 +262,6 @@ function run_test_2() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, ["addon3@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -335,12 +318,6 @@ function run_test_3() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon1@tests.mozilla.org",
-                                    "addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -394,11 +371,6 @@ function run_test_4() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, ["addon1@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -433,11 +405,6 @@ function run_test_5() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, ["addon1@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -478,11 +445,6 @@ function run_test_6() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -527,12 +489,6 @@ function run_test_7() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon1@tests.mozilla.org",
-                                    "addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -582,11 +538,6 @@ function run_test_8() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, ["addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -630,11 +581,6 @@ function run_test_9() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, ["addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -687,11 +633,6 @@ function run_test_10() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, ["addon1@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -744,12 +685,6 @@ function run_test_11() {
 
   gCachePurged = false;
   restartManager();
-  check_startup_changes(AddonManager.STARTUP_CHANGE_INSTALLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_CHANGED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, ["addon1@tests.mozilla.org",
-                                        "addon2@tests.mozilla.org"]);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
-  check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -782,116 +717,6 @@ function run_test_11() {
     do_check_not_in_crash_annotation(addon1.id, addon1.version);
     do_check_not_in_crash_annotation(addon2.id, addon2.version);
 
-    run_test_12();
-  });
-}
-
-// Test that auto-disabling for specific scopes works
-function run_test_12() {
-  Services.prefs.setIntPref("extensions.autoDisableScopes", AddonManager.SCOPE_USER);
-
-  writeInstallRDFForExtension(addon1, profileDir);
-  writeInstallRDFForExtension(addon2, userDir);
-  writeInstallRDFForExtension(addon3, globalDir);
-
-  restartManager();
-
-  AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                               "addon2@tests.mozilla.org",
-                               "addon3@tests.mozilla.org",
-                               "addon4@tests.mozilla.org",
-                               "addon5@tests.mozilla.org"],
-                               function([a1, a2, a3, a4, a5]) {
-    do_check_neq(a1, null);
-    do_check_false(a1.userDisabled);
-    do_check_true(a1.isActive);
-
-    do_check_neq(a2, null);
-    do_check_true(a2.userDisabled);
-    do_check_false(a2.isActive);
-
-    do_check_neq(a3, null);
-    do_check_false(a3.userDisabled);
-    do_check_true(a3.isActive);
-
-    var dest = profileDir.clone();
-    dest.append(do_get_expected_addon_name("addon1@tests.mozilla.org"));
-    dest.remove(true);
-    dest = userDir.clone();
-    dest.append(do_get_expected_addon_name("addon2@tests.mozilla.org"));
-    dest.remove(true);
-    dest = globalDir.clone();
-    dest.append(do_get_expected_addon_name("addon3@tests.mozilla.org"));
-    dest.remove(true);
-
-    restartManager();
-
-    Services.prefs.setIntPref("extensions.autoDisableScopes", AddonManager.SCOPE_SYSTEM);
-
-    writeInstallRDFForExtension(addon1, profileDir);
-    writeInstallRDFForExtension(addon2, userDir);
-    writeInstallRDFForExtension(addon3, globalDir);
-
-    restartManager();
-
-    AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                                 "addon2@tests.mozilla.org",
-                                 "addon3@tests.mozilla.org",
-                                 "addon4@tests.mozilla.org",
-                                 "addon5@tests.mozilla.org"],
-                                 function([a1, a2, a3, a4, a5]) {
-      do_check_neq(a1, null);
-      do_check_false(a1.userDisabled);
-      do_check_true(a1.isActive);
-
-      do_check_neq(a2, null);
-      do_check_false(a2.userDisabled);
-      do_check_true(a2.isActive);
-
-      do_check_neq(a3, null);
-      do_check_true(a3.userDisabled);
-      do_check_false(a3.isActive);
-
-      var dest = profileDir.clone();
-      dest.append(do_get_expected_addon_name("addon1@tests.mozilla.org"));
-      dest.remove(true);
-      dest = userDir.clone();
-      dest.append(do_get_expected_addon_name("addon2@tests.mozilla.org"));
-      dest.remove(true);
-      dest = globalDir.clone();
-      dest.append(do_get_expected_addon_name("addon3@tests.mozilla.org"));
-      dest.remove(true);
-
-      restartManager();
-
-      Services.prefs.setIntPref("extensions.autoDisableScopes", AddonManager.SCOPE_USER + AddonManager.SCOPE_SYSTEM);
-
-      writeInstallRDFForExtension(addon1, profileDir);
-      writeInstallRDFForExtension(addon2, userDir);
-      writeInstallRDFForExtension(addon3, globalDir);
-
-      restartManager();
-
-      AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                                   "addon2@tests.mozilla.org",
-                                   "addon3@tests.mozilla.org",
-                                   "addon4@tests.mozilla.org",
-                                   "addon5@tests.mozilla.org"],
-                                   function([a1, a2, a3, a4, a5]) {
-        do_check_neq(a1, null);
-        do_check_false(a1.userDisabled);
-        do_check_true(a1.isActive);
-
-        do_check_neq(a2, null);
-        do_check_true(a2.userDisabled);
-        do_check_false(a2.isActive);
-
-        do_check_neq(a3, null);
-        do_check_true(a3.userDisabled);
-        do_check_false(a3.isActive);
-
-        end_test();
-      });
-    });
+    end_test();
   });
 }

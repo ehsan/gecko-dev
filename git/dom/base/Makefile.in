@@ -112,7 +112,6 @@ CPPSRCS =			\
 	nsStructuredCloneContainer.cpp \
 	nsDOMNavigationTiming.cpp \
 	nsPerformance.cpp	\
-	nsDOMMemoryReporter.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk

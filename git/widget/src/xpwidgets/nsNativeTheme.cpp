@@ -47,7 +47,6 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMXULMenuListElement.h"
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
@@ -517,16 +516,6 @@ nsNativeTheme::IsRegularMenuItem(nsIFrame *aFrame)
   nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
   return !(menuFrame && (menuFrame->IsOnMenuBar() ||
                          menuFrame->GetParentMenuListType() != eNotMenuList));
-}
-
-PRBool
-nsNativeTheme::IsMenuListEditable(nsIFrame *aFrame)
-{
-  PRBool isEditable = PR_FALSE;
-  nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(aFrame->GetContent());
-  if (menulist)
-    menulist->GetEditable(&isEditable);
-  return isEditable;
 }
 
 PRBool

@@ -946,10 +946,6 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  PRInt64 SizeOf() const {
-    return sizeof(*this);
-  }
-
 protected:
   /**
    * Hook for implementing GetID.  This is guaranteed to only be

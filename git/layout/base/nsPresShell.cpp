@@ -56,6 +56,7 @@
 
 /* a presentation of a document, part 2 */
 
+#include "nsAlgorithm.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
@@ -129,7 +130,6 @@
 #include "nsCSSRendering.h"
   // for |#ifdef DEBUG| code
 #include "prenv.h"
-#include "nsAlgorithm.h"
 #include "nsIAttribute.h"
 #include "nsIGlobalHistory2.h"
 #include "nsDisplayList.h"
@@ -1452,11 +1452,11 @@ public:
   }
                   
                                   
-  static PRInt64 SizeOfLayoutMemoryReporter() {
+  static PRInt64 SizeOfLayoutMemoryReporter(void *) {
     return EstimateShellsMemory(LiveShellSizeEnumerator);
   }
 
-  static PRInt64 SizeOfBidiMemoryReporter() {
+  static PRInt64 SizeOfBidiMemoryReporter(void *) {
     return EstimateShellsMemory(LiveShellBidiSizeEnumerator);
   }
 
@@ -1670,17 +1670,17 @@ static PRBool sSynthMouseMove = PR_TRUE;
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
     "explicit/layout/all",
-    KIND_HEAP,
-    UNITS_BYTES,
+    MR_HEAP,
+    "Memory used by layout PresShell, PresContext, and other related areas.",
     PresShell::SizeOfLayoutMemoryReporter,
-    "Memory used by layout PresShell, PresContext, and other related areas.")
+    nsnull)
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutBidi,
     "explicit/layout/bidi",
-    KIND_HEAP,
-    UNITS_BYTES,
+    MR_HEAP,
+    "Memory used by layout Bidi processor.",
     PresShell::SizeOfBidiMemoryReporter,
-    "Memory used by layout Bidi processor.")
+    nsnull)
 
 PresShell::PresShell()
   : mMouseLocation(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)

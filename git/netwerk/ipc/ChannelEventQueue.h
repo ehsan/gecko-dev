@@ -45,7 +45,7 @@
 #include <nsTArray.h>
 #include <nsAutoPtr.h>
 
-class nsISupports;
+class nsIChannel;
 
 namespace mozilla {
 namespace net {
@@ -70,7 +70,7 @@ class AutoEventEnqueuerBase;
 class ChannelEventQueue
 {
  public:
-  ChannelEventQueue(nsISupports *owner)
+  ChannelEventQueue(nsIChannel *owner)
     : mForced(false)
     , mSuspended(false)
     , mFlushing(false)
@@ -116,7 +116,7 @@ class ChannelEventQueue
   bool mFlushing;
 
   // Keep ptr to avoid refcount cycle: only grab ref during flushing.
-  nsISupports *mOwner;
+  nsIChannel *mOwner;
 
   friend class AutoEventEnqueuer;
 };
