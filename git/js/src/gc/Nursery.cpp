@@ -80,10 +80,6 @@ js::Nursery::enable()
     JS_ASSERT_IF(runtime()->gcZeal_ != ZealGenerationalGCValue, position_ == start());
     numActiveChunks_ = 1;
     setCurrentChunk(0);
-#ifdef JS_GC_ZEAL
-    if (runtime()->gcZeal_ == ZealGenerationalGCValue)
-        enterZealMode();
-#endif
 }
 
 void
@@ -99,7 +95,6 @@ js::Nursery::disable()
 void *
 js::Nursery::allocate(size_t size)
 {
-    JS_ASSERT(isEnabled());
     JS_ASSERT(!runtime()->isHeapBusy());
 
     /* Ensure there's enough space to replace the contents with a RelocationOverlay. */

@@ -2645,7 +2645,10 @@ ExplicitConvert(JSContext* cx, HandleValue val, HandleObject targetType, void* b
 
   switch (type) {
   case TYPE_bool: {
-    *static_cast<bool*>(buffer) = ToBoolean(val);
+    // Convert according to the ECMAScript ToBoolean() function.
+    bool result;
+    ASSERT_OK(JS_ValueToBoolean(cx, val, &result));
+    *static_cast<bool*>(buffer) = result != false;
     break;
   }
 #define DEFINE_INT_TYPE(name, type, ffiType)                                   \

@@ -41,7 +41,10 @@ struct TiledLayerProperties
 {
   nsIntRegion mVisibleRegion;
   nsIntRegion mValidRegion;
+  gfxRect mDisplayPort;
   gfxSize mEffectiveResolution;
+  gfxRect mCompositionBounds;
+  bool mRetainTiles;
 };
 
 class Layer;
@@ -266,9 +269,6 @@ public:
       SetCompositor(nullptr);
       mAttached = false;
       mKeepAttached = false;
-      if (mBackendData) {
-        mBackendData->ClearData();
-      }
     }
   }
   bool IsAttached() { return mAttached; }

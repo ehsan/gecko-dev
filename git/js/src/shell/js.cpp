@@ -917,24 +917,36 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "newContext", &v))
             return false;
-        if (!v.isUndefined())
-            newContext = ToBoolean(v);
+        if (!JSVAL_IS_VOID(v)) {
+            bool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            newContext = b;
+        }
 
         if (!JS_GetProperty(cx, opts, "compileAndGo", &v))
             return false;
-        if (!v.isUndefined())
-            compileAndGo = ToBoolean(v);
+        if (!JSVAL_IS_VOID(v)) {
+            bool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            compileAndGo = b;
+        }
 
         if (!JS_GetProperty(cx, opts, "noScriptRval", &v))
             return false;
-        if (!v.isUndefined())
-            noScriptRval = ToBoolean(v);
+        if (!JSVAL_IS_VOID(v)) {
+            bool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            noScriptRval = b;
+        }
 
         if (!JS_GetProperty(cx, opts, "fileName", &v))
             return false;
-        if (v.isNull()) {
+        if (JSVAL_IS_NULL(v)) {
             fileName = nullptr;
-        } else if (!v.isUndefined()) {
+        } else if (!JSVAL_IS_VOID(v)) {
             JSString *s = JS_ValueToString(cx, v);
             if (!s)
                 return false;
@@ -945,12 +957,12 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "element", &v))
             return false;
-        if (v.isObject())
-            element = &v.toObject();
+        if (!JSVAL_IS_PRIMITIVE(v))
+            element = JSVAL_TO_OBJECT(v);
 
         if (!JS_GetProperty(cx, opts, "sourceURL", &v))
             return false;
-        if (!v.isUndefined()) {
+        if (!JSVAL_IS_VOID(v)) {
             sourceURL = JS_ValueToString(cx, v);
             if (!sourceURL)
                 return false;
@@ -958,7 +970,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "sourceMapURL", &v))
             return false;
-        if (!v.isUndefined()) {
+        if (!JSVAL_IS_VOID(v)) {
             sourceMapURL = JS_ValueToString(cx, v);
             if (!sourceMapURL)
                 return false;
@@ -966,7 +978,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "lineNumber", &v))
             return false;
-        if (!v.isUndefined()) {
+        if (!JSVAL_IS_VOID(v)) {
             uint32_t u;
             if (!ToUint32(cx, v, &u))
                 return false;
@@ -975,9 +987,10 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "global", &v))
             return false;
-        if (!v.isUndefined()) {
-            if (v.isObject()) {
-                global = js::UncheckedUnwrap(&v.toObject());
+        if (!JSVAL_IS_VOID(v)) {
+            global = JSVAL_IS_PRIMITIVE(v) ? nullptr : JSVAL_TO_OBJECT(v);
+            if (global) {
+                global = js::UncheckedUnwrap(global);
                 if (!global)
                     return false;
             }
@@ -990,17 +1003,25 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
         if (!JS_GetProperty(cx, opts, "catchTermination", &v))
             return false;
-        if (!v.isUndefined())
-            catchTermination = ToBoolean(v);
+        if (!JSVAL_IS_VOID(v)) {
+            bool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            catchTermination = b;
+        }
 
         if (!JS_GetProperty(cx, opts, "saveFrameChain", &v))
             return false;
-        if (!v.isUndefined())
-            saveFrameChain = ToBoolean(v);
+        if (!JSVAL_IS_VOID(v)) {
+            bool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            saveFrameChain = b;
+        }
 
         if (!JS_GetProperty(cx, opts, "sourcePolicy", &v))
             return false;
-        if (!v.isUndefined()) {
+        if (!JSVAL_IS_VOID(v)) {
             JSString *s = JS_ValueToString(cx, v);
             if (!s)
                 return false;
@@ -2433,14 +2454,13 @@ static bool
 sandbox_enumerate(JSContext *cx, HandleObject obj)
 {
     RootedValue v(cx);
+    bool b;
 
     if (!JS_GetProperty(cx, obj, "lazy", &v))
         return false;
 
-    if (!ToBoolean(v))
-        return true;
-
-    return JS_EnumerateStandardClasses(cx, obj);
+    JS_ValueToBoolean(cx, v, &b);
+    return !b || JS_EnumerateStandardClasses(cx, obj);
 }
 
 static bool
@@ -2448,11 +2468,13 @@ sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                 MutableHandleObject objp)
 {
     RootedValue v(cx);
+    bool b, resolved;
+
     if (!JS_GetProperty(cx, obj, "lazy", &v))
         return false;
 
-    if (ToBoolean(v)) {
-        bool resolved;
+    JS_ValueToBoolean(cx, v, &b);
+    if (b) {
         if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return false;
         if (resolved) {

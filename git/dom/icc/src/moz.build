@@ -6,10 +6,12 @@
 
 EXPORTS.mozilla.dom += [
     'IccManager.h',
+    'StkCommandEvent.h',
 ]
 
 SOURCES += [
     'IccManager.cpp',
+    'StkCommandEvent.cpp',
 ]
 
 FAIL_ON_WARNINGS = True

@@ -1971,7 +1971,8 @@ PrototypeHasIndexedProperty(CompilerConstraintList *constraints, JSObject *obj)
 }
 
 bool
-types::ArrayPrototypeHasIndexedProperty(CompilerConstraintList *constraints, JSScript *script)
+types::ArrayPrototypeHasIndexedProperty(CompilerConstraintList *constraints,
+                                        HandleScript script)
 {
     if (JSObject *proto = script->global().maybeGetArrayPrototype())
         return PrototypeHasIndexedProperty(constraints, proto);

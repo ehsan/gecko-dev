@@ -586,8 +586,7 @@ class IonBuilder : public MIRGenerator
                                            JSFunction *target,
                                            MDefinition *ctor,
                                            types::TemporaryTypeSet *ctorTypes,
-                                           uint32_t discards,
-                                           Native native);
+                                           uint32_t discards);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);
