@@ -1328,11 +1328,7 @@ protected:
 
         if (!mCreationFormat.samples)
             return false;
-
-        if (mDebugMode) {
-            printf_stderr("Requested level of multisampling is unavailable, continuing without multisampling\n");
-        }
-
+        printf("ResizeOffscreenFBO failed with AA, retrying without...\n");
         return ResizeOffscreenFBO(aSize, aUseReadFBO, true);
     }
     void DeleteOffscreenFBO();
