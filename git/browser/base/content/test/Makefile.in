@@ -68,6 +68,7 @@ _BROWSER_FILES = browser_bug321000.js \
                  browser_getshortcutoruri.js \
                  browser_page_style_menu.js \
                  page_style_sample.html \
+                 browser_ctrlTab.js \
                  browser_selectTabAtIndex.js \
                  browser_gestureSupport.js \
                  browser_feed_tab.js \
@@ -77,8 +78,6 @@ _BROWSER_FILES = browser_bug321000.js \
                  plugin_test.html \
                  plugin_both.html \
                  plugin_both2.html \
-                 browser_alltabslistener.js \
-                 alltabslistener.html \
     $(NULL)
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))

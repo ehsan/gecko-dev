@@ -46,8 +46,6 @@
 #include "jsapi.h"
 #include "jsdate.h"
 
-class mozStorageStatement;
-
 class mozStorageStatementParams : public mozIStorageStatementParams,
                                   public nsIXPCScriptable
 {
@@ -60,10 +58,8 @@ public:
     NS_DECL_NSIXPCSCRIPTABLE
 
 protected:
-    mozIStorageStatement *mStatement;
+    nsCOMPtr<mozIStorageStatement> mStatement;
     PRUint32 mParamCount;
-
-    friend class mozStorageStatement;
 };
 
 static PRBool

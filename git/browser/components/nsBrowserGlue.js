@@ -433,8 +433,7 @@ BrowserGlue.prototype = {
     var currentVersion = this._prefs.getIntPref("browser.rights.version");
     this._prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
 
-    var box = notifyBox.appendNotification(notifyText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
-    box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
+    notifyBox.appendNotification(notifyText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
   },
 
   // returns the (cached) Sanitizer constructor
@@ -540,32 +539,27 @@ BrowserGlue.prototype = {
       // ensurePlacesDefaultQueriesInitialized() is called by import.
       this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
-      // Get bookmarks.html file location
+      // Get bookmarks folder
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
                        getService(Ci.nsIProperties);
+      var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
-      var bookmarksFile = null;
-      if (restoreDefaultBookmarks) {
-        // User wants to restore bookmarks.html file from default profile folder
-        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile)
-                                      .append("bookmarks.html");
+      // User wants to restore default bookmarks
+      if (restoreDefaultBookmarks || !bookmarksFile.exists()) {
+        // get bookmarks.html file from default profile folder
+        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
+        bookmarksFile.append("bookmarks.html");
       }
-      else
-        bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
-      if (bookmarksFile.exists()) {
-        // import the file
-        try {
-          var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
-                         getService(Ci.nsIPlacesImportExportService);
-          importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
-        } catch (err) {
-          // Report the error, but ignore it.
-          Cu.reportError("Bookmarks.html file could be corrupt. " + err);
-        }
+      // import the file
+      try {
+        var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
+                       getService(Ci.nsIPlacesImportExportService);
+        importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
+      } catch (err) {
+        // Report the error, but ignore it.
+        Cu.reportError(err);
       }
-      else
-        Cu.reportError("Unable to find bookmarks.html file.");
 
       // Reset preferences, so we won't try to import again at next run
       if (importBookmarksHTML)

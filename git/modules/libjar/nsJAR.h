@@ -154,7 +154,7 @@ class nsJAR : public nsIZipReader, public nsIJAR
     //-- Private functions
     PRFileDesc* OpenFile();
 
-    nsresult ParseManifest();
+    nsresult ParseManifest(nsISignatureVerifier* verifier);
     void     ReportError(const char* aFilename, PRInt16 errorCode);
     nsresult LoadEntry(const char* aFilename, char** aBuf, 
                        PRUint32* aBufLen = nsnull);
