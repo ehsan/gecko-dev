@@ -276,7 +276,7 @@ PostBarrierTypedArrayObject(JSObject *obj)
     JS_ASSERT(obj);
     JSRuntime *rt = obj->runtimeFromMainThread();
     if (!rt->isHeapBusy() && !IsInsideNursery(rt, obj))
-        rt->gc.storeBuffer.putWholeCellFromMainThread(obj);
+        rt->gc.storeBuffer.putWholeCell(obj);
 #endif
 }
 

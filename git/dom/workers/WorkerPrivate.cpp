@@ -2111,8 +2111,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mSharedWorkerName(aSharedWorkerName), mBusyCount(0), mMessagePortSerial(0),
   mParentStatus(Pending), mParentSuspended(false),
   mIsChromeWorker(aIsChromeWorker), mMainThreadObjectsForgotten(false),
-  mWorkerType(aWorkerType),
-  mCreationTimeStamp(TimeStamp::Now())
+  mWorkerType(aWorkerType)
 {
   SetIsDOMBinding();
 

@@ -44,8 +44,6 @@ add_task(function* test_provider_basic() {
   let e = Experiments.instance();
 
   let provider = new Experiments.PreviousExperimentProvider(e);
-  e._setPreviousExperimentsProvider(provider);
-
   let deferred = Promise.defer();
   provider.getAddonsByTypes(["experiment"], (addons) => {
     deferred.resolve(addons);
@@ -126,7 +124,6 @@ add_task(function* test_active_and_previous() {
   // Building on the previous test, activate experiment 2.
   let e = Experiments.instance();
   let provider = new Experiments.PreviousExperimentProvider(e);
-  e._setPreviousExperimentsProvider(provider);
 
   gManifestObject = {
     version: 1,
