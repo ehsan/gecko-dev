@@ -85,8 +85,7 @@ dnl topsrcdir is the top source directory in native form, as opposed to a
 dnl form suitable for make.
 topsrcdir = '''${WIN_TOP_SRC:-$srcdir}'''
 if not os.path.isabs(topsrcdir):
-    rel = os.path.join(os.path.dirname(<<<__file__>>>), topsrcdir)
-    topsrcdir = os.path.normpath(os.path.abspath(rel))
+    topsrcdir = os.path.normpath(os.path.join(os.path.dirname(<<<__file__>>>), topsrcdir))
 
 topobjdir = os.path.dirname(<<<__file__>>>)
 
