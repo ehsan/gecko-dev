@@ -64,13 +64,9 @@
 extern PRLogModuleInfo* sCocoaLog;
 #endif
 
-extern void EnsureLogInitialized();
-
 nsClipboard::nsClipboard() : nsBaseClipboard()
 {
   mChangeCount = 0;
-
-  EnsureLogInitialized();
 }
 
 nsClipboard::~nsClipboard()

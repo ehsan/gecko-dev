@@ -314,7 +314,7 @@ nsSystemPrincipal::nsSystemPrincipal()
 #define SYSTEM_PRINCIPAL_SPEC "[System Principal]"
 
 nsresult
-nsSystemPrincipal::Init(JSPrincipals **jsprin)
+nsSystemPrincipal::Init()
 {
     // Use an nsCString so we only do the allocation once here and then
     // share with nsJSPrincipals
@@ -324,11 +324,7 @@ nsSystemPrincipal::Init(JSPrincipals **jsprin)
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    nsresult rv = mJSPrincipals.Init(this, str);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    *jsprin = &mJSPrincipals;
-    return NS_OK;
+    return mJSPrincipals.Init(this, str);
 }
 
 nsSystemPrincipal::~nsSystemPrincipal(void)

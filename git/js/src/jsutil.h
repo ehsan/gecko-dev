@@ -45,7 +45,6 @@
 #define jsutil_h___
 
 #include "jstypes.h"
-#include "jscrashreport.h"
 #include "mozilla/Util.h"
 #include <stdlib.h>
 #include <string.h>
@@ -59,8 +58,6 @@ JS_BEGIN_EXTERN_C
             ((void(*)())0)(); /* More reliable, but doesn't say CCADBEEF */     \
         }                                                                       \
     JS_END_MACRO
-
-#define JS_FREE_PATTERN 0xDA
 
 #ifdef DEBUG
 
@@ -82,6 +79,8 @@ JS_BEGIN_EXTERN_C
 # else
 # define JS_THREADSAFE_ASSERT(expr) ((void) 0)
 # endif
+
+#define JS_FREE_PATTERN 0xDA
 
 #else
 
@@ -221,12 +220,6 @@ extern JS_PUBLIC_DATA(JSUint32) OOM_counter; /* data race, who cares. */
 #define JS_OOM_POSSIBLY_FAIL() do {} while(0)
 #endif
 
-static JS_INLINE void *js_record_oom(void *p) {
-    if (!p)
-        js_SnapshotErrorStack();
-    return p;
-}
-
 /*
  * SpiderMonkey code should not be calling these allocation functions directly.
  * Instead, all calls should go through JSRuntime, JSContext or OffTheBooks.
@@ -234,17 +227,17 @@ static JS_INLINE void *js_record_oom(void *p) {
  */
 static JS_INLINE void* js_malloc(size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(malloc(bytes));
+    return malloc(bytes);
 }
 
 static JS_INLINE void* js_calloc(size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(calloc(bytes, 1));
+    return calloc(bytes, 1);
 }
 
 static JS_INLINE void* js_realloc(void* p, size_t bytes) {
     JS_OOM_POSSIBLY_FAIL();
-    return js_record_oom(realloc(p, bytes));
+    return realloc(p, bytes);
 }
 
 static JS_INLINE void js_free(void* p) {
@@ -676,16 +669,6 @@ PodEqual(T *one, T *two, size_t len)
 
     return !memcmp(one, two, len * sizeof(T));
 }
-
-
-/*
- * Ordinarily, a function taking a JSContext* 'cx' paremter reports errors on
- * the context. In some cases, functions optionally report and indicate this by
- * taking a nullable 'maybecx' parameter. In some cases, though, a function
- * always needs a 'cx', but optionally reports. This option is presented by the
- * MaybeReportError.
- */
-enum MaybeReportError { REPORT_ERROR = true, DONT_REPORT_ERROR = false };
 
 } /* namespace js */
 

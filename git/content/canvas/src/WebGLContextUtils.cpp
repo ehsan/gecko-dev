@@ -46,7 +46,10 @@
 #include "nsIJSContextStack.h"
 #include "jsapi.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIVariant.h"
 
 #include "nsIDOMDocument.h"
@@ -56,7 +59,6 @@
 #include "nsIDOMDataContainerEvent.h"
 
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
 
 #if 0
 #include "nsIContentURIGrouper.h"
@@ -124,13 +126,15 @@ WebGLContext::SynthesizeGLError(WebGLenum err)
     // but if there isn't, then we need to check for a gl error
     // that may have occurred before this one and use that code
     // instead.
-    
-    MakeContextCurrent();
 
-    UpdateWebGLErrorAndClearGLError();
+    if (mSynthesizedGLError == LOCAL_GL_NO_ERROR) {
+        MakeContextCurrent();
 
-    if (!mWebGLError)
-        mWebGLError = err;
+        mSynthesizedGLError = gl->fGetError();
+
+        if (mSynthesizedGLError == LOCAL_GL_NO_ERROR)
+            mSynthesizedGLError = err;
+    }
 
     return NS_OK;
 }
@@ -190,24 +194,3 @@ WebGLContext::ErrorOutOfMemory(const char *fmt, ...)
     return SynthesizeGLError(LOCAL_GL_OUT_OF_MEMORY);
 }
 
-const char *
-WebGLContext::ErrorName(GLenum error)
-{
-    switch(error) {
-        case LOCAL_GL_INVALID_ENUM:
-            return "INVALID_ENUM";
-        case LOCAL_GL_INVALID_OPERATION:
-            return "INVALID_OPERATION";
-        case LOCAL_GL_INVALID_VALUE:
-            return "INVALID_VALUE";
-        case LOCAL_GL_OUT_OF_MEMORY:
-            return "OUT_OF_MEMORY";
-        case LOCAL_GL_INVALID_FRAMEBUFFER_OPERATION:
-            return "INVALID_FRAMEBUFFER_OPERATION";
-        case LOCAL_GL_NO_ERROR:
-            return "NO_ERROR";
-        default:
-            NS_ABORT();
-            return "[unknown WebGL error!]";
-    }
-};

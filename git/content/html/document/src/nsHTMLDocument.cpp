@@ -2170,8 +2170,16 @@ nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 }
 
 NS_IMETHODIMP
-nsHTMLDocument::GetSelection(nsISelection** aReturn)
+nsHTMLDocument::GetSelection(nsAString& aReturn)
 {
+  aReturn.Truncate();
+
+  nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  JSContext* ccx = nsnull;
+  if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx) {
+    JS_ReportWarning(ccx, "Deprecated method document.getSelection() called.  Please use window.getSelection() instead.");
+  }
+
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
   nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(window);
   NS_ENSURE_TRUE(pwin, NS_OK);
@@ -2180,8 +2188,17 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
                  pwin->GetOuterWindow()->GetCurrentInnerWindow() == pwin,
                  NS_OK);
 
-  return window->GetSelection(aReturn);
-  
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = window->GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_TRUE(selection && NS_SUCCEEDED(rv), rv);
+
+  nsXPIDLString str;
+
+  rv = selection->ToString(getter_Copies(str));
+
+  aReturn.Assign(str);
+
+  return rv;
 }
 
 NS_IMETHODIMP

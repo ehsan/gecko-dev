@@ -158,30 +158,30 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD GetProcess(nsACString &process)
+  NS_IMETHOD GetProcess(char **process)
   {
-    process.Truncate();
+    *process = strdup("");
     return NS_OK;
   }
 
-  NS_IMETHOD GetPath(nsACString &path)
+  NS_IMETHOD GetPath(char **memoryPath)
   {
     if (mType == ChromeUsedRaw) {
-      path.AssignLiteral("explicit/images/chrome/used/raw");
+      *memoryPath = strdup("explicit/images/chrome/used/raw");
     } else if (mType == ChromeUsedUncompressed) {
-      path.AssignLiteral("explicit/images/chrome/used/uncompressed");
+      *memoryPath = strdup("explicit/images/chrome/used/uncompressed");
     } else if (mType == ChromeUnusedRaw) {
-      path.AssignLiteral("explicit/images/chrome/unused/raw");
+      *memoryPath = strdup("explicit/images/chrome/unused/raw");
     } else if (mType == ChromeUnusedUncompressed) {
-      path.AssignLiteral("explicit/images/chrome/unused/uncompressed");
+      *memoryPath = strdup("explicit/images/chrome/unused/uncompressed");
     } else if (mType == ContentUsedRaw) {
-      path.AssignLiteral("explicit/images/content/used/raw");
+      *memoryPath = strdup("explicit/images/content/used/raw");
     } else if (mType == ContentUsedUncompressed) {
-      path.AssignLiteral("explicit/images/content/used/uncompressed");
+      *memoryPath = strdup("explicit/images/content/used/uncompressed");
     } else if (mType == ContentUnusedRaw) {
-      path.AssignLiteral("explicit/images/content/unused/raw");
+      *memoryPath = strdup("explicit/images/content/unused/raw");
     } else if (mType == ContentUnusedUncompressed) {
-      path.AssignLiteral("explicit/images/content/unused/uncompressed");
+      *memoryPath = strdup("explicit/images/content/unused/uncompressed");
     }
     return NS_OK;
   }
@@ -249,24 +249,24 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetDescription(nsACString &desc)
+  NS_IMETHOD GetDescription(char **desc)
   {
     if (mType == ChromeUsedRaw) {
-      desc.AssignLiteral("Memory used by in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by in-use chrome images (compressed data).");
     } else if (mType == ChromeUsedUncompressed) {
-      desc.AssignLiteral("Memory used by in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by in-use chrome images (uncompressed data).");
     } else if (mType == ChromeUnusedRaw) {
-      desc.AssignLiteral("Memory used by not in-use chrome images (compressed data).");
+      *desc = strdup("Memory used by not in-use chrome images (compressed data).");
     } else if (mType == ChromeUnusedUncompressed) {
-      desc.AssignLiteral("Memory used by not in-use chrome images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use chrome images (uncompressed data).");
     } else if (mType == ContentUsedRaw) {
-      desc.AssignLiteral("Memory used by in-use content images (compressed data).");
+      *desc = strdup("Memory used by in-use content images (compressed data).");
     } else if (mType == ContentUsedUncompressed) {
-      desc.AssignLiteral("Memory used by in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by in-use content images (uncompressed data).");
     } else if (mType == ContentUnusedRaw) {
-      desc.AssignLiteral("Memory used by not in-use content images (compressed data).");
+      *desc = strdup("Memory used by not in-use content images (compressed data).");
     } else if (mType == ContentUnusedUncompressed) {
-      desc.AssignLiteral("Memory used by not in-use content images (uncompressed data).");
+      *desc = strdup("Memory used by not in-use content images (uncompressed data).");
     }
     return NS_OK;
   }

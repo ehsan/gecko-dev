@@ -49,10 +49,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "prsystem.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 using namespace mozilla;
 
 /***************************************************************************/
@@ -252,7 +248,6 @@ xpc::CompartmentPrivate::~CompartmentPrivate()
 {
     delete waiverWrapperMap;
     delete expandoMap;
-    MOZ_COUNT_DTOR(xpc::CompartmentPrivate);
 }
 
 static JSBool
@@ -1671,14 +1666,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
 , nsIMemoryMultiReporter
 )
 
-#ifdef MOZ_CRASHREPORTER
-static JSBool
-DiagnosticMemoryCallback(void *ptr, size_t size)
-{
-    return CrashReporter::RegisterAppMemory(ptr, size) == NS_OK;
-}
-#endif
-
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
    mJSRuntime(nsnull),
@@ -1736,9 +1723,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_SetWrapObjectCallbacks(mJSRuntime,
                                   xpc::WrapperFactory::Rewrap,
                                   xpc::WrapperFactory::PrepareForWrapping);
-#ifdef MOZ_CRASHREPORTER
-        JS_EnumerateDiagnosticMemoryRegions(DiagnosticMemoryCallback);
-#endif
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
         if (!mWatchdogWakeup)
             NS_RUNTIMEABORT("JS_NEW_CONDVAR failed.");

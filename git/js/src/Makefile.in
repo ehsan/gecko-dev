@@ -150,7 +150,6 @@ CPPSRCS		= \
 		jsgcmark.cpp \
 		jsgcchunk.cpp \
 		jsgcstats.cpp \
-		jscrashreport.cpp \
 		jshash.cpp \
 		jsinterp.cpp \
 		jsinvoke.cpp \
@@ -207,7 +206,6 @@ INSTALLED_HEADERS = \
 		jsclone.h \
 		jscntxt.h \
 		jscompat.h \
-		jscrashreport.h \
 		jsdate.h \
 		jsdbgapi.h \
 		jsdhash.h \
