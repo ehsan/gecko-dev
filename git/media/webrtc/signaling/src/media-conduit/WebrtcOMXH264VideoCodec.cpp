@@ -714,7 +714,6 @@ WebrtcOMXH264VideoEncoder::WebrtcOMXH264VideoEncoder()
   , mOMXConfigured(false)
   , mOMXReconfigure(false)
 {
-  mReservation = new OMXCodecReservation(true);
   CODEC_LOGD("WebrtcOMXH264VideoEncoder:%p constructed", this);
 }
 
@@ -734,12 +733,6 @@ WebrtcOMXH264VideoEncoder::InitEncode(const webrtc::VideoCodec* aCodecSettings,
     CODEC_LOGD("WebrtcOMXH264VideoEncoder:%p OMX created", this);
   }
 
-  if (!mReservation->ReserveOMXCodec()) {
-    CODEC_LOGD("WebrtcOMXH264VideoEncoder:%p Encoder in use", this);
-    mOMX = nullptr;
-    return WEBRTC_VIDEO_CODEC_ERROR;
-  }
-
   // Defer configuration until 1st frame is received because this function will
   // be called more than once, and unfortunately with incorrect setting values
   // at first.
@@ -749,7 +742,6 @@ WebrtcOMXH264VideoEncoder::InitEncode(const webrtc::VideoCodec* aCodecSettings,
   mBitRateKbps = aCodecSettings->startBitrate;
   // XXX handle maxpayloadsize (aka mode 0/1)
 
-  CODEC_LOGD("WebrtcOMXH264VideoEncoder:%p OMX Encoder reserved", this);
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
@@ -929,11 +921,7 @@ WebrtcOMXH264VideoEncoder::Release()
     mOutputDrain = nullptr;
   }
   mOMXConfigured = false;
-  bool hadOMX = !!mOMX;
   mOMX = nullptr;
-  if (hadOMX) {
-    mReservation->ReleaseOMXCodec();
-  }
   CODEC_LOGD("WebrtcOMXH264VideoEncoder:%p released", this);
 
   return WEBRTC_VIDEO_CODEC_OK;
@@ -1025,7 +1013,6 @@ WebrtcOMXH264VideoDecoder::WebrtcOMXH264VideoDecoder()
   : mCallback(nullptr)
   , mOMX(nullptr)
 {
-  mReservation = new OMXCodecReservation(false);
   CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p will be constructed", this);
 }
 
@@ -1035,15 +1022,9 @@ WebrtcOMXH264VideoDecoder::InitDecode(const webrtc::VideoCodec* aCodecSettings,
 {
   CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p init OMX:%p", this, mOMX.get());
 
-  if (!mReservation->ReserveOMXCodec()) {
-    CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p Decoder in use", this);
-    return WEBRTC_VIDEO_CODEC_ERROR;
-  }
-
   // Defer configuration until SPS/PPS NALUs (where actual decoder config
   // values can be extracted) are received.
 
-  CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p OMX Decoder reserved", this);
   return WEBRTC_VIDEO_CODEC_OK;
 }
 
@@ -1108,7 +1089,6 @@ WebrtcOMXH264VideoDecoder::Release()
   CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p will be released", this);
 
   mOMX = nullptr;
-  mReservation->ReleaseOMXCodec();
 
   return WEBRTC_VIDEO_CODEC_OK;
 }

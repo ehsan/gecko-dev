@@ -32,12 +32,12 @@ class AutoValueVector;
 
 class AutoIdArray;
 
-class JS_PUBLIC_API(AutoGCRooter);
+class AutoGCRooter;
 template <typename T> class AutoVectorRooter;
 template<typename K, typename V> class AutoHashMapRooter;
 template<typename T> class AutoHashSetRooter;
 
-class MOZ_STACK_CLASS SourceBufferHolder;
+class SourceBufferHolder;
 
 class HandleValueArray;
 

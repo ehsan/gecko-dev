@@ -832,14 +832,6 @@ TraceJSHolder(void* aHolder, nsScriptObjectTracer*& aTracer, void* aArg)
 }
 
 void
-mozilla::TraceScriptHolder(nsISupports* aHolder, JSTracer* aTracer)
-{
-  nsXPCOMCycleCollectionParticipant* participant = nullptr;
-  CallQueryInterface(aHolder, &participant);
-  participant->Trace(aHolder, JsGcTracer(), aTracer);
-}
-
-void
 CycleCollectedJSRuntime::TraceNativeGrayRoots(JSTracer* aTracer)
 {
   // NB: This is here just to preserve the existing XPConnect order. I doubt it

@@ -3856,8 +3856,7 @@ class LInArray : public LInstructionHelper<1, 4, 0>
 };
 
 
-// Load a value from an array's elements vector, loading |undefined| if we hit a hole.
-// Bail out if we get a negative index.
+// Load a value from a dense array's elements vector. Bail out if it's the hole value.
 class LLoadElementHole : public LInstructionHelper<BOX_PIECES, 3, 0>
 {
   public:
@@ -4807,7 +4806,7 @@ class LCeil : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(Ceil)
 
-    explicit LCeil(const LAllocation &num) {
+    LCeil(const LAllocation &num) {
         setOperand(0, num);
     }
 };
@@ -4818,7 +4817,7 @@ class LCeilF : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(CeilF)
 
-    explicit LCeilF(const LAllocation &num) {
+    LCeilF(const LAllocation &num) {
         setOperand(0, num);
     }
 };
@@ -5582,17 +5581,16 @@ class MPhi;
 // corresponding to the predecessor taken in the control flow graph.
 class LPhi MOZ_FINAL : public LInstruction
 {
-    LAllocation *const inputs_;
+    LAllocation *inputs_;
     LDefinition def_;
+
+    LPhi()
+    { }
 
   public:
     LIR_HEADER(Phi)
 
-    LPhi(MPhi *ins, LAllocation *inputs)
-        : inputs_(inputs)
-    {
-        setMir(ins);
-    }
+    static LPhi *New(MIRGenerator *gen, MPhi *phi);
 
     size_t numDefs() const {
         return 1;

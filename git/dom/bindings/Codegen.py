@@ -1562,7 +1562,7 @@ class CGClassConstructor(CGAbstractStaticMethod):
             ctorName=ctorName)
 
         name = self._ctor.identifier.name
-        nativeName = MakeNativeName(self.descriptor.binaryNameFor(name))
+        nativeName = MakeNativeName(self.descriptor.binaryNames.get(name, name))
         callGenerator = CGMethodCall(nativeName, True, self.descriptor,
                                      self._ctor, isConstructor=True,
                                      constructorName=ctorName)
@@ -6947,7 +6947,7 @@ class CGSpecializedMethod(CGAbstractStaticMethod):
     @staticmethod
     def makeNativeName(descriptor, method):
         name = method.identifier.name
-        return MakeNativeName(descriptor.binaryNameFor(name))
+        return MakeNativeName(descriptor.binaryNames.get(name, name))
 
 
 class CGMethodPromiseWrapper(CGAbstractStaticMethod):
@@ -7036,7 +7036,7 @@ class CGLegacyCallHook(CGAbstractBindingMethod):
 
     def generate_code(self):
         name = self._legacycaller.identifier.name
-        nativeName = MakeNativeName(self.descriptor.binaryNameFor(name))
+        nativeName = MakeNativeName(self.descriptor.binaryNames.get(name, name))
         return CGMethodCall(nativeName, False, self.descriptor,
                             self._legacycaller)
 
@@ -7287,7 +7287,7 @@ class CGSpecializedGetter(CGAbstractStaticMethod):
     @staticmethod
     def makeNativeName(descriptor, attr):
         name = attr.identifier.name
-        nativeName = MakeNativeName(descriptor.binaryNameFor(name))
+        nativeName = MakeNativeName(descriptor.binaryNames.get(name, name))
         # resultOutParam does not depend on whether resultAlreadyAddRefed is set
         _, resultOutParam, _, _ = getRetvalDeclarationForType(attr.type,
                                                               descriptor,
@@ -7390,7 +7390,7 @@ class CGSpecializedSetter(CGAbstractStaticMethod):
     @staticmethod
     def makeNativeName(descriptor, attr):
         name = attr.identifier.name
-        return "Set" + MakeNativeName(descriptor.binaryNameFor(name))
+        return "Set" + MakeNativeName(descriptor.binaryNames.get(name, name))
 
 
 class CGStaticSetter(CGAbstractStaticBindingMethod):
@@ -9095,7 +9095,7 @@ class CGProxySpecialOperation(CGPerSignatureCall):
     def __init__(self, descriptor, operation, checkFound=True, argumentMutableValue=None):
         self.checkFound = checkFound
 
-        nativeName = MakeNativeName(descriptor.binaryNameFor(operation))
+        nativeName = MakeNativeName(descriptor.binaryNames.get(operation, operation))
         operation = descriptor.operations[operation]
         assert len(operation.signatures()) == 1
         signature = operation.signatures()[0]
@@ -12308,12 +12308,12 @@ def genConstructorBody(descriptor, initCall=""):
 # We're always fallible
 def callbackGetterName(attr, descriptor):
     return "Get" + MakeNativeName(
-        descriptor.binaryNameFor(attr.identifier.name))
+        descriptor.binaryNames.get(attr.identifier.name, attr.identifier.name))
 
 
 def callbackSetterName(attr, descriptor):
     return "Set" + MakeNativeName(
-        descriptor.binaryNameFor(attr.identifier.name))
+        descriptor.binaryNames.get(attr.identifier.name, attr.identifier.name))
 
 
 class CGJSImplGetter(CGJSImplMember):
@@ -13052,7 +13052,7 @@ class CallbackOperationBase(CallbackMethod):
     """
     def __init__(self, signature, jsName, nativeName, descriptor, singleOperation, rethrowContentException=False):
         self.singleOperation = singleOperation
-        self.methodName = descriptor.binaryNameFor(jsName)
+        self.methodName = descriptor.binaryNames.get(jsName, jsName)
         CallbackMethod.__init__(self, signature, nativeName, descriptor, singleOperation, rethrowContentException)
 
     def getThisDecl(self):
@@ -13107,7 +13107,7 @@ class CallbackOperation(CallbackOperationBase):
         jsName = method.identifier.name
         CallbackOperationBase.__init__(self, signature,
                                        jsName,
-                                       MakeNativeName(descriptor.binaryNameFor(jsName)),
+                                       MakeNativeName(descriptor.binaryNames.get(jsName, jsName)),
                                        descriptor, descriptor.interface.isSingleOperationInterface(),
                                        rethrowContentException=descriptor.interface.isJSImplemented())
 
@@ -13151,7 +13151,8 @@ class CallbackGetter(CallbackAccessor):
               return${errorReturn};
             }
             """,
-            attrName=self.descriptorProvider.binaryNameFor(self.attrName),
+            attrName=self.descriptorProvider.binaryNames.get(self.attrName,
+                                                             self.attrName),
             errorReturn=self.getDefaultRetval())
 
 
@@ -13176,7 +13177,8 @@ class CallbackSetter(CallbackAccessor):
               return${errorReturn};
             }
             """,
-            attrName=self.descriptorProvider.binaryNameFor(self.attrName),
+            attrName=self.descriptorProvider.binaryNames.get(self.attrName,
+                                                             self.attrName),
             errorReturn=self.getDefaultRetval())
 
     def getArgcDecl(self):

@@ -3470,7 +3470,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.10.6, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
+    AM_PATH_NSPR(4.10.3, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -6323,13 +6323,17 @@ if test "$MOZ_WEBAPP_RUNTIME"; then
     AC_DEFINE(MOZ_WEBAPP_RUNTIME)
 fi
 
+AC_MSG_CHECKING([for tar archiver])
 AC_CHECK_PROGS(TAR, gnutar gtar tar, "")
 if test -z "$TAR"; then
     AC_MSG_ERROR([no tar archiver found in \$PATH])
 fi
+AC_MSG_RESULT([$TAR])
 AC_SUBST(TAR)
 
+AC_MSG_CHECKING([for wget])
 AC_CHECK_PROGS(WGET, wget, "")
+AC_MSG_RESULT([$WGET])
 AC_SUBST(WGET)
 
 dnl ========================================================
@@ -9028,17 +9032,15 @@ dnl ========================================================
 dnl ICU Support
 dnl ========================================================
 
-# Internationalization isn't built or exposed by default in non-desktop
-# builds.  Bugs to enable:
-#
-#   Android:  bug 864843
-#   B2G:      bug 866301
-
-if test "$MOZ_WIDGET_TOOLKIT" = "android" ||
-   test "$MOZ_BUILD_APP" = "b2g"; then
-    _INTL_API=no
-else
+if test "$MOZ_BUILD_APP" = "browser"; then
     _INTL_API=yes
+else
+    # Internationalization isn't built or exposed by default in non-desktop
+    # builds.  Bugs to enable:
+    #
+    #   Android:  bug 864843
+    #   B2G:      bug 866301
+    _INTL_API=no
 fi
 
 MOZ_CONFIG_ICU()

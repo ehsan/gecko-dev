@@ -3951,6 +3951,17 @@ nsDocument::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
   return doInsertChildAt(aKid, aIndex, aNotify, mChildren);
 }
 
+nsresult
+nsDocument::AppendChildTo(nsIContent* aKid, bool aNotify)
+{
+  // Make sure to _not_ call the subclass InsertChildAt here.  If
+  // subclasses wanted to hook into this stuff, they would have
+  // overridden AppendChildTo.
+  // XXXbz maybe this should just be a non-virtual method on nsINode?
+  // Feels that way to me...
+  return nsDocument::InsertChildAt(aKid, GetChildCount(), aNotify);
+}
+
 void
 nsDocument::RemoveChildAt(uint32_t aIndex, bool aNotify)
 {
@@ -4502,11 +4513,6 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
   // doing the initial document load and don't want to fire the event for this
   // change.
   mVisibilityState = GetVisibilityState();
-
-  // The global in the template contents owner document should be the same.
-  if (mTemplateContentsOwner && mTemplateContentsOwner != this) {
-    mTemplateContentsOwner->SetScriptGlobalObject(aScriptGlobalObject);
-  }
 }
 
 nsIScriptGlobalObject*
@@ -9437,6 +9443,7 @@ nsDocument::GetTemplateContentsOwner()
     bool hasHadScriptObject = true;
     nsIScriptGlobalObject* scriptObject =
       GetScriptHandlingObject(hasHadScriptObject);
+    NS_ENSURE_TRUE(scriptObject || !hasHadScriptObject, nullptr);
 
     nsCOMPtr<nsIDOMDocument> domDocument;
     nsresult rv = NS_NewDOMDocument(getter_AddRefs(domDocument),
@@ -9454,16 +9461,12 @@ nsDocument::GetTemplateContentsOwner()
     mTemplateContentsOwner = do_QueryInterface(domDocument);
     NS_ENSURE_TRUE(mTemplateContentsOwner, nullptr);
 
-    nsDocument* doc = static_cast<nsDocument*>(mTemplateContentsOwner.get());
-    doc->mHasHadScriptHandlingObject = hasHadScriptObject;
-
-    if (!scriptObject) {
-      mTemplateContentsOwner->SetScopeObject(GetScopeObject());
-    }
+    mTemplateContentsOwner->SetScriptHandlingObject(scriptObject);
 
     // Set |doc| as the template contents owner of itself so that
     // |doc| is the template contents owner of template elements created
     // by |doc|.
+    nsDocument* doc = static_cast<nsDocument*>(mTemplateContentsOwner.get());
     doc->mTemplateContentsOwner = doc;
   }
 

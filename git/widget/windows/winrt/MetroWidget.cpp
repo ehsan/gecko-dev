@@ -39,7 +39,6 @@
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/MiscEvents.h"
-#include "gfxPrefs.h"
 
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -1021,7 +1020,9 @@ MetroWidget::ShouldUseBasicManager()
 bool
 MetroWidget::ShouldUseAPZC()
 {
-  return gfxPrefs::AsyncPanZoomEnabled();
+  const char* kPrefName = "layers.async-pan-zoom.enabled";
+  return ShouldUseOffMainThreadCompositing() &&
+         Preferences::GetBool(kPrefName, false);
 }
 
 void

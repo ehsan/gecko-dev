@@ -729,29 +729,40 @@ class LMoveGroup;
 class LBlock : public TempObject
 {
     MBasicBlock *block_;
-    FixedList<LPhi> phis_;
+    Vector<LPhi *, 4, IonAllocPolicy> phis_;
     InlineList<LInstruction> instructions_;
     LMoveGroup *entryMoveGroup_;
     LMoveGroup *exitMoveGroup_;
     Label label_;
 
-    explicit LBlock(MBasicBlock *block)
+    LBlock(TempAllocator &alloc, MBasicBlock *block)
       : block_(block),
-        phis_(),
+        phis_(alloc),
         entryMoveGroup_(nullptr),
         exitMoveGroup_(nullptr)
     { }
 
   public:
-    static LBlock *New(TempAllocator &alloc, MBasicBlock *from);
+    static LBlock *New(TempAllocator &alloc, MBasicBlock *from) {
+        return new(alloc) LBlock(alloc, from);
+    }
     void add(LInstruction *ins) {
         instructions_.pushBack(ins);
+    }
+    bool addPhi(LPhi *phi) {
+        return phis_.append(phi);
     }
     size_t numPhis() const {
         return phis_.length();
     }
-    LPhi *getPhi(size_t index) {
-        return &phis_[index];
+    LPhi *getPhi(size_t index) const {
+        return phis_[index];
+    }
+    void removePhi(size_t index) {
+        phis_.erase(&phis_[index]);
+    }
+    void clearPhis() {
+        phis_.clear();
     }
     MBasicBlock *mir() const {
         return block_;
@@ -1392,6 +1403,7 @@ class LSafepoint : public TempObject
     }
     void fixupOffset(MacroAssembler *masm) {
         osiCallPointOffset_ = masm->actualOffset(osiCallPointOffset_);
+        safepointOffset_ = masm->actualOffset(safepointOffset_);
     }
 };
 
@@ -1470,7 +1482,8 @@ class LIRGraph
         }
     };
 
-    FixedList<LBlock *> blocks_;
+
+    Vector<LBlock *, 16, IonAllocPolicy> blocks_;
     Vector<Value, 0, IonAllocPolicy> constantPool_;
     typedef HashMap<Value, uint32_t, ValueHasher, IonAllocPolicy> ConstantPoolMap;
     ConstantPoolMap constantPoolMap_;
@@ -1487,13 +1500,16 @@ class LIRGraph
     // Snapshot taken before any LIR has been lowered.
     LSnapshot *entrySnapshot_;
 
+    // LBlock containing LOsrEntry, or nullptr.
+    LBlock *osrBlock_;
+
     MIRGraph &mir_;
 
   public:
     explicit LIRGraph(MIRGraph *mir);
 
     bool init() {
-        return constantPoolMap_.init() && blocks_.init(mir_.alloc(), mir_.numBlocks());
+        return constantPoolMap_.init();
     }
     MIRGraph &mir() const {
         return mir_;
@@ -1507,8 +1523,8 @@ class LIRGraph
     uint32_t numBlockIds() const {
         return mir_.numBlockIds();
     }
-    void setBlock(size_t index, LBlock *block) {
-        blocks_[index] = block;
+    bool addBlock(LBlock *block) {
+        return blocks_.append(block);
     }
     uint32_t getVirtualRegister() {
         numVirtualRegisters_ += VREG_INCREMENT;
@@ -1573,6 +1589,13 @@ class LIRGraph
         JS_ASSERT(entrySnapshot_);
         return entrySnapshot_;
     }
+    void setOsrBlock(LBlock *block) {
+        JS_ASSERT(!osrBlock_);
+        osrBlock_ = block;
+    }
+    LBlock *osrBlock() const {
+        return osrBlock_;
+    }
     bool noteNeedsSafepoint(LInstruction *ins);
     size_t numNonCallSafepoints() const {
         return nonCallSafepoints_.length();
@@ -1586,6 +1609,7 @@ class LIRGraph
     LInstruction *getSafepoint(size_t i) const {
         return safepoints_[i];
     }
+    void removeBlock(size_t i);
 
     void dump(FILE *fp) const;
     void dump() const;

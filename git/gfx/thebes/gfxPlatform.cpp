@@ -537,6 +537,16 @@ gfxPlatform::PreferMemoryOverShmem() const {
 }
 
 already_AddRefed<gfxASurface>
+gfxPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
+                                         gfxContentType aContentType)
+{
+  nsRefPtr<gfxASurface> newSurface;
+  newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(aContentType));
+
+  return newSurface.forget();
+}
+
+already_AddRefed<gfxASurface>
 gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
                            gfxImageFormat format)
 {
@@ -1241,13 +1251,11 @@ bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], uint32_t aLangArra
 eFontPrefLang
 gfxPlatform::GetFontPrefLangFor(const char* aLang)
 {
-    if (!aLang || !aLang[0]) {
+    if (!aLang || !aLang[0])
         return eFontPrefLang_Others;
-    }
-    for (uint32_t i = 0; i < ArrayLength(gPrefLangNames); ++i) {
-        if (!PL_strcasecmp(gPrefLangNames[i], aLang)) {
+    for (uint32_t i = 0; i < uint32_t(eFontPrefLang_LangCount); ++i) {
+        if (!PL_strcasecmp(gPrefLangNames[i], aLang))
             return eFontPrefLang(i);
-        }
     }
     return eFontPrefLang_Others;
 }
@@ -1265,9 +1273,8 @@ gfxPlatform::GetFontPrefLangFor(nsIAtom *aLang)
 const char*
 gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
 {
-    if (uint32_t(aLang) < ArrayLength(gPrefLangNames)) {
+    if (uint32_t(aLang) < uint32_t(eFontPrefLang_AllCount))
         return gPrefLangNames[uint32_t(aLang)];
-    }
     return nullptr;
 }
 

@@ -63,14 +63,13 @@ NS_IMPL_ADDREF(CacheFileChunk)
 NS_IMETHODIMP_(MozExternalRefCountType)
 CacheFileChunk::Release()
 {
-  nsrefcnt count = mRefCnt - 1;
   if (DispatchRelease()) {
     // Redispatched to the main thread.
-    return count;
+    return mRefCnt - 1;
   }
 
   NS_PRECONDITION(0 != mRefCnt, "dup release");
-  count = --mRefCnt;
+  nsrefcnt count = --mRefCnt;
   NS_LOG_RELEASE(this, count, "CacheFileChunk");
 
   if (0 == count) {

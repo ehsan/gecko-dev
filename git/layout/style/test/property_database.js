@@ -3335,7 +3335,7 @@ var gCSSProperties = {
     inherited: true,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "normal" ],
-    other_values: [ "pre", "nowrap", "pre-wrap", "pre-line", "-moz-pre-space" ],
+    other_values: [ "pre", "nowrap", "pre-wrap", "pre-line", "-moz-pre-discard-newlines" ],
     invalid_values: []
   },
   "widows": {

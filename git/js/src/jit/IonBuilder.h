@@ -753,7 +753,6 @@ class IonBuilder : public MIRGenerator
 
     // Main inlining functions
     InliningStatus inlineNativeCall(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineNativeGetter(CallInfo &callInfo, JSFunction *target);
     bool inlineScriptedCall(CallInfo &callInfo, JSFunction *target);
     InliningStatus inlineSingleCall(CallInfo &callInfo, JSFunction *target);
 

@@ -25,14 +25,6 @@ namespace bluetooth {
 struct GetAdaptersRequest
 { };
 
-struct StartBluetoothRequest
-{
-};
-
-struct StopBluetoothRequest
-{
-};
-
 struct SetPropertyRequest
 {
   BluetoothObjectType type;
@@ -174,8 +166,6 @@ struct SendPlayStatusRequest
 union Request
 {
   GetAdaptersRequest;
-  StartBluetoothRequest;
-  StopBluetoothRequest;
   SetPropertyRequest;
   GetPropertyRequest;
   StartDiscoveryRequest;

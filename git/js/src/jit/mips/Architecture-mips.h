@@ -28,7 +28,7 @@ namespace js {
 namespace jit {
 
 // Shadow stack space is not required on MIPS.
-static const uint32_t ShadowStackSpace = 4 * sizeof(uintptr_t);
+static const uint32_t ShadowStackSpace = 0;
 
 // These offsets are specific to nunboxing, and capture offsets into the
 // components of a js::Value.
@@ -151,8 +151,6 @@ class Registers
         (1 << Registers::t6) |
         (1 << Registers::t7);
 
-    // We use this constant to save registers when entering functions. This
-    // is why $ra is added here even though it is not "Non Volatile".
     static const uint32_t NonVolatileMask =
         (1 << Registers::s0) |
         (1 << Registers::s1) |
@@ -161,8 +159,7 @@ class Registers
         (1 << Registers::s4) |
         (1 << Registers::s5) |
         (1 << Registers::s6) |
-        (1 << Registers::s7) |
-        (1 << Registers::ra);
+        (1 << Registers::s7);
 
     static const uint32_t WrapperMask =
         VolatileMask |         // = arguments
