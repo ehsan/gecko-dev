@@ -994,12 +994,10 @@ nsMathMLChar::SetFontFamily(nsPresContext*          aPresContext,
   if (!*aFontGroup || !(aFont.fontlist == familyList)) {
     nsFont font = aFont;
     font.fontlist = familyList;
-    const nsStyleFont* styleFont = mStyleContext->StyleFont();
     nsRefPtr<nsFontMetrics> fm;
     aPresContext->DeviceContext()->
       GetMetricsFor(font,
-                    styleFont->mLanguage,
-                    styleFont->mExplicitLanguage,
+                    mStyleContext->StyleFont()->mLanguage,
                     gfxFont::eHorizontal,
                     aPresContext->GetUserFontSet(),
                     aPresContext->GetTextPerfMetrics(),
@@ -1539,12 +1537,10 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   nsFont font = mStyleContext->GetParent()->StyleFont()->mFont;
   NormalizeDefaultFont(font, aFontSizeInflation);
 
-  const nsStyleFont* styleFont = mStyleContext->StyleFont();
   nsRefPtr<nsFontMetrics> fm;
   aPresContext->DeviceContext()->
     GetMetricsFor(font,
-                  styleFont->mLanguage,
-                  styleFont->mExplicitLanguage,
+                  mStyleContext->StyleFont()->mLanguage,
                   gfxFont::eHorizontal,
                   aPresContext->GetUserFontSet(),
                   aPresContext->GetTextPerfMetrics(),

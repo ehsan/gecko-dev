@@ -11,7 +11,6 @@
 #include "nsIInputStream.h"
 #include "nsISeekableStream.h"
 #include "nsIFile.h"
-#include "nsThreadUtils.h"
 #include "mozilla/Telemetry.h"
 #include "prlog.h"
 
@@ -55,6 +54,7 @@ Classifier::SplitTables(const nsACString& str, nsTArray<nsCString>& tables)
 }
 
 Classifier::Classifier()
+  : mFreshTime(45 * 60)
 {
 }
 
@@ -144,9 +144,6 @@ Classifier::Open(nsIFile& aCacheDirectory)
   rv = CreateStoreDirectory();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Classifier keeps its own cryptoHash for doing operations on the background
-  // thread. Callers can optionally pass in an nsICryptoHash for working on the
-  // main thread.
   mCryptoHash = do_CreateInstance(NS_CRYPTO_HASH_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -219,15 +216,8 @@ Classifier::TableRequest(nsACString& aResult)
 nsresult
 Classifier::Check(const nsACString& aSpec,
                   const nsACString& aTables,
-                  uint32_t aFreshnessGuarantee,
-                  nsICryptoHash* aCryptoHash,
                   LookupResultArray& aResults)
 {
-  nsCOMPtr<nsICryptoHash> cryptoHash = aCryptoHash;
-  if (!aCryptoHash) {
-    MOZ_ASSERT(!NS_IsMainThread(), "mCryptoHash must be used on worker thread");
-    cryptoHash = mCryptoHash;
-  }
   Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_CL_CHECK_TIME> timer;
 
   // Get the set of fragments based on the url. This is necessary because we
@@ -254,11 +244,11 @@ Classifier::Check(const nsACString& aSpec,
   // Now check each lookup fragment against the entries in the DB.
   for (uint32_t i = 0; i < fragments.Length(); i++) {
     Completion lookupHash;
-    lookupHash.FromPlaintext(fragments[i], cryptoHash);
+    lookupHash.FromPlaintext(fragments[i], mCryptoHash);
 
     // Get list of host keys to look up
     Completion hostKey;
-    rv = LookupCache::GetKey(fragments[i], &hostKey, cryptoHash);
+    rv = LookupCache::GetKey(fragments[i], &hostKey, mCryptoHash);
     if (NS_FAILED(rv)) {
       // Local host on the network.
       continue;
@@ -298,7 +288,7 @@ Classifier::Check(const nsACString& aSpec,
 
         result->hash.complete = lookupHash;
         result->mComplete = complete;
-        result->mFresh = (age < aFreshnessGuarantee);
+        result->mFresh = (age < mFreshTime);
         result->mTableName.Assign(cache->TableName());
       }
     }
