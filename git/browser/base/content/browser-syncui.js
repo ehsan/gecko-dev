@@ -278,7 +278,7 @@ let gSyncUI = {
 
   doSync: function SUI_doSync() {
     if (Weave.Service.isLoggedIn || Weave.Service.login())
-      setTimeout(function() Weave.Service.sync(), 0);
+      Weave.Service.sync();
   },
 
   handleToolbarButton: function SUI_handleStatusbarButton() {

@@ -120,11 +120,6 @@ protected:
      */
     PRUint32 GetCharExtents(char aChar, cairo_text_extents_t* aExtents);
 
-    typedef FT_UInt (*CharVariantFunction)(FT_Face  face,
-                                           FT_ULong charcode,
-                                           FT_ULong variantSelector);
-    CharVariantFunction FindCharVariantFunction();
-
     nsRefPtr<gfxFT2FontBase> mGfxFont;
     FT_Face mFace;
 };
