@@ -714,7 +714,6 @@ public:
   void PassDictContainingDict(JSContext*, const DictContainingDict&);
   void PassDictContainingSequence(JSContext*, const DictContainingSequence&);
   void ReceiveDictContainingSequence(JSContext*, DictContainingSequence&);
-  void PassVariadicDictionary(JSContext*, const Sequence<Dict>&);
 
   // Typedefs
   void ExerciseTypedefInterfaces1(TestInterface&);

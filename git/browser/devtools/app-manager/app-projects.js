@@ -206,14 +206,6 @@ const AppProjects = {
     return IDB.update(project);
   },
 
-  updateLocation: function(project, newLocation) {
-    return IDB.remove(project.location)
-              .then(() => {
-                project.location = newLocation;
-                return IDB.add(project);
-              });
-  },
-
   remove: function(location) {
     return IDB.remove(location).then(function () {
       let projects = store.object.projects;
@@ -243,3 +235,4 @@ const AppProjects = {
 EventEmitter.decorate(AppProjects);
 
 exports.AppProjects = AppProjects;
+

@@ -774,6 +774,8 @@ var gBrowserInit = {
 
     gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
 
+    gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
+
     Services.obs.addObserver(gPluginHandler.pluginCrashed, "plugin-crashed", false);
 
     window.addEventListener("AppCommand", HandleAppCommandEvent, true);
@@ -6078,10 +6080,8 @@ function GetSearchFieldBookmarkData(node) {
 
   if (isURLEncoded)
     postData = formData.join("&");
-  else {
-    let separator = spec.contains("?") ? "&" : "?";
-    spec += separator + formData.join("&");
-  }
+  else
+    spec += "?" + formData.join("&");
 
   return {
     spec: spec,

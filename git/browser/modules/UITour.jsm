@@ -16,8 +16,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
   "resource://gre/modules/LightweightThemeManager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PermissionsUtils",
   "resource://gre/modules/PermissionsUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ResetProfile",
-  "resource://gre/modules/ResetProfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
   "resource:///modules/CustomizableUI.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
@@ -427,12 +425,6 @@ this.UITour = {
         // accept arbitrary actions just to be safe...
         // We want to replace the current tab.
         contentDocument.location.href = "about:accounts?action=signup&entrypoint=uitour";
-        break;
-      }
-
-      case "resetFirefox": {
-        // Open a reset profile dialog window.
-        ResetProfile.openConfirmationDialog(window);
         break;
       }
     }
