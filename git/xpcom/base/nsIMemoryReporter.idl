@@ -328,7 +328,7 @@ interface nsIMemoryReporterManager : nsISupports
    * {system,user} compartments in the main JS runtime.
    *
    * |imagesContentUsedUncompressed| (UNITS_BYTES)  Memory used for decoded
-   * raster images in content.
+   * images in content.
    *
    * |storageSQLite| (UNITS_BYTES)  Memory used by SQLite.
    *

@@ -283,7 +283,7 @@ public:
 
 private:
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  const nsCString mType;
+  const nsAutoCString mType;
 
   // Provides synchronization between SourceBuffers and InputAdapters.
   // Protects all of the member variables below.  Read() will await a

@@ -119,12 +119,8 @@ private:
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
-  // Create a new decoder for mType, and store the result in mDecoder.
-  // Returns true if mDecoder was set.
+  // Create a new decoder for mType, add it to mDecoders and update mCurrentDecoder.
   bool InitNewDecoder();
-
-  // Set mDecoder to null and reset mDecoderInitialized.
-  void DiscardDecoder();
 
   // Update mUpdating and fire the appropriate events.
   void StartUpdating();
@@ -140,7 +136,7 @@ private:
 
   nsRefPtr<MediaSource> mMediaSource;
 
-  const nsCString mType;
+  const nsAutoCString mType;
 
   nsAutoPtr<ContainerParser> mParser;
 
@@ -154,7 +150,7 @@ private:
   SourceBufferAppendMode mAppendMode;
   bool mUpdating;
 
-  bool mDecoderInitialized;
+  bool mDecoderInit;
 };
 
 } // namespace dom

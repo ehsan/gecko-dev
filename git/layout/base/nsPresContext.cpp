@@ -1149,7 +1149,7 @@ void
 nsPresContext::UpdateCharSet(const nsCString& aCharSet)
 {
   if (mLangService) {
-    mLanguage = mLangService->LookupCharSet(aCharSet);
+    mLanguage = mLangService->LookupCharSet(aCharSet.get());
     // this will be a language group (or script) code rather than a true language code
 
     // bug 39570: moved from nsLanguageAtomService::LookupCharSet()
