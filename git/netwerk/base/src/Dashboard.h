@@ -5,17 +5,19 @@
 #ifndef nsDashboard_h__
 #define nsDashboard_h__
 
-#include "mozilla/Mutex.h"
-#include "mozilla/net/DashboardTypes.h"
 #include "nsIDashboard.h"
-#include "nsIDNSListener.h"
+#include "nsIDashboardEventNotifier.h"
+#include "nsTArray.h"
+#include "nsString.h"
+#include "nsIDNSService.h"
 #include "nsIServiceManager.h"
-#include "nsITimer.h"
+#include "nsIThread.h"
+#include "nsSocketTransport2.h"
+#include "mozilla/net/DashboardTypes.h"
+#include "nsHttp.h"
 #include "nsITransport.h"
-
-class nsIDNSService;
-class nsISocketTransport;
-class nsIThread;
+#include "nsITimer.h"
+#include "nsIDNSListener.h"
 
 namespace mozilla {
 namespace net {
@@ -144,6 +146,25 @@ private:
     struct DnsData mDns;
     struct DnsLookup mDnsup;
     struct ConnectionData mConn;
+};
+
+class DashConnStatusRunnable: public nsRunnable
+{
+public:
+    DashConnStatusRunnable(Dashboard * aDashboard, ConnStatus aStatus)
+    : mDashboard(aDashboard)
+    {
+        mStatus.creationSts = aStatus.creationSts;
+    }
+
+    NS_IMETHODIMP Run()
+    {
+        return mDashboard->GetConnectionStatus(mStatus);
+    }
+
+private:
+    ConnStatus mStatus;
+    Dashboard * mDashboard;
 };
 
 } } // namespace mozilla::net

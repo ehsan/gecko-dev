@@ -89,19 +89,14 @@ template<bool mainThread>
 inline bool
 ThrowMethodFailedWithDetails(JSContext* cx, ErrorResult& rv,
                              const char* ifaceName,
-                             const char* memberName,
-                             bool reportJSContentExceptions = false)
+                             const char* memberName)
 {
   if (rv.IsTypeError()) {
     rv.ReportTypeError(cx);
     return false;
   }
   if (rv.IsJSException()) {
-    if (reportJSContentExceptions) {
-      rv.ReportJSExceptionFromJSImplementation(cx);
-    } else {
-      rv.ReportJSException(cx);
-    }
+    rv.ReportJSException(cx);
     return false;
   }
   if (rv.IsNotEnoughArgsError()) {
@@ -188,8 +183,8 @@ IsDOMObject(JSObject* obj)
 }
 
 #define UNWRAP_OBJECT(Interface, cx, obj, value)                             \
-  mozilla::dom::UnwrapObject<mozilla::dom::prototypes::id::Interface,        \
-    mozilla::dom::Interface##Binding::NativeType>(cx, obj, value)
+  UnwrapObject<prototypes::id::Interface,                                    \
+               mozilla::dom::Interface##Binding::NativeType>(cx, obj, value)
 
 // Some callers don't want to set an exception when unwrapping fails
 // (for example, overload resolution uses unwrapping to tell what sort

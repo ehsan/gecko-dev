@@ -1594,8 +1594,8 @@ TypeObjectAddendum::writeBarrierPre(TypeObjectAddendum *type)
       case NewScript:
         return TypeNewScript::writeBarrierPre(type->asNewScript());
 
-      case TypedObject:
-        return TypeTypedObject::writeBarrierPre(type->asTypedObject());
+      case BinaryData:
+        return TypeBinaryData::writeBarrierPre(type->asNewScript());
     }
 #endif
 }

@@ -29,7 +29,6 @@
 #define JSD_USE_NSPR_LOCKS 1
 #endif /* MOZILLA_CLIENT */
 
-#include "jsapi.h"
 #include "jshash.h"
 #include "jsclist.h"
 #include "jsdebug.h"

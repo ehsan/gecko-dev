@@ -164,7 +164,7 @@ var ContextCommands = {
     let defaultURI = aRichListItem.getAttribute("searchString");
     aRichListItem.childNodes[0].setAttribute("value", "");
     aRichListItem.setAttribute("searchString", "");
-    BrowserUI.addAndShowTab(defaultURI, Browser.selectedTab);
+    BrowserUI.newTab(defaultURI, Browser.selectedTab);
   },
 
   // Link specific
@@ -208,7 +208,7 @@ var ContextCommands = {
   },
 
   openImageInNewTab: function cc_openImageInNewTab() {
-    BrowserUI.addAndShowTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
+    BrowserUI.newTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
   },
 
   // Video specific
@@ -223,7 +223,7 @@ var ContextCommands = {
   },
 
   openVideoInNewTab: function cc_openVideoInNewTab() {
-    BrowserUI.addAndShowTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
+    BrowserUI.newTab(ContextMenuUI.popupState.mediaURL, Browser.selectedTab);
   },
 
   // Bookmarks

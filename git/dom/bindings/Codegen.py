@@ -4807,26 +4807,15 @@ if (global.Failed()) {
         if needsCx and not (static and descriptor.workers):
             argsPre.append("cx")
 
-        needsUnwrap = False
-        if isConstructor:
-            needsUnwrap = True
-            needsUnwrappedVar = False
-            unwrappedVar = "obj"
-        elif descriptor.interface.isJSImplemented():
-            needsUnwrap = True
-            needsUnwrappedVar = True
-            argsPre.append("js::GetObjectCompartment(unwrappedObj.empty() ? obj : unwrappedObj.ref())")
-        elif needScopeObject(returnType, arguments, self.extendedAttributes,
-                             descriptor, descriptor.wrapperCache, True):
-            needsUnwrap = True
-            needsUnwrappedVar = True
-            argsPre.append("unwrappedObj.empty() ? obj : unwrappedObj.ref()")
-
-        if needsUnwrap and needsUnwrappedVar:
+        needsUnwrap = isConstructor
+        if needScopeObject(returnType, arguments, self.extendedAttributes,
+                           descriptor, descriptor.wrapperCache,
+                           not descriptor.interface.isJSImplemented()):
             # We cannot assign into obj because it's a Handle, not a
             # MutableHandle, so we need a separate Rooted.
             cgThings.append(CGGeneric("Maybe<JS::Rooted<JSObject*> > unwrappedObj;"))
-            unwrappedVar = "unwrappedObj.ref()"
+            argsPre.append("unwrappedObj.empty() ? obj : unwrappedObj.ref()")
+            needsUnwrap = True
 
         if idlNode.isMethod() and idlNode.isLegacycaller():
             # If we can have legacycaller with identifier, we can't
@@ -4855,7 +4844,7 @@ if (global.Failed()) {
         if needsUnwrap:
             # Something depends on having the unwrapped object, so unwrap it now.
             xraySteps = []
-            if needsUnwrappedVar:
+            if not isConstructor:
                 xraySteps.append(
                     CGGeneric("unwrappedObj.construct(cx, obj);"))
 
@@ -4865,7 +4854,7 @@ if (global.Failed()) {
                 CGGeneric(string.Template("""${obj} = js::CheckedUnwrap(${obj});
 if (!${obj}) {
   return false;
-}""").substitute({ 'obj' : unwrappedVar })))
+}""").substitute({ 'obj' : 'obj' if isConstructor else 'unwrappedObj.ref()' })))
             if isConstructor:
                 # If we're called via an xray, we need to enter the underlying
                 # object's compartment and then wrap up all of our arguments into
@@ -4926,14 +4915,10 @@ if (!${obj}) {
                              self.idlNode.identifier.name))
 
     def getErrorReport(self):
-        jsImplemented = ""
-        if self.descriptor.interface.isJSImplemented():
-            jsImplemented = ", true"
-        return CGGeneric('return ThrowMethodFailedWithDetails<%s>(cx, rv, "%s", "%s"%s);'
+        return CGGeneric('return ThrowMethodFailedWithDetails<%s>(cx, rv, "%s", "%s");'
                          % (toStringBool(not self.descriptor.workers),
                             self.descriptor.interface.identifier.name,
-                            self.idlNode.identifier.name,
-                            jsImplemented))
+                            self.idlNode.identifier.name))
 
     def define(self):
         return (self.cgRoot.define() + "\n" + self.wrap_return_value())
@@ -9524,38 +9509,9 @@ class CGExampleRoot(CGThing):
 def jsImplName(name):
     return name + "JSImpl"
 
-class CGJSImplMember(CGNativeMember):
-    """
-    Base class for generating code for the members of the implementation class
-    for a JS-implemented WebIDL interface.
-    """
-    def __init__(self, descriptorProvider, member, name, signature,
-                 extendedAttrs, breakAfter=True, passJSBitsAsNeeded=True,
-                 visibility="public", jsObjectsArePtr=False,
-                 variadicIsSequence=False):
-        CGNativeMember.__init__(self, descriptorProvider, member, name,
-                                signature, extendedAttrs, breakAfter=breakAfter,
-                                passJSBitsAsNeeded=passJSBitsAsNeeded,
-                                visibility=visibility,
-                                jsObjectsArePtr=jsObjectsArePtr,
-                                variadicIsSequence=variadicIsSequence)
-        self.body = self.getImpl()
-
-    def getArgs(self, returnType, argList):
-        args = CGNativeMember.getArgs(self, returnType, argList)
-        args.insert(0, Argument("JSCompartment*", "aCompartment"))
-        return args
-
-class CGJSImplMethod(CGJSImplMember):
-    """
-    Class for generating code for the methods for a JS-implemented WebIDL
-    interface.
-    """
+class CGJSImplMethod(CGNativeMember):
     def __init__(self, descriptor, method, signature, isConstructor, breakAfter=True):
-        self.signature = signature
-        self.descriptor = descriptor
-        self.isConstructor = isConstructor
-        CGJSImplMember.__init__(self, descriptor, method,
+        CGNativeMember.__init__(self, descriptor, method,
                                 CGSpecializedMethod.makeNativeName(descriptor,
                                                                    method),
                                 signature,
@@ -9563,29 +9519,29 @@ class CGJSImplMethod(CGJSImplMember):
                                 breakAfter=breakAfter,
                                 variadicIsSequence=True,
                                 passJSBitsAsNeeded=False)
-
-    def getArgs(self, returnType, argList):
-        if self.isConstructor:
-            # Skip the JSCompartment bits for constructors; it's handled
-            # manually in getImpl.
-            return CGNativeMember.getArgs(self, returnType, argList)
-        return CGJSImplMember.getArgs(self, returnType, argList)
+        self.signature = signature
+        self.descriptor = descriptor
+        if isConstructor:
+            self.body = self.getConstructorImpl()
+        else:
+            self.body = self.getImpl()
 
     def getImpl(self):
-        args = self.getArgs(self.signature[0], self.signature[1])
-        if not self.isConstructor:
-            return 'return mImpl->%s(%s);' % (self.name, ", ".join(arg.name for arg in args))
+        callbackArgs = [arg.name for arg in self.getArgs(self.signature[0], self.signature[1])]
+        return 'return mImpl->%s(%s);' % (self.name, ", ".join(callbackArgs))
 
+    def getConstructorImpl(self):
         assert self.descriptor.interface.isJSImplemented()
         if self.name != 'Constructor':
             raise TypeError("Named constructors are not supported for JS implemented WebIDL. See bug 851287.")
         if len(self.signature[1]) != 0:
+            args = self.getArgs(self.signature[0], self.signature[1])
             # The first two arguments to the constructor implementation are not
             # arguments to the WebIDL constructor, so don't pass them to __Init()
             assert args[0].argType == 'const GlobalObject&'
             assert args[1].argType == 'JSContext*'
-            constructorArgs = [arg.name for arg in args[2:]]
-            constructorArgs.insert(0, "js::GetObjectCompartment(scopeObj)")
+            args = args[2:]
+            constructorArgs = [arg.name for arg in args]
             initCall = """
 // Wrap the object before calling __Init so that __DOM_IMPL__ is available.
 nsCOMPtr<nsIGlobalObject> globalHolder = do_QueryInterface(window);
@@ -9632,31 +9588,24 @@ def callbackGetterName(attr):
 def callbackSetterName(attr):
     return "Set" + MakeNativeName(attr.identifier.name)
 
-class CGJSImplGetter(CGJSImplMember):
-    """
-    Class for generating code for the getters of attributes for a JS-implemented
-    WebIDL interface.
-    """
+class CGJSImplGetter(CGNativeMember):
     def __init__(self, descriptor, attr):
-        CGJSImplMember.__init__(self, descriptor, attr,
+        CGNativeMember.__init__(self, descriptor, attr,
                                 CGSpecializedGetter.makeNativeName(descriptor,
                                                                    attr),
                                 (attr.type, []),
                                 descriptor.getExtendedAttributes(attr,
                                                                  getter=True),
                                 passJSBitsAsNeeded=False)
+        self.body = self.getImpl()
 
     def getImpl(self):
         callbackArgs = [arg.name for arg in self.getArgs(self.member.type, [])]
         return 'return mImpl->%s(%s);' % (callbackGetterName(self.member), ", ".join(callbackArgs))
 
-class CGJSImplSetter(CGJSImplMember):
-    """
-    Class for generating code for the setters of attributes for a JS-implemented
-    WebIDL interface.
-    """
+class CGJSImplSetter(CGNativeMember):
     def __init__(self, descriptor, attr):
-        CGJSImplMember.__init__(self, descriptor, attr,
+        CGNativeMember.__init__(self, descriptor, attr,
                                 CGSpecializedSetter.makeNativeName(descriptor,
                                                                    attr),
                                 (BuiltinTypes[IDLBuiltinType.Types.void],
@@ -9664,6 +9613,7 @@ class CGJSImplSetter(CGJSImplMember):
                                 descriptor.getExtendedAttributes(attr,
                                                                  setter=True),
                                 passJSBitsAsNeeded=False)
+        self.body = self.getImpl()
 
     def getImpl(self):
         callbackArgs = [arg.name for arg in self.getArgs(BuiltinTypes[IDLBuiltinType.Types.void],
@@ -9979,13 +9929,11 @@ class FakeMember():
         return None
 
 class CallbackMember(CGNativeMember):
-    def __init__(self, sig, name, descriptorProvider, needThisHandling, rethrowContentException=False):
+    def __init__(self, sig, name, descriptorProvider, needThisHandling):
         """
         needThisHandling is True if we need to be able to accept a specified
         thisObj, False otherwise.
         """
-        assert not rethrowContentException or not needThisHandling
-
         self.retvalType = sig[0]
         self.originalSig = sig
         args = sig[1]
@@ -10003,7 +9951,6 @@ class CallbackMember(CGNativeMember):
         # If needThisHandling, we generate ourselves as private and the caller
         # will handle generating public versions that handle the "this" stuff.
         visibility = "private" if needThisHandling else "public"
-        self.rethrowContentException = rethrowContentException
         # We don't care, for callback codegen, whether our original member was
         # a method or attribute or whatnot.  Just always pass FakeMember()
         # here.
@@ -10162,12 +10109,8 @@ class CallbackMember(CGNativeMember):
         if not self.needThisHandling:
             # Since we don't need this handling, we're the actual method that
             # will be called, so we need an aRethrowExceptions argument.
-            if self.rethrowContentException:
-                args.insert(0, Argument("JSCompartment*", "aCompartment"))
-            else:
-                args.append(Argument("ExceptionHandling", "aExceptionHandling",
-                                     "eReportExceptions"))
-            return args
+            return args + [Argument("ExceptionHandling", "aExceptionHandling",
+                                    "eReportExceptions")]
         # We want to allow the caller to pass in a "this" object, as
         # well as a JSContext.
         return [Argument("JSContext*", "cx"),
@@ -10177,22 +10120,13 @@ class CallbackMember(CGNativeMember):
         if self.needThisHandling:
             # It's been done for us already
             return ""
-        callSetup = "CallSetup s(CallbackPreserveColor(), aRv"
-        if self.rethrowContentException:
-            # getArgs doesn't add the aExceptionHandling argument but does add
-            # aCompartment for us.
-            callSetup += ", eRethrowContentExceptions, aCompartment"
-        else:
-            callSetup += ", aExceptionHandling"
-        callSetup += ");"
         return string.Template(
-            "${callSetup}\n"
+            "CallSetup s(CallbackPreserveColor(), aRv, aExceptionHandling);\n"
             "JSContext* cx = s.GetContext();\n"
             "if (!cx) {\n"
             "  aRv.Throw(NS_ERROR_UNEXPECTED);\n"
             "  return${errorReturn};\n"
             "}\n").substitute({
-                "callSetup": callSetup,
                 "errorReturn" : self.getDefaultRetval(),
                 })
 
@@ -10215,9 +10149,9 @@ class CallbackMember(CGNativeMember):
                                idlObject.location))
 
 class CallbackMethod(CallbackMember):
-    def __init__(self, sig, name, descriptorProvider, needThisHandling, rethrowContentException=False):
+    def __init__(self, sig, name, descriptorProvider, needThisHandling):
         CallbackMember.__init__(self, sig, name, descriptorProvider,
-                                needThisHandling, rethrowContentException)
+                                needThisHandling)
     def getRvalDecl(self):
         return "JS::Rooted<JS::Value> rval(cx, JS::UndefinedValue());\n"
 
@@ -10255,10 +10189,10 @@ class CallbackOperationBase(CallbackMethod):
     """
     Common class for implementing various callback operations.
     """
-    def __init__(self, signature, jsName, nativeName, descriptor, singleOperation, rethrowContentException=False):
+    def __init__(self, signature, jsName, nativeName, descriptor, singleOperation):
         self.singleOperation = singleOperation
         self.methodName = jsName
-        CallbackMethod.__init__(self, signature, nativeName, descriptor, singleOperation, rethrowContentException)
+        CallbackMethod.__init__(self, signature, nativeName, descriptor, singleOperation)
 
     def getThisObj(self):
         if not self.singleOperation:
@@ -10298,8 +10232,7 @@ class CallbackOperation(CallbackOperationBase):
         jsName = method.identifier.name
         CallbackOperationBase.__init__(self, signature,
                                        jsName, MakeNativeName(jsName),
-                                       descriptor, descriptor.interface.isSingleOperationInterface(),
-                                       rethrowContentException=descriptor.interface.isJSImplemented())
+                                       descriptor, descriptor.interface.isSingleOperationInterface())
 
 class CallbackGetter(CallbackMember):
     def __init__(self, attr, descriptor):
@@ -10309,8 +10242,7 @@ class CallbackGetter(CallbackMember):
                                 (attr.type, []),
                                 callbackGetterName(attr),
                                 descriptor,
-                                needThisHandling=False,
-                                rethrowContentException=descriptor.interface.isJSImplemented())
+                                needThisHandling=False)
 
     def getRvalDecl(self):
         return "JS::Rooted<JS::Value> rval(cx, JS::UndefinedValue());\n"
@@ -10335,8 +10267,7 @@ class CallbackSetter(CallbackMember):
                                  [FakeArgument(attr.type, attr)]),
                                 callbackSetterName(attr),
                                 descriptor,
-                                needThisHandling=False,
-                                rethrowContentException=descriptor.interface.isJSImplemented())
+                                needThisHandling=False)
 
     def getRvalDecl(self):
         # We don't need an rval
@@ -10365,7 +10296,7 @@ class CGJSImplInitOperation(CallbackOperationBase):
     def __init__(self, sig, descriptor):
         assert sig in descriptor.interface.ctor().signatures()
         CallbackOperationBase.__init__(self, (BuiltinTypes[IDLBuiltinType.Types.void], sig[1]),
-                                       "__init", "__Init", descriptor, False, True)
+                                       "__init", "__Init", descriptor, False)
 
 class GlobalGenRoots():
     """

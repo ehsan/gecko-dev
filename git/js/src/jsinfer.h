@@ -11,14 +11,12 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "jsalloc.h"
 #include "jsfriendapi.h"
 
 #include "ds/IdValuePair.h"
 #include "ds/LifoAlloc.h"
 #include "gc/Barrier.h"
 #include "js/Utility.h"
-#include "js/Vector.h"
 
 namespace js {
 
@@ -854,13 +852,13 @@ struct Property
 };
 
 struct TypeNewScript;
-struct TypeTypedObject;
+struct TypeBinaryData;
 
 struct TypeObjectAddendum
 {
     enum Kind {
         NewScript,
-        TypedObject
+        BinaryData
     };
 
     TypeObjectAddendum(Kind kind);
@@ -876,13 +874,13 @@ struct TypeObjectAddendum
         return (TypeNewScript*) this;
     }
 
-    bool isTypedObject() {
-        return kind == TypedObject;
+    bool isBinaryData() {
+        return kind == BinaryData;
     }
 
-    TypeTypedObject *asTypedObject() {
-        JS_ASSERT(isTypedObject());
-        return (TypeTypedObject*) this;
+    TypeBinaryData *asBinaryData() {
+        JS_ASSERT(isBinaryData());
+        return (TypeBinaryData*) this;
     }
 
     static inline void writeBarrierPre(TypeObjectAddendum *newScript);
@@ -939,9 +937,9 @@ struct TypeNewScript : public TypeObjectAddendum
     static inline void writeBarrierPre(TypeNewScript *newScript);
 };
 
-struct TypeTypedObject : public TypeObjectAddendum
+struct TypeBinaryData : public TypeObjectAddendum
 {
-    TypeTypedObject(TypeRepresentation *repr);
+    TypeBinaryData(TypeRepresentation *repr);
 
     TypeRepresentation *const typeRepr;
 };
@@ -1020,12 +1018,12 @@ struct TypeObject : gc::Cell
         return addendum->asNewScript();
     }
 
-    bool hasTypedObject() {
-        return addendum && addendum->isTypedObject();
+    bool hasBinaryData() {
+        return addendum && addendum->isBinaryData();
     }
 
-    TypeTypedObject *typedObject() {
-        return addendum->asTypedObject();
+    TypeBinaryData *binaryData() {
+        return addendum->asBinaryData();
     }
 
     /*
@@ -1035,7 +1033,7 @@ struct TypeObject : gc::Cell
      * this addendum must already be associated with the same TypeRepresentation,
      * and the method has no effect.
      */
-    bool addTypedObjectAddendum(JSContext *cx, TypeRepresentation *repr);
+    bool addBinaryDataAddendum(JSContext *cx, TypeRepresentation *repr);
 
     /*
      * Properties of this object. This may contain JSID_VOID, representing the
@@ -1131,7 +1129,7 @@ struct TypeObject : gc::Cell
     void markUnknown(ExclusiveContext *cx);
     void clearAddendum(ExclusiveContext *cx);
     void clearNewScriptAddendum(ExclusiveContext *cx);
-    void clearTypedObjectAddendum(ExclusiveContext *cx);
+    void clearBinaryDataAddendum(ExclusiveContext *cx);
     void getFromPrototypes(JSContext *cx, jsid id, HeapTypeSet *types, bool force = false);
 
     void print();

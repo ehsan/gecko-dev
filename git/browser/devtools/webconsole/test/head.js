@@ -890,9 +890,8 @@ function getMessageElementText(aElement)
  *            such message.
  *            - objects: boolean, set to |true| if you expect inspectable
  *            objects in the message.
- *            - source: object of the shape { url, line }. This is used to
- *            match the source URL and line number of the error message or
- *            console API call.
+ *            - source: object that can hold one property: url. This is used to
+ *            match the source URL of the message.
  * @return object
  *         A promise object is returned once the messages you want are found.
  *         The promise is resolved with the array of rule objects you give in
@@ -1033,15 +1032,7 @@ function waitForMessages(aOptions)
       return false;
     }
 
-    if (!checkText(aRule.source.url, location.getAttribute("title"))) {
-      return false;
-    }
-
-    if ("line" in aRule.source && location.sourceLine != aRule.source.line) {
-      return false;
-    }
-
-    return true;
+    return checkText(aRule.source.url, location.getAttribute("title"));
   }
 
   function checkMessage(aRule, aElement)

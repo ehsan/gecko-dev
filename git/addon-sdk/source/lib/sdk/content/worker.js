@@ -130,13 +130,13 @@ const WorkerSandbox = EventEmitter.compose({
     // Even if this principal is for a domain that is specified in the multiple
     // domain principal.
     let principals  = window;
-    let wantDOMConstructors = []
+    let wantXHRConstructor = false;
     if (EXPANDED_PRINCIPALS.length > 0 && !worker._injectInDocument) {
       principals = EXPANDED_PRINCIPALS.concat(window);
       // We have to replace XHR constructor of the content document
       // with a custom cross origin one, automagically added by platform code:
       delete proto.XMLHttpRequest;
-      wantDOMConstructors.push("XMLHttpRequest");
+      wantXHRConstructor = true;
     }
 
     // Instantiate trusted code in another Sandbox in order to prevent content
@@ -149,7 +149,7 @@ const WorkerSandbox = EventEmitter.compose({
     let content = this._sandbox = sandbox(principals, {
       sandboxPrototype: proto,
       wantXrays: true,
-      wantDOMConstructors: wantDOMConstructors,
+      wantXHRConstructor: wantXHRConstructor,
       sameZoneAs: window
     });
     // We have to ensure that window.top and window.parent are the exact same

@@ -649,41 +649,37 @@ function test_info() {
 
   let stop = new Date();
 
-  // We round down/up by 1s as file system precision is lower than
-  // Date precision (no clear specifications about that, but it seems
-  // that this can be a little over 1 second under ext3 and 2 seconds
-  // under FAT).
-  let SLOPPY_FILE_SYSTEM_ADJUSTMENT = 3000;
-  let startMs = start.getTime() - SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  let stopMs  = stop.getTime() + SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  info("Testing stat with bounds [ " + startMs + ", " + stopMs +" ]");
+  // We round down/up by 1s as file system precision is lower than Date precision
+  // (no clear specifications about that, but it seems that this can be a little
+  // over 1 second under ext3 and 2 seconds under FAT)
+  let startMs = start.getTime() - 2500;
+  let stopMs  = stop.getTime() + 2500;
 
   (function() {
     let birth;
-    if ("winBirthDate" in stat) {
-      birth = stat.winBirthDate;
-    } else if ("macBirthDate" in stat) {
-      birth = stat.macBirthDate;
+    if ("winBirthDate" in info) {
+      birth = info.winBirthDate;
+    } else if ("macBirthDate" in info) {
+      birth = info.macBirthDate;
     } else {
       ok(true, "Skipping birthdate test");
       return;
     }
     ok(birth.getTime() <= stopMs,
-    "test_info: platformBirthDate is consistent");
-    // Note: Previous versions of this test checked whether the file
-    // has been created after the start of the test. Unfortunately,
-    // this sometimes failed under Windows, in specific circumstances:
-    // if the file has been removed at the start of the test and
-    // recreated immediately, the Windows file system detects this and
-    // decides that the file was actually truncated rather than
-    // recreated, hence that it should keep its previous creation
-    // date.  Debugging hilarity ensues.
+    "test_info: file was created before now - " + stop + ", " + birth);
+    // Note: Previous versions of this test checked whether the file has
+    // been created after the start of the test. Unfortunately, this sometimes
+    // failed under Windows, in specific circumstances: if the file has been
+    // removed at the start of the test and recreated immediately, the Windows
+    // file system detects this and decides that the file was actually truncated
+    // rather than recreated, hence that it should keep its previous creation date.
+    // Debugging hilarity ensues.
   });
 
   let change = stat.lastModificationDate;
-  info("Testing lastModificationDate: " + change);
-  ok(change.getTime() >= startMs && change.getTime() <= stopMs,
-     "test_info: lastModificationDate is consistent");
+  ok(change.getTime() >= startMs
+     && change.getTime() <= stopMs,
+     "test_info: file has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
 
   // Test OS.File.prototype.stat on new file
   file = OS.File.open(filename);
@@ -700,20 +696,23 @@ function test_info() {
 
   stop = new Date();
 
-  // Round up/down as above
-  startMs = start.getTime() - SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  stopMs  = stop.getTime() + SLOPPY_FILE_SYSTEM_ADJUSTMENT;
-  info("Testing stat 2 with bounds [ " + startMs + ", " + stopMs +" ]");
+  // We round down/up by 1s as file system precision is lower than Date precision
+  startMs = start.getTime() - 1000;
+  stopMs  = stop.getTime() + 1000;
+
+  let birth = stat.creationDate;
+  ok(birth.getTime() <= stopMs,
+      "test_info: file 2 was created between the start of the test and now - " + start +  ", " + stop + ", " + birth);
 
   let access = stat.lastAccessDate;
-  info("Testing lastAccessDate: " + access);
-  ok(access.getTime() >= startMs && access.getTime() <= stopMs,
-     "test_info: lastAccessDate is consistent");
+  ok(access.getTime() >= startMs
+     && access.getTime() <= stopMs,
+     "test_info: file 2 was accessed between the start of the test and now - " + start + ", " + stop + ", " + access);
 
   change = stat.lastModificationDate;
-  info("Testing lastModificationDate 2: " + change);
-  ok(change.getTime() >= startMs && change.getTime() <= stopMs,
-     "test_info: lastModificationDate 2 is consistent");
+  ok(change.getTime() >= startMs
+     && change.getTime() <= stopMs,
+     "test_info: file 2 has changed between the start of the test and now - " + start + ", " + stop + ", " + change);
 
   // Test OS.File.stat on directory
   stat = OS.File.stat(OS.File.getCurrentDirectory());

@@ -122,12 +122,6 @@ class MIRGenerator
     const Vector<AsmJSHeapAccess, 0, IonAllocPolicy> &heapAccesses() const {
         return asmJSHeapAccesses_;
     }
-    void noteMinAsmJSHeapLength(uint32_t len) {
-        minAsmJSHeapLength_ = len;
-    }
-    uint32_t minAsmJSHeapLength() const {
-        return minAsmJSHeapLength_;
-    }
     bool noteGlobalAccess(unsigned offset, unsigned globalDataOffset) {
         return asmJSGlobalAccesses_.append(AsmJSGlobalAccess(offset, globalDataOffset));
     }
@@ -151,7 +145,6 @@ class MIRGenerator
     bool performsAsmJSCall_;
     AsmJSHeapAccessVector asmJSHeapAccesses_;
     AsmJSGlobalAccessVector asmJSGlobalAccesses_;
-    uint32_t minAsmJSHeapLength_;
 
 #if defined(JS_ION_PERF)
     AsmJSPerfSpewer asmJSPerfSpewer_;

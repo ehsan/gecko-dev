@@ -7,8 +7,6 @@ const timer = require("sdk/timers");
 const { LoaderWithHookedConsole, deactivate, pb, pbUtils } = require("./helper");
 const tabs = require("sdk/tabs");
 const { getMostRecentBrowserWindow, isWindowPrivate } = require('sdk/window/utils');
-const { set: setPref } = require("sdk/preferences/service");
-const DEPRECATE_PREF = "devtools.errorconsole.deprecation_warnings";
 
 exports["test activate private mode via handler"] = function(test) {
   test.waitUntilDone();
@@ -176,7 +174,6 @@ exports.testBothListeners = function(test) {
 
 exports.testAutomaticUnload = function(test) {
   test.waitUntilDone();
-  setPref(DEPRECATE_PREF, true);
 
   // Create another private browsing instance and unload it
   let { loader, errors } = LoaderWithHookedConsole(module);
