@@ -32,7 +32,6 @@
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "js/CharacterEncoding.h"
 #include "vm/Keywords.h"
 #include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
@@ -565,8 +564,7 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
         err.report.uclinebuf = windowBuf.extractWellSized();
         if (!err.report.uclinebuf)
             return false;
-        TwoByteChars tbchars(err.report.uclinebuf, windowLength);
-        err.report.linebuf = LossyTwoByteCharsToNewLatin1CharsZ(cx, tbchars).c_str();
+        err.report.linebuf = DeflateString(cx, err.report.uclinebuf, windowLength);
         if (!err.report.linebuf)
             return false;
 
@@ -730,8 +728,7 @@ TokenStream::getXMLEntity()
   bad:
     /* No match: throw a TypeError per ECMA-357 10.3.2.1 step 8(a). */
     JS_ASSERT((tb.end() - bp) >= 1);
-    TwoByteChars tbchars(bp + 1, (tb.end() - bp) - 1);
-    bytes = LossyTwoByteCharsToNewLatin1CharsZ(cx, tbchars).c_str();
+    bytes = DeflateString(cx, bp + 1, (tb.end() - bp) - 1);
     if (bytes) {
         reportError(msg, bytes);
         js_free(bytes);

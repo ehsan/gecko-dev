@@ -1660,7 +1660,12 @@ update(ObjectActor.prototype, {
                message: "cannot access the environment of this function." };
     }
 
-    return { from: this.actorID, scope: envActor.form() };
+    // XXX: the following call of env.form() won't work until bug 747514 lands.
+    // We can't get to the frame that defined this function's environment,
+    // neither here, nor during ObjectActor's construction. Luckily, we don't
+    // use the 'scope' request in the debugger frontend.
+    return { name: this.obj.name || null,
+             scope: envActor.form(this.obj) };
   }),
 
   /**
@@ -1842,12 +1847,10 @@ FrameActor.prototype = {
       form.callee = this.threadActor.createValueGrip(this.frame.callee);
     }
 
-    if (this.frame.environment) {
-      let envActor = this.threadActor
-        .createEnvironmentActor(this.frame.environment,
-                                this.frameLifetimePool);
-      form.environment = envActor.form();
-    }
+    let envActor = this.threadActor
+                       .createEnvironmentActor(this.frame.environment,
+                                               this.frameLifetimePool);
+    form.environment = envActor ? envActor.form(this.frame) : envActor;
     form.this = this.threadActor.createValueGrip(this.frame.this);
     form.arguments = this._args();
     if (this.frame.script) {
@@ -1992,39 +1995,51 @@ EnvironmentActor.prototype = {
   actorPrefix: "environment",
 
   /**
-   * Return an environment form for use in a protocol message.
+   * Returns an environment form for use in a protocol message. Note that the
+   * requirement of passing the frame as a parameter is only temporary, since
+   * when bug 747514 lands, the environment will have a callee property that
+   * will contain it.
+   *
+   * @param Debugger.Frame aObject
+   *        The stack frame object whose environment bindings are being
+   *        generated.
    */
-  form: function EA_form() {
-    let form = { actor: this.actorID };
-
-    // What is this environment's type?
-    if (this.obj.type == "declarative") {
-      form.type = this.obj.callee ? "function" : "block";
-    } else {
-      form.type = this.obj.type;
+  form: function EA_form(aObject) {
+    // Debugger.Frame might be dead by the time we get here, which will cause
+    // accessing its properties to throw.
+    if (!aObject.live) {
+      return undefined;
     }
 
-    // Does this environment have a parent?
+    let parent;
     if (this.obj.parent) {
-      form.parent = (this.threadActor
-                     .createEnvironmentActor(this.obj.parent,
-                                             this.registeredPool)
-                     .form());
+      let thread = this.threadActor;
+      parent = thread.createEnvironmentActor(this.obj.parent,
+                                             this.registeredPool);
     }
+    // Deduce the frame that created the parent scope in order to pass it to
+    // parent.form(). TODO: this can be removed after bug 747514 is done.
+    let parentFrame = aObject;
+    if (this.obj.type == "declarative" && aObject.older) {
+      parentFrame = aObject.older;
+    }
+    let form = { actor: this.actorID,
+                 parent: parent ? parent.form(parentFrame) : parent };
 
-    // Does this environment reflect the properties of an object as variables?
-    if (this.obj.type == "object" || this.obj.type == "with") {
+    if (this.obj.type == "with") {
+      form.type = "with";
       form.object = this.threadActor.createValueGrip(this.obj.object);
-    }
-
-    // Is this the environment created for a function call?
-    if (this.obj.callee) {
-      form.function = this.threadActor.createValueGrip(this.obj.callee);
-    }
-
-    // Shall we list this environment's bindings?
-    if (this.obj.type == "declarative") {
-      form.bindings = this._bindings();
+    } else if (this.obj.type == "object") {
+      form.type = "object";
+      form.object = this.threadActor.createValueGrip(this.obj.object);
+    } else { // this.obj.type == "declarative"
+      if (aObject.callee) {
+        form.type = "function";
+        form.function = this.threadActor.createValueGrip(aObject.callee);
+      } else {
+        form.type = "block";
+      }
+      form.bindings = this._bindings(aObject);
     }
 
     return form;
@@ -2032,9 +2047,16 @@ EnvironmentActor.prototype = {
 
   /**
    * Return the identifier bindings object as required by the remote protocol
-   * specification.
+   * specification. Note that the requirement of passing the frame as a
+   * parameter is only temporary, since when bug 747514 lands, the environment
+   * will have a callee property that will contain it.
+   *
+   * @param Debugger.Frame aObject [optional]
+   *        The stack frame whose environment bindings are being generated. When
+   *        left unspecified, the bindings do not contain an 'arguments'
+   *        property.
    */
-  _bindings: function EA_bindings() {
+  _bindings: function EA_bindings(aObject) {
     let bindings = { arguments: [], variables: {} };
 
     // TODO: this part should be removed in favor of the commented-out part
@@ -2045,8 +2067,8 @@ EnvironmentActor.prototype = {
     }
 
     let parameterNames;
-    if (this.obj.callee) {
-      parameterNames = this.obj.callee.parameterNames;
+    if (aObject && aObject.callee) {
+      parameterNames = aObject.callee.parameterNames;
     }
     for each (let name in parameterNames) {
       let arg = {};

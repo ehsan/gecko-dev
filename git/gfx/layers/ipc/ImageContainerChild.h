@@ -106,9 +106,16 @@ public:
   void DispatchDestroy();
 
   /**
-   * Flush and deallocate the shared images in the pool.
+   * Dispatches a task on the ImageBridgeChild's thread that will call SendFlush
+   * and deallocate the shared images in the pool.
+   * Can be called on any thread.
    */
-  void SetIdle();
+  void DispatchSetIdle();
+
+  /**
+   * Must be called on the ImageBridgeChild's thread.
+   */
+  void SetIdleNow();
 
   /**
    * Can be called from any thread.
@@ -161,21 +168,9 @@ protected:
   }
 
   /**
-   * Must be called on the ImageBridgeChild's thread.
+   * Must be called on the ImageBridgeCHild's thread.
    */
   void DestroyNow();
-  
-  /**
-   * Dispatches a task on the ImageBridgeChild's thread that will call SendFlush
-   * and deallocate the shared images in the pool.
-   * Can be called on any thread.
-   */
-  void SetIdleSync(Monitor* aBarrier, bool* aDone);
-
-  /**
-   * Must be called on the ImageBridgeChild's thread.
-   */
-  void SetIdleNow();
 
   inline void SetID(uint64_t id)
   {
