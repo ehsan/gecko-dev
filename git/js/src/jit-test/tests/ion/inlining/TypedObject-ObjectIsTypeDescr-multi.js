@@ -18,9 +18,6 @@
  * is currently written).
  */
 
-if (!this.TypedObject)
-  quit();
-
 var T = TypedObject;
 var ST1 = new T.StructType({x:T.int32});
 var ST2 = new T.StructType({x:T.float64});

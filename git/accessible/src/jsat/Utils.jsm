@@ -169,13 +169,6 @@ this.Utils = {
     return this.isContentProcess;
   },
 
-  get stringBundle() {
-    delete this.stringBundle;
-    this.stringBundle = Services.strings.createBundle(
-      'chrome://global/locale/AccessFu.properties');
-    return this.stringBundle;
-  },
-
   getMessageManager: function getMessageManager(aBrowser) {
     try {
       return aBrowser.QueryInterface(Ci.nsIFrameLoaderOwner).
@@ -782,23 +775,18 @@ this.PrefCache = function PrefCache(aName, aCallback, aRunCallbackNow) {
 
 PrefCache.prototype = {
   _getValue: function _getValue(aBranch) {
-    try {
-      if (!this.type) {
-        this.type = aBranch.getPrefType(this.name);
-      }
-      switch (this.type) {
-        case Ci.nsIPrefBranch.PREF_STRING:
-          return aBranch.getCharPref(this.name);
-        case Ci.nsIPrefBranch.PREF_INT:
-          return aBranch.getIntPref(this.name);
-        case Ci.nsIPrefBranch.PREF_BOOL:
-          return aBranch.getBoolPref(this.name);
-        default:
-          return null;
-      }
-    } catch (x) {
-      // Pref does not exist.
-      return null;
+    if (!this.type) {
+      this.type = aBranch.getPrefType(this.name);
+    }
+    switch (this.type) {
+      case Ci.nsIPrefBranch.PREF_STRING:
+        return aBranch.getCharPref(this.name);
+      case Ci.nsIPrefBranch.PREF_INT:
+        return aBranch.getIntPref(this.name);
+      case Ci.nsIPrefBranch.PREF_BOOL:
+        return aBranch.getBoolPref(this.name);
+      default:
+        return null;
     }
   },
 

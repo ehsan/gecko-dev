@@ -143,7 +143,7 @@ class BaseBootstrapper(object):
 
     def apt_add_architecture(self, arch):
         command = ['dpkg', '--add-architecture']
-        command.extend(arch)
+        command.extemd(arch)
 
         self.run_as_root(command)
 

@@ -13,7 +13,7 @@ using namespace mozilla;
 gfxPrefs* gfxPrefs::sInstance = nullptr;
 
 void
-gfxPrefs::DestroySingleton()
+gfxPrefs::Destroy()
 {
   if (sInstance) {
     delete sInstance;
@@ -22,7 +22,7 @@ gfxPrefs::DestroySingleton()
 }
 
 bool
-gfxPrefs::SingletonExists()
+gfxPrefs::Exists()
 {
   return sInstance != nullptr;
 }

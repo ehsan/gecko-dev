@@ -39,9 +39,7 @@ let appName = Services.appinfo.name;
 this.dumpn = function dumpn(str) {
   logger.trace(str);
 }
-let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let DevToolsUtils = devtools.require("devtools/toolkit/DevToolsUtils.js");
-this.DevToolsUtils = DevToolsUtils;
+loader.loadSubScript("resource://gre/modules/devtools/DevToolsUtils.js");
 loader.loadSubScript("resource://gre/modules/devtools/server/transport.js");
 
 let bypassOffline = false;

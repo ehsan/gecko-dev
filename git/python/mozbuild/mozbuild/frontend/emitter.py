@@ -33,7 +33,6 @@ from .data import (
     JARManifest,
     LibraryDefinition,
     LocalInclude,
-    PerSourceFlag,
     PreprocessedTestWebIDLFile,
     PreprocessedWebIDLFile,
     Program,
@@ -307,11 +306,6 @@ class TreeMetadataEmitter(LoggingMixin):
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo
         if no_pgo_sources:
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo_sources
-
-        sources_with_flags = [f for f in sources if sources[f].flags]
-        for f in sources_with_flags:
-            ext = mozpath.splitext(f)[1]
-            yield PerSourceFlag(sandbox, f, sources[f].flags)
 
         exports = sandbox.get('EXPORTS')
         if exports:

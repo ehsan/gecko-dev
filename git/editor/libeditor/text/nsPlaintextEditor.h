@@ -26,6 +26,7 @@ class nsIDOMNode;
 class nsIDocumentEncoder;
 class nsIEditRules;
 class nsIOutputStream;
+class nsIPrivateTextRangeList;
 class nsISelection;
 class nsISelectionController;
 class nsITransferable;

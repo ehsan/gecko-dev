@@ -14,7 +14,6 @@
 #include "nsIURI.h"
 #include "xpcIJSModuleLoader.h"
 #include "nsClassHashtable.h"
-#include "nsCxPusher.h"
 #include "nsDataHashtable.h"
 #include "jsapi.h"
 
@@ -116,13 +115,14 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
             getfactoryobj = nullptr;
 
             if (obj) {
-                mozilla::AutoJSContext cx;
-                JSAutoCompartment ac(cx, obj);
+                JSAutoRequest ar(sSelf->mContext);
 
-                JS_SetAllNonReservedSlotsToUndefined(cx, obj);
-                JS_RemoveObjectRoot(cx, &obj);
+                JSAutoCompartment ac(sSelf->mContext, obj);
+
+                JS_SetAllNonReservedSlotsToUndefined(sSelf->mContext, obj);
+                JS_RemoveObjectRoot(sSelf->mContext, &obj);
                 if (thisObjectKey)
-                    JS_RemoveScriptRoot(cx, &thisObjectKey);
+                    JS_RemoveScriptRoot(sSelf->mContext, &thisObjectKey);
             }
 
             if (location)

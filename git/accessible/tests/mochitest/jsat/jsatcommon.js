@@ -93,11 +93,16 @@ var AccessFuTest = {
     // Disable the console service logging.
     Logger.test = false;
     Logger.logLevel = Logger.INFO;
-    // Finish through idle callback to let AccessFu._disable complete.
-    SimpleTest.executeSoon(function () {
+    AccessFu.doneCallback = function doneCallback() {
+      // This is being called once AccessFu has been shut down.
+      // Detach AccessFu from everything it attached itself to.
       AccessFu.detach();
+      // and finish the test run.
       SimpleTest.finish();
-    });
+    };
+    // Tear down accessibility and make AccessFu stop.
+    SpecialPowers.setIntPref("accessibility.accessfu.notify_output", 0);
+    SpecialPowers.setIntPref("accessibility.accessfu.activate", 0);
   },
 
   nextTest: function AccessFuTest_nextTest() {
@@ -133,12 +138,8 @@ var AccessFuTest = {
       // Enable logging to the console service.
       Logger.test = true;
       Logger.logLevel = Logger.DEBUG;
-    };
+      // This is being called once accessibility has been turned on.
 
-    SpecialPowers.pushPrefEnv({
-      'set': [['accessibility.accessfu.notify_output', 1],
-              ['dom.mozSettings.enabled', true]]
-    }, function () {
       if (AccessFuTest._waitForExplicitFinish) {
         // Run all test functions asynchronously.
         AccessFuTest.nextTest();
@@ -147,7 +148,11 @@ var AccessFuTest = {
         [testFunc() for (testFunc of gTestFuncs)];
         AccessFuTest.finish();
       }
-    });
+    };
+
+    // Invoke the whole thing.
+    SpecialPowers.setIntPref("accessibility.accessfu.activate", 1);
+    SpecialPowers.setIntPref("accessibility.accessfu.notify_output", 1);
   }
 };
 

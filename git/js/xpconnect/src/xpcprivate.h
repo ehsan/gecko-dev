@@ -2773,9 +2773,8 @@ void PopJSContextNoScriptContext();
 class XPCJSContextStack
 {
 public:
-    XPCJSContextStack(XPCJSRuntime *aRuntime)
-      : mRuntime(aRuntime)
-      , mSafeJSContext(nullptr)
+    XPCJSContextStack()
+      : mSafeJSContext(nullptr)
     { }
 
     virtual ~XPCJSContextStack();
@@ -2808,7 +2807,6 @@ private:
     bool Push(JSContext *cx);
 
     AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
-    XPCJSRuntime* mRuntime;
     JSContext*  mSafeJSContext;
 };
 

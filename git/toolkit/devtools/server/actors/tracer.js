@@ -5,6 +5,10 @@
 "use strict";
 
 const { Cu } = require("chrome");
+
+const { reportException } =
+  Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {}).DevToolsUtils;
+
 const { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
 
 Cu.import("resource://gre/modules/jsdebugger.jsm");
@@ -136,7 +140,7 @@ TraceActor.prototype = {
       this.dbg.addDebuggee(aGlobal);
     } catch (e) {
       // Ignore attempts to add the debugger's compartment as a debuggee.
-      DevToolsUtils.reportException("TraceActor",
+      reportException("TraceActor",
                       new Error("Ignoring request to add the debugger's "
                                 + "compartment as a debuggee"));
     }
@@ -605,7 +609,7 @@ function createValueSnapshot(aValue, aDetailed=false) {
         ? detailedObjectSnapshot(aValue)
         : objectSnapshot(aValue);
     default:
-      DevToolsUtils.reportException("TraceActor",
+      reportException("TraceActor",
                       new Error("Failed to provide a grip for: " + aValue));
       return null;
   }

@@ -1,5 +1,5 @@
-/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2; js-indent-level: 2; -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /*
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -35,9 +35,12 @@ nsUnknownContentTypeDialogProgressListener.prototype = {
   // Look for error notifications and display alert to user.
   onStatusChange: function( aWebProgress, aRequest, aStatus, aMessage ) {
     if ( aStatus != Components.results.NS_OK ) {
+      // Get prompt service.
+      var prompter = Components.classes[ "@mozilla.org/embedcomp/prompt-service;1" ]
+                               .getService( Components.interfaces.nsIPromptService );
       // Display error alert (using text supplied by back-end).
       // FIXME this.dialog is undefined?
-      Services.prompt.alert( this.dialog, this.helperAppDlg.mTitle, aMessage );
+      prompter.alert( this.dialog, this.helperAppDlg.mTitle, aMessage );
       // Close the dialog.
       this.helperAppDlg.onCancel();
       if ( this.helperAppDlg.mDialog ) {
@@ -179,20 +182,6 @@ nsUnknownContentTypeDialog.prototype = {
     this.mLauncher.setWebProgressListener(progressListener);
   },
 
-  //
-  // displayBadPermissionAlert()
-  //
-  // Diplay an alert panel about the bad permission of folder/directory.
-  //
-  displayBadPermissionAlert: function () {
-    let bundle =
-      Services.strings.createBundle("chrome://mozapps/locale/downloads/unknownContentType.properties");
-
-    Services.prompt.alert(this.dialog,
-                   bundle.GetStringFromName("badPermissions.title"),
-                   bundle.GetStringFromName("badPermissions"));
-  },
-
   // promptForSaveToFile:  Display file picker dialog and return selected file.
   //                       This is called by the External Helper App Service
   //                       after the ucth dialog calls |saveToDisk| with a null
@@ -204,7 +193,6 @@ nsUnknownContentTypeDialog.prototype = {
   //
   // Note - this function is called without a dialog, so it cannot access any part
   // of the dialog XUL as other functions on this object do.
-
   promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
     throw new Components.Exception("Async version must be used", Components.results.NS_ERROR_NOT_AVAILABLE);
   },
@@ -216,9 +204,9 @@ nsUnknownContentTypeDialog.prototype = {
 
     let prefs = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(Components.interfaces.nsIPrefBranch);
-    let bundle =
-      Services.strings
-              .createBundle("chrome://mozapps/locale/downloads/unknownContentType.properties");
+    let bundle = Components.classes["@mozilla.org/intl/stringbundle;1"].
+                            getService(Components.interfaces.nsIStringBundleService).
+                            createBundle("chrome://mozapps/locale/downloads/unknownContentType.properties");
 
     Task.spawn(function() {
       if (!aForcePrompt) {
@@ -238,13 +226,22 @@ nsUnknownContentTypeDialog.prototype = {
             result = this.validateLeafName(defaultFolder, aDefaultFile, aSuggestedFileExtension);
           }
           catch (ex) {
-            // When the default download directory is write-protected,
-            // prompt the user for a different target file.
+            if (ex.result == Components.results.NS_ERROR_FILE_ACCESS_DENIED) {
+              let prompter = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].
+                                        getService(Components.interfaces.nsIPromptService);
+
+              // Display error alert (using text supplied by back-end)
+              prompter.alert(this.dialog,
+                             bundle.GetStringFromName("badPermissions.title"),
+                             bundle.GetStringFromName("badPermissions"));
+
+              aLauncher.saveDestinationAvailable(null);
+              return;
+            }
           }
 
           // Check to make sure we have a valid directory, otherwise, prompt
           if (result) {
-            // This path is taken when we have a writable default download directory.
             aLauncher.saveDestinationAvailable(result);
             return;
           }
@@ -281,7 +278,7 @@ nsUnknownContentTypeDialog.prototype = {
       picker.appendFilters( nsIFilePicker.filterAll );
 
       // Default to lastDir if it is valid, otherwise use the user's default
-      // downloads directory.  getPreferredDownloadsDirectory should always
+      // downloads directory.  getPreferredDownloadsDirectory should always 
       // return a valid directory path, so we can safely default to it.
       let preferredDir = yield Downloads.getPreferredDownloadsDirectory();
       picker.displayDirectory = new FileUtils.File(preferredDir);
@@ -309,31 +306,13 @@ nsUnknownContentTypeDialog.prototype = {
             if (result.exists())
               result.remove(false);
           }
-          catch (ex) {
-            // As it turns out, the failure to remove the file, for example due to
-            // permission error, will be handled below eventually somehow.
-          }
-
+          catch (e) { }
           var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
           // Do not store the last save directory as a pref inside the private browsing mode
           gDownloadLastDir.setFile(aLauncher.source, newDir);
 
-          try {
-            result = this.validateLeafName(newDir, result.leafName, null);
-          }
-          catch (ex) {
-            // When the chosen download directory is write-protected,
-            // display an informative error message.
-            // In all cases, download will be stopped.
-
-            if (ex.result == Components.results.NS_ERROR_FILE_ACCESS_DENIED) {
-              this.displayBadPermissionAlert();
-              aLauncher.saveDestinationAvailable(null);
-              return;
-            }
-
-          }
+          result = this.validateLeafName(newDir, result.leafName, null);
         }
         aLauncher.saveDestinationAvailable(result);
       }.bind(this));
@@ -355,15 +334,12 @@ nsUnknownContentTypeDialog.prototype = {
    *          if aLeafName is non-empty
    * @return  nsILocalFile
    *          the created file
-   * @throw   an error such as permission doesn't allow creation of
-   *          file, etc.
    */
   validateLeafName: function (aLocalFolder, aLeafName, aFileExt)
   {
-    if (!(aLocalFolder && isUsableDirectory(aLocalFolder))) {
-      throw new Components.Exception("Destination directory non-existing or permission error",
-                                     Components.results.NS_ERROR_FILE_ACCESS_DENIED);
-    }
+    if (!(aLocalFolder && isUsableDirectory(aLocalFolder)))
+      return null;
+
     // Remove any leading periods, since we don't want to save hidden files
     // automatically.
     aLeafName = aLeafName.replace(/^\.+/, "");
@@ -372,8 +348,6 @@ nsUnknownContentTypeDialog.prototype = {
       aLeafName = "unnamed" + (aFileExt ? "." + aFileExt : "");
     aLocalFolder.append(aLeafName);
 
-    // The following assignment can throw an exception, but
-    // is now caught properly in the caller of validateLeafName.
     var createdFile = DownloadPaths.createNiceUniqueFile(aLocalFolder);
 
 #ifdef XP_WIN
@@ -873,7 +847,8 @@ nsUnknownContentTypeDialog.prototype = {
         // Show alert and try again.
         var bundle = this.dialogElement("strings");
         var msg = bundle.getFormattedString("badApp", [this.dialogElement("otherHandler").getAttribute("path")]);
-        Services.prompt.alert(this.mDialog, bundle.getString("badApp.title"), msg);
+        var svc = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].getService(Components.interfaces.nsIPromptService);
+        svc.alert(this.mDialog, bundle.getString("badApp.title"), msg);
 
         // Disable the OK button.
         this.mDialog.document.documentElement.getButton("accept").disabled = true;
