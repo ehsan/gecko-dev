@@ -73,11 +73,6 @@ public:
     PRUint64 mUint;
     PRInt64 mInt;
     double mDouble;
-    struct {
-      float mAngle;
-      PRUint16 mUnit;
-      PRUint16 mOrientType;
-    } mOrient;
     void* mPtr;
   } mU;
   const nsISMILType* mType;

@@ -1337,19 +1337,6 @@ nsSVGElement::DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 }
 
 void
-nsSVGElement::DidAnimateInteger(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    IntegerAttributesInfo info = GetIntegerInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mIntegerInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
-void
 nsSVGElement::GetAnimatedIntegerValues(PRInt32 *aFirst, ...)
 {
   IntegerAttributesInfo info = GetIntegerInfo();
@@ -1364,7 +1351,7 @@ nsSVGElement::GetAnimatedIntegerValues(PRInt32 *aFirst, ...)
   va_start(args, aFirst);
 
   while (n && i < info.mIntegerCount) {
-    *n = info.mIntegers[i++].GetAnimValue(this);
+    *n = info.mIntegers[i++].GetAnimValue();
     n = va_arg(args, PRInt32*);
   }
   va_end(args);
@@ -1401,19 +1388,6 @@ nsSVGElement::DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, *info.mAngleInfo[aAttrEnum].mName,
           newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateAngle(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    AngleAttributesInfo info = GetAngleInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mAngleInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 nsSVGElement::BooleanAttributesInfo
@@ -1526,18 +1500,6 @@ nsSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
   viewBox->GetBaseValueString(newStr);
 
   SetAttr(kNameSpaceID_None, nsGkAtoms::viewBox, newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateViewBox()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::viewBox,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 nsSVGPreserveAspectRatio *
@@ -1779,16 +1741,6 @@ nsSVGElement::GetAnimatedAttr(const nsIAtom* aName)
     }
   }
 
-  // Integers:
-  {
-    IntegerAttributesInfo info = GetIntegerInfo();
-    for (PRUint32 i = 0; i < info.mIntegerCount; i++) {
-      if (aName == *info.mIntegerInfo[i].mName) {
-        return info.mIntegers[i].ToSMILAttr(this);
-      }
-    }
-  }
-
   // Enumerations:
   {
     EnumAttributesInfo info = GetEnumInfo();
@@ -1807,22 +1759,6 @@ nsSVGElement::GetAnimatedAttr(const nsIAtom* aName)
         return info.mBooleans[i].ToSMILAttr(this);
       }
     }
-  }
-
-  // Angles:
-  {
-    AngleAttributesInfo info = GetAngleInfo();
-    for (PRUint32 i = 0; i < info.mAngleCount; i++) {
-      if (aName == *info.mAngleInfo[i].mName) {
-        return info.mAngles[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // viewBox:
-  if (aName == nsGkAtoms::viewBox) {
-    nsSVGViewBox *viewBox = GetViewBox();
-    return viewBox ? viewBox->ToSMILAttr(this) : nsnull;
   }
 
   // preserveAspectRatio:

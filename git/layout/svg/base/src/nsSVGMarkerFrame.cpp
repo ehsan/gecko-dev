@@ -114,7 +114,7 @@ nsSVGMarkerFrame::GetCanvasTM()
   gfxMatrix markedTM = mMarkedFrame->GetCanvasTM();
   mInUse2 = PR_FALSE;
 
-  gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
+  gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAngle);
   gfxMatrix viewBoxTM = content->GetViewBoxTransform();
 
   return viewBoxTM * markerTM * markedTM;
@@ -158,7 +158,7 @@ nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
   mStrokeWidth = aStrokeWidth;
   mX = aMark->x;
   mY = aMark->y;
-  mAutoAngle = aMark->angle;
+  mAngle = aMark->angle;
 
   gfxContext *gfx = aContext->GetGfxContext();
 
@@ -202,7 +202,7 @@ nsSVGMarkerFrame::RegionMark(nsSVGPathGeometryFrame *aMarkedFrame,
   mStrokeWidth = aStrokeWidth;
   mX = aMark->x;
   mY = aMark->y;
-  mAutoAngle = aMark->angle;
+  mAngle = aMark->angle;
 
   // Force children to update their covered region
   for (nsIFrame* kid = mFrames.FirstChild();
