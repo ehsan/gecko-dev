@@ -67,6 +67,7 @@ endif
 
 CPPSRCS = \
         nsColor.cpp \
+        nsDeviceContext.cpp \
         nsFont.cpp \
         nsRect.cpp \
         nsRegion.cpp \

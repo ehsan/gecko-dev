@@ -57,7 +57,6 @@ REQUIRES =  xpcom \
             string \
             thebes \
             widget \
-            locale \
             view \
             pref \
             unicharutil \
@@ -65,10 +64,6 @@ REQUIRES =  xpcom \
             $(ZLIB_REQUIRES) \
             qcms \
             $(NULL)
-
-ifeq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
-REQUIRES += uconv
-endif
 
 CPPSRCS		= \
 		nsThebesDeviceContext.cpp \

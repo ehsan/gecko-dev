@@ -57,6 +57,7 @@ REQUIRES= \
 		  $(NULL)
 
 CPPSRCS = \
+	nsRenderingContextImpl.cpp \
 	gfxImageFrame.cpp \
 	$(NULL)
 
