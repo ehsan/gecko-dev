@@ -13,7 +13,7 @@ thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Connection closed");
  * event and reshow the tools after reloading.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { gFront, $ } = panel.panelWin;
 
@@ -61,5 +61,6 @@ add_task(function*() {
   is($("#content").hidden, false,
     "The tool's content should reappear without closing and reopening the toolbox.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

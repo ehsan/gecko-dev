@@ -5,7 +5,7 @@
  * Tests that the SVG marker styling is updated when devtools theme changes.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, MARKER_STYLING } = panelWin;
@@ -47,8 +47,9 @@ add_task(function*() {
   is(getFill($("#arrowhead")), MARKER_STYLING.light,
     "marker styling switches back to light once again.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
 
 /**
  * Returns a hex value found in styling for an element. So parses

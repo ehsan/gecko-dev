@@ -5,7 +5,7 @@
  * Tests to ensure that param connections trigger graph redraws
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS } = panelWin;
@@ -25,5 +25,7 @@ add_task(function*() {
   yield waitForGraphRendered(panelWin, 3, 1, 1);
   ok(true, "Graph re-rendered upon param connection");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
+

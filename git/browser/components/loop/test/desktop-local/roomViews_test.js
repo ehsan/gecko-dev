@@ -64,7 +64,6 @@ describe("loop.roomViews", function () {
         audioMuted: false,
         videoMuted: false,
         failureReason: undefined,
-        used: false,
         foo: "bar"
       });
     });
@@ -356,27 +355,12 @@ describe("loop.roomViews", function () {
 
       it("should render the FeedbackView if roomState is `ENDED`",
         function() {
-          activeRoomStore.setStoreState({
-            roomState: ROOM_STATES.ENDED,
-            used: true
-          });
+          activeRoomStore.setStoreState({roomState: ROOM_STATES.ENDED});
 
           view = mountTestComponent();
 
           TestUtils.findRenderedComponentWithType(view,
             loop.shared.views.FeedbackView);
-        });
-
-      it("should NOT render the FeedbackView if the room has not been used",
-        function() {
-          activeRoomStore.setStoreState({
-            roomState: ROOM_STATES.ENDED,
-            used: false
-          });
-
-          view = mountTestComponent();
-
-          expect(view.getDOMNode()).eql(null);
         });
     });
 

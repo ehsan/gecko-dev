@@ -6,7 +6,7 @@
  * Uses the editor front as the actors do not retain connect state.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, gAudioNodes } = panelWin;
@@ -29,5 +29,7 @@ add_task(function*() {
   ]);
   ok(true, "Oscillator connect to Gain's Gain AudioParam, event emitted.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
+

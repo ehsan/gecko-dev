@@ -2958,8 +2958,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
                      (JustExitedQuickBuffering() || HasLowUndecodedData());
     } else {
       MOZ_ASSERT(mReader->IsWaitForDataSupported());
-      shouldBuffer = (OutOfDecodedAudio() && mAudioRequestStatus == RequestStatus::Waiting) ||
-                     (OutOfDecodedVideo() && mVideoRequestStatus == RequestStatus::Waiting);
+      shouldBuffer = OutOfDecodedAudio() || OutOfDecodedVideo();
     }
     if (shouldBuffer) {
       if (currentFrame) {

@@ -6,7 +6,7 @@
  * the inspector and selected node.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, InspectorView } = panelWin;
@@ -44,5 +44,6 @@ add_task(function*() {
     "InspectorView visible after selecting a node after a reset.");
   is(InspectorView.getCurrentAudioNode().id, nodeIds[2], "InspectorView has correct node set upon clicking graph node after a reset.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

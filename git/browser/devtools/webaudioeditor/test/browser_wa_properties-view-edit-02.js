@@ -5,7 +5,7 @@
  * Tests that properties are not updated when modifying the VariablesView.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(COMPLEX_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, InspectorView } = panelWin;
@@ -40,5 +40,6 @@ add_task(function*() {
 
   checkVariableView(gVars, 0, {bufferSize: 4096}, "check that unwritable variable is not updated");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

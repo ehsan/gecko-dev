@@ -17,7 +17,7 @@ var gRGB_TO_HSL = {
  "rgb(153, 153, 153)": "hsl(0,0%,60%)",
 };
 
-add_task(function*() {
+let test = Task.async(function*() {
   let { target, panel } = yield initTimelinePanel(SIMPLE_URL);
   let { TIMELINE_BLUEPRINT } = devtools.require("devtools/timeline/global");
   let { $, $$, EVENTS, TimelineController } = panel.panelWin;
@@ -85,4 +85,7 @@ add_task(function*() {
     ok(bar.style.transform.match(/^translateX\(.*px\)$/),
       "The bar appears to have proper translations.");
   }
+
+  yield teardown(panel);
+  finish();
 });

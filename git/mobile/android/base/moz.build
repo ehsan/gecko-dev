@@ -326,6 +326,7 @@ gbjar.sources += [
     'InputMethods.java',
     'IntentHelper.java',
     'JavaAddonManager.java',
+    'LayoutInterceptor.java',
     'LocaleManager.java',
     'Locales.java',
     'lwt/LightweightTheme.java',
@@ -349,6 +350,7 @@ gbjar.sources += [
     'NotificationService.java',
     'NSSBridge.java',
     'OrderedBroadcastHelper.java',
+    'OuterLayout.java',
     'preferences/AlignRightLinkPreference.java',
     'preferences/AndroidImport.java',
     'preferences/AndroidImportPreference.java',
@@ -547,6 +549,7 @@ if CONFIG['MOZ_ANDROID_NEW_TABLET_UI'] and max_sdk_version >= 11:
         'tabs/TabStripItemView.java',
         'tabs/TabStripView.java'
     ]
+    ANDROID_RES_DIRS += [ SRCDIR + '/newtablet/res' ]
 
 gbjar.sources += sync_java_files
 gbjar.extra_jars += [
