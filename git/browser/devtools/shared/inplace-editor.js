@@ -179,7 +179,6 @@ function InplaceEditor(aOptions, aEvent)
 
   this._createInput();
   this._autosize();
-  this.inputCharWidth = this._getInputCharWidth();
 
   // Pull out character codes for advanceChars, listing the
   // characters that should trigger a blur.
@@ -330,18 +329,6 @@ InplaceEditor.prototype = {
     }
 
     this.input.style.width = width + "px";
-  },
-
-  /**
-   * Get the width of a single character in the input to properly position the
-   * autocompletion popup.
-   */
-  _getInputCharWidth: function InplaceEditor_getInputCharWidth()
-  {
-    // Just make the text content to be 'x' to get the width of any character in
-    // a monospace font.
-    this._measurement.textContent = "x";
-    return this._measurement.offsetWidth;
   },
 
    /**
@@ -1078,11 +1065,8 @@ InplaceEditor.prototype = {
       }
 
       if (finalList.length > 1) {
-        // Calculate the offset for the popup to be opened.
-        let x = (this.input.selectionStart - startCheckQuery.length) *
-                this.inputCharWidth;
         this.popup.setItems(finalList);
-        this.popup.openPopup(this.input, x);
+        this.popup.openPopup(this.input);
       } else {
         this.popup.hidePopup();
       }

@@ -115,6 +115,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         public void onStopEditing();
     }
 
+    private LayoutParams mAwesomeBarParams;
     private View mUrlDisplayContainer;
     private View mUrlEditContainer;
     private CustomEditText mUrlEditText;
@@ -152,6 +153,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
     private boolean mHasSoftMenuButton;
 
     private boolean mShowSiteSecurity;
+    private boolean mShowReader;
     private boolean mSpinnerVisible;
 
     private boolean mDelayRestartInput;
@@ -269,6 +271,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         registerEventListener("Reader:LongClick");
 
         mShowSiteSecurity = false;
+        mShowReader = false;
 
         mAnimatingEntry = false;
 
@@ -670,8 +673,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 break;
             case START:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    updateBackButton(canDoBack(tab));
-                    updateForwardButton(canDoForward(tab));
+                    updateBackButton(tab.canDoBack());
+                    updateForwardButton(tab.canDoForward());
                     Boolean showProgress = (Boolean)data;
                     if (showProgress && tab.getState() == Tab.STATE_LOADING)
                         setProgressVisibility(true);
@@ -681,8 +684,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 break;
             case STOP:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    updateBackButton(canDoBack(tab));
-                    updateForwardButton(canDoForward(tab));
+                    updateBackButton(tab.canDoBack());
+                    updateForwardButton(tab.canDoForward());
                     setProgressVisibility(false);
                     // Reset the title in case we haven't navigated to a new page yet.
                     updateTitle();
@@ -710,8 +713,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             case ADDED:
                 updateTabCount(Tabs.getInstance().getDisplayCount());
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    updateBackButton(canDoBack(tab));
-                    updateForwardButton(canDoForward(tab));
+                    updateBackButton(tab.canDoBack());
+                    updateForwardButton(tab.canDoForward());
                 }
                 break;
             case FAVICON:
@@ -877,14 +880,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
         return false;
     }
 
-    private boolean canDoBack(Tab tab) {
-        return (tab.canDoBack() && !mIsEditing);
-    }
-
-    private boolean canDoForward(Tab tab) {
-        return (tab.canDoForward() && !mIsEditing);
-    }
-
     private void addTab() {
         mActivity.addTab();
     }
@@ -986,12 +981,17 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         // Handle the viewing mode page actions
         setSiteSecurityVisibility(mShowSiteSecurity && !isLoading);
-        mPageActionLayout.setVisibility(!isLoading ? View.VISIBLE : View.GONE);
 
+        boolean inReaderMode = false;
+        Tab tab = Tabs.getInstance().getSelectedTab();
+        if (tab != null)
+            inReaderMode = ReaderModeUtils.isAboutReader(tab.getURL());
+
+        mPageActionLayout.setVisibility(!isLoading ? View.VISIBLE : View.GONE);
         // We want title to fill the whole space available for it when there are icons
         // being shown on the right side of the toolbar as the icons already have some
         // padding in them. This is just to avoid wasting space when icons are shown.
-        mTitle.setPadding(0, 0, (!isLoading ? mTitlePadding : 0), 0);
+        mTitle.setPadding(0, 0, (!isLoading && !(mShowReader || inReaderMode) ? mTitlePadding : 0), 0);
         updateFocusOrder();
     }
 
@@ -1329,8 +1329,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         final Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null) {
-            setButtonEnabled(mBack, canDoBack(tab));
-            setButtonEnabled(mForward, canDoForward(tab));
+            setButtonEnabled(mBack, enabled && tab.canDoBack());
+            setButtonEnabled(mForward, enabled && tab.canDoForward());
         }
     }
 
@@ -1776,8 +1776,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setSecurityMode(tab.getSecurityMode());
             setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
-            updateBackButton(canDoBack(tab));
-            updateForwardButton(canDoForward(tab));
+            updateBackButton(tab.canDoBack());
+            updateForwardButton(tab.canDoForward());
 
             final boolean isPrivate = tab.isPrivate();
             mUrlBarBackground.setPrivateMode(isPrivate);
