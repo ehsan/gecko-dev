@@ -34,9 +34,9 @@ struct MainThreadDictionaryBase
 {
 protected:
   JSContext* ParseJSON(const nsAString& aJSON,
-                       Maybe<JSAutoRequest>& aAr,
-                       Maybe<JSAutoCompartment>& aAc,
-                       Maybe< JS::Rooted<JS::Value> >& aVal);
+                       mozilla::Maybe<JSAutoRequest>& aAr,
+                       mozilla::Maybe<JSAutoCompartment>& aAc,
+                       JS::Value& aVal);
 };
 
 struct EnumEntry {
@@ -44,7 +44,7 @@ struct EnumEntry {
   size_t length;
 };
 
-class MOZ_STACK_CLASS GlobalObject
+class NS_STACK_CLASS GlobalObject
 {
 public:
   GlobalObject(JSContext* aCx, JSObject* aObject);
@@ -65,7 +65,7 @@ private:
   nsCOMPtr<nsISupports> mGlobalObjectRef;
 };
 
-class MOZ_STACK_CLASS WorkerGlobalObject
+class NS_STACK_CLASS WorkerGlobalObject
 {
 public:
   WorkerGlobalObject(JSContext* aCx, JSObject* aObject);
@@ -111,7 +111,7 @@ private:
  * empty string.  If HasStringBuffer() returns false, call AsAString() and get
  * the value from that.
  */
-class MOZ_STACK_CLASS DOMString {
+class NS_STACK_CLASS DOMString {
 public:
   DOMString()
     : mStringBuffer(nullptr)

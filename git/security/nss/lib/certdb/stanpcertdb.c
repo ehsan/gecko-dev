@@ -87,7 +87,7 @@ SEC_DeletePermCertificate(CERTCertificate *cert)
 }
 
 SECStatus
-CERT_GetCertTrust(const CERTCertificate *cert, CERTCertTrust *trust)
+CERT_GetCertTrust(CERTCertificate *cert, CERTCertTrust *trust)
 {
     SECStatus rv;
     CERT_LockCertTrust(cert);
@@ -712,8 +712,7 @@ add_to_subject_list(CERTCertList *certList, CERTCertificate *cert,
 
 CERTCertList *
 CERT_CreateSubjectCertList(CERTCertList *certList, CERTCertDBHandle *handle,
-			   const SECItem *name, PRTime sorttime,
-			   PRBool validOnly)
+			   SECItem *name, int64 sorttime, PRBool validOnly)
 {
     NSSCryptoContext *cc;
     NSSCertificate **tSubjectCerts, **pSubjectCerts;

@@ -6,7 +6,6 @@
  * API provided by Platform to the Call Control for User Interface activities
  */
 
-#include <stdarg.h>
 #include "cpr.h"
 #include "cpr_in.h"
 #include "phone.h"
@@ -1555,11 +1554,8 @@ static void post_message_helper(
     callid_t nCallId,
     uint16_t call_instance_id,
     string_t sdp,
-    pc_error error,
-    const char *format,
-    va_list args)
+    cc_int32_t status)
 {
-    flex_string fs;
     session_update_t msg;
     memset( &msg, 0, sizeof(session_update_t));
 
@@ -1575,22 +1571,12 @@ static void post_message_helper(
     msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
     msg.update.ccSessionUpd.data.state_data.line_id = nLine;
     msg.update.ccSessionUpd.data.state_data.sdp = sdp;
-    msg.update.ccSessionUpd.data.state_data.cause = error;
-
-    if (format) {
-      flex_string_init(&fs);
-      flex_string_vsprintf(&fs, format, args);
-      msg.update.ccSessionUpd.data.state_data.reason_text =
-        strlib_malloc(fs.buffer, -1);
-      flex_string_free(&fs);
-    } else {
-      msg.update.ccSessionUpd.data.state_data.reason_text = strlib_empty();
+    if (eventId == SET_LOCAL_DESC || eventId == SET_REMOTE_DESC) {
+        msg.update.ccSessionUpd.data.state_data.cause = status;
     }
 
-    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t),
-                          CCAPP_CCPROVIER) != CPR_SUCCESS ) {
-        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n",
-                    __FUNCTION__, event);
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", __FUNCTION__, event);
     }
 
     return;
@@ -1603,20 +1589,12 @@ static void post_message_helper(
  *  @return none
  */
 void ui_create_offer(call_events event, line_t nLine, callid_t nCallID,
-                     uint16_t call_instance_id, string_t sdp,
-                     pc_error error, const char *format, ...)
+                 	 uint16_t call_instance_id, string_t sdp)
 {
-    va_list ap;
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d attr=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__), event, call_instance_id);
 
-    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d",
-              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__),
-              event, call_instance_id);
-
-
-    va_start(ap, format);
-    post_message_helper(CREATE_OFFER, event, nLine, nCallID, call_instance_id,
-                        sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(CREATE_OFFER, event, nLine, nCallID, call_instance_id, sdp, 0);
 
     return;
 }
@@ -1628,17 +1606,12 @@ void ui_create_offer(call_events event, line_t nLine, callid_t nCallID,
  *  @return none
  */
 void ui_create_answer(call_events event, line_t nLine, callid_t nCallID,
-                      uint16_t call_instance_id, string_t sdp,
-                      pc_error error, const char *format, ...)
+                 	 uint16_t call_instance_id, string_t sdp)
 {
-    va_list ap;
     TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
               DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__), event, call_instance_id);
 
-    va_start(ap, format);
-    post_message_helper(CREATE_ANSWER, event, nLine, nCallID, call_instance_id,
-                        sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(CREATE_ANSWER, event, nLine, nCallID, call_instance_id, sdp, 0);
 
     return;
 }
@@ -1650,17 +1623,12 @@ void ui_create_answer(call_events event, line_t nLine, callid_t nCallID,
  */
 
 void ui_set_local_description(call_events event, line_t nLine, callid_t nCallID,
-                              uint16_t call_instance_id, string_t sdp,
-                              pc_error error, const char *format, ...)
+                 	 uint16_t call_instance_id, string_t sdp, cc_int32_t status)
 {
-    va_list ap;
     TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
               DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__), event, call_instance_id);
 
-    va_start(ap, format);
-    post_message_helper(SET_LOCAL_DESC, event, nLine, nCallID, call_instance_id,
-                        sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(SET_LOCAL_DESC, event, nLine, nCallID, call_instance_id, sdp, status);
 
     return;
 }
@@ -1671,19 +1639,13 @@ void ui_set_local_description(call_events event, line_t nLine, callid_t nCallID,
  *  @return none
  */
 
-void ui_set_remote_description(call_events event, line_t nLine,
-                               callid_t nCallID, uint16_t call_instance_id,
-                               string_t sdp, pc_error error,
-                               const char *format, ...)
+void ui_set_remote_description(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, string_t sdp, cc_int32_t status)
 {
-    va_list ap;
     TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
               DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__), event, call_instance_id);
 
-    va_start(ap, format);
-    post_message_helper(SET_REMOTE_DESC, event, nLine, nCallID,
-                        call_instance_id, sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(SET_REMOTE_DESC, event, nLine, nCallID, call_instance_id, sdp, status);
 
     return;
 }
@@ -1694,20 +1656,15 @@ void ui_set_remote_description(call_events event, line_t nLine,
  *  @return none
  */
 
-void ui_update_local_description(call_events event, line_t nLine,
-                                 callid_t nCallID, uint16_t call_instance_id,
-                                 string_t sdp, pc_error error,
-                                 const char *format, ...)
+void ui_update_local_description(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, string_t sdp)
 {
-    va_list ap;
     TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
               DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__),
               event, call_instance_id);
 
-    va_start(ap, format);
-    post_message_helper(UPDATE_LOCAL_DESC, event, nLine, nCallID,
-                        call_instance_id, sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(UPDATE_LOCAL_DESC, event, nLine, nCallID, call_instance_id,
+                        sdp, PC_OK);
 
     return;
 }
@@ -1719,17 +1676,12 @@ void ui_update_local_description(call_events event, line_t nLine,
  */
 
 void ui_ice_candidate_add(call_events event, line_t nLine, callid_t nCallID,
-                          uint16_t call_instance_id, string_t sdp,
-                          pc_error error, const char *format, ...)
+                 	  uint16_t call_instance_id, string_t sdp)
 {
-    va_list ap;
     TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
               DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, __FUNCTION__), event, call_instance_id);
 
-    va_start(ap, format);
-    post_message_helper(ICE_CANDIDATE_ADD, event, nLine, nCallID,
-                        call_instance_id, sdp, error, format, ap);
-    va_end(ap);
+    post_message_helper(ICE_CANDIDATE_ADD, event, nLine, nCallID, call_instance_id, sdp, PC_OK);
 }
 
 /**
@@ -1738,9 +1690,7 @@ void ui_ice_candidate_add(call_events event, line_t nLine, callid_t nCallID,
  *  @return none
  */
 
-void ui_on_remote_stream_added(call_events event, line_t nLine,
-                               callid_t nCallID, uint16_t call_instance_id,
-                               cc_media_remote_track_table_t media_track)
+void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID, uint16_t call_instance_id, cc_media_remote_track_table_t media_track)
 {
     session_update_t msg;
     fsmdef_dcb_t *dcb = fsmdef_get_dcb_by_call_id(nCallID);
@@ -1763,7 +1713,6 @@ void ui_on_remote_stream_added(call_events event, line_t nLine,
     msg.update.ccSessionUpd.data.state_data.line_id = nLine;
     msg.update.ccSessionUpd.data.state_data.media_stream_track_id = media_track.track[0].media_stream_track_id;
     msg.update.ccSessionUpd.data.state_data.media_stream_id = (unsigned int)media_track.media_stream_id;
-    msg.update.ccSessionUpd.data.state_data.cause = PC_NO_ERROR;
 
     if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
         CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", __FUNCTION__, event);

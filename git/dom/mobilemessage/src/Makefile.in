@@ -92,12 +92,10 @@ EXTRA_COMPONENTS = \
 else
 EXPORTS_mozilla/dom/mobilemessage += \
   MobileMessageDatabaseService.h \
-  MmsService.h \
   $(NULL)
 
 CPPSRCS += \
   MobileMessageDatabaseService.cpp \
-  MmsService.cpp \
   $(NULL)
 endif
 

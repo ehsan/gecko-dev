@@ -324,9 +324,6 @@ nsXULPrototypeCache::WritePrototype(nsXULPrototypeDocument* aPrototypeDocument)
 {
     nsresult rv = NS_OK, rv2 = NS_OK;
 
-    if (!StartupCache::GetSingleton())
-        return NS_OK;
-
     nsCOMPtr<nsIURI> protoURI = aPrototypeDocument->GetURI();
 
     nsCOMPtr<nsIObjectOutputStream> oos;

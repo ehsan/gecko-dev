@@ -70,12 +70,4 @@ protected:
 } // namespace dom
 } // namespace mozilla
 
-/**
- * aNodeInfoManager must not be null.
- */
-already_AddRefed<mozilla::dom::ProcessingInstruction>
-NS_NewXMLProcessingInstruction(nsNodeInfoManager *aNodeInfoManager,
-                               const nsAString& aTarget,
-                               const nsAString& aData);
-
 #endif // mozilla_dom_ProcessingInstruction_h

@@ -256,7 +256,7 @@ protected:
    */
   nsINode* GetRegisteredCommonAncestor();
 
-  struct MOZ_STACK_CLASS AutoInvalidateSelection
+  struct NS_STACK_CLASS AutoInvalidateSelection
   {
     AutoInvalidateSelection(nsRange* aRange) : mRange(aRange)
     {

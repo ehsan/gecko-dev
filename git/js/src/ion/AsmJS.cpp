@@ -5529,8 +5529,7 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
 
 #ifdef JS_ASMJS
     bool available = JSC::MacroAssembler().supportsFloatingPoint() &&
-                     !cx->compartment->debugMode() &&
-                     cx->hasOption(JSOPTION_ASMJS);
+                     !cx->compartment->debugMode();
 #else
     bool available = false;
 #endif

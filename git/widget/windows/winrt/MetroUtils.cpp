@@ -67,73 +67,40 @@ namespace {
   }
 };
 
-void LogW(const wchar_t *fmt, ...)
+void Log(const wchar_t *fmt, ...)
 {
-  va_list args = NULL;
+  va_list a = NULL;
+  wchar_t szDebugString[1024];
   if(!lstrlenW(fmt))
     return;
-  va_start(args, fmt);
-  int buflen = _vscwprintf(fmt, args);
-  wchar_t* buffer = new wchar_t[buflen+1];
-  if (!buffer) {
-    va_end(args);
+  va_start(a,fmt);
+  vswprintf(szDebugString, 1024, fmt, a);
+  va_end(a);
+  if(!lstrlenW(szDebugString))
     return;
-  }
-  vswprintf(buffer, buflen, fmt, args);
-  va_end(args);
 
   // MSVC, including remote debug sessions
-  OutputDebugStringW(buffer);
-  OutputDebugStringW(L"\n");
-
-  int len = wcslen(buffer);
-  if (len) {
-    char* utf8 = new char[len+1];
-    memset(utf8, 0, sizeof(utf8));
-    if (WideCharToMultiByte(CP_ACP, 0, buffer,
-                            -1, utf8, len+1, NULL,
-                            NULL) > 0) {
-      // desktop console
-      printf("%s\n", utf8);
-#ifdef PR_LOGGING
-      NS_ASSERTION(metroWidgetLog, "Called MetroUtils Log() but MetroWidget "
-                                   "log module doesn't exist!");
-      PR_LOG(metroWidgetLog, PR_LOG_ALWAYS, (utf8));
-#endif
-    }
-    delete[] utf8;
-  }
-  delete[] buffer;
-}
-
-void Log(const char *fmt, ...)
-{
-  va_list args = NULL;
-  if(!strlen(fmt))
-    return;
-  va_start(args, fmt);
-  int buflen = _vscprintf(fmt, args);
-  char* buffer = new char[buflen+1];
-  if (!buffer) {
-    va_end(args);
-    return;
-  }
-  vsprintf(buffer, fmt, args);
-  va_end(args);
-
-  // MSVC, including remote debug sessions
-  OutputDebugStringA(buffer);
+  OutputDebugStringW(szDebugString);
   OutputDebugStringW(L"\n");
 
   // desktop console
-  printf("%s\n", buffer);
+  wprintf(L"%s\n", szDebugString);
 
 #ifdef PR_LOGGING
   NS_ASSERTION(metroWidgetLog, "Called MetroUtils Log() but MetroWidget "
                                "log module doesn't exist!");
-  PR_LOG(metroWidgetLog, PR_LOG_ALWAYS, (buffer));
+  int len = wcslen(szDebugString);
+  if (len) {
+    char* utf8 = new char[len+1];
+    memset(utf8, 0, sizeof(utf8));
+    if (WideCharToMultiByte(CP_ACP, 0, szDebugString,
+                            -1, utf8, len+1, NULL,
+                            NULL) > 0) {
+      PR_LOG(metroWidgetLog, PR_LOG_ALWAYS, (utf8));
+    }
+    delete[] utf8;
+  }
 #endif
-  delete[] buffer;
 }
 
 // Conversion between logical and physical coordinates

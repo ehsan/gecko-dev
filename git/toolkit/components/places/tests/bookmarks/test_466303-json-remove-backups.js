@@ -7,8 +7,6 @@
 const NUMBER_OF_BACKUPS = 1;
 
 function run_test() {
-  do_test_pending();
-
   // Get bookmarkBackups directory
   var bookmarksBackupDir = PlacesUtils.backups.folder;
 
@@ -37,20 +35,15 @@ function run_test() {
   if (lastBackupFile.exists())
     lastBackupFile.remove(false);
   do_check_false(lastBackupFile.exists());
+  PlacesUtils.backups.create(NUMBER_OF_BACKUPS);
+  do_check_true(lastBackupFile.exists());
 
-  Task.spawn(function() {
-    yield PlacesUtils.backups.create(NUMBER_OF_BACKUPS);
-    do_check_true(lastBackupFile.exists());
+  // Check that last backup has been retained
+  do_check_false(htmlBackupFile.exists());
+  do_check_false(jsonBackupFile.exists());
+  do_check_true(lastBackupFile.exists());
 
-    // Check that last backup has been retained
-    do_check_false(htmlBackupFile.exists());
-    do_check_false(jsonBackupFile.exists());
-    do_check_true(lastBackupFile.exists());
-
-    // cleanup
-    lastBackupFile.remove(false);
-    do_check_false(lastBackupFile.exists());
-
-    do_test_finished();
-  });
+  // cleanup
+  lastBackupFile.remove(false);
+  do_check_false(lastBackupFile.exists());
 }

@@ -569,12 +569,8 @@ var BrowserUI = {
         break;
       case "metro_viewstate_changed":
         this._adjustDOMforViewState();
-        if (aData == "snapped") {
+        if (aData == "snapped")
           FlyoutPanelsUI.hide();
-          // Order matters (need grids to get dimensions, etc), now
-          // let snapped grid know to refresh/redraw
-          Services.obs.notifyObservers(null, "metro_viewstate_dom_snapped", null);
-        }
         break;
     }
   },
@@ -1366,7 +1362,6 @@ var StartUI = {
 
   sections: [
     "TopSitesStartView",
-    "TopSitesSnappedView",
     "BookmarksStartView",
     "HistoryStartView",
     "RemoteTabsStartView"

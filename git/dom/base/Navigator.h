@@ -16,6 +16,7 @@
 #include "nsIDOMNavigatorSms.h"
 #include "nsIDOMNavigatorMobileMessage.h"
 #include "nsIDOMNavigatorNetwork.h"
+#include "nsIObserver.h"
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
 #include "nsINavigatorAudioChannelManager.h"
 #endif
@@ -32,6 +33,7 @@
 class nsPluginArray;
 class nsMimeTypeArray;
 class nsGeolocation;
+class nsDesktopNotificationCenter;
 class nsPIDOMWindow;
 class nsIDOMMozConnection;
 
@@ -64,7 +66,6 @@ namespace battery {
 class BatteryManager;
 } // namespace battery
 
-class DesktopNotificationCenter;
 class SmsManager;
 class MobileMessageManager;
 
@@ -97,6 +98,7 @@ class Navigator : public nsIDOMNavigator
                 , public nsINavigatorBattery
                 , public nsIDOMMozNavigatorSms
                 , public nsIDOMMozNavigatorMobileMessage
+                , public nsIObserver
 #ifdef MOZ_MEDIA_NAVIGATOR
                 , public nsINavigatorUserMedia
                 , public nsIDOMNavigatorUserMedia
@@ -135,6 +137,7 @@ public:
   NS_DECL_NSINAVIGATORBATTERY
   NS_DECL_NSIDOMMOZNAVIGATORSMS
   NS_DECL_NSIDOMMOZNAVIGATORMOBILEMESSAGE
+  NS_DECL_NSIOBSERVER
 #ifdef MOZ_MEDIA_NAVIGATOR
   NS_DECL_NSINAVIGATORUSERMEDIA
   NS_DECL_NSIDOMNAVIGATORUSERMEDIA
@@ -193,7 +196,7 @@ private:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
-  nsRefPtr<DesktopNotificationCenter> mNotification;
+  nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
   nsRefPtr<power::PowerManager> mPowerManager;
   nsRefPtr<SmsManager> mSmsManager;

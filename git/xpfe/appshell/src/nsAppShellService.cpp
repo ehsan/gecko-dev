@@ -210,8 +210,7 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
  * by nsAppShellService::CreateWindowlessBrowser
  */
 class WebBrowserChrome2Stub : public nsIWebBrowserChrome2,
-                              public nsIInterfaceRequestor,
-                              public nsSupportsWeakReference {
+                              public nsIInterfaceRequestor {
 public:
     virtual ~WebBrowserChrome2Stub() {}
     NS_DECL_ISUPPORTS
@@ -225,7 +224,6 @@ NS_INTERFACE_MAP_BEGIN(WebBrowserChrome2Stub)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(WebBrowserChrome2Stub)
@@ -314,39 +312,6 @@ WebBrowserChrome2Stub::GetInterface(const nsIID & aIID, void **aSink)
     return QueryInterface(aIID, aSink);
 }
 
-// This is the "stub" we return from CreateWindowlessBrowser - it exists
-// purely to keep a strong reference to the browser and the container to
-// prevent the container being collected while the stub remains alive.
-class WindowlessBrowserStub: public nsIWebNavigation,
-                             public nsIInterfaceRequestor {
-public:
-  WindowlessBrowserStub(nsIWebBrowser *aBrowser, nsISupports *aContainer) {
-    mBrowser = aBrowser;
-    mWebNavigation = do_QueryInterface(aBrowser);
-    mInterfaceRequestor = do_QueryInterface(aBrowser);
-    mContainer = aContainer;
-  }
-  NS_DECL_ISUPPORTS
-  NS_FORWARD_NSIWEBNAVIGATION(mWebNavigation->)
-  NS_FORWARD_NSIINTERFACEREQUESTOR(mInterfaceRequestor->)
-private:
-  nsCOMPtr<nsIWebBrowser> mBrowser;
-  nsCOMPtr<nsIWebNavigation> mWebNavigation;
-  nsCOMPtr<nsIInterfaceRequestor> mInterfaceRequestor;
-  // we don't use the container but just hold a reference to it.
-  nsCOMPtr<nsISupports> mContainer;
-};
-
-NS_INTERFACE_MAP_BEGIN(WindowlessBrowserStub)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIWebNavigation)
-  NS_INTERFACE_MAP_ENTRY(nsIWebNavigation)
-  NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_ADDREF(WindowlessBrowserStub)
-NS_IMPL_RELEASE(WindowlessBrowserStub)
-
-
 NS_IMETHODIMP
 nsAppShellService::CreateWindowlessBrowser(nsIWebNavigation **aResult)
 {
@@ -392,9 +357,7 @@ nsAppShellService::CreateWindowlessBrowser(nsIWebNavigation **aResult)
   window->InitWindow(0, widget, 0, 0, 0, 0);
   window->Create();
 
-  nsISupports *isstub = NS_ISUPPORTS_CAST(nsIWebBrowserChrome2*, stub);
-  nsRefPtr<nsIWebNavigation> result = new WindowlessBrowserStub(browser, isstub);
-  result.forget(aResult);
+  navigation.forget(aResult);
   return NS_OK;
 }
 

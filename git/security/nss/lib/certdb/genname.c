@@ -686,7 +686,7 @@ loser:
 
 CERTNameConstraints *
 cert_DecodeNameConstraints(PRArenaPool   *reqArena,
-			   const SECItem *encodedConstraints)
+			   SECItem       *encodedConstraints)
 {
     CERTNameConstraints   *constraints;
     SECStatus             rv;
@@ -1064,8 +1064,7 @@ CERT_GetCertificateNames(CERTCertificate *cert, PRArenaPool *arena)
 ** names from a cert in preparation for a name constraints test.
 */
 CERTGeneralName *
-CERT_GetConstrainedCertificateNames(const CERTCertificate *cert,
-                                    PRArenaPool *arena,
+CERT_GetConstrainedCertificateNames(CERTCertificate *cert, PRArenaPool *arena,
                                     PRBool includeSubjectCommonName)
 {
     CERTGeneralName  *DN;
@@ -1341,13 +1340,13 @@ parseUriHostname(SECItem * item)
 ** or if some code fails (e.g. out of memory, or invalid constraint)
 */
 SECStatus
-cert_CompareNameWithConstraints(const CERTGeneralName     *name,
-				const CERTNameConstraint  *constraints,
+cert_CompareNameWithConstraints(CERTGeneralName     *name, 
+				CERTNameConstraint  *constraints,
 				PRBool              excluded)
 {
     SECStatus           rv     = SECSuccess;
     SECStatus           matched = SECFailure;
-    const CERTNameConstraint *current;
+    CERTNameConstraint  *current;
 
     PORT_Assert(constraints);  /* caller should not call with NULL */
     if (!constraints) {
@@ -1465,7 +1464,7 @@ cert_CompareNameWithConstraints(const CERTGeneralName     *name,
 	}
 	if (matched == SECSuccess || rv != SECSuccess)
 	    break;
-	current = CERT_GetNextNameConstraint((CERTNameConstraint*)current);
+	current = CERT_GetNextNameConstraint(current);
     } while (current != constraints);
     if (rv == SECSuccess) {
         if (matched == SECSuccess) 
@@ -1566,8 +1565,8 @@ CERT_FindNameConstraintsExten(PRArenaPool      *arena,
 */
 SECStatus
 CERT_CheckNameSpace(PRArenaPool          *arena,
-                    const CERTNameConstraints *constraints,
-                    const CERTGeneralName     *currentName)
+                    CERTNameConstraints  *constraints,
+                    CERTGeneralName      *currentName)
 {
     CERTNameConstraint  *matchingConstraints;
     SECStatus            rv = SECSuccess;

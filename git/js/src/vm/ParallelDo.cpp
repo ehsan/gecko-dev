@@ -231,11 +231,12 @@ class ParallelSpewer
         spew(SpewOps, "%s%sBAILOUT %d%s", bold(), yellow(), count, reset());
     }
 
-    void beginCompile(HandleScript script) {
+    void beginCompile(HandleFunction fun) {
         if (!active[SpewCompile])
             return;
 
-        spew(SpewCompile, "COMPILE %p:%s:%u", script.get(), script->filename(), script->lineno);
+        spew(SpewCompile, "COMPILE %p:%s:%u",
+             fun.get(), fun->nonLazyScript()->filename(), fun->nonLazyScript()->lineno);
         depth++;
     }
 
@@ -333,9 +334,9 @@ parallel::SpewBailout(uint32_t count)
 }
 
 void
-parallel::SpewBeginCompile(HandleScript script)
+parallel::SpewBeginCompile(HandleFunction fun)
 {
-    spewer.beginCompile(script);
+    spewer.beginCompile(fun);
 }
 
 MethodStatus
@@ -402,7 +403,7 @@ class ParallelIonInvoke
         IonCode *code = ion->method();
         jitcode_ = code->raw();
         enter_ = cx->compartment->ionCompartment()->enterJIT();
-        calleeToken_ = CalleeToParallelToken(callee);
+        calleeToken_ = CalleeToToken(callee);
     }
 
     bool invoke(JSContext *cx) {
@@ -504,17 +505,10 @@ class ParallelDo : public ForkJoinOp
                 return Method_Error;
         }
 
-        if (script->hasParallelIonScript() &&
-            !script->parallelIonScript()->hasInvalidatedCallTarget())
-        {
-            Spew(SpewOps, "Already compiled");
-            return Method_Compiled;
-        }
-
         Spew(SpewOps, "Compiling all reachable functions");
 
         ParallelCompileContext compileContext(cx_);
-        if (!compileContext.appendToWorklist(script))
+        if (!compileContext.appendToWorklist(callee))
             return Method_Error;
 
         MethodStatus status = compileContext.compileTransitively();
@@ -547,6 +541,8 @@ class ParallelDo : public ForkJoinOp
             return true;
         }
 
+        IonScript *ion = script->parallelIonScript();
+        JS_ASSERT(pendingInvalidations.length() == ion->parallelInvalidatedScriptEntries());
         Vector<types::RecompileInfo> invalid(cx_);
         for (uint32_t i = 0; i < pendingInvalidations.length(); i++) {
             JSScript *script = pendingInvalidations[i];
@@ -554,6 +550,7 @@ class ParallelDo : public ForkJoinOp
                 JS_ASSERT(script->hasParallelIonScript());
                 if (!invalid.append(script->parallelIonScript()->recompileInfo()))
                     return false;
+                ion->parallelInvalidatedScriptList()[i] = script;
             }
             pendingInvalidations[i] = NULL;
         }

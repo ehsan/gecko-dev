@@ -124,8 +124,7 @@ public:
                                  IPeerConnectionObserver* aObserver)
       : mPC(aPC),
         mObserver(aObserver),
-        mCode(static_cast<PeerConnectionImpl::Error>(aInfo->getStatusCode())),
-        mReason(aInfo->getStatus()),
+        mCode(static_cast<StatusCode>(aInfo->getStatusCode())),
         mSdpStr(),
         mCallState(aInfo->getCallState()),
         mStateStr(aInfo->callStateToString(mCallState)) {
@@ -147,23 +146,6 @@ public:
     CSFLogInfo(logTag, "PeerConnectionObserverDispatch processing "
                        "mCallState = %d (%s)", mCallState, mStateStr.c_str());
 
-    if (mCallState == SETLOCALDESCERROR || mCallState == SETREMOTEDESCERROR) {
-      const std::vector<std::string> &errors = mPC->GetSdpParseErrors();
-      std::vector<std::string>::const_iterator i;
-      for (i = errors.begin(); i != errors.end(); ++i) {
-        mReason += " | SDP Parsing Error: " + *i;
-      }
-      if (errors.size()) {
-        mCode = PeerConnectionImpl::kInvalidSessionDescription;
-      }
-      mPC->ClearSdpParseErrorMessages();
-    }
-
-    if (mReason.length()) {
-      CSFLogInfo(logTag, "Message contains error: %d: %s",
-                 mCode, mReason.c_str());
-    }
-
     switch (mCallState) {
       case CREATEOFFER:
         mObserver->OnCreateOfferSuccess(mSdpStr.c_str());
@@ -174,39 +156,47 @@ public:
         break;
 
       case CREATEOFFERERROR:
-        mObserver->OnCreateOfferError(mCode, mReason.c_str());
+        mObserver->OnCreateOfferError(
+          PeerConnectionImpl::kInternalError,
+          "Unspecified Error processing createOffer");
         break;
 
       case CREATEANSWERERROR:
-        mObserver->OnCreateAnswerError(mCode, mReason.c_str());
+        mObserver->OnCreateAnswerError(
+          PeerConnectionImpl::kInternalError,
+          "Unspecified Error processing createAnswer");
         break;
 
       case SETLOCALDESC:
         // TODO: The SDP Parse error list should be copied out and sent up
-        // to the Javascript layer before being cleared here. Even though
-        // there was not a failure, it is possible that the SDP parse generated
-        // warnings. The WebRTC spec does not currently have a mechanism for
-        // providing non-fatal warnings.
+        // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
         mObserver->OnSetLocalDescriptionSuccess();
         break;
 
       case SETREMOTEDESC:
         // TODO: The SDP Parse error list should be copied out and sent up
-        // to the Javascript layer before being cleared here. Even though
-        // there was not a failure, it is possible that the SDP parse generated
-        // warnings. The WebRTC spec does not currently have a mechanism for
-        // providing non-fatal warnings.
+        // to the Javascript layer before being cleared here.
         mPC->ClearSdpParseErrorMessages();
         mObserver->OnSetRemoteDescriptionSuccess();
         break;
 
       case SETLOCALDESCERROR:
-        mObserver->OnSetLocalDescriptionError(mCode, mReason.c_str());
+        // TODO: The SDP Parse error list should be copied out and sent up
+        // to the Javascript layer before being cleared here.
+        mPC->ClearSdpParseErrorMessages();
+        mObserver->OnSetLocalDescriptionError(
+          PeerConnectionImpl::kInternalError,
+          "Unspecified Error processing setLocalDescription");
         break;
 
       case SETREMOTEDESCERROR:
-        mObserver->OnSetRemoteDescriptionError(mCode, mReason.c_str());
+        // TODO: The SDP Parse error list should be copied out and sent up
+        // to the Javascript layer before being cleared here.
+        mPC->ClearSdpParseErrorMessages();
+        mObserver->OnSetRemoteDescriptionError(
+          PeerConnectionImpl::kInternalError,
+          "Unspecified Error processing setRemoteDescription");
         break;
 
       case ADDICECANDIDATE:
@@ -214,7 +204,9 @@ public:
         break;
 
       case ADDICECANDIDATEERROR:
-        mObserver->OnAddIceCandidateError(mCode, mReason.c_str());
+        mObserver->OnAddIceCandidateError(
+          PeerConnectionImpl::kInternalError,
+          "Unspecified Error processing addIceCandidate");
         break;
 
       case REMOTESTREAMADD:
@@ -258,8 +250,7 @@ public:
 private:
   nsRefPtr<PeerConnectionImpl> mPC;
   nsCOMPtr<IPeerConnectionObserver> mObserver;
-  PeerConnectionImpl::Error mCode;
-  std::string mReason;
+  StatusCode mCode;
   std::string mSdpStr;
   cc_call_state_t mCallState;
   std::string mStateStr;
@@ -1449,11 +1440,6 @@ PeerConnectionImpl::OnSdpParseError(const char *message) {
 void
 PeerConnectionImpl::ClearSdpParseErrorMessages() {
   mSDPParseErrorMessages.clear();
-}
-
-const std::vector<std::string> &
-PeerConnectionImpl::GetSdpParseErrors() {
-  return mSDPParseErrorMessages;
 }
 
 

@@ -42,24 +42,11 @@ SmsProtocolHandler.prototype = {
 
   newChannel: function Proto_newChannel(aURI) {
     let number = TelURIParser.parseURI('sms', aURI.spec);
-    let body = "";
-    let query = aURI.spec.split("?")[1];
 
-    if (query) {
-      let params = query.split("&");
-      params.forEach(function(aParam) {
-        let [name, value] = aParam.split("=");
-        if (name === "body") {
-          body = decodeURIComponent(value);
-        }
-      })
-    }
-
-    if (number || body) {
+    if (number) {
       cpmm.sendAsyncMessage("sms-handler", {
-        number: number || "",
-        type: "websms/sms",
-        body: body });
+        number: number,
+        type: "websms/sms" });
     }
 
     throw Components.results.NS_ERROR_ILLEGAL_VALUE;

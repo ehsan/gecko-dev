@@ -11,9 +11,7 @@
  * and create derivative works of this document.
  */
 
-// No support for [Unforgeable] on interfaces yet
-//[Unforgeable]
-interface Location {
+[Unforgeable] interface Location {
   stringifier attribute DOMString href;
   void assign(DOMString url);
   void replace(DOMString url);

@@ -2892,15 +2892,14 @@ fsmdef_ev_createoffer (sm_event_t *event) {
         local_sdp = sipsdp_write_to_buf(dcb->sdp->src_sdp, &local_sdp_len);
         if (!local_sdp) {
             ui_create_offer(evCreateOfferError, line, call_id,
-                dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not re-create local SDP for offer");
+                dcb->caller_id.call_instance_id, strlib_empty());
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             return (fsmdef_release(fcb, cause, FALSE));
         }
 
         ui_create_offer(evCreateOffer, line, call_id,
             dcb->caller_id.call_instance_id,
-            strlib_malloc(local_sdp,-1), PC_NO_ERROR, NULL);
+            strlib_malloc(local_sdp,-1));
         free(local_sdp);
         return (SM_RC_END);
     }
@@ -2918,8 +2917,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"vcmGetIceParams returned an error\n",
             DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
       ui_create_offer(evCreateOfferError, line, call_id,
-          dcb->caller_id.call_instance_id, strlib_empty(),
-          PC_INTERNAL_ERROR, "Failed to get ICE parameters for local SDP");
+          dcb->caller_id.call_instance_id, strlib_empty());
       return (fsmdef_release(fcb, cause, FALSE));
     }
 
@@ -2950,9 +2948,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     cause = gsmsdp_create_local_sdp(dcb, FALSE, TRUE, TRUE, TRUE, TRUE);
     if (cause != CC_CAUSE_OK) {
         ui_create_offer(evCreateOfferError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not create local SDP for offer;"
-                " cause = %s", cc_cause_name(cause));
+            dcb->caller_id.call_instance_id, strlib_empty());
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         return (fsmdef_release(fcb, cause, FALSE));
     }
@@ -2960,9 +2956,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     cause = gsmsdp_encode_sdp_and_update_version(dcb, &msg_body);
     if (cause != CC_CAUSE_OK) {
         ui_create_offer(evCreateOfferError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not encode local SDP for offer;"
-                " cause = %s", cc_cause_name(cause));
+            dcb->caller_id.call_instance_id, strlib_empty());
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         return (fsmdef_release(fcb, cause, FALSE));
     }
@@ -2972,7 +2966,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     /* Pass offer SDP back to UI */
     ui_create_offer(evCreateOffer, line, call_id,
         dcb->caller_id.call_instance_id,
-        strlib_malloc(msg_body.parts[0].body, -1), PC_NO_ERROR, NULL);
+        strlib_malloc(msg_body.parts[0].body, -1));
     cc_free_msg_body_parts(&msg_body);
 
     return (SM_RC_END);
@@ -3033,15 +3027,14 @@ fsmdef_ev_createanswer (sm_event_t *event) {
         local_sdp = sipsdp_write_to_buf(dcb->sdp->src_sdp, &local_sdp_len);
         if (!local_sdp) {
             ui_create_answer(evCreateAnswerError, line, call_id,
-                dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not re-create local SDP for answer");
+                dcb->caller_id.call_instance_id, strlib_empty());
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             return (fsmdef_release(fcb, cause, FALSE));
         }
 
         ui_create_answer(evCreateAnswer, line, call_id,
             dcb->caller_id.call_instance_id,
-            strlib_malloc(local_sdp,-1), PC_NO_ERROR, NULL);
+            strlib_malloc(local_sdp,-1));
         free(local_sdp);
         return (SM_RC_END);
     }
@@ -3058,9 +3051,8 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     if (vcm_res) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"vcmGetIceParams returned an error\n",
             DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-      ui_create_answer(evCreateAnswerError, line, call_id,
-          dcb->caller_id.call_instance_id, strlib_empty(),
-          PC_INTERNAL_ERROR, "Could not get ICE parameters for answer");
+      ui_create_offer(evCreateAnswerError, line, call_id,
+          dcb->caller_id.call_instance_id, strlib_empty());
       return (fsmdef_release(fcb, cause, FALSE));
     }
 
@@ -3101,9 +3093,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     cause = gsmsdp_create_local_sdp(dcb, TRUE, has_audio, has_video, has_data, FALSE);
     if (cause != CC_CAUSE_OK) {
         ui_create_answer(evCreateAnswerError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not create local SDP for answer;"
-                " cause = %s", cc_cause_name(cause));
+            dcb->caller_id.call_instance_id, strlib_empty());
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         // Force clean up call without sending release
         return (fsmdef_release(fcb, cause, FALSE));
@@ -3120,18 +3110,14 @@ fsmdef_ev_createanswer (sm_event_t *event) {
 
     if (cause != CC_CAUSE_OK) {
         ui_create_answer(evCreateAnswerError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not negotiate media lines; cause = %s",
-                cc_cause_name(cause));
+            dcb->caller_id.call_instance_id, strlib_empty());
         return (fsmdef_release(fcb, cause, FALSE));
     }
 
     cause = gsmsdp_encode_sdp_and_update_version(dcb, &msg_body);
     if (cause != CC_CAUSE_OK) {
         ui_create_answer(evCreateAnswerError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not encode SDP for answer; cause = %s",
-                cc_cause_name(cause));
+            dcb->caller_id.call_instance_id, strlib_empty());
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         return (fsmdef_release(fcb, cause, FALSE));
     }
@@ -3141,7 +3127,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     /* Pass SDP back to UI */
     ui_create_answer(evCreateAnswer, line, call_id,
         dcb->caller_id.call_instance_id,
-        strlib_malloc(msg_body.parts[0].body, -1), PC_NO_ERROR, NULL);
+        strlib_malloc(msg_body.parts[0].body, -1));
     cc_free_msg_body_parts(&msg_body);
 
     return (SM_RC_END);
@@ -3174,8 +3160,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
     if (!sdpmode) {
         ui_set_local_description(evSetLocalDescError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "'sdpmode' configuration is false. This should "
-            "never ever happen. Run for your lives!");
+            PC_SETLOCALDESCERROR);
         return (SM_RC_END);
     }
 
@@ -3190,9 +3175,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             ui_set_local_description(evSetLocalDescError, line, call_id,
                 dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not encode SDP for local description"
-                " (offer) -- did you forget to call createOffer?"
-                " cause = %s", cc_cause_name(cause));
+                PC_SETLOCALDESCERROR);
             return (SM_RC_END);
         }
 
@@ -3200,8 +3183,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
          * anant: Why? The JS should be able to modify the SDP. Commenting out for now (same for answer)
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
             ui_set_local_description(evSetLocalDescError, line, call_id,
-                dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INVALID_STATE, "SDP changes are not supported");
+                dcb->caller_id.call_instance_id, strlib_empty(), PC_SDPCHANGED);
             cc_free_msg_body_parts(&msg_body);
             return (SM_RC_END);
         }
@@ -3217,9 +3199,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             ui_set_local_description(evSetLocalDescError, line, call_id,
                 dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not encode SDP for local description"
-                " (answer) -- did you forget to call createAnswer?"
-                " cause = %s", cc_cause_name(cause));
+                PC_SETLOCALDESCERROR);
             return (SM_RC_END);
         }
 
@@ -3227,8 +3207,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
             cc_free_msg_body_parts(&msg_body);
             ui_set_local_description(evSetLocalDescError, line, call_id,
-                dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INVALID_STATE, "SDP changes are not supported");
+                dcb->caller_id.call_instance_id, strlib_empty(), PC_SDPCHANGED);
             return (SM_RC_END);
         }*/
 
@@ -3247,9 +3226,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
         cause = gsmsdp_install_peer_ice_attributes(fcb);
         if (cause != CC_CAUSE_OK) {
             ui_set_local_description(evSetLocalDescError, line, call_id,
-                dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not configure local ICE state"
-                " from SDP; cause = %s", cc_cause_name(cause));
+                dcb->caller_id.call_instance_id, strlib_empty(), PC_SDPCHANGED);
             return (SM_RC_END);
         }
 
@@ -3279,13 +3256,11 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
     if (!local_sdp) {
         ui_set_local_description(evSetLocalDescError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not encode local SDP for local "
-            "description");
+            PC_SETLOCALDESCERROR);
         return (SM_RC_END);
     }
     ui_set_local_description(evSetLocalDesc, line, call_id,
-        dcb->caller_id.call_instance_id, strlib_malloc(local_sdp,-1),
-        PC_NO_ERROR, NULL);
+        dcb->caller_id.call_instance_id, strlib_malloc(local_sdp,-1), PC_OK);
     free(local_sdp);
 
     return (SM_RC_END);
@@ -3322,8 +3297,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
     if (!sdpmode) {
         ui_set_remote_description(evSetRemoteDescError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "'sdpmode' configuration is false. This should "
-            "never ever happen. Run for your lives!");
+            PC_SETREMOTEDESCERROR);
         return (SM_RC_END);
     }
 
@@ -3335,8 +3309,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
                      DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
         ui_set_remote_description(evSetRemoteDescError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INVALID_STATE, "Renegotiation of session description is not "
-            "currently supported. See Bug 840728 for status.");
+            PC_SETREMOTEDESCERROR);
         return (SM_RC_END);
     }
 
@@ -3372,8 +3345,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id,
                 dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not process offer SDP; cause = %s",
-                cc_cause_name(cause));
+                PC_SETREMOTEDESCERROR);
             return (SM_RC_END);
         }
 
@@ -3391,8 +3363,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id,
               dcb->caller_id.call_instance_id, strlib_empty(),
-              PC_INTERNAL_ERROR, "Could not create local SDP; cause = %s",
-              cc_cause_name(cause));
+              PC_SETREMOTEDESCERROR);
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             // Force clean up call without sending release
             return (fsmdef_release(fcb, cause, FALSE));
@@ -3402,8 +3373,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id,
               dcb->caller_id.call_instance_id, strlib_empty(),
-              PC_INTERNAL_ERROR, "Could not negotiate media lines; cause = %s",
-              cc_cause_name(cause));
+              PC_SETREMOTEDESCERROR);
             return (fsmdef_release(fcb, cause, FALSE));
         }
 
@@ -3417,8 +3387,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id,
                 dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not negotiate answer SDP; cause = %s",
-                cc_cause_name(cause));
+                PC_SETREMOTEDESCERROR);
             return (SM_RC_END);
         }
 
@@ -3430,8 +3399,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id,
                 dcb->caller_id.call_instance_id, strlib_empty(),
-                PC_INTERNAL_ERROR, "Could not configure local ICE state"
-                " from SDP; cause = %s", cc_cause_name(cause));
+                PC_SETREMOTEDESCERROR);
             return (SM_RC_END);
         }
 
@@ -3448,7 +3416,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
 
     /* For the sake of accuracy, we regenerate the SDP text from our parsed
        version: if we have any local variation in how we've interpreted the
-       received SDP, then remoteDescription will reflect that variation. In
+       received SDP, then localDescription will reflect that variation. In
        practice, this shouldn't happen; but, if it does, at least this will
        allow the WebRTC application to figure out what's going on. */
 
@@ -3457,14 +3425,13 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
     if (!remote_sdp) {
         ui_set_remote_description(evSetRemoteDescError, line, call_id,
             dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not serialize remote description;"
-            " cause = %s",  cc_cause_name(cause));
+            PC_SETREMOTEDESCERROR);
         return (SM_RC_END);
     }
 
     ui_set_remote_description(evSetRemoteDesc, line, call_id,
         dcb->caller_id.call_instance_id, strlib_malloc(remote_sdp,-1),
-        PC_NO_ERROR, NULL);
+        PC_OK);
 
     free(remote_sdp);
 
@@ -3636,16 +3603,14 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
     if (!dcb) {
         FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
         ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
-            0, strlib_empty(), PC_INTERNAL_ERROR, "DCB has not been created.");
+            0, strlib_empty());
         return SM_RC_CLEANUP;
     }
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     if (sdpmode == FALSE) {
         ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "'sdpmode' configuration is false. This should "
-            "never ever happen. Run for your lives!");
+            dcb->caller_id.call_instance_id, strlib_empty());
         return (SM_RC_END);
     }
 
@@ -3655,9 +3620,7 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
             DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
 
         ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INVALID_STATE, "Cannot add remote ICE candidates before "
-                              "setting remote SDP.");
+            dcb->caller_id.call_instance_id, strlib_empty());
 
         return SM_RC_END;
     }
@@ -3702,15 +3665,12 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
 
     if (!remote_sdp) {
         ui_ice_candidate_add(evAddIceCandidateError, line, call_id,
-            dcb->caller_id.call_instance_id, strlib_empty(),
-            PC_INTERNAL_ERROR, "Could not serialize new SDP after adding ICE "
-            "candidate.");
+            dcb->caller_id.call_instance_id, strlib_empty());
         return (SM_RC_END);
     }
 
     ui_ice_candidate_add(evAddIceCandidate, line, call_id,
-        dcb->caller_id.call_instance_id, strlib_malloc(remote_sdp,-1),
-        PC_NO_ERROR, NULL);
+        dcb->caller_id.call_instance_id, strlib_malloc(remote_sdp,-1));
 
     free(remote_sdp);
     return (SM_RC_END);

@@ -35,22 +35,22 @@ protected:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyReceivedMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifyReceivedMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifySendingMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifySendingMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifySentMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifySentMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyFailedMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifyFailedMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyDeliverySuccessMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifyDeliverySuccessMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyDeliveryErrorMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
+  RecvNotifyDeliveryErrorMessage(const SmsMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual PSmsRequestChild*
   AllocPSmsRequest(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;

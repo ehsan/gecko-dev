@@ -148,7 +148,7 @@ private:
 
   CompositableType GetCompositableClientType()
   {
-    if (mGLContext && XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (mGLContext) {
       return BUFFER_IMAGE_BUFFERED;
     }
     return BUFFER_IMAGE_SINGLE;

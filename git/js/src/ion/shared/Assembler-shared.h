@@ -463,16 +463,12 @@ class CodeLocationJump
 
     void repoint(IonCode *code, MacroAssembler* masm = NULL);
 
-    bool isSet() const {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() const {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() const {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 
@@ -530,16 +526,12 @@ class CodeLocationLabel
 
     void repoint(IonCode *code, MacroAssembler *masm = NULL);
 
-    bool isSet() {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 };

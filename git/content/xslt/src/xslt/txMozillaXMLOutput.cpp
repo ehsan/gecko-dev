@@ -40,9 +40,6 @@
 #include "nsError.h"
 #include "nsIFrame.h"
 #include <algorithm>
-#include "nsTextNode.h"
-#include "mozilla/dom/Comment.h"
-#include "mozilla/dom/ProcessingInstruction.h"
 
 using namespace mozilla::dom;
 
@@ -195,7 +192,9 @@ txMozillaXMLOutput::comment(const nsString& aData)
 
     TX_ENSURE_CURRENTNODE;
 
-    nsRefPtr<Comment> comment = new Comment(mNodeInfoManager);
+    nsCOMPtr<nsIContent> comment;
+    rv = NS_NewCommentNode(getter_AddRefs(comment), mNodeInfoManager);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = comment->SetText(aData, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -384,8 +383,10 @@ txMozillaXMLOutput::processingInstruction(const nsString& aTarget, const nsStrin
     rv = nsContentUtils::CheckQName(aTarget, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIContent> pi =
-      NS_NewXMLProcessingInstruction(mNodeInfoManager, aTarget, aData);
+    nsCOMPtr<nsIContent> pi;
+    rv = NS_NewXMLProcessingInstruction(getter_AddRefs(pi),
+                                        mNodeInfoManager, aTarget, aData);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle;
     if (mCreatingNewDocument) {
@@ -530,6 +531,7 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
     nsCOMPtr<nsINodeInfo> ni =
         mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
                                       nsIDOMNode::ELEMENT_NODE);
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     NS_NewElement(getter_AddRefs(mOpenedElement), ni.forget(),
                   mCreatingNewDocument ?
@@ -598,7 +600,9 @@ txMozillaXMLOutput::closePrevious(bool aFlushText)
             rv = createTxWrapper();
             NS_ENSURE_SUCCESS(rv, rv);
         }
-        nsRefPtr<nsTextNode> text = new nsTextNode(mNodeInfoManager);
+        nsCOMPtr<nsIContent> text;
+        rv = NS_NewTextNode(getter_AddRefs(text), mNodeInfoManager);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         rv = text->SetText(mText, false);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -933,6 +937,7 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
     ni = mNodeInfoManager->GetNodeInfo(aName, nullptr,
                                        kNameSpaceID_XHTML,
                                        nsIDOMNode::ELEMENT_NODE);
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_NewHTMLElement(aResult, ni.forget(), mCreatingNewDocument ?
         FROM_PARSER_XSLT : FROM_PARSER_FRAGMENT);

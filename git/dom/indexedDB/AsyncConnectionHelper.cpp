@@ -33,7 +33,7 @@ IDBTransaction* gCurrentTransaction = nullptr;
 
 const uint32_t kProgressHandlerGranularity = 1000;
 
-class MOZ_STACK_CLASS TransactionPoolEventTarget : public StackBasedEventTarget
+class TransactionPoolEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET

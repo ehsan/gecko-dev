@@ -216,8 +216,6 @@ ion::ParallelAbort(JSScript *script)
 
     if (!slice->abortedScript)
         slice->abortedScript = script;
-    else
-        script->parallelIonScript()->setHasInvalidatedCallTarget();
 }
 
 void

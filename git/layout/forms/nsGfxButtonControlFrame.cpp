@@ -22,7 +22,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsContentList.h"
-#include "nsTextNode.h"
 
 const nscoord kSuggestedNotSet = -1;
 
@@ -68,12 +67,15 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements
   GetLabel(label);
 
   // Add a child text content node for the label
-  mTextContent = new nsTextNode(mContent->NodeInfo()->NodeInfoManager());
+  NS_NewTextNode(getter_AddRefs(mTextContent),
+                 mContent->NodeInfo()->NodeInfoManager());
+  if (!mTextContent)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // set the value of the text node and add it to the child list
   mTextContent->SetText(label, false);
-  aElements.AppendElement(mTextContent);
-
+  if (!aElements.AppendElement(mTextContent))
+    return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
 }
 

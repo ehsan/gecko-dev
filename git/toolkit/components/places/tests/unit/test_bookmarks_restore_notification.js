@@ -50,16 +50,14 @@ var tests = [
     run:        function () {
       this.file = createFile("bookmarks-test_restoreNotification.json");
       addBookmarks();
-      Task.spawn(function() {
-        yield BookmarkJSONUtils.exportToFile(this.file);
-        remove_all_bookmarks();
-        try {
-          PlacesUtils.restoreBookmarksFromJSONFile(this.file);
-        }
-        catch (e) {
-          do_throw("  Restore should not have failed");
-        }
-      }.bind(this));
+      PlacesUtils.backups.saveBookmarksToJSONFile(this.file);
+      remove_all_bookmarks();
+      try {
+        PlacesUtils.restoreBookmarksFromJSONFile(this.file);
+      }
+      catch (e) {
+        do_throw("  Restore should not have failed");
+      }
     }
   },
 

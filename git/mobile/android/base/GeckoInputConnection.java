@@ -47,18 +47,14 @@ class GeckoInputConnection
 
     private static Handler sBackgroundHandler;
 
-    private static class InputThreadUtils {
-        // We only want one UI editable around to keep synchronization simple,
-        // so we make InputThreadUtils a singleton
-        public static final InputThreadUtils sInstance = new InputThreadUtils();
-
+    private class InputThreadUtils {
         private Editable mUiEditable;
         private Object mUiEditableReturn;
         private Exception mUiEditableException;
         private final SynchronousQueue<Runnable> mIcRunnableSync;
         private final Runnable mIcSignalRunnable;
 
-        private InputThreadUtils() {
+        public InputThreadUtils() {
             mIcRunnableSync = new SynchronousQueue<Runnable>();
             mIcSignalRunnable = new Runnable() {
                 @Override public void run() {
@@ -124,14 +120,13 @@ class GeckoInputConnection
         }
 
         public Editable getEditableForUiThread(final Handler uiHandler,
-                                               final GeckoEditableClient client) {
+                                               final Handler icHandler) {
             if (DEBUG) {
                 ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
             }
-            final Handler icHandler = client.getInputConnectionHandler();
             if (icHandler.getLooper() == uiHandler.getLooper()) {
                 // IC thread is UI thread; safe to use Editable directly
-                return client.getEditable();
+                return getEditable();
             }
             // IC thread is not UI thread; we need to return a proxy Editable in order
             // to safely use the Editable from the UI thread
@@ -157,7 +152,7 @@ class GeckoInputConnection
                                 synchronized (icHandler) {
                                     try {
                                         mUiEditableReturn = method.invoke(
-                                            client.getEditable(), args);
+                                            mEditableClient.getEditable(), args);
                                     } catch (Exception e) {
                                         mUiEditableException = e;
                                     }
@@ -183,6 +178,8 @@ class GeckoInputConnection
             return mUiEditable;
         }
     }
+
+    private final InputThreadUtils mThreadUtils = new InputThreadUtils();
 
     // Managed only by notifyIMEContext; see comments in notifyIMEContext
     private int mIMEState;
@@ -667,10 +664,10 @@ class GeckoInputConnection
             // that point the key event has already been processed.
             mainHandler.post(new Runnable() {
                 @Override public void run() {
-                    InputThreadUtils.sInstance.endWaitForUiThread();
+                    mThreadUtils.endWaitForUiThread();
                 }
             });
-            InputThreadUtils.sInstance.waitForUiThread(icHandler);
+            mThreadUtils.waitForUiThread(icHandler);
         }
         return false; // seems to always return false
     }
@@ -741,8 +738,8 @@ class GeckoInputConnection
         // safe to use on the UI thread; therefore we need to pass a proxy Editable to it
         KeyListener keyListener = TextKeyListener.getInstance();
         Handler uiHandler = view.getRootView().getHandler();
-        Editable uiEditable = InputThreadUtils.sInstance.
-            getEditableForUiThread(uiHandler, mEditableClient);
+        Handler icHandler = mEditableClient.getInputConnectionHandler();
+        Editable uiEditable = mThreadUtils.getEditableForUiThread(uiHandler, icHandler);
         boolean skip = shouldSkipKeyListener(keyCode, event);
         if (down) {
             mEditableClient.setSuppressKeyUp(true);

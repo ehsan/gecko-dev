@@ -28,26 +28,20 @@ typedef void * CalleeToken;
 enum CalleeTokenTag
 {
     CalleeToken_Function = 0x0, // untagged
-    CalleeToken_Script = 0x1,
-    CalleeToken_ParallelFunction = 0x2
+    CalleeToken_Script = 0x1
 };
 
 static inline CalleeTokenTag
 GetCalleeTokenTag(CalleeToken token)
 {
     CalleeTokenTag tag = CalleeTokenTag(uintptr_t(token) & 0x3);
-    JS_ASSERT(tag <= CalleeToken_ParallelFunction);
+    JS_ASSERT(tag <= CalleeToken_Script);
     return tag;
 }
 static inline CalleeToken
 CalleeToToken(JSFunction *fun)
 {
     return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_Function));
-}
-static inline CalleeToken
-CalleeToParallelToken(JSFunction *fun)
-{
-    return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_ParallelFunction));
 }
 static inline CalleeToken
 CalleeToToken(RawScript script)
@@ -65,12 +59,6 @@ CalleeTokenToFunction(CalleeToken token)
     JS_ASSERT(CalleeTokenIsFunction(token));
     return (JSFunction *)token;
 }
-static inline RawFunction
-CalleeTokenToParallelFunction(CalleeToken token)
-{
-    JS_ASSERT(GetCalleeTokenTag(token) == CalleeToken_ParallelFunction);
-    return (JSFunction *)(uintptr_t(token) & ~uintptr_t(0x3));
-}
 static inline RawScript
 CalleeTokenToScript(CalleeToken token)
 {
@@ -86,8 +74,6 @@ ScriptFromCalleeToken(CalleeToken token)
         return CalleeTokenToScript(token);
       case CalleeToken_Function:
         return CalleeTokenToFunction(token)->nonLazyScript();
-      case CalleeToken_ParallelFunction:
-        return CalleeTokenToParallelFunction(token)->nonLazyScript();
     }
     JS_NOT_REACHED("invalid callee token tag");
     return NULL;
@@ -267,7 +253,6 @@ struct ResumeFromException
 };
 
 void HandleException(ResumeFromException *rfe);
-void HandleParallelFailure(ResumeFromException *rfe);
 
 void EnsureExitFrame(IonCommonFrameLayout *frame);
 

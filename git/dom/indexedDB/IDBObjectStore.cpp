@@ -472,7 +472,8 @@ private:
   uint64_t mCount;
 };
 
-class MOZ_STACK_CLASS AutoRemoveIndex
+NS_STACK_CLASS
+class AutoRemoveIndex
 {
 public:
   AutoRemoveIndex(ObjectStoreInfo* aObjectStoreInfo,

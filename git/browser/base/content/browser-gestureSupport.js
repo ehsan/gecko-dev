@@ -177,7 +177,7 @@ let gGestureSupport = {
    *        The swipe gesture start event.
    */
   _setupSwipeGesture: function GS__setupSwipeGesture(aEvent) {
-    if (!this._swipeNavigatesHistory(aEvent))
+    if (!this._swipeNavigatesHistory(aEvent) || !gHistorySwipeAnimation.active)
       return;
 
     let canGoBack = gHistorySwipeAnimation.canGoBack();
@@ -534,10 +534,15 @@ let gHistorySwipeAnimation = {
    * by the platform/configuration.
    */
   init: function HSA_init() {
-    if (!this._isSupported())
+    if (!this._isSupported() || this._getMaxSnapshots() < 1)
       return;
 
-    this.active = false;
+    gBrowser.addEventListener("pagehide", this, false);
+    gBrowser.addEventListener("pageshow", this, false);
+    gBrowser.addEventListener("popstate", this, false);
+    gBrowser.tabContainer.addEventListener("TabClose", this, false);
+
+    this.active = true;
     this.isLTR = document.documentElement.mozMatchesSelector(
                                             ":-moz-locale-dir(ltr)");
     this._trackedSnapshots = [];
@@ -545,16 +550,6 @@ let gHistorySwipeAnimation = {
     this._boxWidth = -1;
     this._maxSnapshots = this._getMaxSnapshots();
     this._lastSwipeDir = "";
-
-    // We only want to activate history swipe animations if we store snapshots.
-    // If we don't store any, we handle horizontal swipes without animations.
-    if (this._maxSnapshots > 0) {
-      this.active = true;
-      gBrowser.addEventListener("pagehide", this, false);
-      gBrowser.addEventListener("pageshow", this, false);
-      gBrowser.addEventListener("popstate", this, false);
-      gBrowser.tabContainer.addEventListener("TabClose", this, false);
-    }
   },
 
   /**
@@ -586,12 +581,10 @@ let gHistorySwipeAnimation = {
       this._historyIndex = gBrowser.webNavigation.sessionHistory.index;
       this._canGoBack = this.canGoBack();
       this._canGoForward = this.canGoForward();
-      if (this.active) {
-        this._takeSnapshot();
-        this._installPrevAndNextSnapshots();
-        this._addBoxes();
-        this._lastSwipeDir = "";
-      }
+      this._takeSnapshot();
+      this._installPrevAndNextSnapshots();
+      this._addBoxes();
+      this._lastSwipeDir = "";
     }
     this.updateAnimation(0);
   },

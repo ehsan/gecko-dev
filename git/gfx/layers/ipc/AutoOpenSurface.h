@@ -23,7 +23,7 @@ namespace layers {
  * ahsolutely necessary.  And after being forced to open, it remembers
  * the mapping so it doesn't need to be redone.
  */
-class MOZ_STACK_CLASS AutoOpenSurface
+class NS_STACK_CLASS AutoOpenSurface
 {
 public:
   typedef gfxASurface::gfxContentType gfxContentType;

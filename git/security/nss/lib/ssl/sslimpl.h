@@ -5,7 +5,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id$ */
+/* $Id: sslimpl.h,v 1.109 2012/11/14 01:14:12 wtc%google.com Exp $ */
 
 #ifndef __sslimpl_h_
 #define __sslimpl_h_
@@ -316,7 +316,6 @@ typedef struct sslOptionsStr {
     unsigned int requireSafeNegotiation : 1;  /* 22 */
     unsigned int enableFalseStart       : 1;  /* 23 */
     unsigned int cbcRandomIV            : 1;  /* 24 */
-    unsigned int enableOCSPStapling     : 1;  /* 25 */
 } sslOptions;
 
 typedef enum { sslHandshakingUndetermined = 0,
@@ -576,7 +575,6 @@ struct sslSessionIDStr {
     sslSessionID *        next;   /* chain used for client sockets, only */
 
     CERTCertificate *     peerCert;
-    SECItemArray          peerCertStatus; /* client only */
     const char *          peerID;     /* client only */
     const char *          urlSvrName; /* client only */
     CERTCertificate *     localCert;
@@ -719,7 +717,6 @@ typedef enum {
     wait_change_cipher, 
     wait_finished,
     wait_server_hello, 
-    wait_certificate_status,
     wait_server_cert, 
     wait_server_key,
     wait_cert_request, 
@@ -1178,7 +1175,6 @@ const unsigned char *  preferredCipher;
     /* Configuration state for server sockets */
     /* server cert and key for each KEA type */
     sslServerCerts        serverCerts[kt_kea_size];
-    SECItemArray *        certStatusArray;
 
     ssl3CipherSuiteCfg cipherSuites[ssl_V3_SUITES_IMPLEMENTED];
     ssl3KeyPair *         ephemeralECDHKeyPair; /* for ECDHE-* handshake */

@@ -6,7 +6,7 @@
  * Diffie-Hellman parameter generation, key generation, and secret derivation.
  * KEA secret generation and verification.
  *
- * $Id$
+ * $Id: dh.c,v 1.12 2012/06/14 18:55:10 wtc%google.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"

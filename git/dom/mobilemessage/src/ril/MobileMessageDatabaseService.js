@@ -1280,7 +1280,6 @@ MobileMessageDatabaseService.prototype = {
             " delivery: " + filter.delivery +
             " numbers: " + filter.numbers +
             " read: " + filter.read +
-            " threadId: " + filter.threadId +
             " reverse: " + reverse);
     }
 
@@ -1492,8 +1491,7 @@ let FilterSearcherHelper = {
     // number/delivery status/read status with an optional date range.
     if (filter.delivery == null &&
         filter.numbers == null &&
-        filter.read == null &&
-        filter.threadId == null) {
+        filter.read == null) {
       // Filtering by date range only.
       if (DEBUG) {
         debug("filter.timestamp " + filter.startDate + ", " + filter.endDate);
@@ -1520,7 +1518,6 @@ let FilterSearcherHelper = {
       if (filter.delivery) num++;
       if (filter.numbers) num++;
       if (filter.read != undefined) num++;
-      if (filter.threadId != undefined) num++;
       single = (num == 1);
     }
 
@@ -1545,16 +1542,6 @@ let FilterSearcherHelper = {
       let read = filter.read ? FILTER_READ_READ : FILTER_READ_UNREAD;
       let range = IDBKeyRange.bound([read, startDate], [read, endDate]);
       this.filterIndex("read", range, direction, txn,
-                       single ? collect : intersectionCollector.newContext());
-    }
-
-    // Retrieve the keys from the 'threadId' index that matches the value of
-    // filter.threadId.
-    if (filter.threadId != undefined) {
-      if (DEBUG) debug("filter.threadId " + filter.threadId);
-      let threadId = filter.threadId;
-      let range = IDBKeyRange.bound([threadId, startDate], [threadId, endDate]);
-      this.filterIndex("threadId", range, direction, txn,
                        single ? collect : intersectionCollector.newContext());
     }
 
@@ -1876,7 +1863,7 @@ UnionResultsCollector.prototype = {
     });
 
     for (let i = 0; i < tres.length; i++) {
-      this.cascadedCollect(txn, tres[i].id, tres[i].timestamp);
+      this.cascadedCollect(txn, tres[i].id, tres[i.timestamp]);
     }
     this.cascadedCollect(txn, COLLECT_ID_END, COLLECT_TIMESTAMP_UNUSED);
 

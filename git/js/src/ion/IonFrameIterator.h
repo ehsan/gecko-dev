@@ -144,7 +144,6 @@ class IonFrameIterator
         return type_ == IonFrame_Entry;
     }
     bool isFunctionFrame() const;
-    bool isParallelFunctionFrame() const;
 
     bool isConstructing() const;
 

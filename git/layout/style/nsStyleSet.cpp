@@ -1731,7 +1731,7 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
                     aElement, flags);
 }
 
-struct MOZ_STACK_CLASS StatefulData : public StateRuleProcessorData {
+struct StatefulData : public StateRuleProcessorData {
   StatefulData(nsPresContext* aPresContext, Element* aElement,
                nsEventStates aStateMask, TreeMatchContext& aTreeMatchContext)
     : StateRuleProcessorData(aPresContext, aElement, aStateMask,
@@ -1791,7 +1791,7 @@ nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
   return data.mHint;
 }
 
-struct MOZ_STACK_CLASS AttributeData : public AttributeRuleProcessorData {
+struct AttributeData : public AttributeRuleProcessorData {
   AttributeData(nsPresContext* aPresContext,
                 Element* aElement, nsIAtom* aAttribute, int32_t aModType,
                 bool aAttrHasChanged, TreeMatchContext& aTreeMatchContext)
