@@ -71,30 +71,32 @@ FFmpegH264Decoder::DecodeFrame(mp4_demuxer::MP4Sample* aSample)
     return;
   }
 
-  // If we've decoded a frame then we need to output it
-  if (decoded) {
-    nsAutoPtr<VideoData> data;
+  if (!decoded) {
+    // The decoder doesn't have enough data to decode a frame yet.
+    return;
+  }
 
-    VideoInfo info;
-    info.mDisplay = nsIntSize(mCodecContext.width, mCodecContext.height);
-    info.mStereoMode = StereoMode::MONO;
-    info.mHasVideo = true;
+  nsAutoPtr<VideoData> data;
 
-    data = VideoData::CreateFromImage(
-      info, mImageContainer, aSample->byte_offset, aSample->composition_timestamp,
-      aSample->duration, mCurrentImage, aSample->is_sync_point, -1,
-      gfx::IntRect(0, 0, mCodecContext.width, mCodecContext.height));
+  VideoInfo info;
+  info.mDisplay = nsIntSize(mCodecContext.width, mCodecContext.height);
+  info.mStereoMode = StereoMode::MONO;
+  info.mHasVideo = true;
 
-    // Insert the frame into the heap for reordering.
-    mDelayedFrames.Push(data.forget());
+  data = VideoData::CreateFromImage(
+    info, mImageContainer, aSample->byte_offset, aSample->composition_timestamp,
+    aSample->duration, mCurrentImage, aSample->is_sync_point, -1,
+    gfx::IntRect(0, 0, mCodecContext.width, mCodecContext.height));
 
-    // Reorder video frames from decode order to presentation order. The minimum
-    // size of the heap comes from one P frame + |max_b_frames| B frames, which
-    // is the maximum number of frames in a row which will be out-of-order.
-    if (mDelayedFrames.Length() > (uint32_t)mCodecContext.max_b_frames + 1) {
-      VideoData* d = mDelayedFrames.Pop();
-      mCallback->Output(d);
-    }
+  // Insert the frame into the heap for reordering.
+  mDelayedFrames.Push(data.forget());
+
+  // Reorder video frames from decode order to presentation order. The minimum
+  // size of the heap comes from one P frame + |max_b_frames| B frames, which
+  // is the maximum number of frames in a row which will be out-of-order.
+  if (mDelayedFrames.Length() > (uint32_t)mCodecContext.max_b_frames + 1) {
+    VideoData* d = mDelayedFrames.Pop();
+    mCallback->Output(d);
   }
 
   if (mTaskQueue->IsEmpty()) {
