@@ -2013,7 +2013,9 @@ public:
     return GetBounds(aBuilder);
   }
 
+#ifdef NS_DEBUG
   nsDisplayWrapList* GetStoredList() { return &mStoredList; }
+#endif
 
   virtual void HitTest(nsDisplayListBuilder *aBuilder, const nsRect& aRect,
                        HitTestState *aState, nsTArray<nsIFrame*> *aOutFrames);

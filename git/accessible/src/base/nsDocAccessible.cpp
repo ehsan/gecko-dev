@@ -1496,8 +1496,8 @@ nsDocAccessible::CacheChildren()
   nsAccTreeWalker walker(mWeakShell, mDocument->GetRootElement(),
                          GetAllowsAnonChildAccessibles());
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild()) && AppendChild(child));
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,7 +52,6 @@ EXPORTS		+= \
 
 CPPSRCS		= \
 		nsWaveDecoder.cpp \
-		nsWaveReader.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

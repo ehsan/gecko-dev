@@ -710,9 +710,10 @@ nsEncodingFormSubmission::nsEncodingFormSubmission(const nsACString& aCharset,
     charset.AssignLiteral("windows-1252");
   }
 
-  // use UTF-8 for UTF-16* (per WHATWG and existing practice of
+  // use UTF-8 for UTF-16* and UTF-32* (per WHATWG and existing practice of
   // MS IE/Opera). 
-  if (StringBeginsWith(charset, NS_LITERAL_CSTRING("UTF-16"))) {
+  if (StringBeginsWith(charset, NS_LITERAL_CSTRING("UTF-16")) || 
+      StringBeginsWith(charset, NS_LITERAL_CSTRING("UTF-32"))) {
     charset.AssignLiteral("UTF-8");
   }
 

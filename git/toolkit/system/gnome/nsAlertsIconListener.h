@@ -42,7 +42,6 @@
 #include "imgIDecoderObserver.h"
 #include "nsStringAPI.h"
 #include "nsIObserver.h"
-#include "nsWeakReference.h"
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <libnotify/notify.h>
@@ -50,8 +49,7 @@
 class imgIRequest;
 
 class nsAlertsIconListener : public imgIDecoderObserver,
-                             public nsIObserver,
-                             public nsSupportsWeakReference
+                             public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -82,6 +80,7 @@ protected:
 
   PRPackedBool mLoadedFrame;
   PRPackedBool mAlertHasAction;
+  PRPackedBool mHasQuit;
 
   NotifyNotification* mNotification;
   gulong mClosureHandler;

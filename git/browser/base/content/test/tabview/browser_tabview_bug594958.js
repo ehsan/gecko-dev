@@ -9,6 +9,20 @@ function test() {
     return cw.GroupItems.groupItems[index];
   }
 
+  let newWindow = function (callback) {
+    newWindowWithTabView(function (tvwin) {
+      registerCleanupFunction(function () {
+        if (!tvwin.closed)
+          tvwin.close();
+      });
+
+      win = tvwin;
+      cw = win.TabView.getContentWindow();
+
+      callback();
+    });
+  }
+
   let finishTest = function () {
     win.close();
     finish();
@@ -124,16 +138,15 @@ function test() {
   }
 
   waitForExplicitFinish();
-  newWindowWithTabView(function(newWin) {
-    win = newWin;
-
-    registerCleanupFunction(function () {
-      if (!win.closed)
-        win.close();
-    });
-
-    cw = win.TabView.getContentWindow();
-    next();
-  }, null, 800, 600);
+  newWindow(next);
 }
 
+// ---------
+function newWindowWithTabView(callback) {
+  let win = window.openDialog(getBrowserURL(), "_blank", 
+                              "chrome,all,dialog=no,height=600,width=800");
+  win.addEventListener("load", function onLoad() {
+    win.removeEventListener("load", onLoad, false);
+    showTabView(function () callback(win), win);
+  }, false);
+}

@@ -42,6 +42,7 @@
 #include <nsDeque.h>
 #include "Layers.h"
 #include "ImageLayers.h"
+#include "nsAutoLock.h"
 #include "nsClassHashtable.h"
 #include "mozilla/TimeStamp.h"
 #include "nsSize.h"
@@ -118,7 +119,6 @@ typedef short SoundDataValue;
  (static_cast<SoundDataValue>(MOZ_CLIP_TO_15((x)>>9)))
 // Convert a SoundDataValue to a float for the Audio API
 #define MOZ_CONVERT_SOUND_SAMPLE(x) ((x)*(1.F/32768))
-#define MOZ_SAMPLE_TYPE_S16LE 1
 
 #else /*MOZ_VORBIS*/
 
@@ -128,7 +128,6 @@ typedef float SoundDataValue;
 #define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
 #define MOZ_CONVERT_SOUND_SAMPLE(x) (x)
-#define MOZ_SAMPLE_TYPE_FLOAT32 1
 
 #endif
 
@@ -179,8 +178,8 @@ public:
   // chunk ends.
   const PRInt64 mOffset;
 
-  PRInt64 mTime; // Start time of samples in usecs.
-  const PRInt64 mDuration; // In usecs.
+  PRInt64 mTime; // Start time of samples in ms.
+  const PRInt64 mDuration; // In ms.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
   nsAutoArrayPtr<SoundDataValue> mAudioData;
@@ -241,10 +240,10 @@ public:
   // Approximate byte offset of the end of the frame in the media.
   PRInt64 mOffset;
 
-  // Start time of frame in microseconds.
+  // Start time of frame in milliseconds.
   PRInt64 mTime;
 
-  // End time of frame in microseconds;
+  // End time of frame in milliseconds;
   PRInt64 mEndTime;
 
   // Codec specific internal time code. For Ogg based codecs this is the
@@ -387,7 +386,7 @@ template <class T> class MediaQueue : private nsDeque {
     mEndOfStream = PR_TRUE;    
   }
 
-  // Returns the approximate number of microseconds of samples in the queue.
+  // Returns the approximate number of milliseconds of samples in the queue.
   PRInt64 Duration() {
     MonitorAutoEnter mon(mMonitor);
     if (GetSize() < 2) {
@@ -457,9 +456,9 @@ public:
   // This will not read past aEndOffset. Returns -1 on failure. 
   virtual PRInt64 FindEndTime(PRInt64 aEndOffset);
 
-  // Moves the decode head to aTime microseconds. aStartTime and aEndTime
-  // denote the start and end times of the media in usecs, and aCurrentTime
-  // is the current playback position in microseconds.
+  // Moves the decode head to aTime milliseconds. aStartTime and aEndTime
+  // denote the start and end times of the media in ms, and aCurrentTime
+  // is the current playback position in ms.
   virtual nsresult Seek(PRInt64 aTime,
                         PRInt64 aStartTime,
                         PRInt64 aEndTime,
@@ -485,7 +484,7 @@ public:
 protected:
 
   // Pumps the decode until we reach frames/samples required to play at
-  // time aTarget (usecs).
+  // time aTarget (ms).
   nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and

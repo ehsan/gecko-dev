@@ -68,15 +68,15 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 // position, we'll just decode forwards rather than performing a bisection
 // search. If we have Theora video we use the maximum keyframe interval as
 // this value, rather than SEEK_DECODE_MARGIN. This makes small seeks faster.
-#define SEEK_DECODE_MARGIN 2000000
+#define SEEK_DECODE_MARGIN 2000
 
-// The number of microseconds of "fuzz" we use in a bisection search over
+// The number of milliseconds of "fuzz" we use in a bisection search over
 // HTTP. When we're seeking with fuzz, we'll stop the search if a bisection
-// lands between the seek target and SEEK_FUZZ_USECS microseconds before the
+// lands between the seek target and SEEK_FUZZ_MS milliseconds before the
 // seek target.  This is becaue it's usually quicker to just keep downloading
 // from an exisiting connection than to do another bisection inside that
 // small range, which would open a new HTTP connetion.
-#define SEEK_FUZZ_USECS 500000
+#define SEEK_FUZZ_MS 500
 
 enum PageSyncResult {
   PAGE_SYNC_ERROR = 1,
@@ -390,7 +390,8 @@ nsresult nsOggReader::DecodeVorbis(nsTArray<nsAutoPtr<SoundData> >& aChunks,
     }
 
     PRInt64 duration = mVorbisState->Time((PRInt64)samples);
-    PRInt64 startTime = mVorbisState->Time(mVorbisGranulepos);
+    PRInt64 startTime = (mVorbisGranulepos != -1) ?
+      mVorbisState->Time(mVorbisGranulepos) : -1;
     SoundData* s = new SoundData(mPageOffset,
                                  startTime,
                                  duration,
@@ -543,8 +544,9 @@ nsresult nsOggReader::DecodeTheora(nsTArray<nsAutoPtr<VideoData> >& aFrames,
   if (ret != 0 && ret != TH_DUPFRAME) {
     return NS_ERROR_FAILURE;
   }
-  PRInt64 time = mTheoraState->StartTime(aPacket->granulepos);
-  PRInt64 endTime = mTheoraState->Time(aPacket->granulepos);
+  PRInt64 time = (aPacket->granulepos != -1)
+    ? mTheoraState->StartTime(aPacket->granulepos) : -1;
+  PRInt64 endTime = time != -1 ? time + mTheoraState->mFrameDuration : -1;
   if (ret == TH_DUPFRAME) {
     VideoData* v = VideoData::CreateDuplicate(mPageOffset,
                                               time,
@@ -645,76 +647,65 @@ PRBool nsOggReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
     } while (packet.granulepos <= 0 && !endOfStream);
 
     if (packet.granulepos > 0) {
-      // Reconstruct the granulepos (and thus timestamps) of the decoded
-      // frames. Granulepos are stored as ((keyframe<<shift)+offset). We
-      // know the granulepos of the last frame in the list, so we can infer
-      // the granulepos of the intermediate frames using their frame numbers.
-      ogg_int64_t shift = mTheoraState->mInfo.keyframe_granule_shift;
-      ogg_int64_t version_3_2_1 = TheoraVersion(&mTheoraState->mInfo,3,2,1);
-      ogg_int64_t lastFrame = th_granule_frame(mTheoraState->mCtx,
-                                               packet.granulepos) + version_3_2_1;
-      ogg_int64_t firstFrame = lastFrame - frames.Length() + 1;
-
-      // Until we encounter a keyframe, we'll assume that the "keyframe"
-      // segment of the granulepos is the first frame, or if that causes
-      // the "offset" segment to overflow, we assume the required
-      // keyframe is maximumally offset. Until we encounter a keyframe
-      // the granulepos will probably be wrong, but we can't decode the
-      // frame anyway (since we don't have its keyframe) so it doesn't really
-      // matter.
-      ogg_int64_t keyframe = packet.granulepos >> shift;
-
-      // The lastFrame, firstFrame, keyframe variables, as well as the frame
-      // variable in the loop below, store the frame number for Theora
-      // version >= 3.2.1 streams, and store the frame index for Theora
-      // version < 3.2.1 streams.
-      for (PRUint32 i = 0; i < frames.Length() - 1; ++i) {
-        ogg_int64_t frame = firstFrame + i;
-        ogg_int64_t granulepos;
+      // We have captured a granulepos. Backpropagate the granulepos
+      // to determine buffered packets' timestamps.
+      PRInt64 succGranulepos = packet.granulepos;
+      int version_3_2_1 = TheoraVersion(&mTheoraState->mInfo,3,2,1);
+      int shift = mTheoraState->mInfo.keyframe_granule_shift;
+      for (int i = frames.Length() - 2; i >= 0; --i) {
+        PRInt64 granulepos = succGranulepos;
         if (frames[i]->mKeyframe) {
-          granulepos = frame << shift;
-          keyframe = frame;
-        } else if (frame >= keyframe &&
-                   frame - keyframe < ((ogg_int64_t)1 << shift))
-        {
-          // (frame - keyframe) won't overflow the "offset" segment of the
-          // granulepos, so it's safe to calculate the granulepos.
-          granulepos = (keyframe << shift) + (frame - keyframe);
+          // This frame is a keyframe. It's granulepos is the previous granule
+          // number minus 1, shifted by granuleshift.
+          ogg_int64_t frame_index = th_granule_frame(mTheoraState->mCtx,
+                                                     granulepos);
+          granulepos = (frame_index + version_3_2_1 - 1) << shift;
+          // Theora 3.2.1+ granulepos store frame number [1..N], so granulepos
+          // should be > 0.
+          // Theora 3.2.0 granulepos store the frame index [0..(N-1)], so
+          // granulepos should be >= 0. 
+          NS_ASSERTION((version_3_2_1 && granulepos > 0) ||
+                       granulepos >= 0, "Should have positive granulepos");
         } else {
-          // (frame - keyframeno) will overflow the "offset" segment of the
-          // granulepos, so we take "keyframe" to be the max possible offset
-          // frame instead.
-          ogg_int64_t k = NS_MAX(frame - (((ogg_int64_t)1 << shift) - 1), version_3_2_1);
-          granulepos = (k << shift) + (frame - k);
+          // Packet is not a keyframe. It's granulepos depends on its successor
+          // packet...
+          if (frames[i+1]->mKeyframe) {
+            // The successor frame is a keyframe, so we can't just subtract 1
+            // from the "keyframe offset" part of its granulepos, as it
+            // doesn't have one! So fake it, take the keyframe offset as the
+            // max possible keyframe offset. This means the granulepos (probably)
+            // overshoots and claims that it depends on a frame before its actual
+            // keyframe but at least its granule number will be correct, so the
+            // times we calculate from this granulepos will also be correct.
+            ogg_int64_t frameno = th_granule_frame(mTheoraState->mCtx,
+                                                   granulepos);
+            ogg_int64_t max_offset = NS_MIN((frameno - 1),
+                                         (ogg_int64_t)(1 << shift) - 1);
+            ogg_int64_t granule = frameno +
+                                  TheoraVersion(&mTheoraState->mInfo,3,2,1) -
+                                  1 - max_offset;
+            NS_ASSERTION(granule > 0, "Must have positive granulepos");
+            granulepos = (granule << shift) + max_offset;
+          } else {
+            // Neither previous nor this frame are keyframes, so we can just
+            // decrement the previous granulepos to calculate this frames
+            // granulepos.
+            --granulepos;
+          }
         }
-        // Theora 3.2.1+ granulepos store frame number [1..N], so granulepos
-        // should be > 0.
-        // Theora 3.2.0 granulepos store the frame index [0..(N-1)], so
-        // granulepos should be >= 0. 
-        NS_ASSERTION(granulepos >= version_3_2_1,
-                     "Invalid granulepos for Theora version");
-
-        // Check that the frame's granule number is one more than the
-        // previous frame's.
-        NS_ASSERTION(i == 0 ||
-                     th_granule_frame(mTheoraState->mCtx, granulepos) ==
-                     th_granule_frame(mTheoraState->mCtx, frames[i-1]->mTimecode) + 1,
+        // Check that the frame's granule number (it's frame number) is
+        // one less than the successor frame.
+        NS_ASSERTION(th_granule_frame(mTheoraState->mCtx, succGranulepos) ==
+                     th_granule_frame(mTheoraState->mCtx, granulepos) + 1,
                      "Granulepos calculation is incorrect!");
-
         frames[i]->mTime = mTheoraState->StartTime(granulepos);
-        frames[i]->mEndTime = mTheoraState->Time(granulepos);
+        frames[i]->mEndTime = frames[i]->mTime + mTheoraState->mFrameDuration;
         NS_ASSERTION(frames[i]->mEndTime >= frames[i]->mTime, "Frame must start before it ends.");
         frames[i]->mTimecode = granulepos;
+        succGranulepos = granulepos;
+        NS_ASSERTION(frames[i]->mTime < frames[i+1]->mTime, "Times should increase");      
       }
       NS_ASSERTION(AllFrameTimesIncrease(frames), "All frames must have granulepos");
-
-      // Check that the second to last frame's granule number is one less than
-      // the last frame's (the known granule number). If not our granulepos
-      // recovery missed a beat.
-      NS_ASSERTION(frames.Length() < 2 ||
-        th_granule_frame(mTheoraState->mCtx, frames[frames.Length()-2]->mTimecode) + 1 ==
-        th_granule_frame(mTheoraState->mCtx, packet.granulepos),
-        "Granulepos recovery should catch up with packet.granulepos!");
     }
   } else {
     
@@ -1255,7 +1246,7 @@ nsresult nsOggReader::SeekInBufferedRange(PRInt64 aTarget,
                                   aStartTime,
                                   aEndTime,
                                   PR_FALSE);
-    res = SeekBisection(keyframeTime, k, SEEK_FUZZ_USECS);
+    res = SeekBisection(keyframeTime, k, SEEK_FUZZ_MS);
     NS_ASSERTION(mTheoraGranulepos == -1, "SeekBisection must reset Theora decode");
     NS_ASSERTION(mVorbisGranulepos == -1, "SeekBisection must reset Vorbis decode");
   }
@@ -1281,7 +1272,7 @@ nsresult nsOggReader::SeekInUnbuffered(PRInt64 aTarget,
   LOG(PR_LOG_DEBUG, ("%p Seeking in unbuffered data to %lldms using bisection search", mDecoder, aTarget));
   
   // If we've got an active Theora bitstream, determine the maximum possible
-  // time in usecs which a keyframe could be before a given interframe. We
+  // time in ms which a keyframe could be before a given interframe. We
   // subtract this from our seek target, seek to the new target, and then
   // will decode forward to the original seek target. We should encounter a
   // keyframe in that interval. This prevents us from needing to run two
@@ -1300,7 +1291,7 @@ nsresult nsOggReader::SeekInUnbuffered(PRInt64 aTarget,
   // Minimize the bisection search space using the known timestamps from the
   // buffered ranges.
   SeekRange k = SelectSeekRange(aRanges, seekTarget, aStartTime, aEndTime, PR_FALSE);
-  nsresult res = SeekBisection(seekTarget, k, SEEK_FUZZ_USECS);
+  nsresult res = SeekBisection(seekTarget, k, SEEK_FUZZ_MS);
   NS_ASSERTION(mTheoraGranulepos == -1, "SeekBisection must reset Theora decode");
   NS_ASSERTION(mVorbisGranulepos == -1, "SeekBisection must reset Vorbis decode");
   return res;
@@ -1784,8 +1775,9 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
       // find an end time.
       PRInt64 endTime = FindEndTime(startOffset, endOffset, PR_TRUE, &state);
       if (endTime != -1) {
-        aBuffered->Add(startTime / static_cast<double>(USECS_PER_S),
-                       (endTime - aStartTime) / static_cast<double>(USECS_PER_S));
+        endTime -= aStartTime;
+        aBuffered->Add(static_cast<double>(startTime) / 1000.0,
+                       static_cast<double>(endTime) / 1000.0);
       }
     }
   }

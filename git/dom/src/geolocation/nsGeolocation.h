@@ -117,6 +117,7 @@ class nsGeolocationRequest
   void NotifyError(PRInt16 errorCode);
   PRPackedBool mAllowed;
   PRPackedBool mCleared;
+  PRPackedBool mIsFirstUpdate;
   PRPackedBool mIsWatchPositionRequest;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
