@@ -256,10 +256,6 @@ let gSyncPane = {
     window.close();
   },
 
-  signUp: function() {
-    this.openContentInBrowser("about:accounts?action=signup");
-  },
-
   signIn: function() {
     this.openContentInBrowser("about:accounts?action=signin");
   },

@@ -532,11 +532,7 @@ var MetroDownloadsView = {
           let notn = this._progressNotification;
           if (notn)
             this._notificationBox.removeNotification(notn);
-
-          ContextUI.displayNavbar();
         }
-
-        this._downloadProgressIndicator.notify();
         break;
       case "dl-failed":
         download = aSubject.QueryInterface(Ci.nsIDownload);
