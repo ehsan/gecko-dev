@@ -913,16 +913,17 @@ inline InterpreterFrames::~InterpreterFrames()
 
 #if defined(DEBUG) && !defined(JS_THREADSAFE) && !defined(JSGC_ROOT_ANALYSIS)
 void
-js::AssertValidPropertyCacheHit(JSContext *cx, JSObject *start_,
-                                JSObject *found, PropertyCacheEntry *entry)
+js::AssertValidPropertyCacheHit(JSContext *cx,
+                                JSObject *start_, JSObject *found,
+                                PropertyCacheEntry *entry)
 {
     jsbytecode *pc;
-    JSScript *script = cx->stack.currentScript(&pc);
+    cx->stack.currentScript(&pc);
 
     uint64_t sample = cx->runtime->gcNumber;
     PropertyCacheEntry savedEntry = *entry;
 
-    RootedPropertyName name(cx, GetNameFromBytecode(cx, script, pc, JSOp(*pc)));
+    RootedPropertyName name(cx, GetNameFromBytecode(cx, pc, JSOp(*pc)));
     RootedObject start(cx, start_);
 
     JSObject *obj, *pobj;
@@ -2329,7 +2330,7 @@ BEGIN_CASE(JSOP_LENGTH)
 BEGIN_CASE(JSOP_CALLPROP)
 {
     RootedValue rval(cx);
-    if (!GetPropertyOperation(cx, script, regs.pc, regs.sp[-1], rval.address()))
+    if (!GetPropertyOperation(cx, regs.pc, regs.sp[-1], rval.address()))
         goto error;
 
     TypeScript::Monitor(cx, script, regs.pc, rval.reference());
@@ -2541,7 +2542,7 @@ BEGIN_CASE(JSOP_CALLNAME)
 {
     RootedValue &rval = rootValue0;
 
-    if (!NameOperation(cx, script, regs.pc, rval.address()))
+    if (!NameOperation(cx, regs.pc, rval.address()))
         goto error;
 
     PUSH_COPY(rval);
