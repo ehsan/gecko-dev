@@ -466,17 +466,17 @@ JS_FRIEND_API(void)
 SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
 
 inline bool
-GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JSObject*> proto)
+GetObjectProto(JSContext *cx, JSObject *obj, JSObject **proto)
 {
     js::Class *clasp = GetObjectClass(obj);
     if (clasp == &js::ObjectProxyClass ||
         clasp == &js::OuterWindowProxyClass ||
         clasp == &js::FunctionProxyClass)
     {
-        return JS_GetPrototype(cx, obj, proto.address());
+        return JS_GetPrototype(cx, obj, proto);
     }
 
-    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
+    *proto = reinterpret_cast<const shadow::Object*>(obj)->type->proto;
     return true;
 }
 

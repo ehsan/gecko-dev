@@ -812,7 +812,9 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
   }
   gVibrateWindowListener = new VibrateWindowListener(win, doc);
 
-  hal::Vibrate(pattern, win);
+  nsCOMPtr<nsIDOMWindow> domWindow =
+    do_QueryInterface(static_cast<nsIDOMWindow*>(win));
+  hal::Vibrate(pattern, domWindow);
   return NS_OK;
 }
 

@@ -70,7 +70,7 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, HandleObject obj)
 
     // Get a waiver for the proto.
     RootedObject proto(cx);
-    if (!js::GetObjectProto(cx, obj, &proto))
+    if (!js::GetObjectProto(cx, obj, proto.address()))
         return nullptr;
     if (proto && !(proto = WaiveXray(cx, proto)))
         return nullptr;
@@ -462,7 +462,7 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
         {
             JSAutoCompartment ac(cx, obj);
             RootedObject unwrappedProto(cx);
-            if (!js::GetObjectProto(cx, obj, &unwrappedProto))
+            if (!js::GetObjectProto(cx, obj, unwrappedProto.address()))
                 return NULL;
             if (unwrappedProto && IsCrossCompartmentWrapper(unwrappedProto))
                 unwrappedProto = Wrapper::wrappedObject(unwrappedProto);

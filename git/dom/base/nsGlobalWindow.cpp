@@ -953,11 +953,12 @@ nsChromeOuterWindowProxy
 nsChromeOuterWindowProxy::singleton;
 
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JSObject *aParent, bool isChrome)
 {
+  JS::Rooted<JSObject*> parent(cx, aParent);
   JSAutoCompartment ac(cx, parent);
   JS::Rooted<JSObject*> proto(cx);
-  if (!js::GetObjectProto(cx, parent, &proto))
+  if (!js::GetObjectProto(cx, parent, proto.address()))
     return nullptr;
 
   JSObject *obj = js::Wrapper::New(cx, parent, proto, parent,
@@ -2020,8 +2021,8 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 {
   AutoPushJSContext cx(mContext->GetNativeContext());
 
-  JS::Rooted<JSObject*> global(cx, aNewInner->FastGetGlobalJSObject());
-  JSObject* outer = NewOuterWindowProxy(cx, global, IsChromeWindow());
+  JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject(),
+                                        IsChromeWindow());
   if (!outer) {
     return NS_ERROR_FAILURE;
   }
@@ -2359,9 +2360,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       mJSObject = mContext->GetNativeGlobal();
       SetWrapper(mJSObject);
     } else {
-      JS::Rooted<JSObject*> global(cx,
-        xpc_UnmarkGrayObject(newInnerWindow->mJSObject));
-      JSObject* outerObject = NewOuterWindowProxy(cx, global, thisChrome);
+      JSObject *outerObject = NewOuterWindowProxy(cx, xpc_UnmarkGrayObject(newInnerWindow->mJSObject),
+                                                  thisChrome);
       if (!outerObject) {
         NS_ERROR("out of memory");
         return NS_ERROR_FAILURE;
@@ -3518,8 +3518,7 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
   *aContent = nullptr;
 
   // First check for a named frame named "content"
-  nsCOMPtr<nsIDOMWindow> domWindow =
-    GetChildWindow(NS_LITERAL_STRING("content"));
+  nsCOMPtr<nsIDOMWindow> domWindow = GetChildWindow(nsDOMClassInfo::sContent_id);
   if (domWindow) {
     domWindow.forget(aContent);
     return NS_OK;
@@ -4801,13 +4800,15 @@ nsGlobalWindow::GetLength(uint32_t* aLength)
 }
 
 already_AddRefed<nsIDOMWindow>
-nsGlobalWindow::GetChildWindow(const nsAString& aName)
+nsGlobalWindow::GetChildWindow(jsid aName)
 {
+  const jschar *chars = JS_GetInternedStringChars(JSID_TO_STRING(aName));
+
   nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(GetDocShell()));
   NS_ENSURE_TRUE(dsn, nullptr);
 
   nsCOMPtr<nsIDocShellTreeItem> child;
-  dsn->FindChildWithName(PromiseFlatString(aName).get(),
+  dsn->FindChildWithName(reinterpret_cast<const PRUnichar*>(chars),
                          false, true, nullptr, nullptr,
                          getter_AddRefs(child));
 
