@@ -9,7 +9,6 @@
 #define mozilla_layers_ShadowLayers_h 1
 
 #include "gfxASurface.h"
-#include "GLDefs.h"
 
 #include "ImageLayers.h"
 #include "LayersBackend.h"
@@ -18,13 +17,6 @@
 class gfxSharedImageSurface;
 
 namespace mozilla {
-
-namespace gl {
-class GLContext;
-class TextureImage;
-}
-using namespace gl;
-
 namespace layers {
 
 class Edit;
@@ -409,16 +401,6 @@ public:
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer() = 0;
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer() { return nsnull; }
-
-  /**
-   * Try to open |aDescriptor| for direct texturing.  If the
-   * underlying surface supports direct texturing, a non-null
-   * TextureImage is returned.  Otherwise null is returned.
-   */
-  static already_AddRefed<TextureImage>
-  OpenDescriptorForDirectTexturing(GLContext* aContext,
-                                   const SurfaceDescriptor& aDescriptor,
-                                   GLenum aWrapMode);
 
   static void PlatformSyncBeforeReplyUpdate();
 

@@ -557,6 +557,7 @@ ShadowLayerManager::DestroySharedSurface(SurfaceDescriptor* aSurface,
   }
 }
 
+
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 
 bool
@@ -616,14 +617,6 @@ bool
 ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
   return false;
-}
-
-/*static*/ already_AddRefed<TextureImage>
-ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
-                                                     const SurfaceDescriptor&,
-                                                     GLenum)
-{
-  return nsnull;
 }
 
 /*static*/ void
