@@ -907,7 +907,7 @@ static PRBool gDumpRepaintRegionForCopy = PR_FALSE;
 nsIFrame*
 nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                 PRBool aShouldIgnoreSuppression,
-                                PRBool aIgnoreScrollFrame)
+                                PRBool aIgnoreRootScrollFrame)
 {
   nsDisplayListBuilder builder(aFrame, PR_TRUE, PR_FALSE);
   nsDisplayList list;
@@ -916,7 +916,7 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
   if (aShouldIgnoreSuppression)
     builder.IgnorePaintSuppression();
 
-  if (aIgnoreScrollFrame) {
+  if (aIgnoreRootScrollFrame) {
     nsIFrame* rootScrollFrame =
       aFrame->PresContext()->PresShell()->GetRootScrollFrame();
     if (rootScrollFrame) {
@@ -1550,6 +1550,20 @@ nsLayoutUtils::FindNearestBlockAncestor(nsIFrame* aFrame)
       return block;
   }
   return nsnull;
+}
+
+nsIFrame*
+nsLayoutUtils::GetNonGeneratedAncestor(nsIFrame* aFrame)
+{
+  if (!(aFrame->GetStateBits() & NS_FRAME_GENERATED_CONTENT))
+    return aFrame;
+
+  nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
+  nsIFrame* f = aFrame;
+  do {
+    f = GetParentOrPlaceholderFor(frameManager, f);
+  } while (f->GetStateBits() & NS_FRAME_GENERATED_CONTENT);
+  return f;
 }
 
 nsIFrame*
@@ -3027,6 +3041,18 @@ nsLayoutUtils::GetDeviceContextForScreenInfo(nsIDocShell* aDocShell)
   }
 
   return nsnull;
+}
+
+/* static */ PRBool
+nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame->GetParent(),
+                  "IsReallyFixedPos called on frame not in tree");
+  NS_PRECONDITION(aFrame->GetStyleDisplay()->mPosition ==
+                    NS_STYLE_POSITION_FIXED,
+                  "IsReallyFixedPos called on non-'position:fixed' frame");
+
+  return aFrame->GetParent()->GetType() == nsGkAtoms::viewportFrame;
 }
 
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
