@@ -128,10 +128,11 @@ public:
                                   nsIHandlerApp **aDefaultApp = nsnull,
                                   const nsAString& aAction = EmptyString());
 
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
-                           const nsAString& aPackageName = EmptyString(), 
+    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
+                           const nsAString& aPackageName = EmptyString(),
                            const nsAString& aClassName = EmptyString(),
-                           const nsAString& aAction = EmptyString());
+                           const nsAString& aAction = EmptyString(),
+                           const nsAString& aTitle = EmptyString());
 
     void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
 
@@ -152,7 +153,12 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
-    void ShowFilePicker(nsAString& aFilePath);
+    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
+                                           PRInt64 aProgress,
+                                           PRInt64 aProgressMax,
+                                           const nsAString& aAlertText);
+
+    int GetDPI();
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -214,7 +220,8 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
-    jmethodID jShowFilePicker;
+    jmethodID jAlertsProgressListener_OnProgress;
+    jmethodID jGetDpi;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
