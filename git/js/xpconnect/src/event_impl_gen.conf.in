@@ -34,7 +34,7 @@ simple_events = [
     'CallEvent',
     'CFStateChangeEvent',
     'DataErrorEvent',
-    'IccCardLockErrorEvent',
+    'ICCCardLockErrorEvent',
     'MozWifiStatusChangeEvent',
     'MozWifiConnectionInfoEvent',
     'MozCellBroadcastEvent',

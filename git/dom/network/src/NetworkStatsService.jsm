@@ -68,7 +68,7 @@ this.NetworkStatsService = {
     }, this);
 
     gIDBManager.initWindowless(myGlobal);
-    this._db = new NetworkStatsDB(myGlobal, this._connectionTypes);
+    this._db = new NetworkStatsDB(myGlobal);
 
     // Stats for all interfaces are updated periodically
     this.timer.initWithCallback(this, this._db.sampleRate,

@@ -265,25 +265,6 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
       path: match[7]
     };
   }
-  exports.urlParse = urlParse;
-
-  function urlGenerate(aParsedUrl) {
-    var url = aParsedUrl.scheme + "://";
-    if (aParsedUrl.auth) {
-      url += aParsedUrl.auth + "@"
-    }
-    if (aParsedUrl.host) {
-      url += aParsedUrl.host;
-    }
-    if (aParsedUrl.port) {
-      url += ":" + aParsedUrl.port
-    }
-    if (aParsedUrl.path) {
-      url += aParsedUrl.path;
-    }
-    return url;
-  }
-  exports.urlGenerate = urlGenerate;
 
   function join(aRoot, aPath) {
     var url;
@@ -293,8 +274,7 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
     }
 
     if (aPath.charAt(0) === '/' && (url = urlParse(aRoot))) {
-      url.path = aPath;
-      return urlGenerate(url);
+      return aRoot.replace(url.path, '') + aPath;
     }
 
     return aRoot.replace(/\/$/, '') + '/' + aPath;
@@ -322,12 +302,6 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
 
   function relative(aRoot, aPath) {
     aRoot = aRoot.replace(/\/$/, '');
-
-    var url = urlParse(aRoot);
-    if (aPath.charAt(0) == "/" && url && url.path == "/") {
-      return aPath.slice(1);
-    }
-
     return aPath.indexOf(aRoot + '/') === 0
       ? aPath.substr(aRoot.length + 1)
       : aPath;
