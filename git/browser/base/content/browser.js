@@ -4546,9 +4546,6 @@ var TabsInTitlebar = {
     }
 
     ToolbarIconColor.inferFromText();
-    if (CustomizationHandler.isCustomizing()) {
-      gCustomizeMode.updateLWTStyling();
-    }
   },
 
   _sizePlaceholder: function (type, width) {
@@ -5311,8 +5308,8 @@ function setStyleDisabled(disabled) {
 
 var LanguageDetectionListener = {
   init: function() {
-    window.messageManager.addMessageListener("Translation:DocumentState", msg => {
-      Translation.documentStateReceived(msg.target, msg.data);
+    window.messageManager.addMessageListener("LanguageDetection:Result", msg => {
+      Translation.languageDetected(msg.target, msg.data);
     });
   }
 };

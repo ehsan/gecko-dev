@@ -16,7 +16,7 @@
 
 'use strict';
 
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
 var ArrayConversion = require('./types').ArrayConversion;
 var ArrayArgument = require('./types').ArrayArgument;
 
@@ -69,7 +69,7 @@ exports.items = [
       }.bind(this);
 
       var conversionPromises = arg.getArguments().map(subArgParse);
-      return Promise.all(conversionPromises).then(function(conversions) {
+      return promise.all(conversionPromises).then(function(conversions) {
         return new ArrayConversion(conversions, arg);
       });
     },

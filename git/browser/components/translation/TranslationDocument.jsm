@@ -31,11 +31,6 @@ this.TranslationDocument = function(document) {
 };
 
 this.TranslationDocument.prototype = {
-  translatedFrom: "",
-  translatedTo: "",
-  translationError: false,
-  originalShown: true,
-
   /**
    * Initializes the object and populates
    * the roots lists.
@@ -190,7 +185,6 @@ this.TranslationDocument.prototype = {
    * content.
    */
   showTranslation: function() {
-    this.originalShown = false;
     this._swapDocumentContent("translation");
   },
 
@@ -199,7 +193,6 @@ this.TranslationDocument.prototype = {
    * content.
    */
   showOriginal: function() {
-    this.originalShown = true;
     this._swapDocumentContent("original");
   },
 

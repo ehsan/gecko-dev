@@ -2289,13 +2289,11 @@ SourceMediaStream::ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSe
     return;
   }
   AudioSegment* segment = static_cast<AudioSegment*>(aSegment);
-  int channels = segment->ChannelCount();
+  if (!aTrackData->mResampler) {
+    int channels = segment->ChannelCount();
 
-  // If this segment is just silence, we delay instanciating the resampler.
-  if (channels) {
-    if (aTrackData->mResampler) {
-      MOZ_ASSERT(aTrackData->mResamplerChannelCount == segment->ChannelCount());
-    } else {
+    // If this segment is just silence, we delay instanciating the resampler.
+    if (channels) {
       SpeexResamplerState* state = speex_resampler_init(channels,
                                                         aTrackData->mInputRate,
                                                         GraphImpl()->AudioSampleRate(),
@@ -2305,9 +2303,6 @@ SourceMediaStream::ResampleAudioToGraphSampleRate(TrackData* aTrackData, MediaSe
         return;
       }
       aTrackData->mResampler.own(state);
-#ifdef DEBUG
-      aTrackData->mResamplerChannelCount = channels;
-#endif
     }
   }
   segment->ResampleChunks(aTrackData->mResampler);
