@@ -96,8 +96,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "devtools",
 XPCOMUtils.defineLazyModuleGetter(this, "DevToolsUtils",
   "resource://gre/modules/devtools/DevToolsUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ShortcutUtils",
-  "resource://gre/modules/ShortcutUtils.jsm");
+Object.defineProperty(this, "DevtoolsHelpers", {
+  get: function() {
+    return devtools.require("devtools/shared/helpers");
+  },
+  configurable: true,
+  enumerable: true
+});
 
 Object.defineProperty(this, "NetworkHelper", {
   get: function() {
@@ -510,7 +515,6 @@ function StackFrames() {
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
   this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
-  this._onPrettyPrintChange = this._onPrettyPrintChange.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
@@ -537,7 +541,6 @@ StackFrames.prototype = {
     this.activeThread.addListener("framesadded", this._onFrames);
     this.activeThread.addListener("framescleared", this._onFramesCleared);
     this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
     this.handleTabNavigation();
   },
 
@@ -554,7 +557,6 @@ StackFrames.prototype = {
     this.activeThread.removeListener("framesadded", this._onFrames);
     this.activeThread.removeListener("framescleared", this._onFramesCleared);
     this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.removeListener("prettyprintchange", this._onPrettyPrintChange);
   },
 
   /**
@@ -741,16 +743,8 @@ StackFrames.prototype = {
    */
   _onBlackBoxChange: function() {
     if (this.activeThread.state == "paused") {
+      this.currentFrame = null;
       this._refillFrames();
-    }
-  },
-
-  /**
-   * Handler for the debugger's prettyprintchange notification.
-   */
-  _onPrettyPrintChange: function() {
-    if (this.activeThread.state == "paused") {
-      this.activeThread.fillFrames(CALL_STACK_PAGE_SIZE);
     }
   },
 
@@ -1001,7 +995,6 @@ function SourceScripts() {
   this._onNewSource = this._onNewSource.bind(this);
   this._onSourcesAdded = this._onSourcesAdded.bind(this);
   this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
-  this._onPrettyPrintChange = this._onPrettyPrintChange.bind(this);
 }
 
 SourceScripts.prototype = {
@@ -1017,7 +1010,6 @@ SourceScripts.prototype = {
     this.debuggerClient.addListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.addListener("newSource", this._onNewSource);
     this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
     this.handleTabNavigation();
   },
 
@@ -1032,7 +1024,6 @@ SourceScripts.prototype = {
     this.debuggerClient.removeListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.removeListener("newSource", this._onNewSource);
     this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
-    this.activeThread.addListener("prettyprintchange", this._onPrettyPrintChange);
   },
 
   /**
@@ -1189,9 +1180,8 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Toggle the pretty printing of a source's text. All subsequent calls to
-   * |getText| will return the pretty-toggled text. Nothing will happen for
-   * non-javascript files.
+   * Pretty print a source's text. All subsequent calls to |getText| will return
+   * the pretty text. Nothing will happen for non-javascript files.
    *
    * @param Object aSource
    *        The source form from the RDP.
@@ -1199,54 +1189,46 @@ SourceScripts.prototype = {
    *          A promise that resolves to [aSource, prettyText] or rejects to
    *          [aSource, error].
    */
-  togglePrettyPrint: function(aSource) {
+  prettyPrint: function(aSource) {
     // Only attempt to pretty print JavaScript sources.
     if (!SourceUtils.isJavaScript(aSource.url, aSource.contentType)) {
       return promise.reject([aSource, "Can't prettify non-javascript files."]);
     }
 
-    const sourceClient = this.activeThread.source(aSource);
-    const wantPretty = !sourceClient.isPrettyPrinted;
-
     // Only use the existing promise if it is pretty printed.
     let textPromise = this._cache.get(aSource.url);
-    if (textPromise && textPromise.pretty === wantPretty) {
+    if (textPromise && textPromise.pretty) {
       return textPromise;
     }
 
     const deferred = promise.defer();
-    deferred.promise.pretty = wantPretty;
     this._cache.set(aSource.url, deferred.promise);
 
-    const afterToggle = ({ error, message, source: text }) => {
-      if (error) {
-        // Revert the rejected promise from the cache, so that the original
-        // source's text may be shown when the source is selected.
-        this._cache.set(aSource.url, textPromise);
+    this.activeThread.source(aSource)
+      .prettyPrint(Prefs.editorTabSize, ({ error, message, source: text }) => {
+        if (error) {
+          // Revert the rejected promise from the cache, so that the original
+          // source's text may be shown when the source is selected.
+          this._cache.set(aSource.url, textPromise);
+          deferred.reject([aSource, message || error]);
+          return;
+        }
 
-        deferred.reject([aSource, message || error]);
-        return;
-      }
+        // Remove the cached source AST from the Parser, to avoid getting
+        // wrong locations when searching for functions.
+        DebuggerController.Parser.clearSource(aSource.url);
 
-      deferred.resolve([aSource, text]);
-    };
+        if (this.activeThread.paused) {
+          // Update the stack frame list.
+          this.activeThread._clearFrames();
+          this.activeThread.fillFrames(CALL_STACK_PAGE_SIZE);
+        }
 
-    if (wantPretty) {
-      sourceClient.prettyPrint(Prefs.editorTabSize, afterToggle);
-    } else {
-      sourceClient.disablePrettyPrint(afterToggle);
-    }
+        deferred.resolve([aSource, text]);
+      });
 
+    deferred.promise.pretty = true;
     return deferred.promise;
-  },
-
-  /**
-   * Handler for the debugger's prettyprintchange notification.
-   */
-  _onPrettyPrintChange: function(aEvent, { url }) {
-    // Remove the cached source AST from the Parser, to avoid getting
-    // wrong locations when searching for functions.
-    DebuggerController.Parser.clearSource(url);
   },
 
   /**

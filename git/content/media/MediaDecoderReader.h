@@ -525,21 +525,9 @@ public:
   // Populates aBuffered with the time ranges which are buffered. aStartTime
   // must be the presentation time of the first frame in the media, e.g.
   // the media time corresponding to playback time/position 0. This function
-  // is called on the main, decode, and state machine threads.
-  //
-  // This base implementation in MediaDecoderReader estimates the time ranges
-  // buffered by interpolating the cached byte ranges with the duration
-  // of the media. Reader subclasses should override this method if they
-  // can quickly calculate the buffered ranges more accurately.
-  //
-  // The primary advantage of this implementation in the reader base class
-  // is that it's a fast approximation, which does not perform any I/O.
-  //
-  // The OggReader relies on this base implementation not performing I/O,
-  // since in FirefoxOS we can't do I/O on the main thread, where this is
-  // called.
+  // should only be called on the main thread.
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered,
-                               int64_t aStartTime);
+                               int64_t aStartTime) = 0;
 
   class VideoQueueMemoryFunctor : public nsDequeFunctor {
   public:
