@@ -102,7 +102,6 @@ abstract public class GeckoApp
 
     private GeckoConnectivityReceiver mConnectivityReceiver;
     private GeckoBatteryManager mBatteryReceiver;
-    private PromptService mPromptService;
 
     public static DoorHangerPopup mDoorHangerPopup;
     public static FormAssistPopup mFormAssistPopup;
@@ -768,7 +767,7 @@ abstract public class GeckoApp
 
             int dw = tab.getThumbnailWidth();
             int dh = tab.getThumbnailHeight();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), 0, 0, 0, 0, 0, 0, dw, dh, dw, dh, GeckoAppShell.SCREENSHOT_THUMBNAIL, tab.getThumbnailBuffer()));
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), 0, 0, 0, 0, 0, 0, dw, dh, GeckoAppShell.SCREENSHOT_THUMBNAIL));
         }
     }
     
@@ -1168,15 +1167,26 @@ abstract public class GeckoApp
                     public void run() {
                         AccessibilityManager accessibilityManager =
                             (AccessibilityManager) mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-                        try {
-                            accessibilityManager.sendAccessibilityEvent(accEvent);
-                        } catch (IllegalStateException e) {
-                            // Accessibility is off.
-                        }
+                        accessibilityManager.sendAccessibilityEvent(accEvent);
                     }
                 });
             } else if (event.equals("Accessibility:Ready")) {
-                updateAccessibilitySettings();
+                mMainHandler.post(new Runnable() {
+                    public void run() {
+                        JSONObject ret = new JSONObject();
+                        AccessibilityManager accessibilityManager =
+                            (AccessibilityManager) mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
+                        try {
+                            ret.put("enabled", accessibilityManager.isEnabled());
+                            // XXX: A placeholder for future explore by touch support.
+                            ret.put("exploreByTouch", false);
+                        } catch (Exception ex) {
+                            Log.e(LOGTAG, "Error building JSON arguments for Accessibility:Ready:", ex);
+                        }
+                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Settings",
+                                                                                       ret.toString()));
+                    }
+                });
             } else if (event.equals("Shortcut:Remove")) {
                 final String url = message.getString("url");
                 final String title = message.getString("title");
@@ -1488,28 +1498,6 @@ abstract public class GeckoApp
         });
     }
 
-    public void updateAccessibilitySettings () {
-        mMainHandler.post(new Runnable() {
-                public void run() {
-                    JSONObject ret = new JSONObject();
-                    AccessibilityManager accessibilityManager =
-                        (AccessibilityManager) mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-                    try {
-                        ret.put("enabled", accessibilityManager.isEnabled());
-                        if (Build.VERSION.SDK_INT >= 14) { // Build.VERSION_CODES.ICE_CREAM_SANDWICH
-                            ret.put("exploreByTouch", accessibilityManager.isTouchExplorationEnabled());
-                        } else {
-                            ret.put("exploreByTouch", false);
-                        }
-                    } catch (Exception ex) {
-                        Log.e(LOGTAG, "Error building JSON arguments for Accessibility:Settings:", ex);
-                    }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Settings",
-                                                                                   ret.toString()));
-                }
-            });
-    }
-
     public Surface createSurface() {
         Tabs tabs = Tabs.getInstance();
         Tab tab = tabs.getSelectedTab();
@@ -1776,7 +1764,7 @@ abstract public class GeckoApp
         mFavicons = new Favicons(this);
 
         Tabs.getInstance().setContentResolver(getContentResolver());
-        Tabs.registerOnTabsChangedListener(this);
+        Tabs.getInstance().registerOnTabsChangedListener(this);
 
         if (cameraView == null) {
             cameraView = new SurfaceView(this);
@@ -1860,8 +1848,6 @@ abstract public class GeckoApp
 
         mConnectivityReceiver = new GeckoConnectivityReceiver();
         mConnectivityReceiver.registerFor(mAppContext);
-
-        mPromptService = new PromptService();
 
         GeckoNetworkManager.getInstance().init();
         GeckoNetworkManager.getInstance().start();
@@ -2101,9 +2087,6 @@ abstract public class GeckoApp
             mOrientation = newOrientation;
             refreshChrome();
         }
-
-        // User may have enabled/disabled accessibility.
-        updateAccessibilitySettings();
     }
 
     @Override
@@ -2463,7 +2446,7 @@ abstract public class GeckoApp
         }
 
         public void run() {
-            mPromptService.show(mTitle, "", null, mItems, false);
+            GeckoAppShell.getPromptService().Show(mTitle, "", null, mItems, false);
         }
 
         private String mTitle;

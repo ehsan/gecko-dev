@@ -13,7 +13,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Attributes.h"
 
 #include "SQLiteMutex.h"
 #include "mozIStoragePendingStatement.h"
@@ -29,8 +28,8 @@ class Connection;
 class ResultSet;
 class StatementData;
 
-class AsyncExecuteStatements MOZ_FINAL : public nsIRunnable
-                                       , public mozIStoragePendingStatement
+class AsyncExecuteStatements : public nsIRunnable
+                             , public mozIStoragePendingStatement
 {
 public:
   NS_DECL_ISUPPORTS

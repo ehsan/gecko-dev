@@ -8,9 +8,8 @@
 #include "gfxCore.h"
 #include "nsISupports.h"
 #include "nsRegion.h"
-#include "mozilla/Attributes.h"
 
-class NS_GFX nsScriptableRegion MOZ_FINAL : public nsIScriptableRegion {
+class NS_GFX nsScriptableRegion : public nsIScriptableRegion {
 public:
 	nsScriptableRegion();
 

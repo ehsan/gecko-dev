@@ -11,7 +11,6 @@
 #include "nsCOMPtr.h"
 #include "prio.h"
 #include "prproces.h"
-#include "mozilla/Attributes.h"
 
 /**
  * This is an implementation of NTLM authentication that does single-signon
@@ -23,7 +22,7 @@
  * NOTE: at time of writing, this requires patches to be added to the stock
  * Samba winbindd and ntlm_auth!  
  */
-class nsAuthSambaNTLM MOZ_FINAL : public nsIAuthModule
+class nsAuthSambaNTLM : public nsIAuthModule
 {
 public:
     NS_DECL_ISUPPORTS

@@ -36,9 +36,10 @@ function simulateIncoming() {
     is(incoming.number, number);
     is(incoming.state, "incoming");
 
-    //ok(telephony.calls === calls); // bug 717414
-    is(telephony.calls.length, 1);
-    is(telephony.calls[0], incoming);
+    //is(incoming, telephony.active); // bug 757587
+    //ok(telephony.calls === calls); // bug 757587
+    //is(calls.length, 1); // bug 757587
+    //is(calls[0], incoming); // bug 757587
 
     runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
@@ -67,7 +68,7 @@ function answer() {
     is(incoming.state, "connected");
     ok(gotConnecting);
 
-    is(incoming, telephony.active);
+    //is(incoming, telephony.active);  // bug 757587
 
     runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
@@ -96,7 +97,7 @@ function hangUp() {
     is(incoming.state, "disconnected");
     ok(gotDisconnecting);
 
-    is(telephony.active, null);
+    //is(telephony.active, null);  // bug 757587
     is(telephony.calls.length, 0);
 
     runEmulatorCmd("gsm list", function(result) {

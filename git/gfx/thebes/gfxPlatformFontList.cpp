@@ -17,7 +17,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -46,7 +45,7 @@ static const char* kObservedPrefs[] = {
     nsnull
 };
 
-class gfxFontListPrefObserver MOZ_FINAL : public nsIObserver {
+class gfxFontListPrefObserver : public nsIObserver {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER

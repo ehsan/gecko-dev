@@ -5843,8 +5843,7 @@ mjit::Compiler::jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter)
      * dynamic slots. For now, we special case for different layouts:
      */
     Address addr;
-    StaticBlockObject *block = ScopeCoordinateBlockChain(script, PC);
-    if (block) {
+    if (ScopeCoordinateBlockChain(script, PC)) {
         /*
          * Block objects use a fixed AllocKind which means an invariant number
          * of fixed slots. Any slot below the fixed slot count is inline, any
@@ -5872,10 +5871,9 @@ mjit::Compiler::jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter)
     }
 
     if (get) {
-        unsigned index;
-        FrameEntry *fe = ScopeCoordinateToFrameVar(script, PC, &index) == FrameVar_Local
-                         ? frame.getLocal(index)
-                         : frame.getArg(index);
+        FrameEntry *fe = script->bindings.slotIsLocal(sc.slot)
+                         ? frame.getLocal(script->bindings.slotToLocal(sc.slot))
+                         : frame.getArg(script->bindings.slotToArg(sc.slot));
         JSValueType type = fe->isTypeKnown() ? fe->getKnownType() : JSVAL_TYPE_UNKNOWN;
         frame.push(addr, type, true /* = reuseBase */);
     } else {

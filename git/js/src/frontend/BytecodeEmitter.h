@@ -77,8 +77,6 @@ struct BytecodeEmitter
 
     BytecodeEmitter *parent;        /* enclosing function or global context */
 
-    Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
-
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
         jsbytecode  *limit;         /* one byte beyond end of bytecode */
@@ -93,7 +91,7 @@ struct BytecodeEmitter
     Parser          *parser;        /* the parser */
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
-    unsigned        firstLine;      /* first line, for JSScript::initFromEmitter */
+    unsigned        firstLine;      /* first line, for JSScript::NewScriptFromEmitter */
 
     int             stackDepth;     /* current stack depth in script frame */
     unsigned        maxStackDepth;  /* maximum stack depth so far */
@@ -123,11 +121,17 @@ struct BytecodeEmitter
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
+    /* These two should only be true if sc->inFunction() is false. */
+    const bool      noScriptRval:1;     /* The caller is JS_Compile*Script*. */
+    const bool      needScriptGlobal:1; /* API caller does not want result value
+                                           from global script. */
+
     bool            hasSingletons:1;    /* script contains singleton initializer JSOP_OBJECT */
 
     bool            inForInit:1;        /* emitting init expr of for; exclude 'in' */
 
-    BytecodeEmitter(Parser *parser, SharedContext *sc, Handle<JSScript*> script, unsigned lineno);
+    BytecodeEmitter(Parser *parser, SharedContext *sc, unsigned lineno,
+                    bool noScriptRval, bool needScriptGlobal);
     bool init();
 
     /*
@@ -137,6 +141,8 @@ struct BytecodeEmitter
      * destructor call.
      */
     ~BytecodeEmitter();
+
+    JSVersion version() const { return parser->versionWithFlags(); }
 
     bool isAliasedName(ParseNode *pn);
     bool shouldNoteClosedName(ParseNode *pn);
@@ -160,7 +166,7 @@ struct BytecodeEmitter
     }
 
     bool checkSingletonContext() {
-        if (!script->compileAndGo || sc->inFunction())
+        if (!parser->compileAndGo || sc->inFunction())
             return false;
         for (StmtInfo *stmt = sc->topStmt; stmt; stmt = stmt->down) {
             if (STMT_IS_LOOP(stmt))

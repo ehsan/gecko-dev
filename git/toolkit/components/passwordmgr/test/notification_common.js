@@ -4,11 +4,10 @@
  * Fetches the popup notification for the specified window.
  */
 function getPopupNotifications(aWindow) {
-    var chromeWin = SpecialPowers.wrap(aWindow)
-                                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                                 .getInterface(Ci.nsIWebNavigation)
-                                 .QueryInterface(Ci.nsIDocShell)
-                                 .chromeEventHandler.ownerDocument.defaultView;
+    var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIWebNavigation)
+                           .QueryInterface(Ci.nsIDocShell)
+                           .chromeEventHandler.ownerDocument.defaultView;
 
     var popupNotifications = chromeWin.PopupNotifications;
     return popupNotifications;
@@ -33,7 +32,7 @@ function getPopup(aPopupNote, aKind) {
 function clickPopupButton(aPopup, aButtonIndex) {
     ok(true, "Looking for action at index " + aButtonIndex);
 
-    var notifications = SpecialPowers.wrap(aPopup.owner).panel.childNodes;
+    var notifications = aPopup.owner.panel.childNodes;
     ok(notifications.length > 0, "at least one notification displayed");
     ok(true, notifications.length + " notifications");
     var notification = notifications[0];
@@ -66,8 +65,7 @@ function dumpNotifications() {
     }
 
     // Notification bars
-    var chromeWin = SpecialPowers.wrap(window.top)
-                           .QueryInterface(Ci.nsIInterfaceRequestor)
+    var chromeWin = window.top.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIWebNavigation)
                            .QueryInterface(Ci.nsIDocShell)
                            .chromeEventHandler.ownerDocument.defaultView;

@@ -2740,14 +2740,6 @@ var BrowserEventHandler = {
   },
 
   _cancelTapHighlight: function _cancelTapHighlight() {
-    if (!this._highlightElement)
-      return;
-
-    // If the active element is in a sub-frame, we need to make that frame's document
-    // active to remove the element's active state.
-    if (this._highlightElement.ownerDocument != BrowserApp.selectedBrowser.contentWindow.document)
-      DOMUtils.setContentState(this._highlightElement.ownerDocument.documentElement, kStateActive);
-
     DOMUtils.setContentState(BrowserApp.selectedBrowser.contentWindow.document.documentElement, kStateActive);
     this._highlightElement = null;
   },
@@ -3672,12 +3664,12 @@ var ViewportHandler = {
 
   init: function init() {
     addEventListener("DOMMetaAdded", this, false);
-    Services.obs.addObserver(this, "Window:Resize", false);
+    addEventListener("resize", this, false);
   },
 
   uninit: function uninit() {
     removeEventListener("DOMMetaAdded", this, false);
-    Services.obs.removeObserver(this, "Window:Resize", false);
+    removeEventListener("resize", this, false);
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -3692,12 +3684,15 @@ var ViewportHandler = {
         if (tab && tab.contentDocumentIsDisplayed)
           this.updateMetadata(tab);
         break;
-    }
-  },
 
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "Window:Resize":
+      case "resize":
+        // guard against zero values corrupting our viewport numbers. this happens sometimes
+        // during initialization.
+        if (window.outerWidth == 0 || window.outerHeight == 0)
+          break;
+
+        // check dimensions changed to avoid infinite loop because updateViewportSize
+        // triggers a resize on the content window and will trigger this listener again
         if (window.outerWidth == gScreenWidth && window.outerHeight == gScreenHeight)
           break;
 

@@ -3104,13 +3104,6 @@ GetLayerManagerPrefs(LayerManagerPrefs* aManagerPrefs)
     aManagerPrefs->mDisableAcceleration || safeMode;
 }
 
-bool
-nsWindow::UseOffMainThreadCompositing()
-{
-  // OMTC doesn't work on Windows right now.
-  return false;
-}
-
 LayerManager*
 nsWindow::GetLayerManager(PLayersChild* aShadowManager,
                           LayersBackend aBackendHint,
@@ -3211,7 +3204,9 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     // Fall back to software if we couldn't use any hardware backends.
     if (!mLayerManager) {
       // Try to use an async compositor first, if possible
-      if (UseOffMainThreadCompositing()) {
+      bool useCompositor =
+        Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
+      if (useCompositor) {
         // e10s uses the parameter to pass in the shadow manager from the TabChild
         // so we don't expect to see it there since this doesn't support e10s.
         NS_ASSERTION(aShadowManager == nsnull, "Async Compositor not supported with e10s");

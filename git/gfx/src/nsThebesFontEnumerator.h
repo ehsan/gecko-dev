@@ -7,9 +7,8 @@
 #define _NSTHEBESFONTENUMERATOR_H_
 
 #include "nsIFontEnumerator.h"
-#include "mozilla/Attributes.h"
 
-class nsThebesFontEnumerator MOZ_FINAL : public nsIFontEnumerator
+class nsThebesFontEnumerator : public nsIFontEnumerator
 {
 public:
     nsThebesFontEnumerator();

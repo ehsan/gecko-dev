@@ -173,10 +173,6 @@ Telephony::NotifyCallsChanged(TelephonyCall* aCall)
   nsRefPtr<CallEvent> event = CallEvent::Create(aCall);
   NS_ASSERTION(event, "This should never fail!");
 
-  if (aCall->CallState() == nsIRadioInterfaceLayer::CALL_STATE_DIALING) {
-    mActiveCall = aCall;
-  }
-
   nsresult rv =
     event->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("callschanged"));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -412,18 +408,13 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
   }
 
   if (modifiedCall) {
+    // Change state.
+    modifiedCall->ChangeState(aCallState);
 
     // See if this should replace our current active call.
     if (aIsActive) {
-      if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
-        mActiveCall = nsnull;
-      } else {
-        mActiveCall = modifiedCall;
-      }
+      mActiveCall = modifiedCall;
     }
-
-    // Change state.
-    modifiedCall->ChangeState(aCallState);
 
     return NS_OK;
   }

@@ -440,7 +440,6 @@ def main():
 
         appname = options.app
         retVal = None
-        logcat = []
         for test in robocop_tests:
             if options.testPath and options.testPath != test['name']:
                 continue
@@ -451,9 +450,7 @@ def main():
             options.browserArgs.append("org.mozilla.roboexample.test/android.test.InstrumentationTestRunner")
 
             try:
-                dm.recordLogcat()
                 retVal = mochitest.runTests(options)
-                logcat = dm.getLogcat()
                 mochitest.addLogData()
             except:
                 print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
@@ -468,12 +465,10 @@ def main():
             print "No tests run. Did you pass an invalid TEST_PATH?"
             retVal = 1
 
-        retVal = mochitest.printLog()
+        retVal = mochitest.printLog() 
     else:
       try:
-        dm.recordLogcat()
         retVal = mochitest.runTests(options)
-        logcat = dm.getLogcat()
       except:
         print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
         mochitest.stopWebServer(options)
@@ -484,7 +479,6 @@ def main():
             pass
         sys.exit(1)
 
-    print ''.join(logcat[-500:-1])
     sys.exit(retVal)
         
 if __name__ == "__main__":

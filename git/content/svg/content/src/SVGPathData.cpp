@@ -494,14 +494,14 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
 already_AddRefed<gfxFlattenedPath>
 SVGPathData::ToFlattenedPath(const gfxMatrix& aMatrix) const
 {
-  nsRefPtr<gfxContext> tmpCtx =
+  nsRefPtr<gfxContext> ctx =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  tmpCtx->SetMatrix(aMatrix);
-  ConstructPath(tmpCtx);
-  tmpCtx->IdentityMatrix();
+  ctx->SetMatrix(aMatrix);
+  ConstructPath(ctx);
+  ctx->IdentityMatrix();
 
-  return tmpCtx->GetFlattenedPath();
+  return ctx->GetFlattenedPath();
 }
 
 static double

@@ -6,7 +6,6 @@
 #include "imgIEncoder.h"
 
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/Attributes.h"
 
 #include "nsCOMPtr.h"
 
@@ -28,7 +27,7 @@ extern "C" {
 // Provides JPEG encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsJPEGEncoder MOZ_FINAL : public imgIEncoder
+class nsJPEGEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:

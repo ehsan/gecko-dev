@@ -16,7 +16,6 @@
 
 #include "nsIMemoryReporter.h"
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Attributes.h"
 
 class CharMapHashKey : public PLDHashEntryHdr
 {
@@ -181,7 +180,7 @@ public:
     void RemoveCmap(const gfxCharacterMap *aCharMap);
 
 protected:
-    class MemoryReporter MOZ_FINAL
+    class MemoryReporter
         : public nsIMemoryMultiReporter
     {
     public:

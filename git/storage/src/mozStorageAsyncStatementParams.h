@@ -9,7 +9,6 @@
 
 #include "mozIStorageStatementParams.h"
 #include "nsIXPCScriptable.h"
-#include "mozilla/Attributes.h"
 
 class mozIStorageAsyncStatement;
 
@@ -22,8 +21,8 @@ class AsyncStatement;
  * Since mozIStorageStatementParams is just a tagging interface we do not have
  * an async variant.
  */
-class AsyncStatementParams MOZ_FINAL : public mozIStorageStatementParams
-                                     , public nsIXPCScriptable
+class AsyncStatementParams : public mozIStorageStatementParams
+                           , public nsIXPCScriptable
 {
 public:
   AsyncStatementParams(AsyncStatement *aStatement);

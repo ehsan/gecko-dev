@@ -11,7 +11,7 @@
 namespace js {
 
 static inline PropertyName *
-GetNameFromBytecode(JSContext *cx, jsbytecode *pc, JSOp op)
+GetNameFromBytecode(JSContext *cx, jsbytecode *pc, JSOp op, const JSCodeSpec &cs)
 {
     if (op == JSOP_LENGTH)
         return cx->runtime->atomState.lengthAtom;

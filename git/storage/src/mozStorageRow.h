@@ -10,14 +10,13 @@
 #include "mozIStorageRow.h"
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
-#include "mozilla/Attributes.h"
 class nsIVariant;
 struct sqlite3_stmt;
 
 namespace mozilla {
 namespace storage {
 
-class Row MOZ_FINAL : public mozIStorageRow
+class Row : public mozIStorageRow
 {
 public:
   NS_DECL_ISUPPORTS

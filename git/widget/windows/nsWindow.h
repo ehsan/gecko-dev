@@ -275,8 +275,6 @@ public:
   bool                    const DestroyCalled() { return mDestroyCalled; }
 
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
-
-  virtual bool            UseOffMainThreadCompositing();
 protected:
 
   // A magic number to identify the FAKETRACKPOINTSCROLLABLE window created

@@ -2297,8 +2297,6 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
                                      nsCOMPtr<nsIDOMNode> *outNode,
                                      bool aTrustedInput)
 {
-  nsAutoScriptBlockerSuppressNodeRemoved autoBlocker;
-
   nsCOMPtr<nsIDOMDocumentFragment> frag;
   NS_NewDocumentFragment(getter_AddRefs(frag),
                          aTargetDocument->NodeInfoManager());

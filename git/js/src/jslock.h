@@ -23,10 +23,6 @@
 
 #else  /* JS_THREADSAFE */
 
-typedef struct PRThread PRThread;
-typedef struct PRCondVar PRCondVar;
-typedef struct PRLock PRLock;
-
 # define JS_ATOMIC_INCREMENT(p)      (++*(p))
 # define JS_ATOMIC_DECREMENT(p)      (--*(p))
 # define JS_ATOMIC_ADD(p,v)          (*(p) += (v))

@@ -317,7 +317,8 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
   }
 
   if (renderMode != SVGAutoRenderState::NORMAL) {
-    gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
+
+    gfxMatrix matrix = gfx->CurrentMatrix();
     SetupGlobalTransform(gfx);
 
     CharacterIterator iter(this, true);
@@ -335,6 +336,7 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
       DrawCharacters(&iter, gfx, gfxFont::GLYPH_PATH);
     }
 
+    gfx->SetMatrix(matrix);
     return NS_OK;
   }
 
@@ -366,10 +368,10 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
   }
 
-  nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
-  SetupGlobalTransform(tmpCtx);
+  nsRefPtr<gfxContext> context = MakeTmpCtx();
+  SetupGlobalTransform(context);
   CharacterIterator iter(this, true);
-  iter.SetInitialMatrix(tmpCtx);
+  iter.SetInitialMatrix(context);
 
   // The SVG 1.1 spec says that text is hit tested against the character cells
   // of the text, not the fill and stroke. See the section starting "For text
@@ -385,17 +387,17 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     gfxTextRun::Metrics metrics =
     mTextRun->MeasureText(i, iter.ClusterLength(),
                           gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
-    iter.SetupForMetrics(tmpCtx);
-    tmpCtx->Rectangle(metrics.mBoundingBox);
+    iter.SetupForMetrics(context);
+    context->Rectangle(metrics.mBoundingBox);
   }
 
   gfxPoint userSpacePoint =
-    tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
-                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
+    context->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                   PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   bool isHit = false;
   if (hitTestFlags & SVG_HIT_TEST_FILL || hitTestFlags & SVG_HIT_TEST_STROKE) {
-    isHit = tmpCtx->PointInFill(userSpacePoint);
+    isHit = context->PointInFill(userSpacePoint);
   }
 
   // If isHit is false, we may also want to fill and stroke the text to check

@@ -766,8 +766,10 @@ JSRuntime::JSRuntime()
     hadOutOfMemory(false),
     debugScopes(NULL),
     data(NULL),
+#ifdef JS_THREADSAFE
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
+#endif
     defaultFreeOp_(thisFromCtor(), false, false),
     debuggerMutations(0),
     securityCallbacks(const_cast<JSSecurityCallbacks *>(&NullSecurityCallbacks)),
@@ -2540,9 +2542,11 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind)
     js::CallTracer(trc, thing, kind);
 }
 
+#ifdef DEBUG
+
 JS_PUBLIC_API(void)
-JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
-                     JSGCTraceKind kind, JSBool details)
+JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
+                       JSGCTraceKind kind, JSBool details)
 {
     const char *name = NULL; /* silence uninitialized warning */
     size_t n;
@@ -2676,8 +2680,6 @@ JS_GetTraceEdgeName(JSTracer *trc, char *buffer, int bufferSize)
     return (const char*)trc->debugPrintArg;
 }
 
-#ifdef DEBUG
-
 typedef struct JSHeapDumpNode JSHeapDumpNode;
 
 struct JSHeapDumpNode {
@@ -2769,8 +2771,8 @@ DumpNode(JSDumpingTracer *dtrc, FILE* fp, JSHeapDumpNode *node)
     size_t chainLimit;
     enum { MAX_PARENTS_TO_PRINT = 10 };
 
-    JS_GetTraceThingInfo(dtrc->buffer, sizeof dtrc->buffer,
-                         &dtrc->base, node->thing, node->kind, JS_TRUE);
+    JS_PrintTraceThingInfo(dtrc->buffer, sizeof dtrc->buffer,
+                           &dtrc->base, node->thing, node->kind, JS_TRUE);
     if (fprintf(fp, "%p %-22s via ", node->thing, dtrc->buffer) < 0)
         return JS_FALSE;
 
@@ -2808,9 +2810,9 @@ DumpNode(JSDumpingTracer *dtrc, FILE* fp, JSHeapDumpNode *node)
                 if (fputs(node->edgeName, fp) < 0)
                     ok = false;
             } else {
-                JS_GetTraceThingInfo(dtrc->buffer, sizeof dtrc->buffer,
-                                     &dtrc->base, prev->thing, prev->kind,
-                                     JS_FALSE);
+                JS_PrintTraceThingInfo(dtrc->buffer, sizeof dtrc->buffer,
+                                       &dtrc->base, prev->thing, prev->kind,
+                                       JS_FALSE);
                 if (fprintf(fp, "(%p %s).%s",
                            prev->thing, dtrc->buffer, node->edgeName) < 0) {
                     ok = false;

@@ -398,8 +398,10 @@ inline T *
 NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
 {
     JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
-    JS_ASSERT_IF(cx->compartment == cx->runtime->atomsCompartment,
+#ifdef JS_THREADSAFE
+    JS_ASSERT_IF((cx->compartment == cx->runtime->atomsCompartment),
                  kind == js::gc::FINALIZE_STRING || kind == js::gc::FINALIZE_SHORT_STRING);
+#endif
     JS_ASSERT(!cx->runtime->gcRunning);
     JS_ASSERT(!cx->runtime->noGCOrAllocationCheck);
 
@@ -429,8 +431,10 @@ inline T *
 TryNewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
 {
     JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
-    JS_ASSERT_IF(cx->compartment == cx->runtime->atomsCompartment,
+#ifdef JS_THREADSAFE
+    JS_ASSERT_IF((cx->compartment == cx->runtime->atomsCompartment),
                  kind == js::gc::FINALIZE_STRING || kind == js::gc::FINALIZE_SHORT_STRING);
+#endif
     JS_ASSERT(!cx->runtime->gcRunning);
     JS_ASSERT(!cx->runtime->noGCOrAllocationCheck);
 

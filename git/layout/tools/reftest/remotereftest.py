@@ -187,7 +187,7 @@ class ReftestServer:
         pid = self._process.pid
         if pid < 0:
             print "Error starting server."
-            return 2
+            sys.exit(2)
         self._automation.log.info("INFO | remotereftests.py | Server pid: %d", pid)
 
         if (self.pidFile != ""):
@@ -208,7 +208,7 @@ class ReftestServer:
         else:
             print "Timed out while waiting for server startup."
             self.stop()
-            return 1
+            sys.exit(1)
 
     def stop(self):
         try:
@@ -272,7 +272,7 @@ class RemoteReftest(RefTest):
         options.xrePath = self.findPath(paths)
         if options.xrePath == None:
             print "ERROR: unable to find xulrunner path for %s, please specify with --xre-path" % (os.name)
-            return 1
+            sys.exit(1)
         paths.append("bin")
         paths.append(os.path.join("..", "bin"))
 
@@ -285,20 +285,15 @@ class RemoteReftest(RefTest):
         options.utilityPath = self.findPath(paths, xpcshell)
         if options.utilityPath == None:
             print "ERROR: unable to find utility path for %s, please specify with --utility-path" % (os.name)
-            return 1
+            sys.exit(1)
 
         options.serverProfilePath = tempfile.mkdtemp()
         self.server = ReftestServer(localAutomation, options, self.scriptDir)
-        retVal = self.server.start()
-        if retVal:
-            return retVal
-        retVal = self.server.ensureReady(self.SERVER_STARTUP_TIMEOUT)
-        if retVal:
-            return retVal
+        self.server.start()
 
+        self.server.ensureReady(self.SERVER_STARTUP_TIMEOUT)
         options.xrePath = remoteXrePath
         options.utilityPath = remoteUtilityPath
-        return 0
          
     def stopWebServer(self, options):
         self.server.stop()
@@ -356,14 +351,14 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
             except:
                 print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % self.pidFile
 
-def main(args):
+def main():
     automation = RemoteAutomation(None)
     parser = RemoteOptions(automation)
     options, args = parser.parse_args()
 
     if (options.deviceIP == None):
         print "Error: you must provide a device IP to connect to via the --device option"
-        return 1
+        sys.exit(1)
 
     try:
         if (options.dm_trans == "adb"):
@@ -375,7 +370,7 @@ def main(args):
             dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     except devicemanager.DMError:
         print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
-        return 1
+        sys.exit(1)
 
     automation.setDeviceManager(dm)
 
@@ -386,7 +381,7 @@ def main(args):
     options = parser.verifyRemoteOptions(options)
     if (options == None):
         print "ERROR: Invalid options specified, use --help for a list of valid options"
-        return 1
+        sys.exit(1)
 
     if not options.ignoreWindowSize:
         parts = dm.getInfo('screen')['screen'][0].split()
@@ -394,7 +389,7 @@ def main(args):
         height = int(parts[1].split(':')[1])
         if (width < 1050 or height < 1050):
             print "ERROR: Invalid screen resolution %sx%s, please adjust to 1366x1050 or higher" % (width, height)
-            return 1
+            sys.exit(1)
 
     automation.setAppName(options.app)
     automation.setRemoteProfile(options.remoteProfile)
@@ -413,12 +408,10 @@ def main(args):
         manifest = "http://" + str(options.remoteWebServer) + ":" + str(options.httpPort) + "/" + manifestPath
     else:
         print "ERROR: Could not find test manifest '%s'" % manifest
-        return 1
+        sys.exit(1)
 
     # Start the webserver
-    retVal = reftest.startWebServer(options)
-    if retVal:
-        return retVal
+    reftest.startWebServer(options)
 
     procName = options.app.split('/')[-1]
     if (dm.processExist(procName)):
@@ -426,23 +419,18 @@ def main(args):
 
 #an example manifest name to use on the cli
 #    manifest = "http://" + options.remoteWebServer + "/reftests/layout/reftests/reftest-sanity/reftest.list"
-    logcat = []
     try:
         cmdlineArgs = ["-reftest", manifest]
         if options.bootstrap:
             cmdlineArgs = []
-        dm.recordLogcat()
         reftest.runTests(manifest, options, cmdlineArgs)
-        logcat = dm.getLogcat()
     except:
         print "TEST-UNEXPECTED-FAIL | | exception while running reftests"
         reftest.stopWebServer(options)
-        return 1
+        sys.exit(1)
 
     reftest.stopWebServer(options)
-    print ''.join(logcat[-500:-1])
-    return 0
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
-
+    main()
+    

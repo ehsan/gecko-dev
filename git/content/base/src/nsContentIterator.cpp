@@ -1113,7 +1113,7 @@ nsContentIterator::GetCurrentNode()
 /*
  *  A simple iterator class for traversing the content in "top subtree" order
  */
-class nsContentSubtreeIterator : public nsContentIterator
+class nsContentSubtreeIterator : public nsContentIterator 
 {
 public:
   nsContentSubtreeIterator() : nsContentIterator(false) {}
@@ -1142,18 +1142,20 @@ public:
 
 protected:
 
-  // Returns the highest inclusive ancestor of aNode that's in the range
-  // (possibly aNode itself).  Returns null if aNode is null, or is not itself
-  // in the range.
-  nsINode* GetTopAncestorInRange(nsINode* aNode);
+  nsresult GetTopAncestorInRange(nsINode *aNode,
+                                 nsCOMPtr<nsINode> *outAnestor);
 
   // no copy's or assigns  FIX ME
   nsContentSubtreeIterator(const nsContentSubtreeIterator&);
   nsContentSubtreeIterator& operator=(const nsContentSubtreeIterator&);
 
   nsRefPtr<nsRange> mRange;
-
   // these arrays all typically are used and have elements
+#if 0
+  nsAutoTArray<nsIContent*, 8> mStartNodes;
+  nsAutoTArray<PRInt32, 8>     mStartOffsets;
+#endif
+
   nsAutoTArray<nsIContent*, 8> mEndNodes;
   nsAutoTArray<PRInt32, 8>     mEndOffsets;
 };
@@ -1193,135 +1195,184 @@ NS_NewContentSubtreeIterator()
  ******************************************************/
 
 
-nsresult
-nsContentSubtreeIterator::Init(nsINode* aRoot)
+nsresult nsContentSubtreeIterator::Init(nsINode* aRoot)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 
-nsresult
-nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
+nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
 {
-  MOZ_ASSERT(aRange);
+  if (!aRange) 
+    return NS_ERROR_NULL_POINTER; 
 
   mIsDone = false;
 
   mRange = static_cast<nsRange*>(aRange);
-
+  
   // get the start node and offset, convert to nsINode
-  mCommonParent = mRange->GetCommonAncestor();
-  nsINode* startParent = mRange->GetStartParent();
-  PRInt32 startOffset = mRange->StartOffset();
-  nsINode* endParent = mRange->GetEndParent();
-  PRInt32 endOffset = mRange->EndOffset();
-  MOZ_ASSERT(mCommonParent && startParent && endParent);
+  nsCOMPtr<nsIDOMNode> commonParent;
+  nsCOMPtr<nsIDOMNode> startParent;
+  nsCOMPtr<nsIDOMNode> endParent;
+  nsCOMPtr<nsINode> nStartP;
+  nsCOMPtr<nsINode> nEndP;
+  nsCOMPtr<nsINode> n;
+  nsINode *firstCandidate = nsnull;
+  nsINode *lastCandidate = nsnull;
+  PRInt32 indx, startIndx, endIndx;
+
+  // get common content parent
+  if (NS_FAILED(aRange->GetCommonAncestorContainer(getter_AddRefs(commonParent))) || !commonParent)
+    return NS_ERROR_FAILURE;
+  mCommonParent = do_QueryInterface(commonParent);
+
+  // get start content parent
+  if (NS_FAILED(aRange->GetStartContainer(getter_AddRefs(startParent))) || !startParent)
+    return NS_ERROR_FAILURE;
+  nStartP = do_QueryInterface(startParent);
+  aRange->GetStartOffset(&startIndx);
+
+  // get end content parent
+  if (NS_FAILED(aRange->GetEndContainer(getter_AddRefs(endParent))) || !endParent)
+    return NS_ERROR_FAILURE;
+  nEndP = do_QueryInterface(endParent);
+  aRange->GetEndOffset(&endIndx);
 
   // short circuit when start node == end node
-  if (startParent == endParent) {
-    nsINode* child = startParent->GetFirstChild();
-
-    if (!child || startOffset == endOffset) {
-      // Text node, empty container, or collapsed
+  if (startParent == endParent)
+  {
+    nsINode* nChild = nStartP->GetFirstChild();
+  
+    if (!nChild) // no children, must be a text node or empty container
+    {
+      // all inside one text node - empty subtree iterator
       MakeEmpty();
       return NS_OK;
     }
+    else
+    {
+      if (startIndx == endIndx)  // collapsed range
+      {
+        MakeEmpty();
+        return NS_OK;
+      }
+    }
   }
-
+  
   // cache ancestors
-  nsContentUtils::GetAncestorsAndOffsets(endParent->AsDOMNode(), endOffset,
+#if 0
+  nsContentUtils::GetAncestorsAndOffsets(startParent, startIndx,
+                                         &mStartNodes, &mStartOffsets);
+#endif
+  nsContentUtils::GetAncestorsAndOffsets(endParent, endIndx,
                                          &mEndNodes, &mEndOffsets);
 
-  nsINode* firstCandidate = nsnull;
-  nsINode* lastCandidate = nsnull;
-
   // find first node in range
-  PRInt32 offset = mRange->StartOffset();
+  aRange->GetStartOffset(&indx);
 
-  nsINode* node;
-  if (!startParent->GetChildCount()) {
-    // no children, start at the node itself
-    node = startParent;
-  } else {
-    nsINode* child = startParent->GetChildAt(offset);
-    if (!child) {
-      // offset after last child
-      node = startParent;
-    } else {
-      firstCandidate = child;
+  if (!nStartP->GetChildCount()) // no children, start at the node itself
+  {
+    n = nStartP;
+  }
+  else
+  {
+    nsINode* nChild = nStartP->GetChildAt(indx);
+    if (!nChild)  // offset after last child
+    {
+      n = nStartP;
+    }
+    else
+    {
+      firstCandidate = nChild;
     }
   }
+  
+  if (!firstCandidate)
+  {
+    // then firstCandidate is next node after cN
+    firstCandidate = GetNextSibling(n, nsnull);
 
-  if (!firstCandidate) {
-    // then firstCandidate is next node after node
-    firstCandidate = GetNextSibling(node, nsnull);
-
-    if (!firstCandidate) {
+    if (!firstCandidate)
+    {
       MakeEmpty();
       return NS_OK;
     }
   }
-
+  
   firstCandidate = GetDeepFirstChild(firstCandidate, nsnull);
-
-  // confirm that this first possible contained node is indeed contained.  Else
-  // we have a range that does not fully contain any node.
-
+  
+  // confirm that this first possible contained node
+  // is indeed contained.  Else we have a range that
+  // does not fully contain any node.
+  
   bool nodeBefore, nodeAfter;
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    nsRange::CompareNodeToRange(firstCandidate, mRange, &nodeBefore, &nodeAfter)));
+  if (NS_FAILED(nsRange::CompareNodeToRange(firstCandidate, mRange,
+                                            &nodeBefore, &nodeAfter)))
+    return NS_ERROR_FAILURE;
 
-  if (nodeBefore || nodeAfter) {
+  if (nodeBefore || nodeAfter)
+  {
     MakeEmpty();
     return NS_OK;
   }
 
-  // cool, we have the first node in the range.  Now we walk up its ancestors
-  // to find the most senior that is still in the range.  That's the real first
-  // node.
-  mFirst = GetTopAncestorInRange(firstCandidate);
+  // cool, we have the first node in the range.  Now we walk
+  // up its ancestors to find the most senior that is still
+  // in the range.  That's the real first node.
+  if (NS_FAILED(GetTopAncestorInRange(firstCandidate, address_of(mFirst))))
+    return NS_ERROR_FAILURE;
 
   // now to find the last node
-  offset = mRange->EndOffset();
-  PRInt32 numChildren = endParent->GetChildCount();
+  aRange->GetEndOffset(&indx);
+  PRInt32 numChildren = nEndP->GetChildCount();
 
-  if (offset > numChildren) {
-    offset = numChildren;
+  if (indx > numChildren) indx = numChildren;
+  if (!indx)
+  {
+    n = nEndP;
   }
-  if (!offset) {
-    node = endParent;
-  } else if (!numChildren) {
-    // no children, must be a text node
-    node = endParent;
-  } else {
-    lastCandidate = endParent->GetChildAt(--offset);
-    NS_ASSERTION(lastCandidate,
-                 "tree traversal trouble in nsContentSubtreeIterator::Init");
+  else
+  {
+    if (!numChildren) // no children, must be a text node
+    {
+      n = nEndP;
+    }
+    else
+    {
+      lastCandidate = nEndP->GetChildAt(--indx);
+      NS_ASSERTION(lastCandidate,
+                   "tree traversal trouble in nsContentSubtreeIterator::Init");
+    }
   }
-
-  if (!lastCandidate) {
-    // then lastCandidate is prev node before node
-    lastCandidate = GetPrevSibling(node, nsnull);
+  
+  if (!lastCandidate)
+  {
+    // then lastCandidate is prev node before n
+    lastCandidate = GetPrevSibling(n, nsnull);
   }
-
+  
   lastCandidate = GetDeepLastChild(lastCandidate, nsnull);
+  
+  // confirm that this last possible contained node
+  // is indeed contained.  Else we have a range that
+  // does not fully contain any node.
+  
+  if (NS_FAILED(nsRange::CompareNodeToRange(lastCandidate, mRange, &nodeBefore,
+                                            &nodeAfter)))
+    return NS_ERROR_FAILURE;
 
-  // confirm that this last possible contained node is indeed contained.  Else
-  // we have a range that does not fully contain any node.
-
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    nsRange::CompareNodeToRange(lastCandidate, mRange, &nodeBefore, &nodeAfter)));
-
-  if (nodeBefore || nodeAfter) {
+  if (nodeBefore || nodeAfter)
+  {
     MakeEmpty();
     return NS_OK;
   }
 
-  // cool, we have the last node in the range.  Now we walk up its ancestors to
-  // find the most senior that is still in the range.  That's the real first
-  // node.
-  mLast = GetTopAncestorInRange(lastCandidate);
-
+  // cool, we have the last node in the range.  Now we walk
+  // up its ancestors to find the most senior that is still
+  // in the range.  That's the real first node.
+  if (NS_FAILED(GetTopAncestorInRange(lastCandidate, address_of(mLast))))
+    return NS_ERROR_FAILURE;
+  
   mCurNode = mFirst;
 
   return NS_OK;
@@ -1353,27 +1404,32 @@ nsContentSubtreeIterator::Last()
 void
 nsContentSubtreeIterator::Next()
 {
-  if (mIsDone || !mCurNode) {
+  if (mIsDone || !mCurNode) 
     return;
-  }
 
-  if (mCurNode == mLast) {
+  if (mCurNode == mLast) 
+  {
     mIsDone = true;
     return;
   }
 
-  nsINode* nextNode = GetNextSibling(mCurNode, nsnull);
+  nsINode *nextNode = GetNextSibling(mCurNode, nsnull);
   NS_ASSERTION(nextNode, "No next sibling!?! This could mean deadlock!");
 
+/*
+  nextNode = GetDeepFirstChild(nextNode);
+  return GetTopAncestorInRange(nextNode, address_of(mCurNode));
+*/
   PRInt32 i = mEndNodes.IndexOf(nextNode);
-  while (i != -1) {
+  while (i != -1)
+  {
     // as long as we are finding ancestors of the endpoint of the range,
     // dive down into their children
     nextNode = nextNode->GetFirstChild();
     NS_ASSERTION(nextNode, "Iterator error, expected a child node!");
 
     // should be impossible to get a null pointer.  If we went all the way
-    // down the child chain to the bottom without finding an interior node,
+    // down the child chain to the bottom without finding an interior node, 
     // then the previous node should have been the last, which was
     // was tested at top of routine.
     i = mEndNodes.IndexOf(nextNode);
@@ -1385,6 +1441,8 @@ nsContentSubtreeIterator::Next()
   // in a situation where mLast is in generated content, we need this
   // to stop the iterator when we've walked past past the last node!
   mIsDone = mCurNode == nsnull;
+
+  return;
 }
 
 
@@ -1393,22 +1451,20 @@ nsContentSubtreeIterator::Prev()
 {
   // Prev should be optimized to use the mStartNodes, just as Next
   // uses mEndNodes.
-  if (mIsDone || !mCurNode) {
+  if (mIsDone || !mCurNode) 
     return;
-  }
 
-  if (mCurNode == mFirst) {
+  if (mCurNode == mFirst) 
+  {
     mIsDone = true;
     return;
   }
 
-  nsINode* prevNode = GetDeepFirstChild(mCurNode, nsnull);
-
-  prevNode = PrevNode(prevNode, nsnull);
+  nsINode *prevNode = PrevNode(GetDeepFirstChild(mCurNode, nsnull), nsnull);
 
   prevNode = GetDeepLastChild(prevNode, nsnull);
-
-  mCurNode = GetTopAncestorInRange(prevNode);
+  
+  GetTopAncestorInRange(prevNode, address_of(mCurNode));
 
   // This shouldn't be needed, but since our selection code can put us
   // in a situation where mFirst is in generated content, we need this
@@ -1429,38 +1485,50 @@ nsContentSubtreeIterator::PositionAt(nsINode* aCurNode)
  * nsContentSubtreeIterator helper routines
  ****************************************************************/
 
-nsINode*
-nsContentSubtreeIterator::GetTopAncestorInRange(nsINode* aNode)
+nsresult
+nsContentSubtreeIterator::GetTopAncestorInRange(nsINode *aNode,
+                                                nsCOMPtr<nsINode> *outAncestor)
 {
-  if (!aNode) {
-    return nsnull;
-  }
-
+  if (!aNode) 
+    return NS_ERROR_NULL_POINTER;
+  if (!outAncestor) 
+    return NS_ERROR_NULL_POINTER;
+  
+  
   // sanity check: aNode is itself in the range
   bool nodeBefore, nodeAfter;
-  nsresult res = nsRange::CompareNodeToRange(aNode, mRange,
-                                             &nodeBefore, &nodeAfter);
-  NS_ASSERTION(NS_SUCCEEDED(res) && !nodeBefore && !nodeAfter,
-               "aNode isn't in mRange, or something else weird happened");
-  if (NS_FAILED(res) || nodeBefore || nodeAfter) {
-    return nsnull;
-  }
+  if (NS_FAILED(nsRange::CompareNodeToRange(aNode, mRange, &nodeBefore,
+                                            &nodeAfter)))
+    return NS_ERROR_FAILURE;
 
+  if (nodeBefore || nodeAfter)
+    return NS_ERROR_FAILURE;
+  
   nsCOMPtr<nsINode> parent, tmp;
-  while (aNode) {
+  while (aNode)
+  {
     parent = aNode->GetNodeParent();
-    if (!parent) {
-      return tmp;
+    if (!parent)
+    {
+      if (tmp)
+      {
+        *outAncestor = tmp;
+        return NS_OK;
+      }
+      else return NS_ERROR_FAILURE;
     }
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-      nsRange::CompareNodeToRange(parent, mRange, &nodeBefore, &nodeAfter)));
+    if (NS_FAILED(nsRange::CompareNodeToRange(parent, mRange, &nodeBefore,
+                                              &nodeAfter)))
+      return NS_ERROR_FAILURE;
 
-    if (nodeBefore || nodeAfter) {
-      return aNode;
+    if (nodeBefore || nodeAfter)
+    {
+      *outAncestor = aNode;
+      return NS_OK;
     }
     tmp = aNode;
     aNode = parent;
   }
-
-  MOZ_NOT_REACHED("This should only be possible if aNode was null");
+  return NS_ERROR_FAILURE;
 }
+

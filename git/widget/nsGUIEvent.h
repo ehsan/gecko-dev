@@ -431,7 +431,6 @@ class nsHashKey;
 #define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+6)
 #define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+7)
 #define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+8)
-#define NS_SIMPLE_GESTURE_EDGEUI         (NS_SIMPLE_GESTURE_EVENT_START+9)
 
 // These are used to send native events to plugins.
 #define NS_PLUGIN_EVENT_START            3600
@@ -1698,20 +1697,19 @@ public:
   nsSimpleGestureEvent(bool isTrusted, PRUint32 msg, nsIWidget* w,
                          PRUint32 directionArg, PRFloat64 deltaArg)
     : nsMouseEvent_base(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
-      direction(directionArg), delta(deltaArg), clickCount(0)
+      direction(directionArg), delta(deltaArg)
   {
   }
 
   nsSimpleGestureEvent(const nsSimpleGestureEvent& other)
     : nsMouseEvent_base((other.flags & NS_EVENT_FLAG_TRUSTED) != 0,
                         other.message, other.widget, NS_SIMPLE_GESTURE_EVENT),
-      direction(other.direction), delta(other.delta), clickCount(0)
+      direction(other.direction), delta(other.delta)
   {
   }
 
   PRUint32 direction;   // See nsIDOMSimpleGestureEvent for values
   PRFloat64 delta;      // Delta for magnify and rotate events
-  PRUint32 clickCount;  // The number of taps for tap events
 };
 
 class nsTransitionEvent : public nsEvent

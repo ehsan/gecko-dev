@@ -285,6 +285,7 @@ SourceSurfaceCGBitmapContext::SourceSurfaceCGBitmapContext(DrawTargetCG *aDrawTa
 {
   mDrawTarget = aDrawTarget;
   mCg = (CGContextRef)aDrawTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT);
+  CGContextRetain(mCg);
 
   mSize.width = CGBitmapContextGetWidth(mCg);
   mSize.height = CGBitmapContextGetHeight(mCg);
@@ -296,14 +297,10 @@ SourceSurfaceCGBitmapContext::SourceSurfaceCGBitmapContext(DrawTargetCG *aDrawTa
 
 void SourceSurfaceCGBitmapContext::EnsureImage() const
 {
-  // Instaed of using CGBitmapContextCreateImage we create
-  // a CGImage around the data associated with the CGBitmapContext
-  // we do this to avoid the vm_copy that CGBitmapContextCreateImage.
-  // vm_copy tends to cause all sorts of unexpected performance problems
-  // because of the mm tricks that vm_copy does. Using a regular
-  // memcpy when the bitmap context is modified gives us more predictable
-  // performance characteristics.
   if (!mImage) {
+    if (mCg) {
+      mImage = CGBitmapContextCreateImage(mCg);
+    } else {
       //XXX: we should avoid creating this colorspace everytime
       CGColorSpaceRef colorSpace = NULL;
       CGBitmapInfo bitinfo = 0;
@@ -314,19 +311,7 @@ void SourceSurfaceCGBitmapContext::EnsureImage() const
       colorSpace = CGColorSpaceCreateDeviceRGB();
       bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
 
-      void *info;
-      if (mCg) {
-          // if we have an mCg than it owns the data
-          // and we don't want to tranfer ownership
-          // to the CGDataProviderCreateWithData
-          info = NULL;
-      } else {
-          // otherwise we transfer ownership to
-          // the dataProvider
-          info = mData;
-      }
-
-      dataProvider = CGDataProviderCreateWithData (info,
+      dataProvider = CGDataProviderCreateWithData (mData,
                                                    mData,
                                                    mSize.height * mStride,
                                                    releaseCallback);
@@ -344,6 +329,7 @@ void SourceSurfaceCGBitmapContext::EnsureImage() const
 
       CGDataProviderRelease(dataProvider);
       CGColorSpaceRelease (colorSpace);
+    }
   }
 }
 
@@ -357,23 +343,12 @@ void
 SourceSurfaceCGBitmapContext::DrawTargetWillChange()
 {
   if (mDrawTarget) {
-    // This will break the weak reference we hold to mCg
     size_t stride = CGBitmapContextGetBytesPerRow(mCg);
     size_t height = CGBitmapContextGetHeight(mCg);
-
     //XXX: infalliable malloc?
     mData = malloc(stride * height);
-
-    // copy out the data from the CGBitmapContext
-    // we'll maintain ownership of mData until
-    // we transfer it to mImage
     memcpy(mData, CGBitmapContextGetData(mCg), stride*height);
-
-    // drop the current image for the data associated with the CGBitmapContext
-    if (mImage)
-      CGImageRelease(mImage);
-    mImage = NULL;
-
+    CGContextRelease(mCg);
     mCg = NULL;
     mDrawTarget = NULL;
   }
@@ -385,6 +360,8 @@ SourceSurfaceCGBitmapContext::~SourceSurfaceCGBitmapContext()
     // neither mImage or mCg owns the data
     free(mData);
   }
+  if (mCg)
+    CGContextRelease(mCg);
   if (mImage)
     CGImageRelease(mImage);
 }

@@ -9,13 +9,12 @@
 
 #include "mozIStorageResultSet.h"
 #include "nsCOMArray.h"
-#include "mozilla/Attributes.h"
 class mozIStorageRow;
 
 namespace mozilla {
 namespace storage {
 
-class ResultSet MOZ_FINAL : public mozIStorageResultSet
+class ResultSet : public mozIStorageResultSet
 {
 public:
   NS_DECL_ISUPPORTS

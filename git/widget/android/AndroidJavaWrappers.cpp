@@ -42,7 +42,6 @@ jfieldID AndroidGeckoEvent::jLocationField = 0;
 jfieldID AndroidGeckoEvent::jBandwidthField = 0;
 jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
 jfieldID AndroidGeckoEvent::jScreenOrientationField = 0;
-jfieldID AndroidGeckoEvent::jByteBufferField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
 jfieldID AndroidPoint::jXField = 0;
@@ -104,12 +103,6 @@ jmethodID AndroidGeckoSurfaceView::jGetHolderMethod = 0;
 #define getMethod(fname, ftype) \
     ((jmethodID) jEnv->GetMethodID(jClass, fname, ftype))
 
-RefCountedJavaObject::~RefCountedJavaObject() {
-    if (mObject)
-        GetJNIForThread()->DeleteGlobalRef(mObject);
-    mObject = NULL;
-}
-
 void
 mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 {
@@ -161,7 +154,6 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jBandwidthField = getField("mBandwidth", "D");
     jCanBeMeteredField = getField("mCanBeMetered", "Z");
     jScreenOrientationField = getField("mScreenOrientation", "S");
-    jByteBufferField = getField("mBuffer", "Ljava/nio/ByteBuffer;");
 }
 
 void
@@ -257,7 +249,7 @@ AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
     jGeckoLayerClientClass = getClassGlobalRef("org/mozilla/gecko/gfx/GeckoLayerClient");
 
     jSetFirstPaintViewport = getMethod("setFirstPaintViewport", "(FFFFFFFFFFF)V");
-    jSetPageRect = getMethod("setPageRect", "(FFFF)V");
+    jSetPageRect = getMethod("setPageRect", "(FFFFFFFFF)V");
     jSyncViewportInfoMethod = getMethod("syncViewportInfo",
                                         "(IIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;");
     jCreateFrameMethod = getMethod("createFrame", "()Lorg/mozilla/gecko/gfx/LayerRenderer$Frame;");
@@ -506,8 +498,7 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
         case SCREENSHOT: {
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
             mFlags = jenv->GetIntField(jobj, jFlagsField);
-            ReadPointArray(mPoints, jenv, jPoints, 5);
-            mByteBuffer = new RefCountedJavaObject(jenv, jenv->GetObjectField(jobj, jByteBufferField));
+            ReadPointArray(mPoints, jenv, jPoints, 4);
             break;
         }
 
@@ -674,7 +665,7 @@ AndroidGeckoLayerClient::SetFirstPaintViewport(const nsIntPoint& aOffset, float 
 }
 
 void
-AndroidGeckoLayerClient::SetPageRect(const gfx::Rect& aCssPageRect)
+AndroidGeckoLayerClient::SetPageRect(float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
 {
     NS_ASSERTION(!isNull(), "SetPageRect called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -682,7 +673,8 @@ AndroidGeckoLayerClient::SetPageRect(const gfx::Rect& aCssPageRect)
         return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
-    return env->CallVoidMethod(wrapped_obj, jSetPageRect,
+    return env->CallVoidMethod(wrapped_obj, jSetPageRect, aZoom,
+                               (float)aPageRect.x, (float)aPageRect.y, (float)aPageRect.XMost(), (float)aPageRect.YMost(),
                                aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost());
 }
 

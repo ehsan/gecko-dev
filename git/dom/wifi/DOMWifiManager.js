@@ -252,9 +252,8 @@ DOMWifiManager.prototype = {
   }
 };
 
-function WifiStatusChangeEvent(network, status) {
+function WifiStatusChangeEvent(network) {
   this.network = network;
-  this.status = status;
 }
 
 WifiStatusChangeEvent.prototype = {

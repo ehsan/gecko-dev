@@ -16,7 +16,6 @@
 #include "mozStorageStatementData.h"
 #include "mozIStorageAsyncStatement.h"
 #include "StorageBaseStatementInternal.h"
-#include "mozilla/Attributes.h"
 
 class nsIXPConnectJSObjectHolder;
 struct sqlite3_stmt;
@@ -27,8 +26,8 @@ namespace storage {
 class AsyncStatementJSHelper;
 class Connection;
 
-class AsyncStatement MOZ_FINAL : public mozIStorageAsyncStatement
-                               , public StorageBaseStatementInternal
+class AsyncStatement : public mozIStorageAsyncStatement
+                     , public StorageBaseStatementInternal
 {
 public:
   NS_DECL_ISUPPORTS

@@ -9,10 +9,11 @@
 #include "EditAggregateTxn.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
-#include "nsEditor.h"
+#include "nsIEditor.h"
 #include "nsCOMPtr.h"
 
 class nsIDOMRange;
+class nsIEditor;
 class nsRangeUpdater;
 
 /**
@@ -25,7 +26,7 @@ public:
     * @param aEditor the object providing basic editing operations
     * @param aRange  the range to delete
     */
-  NS_IMETHOD Init(nsEditor *aEditor,
+  NS_IMETHOD Init(nsIEditor *aEditor, 
                   nsIDOMRange *aRange,
                   nsRangeUpdater *aRangeUpdater);
 
@@ -71,7 +72,7 @@ protected:
   PRInt32 mEndOffset;
 
   /** the editor for this transaction */
-  nsEditor* mEditor;
+  nsIEditor* mEditor;
 
   /** range updater object */
   nsRangeUpdater *mRangeUpdater;

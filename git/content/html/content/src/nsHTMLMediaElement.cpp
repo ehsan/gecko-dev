@@ -2154,7 +2154,7 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
 #ifdef MOZ_GSTREAMER
   if (IsH264Type(nsDependentCString(aMIMEType))) {
     *aCodecList = gH264Codecs;
-    return CANPLAY_MAYBE;
+    return CANPLAY_YES;
   }
 #endif
 #ifdef MOZ_MEDIA_PLUGINS

@@ -19,7 +19,6 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 #include "sqlite3.h"
 #include "test_quota.h"
@@ -120,7 +119,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLite,
     GetStorageSQLiteMemoryUsed,
     "Memory used by SQLite.")
 
-class StorageSQLiteMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class StorageSQLiteMultiReporter : public nsIMemoryMultiReporter
 {
 private:
   Service *mService;    // a weakref because Service contains a strongref to this

@@ -317,10 +317,12 @@ abstract public class BrowserApp extends GeckoApp
             return;
 
         mTabsPanel.show(panel);
+        mBrowserToolbar.updateTabs(true);
     }
 
     public void hideTabs() {
         mTabsPanel.hide();
+        mBrowserToolbar.updateTabs(false);
     }
 
     public boolean areTabsShown() {
@@ -362,11 +364,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onPropertyAnimationStart() {
-        mMainHandler.post(new Runnable() {
-            public void run() {
-                mBrowserToolbar.updateTabs(true);
-            }
-        });
     }
 
     @Override
@@ -379,9 +376,6 @@ abstract public class BrowserApp extends GeckoApp
                     mGeckoLayout.scrollTo(0, 0);
                     mGeckoLayout.requestLayout();
                 }
-
-                if (!mTabsPanel.isShown())
-                    mBrowserToolbar.updateTabs(false);
             }
         });
     }

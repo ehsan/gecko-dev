@@ -19,7 +19,6 @@
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
 #define IDLE_THREAD_TOPIC "thread-shutting-down"
 
@@ -32,10 +31,10 @@ namespace mozilla {
  * is created on the main thread then it will automatically join its thread on
  * XPCOM shutdown using the Observer Service.
  */
-class LazyIdleThread MOZ_FINAL : public nsIThread,
-                                 public nsITimerCallback,
-                                 public nsIThreadObserver,
-                                 public nsIObserver
+class LazyIdleThread : public nsIThread,
+                       public nsITimerCallback,
+                       public nsIThreadObserver,
+                       public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS

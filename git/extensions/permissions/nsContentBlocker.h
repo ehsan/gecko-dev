@@ -9,15 +9,14 @@
 #include "nsWeakReference.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrefBranch.h"
-#include "mozilla/Attributes.h"
 
 class nsIPrefBranch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsContentBlocker MOZ_FINAL : public nsIContentPolicy,
-                                   public nsIObserver,
-                                   public nsSupportsWeakReference
+class nsContentBlocker : public nsIContentPolicy,
+                         public nsIObserver,
+                         public nsSupportsWeakReference
 {
 public:
 

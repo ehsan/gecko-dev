@@ -12,12 +12,11 @@
 #include "mozIStorageStatementCallback.h"
 #include "mozIStorageVacuumParticipant.h"
 #include "nsCategoryCache.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace storage {
 
-class VacuumManager MOZ_FINAL : public nsIObserver
+class VacuumManager : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS

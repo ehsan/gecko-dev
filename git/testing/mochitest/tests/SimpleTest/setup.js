@@ -109,7 +109,7 @@ var RunSet = {}
 RunSet.runall = function(e) {
   // Filter tests to include|exclude tests based on data in params.filter.
   // This allows for including or excluding tests from the gTestList
-  gTestList = filterTests(params.testManifest, params.runOnly);
+  gTestList = filterTests(params.runOnlyTests, params.excludeTests);
 
   // Which tests we're going to run
   var my_tests = gTestList;
@@ -193,11 +193,15 @@ RunSet.reloadAndRunAll = function(e) {
 
 // Open the file referenced by runOnly|exclude and use that to compare against
 // gTestList.  Return a modified version of gTestList
-function filterTests(filterFile, runOnly) {
+function filterTests(runOnly, exclude) {
   var filteredTests = [];
-  var removedTests = [];
-  var runtests = {};
-  var excludetests = {};
+  var filterFile = null;
+
+  if (runOnly) {
+    filterFile = runOnly;
+  } else if (exclude) {
+    filterFile = exclude;
+  }
 
   if (filterFile == null)
     return gTestList;
@@ -212,60 +216,33 @@ function filterTests(filterFile, runOnly) {
     dump("INFO | setup.js | error loading or parsing '" + datafile + "'\n");
     return gTestList;
   }
-
-  if ('runtests' in filter) {
-    runtests = filter.runtests;
-  }
-  if ('excludetests' in filter)
-    excludetests = filter.excludetests;
-  if (!('runtests' in filter) && !('excludetests' in filter)) {
-    if (runOnly == 'true') {
-      runtests = filter;
-    } else
-      excludetests = filter;
-  }
   
-  //Filter out 'exclude tests' from gTestList
   for (var i = 0; i < gTestList.length; ++i) {
-    var found = false;
     var test_path = gTestList[i];
+    
+    //We use tmp_path to remove leading '/'
     var tmp_path = test_path.replace(/^\//, '');
-    for (var f in excludetests) {
-      // Remove leading /tests/ if exists
-      file = f.replace(/^\//, '')
-      file = file.replace(/^tests\//, '')
-     
-      // Match directory or filename, gTestList has tests/<path>
-      if (tmp_path.match("^tests/" + file) != null) {
-        found = true;
-        break;
-      }
-    }
-    if (!found)
-        removedTests.push(test_path);
-  }
 
-  if (JSON.stringify(runtests) == "{}") {
-    return removedTests;
-  }
-
-  for (var i = 0; i < removedTests.length; ++i) {
     var found = false;
-    var test_path = gTestList[i];
-    var tmp_path = test_path.replace(/^\//, '');
-    for (var f in runtests) {
+
+    for (var f in filter) {
       // Remove leading /tests/ if exists
       file = f.replace(/^\//, '')
       file = file.replace(/^tests\//, '')
       
       // Match directory or filename, gTestList has tests/<path>
       if (tmp_path.match("^tests/" + file) != null) {
-        filteredTests.push(test_path);
+        if (runOnly)
+          filteredTests.push(test_path);
         found = true;
         break;
       }
     }
+
+    if (exclude && !found)
+      filteredTests.push(test_path);
   }
+
   return filteredTests;
 }
 

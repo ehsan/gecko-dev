@@ -61,24 +61,6 @@ js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
     return JSID_TO_ATOM(id)->asPropertyName();
 }
 
-FrameVarType
-js::ScopeCoordinateToFrameVar(JSScript *script, jsbytecode *pc, unsigned *index)
-{
-    ScopeCoordinate sc(pc);
-    if (StaticBlockObject *block = ScopeCoordinateBlockChain(script, pc)) {
-        *index = block->slotToFrameLocal(script, sc.slot);
-        return FrameVar_Local;
-    }
-
-    if (script->bindings.slotIsLocal(sc.slot)) {
-        *index = script->bindings.slotToLocal(sc.slot);
-        return FrameVar_Local;
-    }
-
-    *index = script->bindings.slotToArg(sc.slot);
-    return FrameVar_Arg;
-}
-
 /*****************************************************************************/
 
 /*
@@ -96,8 +78,10 @@ CallObject::create(JSContext *cx, JSScript *script, HandleObject enclosing, Hand
         return NULL;
 
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
+#ifdef JS_THREADSAFE
     JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
     kind = gc::GetBackgroundAllocKind(kind);
+#endif
 
     RootedTypeObject type(cx);
     type = cx->compartment->getEmptyType(cx);
@@ -157,7 +141,7 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
             return NULL;
     }
 
-    RootedScript script(cx, fp->script());
+    JSScript *script = fp->script();
     CallObject *callobj = create(cx, script, scopeChain, RootedFunction(cx, &fp->callee()));
     if (!callobj)
         return NULL;
@@ -868,63 +852,39 @@ js::CloneStaticBlockObject(JSContext *cx, StaticBlockObject &srcBlock,
 
 /*****************************************************************************/
 
-ScopeIter::ScopeIter(JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
+ScopeIter::ScopeIter()
+ : fp_(NULL),
+   cur_(reinterpret_cast<JSObject *>(-1)),
+   block_(reinterpret_cast<StaticBlockObject *>(-1)),
+   type_(Type(-1))
+{}
+
+ScopeIter::ScopeIter(JSObject &enclosingScope)
   : fp_(NULL),
-    cur_(cx, reinterpret_cast<JSObject *>(-1)),
-    block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
+    cur_(&enclosingScope),
+    block_(reinterpret_cast<StaticBlockObject *>(-1)),
     type_(Type(-1))
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-}
+{}
 
-ScopeIter::ScopeIter(const ScopeIter &si, JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
-  : fp_(si.fp_),
-    cur_(cx, si.cur_),
-    block_(cx, si.block_),
-    type_(si.type_),
-    hasScopeObject_(si.hasScopeObject_)
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-}
-
-ScopeIter::ScopeIter(JSObject &enclosingScope, JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
-  : fp_(NULL),
-    cur_(cx, &enclosingScope),
-    block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
-    type_(Type(-1))
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-}
-
-ScopeIter::ScopeIter(StackFrame *fp, JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
+ScopeIter::ScopeIter(StackFrame *fp)
   : fp_(fp),
-    cur_(cx, fp->scopeChain()),
-    block_(cx, fp->maybeBlockChain())
+    cur_(fp->scopeChain()),
+    block_(fp->maybeBlockChain())
 {
     settle();
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
-ScopeIter::ScopeIter(const ScopeIter &si, StackFrame *fp, JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
+ScopeIter::ScopeIter(ScopeIter si, StackFrame *fp)
   : fp_(fp),
-    cur_(cx, si.cur_),
-    block_(cx, si.block_),
+    cur_(si.cur_),
+    block_(si.block_),
     type_(si.type_),
     hasScopeObject_(si.hasScopeObject_)
-{
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
-}
+{}
 
-ScopeIter::ScopeIter(StackFrame *fp, ScopeObject &scope, JSContext *cx
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
+ScopeIter::ScopeIter(StackFrame *fp, ScopeObject &scope)
   : fp_(fp),
-    cur_(cx, &scope),
-    block_(cx)
+    cur_(&scope)
 {
     /*
      * Find the appropriate static block for this iterator, given 'scope'. We
@@ -953,7 +913,6 @@ ScopeIter::ScopeIter(StackFrame *fp, ScopeObject &scope, JSContext *cx
         block_ = NULL;
     }
     settle();
-    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeObject &
@@ -963,37 +922,38 @@ ScopeIter::scope() const
     return cur_->asScope();
 }
 
-ScopeIter &
-ScopeIter::operator++()
+ScopeIter
+ScopeIter::enclosing() const
 {
     JS_ASSERT(!done());
+    ScopeIter si = *this;
     switch (type_) {
       case Call:
         if (hasScopeObject_) {
-            cur_ = &cur_->asCall().enclosingScope();
-            if (CallObjectLambdaName(fp_->fun()))
-                cur_ = &cur_->asDeclEnv().enclosingScope();
+            si.cur_ = &cur_->asCall().enclosingScope();
+            if (CallObjectLambdaName(si.fp_->fun()))
+                si.cur_ = &si.cur_->asDeclEnv().enclosingScope();
         }
-        fp_ = NULL;
+        si.fp_ = NULL;
         break;
       case Block:
-        block_ = block_->enclosingBlock();
+        si.block_ = block_->enclosingBlock();
         if (hasScopeObject_)
-            cur_ = &cur_->asClonedBlock().enclosingScope();
-        settle();
+            si.cur_ = &cur_->asClonedBlock().enclosingScope();
+        si.settle();
         break;
       case With:
         JS_ASSERT(hasScopeObject_);
-        cur_ = &cur_->asWith().enclosingScope();
-        settle();
+        si.cur_ = &cur_->asWith().enclosingScope();
+        si.settle();
         break;
       case StrictEvalScope:
         if (hasScopeObject_)
-            cur_ = &cur_->asCall().enclosingScope();
-        fp_ = NULL;
+            si.cur_ = &cur_->asCall().enclosingScope();
+        si.fp_ = NULL;
         break;
     }
-    return *this;
+    return si;
 }
 
 void
@@ -1067,14 +1027,14 @@ ScopeIter::settle()
 }
 
 /* static */ HashNumber
-ScopeIterKey::hash(ScopeIterKey si)
+ScopeIter::hash(ScopeIter si)
 {
     /* hasScopeObject_ is determined by the other fields. */
     return size_t(si.fp_) ^ size_t(si.cur_) ^ size_t(si.block_) ^ si.type_;
 }
 
 /* static */ bool
-ScopeIterKey::match(ScopeIterKey si1, ScopeIterKey si2)
+ScopeIter::match(ScopeIter si1, ScopeIter si2)
 {
     /* hasScopeObject_ is determined by the other fields. */
     return si1.fp_ == si2.fp_ &&
@@ -1137,7 +1097,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 unsigned i = shape->shortid();
                 if (script->varIsAliased(i))
                     return false;
-
+                
                 if (maybefp) {
                     if (action == GET)
                         *vp = maybefp->unaliasedVar(i);
@@ -1160,7 +1120,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 unsigned i = shape->shortid();
                 if (script->formalLivesInCallObject(i))
                     return false;
-
+                
                 if (maybefp) {
                     if (script->argsObjAliasesFormals()) {
                         if (action == GET)
@@ -1324,7 +1284,7 @@ class DebugScopeProxy : public BaseProxyHandler
 
         if (handleUnaliasedAccess(cx, scope, id, GET, vp))
             return true;
-
+            
         return scope.getGeneric(cx, RootedObject(cx, &scope), RootedId(cx, id), vp);
     }
 
@@ -1502,7 +1462,7 @@ DebugScopes::sweep()
          * Scopes can be finalized when a debugger-synthesized ScopeObject is
          * no longer reachable via its DebugScopeObject.
          */
-        if (!IsObjectMarked(&scope)) {
+        if (JS_IsAboutToBeFinalized(scope)) {
             e.removeFront();
             continue;
         }
@@ -1516,7 +1476,7 @@ DebugScopes::sweep()
          */
         if (JSGenerator *gen = fp->maybeSuspendedGenerator(rt)) {
             JS_ASSERT(gen->state == JSGEN_NEWBORN || gen->state == JSGEN_OPEN);
-            if (!IsObjectMarked(&gen->obj)) {
+            if (!IsMarked(&gen->obj)) {
                 if (scope->isCall())
                     scope->asCall().copyUnaliasedValues(fp);
                 else if (scope->isBlock())
@@ -1566,7 +1526,7 @@ DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &
 }
 
 DebugScopeObject *
-DebugScopes::hasDebugScope(JSContext *cx, const ScopeIter &si) const
+DebugScopes::hasDebugScope(JSContext *cx, ScopeIter si) const
 {
     JS_ASSERT(!si.hasScopeObject());
     if (MissingScopeMap::Ptr p = missingScopes.lookup(si)) {
@@ -1577,7 +1537,7 @@ DebugScopes::hasDebugScope(JSContext *cx, const ScopeIter &si) const
 }
 
 bool
-DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject &debugScope)
+DebugScopes::addDebugScope(JSContext *cx, ScopeIter si, DebugScopeObject &debugScope)
 {
     JS_ASSERT(!si.hasScopeObject());
     if (!CanUseDebugScopeMaps(cx))
@@ -1598,7 +1558,7 @@ DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject 
 }
 
 void
-DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
+DebugScopes::onPopCall(StackFrame *fp)
 {
     JS_ASSERT(!fp->isYielding());
     if (fp->fun()->isHeavyweight()) {
@@ -1612,8 +1572,7 @@ DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
             liveScopes.remove(&callobj);
         }
     } else {
-        ScopeIter si(fp, cx);
-        if (MissingScopeMap::Ptr p = missingScopes.lookup(si)) {
+        if (MissingScopeMap::Ptr p = missingScopes.lookup(ScopeIter(fp))) {
             CallObject &callobj = p->value->scope().asCall();
             callobj.copyUnaliasedValues(fp);
             liveScopes.remove(&callobj);
@@ -1631,8 +1590,7 @@ DebugScopes::onPopBlock(JSContext *cx, StackFrame *fp)
         clone.copyUnaliasedValues(fp);
         liveScopes.remove(&clone);
     } else {
-        ScopeIter si(fp, cx);
-        if (MissingScopeMap::Ptr p = missingScopes.lookup(si)) {
+        if (MissingScopeMap::Ptr p = missingScopes.lookup(ScopeIter(fp))) {
             ClonedBlockObject &clone = p->value->scope().asClonedBlock();
             clone.copyUnaliasedValues(fp);
             liveScopes.remove(&clone);
@@ -1659,9 +1617,9 @@ DebugScopes::onPopStrictEvalScope(StackFrame *fp)
 }
 
 void
-DebugScopes::onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext *cx)
+DebugScopes::onGeneratorFrameChange(StackFrame *from, StackFrame *to)
 {
-    for (ScopeIter toIter(to, cx); !toIter.done(); ++toIter) {
+    for (ScopeIter toIter(to); !toIter.done(); toIter = toIter.enclosing()) {
         if (toIter.hasScopeObject()) {
             /*
              * Not only must we correctly replace mappings [scope -> from] with
@@ -1676,8 +1634,7 @@ DebugScopes::onGeneratorFrameChange(StackFrame *from, StackFrame *to, JSContext 
             else
                 liveScopes.add(livePtr, &toIter.scope(), to);
         } else {
-            ScopeIter si(toIter, from, cx);
-            if (MissingScopeMap::Ptr p = missingScopes.lookup(si)) {
+            if (MissingScopeMap::Ptr p = missingScopes.lookup(ScopeIter(toIter, from))) {
                 DebugScopeObject &debugScope = *p->value;
                 liveScopes.lookup(&debugScope.scope())->value = to;
                 missingScopes.remove(p);
@@ -1721,7 +1678,7 @@ DebugScopes::updateLiveScopes(JSContext *cx)
         if (fp->isDummyFrame() || fp->scopeChain()->compartment() != cx->compartment)
             continue;
 
-        for (ScopeIter si(fp, cx); !si.done(); ++si) {
+        for (ScopeIter si(fp); !si.done(); si = si.enclosing()) {
             if (si.hasScopeObject() && !liveScopes.put(&si.scope(), fp))
                 return false;
         }
@@ -1763,10 +1720,10 @@ DebugScopes::hasLiveFrame(ScopeObject &scope)
 /*****************************************************************************/
 
 static JSObject *
-GetDebugScope(JSContext *cx, const ScopeIter &si);
+GetDebugScope(JSContext *cx, ScopeIter si);
 
 static DebugScopeObject *
-GetDebugScopeForScope(JSContext *cx, ScopeObject &scope, const ScopeIter &enclosing)
+GetDebugScopeForScope(JSContext *cx, ScopeObject &scope, ScopeIter enclosing)
 {
     DebugScopes &debugScopes = *cx->runtime->debugScopes;
     if (DebugScopeObject *debugScope = debugScopes.hasDebugScope(cx, scope))
@@ -1795,14 +1752,15 @@ GetDebugScopeForScope(JSContext *cx, ScopeObject &scope, const ScopeIter &enclos
 }
 
 static DebugScopeObject *
-GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
+GetDebugScopeForMissing(JSContext *cx, ScopeIter si)
 {
+    SkipRoot si_(cx, &si);
+
     DebugScopes &debugScopes = *cx->runtime->debugScopes;
     if (DebugScopeObject *debugScope = debugScopes.hasDebugScope(cx, si))
         return debugScope;
 
-    ScopeIter copy(si, cx);
-    RootedObject enclosingDebug(cx, GetDebugScope(cx, ++copy));
+    RootedObject enclosingDebug(cx, GetDebugScope(cx, si.enclosing()));
     if (!enclosingDebug)
         return NULL;
 
@@ -1871,16 +1829,13 @@ GetDebugScope(JSContext *cx, JSObject &obj)
     }
 
     ScopeObject &scope = obj.asScope();
-    if (StackFrame *fp = cx->runtime->debugScopes->hasLiveFrame(scope)) {
-        ScopeIter si(fp, scope, cx);
-        return GetDebugScope(cx, si);
-    }
-    ScopeIter si(scope.enclosingScope(), cx);
-    return GetDebugScopeForScope(cx, scope, si);
+    if (StackFrame *fp = cx->runtime->debugScopes->hasLiveFrame(scope))
+        return GetDebugScope(cx, ScopeIter(fp, scope));
+    return GetDebugScopeForScope(cx, scope, ScopeIter(scope.enclosingScope()));
 }
 
 static JSObject *
-GetDebugScope(JSContext *cx, const ScopeIter &si)
+GetDebugScope(JSContext *cx, ScopeIter si)
 {
     JS_CHECK_RECURSION(cx, return NULL);
 
@@ -1890,8 +1845,7 @@ GetDebugScope(JSContext *cx, const ScopeIter &si)
     if (!si.hasScopeObject())
         return GetDebugScopeForMissing(cx, si);
 
-    ScopeIter copy(si, cx);
-    return GetDebugScopeForScope(cx, si.scope(), ++copy);
+    return GetDebugScopeForScope(cx, si.scope(), si.enclosing());
 }
 
 JSObject *
@@ -1910,6 +1864,5 @@ js::GetDebugScopeForFrame(JSContext *cx, StackFrame *fp)
     assertSameCompartment(cx, fp);
     if (CanUseDebugScopeMaps(cx) && !cx->runtime->debugScopes->updateLiveScopes(cx))
         return NULL;
-    ScopeIter si(fp, cx);
-    return GetDebugScope(cx, si);
+    return GetDebugScope(cx, ScopeIter(fp));
 }

@@ -34,19 +34,21 @@ var AccessFu = {
       // XXX: only supports attaching to one window now.
       throw new Error('Only one window could be attached to AccessFu');
 
-    dump('[AccessFu] attach\n');
+    dump('AccessFu attach!! ' + Services.appinfo.OS + '\n');
     this.chromeWin = aWindow;
     this.presenters = [];
 
     this.prefsBranch = Cc['@mozilla.org/preferences-service;1']
       .getService(Ci.nsIPrefService).getBranch('accessibility.accessfu.');
     this.prefsBranch.addObserver('activate', this, false);
-    this.prefsBranch.addObserver('explorebytouch', this, false);
 
-    if (Services.appinfo.OS == 'Android')
-      Services.obs.addObserver(this, 'Accessibility:Settings', false);
+    let accessPref = ACCESSFU_DISABLE;
+    try {
+      accessPref = this.prefsBranch.getIntPref('activate');
+    } catch (x) {
+    }
 
-    this._processPreferences();
+    this._processPreferences(accessPref);
   },
 
   /**
@@ -58,7 +60,7 @@ var AccessFu = {
       return;
     this._enabled = true;
 
-    dump('[AccessFu] enable\n');
+    dump('AccessFu enable');
     this.addPresenter(new VisualPresenter());
 
     // Implicitly add the Android presenter on Android.
@@ -83,7 +85,7 @@ var AccessFu = {
       return;
     this._enabled = false;
 
-    dump('[AccessFu] disable\n');
+    dump('AccessFu disable');
 
     this.presenters.forEach(function(p) { p.detach(); });
     this.presenters = [];
@@ -98,38 +100,29 @@ var AccessFu = {
     this.chromeWin.removeEventListener('focus', this, true);
   },
 
-  _processPreferences: function _processPreferences(aEnabled, aTouchEnabled) {
-    let accessPref = ACCESSFU_DISABLE;
-    try {
-      accessPref = (aEnabled == undefined) ?
-        this.prefsBranch.getIntPref('activate') : aEnabled;
-    } catch (x) {
-    }
-
-    let ebtPref = ACCESSFU_DISABLE;
-    try {
-      ebtPref = (aTouchEnabled == undefined) ?
-        this.prefsBranch.getIntPref('explorebytouch') : aTouchEnabled;
-    } catch (x) {
-    }
-
+  _processPreferences: function _processPreferences(aPref) {
     if (Services.appinfo.OS == 'Android') {
-      if (accessPref == ACCESSFU_AUTO) {
+      if (aPref == ACCESSFU_AUTO) {
+        if (!this._observingSystemSettings) {
+          Services.obs.addObserver(this, 'Accessibility:Settings', false);
+          this._observingSystemSettings = true;
+        }
         Cc['@mozilla.org/android/bridge;1'].
           getService(Ci.nsIAndroidBridge).handleGeckoMessage(
             JSON.stringify({ gecko: { type: 'Accessibility:Ready' } }));
         return;
       }
+
+      if (this._observingSystemSettings) {
+        Services.obs.removeObserver(this, 'Accessibility:Settings');
+        this._observingSystemSettings = false;
+      }
     }
 
-    if (accessPref == ACCESSFU_ENABLE)
+    if (aPref == ACCESSFU_ENABLE)
       this._enable();
     else
       this._disable();
-
-    VirtualCursorController.exploreByTouch = ebtPref == ACCESSFU_ENABLE;
-    dump('[AccessFu] Explore by touch: ' +
-          VirtualCursorController.exploreByTouch + '\n');
   },
 
   addPresenter: function addPresenter(presenter) {
@@ -192,12 +185,14 @@ var AccessFu = {
   observe: function observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case 'Accessibility:Settings':
-        this._processPreferences(JSON.parse(aData).enabled + 0,
-                                 JSON.parse(aData).exploreByTouch + 0);
+        if (JSON.parse(aData).enabled)
+          this._enable();
+        else
+          this._disable();
         break;
       case 'nsPref:changed':
-        this._processPreferences(this.prefsBranch.getIntPref('activate'),
-                                 this.prefsBranch.getIntPref('explorebytouch'));
+        if (aData == 'activate')
+          this._processPreferences(this.prefsBranch.getIntPref('activate'));
         break;
       case 'accessible-event':
         let event;
@@ -205,7 +200,7 @@ var AccessFu = {
           event = aSubject.QueryInterface(Ci.nsIAccessibleEvent);
           this._handleAccEvent(event);
         } catch (ex) {
-          dump('[AccessFu] ' + ex + '\n');
+          dump(ex);
           return;
         }
     }
@@ -398,7 +393,10 @@ var AccessFu = {
   _pendingDocuments: {},
 
   // So we don't enable/disable twice
-  _enabled: false
+  _enabled: false,
+
+  // Observing accessibility settings
+  _observingSystemSettings: false
 };
 
 function getAccessible(aNode) {

@@ -444,6 +444,9 @@ IndexedDBDatabaseParent::RecvPIndexedDBTransactionConstructor(
 
   const NormalTransactionParams& params = aParams.get_NormalTransactionParams();
 
+  const InfallibleTArray<nsString>& names = params.names();
+  const IDBTransaction::Mode& mode = params.mode();
+
   nsTArray<nsString> storesToOpen;
   storesToOpen.AppendElements(params.names());
 

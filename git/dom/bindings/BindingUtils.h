@@ -63,7 +63,7 @@ IsDOMClass(const JSClass* clasp)
 inline bool
 IsDOMClass(const js::Class* clasp)
 {
-  return IsDOMClass(Jsvalify(clasp));
+  return clasp->flags & JSCLASS_IS_DOMJSCLASS;
 }
 
 template <class T>

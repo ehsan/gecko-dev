@@ -19,9 +19,7 @@ function startCallbackTimer() {
     const dialogDelay = 10;
 
     // Use a timer to invoke a callback to twiddle the authentication dialog
-    timer = SpecialPowers.wrap(Components)
-                         .classes["@mozilla.org/timer;1"]
-                         .createInstance(Ci.nsITimer);
+    timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     timer.init(observer, dialogDelay, Ci.nsITimer.TYPE_ONE_SHOT);
 }
 

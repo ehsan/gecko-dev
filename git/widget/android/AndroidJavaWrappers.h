@@ -41,27 +41,6 @@ void InitAndroidJavaWrappers(JNIEnv *jEnv);
  * handle it.
  */
 
-class RefCountedJavaObject {
-public:
-    RefCountedJavaObject(JNIEnv* env, jobject obj) : mRefCnt(0), mObject(env->NewGlobalRef(obj)) {}
-
-    ~RefCountedJavaObject();
-
-    PRInt32 AddRef() { return ++mRefCnt; }
-
-    PRInt32 Release() {
-        PRInt32 refcnt = --mRefCnt;
-        if (refcnt == 0)
-            delete this;
-        return refcnt;
-    }
-
-    jobject GetObject() { return mObject; }
-private:
-    PRInt32 mRefCnt;
-    jobject mObject;
-};
-
 class WrappedJavaObject {
 public:
     WrappedJavaObject() :
@@ -194,7 +173,7 @@ public:
     AndroidGeckoLayerClient(jobject jobj) { Init(jobj); }
 
     void SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect);
-    void SetPageRect(const gfx::Rect& aCssPageRect);
+    void SetPageRect(float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
     bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
@@ -597,7 +576,6 @@ public:
     double Bandwidth() { return mBandwidth; }
     bool CanBeMetered() { return mCanBeMetered; }
     short ScreenOrientation() { return mScreenOrientation; }
-    RefCountedJavaObject* ByteBuffer() { return mByteBuffer; }
 
 protected:
     int mAction;
@@ -622,7 +600,6 @@ protected:
     double mBandwidth;
     bool mCanBeMetered;
     short mScreenOrientation;
-    nsRefPtr<RefCountedJavaObject> mByteBuffer;
 
     void ReadIntArray(nsTArray<int> &aVals,
                       JNIEnv *jenv,
@@ -676,7 +653,6 @@ protected:
     static jfieldID jCanBeMeteredField;
 
     static jfieldID jScreenOrientationField;
-    static jfieldID jByteBufferField;
 
 public:
     enum {

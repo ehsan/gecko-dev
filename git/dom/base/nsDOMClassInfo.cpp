@@ -177,8 +177,6 @@
 #include "nsIDOMCloseEvent.h"
 #include "nsEventSource.h"
 #include "nsIDOMSettingsManager.h"
-#include "nsIDOMContactManager.h"
-#include "nsIDOMApplicationRegistry.h"
 
 // includes needed for the prototype chain interfaces
 #include "nsIDOMNavigator.h"
@@ -317,6 +315,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsTreeColumns.h"
 #endif
+#include "nsIDOMXPathException.h"
 #include "nsIDOMXPathExpression.h"
 #include "nsIDOMNSXPathExpression.h"
 #include "nsIDOMXPathNSResolver.h"
@@ -359,6 +358,7 @@
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGEllipseElement.h"
 #include "nsIDOMSVGEvent.h"
+#include "nsIDOMSVGException.h"
 #include "nsIDOMSVGFilterElement.h"
 #include "nsIDOMSVGFilters.h"
 #include "nsIDOMSVGFitToViewBox.h"
@@ -1242,6 +1242,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGException, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGLength, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGLengthList, nsSVGLengthListSH,
@@ -1333,6 +1335,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(XPathEvaluator, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(XPathException, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(XPathExpression, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1637,10 +1641,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozSettingsEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozContactChangeEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozApplicationEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_B2G_RIL
   NS_DEFINE_CLASSINFO_DATA(Telephony, nsEventTargetSH,
@@ -1715,8 +1715,6 @@ NS_DEFINE_EVENT_CTOR(HashChangeEvent)
 NS_DEFINE_EVENT_CTOR(PageTransitionEvent)
 NS_DEFINE_EVENT_CTOR(CloseEvent)
 NS_DEFINE_EVENT_CTOR(MozSettingsEvent)
-NS_DEFINE_EVENT_CTOR(MozContactChangeEvent)
-NS_DEFINE_EVENT_CTOR(MozApplicationEvent)
 NS_DEFINE_EVENT_CTOR(UIEvent)
 NS_DEFINE_EVENT_CTOR(MouseEvent)
 NS_DEFINE_EVENT_CTOR(DeviceLightEvent)
@@ -1761,8 +1759,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PageTransitionEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CloseEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozSettingsEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozContactChangeEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozApplicationEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UIEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(DeviceProximityEvent)
@@ -3791,6 +3787,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(SVGException, nsIDOMSVGException)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGException)
+    DOM_CLASSINFO_MAP_ENTRY(nsIException)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(SVGLength, nsIDOMSVGLength)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGLength)
   DOM_CLASSINFO_MAP_END
@@ -3975,6 +3976,11 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(XPathEvaluator, nsIDOMXPathEvaluator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(XPathException, nsIDOMXPathException)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathException)
+    DOM_CLASSINFO_MAP_ENTRY(nsIException)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(XPathExpression, nsIDOMXPathExpression)
@@ -4484,17 +4490,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(MozSettingsEvent, nsIDOMMozSettingsEvent)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozSettingsEvent)
      DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozContactChangeEvent, nsIDOMMozContactChangeEvent)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozContactChangeEvent)
-     DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozApplicationEvent, nsIDOMMozApplicationEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozApplicationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_B2G_RIL
   DOM_CLASSINFO_MAP_BEGIN(Telephony, nsIDOMTelephony)
@@ -9125,7 +9121,7 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, unsigned argc, jsval *vp)
   JSObject *self;
   JS::Value callee = JS_CALLEE(cx, vp);
   if (callee.isObject() &&
-      JS_GetClass(&callee.toObject()) == &sHTMLDocumentAllClass) {
+  	  JS_GetClass(&callee.toObject()) == &sHTMLDocumentAllClass) {
     self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
   } else {
     self = JS_THIS_OBJECT(cx, vp);

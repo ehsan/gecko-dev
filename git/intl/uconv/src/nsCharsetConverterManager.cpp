@@ -177,8 +177,9 @@ nsCharsetConverterManager::GetUnicodeDecoder(const char * aSrc,
   nsCAutoString charset;
 
   // fully qualify to possibly avoid vtable call
-  if (NS_FAILED(nsCharsetConverterManager::GetCharsetAlias(aSrc, charset)))
-    return NS_ERROR_UCONV_NOCONV;
+  nsresult rv = nsCharsetConverterManager::GetCharsetAlias(aSrc, charset);
+  if (NS_FAILED(rv))
+    return rv;
 
   return nsCharsetConverterManager::GetUnicodeDecoderRaw(charset.get(),
                                                          aResult);

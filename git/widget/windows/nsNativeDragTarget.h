@@ -14,8 +14,6 @@
 #include <shobjidl.h> // Vista drag image interfaces
 #endif
 
-#include "mozilla/Attributes.h"
-
 class nsIDragService;
 class nsIWidget;
 
@@ -26,7 +24,7 @@ struct IDataObject;
  * behavior from the associated adapter (m_dragDrop).
  */
 
-class nsNativeDragTarget MOZ_FINAL : public IDropTarget
+class nsNativeDragTarget : public IDropTarget
 {
 public:
   nsNativeDragTarget(nsIWidget * aWnd);
