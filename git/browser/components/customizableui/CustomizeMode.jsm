@@ -52,7 +52,6 @@ function CustomizeMode(aWindow) {
   this.window = aWindow;
   this.document = aWindow.document;
   this.browser = aWindow.gBrowser;
-  this.areas = new Set();
 
   // There are two palettes - there's the palette that can be overlayed with
   // toolbar items in browser.xul. This is invisible, and never seen by the
@@ -224,15 +223,10 @@ CustomizeMode.prototype = {
       customizer.parentNode.selectedPanel = customizer;
       customizer.hidden = false;
 
-      this._wrapToolbarItemSync(CustomizableUI.AREA_TABSTRIP);
-
-      let customizableToolbars = document.querySelectorAll("toolbar[customizable=true]:not([autohide=true]):not([collapsed=true])");
-      for (let toolbar of customizableToolbars)
-        toolbar.setAttribute("customizing", true);
-
       yield this._doTransition(true);
 
       Services.obs.addObserver(this, "lightweight-theme-window-updated", false);
+
 
       // Let everybody in this window know that we're about to customize.
       CustomizableUI.dispatchToolboxEvent("customizationstarting", {}, window);
@@ -259,6 +253,10 @@ CustomizeMode.prototype = {
 
       this._skipSourceNodeCheck = Services.prefs.getPrefType(kSkipSourceNodePref) == Ci.nsIPrefBranch.PREF_BOOL &&
                                   Services.prefs.getBoolPref(kSkipSourceNodePref);
+
+      let customizableToolbars = document.querySelectorAll("toolbar[customizable=true]:not([autohide=true]):not([collapsed=true])");
+      for (let toolbar of customizableToolbars)
+        toolbar.setAttribute("customizing", true);
 
       CustomizableUI.addListener(this);
       window.PanelUI.endBatchUpdate();
@@ -421,7 +419,7 @@ CustomizeMode.prototype = {
       }
 
       // And drop all area references.
-      this.areas.clear();
+      this.areas = [];
 
       // Let everybody in this window know that we're starting to
       // exit customization mode.
@@ -502,15 +500,15 @@ CustomizeMode.prototype = {
     let deferred = Promise.defer();
     let deck = this.document.getElementById("content-deck");
 
-    let customizeTransitionEnd = (aEvent) => {
+    let customizeTransitionEnd = function(aEvent) {
       if (aEvent != "timedout" &&
           (aEvent.originalTarget != deck || aEvent.propertyName != "margin-left")) {
         return;
       }
       this.window.clearTimeout(catchAllTimeout);
-      // We request an animation frame to do the final stage of the transition
-      // to improve perceived performance. (bug 962677)
-      this.window.requestAnimationFrame(() => {
+      // Bug 962677: We let the event loop breathe for before we do the final
+      // stage of the transition to improve perceived performance.
+      this.window.setTimeout(function () {
         deck.removeEventListener("transitionend", customizeTransitionEnd);
 
         if (!aEntering) {
@@ -523,14 +521,13 @@ CustomizeMode.prototype = {
         CustomizableUI.dispatchToolboxEvent("customization-transitionend", aEntering, this.window);
 
         deferred.resolve();
-      });
-    };
+      }.bind(this), 0);
+    }.bind(this);
     deck.addEventListener("transitionend", customizeTransitionEnd);
 
     if (gDisableAnimation) {
       this.document.getElementById("tab-view-deck").setAttribute("fastcustomizeanimation", true);
     }
-
     if (aEntering) {
       this.document.documentElement.setAttribute("customizing", true);
       this.document.documentElement.setAttribute("customize-entering", true);
@@ -800,7 +797,7 @@ CustomizeMode.prototype = {
     dispatchFunction(function() {
       let wrapper = this.wrapToolbarItem(aNode, aPlace);
       deferred.resolve(wrapper);
-    }.bind(this));
+    }.bind(this))
 
     return deferred.promise;
   },
@@ -972,47 +969,22 @@ CustomizeMode.prototype = {
     return toolbarItem;
   },
 
-  _wrapToolbarItem: function*(aArea) {
-    let target = CustomizableUI.getCustomizeTargetForArea(aArea, this.window);
-    if (!target || this.areas.has(target)) {
-      return null;
-    }
-
-    this._addDragHandlers(target);
-    for (let child of target.children) {
-      if (this.isCustomizableItem(child) && !this.isWrappedToolbarItem(child)) {
-        yield this.deferredWrapToolbarItem(child, CustomizableUI.getPlaceForItem(child)).then(null, ERROR);
-      }
-    }
-    this.areas.add(target);
-    return target;
-  },
-
-  _wrapToolbarItemSync: function(aArea) {
-    let target = CustomizableUI.getCustomizeTargetForArea(aArea, this.window);
-    if (!target || this.areas.has(target)) {
-      return null;
-    }
-
-    this._addDragHandlers(target);
-    try {
-      for (let child of target.children) {
-        if (this.isCustomizableItem(child) && !this.isWrappedToolbarItem(child)) {
-          this.wrapToolbarItem(child, CustomizableUI.getPlaceForItem(child));
+  _wrapToolbarItems: function() {
+    let window = this.window;
+    // Add drag-and-drop event handlers to all of the customizable areas.
+    return Task.spawn(function() {
+      this.areas = [];
+      for (let area of CustomizableUI.areas) {
+        let target = CustomizableUI.getCustomizeTargetForArea(area, window);
+        this._addDragHandlers(target);
+        for (let child of target.children) {
+          if (this.isCustomizableItem(child)) {
+            yield this.deferredWrapToolbarItem(child, CustomizableUI.getPlaceForItem(child));
+          }
         }
+        this.areas.push(target);
       }
-    } catch (ex) {
-      ERROR(ex, ex.stack);
-    }
-
-    this.areas.add(target);
-    return target;
-  },
-
-  _wrapToolbarItems: function*() {
-    for (let area of CustomizableUI.areas) {
-      yield this._wrapToolbarItem(area);
-    }
+    }.bind(this)).then(null, ERROR);
   },
 
   _addDragHandlers: function(aTarget) {
@@ -1236,7 +1208,7 @@ CustomizeMode.prototype = {
       this._wrapItemsInArea(aContainer);
       this._addDragHandlers(aContainer);
       DragPositionManager.add(this.window, aArea, aContainer);
-      this.areas.add(aContainer);
+      this.areas.push(aContainer);
     }
   },
 
@@ -1245,7 +1217,8 @@ CustomizeMode.prototype = {
       this._unwrapItemsInArea(aContainer);
       this._removeDragHandlers(aContainer);
       DragPositionManager.remove(this.window, aArea, aContainer);
-      this.areas.delete(aContainer);
+      let index = this.areas.indexOf(aContainer);
+      this.areas.splice(index, 1);
     }
   },
 

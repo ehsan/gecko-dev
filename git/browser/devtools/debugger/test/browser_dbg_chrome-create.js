@@ -32,12 +32,30 @@ function performTest() {
   info("process name: " + gProcess._dbgProcess.processName);
   info("process sig: " + gProcess._dbgProcess.processSignature);
 
-  ok(gProcess._dbgProfilePath,
+  ok(gProcess._dbgProfile,
     "The remote debugger profile wasn't created properly!");
-  is(gProcess._dbgProfilePath, OS.Path.join(OS.Constants.Path.profileDir, "chrome_debugger_profile"),
-     "The remote debugger profile isn't where we expect it!");
+  ok(gProcess._dbgProfile.localDir,
+    "The remote debugger profile doesn't have a localDir...");
+  ok(gProcess._dbgProfile.rootDir,
+    "The remote debugger profile doesn't have a rootDir...");
+  ok(gProcess._dbgProfile.name,
+    "The remote debugger profile doesn't have a name...");
 
-  info("profile path: " + gProcess._dbgProfilePath);
+  info("profile localDir: " + gProcess._dbgProfile.localDir.path);
+  info("profile rootDir: " + gProcess._dbgProfile.rootDir.path);
+  info("profile name: " + gProcess._dbgProfile.name);
+
+  let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
+    .createInstance(Ci.nsIToolkitProfileService);
+
+  let profile = profileService.getProfileByName(gProcess._dbgProfile.name);
+
+  ok(profile,
+    "The remote debugger profile wasn't *actually* created properly!");
+  is(profile.localDir.path, gProcess._dbgProfile.localDir.path,
+    "The remote debugger profile doesn't have the correct localDir!");
+  is(profile.rootDir.path, gProcess._dbgProfile.rootDir.path,
+    "The remote debugger profile doesn't have the correct rootDir!");
 
   gProcess.close();
 }
@@ -50,7 +68,9 @@ function aOnClose() {
 
   info("process exit value: " + gProcess._dbgProcess.exitValue);
 
-  info("profile path: " + gProcess._dbgProfilePath);
+  info("profile localDir: " + gProcess._dbgProfile.localDir.path);
+  info("profile rootDir: " + gProcess._dbgProfile.rootDir.path);
+  info("profile name: " + gProcess._dbgProfile.name);
 
   finish();
 }

@@ -2842,11 +2842,9 @@ Submission.prototype = {
 }
 
 // nsISearchParseSubmissionResult
-function ParseSubmissionResult(aEngine, aTerms, aTermsOffset, aTermsLength) {
+function ParseSubmissionResult(aEngine, aTerms) {
   this._engine = aEngine;
   this._terms = aTerms;
-  this._termsOffset = aTermsOffset;
-  this._termsLength = aTermsLength;
 }
 ParseSubmissionResult.prototype = {
   get engine() {
@@ -2855,17 +2853,11 @@ ParseSubmissionResult.prototype = {
   get terms() {
     return this._terms;
   },
-  get termsOffset() {
-    return this._termsOffset;
-  },
-  get termsLength() {
-    return this._termsLength;
-  },
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISearchParseSubmissionResult]),
 }
 
 const gEmptyParseSubmissionResult =
-      Object.freeze(new ParseSubmissionResult(null, "", -1, 0));
+      Object.freeze(new ParseSubmissionResult(null, ""));
 
 function executeSoon(func) {
   Services.tm.mainThread.dispatch(func, Ci.nsIThread.DISPATCH_NORMAL);
@@ -4364,23 +4356,6 @@ SearchService.prototype = {
       return gEmptyParseSubmissionResult;
     }
 
-    let length = 0;
-    let offset = aURL.indexOf("?") + 1;
-    let query = aURL.slice(offset);
-    // Iterate a second time over the original input string to determine the
-    // correct search term offset and length in the original encoding.
-    for (let param of query.split("&")) {
-      let equalPos = param.indexOf("=");
-      if (equalPos != -1 &&
-          param.substr(0, equalPos) == mapEntry.termsParameterName) {
-        // This is the parameter we are looking for.
-        offset += equalPos + 1;
-        length = param.length - equalPos - 1;
-        break;
-      }
-      offset += param.length + 1;
-    }
-
     // Decode the terms using the charset defined in the search engine.
     let terms;
     try {
@@ -4395,7 +4370,7 @@ SearchService.prototype = {
     }
 
     LOG("Match found. Terms: " + terms);
-    return new ParseSubmissionResult(mapEntry.engine, terms, offset, length);
+    return new ParseSubmissionResult(mapEntry.engine, terms);
   },
 
   // nsIObserver

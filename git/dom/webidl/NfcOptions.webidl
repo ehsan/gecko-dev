@@ -35,7 +35,7 @@ dictionary NfcEventOptions
   long majorVersion;
   long minorVersion;
 
-  sequence<NFCTechType> techList;
+  sequence<DOMString> techList;
   sequence<NDEFRecord> records;
 
   boolean isReadOnly;
@@ -46,6 +46,8 @@ dictionary NfcEventOptions
 
   // HCI Event Transaction fields
   DOMString origin;
+  long originType;
+  long originIndex;
   Uint8Array aid;
   Uint8Array payload;
 };

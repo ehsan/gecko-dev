@@ -129,13 +129,6 @@ protected:
 
   virtual bool
   Recv__delete__(const int32_t& aError) MOZ_OVERRIDE;
-
-private:
-  void
-  DoNotifyResult(const nsTArray<MobileMessageData>& aData);
-
-  void
-  DoNotifyResult(const nsTArray<ThreadData>& aData);
 };
 
 } // namespace mobilemessage
