@@ -15,11 +15,8 @@ const {AppValidator} = require("devtools/app-manager/app-validator");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm");
 const {installHosted, installPackaged, getTargetForApp} = require("devtools/app-actor-front");
-const {EventEmitter} = Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
 const promise = require("sdk/core/promise");
-
-const MANIFEST_EDITOR_ENABLED = "devtools.appmanager.manifestEditor.enabled";
 
 window.addEventListener("message", function(event) {
   try {
@@ -38,20 +35,12 @@ window.addEventListener("message", function(event) {
 }, false);
 
 let UI = {
-  isReady: false,
-
   onload: function() {
-    if (Services.prefs.getBoolPref(MANIFEST_EDITOR_ENABLED)) {
-      document.querySelector("#lense").setAttribute("manifest-editable", "");
-    }
-
     this.template = new Template(document.body, AppProjects.store, Utils.l10n);
     this.template.start();
 
     AppProjects.load().then(() => {
       AppProjects.store.object.projects.forEach(UI.validate);
-      this.isReady = true;
-      this.emit("ready");
     });
   },
 
@@ -99,11 +88,11 @@ let UI = {
 
     let urlInput = document.querySelector("#url-input");
     let manifestURL = urlInput.value;
-    return AppProjects.addHosted(manifestURL)
-                      .then(function (project) {
-                        UI.validate(project);
-                        UI.selectProject(project.location);
-                      });
+    AppProjects.addHosted(manifestURL)
+               .then(function (project) {
+                 UI.validate(project);
+                 UI.selectProject(project.location);
+               });
   },
 
   _getLocalIconURL: function(project, manifest) {
@@ -132,6 +121,7 @@ let UI = {
     return validation.validate()
       .then(function () {
         if (validation.manifest) {
+          project.name = validation.manifest.name;
           project.icon = UI._getLocalIconURL(project, validation.manifest);
           project.manifest = validation.manifest;
         }
@@ -163,10 +153,7 @@ let UI = {
   update: function(button, location) {
     button.disabled = true;
     let project = AppProjects.get(location);
-    this.manifestEditor.save()
-        .then(() => {
-          return this.validate(project);
-        })
+    this.validate(project)
         .then(() => {
            // Install the app to the device if we are connected,
            // and there is no error
@@ -399,16 +386,5 @@ let UI = {
     let lense = document.querySelector("#lense");
     lense.setAttribute("template-for", template);
     this.template._processFor(lense);
-
-    let project = projects[idx];
-    this._showManifestEditor(project).then(() => this.emit("project-selected"));
   },
-
-  _showManifestEditor: function(project) {
-    let editorContainer = document.querySelector("#lense .manifest-editor");
-    this.manifestEditor = new ManifestEditor(project);
-    return this.manifestEditor.show(editorContainer);
-  }
-};
-
-EventEmitter.decorate(UI);
+}

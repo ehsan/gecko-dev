@@ -24,31 +24,24 @@ AppValidator.prototype.warning = function (message) {
   this.warnings.push(message);
 }
 
-AppValidator.prototype._getPackagedManifestFile = function () {
+AppValidator.prototype._getPackagedManifestURL = function () {
   let manifestFile = FileUtils.File(this.project.location);
   if (!manifestFile.exists()) {
     this.error(strings.GetStringFromName("validator.nonExistingFolder"));
-    return null;
+    return;
   }
   if (!manifestFile.isDirectory()) {
     this.error(strings.GetStringFromName("validator.expectProjectFolder"));
-    return null;
+    return;
   }
   manifestFile.append("manifest.webapp");
   if (!manifestFile.exists() || !manifestFile.isFile()) {
     this.error(strings.GetStringFromName("validator.wrongManifestFileName"));
-    return null;
+    return;
   }
-  return manifestFile;
-};
 
-AppValidator.prototype._getPackagedManifestURL = function () {
-  let manifestFile = this._getPackagedManifestFile();
-  if (!manifestFile) {
-    return null;
-  }
   return Services.io.newFileURI(manifestFile).spec;
-};
+}
 
 AppValidator.prototype._fetchManifest = function (manifestURL) {
   let deferred = promise.defer();
@@ -61,7 +54,7 @@ AppValidator.prototype._fetchManifest = function (manifestURL) {
     deferred.resolve(null);
     return deferred.promise;
   }
-  req.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE | Ci.nsIRequest.INHIBIT_CACHING;
+  req.channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
   req.onload = (function () {
     let manifest = null;
     try {

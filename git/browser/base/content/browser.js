@@ -7127,14 +7127,7 @@ function safeModeRestart()
   let rv = Services.prompt.confirmEx(window, promptTitle, promptMessage,
                                      buttonFlags, restartText, null, null,
                                      null, {});
-  if (rv != 0)
-    return;
-
-  let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                     .createInstance(Ci.nsISupportsPRBool);
-  Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
-
-  if (!cancelQuit.data) {
+  if (rv == 0) {
     Services.startup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
   }
 }
