@@ -94,8 +94,6 @@ public:
     PImageBridgeParent::DeallocShmem(aShmem);
   }
 
-  virtual bool IsSameProcess() const MOZ_OVERRIDE;
-
   // Overriden from IToplevelProtocol
   IToplevelProtocol*
   CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,

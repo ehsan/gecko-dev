@@ -388,7 +388,7 @@ typedef JSObject *
 typedef void
 (* FinalizeOp)(FreeOp *fop, JSObject *obj);
 
-#define JS_CLASS_MEMBERS(FinalizeOpType)                                      \
+#define JS_CLASS_MEMBERS                                                      \
     const char          *name;                                                \
     uint32_t            flags;                                                \
                                                                               \
@@ -402,11 +402,20 @@ typedef void
     JSConvertOp         convert;                                              \
                                                                               \
     /* Optional members (may be null). */                                     \
-    FinalizeOpType      finalize;                                             \
+    FinalizeOp          finalize;                                             \
     JSNative            call;                                                 \
     JSHasInstanceOp     hasInstance;                                          \
     JSNative            construct;                                            \
     JSTraceOp           trace
+
+/*
+ * The helper struct to measure the size of JS_CLASS_MEMBERS to know how much
+ * we have to pad js::Class to match the size of JSClass.
+ */
+struct ClassSizeMeasurement
+{
+    JS_CLASS_MEMBERS;
+};
 
 // Callback for the creation of constructor and prototype objects.
 typedef JSObject *(*ClassObjectCreationOp)(JSContext *cx, JSProtoKey key);
@@ -497,9 +506,26 @@ struct ObjectOps
 typedef void (*JSClassInternal)();
 
 struct JSClass {
-    JS_CLASS_MEMBERS(JSFinalizeOp);
+    const char          *name;
+    uint32_t            flags;
 
-    void                *reserved[36];
+    // Mandatory function pointer members.
+    JSPropertyOp        addProperty;
+    JSDeletePropertyOp  delProperty;
+    JSPropertyOp        getProperty;
+    JSStrictPropertyOp  setProperty;
+    JSEnumerateOp       enumerate;
+    JSResolveOp         resolve;
+    JSConvertOp         convert;
+
+    // Optional members (may be null).
+    JSFinalizeOp        finalize;
+    JSNative            call;
+    JSHasInstanceOp     hasInstance;
+    JSNative            construct;
+    JSTraceOp           trace;
+
+    void                *reserved[42];
 };
 
 #define JSCLASS_HAS_PRIVATE             (1<<0)  // objects have private slot
@@ -584,10 +610,13 @@ namespace js {
 
 struct Class
 {
-    JS_CLASS_MEMBERS(FinalizeOp);
+    JS_CLASS_MEMBERS;
     ClassSpec          spec;
     ClassExtension      ext;
     ObjectOps           ops;
+    uint8_t             pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
+                            sizeof(ClassSpec) -
+                            sizeof(ClassExtension) - sizeof(ObjectOps)];
 
     /* Class is not native and its map is not a scope. */
     static const uint32_t NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
