@@ -70,14 +70,14 @@ nsDOMStorageDBWrapper::Init()
 nsresult
 nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
 {
-  nsresult rv = mPersistentDB.FlushTemporaryTables(force);
+  nsresult rv1, rv2;
+  rv2 = mPersistentDB.FlushTemporaryTables(force);
 
   // Everything flushed?  Then no need for a timer.
-  if (!mPersistentDB.mTempTableLoads.Count()) {
+  if (!mPersistentDB.mTempTableLoads.Count())
     StopTempTableFlushTimer();
-  }
 
-  return rv;
+  return NS_FAILED(rv1) ? rv1 : rv2;
 }
 
 #define IMPL_FORWARDER_GUTS(_return, _code)                                \

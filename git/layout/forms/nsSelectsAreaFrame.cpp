@@ -122,7 +122,7 @@ public:
     // the nsSelectsAreaFrame
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     return listFrame->GetVisualOverflowRectRelativeToSelf() +
-           listFrame->GetOffsetToCrossDoc(ReferenceFrame());
+           aBuilder->ToReferenceFrame(listFrame);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx) {

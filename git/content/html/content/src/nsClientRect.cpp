@@ -86,21 +86,21 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsClientRectList)
 NS_IMETHODIMP    
 nsClientRectList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mArray.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP    
 nsClientRectList::Item(uint32_t aIndex, nsIDOMClientRect** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = Item(aIndex));
+  NS_IF_ADDREF(*aReturn = nsClientRectList::GetItemAt(aIndex));
   return NS_OK;
 }
 
 nsIDOMClientRect*
 nsClientRectList::GetItemAt(uint32_t aIndex)
 {
-  return Item(aIndex);
+  return mArray.SafeObjectAt(aIndex);
 }
 
 JSObject*

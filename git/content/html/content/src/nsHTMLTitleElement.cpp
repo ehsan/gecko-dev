@@ -8,7 +8,6 @@
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
-#include "nsStubMutationObserver.h"
 
 class nsHTMLTitleElement : public nsGenericHTMLElement,
                            public nsIDOMHTMLTitleElement,

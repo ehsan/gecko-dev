@@ -103,15 +103,6 @@ BluetoothServiceChildProcess::GetDefaultAdapterPathInternal(
 }
 
 nsresult
-BluetoothServiceChildProcess::GetDevicePropertiesInternal(
-                                                   const nsAString& aDevicePath,
-                                                   const nsAString& aSignalPath)
-{
-  MOZ_NOT_REACHED("Implement me!");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
 BluetoothServiceChildProcess::GetPairedDevicePropertiesInternal(
                                      const nsTArray<nsString>& aDeviceAddresses,
                                      BluetoothReplyRunnable* aRunnable)

@@ -17,7 +17,6 @@
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
-#include "FrameLayerBuilder.h"
 
 namespace mozilla {
 namespace layers {
@@ -36,7 +35,6 @@ class nsVideoFrame : public nsContainerFrame, public nsIAnonymousContentCreator
 public:
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::FrameLayerBuilder::ContainerParameters ContainerParameters;
 
   nsVideoFrame(nsStyleContext* aContext);
 
@@ -95,8 +93,7 @@ public:
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      LayerManager* aManager,
-                                     nsDisplayItem* aItem,
-                                     const ContainerParameters& aContainerParameters);
+                                     nsDisplayItem* aItem);
 
 protected:
 

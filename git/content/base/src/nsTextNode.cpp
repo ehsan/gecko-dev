@@ -13,7 +13,6 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
-#include "nsStubMutationObserver.h"
 #ifdef DEBUG
 #include "nsRange.h"
 #endif

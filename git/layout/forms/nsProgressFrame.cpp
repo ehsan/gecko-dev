@@ -21,7 +21,6 @@
 #include "nsContentList.h"
 #include "nsFontMetrics.h"
 #include "mozilla/dom/Element.h"
-#include "nsContentList.h"
 
 
 nsIFrame*

@@ -38,10 +38,6 @@ public:
                 const nsAString& aPath,
                 BluetoothReplyRunnable* aRunnable);
   virtual nsresult
-  GetDevicePropertiesInternal(const nsAString& aDevicePath,
-                              const nsAString& aSignalPath);
-
-  virtual nsresult
   SetProperty(BluetoothObjectType aType,
               const nsAString& aPath,
               const BluetoothNamedValue& aValue,

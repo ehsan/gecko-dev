@@ -66,19 +66,19 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequestList)
 NS_IMETHODIMP    
 nsPaintRequestList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mArray.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP    
 nsPaintRequestList::Item(uint32_t aIndex, nsIDOMPaintRequest** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = Item(aIndex));
+  NS_IF_ADDREF(*aReturn = nsPaintRequestList::GetItemAt(aIndex));
   return NS_OK;
 }
 
 nsIDOMPaintRequest*
 nsPaintRequestList::GetItemAt(uint32_t aIndex)
 {
-  return Item(aIndex);
+  return mArray.SafeObjectAt(aIndex);
 }

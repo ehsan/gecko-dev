@@ -457,10 +457,6 @@ nsXMLHttpRequest::InitParameters(JSContext* aCx, const jsval* aParams)
 void
 nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
 {
-  if (!aAnon && !aSystem) {
-    return;
-  }
-
   // Check for permissions.
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
   if (!window || !window->GetDocShell()) {
@@ -489,7 +485,8 @@ nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
     }
   }
 
-  SetParameters(aAnon, aSystem);
+  mIsAnon = aAnon;
+  mIsSystem = aSystem;
 }
 
 void
@@ -3156,9 +3153,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
 
     if (!safeHeader) {
-      if (!mCORSUnsafeHeaders.Contains(header)) {
-        mCORSUnsafeHeaders.AppendElement(header);
-      }
+      mCORSUnsafeHeaders.AppendElement(header);
     }
   }
 

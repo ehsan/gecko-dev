@@ -55,7 +55,6 @@
 #include "mozilla/Attributes.h"
 #include "ScrollbarActivity.h"
 #include "nsRefreshDriver.h"
-#include "nsContentList.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

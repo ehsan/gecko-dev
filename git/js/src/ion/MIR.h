@@ -4640,13 +4640,13 @@ class MDeleteProperty
   : public MUnaryInstruction,
     public BoxInputsPolicy
 {
-    CompilerRootPropertyName name_;
+    JSAtom *atom_;
     bool needsBarrier_;
 
   protected:
-    MDeleteProperty(MDefinition *val, HandlePropertyName name)
+    MDeleteProperty(MDefinition *val, JSAtom *atom)
       : MUnaryInstruction(val),
-        name_(name)
+        atom_(atom)
     {
         setResultType(MIRType_Boolean);
     }
@@ -4654,14 +4654,14 @@ class MDeleteProperty
   public:
     INSTRUCTION_HEADER(DeleteProperty);
 
-    static MDeleteProperty *New(MDefinition *obj, HandlePropertyName name) {
-        return new MDeleteProperty(obj, name);
+    static MDeleteProperty *New(MDefinition *obj, JSAtom *atom) {
+        return new MDeleteProperty(obj, atom);
     }
     MDefinition *value() const {
         return getOperand(0);
     }
-    PropertyName *name() const {
-        return name_;
+    JSAtom *atom() const {
+        return atom_;
     }
     virtual TypePolicy *typePolicy() {
         return this;

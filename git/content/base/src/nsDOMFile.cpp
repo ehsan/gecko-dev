@@ -682,13 +682,13 @@ nsDOMFileList::WrapObject(JSContext *cx, JSObject *scope,
 nsIDOMFile*
 nsDOMFileList::GetItemAt(uint32_t aIndex)
 {
-  return Item(aIndex);
+  return mFiles.SafeObjectAt(aIndex);
 }
 
 NS_IMETHODIMP
 nsDOMFileList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mFiles.Count();
 
   return NS_OK;
 }
@@ -696,7 +696,7 @@ nsDOMFileList::GetLength(uint32_t* aLength)
 NS_IMETHODIMP
 nsDOMFileList::Item(uint32_t aIndex, nsIDOMFile **aFile)
 {
-  NS_IF_ADDREF(*aFile = Item(aIndex));
+  NS_IF_ADDREF(*aFile = nsDOMFileList::GetItemAt(aIndex));
 
   return NS_OK;
 }

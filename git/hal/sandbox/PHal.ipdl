@@ -112,7 +112,7 @@ parent:
     sync GetScreenBrightness() returns (double brightness);
     SetScreenBrightness(double brightness);
 
-    AdjustSystemClock(int32_t aDeltaMilliseconds);
+    AdjustSystemClock(int32 aDeltaMilliseconds);
     SetTimezone(nsCString aTimezoneSpec);
     sync GetTimezone()
       returns (nsCString aTimezoneSpec);

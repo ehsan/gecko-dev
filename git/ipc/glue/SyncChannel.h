@@ -20,7 +20,7 @@ protected:
     typedef IPC::Message::msgid_t msgid_t;
 
 public:
-    static const int32_t kNoTimeout;
+    static const int32 kNoTimeout;
 
     class /*NS_INTERFACE_CLASS*/ SyncListener : 
         public AsyncChannel::AsyncListener
@@ -35,7 +35,7 @@ public:
         virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
-        virtual void OnChannelConnected(int32_t peer_pid) {};
+        virtual void OnChannelConnected(int32 peer_pid) {};
     };
 
     SyncChannel(SyncListener* aListener);
@@ -50,11 +50,11 @@ public:
 
     // Set channel timeout value. Since this is broken up into
     // two period, the minimum timeout value is 2ms.
-    void SetReplyTimeoutMs(int32_t aTimeoutMs) {
+    void SetReplyTimeoutMs(int32 aTimeoutMs) {
         AssertWorkerThread();
         mTimeoutMs = (aTimeoutMs <= 0) ? kNoTimeout :
           // timeouts are broken up into two periods
-          (int32_t)ceil((double)aTimeoutMs/2.0);
+          (int32)ceil((double)aTimeoutMs/2.0);
     }
 
     static bool IsPumpingMessages() {
@@ -142,7 +142,7 @@ protected:
         return mPendingReply != 0;
     }
 
-    int32_t NextSeqno() {
+    int32 NextSeqno() {
         AssertWorkerThread();
         return mChild ? --mNextSeqno : ++mNextSeqno;
     }
@@ -152,7 +152,7 @@ protected:
     Message mRecvd;
     // This is only accessed from the worker thread; seqno's are
     // completely opaque to the IO thread.
-    int32_t mNextSeqno;
+    int32 mNextSeqno;
 
     static bool sIsPumpingMessages;
 
@@ -162,7 +162,7 @@ protected:
     // or give up.
     bool WaitResponse(bool aWaitTimedOut);
     bool mInTimeoutSecondHalf;
-    int32_t mTimeoutMs;
+    int32 mTimeoutMs;
 
 #ifdef OS_WIN
     HANDLE mEvent;

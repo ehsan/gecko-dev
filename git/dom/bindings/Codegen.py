@@ -1366,25 +1366,6 @@ class CGIsMethod(CGAbstractMethod):
         #   js::GetObjectJSClass(obj) == &Class.mBase
         return """  return IsProxy(obj);"""
 
-def CreateBindingJSObject(descriptor, parent):
-    if descriptor.proxy:
-        create = """  JSObject *obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
-                                 JS::PrivateValue(aObject), proto, %s);
-  if (!obj) {
-    return NULL;
-  }
-
-"""
-    else:
-        create = """  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, %s);
-  if (!obj) {
-    return NULL;
-  }
-
-  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
-"""
-    return create % parent
-
 class CGWrapWithCacheMethod(CGAbstractMethod):
     def __init__(self, descriptor):
         assert descriptor.interface.hasInterfacePrototypeObject()
@@ -1398,6 +1379,23 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
         if self.descriptor.workers:
             return """  *aTriedToWrap = true;
   return aObject->GetJSObject();"""
+
+        if self.descriptor.proxy:
+            create = """  JSObject *obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
+                                 JS::PrivateValue(aObject), proto, parent);
+  if (!obj) {
+    return NULL;
+  }
+
+"""
+        else:
+            create = """  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, parent);
+  if (!obj) {
+    return NULL;
+  }
+
+  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
+"""
 
         return """  *aTriedToWrap = true;
 
@@ -1419,8 +1417,7 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
 
   aCache->SetWrapper(obj);
 
-  return obj;""" % (CheckPref(self.descriptor, "global", "*aTriedToWrap", "NULL", "aCache"),
-                    CreateBindingJSObject(self.descriptor, "parent"))
+  return obj;""" % (CheckPref(self.descriptor, "global", "*aTriedToWrap", "NULL", "aCache"), create)
 
 class CGWrapMethod(CGAbstractMethod):
     def __init__(self, descriptor):
@@ -1449,10 +1446,15 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
     return NULL;
   }
 
-%s
+  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, global);
+  if (!obj) {
+    return NULL;
+  }
+
+  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
   NS_ADDREF(aObject);
 
-  return obj;""" % CreateBindingJSObject(self.descriptor, "global")
+  return obj;"""
 
 builtinNames = {
     IDLType.Tags.bool: 'bool',
@@ -2820,13 +2822,10 @@ def infallibleForMember(member, type, descriptorProvider):
                                   memberIsCreator(member))[1]
 
 def typeNeedsCx(type):
-    if type is None:
-        return False
-    if type.isSequence() or type.isArray():
-        type = type.inner
-    if type.isUnion():
-        return any(typeNeedsCx(t) for t in type.unroll().flatMemberTypes)
-    return type.isCallback() or type.isAny() or type.isObject()
+    return (type is not None and
+            (type.isCallback() or type.isAny() or type.isObject() or
+             (type.isUnion() and
+              any(typeNeedsCx(t) for t in type.unroll().flatMemberTypes))))
 
 # Returns a tuple consisting of a CGThing containing the type of the return
 # value, or None if there is no need for a return value, and a boolean signaling
@@ -2859,7 +2858,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         # XXXbz we're going to assume that callback types are always
         # nullable for now.
         return CGGeneric("JSObject*"), False
-    if returnType.isAny():
+    if returnType.tag() is IDLType.Tags.any:
         return CGGeneric("JS::Value"), False
     if returnType.isObject() or returnType.isSpiderMonkeyInterface():
         return CGGeneric("JSObject*"), False

@@ -26,7 +26,7 @@
 #include "nsAttrValue.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMEventListener.h"
-#include "EditActionListener.h"
+#include "nsIEditorObserver.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISelectionPrivate.h"
@@ -615,7 +615,7 @@ nsTextInputSelectionImpl::CheckVisibilityContent(nsIContent* aNode,
 
 class nsTextInputListener : public nsISelectionListener,
                             public nsIDOMEventListener,
-                            public EditActionListener,
+                            public nsIEditorObserver,
                             public nsSupportsWeakReference
 {
 public:
@@ -640,7 +640,7 @@ public:
 
   NS_DECL_NSIDOMEVENTLISTENER
 
-  virtual void EditAction();
+  NS_DECL_NSIEDITOROBSERVER
 
 protected:
 
@@ -697,8 +697,9 @@ nsTextInputListener::~nsTextInputListener()
 {
 }
 
-NS_IMPL_ISUPPORTS3(nsTextInputListener,
+NS_IMPL_ISUPPORTS4(nsTextInputListener,
                    nsISelectionListener,
+                   nsIEditorObserver,
                    nsISupportsWeakReference,
                    nsIDOMEventListener)
 
@@ -829,7 +830,9 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
   return NS_OK;
 }
 
-void
+// BEGIN nsIEditorObserver
+
+NS_IMETHODIMP
 nsTextInputListener::EditAction()
 {
   nsWeakFrame weakFrame = mFrame;
@@ -858,7 +861,7 @@ nsTextInputListener::EditAction()
   }
 
   if (!weakFrame.IsAlive()) {
-    return;
+    return NS_OK;
   }
 
   // Make sure we know we were changed (do NOT set this to false if there are
@@ -870,7 +873,12 @@ nsTextInputListener::EditAction()
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(true);
   }
+
+  return NS_OK;
 }
+
+// END nsIEditorObserver
+
 
 nsresult
 nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate)
@@ -1351,7 +1359,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   }
 
   if (mTextListener)
-    newEditor->SetEditorObserver(mTextListener);
+    newEditor->AddEditorObserver(mTextListener);
 
   // Restore our selection after being bound to a new frame
   if (mSelectionCached) {
@@ -1375,7 +1383,7 @@ nsTextEditorState::DestroyEditor()
   // notify the editor that we are going away
   if (mEditorInitialized) {
     if (mTextListener)
-      mEditor->RemoveEditorObserver();
+      mEditor->RemoveEditorObserver(mTextListener);
 
     mEditor->PreDestroy(true);
     mEditorInitialized = false;

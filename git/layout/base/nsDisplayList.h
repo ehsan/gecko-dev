@@ -80,10 +80,6 @@ class ImageContainer;
  * 
  * A display list covers the "extended" frame tree; the display list for a frame
  * tree containing FRAME/IFRAME elements can include frames from the subdocuments.
- *
- * Display item's coordinates are relative to their nearest reference frame ancestor.
- * Both the display root and any frame with a transform act as a reference frame
- * for their frame subtrees.
  */
 
 // All types are defined in nsDisplayItemTypes.h
@@ -165,40 +161,11 @@ public:
    * in the normal unrestricted case)
    */
   nsISelection* GetBoundingSelection() { return mBoundingSelection; }
-
-  /**
-   * @return the root of given frame's (sub)tree, whose origin
-   * establishes the coordinate system for the child display items.
-   */
-  const nsIFrame* FindReferenceFrameFor(const nsIFrame *aFrame)
-  {
-    if (aFrame == mCachedOffsetFrame) {
-      return mCachedReferenceFrame;
-    }
-    for (const nsIFrame* f = aFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f))
-    {
-      if (f->IsTransformed()) {
-        mCachedOffsetFrame = aFrame;
-        mCachedReferenceFrame = f;
-        mCachedOffset = aFrame->GetOffsetToCrossDoc(f);
-        return f;
-      }
-    }
-    mCachedOffsetFrame = aFrame;
-    mCachedReferenceFrame = mReferenceFrame;
-    mCachedOffset = aFrame->GetOffsetToCrossDoc(mReferenceFrame);
-    return mReferenceFrame;
-  }
-  
   /**
    * @return the root of the display list's frame (sub)tree, whose origin
    * establishes the coordinate system for the display list
    */
-  nsIFrame* RootReferenceFrame() 
-  {
-    return mReferenceFrame;
-  }
-
+  nsIFrame* ReferenceFrame() const { return mReferenceFrame; }
   /**
    * @return a point pt such that adding pt to a coordinate relative to aFrame
    * makes it relative to ReferenceFrame(), i.e., returns 
@@ -208,7 +175,8 @@ public:
    */
   const nsPoint& ToReferenceFrame(const nsIFrame* aFrame) {
     if (aFrame != mCachedOffsetFrame) {
-      FindReferenceFrameFor(aFrame);
+      mCachedOffsetFrame = aFrame;
+      mCachedOffset = aFrame->GetOffsetToCrossDoc(ReferenceFrame());
     }
     return mCachedOffset;
   }
@@ -341,8 +309,8 @@ public:
    * scrolled root.
    */
   bool IsFixedItem(nsDisplayItem* aItem,
-                   const nsIFrame** aActiveScrolledRoot = nullptr,
-                   const nsIFrame* aOverrideActiveScrolledRoot = nullptr);
+                   nsIFrame** aActiveScrolledRoot = nullptr,
+                   nsIFrame* aOverrideActiveScrolledRoot = nullptr);
 
   /**
    * @return true if images have been set to decode synchronously.
@@ -459,7 +427,6 @@ public:
     AutoBuildingDisplayList(nsDisplayListBuilder* aBuilder, bool aIsRoot)
       : mBuilder(aBuilder),
         mPrevCachedOffsetFrame(aBuilder->mCachedOffsetFrame),
-        mPrevCachedReferenceFrame(aBuilder->mCachedReferenceFrame),
         mPrevCachedOffset(aBuilder->mCachedOffset),
         mPrevIsAtRootOfPseudoStackingContext(aBuilder->mIsAtRootOfPseudoStackingContext) {
       aBuilder->mIsAtRootOfPseudoStackingContext = aIsRoot;
@@ -469,17 +436,13 @@ public:
                             bool aIsInFixedPosition)
       : mBuilder(aBuilder),
         mPrevCachedOffsetFrame(aBuilder->mCachedOffsetFrame),
-        mPrevCachedReferenceFrame(aBuilder->mCachedReferenceFrame),
         mPrevCachedOffset(aBuilder->mCachedOffset),
         mPrevIsAtRootOfPseudoStackingContext(aBuilder->mIsAtRootOfPseudoStackingContext),
         mPrevIsInFixedPosition(aBuilder->mIsInFixedPosition) {
-      if (aForChild->IsTransformed()) {
-        aBuilder->mCachedOffset = nsPoint();
-        aBuilder->mCachedReferenceFrame = aForChild;
-      } else if (mPrevCachedOffsetFrame == aForChild->GetParent()) {
+      if (mPrevCachedOffsetFrame == aForChild->GetParent()) {
         aBuilder->mCachedOffset += aForChild->GetPosition();
       } else {
-        aBuilder->mCachedOffset = aBuilder->ToReferenceFrame(aForChild);
+        aBuilder->mCachedOffset = aForChild->GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
       }
       aBuilder->mCachedOffsetFrame = aForChild;
       aBuilder->mIsAtRootOfPseudoStackingContext = aIsRoot;
@@ -489,7 +452,6 @@ public:
     }
     ~AutoBuildingDisplayList() {
       mBuilder->mCachedOffsetFrame = mPrevCachedOffsetFrame;
-      mBuilder->mCachedReferenceFrame = mPrevCachedReferenceFrame;
       mBuilder->mCachedOffset = mPrevCachedOffset;
       mBuilder->mIsAtRootOfPseudoStackingContext = mPrevIsAtRootOfPseudoStackingContext;
       mBuilder->mIsInFixedPosition = mPrevIsInFixedPosition;
@@ -497,7 +459,6 @@ public:
   private:
     nsDisplayListBuilder* mBuilder;
     const nsIFrame*       mPrevCachedOffsetFrame;
-    const nsIFrame*       mPrevCachedReferenceFrame;
     nsPoint               mPrevCachedOffset;
     bool                  mPrevIsAtRootOfPseudoStackingContext;
     bool                  mPrevIsInFixedPosition;
@@ -587,7 +548,6 @@ private:
   // When mCachedOffsetFrame is non-null, mCachedOffset is the offset from
   // mCachedOffsetFrame to mReferenceFrame.
   const nsIFrame*                mCachedOffsetFrame;
-  const nsIFrame*                mCachedReferenceFrame;
   nsPoint                        mCachedOffset;
   nsRect                         mDisplayPort;
   nsRegion                       mExcludedGlassRegion;
@@ -661,15 +621,12 @@ public:
 #endif
   {
     if (aFrame) {
-      mReferenceFrame = aBuilder->FindReferenceFrameFor(aFrame);
-      mToReferenceFrame = aFrame->GetOffsetToCrossDoc(mReferenceFrame);
+      mToReferenceFrame = aBuilder->ToReferenceFrame(aFrame);
     }
   }
   nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                const nsIFrame* aReferenceFrame,
                 const nsPoint& aToReferenceFrame)
     : mFrame(aFrame)
-    , mReferenceFrame(aReferenceFrame)
     , mToReferenceFrame(aToReferenceFrame)
 #ifdef MOZ_DUMP_PAINTING
     , mPainted(false)
@@ -952,11 +909,6 @@ public:
     NS_ASSERTION(mFrame, "No frame?");
     return mToReferenceFrame;
   }
-  /**
-   * @return the root of the display list's frame (sub)tree, whose origin
-   * establishes the coordinate system for the display list
-   */
-  const nsIFrame* ReferenceFrame() const { return mReferenceFrame; }
 
   /**
    * Checks if this display item (or any children) contains content that might
@@ -986,8 +938,6 @@ protected:
   }
 
   nsIFrame* mFrame;
-  // Result of FindReferenceFrameFor(mFrame), if mFrame is non-null
-  const nsIFrame* mReferenceFrame;
   // Result of ToReferenceFrame(mFrame), if mFrame is non-null
   nsPoint   mToReferenceFrame;
   // This is the rectangle that needs to be painted.
@@ -1856,7 +1806,7 @@ public:
   nsDisplayWrapList(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                     nsDisplayItem* aItem);
   nsDisplayWrapList(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                    nsDisplayItem* aItem, const nsIFrame* aReferenceFrame, const nsPoint& aToReferenceFrame);
+                    nsDisplayItem* aItem, const nsPoint& aToReferenceFrame);
   nsDisplayWrapList(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : nsDisplayItem(aBuilder, aFrame) {}
   virtual ~nsDisplayWrapList();
@@ -2351,9 +2301,20 @@ public:
    * ferries the underlying frame to the nsDisplayItem constructor.
    */
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayList *aList, uint32_t aIndex = 0);
+                     nsDisplayList *aList, uint32_t aIndex = 0) :
+    nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aList), mIndex(aIndex)
+  {
+    MOZ_COUNT_CTOR(nsDisplayTransform);
+    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
+  }
+
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayItem *aItem, uint32_t aIndex = 0);
+                     nsDisplayItem *aItem, uint32_t aIndex = 0) :
+  nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aItem), mIndex(aIndex)
+  {
+    MOZ_COUNT_CTOR(nsDisplayTransform);
+    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
+  }
 
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayTransform()
@@ -2497,17 +2458,6 @@ public:
   bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
 
 private:
-  static gfx3DMatrix GetResultingTransformMatrixInternal(const nsIFrame* aFrame,
-                                                         const nsPoint& aOrigin,
-                                                         float aAppUnitsPerPixel,
-                                                         const nsRect* aBoundsOverride,
-                                                         const nsCSSValueList* aTransformOverride,
-                                                         gfxPoint3D* aToMozOrigin,
-                                                         gfxPoint3D* aToPerspectiveOrigin,
-                                                         nscoord* aChildPerspective,
-                                                         nsIFrame** aOutAncestor,
-                                                         bool aRecursing);
-
   nsDisplayWrapList mStoredList;
   gfx3DMatrix mTransform;
   float mCachedAppUnitsPerPixel;
@@ -2531,7 +2481,7 @@ public:
     : nsDisplayItem(aBuilder, aFrame), mLeftEdge(0), mRightEdge(0) {}
 
   nsCharClipDisplayItem(nsIFrame* aFrame)
-    : nsDisplayItem(nullptr, aFrame, nullptr, nsPoint()) {}
+    : nsDisplayItem(nullptr, aFrame, nsPoint()) {}
 
   struct ClipEdges {
     ClipEdges(const nsDisplayItem& aItem,

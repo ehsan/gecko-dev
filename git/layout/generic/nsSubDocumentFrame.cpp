@@ -336,7 +336,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   nsRect subdocBoundsInParentUnits =
-    mInnerView->GetBounds() + aBuilder->ToReferenceFrame(this);
+    mInnerView->GetBounds() + GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
 
   if (subdocRootFrame) {
     rv = subdocRootFrame->
