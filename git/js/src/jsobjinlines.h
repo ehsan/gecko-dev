@@ -41,12 +41,13 @@ JSObject::changePropertyAttributes(JSContext *cx, js::HandleObject obj,
 }
 
 /* static */ inline bool
-JSObject::deleteGeneric(JSContext *cx, js::HandleObject obj, js::HandleId id,
+JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandlePropertyName name,
                          bool *succeeded)
 {
+    JS::RootedId id(cx, js::NameToId(name));
     js::types::MarkTypePropertyNonData(cx, obj, id);
-    js::DeleteGenericOp op = obj->getOps()->deleteGeneric;
-    return (op ? op : js::baseops::DeleteGeneric)(cx, obj, id, succeeded);
+    js::DeletePropertyOp op = obj->getOps()->deleteProperty;
+    return (op ? op : js::baseops::DeleteProperty)(cx, obj, name, succeeded);
 }
 
 /* static */ inline bool
@@ -55,7 +56,9 @@ JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, boo
     JS::RootedId id(cx);
     if (!js::IndexToId(cx, index, &id))
         return false;
-    return deleteGeneric(cx, obj, id, succeeded);
+    js::types::MarkTypePropertyNonData(cx, obj, id);
+    js::DeleteElementOp op = obj->getOps()->deleteElement;
+    return (op ? op : js::baseops::DeleteElement)(cx, obj, index, succeeded);
 }
 
 /* static */ inline bool
@@ -651,8 +654,8 @@ PropDesc::PropDesc(const Value &getter, const Value &setter,
     hasValue_(false), hasWritable_(false), hasEnumerable_(true), hasConfigurable_(true),
     isUndefined_(false)
 {
-    MOZ_ASSERT(getter.isUndefined() || IsCallable(getter));
-    MOZ_ASSERT(setter.isUndefined() || IsCallable(setter));
+    MOZ_ASSERT(getter.isUndefined() || js_IsCallable(getter));
+    MOZ_ASSERT(setter.isUndefined() || js_IsCallable(setter));
 }
 
 static MOZ_ALWAYS_INLINE bool

@@ -342,7 +342,7 @@ nsWindowWatcher::OpenWindow(nsIDOMWindow *aParent,
 
   return OpenWindowInternal(aParent, aUrl, aName, aFeatures,
                             /* calledFromJS = */ false, dialog,
-                            /* navigate = */ true, nullptr, argv, _retval);
+                            /* navigate = */ true, argv, _retval);
 }
 
 struct SizeSpec {
@@ -394,7 +394,6 @@ nsWindowWatcher::OpenWindow2(nsIDOMWindow *aParent,
                               bool aCalledFromScript,
                               bool aDialog,
                               bool aNavigate,
-                              nsITabParent *aOpeningTab,
                               nsISupports *aArguments,
                               nsIDOMWindow **_retval)
 {
@@ -415,7 +414,7 @@ nsWindowWatcher::OpenWindow2(nsIDOMWindow *aParent,
 
   return OpenWindowInternal(aParent, aUrl, aName, aFeatures,
                             aCalledFromScript, dialog,
-                            aNavigate, aOpeningTab, argv, _retval);
+                            aNavigate, argv, _retval);
 }
 
 nsresult
@@ -426,7 +425,6 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
                                     bool aCalledFromJS,
                                     bool aDialog,
                                     bool aNavigate,
-                                    nsITabParent *aOpeningTab,
                                     nsIArray *argv,
                                     nsIDOMWindow **_retval)
 {
@@ -700,7 +698,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
         bool cancel = false;
         rv = windowCreator2->CreateChromeWindow2(parentChrome, chromeFlags,
                                                  contextFlags, uriToLoad,
-                                                 aOpeningTab, &cancel,
+                                                 &cancel,
                                                  getter_AddRefs(newChrome));
         if (NS_SUCCEEDED(rv) && cancel) {
           newChrome = 0; // just in case

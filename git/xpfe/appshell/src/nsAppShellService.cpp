@@ -127,7 +127,7 @@ nsAppShellService::CreateHiddenWindowHelper(bool aIsPrivate)
   if (!aIsPrivate) {
     rv = JustCreateTopWindow(nullptr, url,
                              chromeMask, initialWidth, initialHeight,
-                             true, nullptr, getter_AddRefs(newWindow));
+                             true, getter_AddRefs(newWindow));
     NS_ENSURE_SUCCESS(rv, rv);
 
     mHiddenWindow.swap(newWindow);
@@ -137,7 +137,7 @@ nsAppShellService::CreateHiddenWindowHelper(bool aIsPrivate)
 
     rv = JustCreateTopWindow(nullptr, url,
                              chromeMask, initialWidth, initialHeight,
-                             true, nullptr, getter_AddRefs(newWindow));
+                             true, getter_AddRefs(newWindow));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDocShell> docShell;
@@ -181,7 +181,6 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
                                         uint32_t aChromeMask,
                                         int32_t aInitialWidth,
                                         int32_t aInitialHeight,
-                                        nsITabParent *aOpeningTab,
                                         nsIXULWindow **aResult)
 
 {
@@ -192,7 +191,7 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
   nsWebShellWindow *newWindow = nullptr;
   rv = JustCreateTopWindow(aParent, aUrl,
                            aChromeMask, aInitialWidth, aInitialHeight,
-                           false, aOpeningTab, &newWindow);  // addrefs
+                           false, &newWindow);  // addrefs
 
   *aResult = newWindow; // transfer ref
 
@@ -483,12 +482,11 @@ CheckForFullscreenWindow()
  */
 nsresult
 nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
-                                       nsIURI *aUrl,
+                                       nsIURI *aUrl, 
                                        uint32_t aChromeMask,
                                        int32_t aInitialWidth,
                                        int32_t aInitialHeight,
                                        bool aIsHiddenWindow,
-                                       nsITabParent *aOpeningTab,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nullptr;
@@ -599,7 +597,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
 
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
                                    aUrl, aInitialWidth, aInitialHeight,
-                                   aIsHiddenWindow, aOpeningTab, widgetInitData);
+                                   aIsHiddenWindow, widgetInitData);
 
   NS_ENSURE_SUCCESS(rv, rv);
 

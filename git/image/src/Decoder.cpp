@@ -203,6 +203,8 @@ Decoder::AllocateFrame()
   MOZ_ASSERT(mNeedsNewFrame);
   MOZ_ASSERT(NS_IsMainThread());
 
+  MarkFrameDirty();
+
   nsresult rv;
   imgFrame* frame = nullptr;
   if (mNewFrameData.mPaletteDepth) {
@@ -419,7 +421,7 @@ Decoder::PostDecoderError(nsresult aFailureCode)
 void
 Decoder::NeedNewFrame(uint32_t framenum, uint32_t x_offset, uint32_t y_offset,
                       uint32_t width, uint32_t height,
-                      gfx::SurfaceFormat format,
+                      gfxImageFormat format,
                       uint8_t palette_depth /* = 0 */)
 {
   // Decoders should never call NeedNewFrame without yielding back to Write().
@@ -430,6 +432,16 @@ Decoder::NeedNewFrame(uint32_t framenum, uint32_t x_offset, uint32_t y_offset,
 
   mNewFrameData = NewFrameData(framenum, x_offset, y_offset, width, height, format, palette_depth);
   mNeedsNewFrame = true;
+}
+
+void
+Decoder::MarkFrameDirty()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (mCurrentFrame) {
+    mCurrentFrame->ApplyDirtToSurfaces();
+  }
 }
 
 } // namespace image

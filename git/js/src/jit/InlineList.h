@@ -172,8 +172,10 @@ public:
         return *this;
     }
     InlineForwardListIterator<T> operator ++(int) {
+        JS_ASSERT(modifyCount_ == owner_->modifyCount_);
         InlineForwardListIterator<T> old(*this);
-        operator++();
+        prev = iter;
+        iter = iter->next;
         return old;
     }
     T * operator *() const {
@@ -337,16 +339,12 @@ class InlineListIterator
     }
     InlineListIterator<T> operator ++(int) {
         InlineListIterator<T> old(*this);
-        operator++();
+        iter = static_cast<Node *>(iter->next);
         return old;
-    }
-    InlineListIterator<T> & operator --() {
-        iter = iter->prev;
-        return *this;
     }
     InlineListIterator<T> operator --(int) {
         InlineListIterator<T> old(*this);
-        operator--();
+        iter = iter->prev;
         return old;
     }
     T * operator *() const {
@@ -385,16 +383,7 @@ class InlineListReverseIterator
     }
     InlineListReverseIterator<T> operator ++(int) {
         InlineListReverseIterator<T> old(*this);
-        operator++();
-        return old;
-    }
-    InlineListReverseIterator<T> & operator --() {
-        iter = static_cast<Node *>(iter->next);
-        return *this;
-    }
-    InlineListReverseIterator<T> operator --(int) {
-        InlineListReverseIterator<T> old(*this);
-        operator--();
+        iter = iter->prev;
         return old;
     }
     T * operator *() {
@@ -475,12 +464,12 @@ class InlineConcatListIterator
 
   public:
     InlineConcatListIterator<T> & operator ++() {
-        iter = static_cast<Node *>(iter->next);
-        return *this;
+        iter = iter->next;
+        return *iter;
     }
     InlineConcatListIterator<T> operator ++(int) {
         InlineConcatListIterator<T> old(*this);
-        operator++();
+        iter = static_cast<Node *>(iter->next);
         return old;
     }
     T * operator *() const {

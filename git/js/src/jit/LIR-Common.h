@@ -5736,6 +5736,10 @@ class LProfilerStackOp : public LInstructionHelper<0, 0, 1>
     MProfilerStackOp::Type type() {
         return mir_->toProfilerStackOp()->type();
     }
+
+    unsigned inlineLevel() {
+        return mir_->toProfilerStackOp()->inlineLevel();
+    }
 };
 
 class LIsCallable : public LInstructionHelper<1, 1, 0>
