@@ -1832,19 +1832,8 @@ RilObject.prototype = {
   },
 
   setCellBroadcastSearchList: function(options) {
-    let getSearchListStr = function(aSearchList) {
-      if (typeof aSearchList === "string" || aSearchList instanceof String) {
-        return aSearchList;
-      }
-
-      // TODO: Set search list for CDMA/GSM individually. Bug 990926
-      let prop = this._isCdma ? "cdma" : "gsm";
-
-      return aSearchList && aSearchList[prop];
-    }.bind(this);
-
     try {
-      let str = getSearchListStr(options.searchList);
+      let str = options.searchListStr;
       this.cellBroadcastConfigs.MMI = this._convertCellBroadcastSearchList(str);
       options.success = true;
     } catch (e) {
