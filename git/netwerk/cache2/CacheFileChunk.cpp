@@ -45,29 +45,11 @@ protected:
   nsRefPtr<CacheFileChunk>         mChunk;
 };
 
-bool
-CacheFileChunk::DispatchRelease()
-{
-  if (NS_IsMainThread()) {
-    return false;
-  }
-
-  nsRefPtr<nsRunnableMethod<CacheFileChunk, MozExternalRefCountType, false> > event =
-    NS_NewNonOwningRunnableMethod(this, &CacheFileChunk::Release);
-  NS_DispatchToMainThread(event);
-
-  return true;
-}
 
 NS_IMPL_ADDREF(CacheFileChunk)
 NS_IMETHODIMP_(MozExternalRefCountType)
 CacheFileChunk::Release()
 {
-  if (DispatchRelease()) {
-    // Redispatched to the main thread.
-    return mRefCnt - 1;
-  }
-
   NS_PRECONDITION(0 != mRefCnt, "dup release");
   nsrefcnt count = --mRefCnt;
   NS_LOG_RELEASE(this, count, "CacheFileChunk");
@@ -78,18 +60,8 @@ CacheFileChunk::Release()
     return 0;
   }
 
-  // We can safely access this chunk after decreasing mRefCnt since we re-post
-  // all calls to Release() happening off the main thread to the main thread.
-  // I.e. no other Release() that would delete the object could be run before
-  // we call CacheFile::DeactivateChunk().
-  //
-  // NOTE: we don't grab the CacheFile's lock, so the chunk might be addrefed
-  // on another thread before CacheFile::DeactivateChunk() grabs the lock on
-  // this thread. To make sure we won't deactivate chunk that was just returned
-  // to a new consumer we check mRefCnt once again in
-  // CacheFile::DeactivateChunk() after we grab the lock.
-  if (mActiveChunk && count == 1) {
-    mFile->DeactivateChunk(this);
+  if (!mRemovingChunk && count == 1) {
+    mFile->RemoveChunk(this);
   }
 
   return count;
@@ -106,7 +78,7 @@ CacheFileChunk::CacheFileChunk(CacheFile *aFile, uint32_t aIndex)
   , mState(INITIAL)
   , mStatus(NS_OK)
   , mIsDirty(false)
-  , mActiveChunk(false)
+  , mRemovingChunk(false)
   , mDataSize(0)
   , mBuf(nullptr)
   , mBufSize(0)

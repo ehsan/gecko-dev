@@ -366,14 +366,10 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
       switch (msg.name) {
         case "NFC:SetSessionToken":
-          if (msg.json.sessionToken !== this.nfc.sessionTokenMap[this.nfc._currentSessionId]) {
-            debug("Received invalid Session Token: " + msg.json.sessionToken + " - Do not register this target");
-            return NFC.NFC_ERROR_BAD_SESSION_ID;
-          }
           this._registerMessageTarget(this.nfc.sessionTokenMap[this.nfc._currentSessionId], msg.target);
           debug("Registering target for this SessionToken : " +
                 this.nfc.sessionTokenMap[this.nfc._currentSessionId]);
-          return NFC.NFC_SUCCESS;
+          return null;
         case "NFC:RegisterPeerTarget":
           this.registerPeerTarget(msg);
           return null;

@@ -123,7 +123,6 @@ gfxFontEntry::gfxFontEntry() :
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
     mCheckedForGraphiteTables(false),
-    mCheckedForGraphiteSmallCaps(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
     mCheckedForColorGlyph(false),
@@ -157,7 +156,6 @@ gfxFontEntry::gfxFontEntry(const nsAString& aName, bool aIsStandardFace) :
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
     mCheckedForGraphiteTables(false),
-    mCheckedForGraphiteSmallCaps(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
     mCheckedForColorGlyph(false),
@@ -879,89 +877,6 @@ void
 gfxFontEntry::CheckForGraphiteTables()
 {
     mHasGraphiteTables = HasFontTable(TRUETYPE_TAG('S','i','l','f'));
-}
-
-bool
-gfxFontEntry::SupportsOpenTypeSmallCaps(int32_t aScript)
-{
-    if (!mSmallCapsSupport) {
-        mSmallCapsSupport = new nsDataHashtable<nsUint32HashKey,bool>();
-    }
-
-    bool result;
-    if (mSmallCapsSupport->Get(uint32_t(aScript), &result)) {
-        return result;
-    }
-
-    result = false;
-
-    hb_face_t *face = GetHBFace();
-
-    if (hb_ot_layout_has_substitution(face)) {
-        // Decide what harfbuzz script code will be used for shaping
-        hb_script_t hbScript;
-        if (aScript <= MOZ_SCRIPT_INHERITED) {
-            // For unresolved "common" or "inherited" runs, default to Latin
-            // for now. (Compare gfxHarfBuzzShaper.)
-            hbScript = HB_SCRIPT_LATIN;
-        } else {
-            hbScript = hb_script_t(GetScriptTagForCode(aScript));
-        }
-
-        // Get the OpenType tag(s) that match this script code
-        hb_tag_t scriptTags[4] = {
-            HB_TAG_NONE,
-            HB_TAG_NONE,
-            HB_TAG_NONE,
-            HB_TAG_NONE
-        };
-        hb_ot_tags_from_script(hbScript, &scriptTags[0], &scriptTags[1]);
-
-        // Replace the first remaining NONE with DEFAULT
-        hb_tag_t* scriptTag = &scriptTags[0];
-        while (*scriptTag != HB_TAG_NONE) {
-            ++scriptTag;
-        }
-        *scriptTag = HB_OT_TAG_DEFAULT_SCRIPT;
-
-        // Now check for 'smcp' under the first of those scripts that is present
-        const hb_tag_t kGSUB = HB_TAG('G','S','U','B');
-        const hb_tag_t kSMCP = HB_TAG('s','m','c','p');
-        scriptTag = &scriptTags[0];
-        while (*scriptTag != HB_TAG_NONE) {
-            unsigned int scriptIndex;
-            if (hb_ot_layout_table_find_script(face, kGSUB, *scriptTag,
-                                               &scriptIndex)) {
-                if (hb_ot_layout_language_find_feature(face, kGSUB,
-                                                       scriptIndex,
-                                           HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX,
-                                                       kSMCP, nullptr)) {
-                    result = true;
-                }
-                break;
-            }
-            ++scriptTag;
-        }
-    }
-
-    hb_face_destroy(face);
-
-    mSmallCapsSupport->Put(uint32_t(aScript), result);
-
-    return result;
-}
-
-bool
-gfxFontEntry::SupportsGraphiteSmallCaps()
-{
-    if (!mCheckedForGraphiteSmallCaps) {
-        gr_face* face = GetGrFace();
-        mHasGraphiteSmallCaps =
-            gr_face_find_fref(face, TRUETYPE_TAG('s','m','c','p')) != nullptr;
-        ReleaseGrFace(face);
-        mCheckedForGraphiteSmallCaps = true;
-    }
-    return mHasGraphiteSmallCaps;
 }
 
 bool
@@ -2096,7 +2011,6 @@ gfxFontShaper::MergeFontFeatures(
     if (styleRuleFeatures.IsEmpty() &&
         aFontFeatures.IsEmpty() &&
         !aDisableLigatures &&
-        !aStyle->smallCaps &&
         numAlts == 0) {
         return false;
     }
@@ -2106,10 +2020,6 @@ gfxFontShaper::MergeFontFeatures(
     if (aDisableLigatures) {
         aMergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
         aMergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
-    }
-
-    if (aStyle->smallCaps) {
-        aMergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
     }
 
     // add feature values from font
@@ -2696,16 +2606,6 @@ gfxFont::SpaceMayParticipateInShaping(int32_t aRunScript)
     }
 
     return false;
-}
-
-bool
-gfxFont::SupportsSmallCaps(int32_t aScript)
-{
-    if (mGraphiteShaper && gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
-        return GetFontEntry()->SupportsGraphiteSmallCaps();
-    }
-
-    return GetFontEntry()->SupportsOpenTypeSmallCaps(aScript);
 }
 
 bool
@@ -5544,14 +5444,13 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
 
         // create the glyph run for this range
         if (matchedFont) {
-            if (mStyle.smallCaps &&
-                !matchedFont->SupportsSmallCaps(aRunScript)) {
-                if (!matchedFont->InitFakeSmallCapsRun(aContext, aTextRun,
-                                                       aString + runStart,
-                                                       aOffset + runStart,
-                                                       matchedLength,
-                                                       range.matchType,
-                                                       aRunScript)) {
+            if (mStyle.smallCaps) {
+                if (!matchedFont->InitSmallCapsRun(aContext, aTextRun,
+                                                   aString + runStart,
+                                                   aOffset + runStart,
+                                                   matchedLength,
+                                                   range.matchType,
+                                                   aRunScript)) {
                     matchedFont = nullptr;
                 }
             } else {
@@ -5650,28 +5549,28 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
 }
 
 bool
-gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
-                              gfxTextRun     *aTextRun,
-                              const uint8_t  *aText,
-                              uint32_t        aOffset,
-                              uint32_t        aLength,
-                              uint8_t         aMatchType,
-                              int32_t         aScript)
+gfxFont::InitSmallCapsRun(gfxContext     *aContext,
+                          gfxTextRun     *aTextRun,
+                          const uint8_t  *aText,
+                          uint32_t        aOffset,
+                          uint32_t        aLength,
+                          uint8_t         aMatchType,
+                          int32_t         aScript)
 {
     NS_ConvertASCIItoUTF16 unicodeString(reinterpret_cast<const char*>(aText),
                                          aLength);
-    return InitFakeSmallCapsRun(aContext, aTextRun, unicodeString.get(),
-                                aOffset, aLength, aMatchType, aScript);
+    return InitSmallCapsRun(aContext, aTextRun, unicodeString.get(),
+                            aOffset, aLength, aMatchType, aScript);
 }
 
 bool
-gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
-                              gfxTextRun     *aTextRun,
-                              const char16_t *aText,
-                              uint32_t        aOffset,
-                              uint32_t        aLength,
-                              uint8_t         aMatchType,
-                              int32_t         aScript)
+gfxFont::InitSmallCapsRun(gfxContext     *aContext,
+                          gfxTextRun     *aTextRun,
+                          const char16_t *aText,
+                          uint32_t        aOffset,
+                          uint32_t        aLength,
+                          uint8_t         aMatchType,
+                          int32_t         aScript)
 {
     bool ok = true;
 
