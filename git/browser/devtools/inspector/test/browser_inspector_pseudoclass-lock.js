@@ -48,9 +48,7 @@ function* togglePseudoClass(inspector) {
   // Give the inspector panels a chance to update when the pseudoclass changes
   let onPseudo = inspector.selection.once("pseudoclass");
   let onRefresh = inspector.once("rule-view-refreshed");
-
-  // Walker uses SDK-events so calling walker.once does not return a promise.
-  let onMutations = once(inspector.walker, "mutations");
+  let onMutations = inspector.walker.once("mutations");
 
   yield inspector.togglePseudoClass(PSEUDO);
 

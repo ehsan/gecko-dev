@@ -98,7 +98,7 @@ function convertTextPropsToString(textProps) {
 function* getKeyframeRules(selector, inspector, view) {
   let element = getNode(selector);
 
-  yield selectNode(selector, inspector);
+  yield selectNode(element, inspector);
   let elementStyle = view._elementStyle;
 
   let rules = {
