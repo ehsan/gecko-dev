@@ -264,11 +264,10 @@ parser_groups = (
                                  cmds=['test', 'run', 'xpi', 'testex',
                                        'testpkgs', 'testall'])),
         (("", "--e10s",), dict(dest="enable_e10s",
-                               help="enable remote windows",
+                               help="enable out-of-process Jetpacks",
                                action="store_true",
                                default=False,
-                               cmds=['test', 'run', 'testex', 'testpkgs', 
-                                     'testaddons', 'testcfx', 'testall'])),
+                               cmds=['test', 'run', 'testex', 'testpkgs'])),
         (("", "--logfile",), dict(dest="logfile",
                                   help="log console output to file",
                                   metavar=None,
@@ -903,8 +902,6 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
         if options.addons is not None:
             options.addons = options.addons.split(",")
 
-        enable_e10s = options.enable_e10s or target_cfg.get('e10s', False)
-
         try:
             retval = run_app(harness_root_dir=app_extension_dir,
                              manifest_rdf=manifest_rdf,
@@ -927,8 +924,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
                              is_running_tests=(command == "test"),
                              overload_modules=options.overload_modules,
                              bundle_sdk=options.bundle_sdk,
-                             pkgdir=options.pkgdir,
-                             enable_e10s=enable_e10s)
+                             pkgdir=options.pkgdir)
         except ValueError, e:
             print ""
             print "A given cfx option has an inappropriate value:"

@@ -6,7 +6,6 @@
 #include "mozilla/layers/CompositableClient.h"
 #include <stdint.h>                     // for uint64_t, uint32_t
 #include "gfxPlatform.h"                // for gfxPlatform
-#include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTracker
 #include "mozilla/layers/CompositableForwarder.h"
 #include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
 #include "mozilla/layers/TextureClientOGL.h"
@@ -30,7 +29,6 @@ namespace layers {
  * CompositableChild is owned by a CompositableClient.
  */
 class CompositableChild : public PCompositableChild
-                        , public AsyncTransactionTrackersHolder
 {
 public:
   CompositableChild()
@@ -39,13 +37,12 @@ public:
     MOZ_COUNT_CTOR(CompositableChild);
   }
 
-  virtual ~CompositableChild()
+  ~CompositableChild()
   {
     MOZ_COUNT_DTOR(CompositableChild);
   }
 
   virtual void ActorDestroy(ActorDestroyReason) MOZ_OVERRIDE {
-    DestroyAsyncTransactionTrackersHolder();
     if (mCompositableClient) {
       mCompositableClient->mCompositableChild = nullptr;
     }
@@ -56,27 +53,13 @@ public:
   uint64_t mAsyncID;
 };
 
-/* static */ void
-CompositableClient::TransactionCompleteted(PCompositableChild* aActor, uint64_t aTransactionId)
-{
-  CompositableChild* child = static_cast<CompositableChild*>(aActor);
-  child->TransactionCompleteted(aTransactionId);
-}
-
-/* static */ void
-CompositableClient::HoldUntilComplete(PCompositableChild* aActor, AsyncTransactionTracker* aTracker)
-{
-  CompositableChild* child = static_cast<CompositableChild*>(aActor);
-  child->HoldUntilComplete(aTracker);
-}
-
-/* static */ PCompositableChild*
+PCompositableChild*
 CompositableClient::CreateIPDLActor()
 {
   return new CompositableChild();
 }
 
-/* static */ bool
+bool
 CompositableClient::DestroyIPDLActor(PCompositableChild* actor)
 {
   delete actor;
@@ -93,7 +76,7 @@ CompositableClient::InitIPDLActor(PCompositableChild* aActor, uint64_t aAsyncID)
   child->mAsyncID = aAsyncID;
 }
 
-/* static */ CompositableClient*
+CompositableClient*
 CompositableClient::FromIPDLActor(PCompositableChild* aActor)
 {
   MOZ_ASSERT(aActor);
