@@ -17,6 +17,7 @@
 #include "vm/Interpreter.h"
 #include "ion/BaselineJIT.h"
 
+#include "ion/IonFrames-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;

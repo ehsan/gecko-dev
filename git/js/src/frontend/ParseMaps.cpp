@@ -8,6 +8,9 @@
 #include "frontend/FullParseHandler.h"
 #include "frontend/SyntaxParseHandler.h"
 
+#include "frontend/ParseMaps-inl.h"
+#include "vm/String-inl.h"
+
 using namespace js;
 using namespace js::frontend;
 

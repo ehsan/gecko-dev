@@ -3243,13 +3243,6 @@ MacroAssemblerARMCompat::handleFailureWithHandler(void *handler)
     passABIArg(r0);
     callWithABI(handler);
 
-    IonCode *excTail = GetIonContext()->compartment->ionCompartment()->getExceptionTail();
-    branch(excTail);
-}
-
-void
-MacroAssemblerARMCompat::handleFailureWithHandlerTail()
-{
     Label entryFrame;
     Label catch_;
     Label finally;

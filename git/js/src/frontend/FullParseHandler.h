@@ -384,10 +384,6 @@ class FullParseHandler
         pn->append(kid);
     }
 
-    bool isUnparenthesizedYield(ParseNode *pn) {
-        return pn->isKind(PNK_YIELD) && !pn->isInParens();
-    }
-
     void setOp(ParseNode *pn, JSOp op) {
         pn->setOp(op);
     }

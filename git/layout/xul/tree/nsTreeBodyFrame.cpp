@@ -114,7 +114,6 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
- mOriginalHorzWidth(-1),
  mHorzWidth(0),
  mAdjustWidth(0),
  mRowHeight(0),
@@ -386,28 +385,15 @@ nsTreeBodyFrame::EnsureView()
 }
 
 void
-nsTreeBodyFrame::ManageReflowCallback(const nsRect& aRect, nscoord aHorzWidth)
-{
-  if (!mReflowCallbackPosted &&
-      (!aRect.IsEqualEdges(mRect) || mHorzWidth != aHorzWidth)) {
-    PresContext()->PresShell()->PostReflowCallback(this);
-    mReflowCallbackPosted = true;
-    mOriginalHorzWidth = mHorzWidth;
-  }
-  else if (mReflowCallbackPosted &&
-           mHorzWidth != aHorzWidth && mOriginalHorzWidth == aHorzWidth) {
-    PresContext()->PresShell()->CancelReflowCallback(this);
-    mReflowCallbackPosted = false;
-    mOriginalHorzWidth = -1;
-  }
-}
-
-void
 nsTreeBodyFrame::SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
                            bool aRemoveOverflowArea)
 {
   nscoord horzWidth = CalcHorzWidth(GetScrollParts());
-  ManageReflowCallback(aRect, horzWidth);
+  if ((!aRect.IsEqualEdges(mRect) || mHorzWidth != horzWidth) && !mReflowCallbackPosted) {
+    mReflowCallbackPosted = true;
+    PresContext()->PresShell()->PostReflowCallback(this);
+  }
+
   mHorzWidth = horzWidth;
 
   nsLeafBoxFrame::SetBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);

@@ -990,9 +990,6 @@ static const JSFunctionSpec number_static_methods[] = {
     JS_FN("isInteger", Number_isInteger, 1, 0),
     JS_FN("isNaN", Number_isNaN, 1, 0),
     JS_FN("toInteger", Number_toInteger, 1, 0),
-    /* ES6 additions. */
-    JS_FN("parseFloat", num_parseFloat, 1, 0),
-    JS_FN("parseInt", num_parseInt, 2, 0),
     JS_FS_END
 };
 
@@ -1004,7 +1001,6 @@ enum nc_slot {
     NC_NEGATIVE_INFINITY,
     NC_MAX_VALUE,
     NC_MIN_VALUE,
-    NC_EPSILON,
     NC_LIMIT
 };
 
@@ -1019,8 +1015,6 @@ static JSConstDoubleSpec number_constants[] = {
     {0,                         "NEGATIVE_INFINITY", 0,{0,0,0}},
     {1.7976931348623157E+308,   "MAX_VALUE",         0,{0,0,0}},
     {0,                         "MIN_VALUE",         0,{0,0,0}},
-    /* ES6 (May 2013 draft) 15.7.3.7 */
-    {2.2204460492503130808472633361816e-16, "EPSILON", 0,{0,0,0}},
     {0,0,0,{0,0,0}}
 };
 
