@@ -3,22 +3,15 @@
 <script>
   var im = navigator.mozInputMethod;
   if (im) {
-    im.oninputcontextchange = onIcc;
-
-    if (im.inputcontext) {
-      onIcc();
-    }
-  }
-
-  function onIcc() {
-    var ctx = im.inputcontext;
-    if (ctx) {
-      ctx.replaceSurroundingText(location.hash).then(function() {
-        /* Happy flow */
-      }, function(err) {
-        dump('ReplaceSurroundingText failed ' + err + '\n');
-      });
-    }
+    // Automatically append location hash to current input field.
+    im.oninputcontextchange = function() {
+      var ctx = im.inputcontext;
+      if (ctx) {
+        intervalId = setTimeout(function() {
+          ctx.replaceSurroundingText(location.hash);
+        }, 0);
+      }
+    };
   }
 </script>
 </body>
