@@ -88,9 +88,7 @@ js::ObjectImpl::readBarrier(ObjectImpl *obj)
     JSCompartment *comp = obj->compartment();
     if (comp->needsBarrier()) {
         MOZ_ASSERT(!comp->rt->gcRunning);
-        JSObject *tmp = obj->asObjectPtr();
-        MarkObjectUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
-        JS_ASSERT(tmp == obj->asObjectPtr());
+        MarkObjectUnbarriered(comp->barrierTracer(), obj->asObjectPtr(), "read barrier");
     }
 #endif
 }
@@ -126,9 +124,7 @@ js::ObjectImpl::writeBarrierPre(ObjectImpl *obj)
     JSCompartment *comp = obj->compartment();
     if (comp->needsBarrier()) {
         MOZ_ASSERT(!comp->rt->gcRunning);
-        JSObject *tmp = obj->asObjectPtr();
-        MarkObjectUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
-        JS_ASSERT(tmp == obj->asObjectPtr());
+        MarkObjectUnbarriered(comp->barrierTracer(), obj->asObjectPtr(), "write barrier");
     }
 #endif
 }

@@ -294,7 +294,7 @@ public class BrowserToolbar extends LinearLayout {
         Tab tab = Tabs.getInstance().getSelectedTab();
         // Setting a null title for about:home will ensure we just see
         // the "Enter Search or Address" placeholder text
-        if (tab != null && "about:home".equals(tab.getURL()))
+        if (tab != null && tab.getURL().equals("about:home"))
             title = null;
         mAwesomeBar.setText(title);
     }
@@ -339,12 +339,11 @@ public class BrowserToolbar extends LinearLayout {
     public void refresh() {
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null) {
-            String url = tab.getURL();
             setTitle(tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
             setSecurityMode(tab.getSecurityMode());
             setProgressVisibility(tab.isLoading());
-            setShadowVisibility((url == null) || !url.startsWith("about:"));
+            setShadowVisibility(!(tab.getURL().startsWith("about:")));
             updateTabCount(Tabs.getInstance().getCount());
         }
     }

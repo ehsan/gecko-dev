@@ -432,7 +432,7 @@ abstract public class GeckoApp
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
 
-        if (tab == null || tab.getURL() == null) {
+        if (tab == null) {
             bookmark.setEnabled(false);
             forward.setEnabled(false);
             share.setEnabled(false);
@@ -455,8 +455,9 @@ abstract public class GeckoApp
 
         // Disable share menuitem for about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
-        share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
-                           scheme.equals("file")));
+        boolean enabled = scheme != null && !(scheme.equals("about") || scheme.equals("chrome") ||
+                                              scheme.equals("file"));
+        share.setEnabled(enabled);
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -499,12 +500,8 @@ abstract public class GeckoApp
             case R.id.share:
                 tab = Tabs.getInstance().getSelectedTab();
                 if (tab != null) {
-                    String url = tab.getURL();
-                    if (url == null)
-                        return false;
-
-                    GeckoAppShell.openUriExternal(url, "text/plain", "", "",
-                                                  Intent.ACTION_SEND, tab.getTitle());
+                  GeckoAppShell.openUriExternal(tab.getURL(), "text/plain", "", "",
+                                                Intent.ACTION_SEND, tab.getTitle());
                 }
                 return true;
             case R.id.reload:

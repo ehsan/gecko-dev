@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozEnglishWordUtils.h"
+#include "nsICharsetAlias.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
 #include "nsUnicharUtils.h"

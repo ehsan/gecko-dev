@@ -150,7 +150,7 @@ Shape::removeChild(Shape *child)
 
     if (hash->count() == 1) {
         /* Convert from HASH form back to SHAPE form. */
-        KidsHash::Range r = hash->all();
+        KidsHash::Range r = hash->all(); 
         Shape *otherChild = r.front();
         JS_ASSERT((r.popFront(), r.empty()));    /* No more elements! */
         kidp->setShape(otherChild);
@@ -166,11 +166,8 @@ ReadBarrier(Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
     JSCompartment *comp = shape->compartment();
-    if (comp->needsBarrier()) {
-        Shape *tmp = shape;
-        MarkShapeUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
-        JS_ASSERT(tmp == shape);
-    }
+    if (comp->needsBarrier())
+        MarkShapeUnbarriered(comp->barrierTracer(), shape, "read barrier");
 #endif
     return shape;
 }

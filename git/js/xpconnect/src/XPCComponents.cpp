@@ -4223,7 +4223,8 @@ nsXPCComponents::AttachNewComponentsObject(XPCCallContext& ccx,
 
     nsCOMPtr<XPCWrappedNative> wrapper;
     xpcObjectHelper helper(cholder);
-    XPCWrappedNative::GetNewOrUsed(ccx, helper, aScope, iface, getter_AddRefs(wrapper));
+    XPCWrappedNative::GetNewOrUsed(ccx, helper, aScope, iface,
+                                   OBJ_IS_NOT_GLOBAL, getter_AddRefs(wrapper));
     if (!wrapper)
         return false;
 

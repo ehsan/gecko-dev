@@ -64,7 +64,7 @@
 #include "nsIDocumentTransformer.h"
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsIHTMLContentSink.h"
 #include "nsContentUtils.h"
 #include "txXMLUtils.h"
@@ -857,7 +857,11 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
     if (!mOutputFormat.mEncoding.IsEmpty()) {
         NS_LossyConvertUTF16toASCII charset(mOutputFormat.mEncoding);
         nsCAutoString canonicalCharset;
-        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(charset, canonicalCharset))) {
+        nsCOMPtr<nsICharsetAlias> calias =
+            do_GetService("@mozilla.org/intl/charsetalias;1");
+
+        if (calias &&
+            NS_SUCCEEDED(calias->GetPreferred(charset, canonicalCharset))) {
             mDocument->SetDocumentCharacterSetSource(kCharsetFromOtherComponent);
             mDocument->SetDocumentCharacterSet(canonicalCharset);
         }

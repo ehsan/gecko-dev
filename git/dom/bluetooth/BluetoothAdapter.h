@@ -11,12 +11,10 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMBluetoothAdapter.h"
 
-class nsIEventTarget;
-
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothAdapter : public nsIDOMBluetoothAdapter
-                       , public nsDOMEventTargetHelper
+                        ,public nsDOMEventTargetHelper
 {
 public:
   NS_DECL_ISUPPORTS
@@ -38,7 +36,7 @@ protected:
 
 private:
   nsCOMPtr<nsIEventTarget> mToggleBtThread;
-  nsresult ToggleBluetoothAsync();
+  void ToggleBluetoothAsync();
 };
 
 END_BLUETOOTH_NAMESPACE

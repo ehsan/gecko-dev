@@ -978,7 +978,6 @@ NS_INTERFACE_MAP_BEGIN(nsStandardURL)
     if (aIID.Equals(kThisImplCID))
         foundInterface = static_cast<nsIURI *>(this);
     else
-    NS_INTERFACE_MAP_ENTRY(nsISizeOf)
 NS_INTERFACE_MAP_END
 
 //----------------------------------------------------------------------------
@@ -3069,26 +3068,3 @@ nsStandardURL::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
     *aClassIDNoAlloc = kStandardURLCID;
     return NS_OK;
 }
-
-//----------------------------------------------------------------------------
-// nsStandardURL::nsISizeOf
-//----------------------------------------------------------------------------
-
-size_t
-nsStandardURL::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  return mSpec.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         mOriginCharset.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         aMallocSizeOf(mHostA);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mParser
-  // - mFile
-}
-
-size_t
-nsStandardURL::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-

@@ -11,15 +11,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is the Application Update Service.
+# The Original Code is Mozilla readstrings
 #
-# The Initial Developer of the Original Code is Ben Goodger.
-# Portions created by the Initial Developer are Copyright (C) 2004
-# the Initial Developer. All Rights Reserved.
+# The Initial Developer of the Original Code is The Mozilla Foundation.
 #
-# Contributor(s):
-#   Ben Goodger <ben@mozilla.org>
-#   Robert Strong <robert.bugzilla@gmail.com>.
+# Portions created by the Initial Developer are Copyright (C) 2009
+# the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
+#
+# Contributor(s): 
+#   Brad Lassey <blassey@mozilla.com> (original author)
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,48 +42,13 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = update
+MODULE  = readstrings
+LIBRARY_NAME = readstrings
+FORCE_STATIC_LIB = 1
+export NO_SHUNT = 1
+USE_STATIC_LIBS = 1
 
-XPIDLSRCS = nsIUpdateTimerManager.idl
-
-EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js nsUpdateTimerManager.manifest
-
-ifdef MOZ_UPDATER
-DIRS = ../readstrings
-
-ifneq ($(OS_TARGET),Android)
-DIRS += common
-DIRS += updater
-endif
-
-XPIDLSRCS += nsIUpdateService.idl
-
-EXTRA_PP_COMPONENTS += \
-  nsUpdateService.js \
-  nsUpdateServiceStub.js \
-  nsUpdateService.manifest \
-  $(NULL)
-else
-
-# If only the maintenance service is installed and not
-# the updater, then the maintenance service may still be
-# used for other things.  We need to build update/common
-# which the maintenance service uses.
-ifdef MOZ_MAINTENANCE_SERVICE
-DIRS = ../readstrings
-ifneq ($(OS_TARGET),Android)
-DIRS += common
-endif
-endif
-endif
-
-TEST_DIRS += test_timermanager
-# Update tests require the updater binary
-ifdef MOZ_UPDATER
-TEST_DIRS += test
-ifdef MOZ_MAINTENANCE_SERVICE
-TEST_DIRS += test_svc
-endif
-endif
+CPPSRCS = readstrings.cpp
+EXPORTS = readstrings.h
 
 include $(topsrcdir)/config/rules.mk

@@ -255,7 +255,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
         }
     }
 
-    JSObject *obj = ValueToObject(cx, lval);
+    JSObject *obj = ValueToObjectOrPrototype(cx, lval);
     if (!obj)
         return false;
 

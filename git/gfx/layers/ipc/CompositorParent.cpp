@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "CompositorParent.h"
-#include "RenderTrace.h"
 #include "ShadowLayersParent.h"
 #include "LayerManagerOGL.h"
 #include "nsIWidget.h"
@@ -81,12 +80,6 @@ CompositorParent::ScheduleComposition()
 {
   CancelableTask *composeTask = NewRunnableMethod(this, &CompositorParent::Composite);
   MessageLoop::current()->PostTask(FROM_HERE, composeTask);
-
-#ifdef MOZ_RENDERTRACE
-  Layer* aLayer = mLayerManager->GetRoot();
-  mozilla::layers::RenderTraceLayers(aLayer, "0000");
-#endif
-
 }
 
 void

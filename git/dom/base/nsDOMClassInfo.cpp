@@ -548,7 +548,6 @@ static const char kDOMStringBundleURL[] =
   nsIXPCScriptable::WANT_ENUMERATE |                                          \
   nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE |                               \
   nsIXPCScriptable::USE_STUB_EQUALITY_HOOK |                                  \
-  nsIXPCScriptable::IS_GLOBAL_OBJECT |                                        \
   nsIXPCScriptable::WANT_OUTER_OBJECT)
 
 #define NODE_SCRIPTABLE_FLAGS                                                 \
@@ -1550,7 +1549,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(AnimationEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsEventTargetSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS | nsIXPCScriptable::IS_GLOBAL_OBJECT)
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1618,8 +1617,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
 #endif
 
 #ifdef MOZ_B2G_BT
-  NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsEventTargetSH,
-                           EVENTTARGET_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
   NS_DEFINE_CLASSINFO_DATA(DOMError, nsDOMGenericSH,

@@ -81,8 +81,7 @@ public class Tabs implements GeckoEventListener {
         if (tabs.containsKey(id))
            return tabs.get(id);
 
-        // null strings return "null" (http://code.google.com/p/android/issues/detail?id=13830)
-        String url = params.isNull("uri") ? null : params.getString("uri");
+        String url = params.getString("uri");
         Boolean external = params.getBoolean("external");
         int parentId = params.getInt("parentId");
         String title = params.getString("title");
@@ -99,7 +98,7 @@ public class Tabs implements GeckoEventListener {
             });
         }
 
-        Log.i(LOGTAG, "Added a tab with id: " + id);
+        Log.i(LOGTAG, "Added a tab with id: " + id + ", url: " + url);
         return tab;
     }
 
@@ -122,7 +121,7 @@ public class Tabs implements GeckoEventListener {
         if (tab == null)
             return null;
 
-        if ("about:home".equals(tab.getURL()))
+        if (tab.getURL().equals("about:home"))
             GeckoApp.mAppContext.showAboutHome();
         else
             GeckoApp.mAppContext.hideAboutHome();
@@ -132,13 +131,12 @@ public class Tabs implements GeckoEventListener {
                 GeckoApp.mAutoCompletePopup.hide();
                 // Do we need to do this check?
                 if (isSelectedTab(tab)) {
-                    String url = tab.getURL();
                     GeckoApp.mBrowserToolbar.setTitle(tab.getDisplayTitle());
                     GeckoApp.mBrowserToolbar.setFavicon(tab.getFavicon());
                     GeckoApp.mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
                     GeckoApp.mBrowserToolbar.setProgressVisibility(tab.isLoading());
                     GeckoApp.mDoorHangerPopup.updatePopup();
-                    GeckoApp.mBrowserToolbar.setShadowVisibility((url == null) || !url.startsWith("about:"));
+                    GeckoApp.mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
                     notifyListeners(tab, TabEvents.SELECTED);
 
                     if (oldTab != null)

@@ -75,10 +75,10 @@
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsstrinlines.h"
 
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
-#include "vm/StringBuffer-inl.h"
 
 #ifdef DEBUG
 #include <string.h>     /* for #ifdef DEBUG memset calls */
@@ -5160,10 +5160,8 @@ xml_trace(JSTracer *trc, JSObject *obj)
      * This is safe to leave Unbarriered for incremental GC, but we'll need
      * to fix somehow for generational.
      */
-    if (xml) {
-        MarkXMLUnbarriered(trc, &xml, "private");
-        JS_ASSERT(xml == obj->getPrivate());
-    }
+    if (xml)
+        MarkXMLUnbarriered(trc, xml, "private");
 }
 
 static JSBool
@@ -7310,11 +7308,8 @@ JSXML::writeBarrierPre(JSXML *xml)
         return;
 
     JSCompartment *comp = xml->compartment();
-    if (comp->needsBarrier()) {
-        JSXML *tmp = xml;
-        MarkXMLUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
-        JS_ASSERT(tmp == xml);
-    }
+    if (comp->needsBarrier())
+        MarkXMLUnbarriered(comp->barrierTracer(), xml, "write barrier");
 #endif
 }
 
