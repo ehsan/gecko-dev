@@ -809,11 +809,11 @@ CastToJSFreeOp(FreeOp *fop)
 /* Implemented in jsexn.cpp. */
 
 /*
- * Get an error type name from a JSExnType constant.
- * Returns NULL for invalid arguments and JSEXN_INTERNALERR
+ * Get an error type name from a number.
+ * If no exception is associated, return NULL.
  */
 extern JS_FRIEND_API(const jschar*)
-GetErrorTypeName(JSContext* cx, int16_t exnType);
+GetErrorTypeNameFromNumber(JSContext* cx, const unsigned errorNumber);
 
 /* Implemented in jswrapper.cpp. */
 typedef enum NukeReferencesToWindow {

@@ -11,12 +11,13 @@ DIRS = \
   $(NULL)
 
 include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
 
-_FILES = \
+MOCHITEST_FILES = \
   test_interfaces.html \
   test_setrequestheader-invalid-arguments.htm \
   $(NULL)
 
-libs:: $(_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+MOCHITEST_FILES += \
+  $(NULL)
+
+include $(topsrcdir)/config/rules.mk
