@@ -616,7 +616,7 @@ TraceLogging::TraceLogging()
     lock = PR_NewLock();
     if (!lock)
         MOZ_CRASH();
-#endif // JS_THREADSAFE
+#endif
 }
 
 TraceLogging::~TraceLogging()
@@ -627,12 +627,6 @@ TraceLogging::~TraceLogging()
         out = nullptr;
     }
 
-    for (size_t i = 0; i < mainThreadLoggers.length(); i++)
-        delete mainThreadLoggers[i];
-
-    mainThreadLoggers.clear();
-
-#ifdef JS_THREADSAFE
     if (threadLoggers.initialized()) {
         for (ThreadLoggerHashMap::Range r = threadLoggers.all(); !r.empty(); r.popFront())
             delete r.front().value();
@@ -640,11 +634,15 @@ TraceLogging::~TraceLogging()
         threadLoggers.finish();
     }
 
+    for (size_t i = 0; i < mainThreadLoggers.length(); i++)
+        delete mainThreadLoggers[i];
+
+    mainThreadLoggers.clear();
+
     if (lock) {
         PR_DestroyLock(lock);
         lock = nullptr;
     }
-#endif // JS_THREADSAFE
 
     enabled = false;
 }
@@ -675,10 +673,8 @@ TraceLogging::lazyInit()
         return false;
     fprintf(out, "[");
 
-#ifdef JS_THREADSAFE
     if (!threadLoggers.init())
         return false;
-#endif // JS_THREADSAFE
 
     const char *env = getenv("TLLOG");
     if (!env)
@@ -798,17 +794,11 @@ TraceLogging::forMainThread(PerThreadData *mainThread)
 }
 
 TraceLogger *
-js::TraceLoggerForCurrentThread()
+js::TraceLoggerForThread(PRThread *thread)
 {
-#ifdef JS_THREADSAFE
-    PRThread *thread = PR_GetCurrentThread();
     return traceLoggers.forThread(thread);
-#else
-    MOZ_ASSUME_UNREACHABLE("No threads supported. Use TraceLoggerForMainThread for the main thread.");
-#endif // JS_THREADSAFE
 }
 
-#ifdef JS_THREADSAFE
 TraceLogger *
 TraceLogging::forThread(PRThread *thread)
 {
@@ -832,7 +822,6 @@ TraceLogging::forThread(PRThread *thread)
 
     return logger;
 }
-#endif // JS_THREADSAFE
 
 TraceLogger *
 TraceLogging::create()

@@ -12,6 +12,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/devtools/Commands.jsm");
 
 const { require, TargetFactory } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
 
@@ -19,6 +20,9 @@ const Node = Ci.nsIDOMNode;
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
                                   "resource://gre/modules/devtools/Console.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "CmdCommands",
+                                  "resource:///modules/devtools/BuiltinCommands.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
@@ -39,13 +43,7 @@ XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function () {
 
 const Telemetry = require("devtools/shared/telemetry");
 
-// This lazy getter is needed to prevent a require loop
-XPCOMUtils.defineLazyGetter(this, "gcli", () => {
-  let gcli = require("gcli/index");
-  require("devtools/commandline/commands-index");
-  gcli.load();
-  return gcli;
-});
+XPCOMUtils.defineLazyGetter(this, "gcli", () => require("gcli/index"));
 
 Object.defineProperty(this, "ConsoleServiceListener", {
   get: function() {
@@ -61,15 +59,6 @@ const promise = Cu.import('resource://gre/modules/Promise.jsm', {}).Promise;
  * A collection of utilities to help working with commands
  */
 let CommandUtils = {
-  /**
-   * Utility to ensure that things are loaded in the correct order
-   */
-  createRequisition: function(environment) {
-    let temp = gcli.createDisplay; // Ensure GCLI is loaded
-    let Requisition = require("gcli/cli").Requisition
-    return new Requisition({ environment: environment });
-  },
-
   /**
    * Read a toolbarSpec from preferences
    * @param pref The name of the preference to read
@@ -360,6 +349,13 @@ DeveloperToolbar.prototype.show = function(focus) {
   var waitPromise = this._hidePromise || promise.resolve();
 
   this._showPromise = waitPromise.then(() => {
+    try {
+      CmdCommands.refreshAutoCommands(this._chromeWindow);
+    }
+    catch (ex) {
+      console.error(ex);
+    }
+
     Services.prefs.setBoolPref("devtools.toolbar.visible", true);
 
     this._telemetry.toolOpened("developertoolbar");

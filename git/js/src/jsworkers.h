@@ -84,7 +84,7 @@ class GlobalWorkerThreadState
   public:
     GlobalWorkerThreadState();
 
-    void ensureInitialized();
+    bool ensureInitialized();
     void finish();
 
     void lock();
@@ -260,7 +260,7 @@ struct WorkerThread
 /* Methods for interacting with worker threads. */
 
 // Initialize worker threads unless already initialized.
-void
+bool
 EnsureWorkerThreadsInitialized(ExclusiveContext *cx);
 
 // This allows the JS shell to override GetCPUCount() when passed the

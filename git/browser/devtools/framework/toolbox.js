@@ -41,6 +41,10 @@ loader.lazyGetter(this, "toolboxStrings", () => {
   };
 });
 
+loader.lazyGetter(this, "Requisition", () => {
+  return require("gcli/cli").Requisition;
+});
+
 loader.lazyGetter(this, "Selection", () => require("devtools/framework/selection").Selection);
 loader.lazyGetter(this, "InspectorFront", () => require("devtools/server/actors/inspector").InspectorFront);
 
@@ -535,7 +539,7 @@ Toolbox.prototype = {
 
     let spec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
     let environment = CommandUtils.createEnvironment(this, '_target');
-    this._requisition = CommandUtils.createRequisition(environment);
+    this._requisition = new Requisition({ environment: environment });
     let buttons = CommandUtils.createButtons(spec, this._target,
                                              this.doc, this._requisition);
     let container = this.doc.getElementById("toolbox-buttons");

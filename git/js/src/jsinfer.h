@@ -1431,16 +1431,12 @@ class CompilerOutput
     uint32_t sweepIndex_ : 29;
 
   public:
-    static const uint32_t INVALID_SWEEP_INDEX = (1 << 29) - 1;
-
     CompilerOutput()
-      : script_(nullptr), mode_(SequentialExecution),
-        pendingInvalidation_(false), sweepIndex_(INVALID_SWEEP_INDEX)
+      : script_(nullptr), mode_(SequentialExecution), pendingInvalidation_(false)
     {}
 
     CompilerOutput(JSScript *script, ExecutionMode mode)
-      : script_(script), mode_(mode),
-        pendingInvalidation_(false), sweepIndex_(INVALID_SWEEP_INDEX)
+      : script_(script), mode_(mode), pendingInvalidation_(false)
     {}
 
     JSScript *script() const { return script_; }
@@ -1463,15 +1459,11 @@ class CompilerOutput
     }
 
     void setSweepIndex(uint32_t index) {
-        if (index >= INVALID_SWEEP_INDEX)
+        if (index >= 1 << 29)
             MOZ_CRASH();
         sweepIndex_ = index;
     }
-    void invalidateSweepIndex() {
-        sweepIndex_ = INVALID_SWEEP_INDEX;
-    }
     uint32_t sweepIndex() {
-        JS_ASSERT(sweepIndex_ != INVALID_SWEEP_INDEX);
         return sweepIndex_;
     }
 };

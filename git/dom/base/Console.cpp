@@ -791,8 +791,8 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     loadContext->GetUsePrivateBrowsing(&callData->mPrivate);
   }
 
-  uint32_t maxDepth = ShouldIncludeStackrace(aMethodName) ?
-                      DEFAULT_MAX_STACKTRACE_DEPTH : 1;
+  uint32_t maxDepth = aMethodName == MethodTrace ?
+                       DEFAULT_MAX_STACKTRACE_DEPTH : 1;
   nsCOMPtr<nsIStackFrame> stack = CreateStack(aCx, maxDepth);
 
   if (!stack) {
@@ -814,11 +814,14 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
         language == nsIProgrammingLanguage::JAVASCRIPT2) {
       ConsoleStackEntry& data = *callData->mStack.AppendElement();
 
-      rv = stack->GetFilename(data.mFilename);
+      nsCString string;
+      rv = stack->GetFilename(string);
       if (NS_FAILED(rv)) {
         Throw(aCx, rv);
         return;
       }
+
+      CopyUTF8toUTF16(string, data.mFilename);
 
       int32_t lineNumber;
       rv = stack->GetLineNumber(&lineNumber);
@@ -829,11 +832,13 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
 
       data.mLineNumber = lineNumber;
 
-      rv = stack->GetName(data.mFunctionName);
+      rv = stack->GetName(string);
       if (NS_FAILED(rv)) {
         Throw(aCx, rv);
         return;
       }
+
+      CopyUTF8toUTF16(string, data.mFunctionName);
 
       data.mLanguage = language;
     }
@@ -974,7 +979,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
       ArgumentsToValueList(aData->mArguments, event.mArguments.Value());
   }
 
-  if (ShouldIncludeStackrace(aData->mMethodName)) {
+  if (aData->mMethodName == MethodTrace) {
     event.mStacktrace.Construct();
     event.mStacktrace.Value().SwapElements(aData->mStack);
   }
@@ -1471,20 +1476,6 @@ Console::ClearConsoleData()
 {
   while (ConsoleCallData* data = mQueuedCalls.popFirst()) {
     delete data;
-  }
-}
-
-bool
-Console::ShouldIncludeStackrace(MethodName aMethodName)
-{
-  switch (aMethodName) {
-    case MethodError:
-    case MethodException:
-    case MethodAssert:
-    case MethodTrace:
-      return true;
-    default:
-      return false;
   }
 }
 

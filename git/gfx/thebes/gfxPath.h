@@ -23,7 +23,7 @@ class Path;
  * Class representing a path. Can be created by copying the current path
  * of a gfxContext.
  */
-class gfxPath MOZ_FINAL {
+class gfxPath {
     NS_INLINE_DECL_REFCOUNTING(gfxPath)
 
     friend class gfxContext;
@@ -32,11 +32,9 @@ class gfxPath MOZ_FINAL {
 
 public:
     gfxPath(mozilla::gfx::Path* aPath);
+    virtual ~gfxPath();
 
 private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~gfxPath();
-
     cairo_path_t* mPath;
     mozilla::RefPtr<mozilla::gfx::Path> mMoz2DPath;
 };

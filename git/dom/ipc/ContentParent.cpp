@@ -1899,7 +1899,7 @@ ContentParent::RecvFirstIdle()
 }
 
 bool
-ContentParent::RecvAudioChannelGetState(const AudioChannel& aChannel,
+ContentParent::RecvAudioChannelGetState(const AudioChannelType& aType,
                                         const bool& aElementHidden,
                                         const bool& aElementWasHidden,
                                         AudioChannelState* aState)
@@ -1908,33 +1908,33 @@ ContentParent::RecvAudioChannelGetState(const AudioChannel& aChannel,
         AudioChannelService::GetAudioChannelService();
     *aState = AUDIO_CHANNEL_STATE_NORMAL;
     if (service) {
-        *aState = service->GetStateInternal(aChannel, mChildID,
+        *aState = service->GetStateInternal(aType, mChildID,
                                             aElementHidden, aElementWasHidden);
     }
     return true;
 }
 
 bool
-ContentParent::RecvAudioChannelRegisterType(const AudioChannel& aChannel,
+ContentParent::RecvAudioChannelRegisterType(const AudioChannelType& aType,
                                             const bool& aWithVideo)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-        service->RegisterType(aChannel, mChildID, aWithVideo);
+        service->RegisterType(aType, mChildID, aWithVideo);
     }
     return true;
 }
 
 bool
-ContentParent::RecvAudioChannelUnregisterType(const AudioChannel& aChannel,
+ContentParent::RecvAudioChannelUnregisterType(const AudioChannelType& aType,
                                               const bool& aElementHidden,
                                               const bool& aWithVideo)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-        service->UnregisterType(aChannel, aElementHidden, mChildID, aWithVideo);
+        service->UnregisterType(aType, aElementHidden, mChildID, aWithVideo);
     }
     return true;
 }
@@ -1951,13 +1951,13 @@ ContentParent::RecvAudioChannelChangedNotification()
 }
 
 bool
-ContentParent::RecvAudioChannelChangeDefVolChannel(const int32_t& aChannel,
-                                                   const bool& aHidden)
+ContentParent::RecvAudioChannelChangeDefVolChannel(
+  const AudioChannelType& aType, const bool& aHidden)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-       service->SetDefaultVolumeControlChannelInternal(aChannel,
+       service->SetDefaultVolumeControlChannelInternal(aType,
                                                        aHidden, mChildID);
     }
     return true;
@@ -1984,11 +1984,8 @@ ContentParent::RecvNuwaReady()
 {
 #ifdef MOZ_NUWA_PROCESS
     if (!IsNuwaProcess()) {
-        NS_ERROR(
-            nsPrintfCString(
-                "Terminating child process %d for unauthorized IPC message: NuwaReady",
-                Pid()).get());
-
+        printf_stderr("Terminating child process %d for unauthorized IPC message: "
+                      "NuwaReady", Pid());
         KillHard();
         return false;
     }
@@ -2006,11 +2003,8 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
 {
 #ifdef MOZ_NUWA_PROCESS
     if (!IsNuwaProcess()) {
-        NS_ERROR(
-            nsPrintfCString(
-                "Terminating child process %d for unauthorized IPC message: "
-                "AddNewProcess(%d)", Pid(), aPid).get());
-
+        printf_stderr("Terminating child process %d for unauthorized IPC message: "
+                      "AddNewProcess(%d)", Pid(), aPid);
         KillHard();
         return false;
     }

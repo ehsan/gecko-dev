@@ -394,10 +394,7 @@ this.Utils = {
     } catch (e) {
       error = e
     }
-
-    if (typeof callback == "function") {
-      callback.call(that, error);
-    }
+    callback.call(that, error);
   }),
 
   getErrorString: function Utils_getErrorString(error, args) {

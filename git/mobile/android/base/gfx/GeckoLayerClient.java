@@ -26,7 +26,7 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 
-class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
+public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 {
     private static final String LOGTAG = "GeckoLayerClient";
 
@@ -86,7 +86,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
      *    that because mViewportMetrics might get reassigned in between reading the different
      *    fields. */
     private volatile ImmutableViewportMetrics mViewportMetrics;
-    private LayerView.OnMetricsChangedListener mViewportChangeListener;
+    private OnMetricsChangedListener mViewportChangeListener;
 
     private ZoomConstraints mZoomConstraints;
 
@@ -914,6 +914,11 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         }
     }
 
+    public interface OnMetricsChangedListener {
+        public void onMetricsChanged(ImmutableViewportMetrics viewport);
+        public void onPanZoomStopped();
+    }
+
     /** Implementation of PanZoomTarget */
     @Override
     public void forceRedraw(DisplayPortMetrics displayPort) {
@@ -988,7 +993,7 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         return layerPoint;
     }
 
-    void setOnMetricsChangedListener(LayerView.OnMetricsChangedListener listener) {
+    public void setOnMetricsChangedListener(OnMetricsChangedListener listener) {
         mViewportChangeListener = listener;
     }
 
