@@ -8,6 +8,8 @@
  * nsIDOMCDATASection, and nsIDOMProcessingInstruction nodes.
  */
 
+#include "mozilla/DebugOnly.h"
+
 #include "nsGenericDOMDataNode.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
@@ -26,6 +28,7 @@
 #include "nsEventDispatcher.h"
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
+#include "mozilla/dom/DirectionalityUtils.h"
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
@@ -173,11 +176,21 @@ nsresult
 nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
                                     nsAString& aReturn)
 {
+  ErrorResult rv;
+  SubstringData(aStart, aCount, aReturn, rv);
+  return rv.ErrorCode();
+}
+
+void
+nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
+                                    nsAString& aReturn, ErrorResult& rv)
+{
   aReturn.Truncate();
 
   uint32_t textLength = mText.GetLength();
   if (aStart > textLength) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+    rv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+    return;
   }
 
   uint32_t amount = aCount;
@@ -194,8 +207,6 @@ nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
     const char *data = mText.Get1b() + aStart;
     CopyASCIItoUTF16(Substring(data, data + amount), aReturn);
   }
-
-  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -277,6 +288,10 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
       aDetails
     };
     nsNodeUtils::CharacterDataWillChange(this, &info);
+  }
+
+  if (NodeType() == nsIDOMNode::TEXT_NODE) {
+    SetDirectionFromChangedTextNode(this, aOffset, aBuffer, aLength, aNotify);
   }
 
   if (aOffset == 0 && endOffset == textLength) {
@@ -839,6 +854,7 @@ nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
 bool
 nsGenericDOMDataNode::TextIsOnlyWhitespace()
 {
+  // FIXME: should this method take content language into account?
   if (mText.Is2b()) {
     // The fragment contains non-8bit characters and such characters
     // are never considered whitespace.
@@ -851,7 +867,7 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
   while (cp < end) {
     char ch = *cp;
 
-    if (!XP_IS_SPACE(ch)) {
+    if (!dom::IsSpaceCharacter(ch)) {
       return false;
     }
 

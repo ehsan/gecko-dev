@@ -53,6 +53,7 @@ class nsCSSFrameConstructor : public nsFrameManager
 public:
   typedef mozilla::dom::Element Element;
   typedef mozilla::css::RestyleTracker RestyleTracker;
+  typedef mozilla::css::OverflowChangedTracker OverflowChangedTracker;
 
   nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
   ~nsCSSFrameConstructor(void) {
@@ -240,7 +241,8 @@ public:
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
-  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray);
+  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray,
+                                 OverflowChangedTracker& aTracker);
 
 private:
 
@@ -303,6 +305,15 @@ public:
                                  nsChangeHint aMinChangeHint)
   {
     PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint, true);
+  }
+
+  OverflowChangedTracker *GetOverflowChangedTracker() const 
+  { 
+    return mOverflowChangedTracker; 
+  }
+  void SetOverflowChangedTracker(OverflowChangedTracker *aTracker)
+  {
+    mOverflowChangedTracker = aTracker;    
   }
 
 private:
@@ -395,7 +406,8 @@ private:
                       nsIFrame*       aPrimaryFrame,
                       nsChangeHint    aMinHint,
                       RestyleTracker& aRestyleTracker,
-                      bool            aRestyleDescendants);
+                      bool            aRestyleDescendants,
+                      OverflowChangedTracker& aTracker);
 
   nsresult InitAndRestoreFrame (const nsFrameConstructorState& aState,
                                 nsIContent*                    aContent,
@@ -1460,7 +1472,11 @@ private:
    * corresponding logic in these functions.
    */
 public:
-  nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
+  enum ContainingBlockType {
+    ABS_POS,
+    FIXED_POS
+  };
+  nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame, ContainingBlockType aType);
 private:
   nsIFrame* GetFloatContainingBlock(nsIFrame* aFrame);
 
@@ -1887,6 +1903,8 @@ private:
   nsChangeHint        mRebuildAllExtraHint;
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
+
+  OverflowChangedTracker *mOverflowChangedTracker;
 
   // The total number of animation flushes by this frame constructor.
   // Used to keep the layer and animation manager in sync.

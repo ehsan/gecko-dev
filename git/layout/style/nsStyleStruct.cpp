@@ -741,6 +741,7 @@ nsStyleColumn::nsStyleColumn(nsPresContext* aPresContext)
   mColumnCount = NS_STYLE_COLUMN_COUNT_AUTO;
   mColumnWidth.SetAutoValue();
   mColumnGap.SetNormalValue();
+  mColumnFill = NS_STYLE_COLUMN_FILL_BALANCE;
 
   mColumnRuleWidth = (aPresContext->GetBorderWidthTable())[NS_STYLE_BORDER_WIDTH_MEDIUM];
   mColumnRuleStyle = NS_STYLE_BORDER_STYLE_NONE;
@@ -772,7 +773,8 @@ nsChangeHint nsStyleColumn::CalcDifference(const nsStyleColumn& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
 
   if (mColumnWidth != aOther.mColumnWidth ||
-      mColumnGap != aOther.mColumnGap)
+      mColumnGap != aOther.mColumnGap ||
+      mColumnFill != aOther.mColumnFill)
     return NS_STYLE_HINT_REFLOW;
 
   if (GetComputedColumnRuleWidth() != aOther.GetComputedColumnRuleWidth() ||
@@ -968,6 +970,7 @@ nsStyleSVGReset::nsStyleSVGReset()
     mFloodOpacity            = 1.0f;
     mDominantBaseline        = NS_STYLE_DOMINANT_BASELINE_AUTO;
     mVectorEffect            = NS_STYLE_VECTOR_EFFECT_NONE;
+    mMaskType                = NS_STYLE_MASK_TYPE_LUMINANCE;
 }
 
 nsStyleSVGReset::~nsStyleSVGReset() 
@@ -988,6 +991,7 @@ nsStyleSVGReset::nsStyleSVGReset(const nsStyleSVGReset& aSource)
   mFloodOpacity = aSource.mFloodOpacity;
   mDominantBaseline = aSource.mDominantBaseline;
   mVectorEffect = aSource.mVectorEffect;
+  mMaskType = aSource.mMaskType;
 }
 
 nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) const
@@ -1008,7 +1012,8 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
              mLightingColor != aOther.mLightingColor ||
              mStopOpacity   != aOther.mStopOpacity   ||
              mFloodOpacity  != aOther.mFloodOpacity  ||
-             mVectorEffect  != aOther.mVectorEffect)
+             mVectorEffect  != aOther.mVectorEffect  ||
+             mMaskType      != aOther.mMaskType)
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
 
   return hint;

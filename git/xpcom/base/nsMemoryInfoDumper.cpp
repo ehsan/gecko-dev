@@ -498,10 +498,11 @@ OpenTempFile(const nsACString &aFilename, nsIFile* *aFile)
     // On android the default system umask is 0077 which makes these files
     // unreadable to the shell user. In order to pull the dumps off a non-rooted
     // device we need to chmod them to something world-readable.
+    // XXX why not logFile->SetPermissions(0644);
     nsAutoCString path;
     rv = file->GetNativePath(path);
     if (NS_SUCCEEDED(rv)) {
-      chmod(PromiseFlatCString(path).get(), 0644);
+      chmod(path.get(), 0644);
     }
   }
 #endif
@@ -559,6 +560,12 @@ nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
   nsRefPtr<nsGZFileWriter> writer = new nsGZFileWriter();
   rv = writer->Init(mrTmpFile);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Clear DMD's reportedness state before running the reporters, to avoid
+  // spurious twice-reported warnings.
+#ifdef MOZ_DMD
+  dmd::ClearReports();
+#endif
 
   // Dump the memory reports to the file.
 
@@ -655,7 +662,7 @@ nsMemoryInfoDumper::DumpMemoryReportsToFileImpl(
 
   DMDWriteState state(dmdWriter);
   dmd::Writer w(DMDWrite, &state);
-  mozilla::dmd::Dump(w);
+  dmd::Dump(w);
 
   rv = dmdWriter->Finish();
   NS_ENSURE_SUCCESS(rv, rv);

@@ -9,8 +9,12 @@
  * boxes, also used for various anonymous boxes
  */
 
+#include "mozilla/DebugOnly.h"
+#include "mozilla/Likely.h"
+
 #include "nsCOMPtr.h"
 #include "nsBlockFrame.h"
+#include "nsAbsoluteContainingBlock.h"
 #include "nsBlockReflowContext.h"
 #include "nsBlockReflowState.h"
 #include "nsBulletFrame.h"
@@ -23,7 +27,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
-#include "nsIView.h"
+#include "nsView.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEvent.h"
@@ -53,8 +57,6 @@
 #include "nsRenderingContext.h"
 #include "TextOverflow.h"
 #include "nsStyleStructInlines.h"
-#include "mozilla/Util.h" // for DebugOnly
-#include "mozilla/Likely.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -1572,14 +1574,16 @@ nsBlockFrame::PrepareResizeReflow(nsBlockReflowState& aState)
   const nsStyleTextReset* styleTextReset = GetStyleTextReset();
   // See if we can try and avoid marking all the lines as dirty
   bool tryAndSkipLines =
-      // The text must be left-aligned.
+    // The block must be LTR (bug 806284)
+    GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR &&
+    // The text must be left-aligned.
     IsAlignedLeft(styleText->mTextAlign, 
                   aState.mReflowState.mStyleVisibility->mDirection,
                   styleTextReset->mUnicodeBidi,
                   this) &&
-      // The left content-edge must be a constant distance from the left
-      // border-edge.
-      !GetStylePadding()->mPadding.GetLeft().HasPercent();
+    // The left content-edge must be a constant distance from the left
+    // border-edge.
+    !GetStylePadding()->mPadding.GetLeft().HasPercent();
 
 #ifdef DEBUG
   if (gDisableResizeOpt) {
@@ -2571,10 +2575,10 @@ nsBlockFrame::PullFrameFrom(nsBlockReflowState&  aState,
   // when aFromContainer is 'this', then aLine->LastChild()'s next sibling
   // is already set correctly.
   aLine->NoteFrameAdded(frame);
+  fromLine->NoteFrameRemoved(frame);
 
-  if (fromLine->GetChildCount() > 1) {
+  if (fromLine->GetChildCount() > 0) {
     // Mark line dirty now that we pulled a child
-    fromLine->NoteFrameRemoved(frame);
     fromLine->MarkDirty();
     fromLine->mFirstChild = newFirstChild;
   } else {
@@ -4460,7 +4464,8 @@ nsBlockFrame::GetOverflowLines() const
   FrameLines* prop =
     static_cast<FrameLines*>(Properties().Get(OverflowLinesProperty()));
   NS_ASSERTION(prop && !prop->mLines.empty() &&
-               prop->mLines.front()->mFirstChild == prop->mFrames.FirstChild(),
+               prop->mLines.front()->GetChildCount() == 0 ? prop->mFrames.IsEmpty() :
+                 prop->mLines.front()->mFirstChild == prop->mFrames.FirstChild(),
                "value should always be stored and non-empty when state set");
   return prop;
 }
@@ -4474,7 +4479,8 @@ nsBlockFrame::RemoveOverflowLines()
   FrameLines* prop =
     static_cast<FrameLines*>(Properties().Remove(OverflowLinesProperty()));
   NS_ASSERTION(prop && !prop->mLines.empty() &&
-               prop->mLines.front()->mFirstChild == prop->mFrames.FirstChild(),
+               prop->mLines.front()->GetChildCount() == 0 ? prop->mFrames.IsEmpty() :
+                 prop->mLines.front()->mFirstChild == prop->mFrames.FirstChild(),
                "value should always be stored and non-empty when state set");
   RemoveStateBits(NS_BLOCK_HAS_OVERFLOW_LINES);
   return prop;
@@ -6077,27 +6083,26 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
       !lineMayHaveTextOverflow)
     return NS_OK;
 
-  nsDisplayListCollection collection;
-  nsresult rv;
-
   // Block-level child backgrounds go on the blockBorderBackgrounds list ...
   // Inline-level child backgrounds go on the regular child content list.
-  nsDisplayListSet childLists(collection,
-    lineInline ? collection.Content() : collection.BlockBorderBackgrounds());
+  nsDisplayListSet childLists(aLists,
+    lineInline ? aLists.Content() : aLists.BlockBorderBackgrounds());
+
+  uint32_t flags = lineInline ? nsIFrame::DISPLAY_CHILD_INLINE : 0;
+
   nsIFrame* kid = aLine->mFirstChild;
   int32_t n = aLine->GetChildCount();
   while (--n >= 0) {
-    rv = aFrame->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, childLists,
-                                          lineInline ? nsIFrame::DISPLAY_CHILD_INLINE : 0);
+    nsresult rv = aFrame->BuildDisplayListForChild(aBuilder, kid, aDirtyRect,
+                                                   childLists, flags);
     NS_ENSURE_SUCCESS(rv, rv);
     kid = kid->GetNextSibling();
   }
   
   if (lineMayHaveTextOverflow) {
-    aTextOverflow->ProcessLine(collection, aLine.get());
+    aTextOverflow->ProcessLine(aLists, aLine.get());
   }
 
-  collection.MoveTo(aLists);
   return NS_OK;
 }
 
@@ -6249,14 +6254,14 @@ nsBlockFrame::AccessibleType()
 {
   // block frame may be for <hr>
   if (mContent->Tag() == nsGkAtoms::hr) {
-    return a11y::eHTMLHRAccessible;
+    return a11y::eHTMLHRType;
   }
 
   if (!HasBullet() || !PresContext()) {
     if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
-      return a11y::eNoAccessible;
+      return a11y::eNoType;
     }
     
     nsCOMPtr<nsIDOMHTMLDocument> htmlDoc =
@@ -6267,16 +6272,16 @@ nsBlockFrame::AccessibleType()
       if (SameCOMIdentity(body, mContent)) {
         // Don't create accessible objects for the body, they are redundant with
         // the nsDocAccessible object created with the document node
-        return a11y::eNoAccessible;
+        return a11y::eNoType;
       }
     }
 
     // Not a bullet, treat as normal HTML container
-    return a11y::eHyperTextAccessible;
+    return a11y::eHyperTextType;
   }
 
   // Create special list bullet accessible
-  return a11y::eHTMLLiAccessible;
+  return a11y::eHTMLLiType;
 }
 #endif
 

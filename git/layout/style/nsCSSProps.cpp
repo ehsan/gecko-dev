@@ -1586,6 +1586,12 @@ const int32_t nsCSSProps::kImageRenderingKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
+const int32_t nsCSSProps::kMaskTypeKTable[] = {
+  eCSSKeyword_luminance, NS_STYLE_MASK_TYPE_LUMINANCE,
+  eCSSKeyword_alpha, NS_STYLE_MASK_TYPE_ALPHA,
+  eCSSKeyword_UNKNOWN, -1
+};
+
 const int32_t nsCSSProps::kShapeRenderingKTable[] = {
   eCSSKeyword_auto, NS_STYLE_SHAPE_RENDERING_AUTO,
   eCSSKeyword_optimizespeed, NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED,
@@ -1640,6 +1646,12 @@ const int32_t nsCSSProps::kColorInterpolationKTable[] = {
   eCSSKeyword_auto, NS_STYLE_COLOR_INTERPOLATION_AUTO,
   eCSSKeyword_srgb, NS_STYLE_COLOR_INTERPOLATION_SRGB,
   eCSSKeyword_linearrgb, NS_STYLE_COLOR_INTERPOLATION_LINEARRGB,
+  eCSSKeyword_UNKNOWN, -1
+};
+
+const int32_t nsCSSProps::kColumnFillKTable[] = {
+  eCSSKeyword_auto, NS_STYLE_COLUMN_FILL_AUTO,
+  eCSSKeyword_balance, NS_STYLE_COLUMN_FILL_BALANCE,
   eCSSKeyword_UNKNOWN, -1
 };
 

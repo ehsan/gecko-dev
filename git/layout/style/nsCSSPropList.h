@@ -1403,6 +1403,16 @@ CSS_PROP_COLUMN(
     offsetof(nsStyleColumn, mColumnCount),
     eStyleAnimType_Custom)
 CSS_PROP_COLUMN(
+    -moz-column-fill,
+    _moz_column_fill,
+    CSS_PROP_DOMPROP_PREFIXED(ColumnFill),
+    CSS_PROPERTY_PARSE_VALUE,
+    "",
+    VARIANT_HK,
+    kColumnFillKTable,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_COLUMN(
     -moz-column-width,
     _moz_column_width,
     CSS_PROP_DOMPROP_PREFIXED(ColumnWidth),
@@ -3284,6 +3294,16 @@ CSS_PROP_SVGRESET(
     nullptr,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+CSS_PROP_SVGRESET(
+    mask-type,
+    mask_type,
+    MaskType,
+    CSS_PROPERTY_PARSE_VALUE,
+    "layout.css.masking.enabled",
+    VARIANT_HK,
+    kMaskTypeKTable,
+    offsetof(nsStyleSVGReset, mMaskType),
+    eStyleAnimType_EnumU8)
 CSS_PROP_SVG(
     shape-rendering,
     shape_rendering,

@@ -312,7 +312,7 @@ load 514800-1.html
 load 515811-1.html
 load 517968.html
 load 519031.xhtml
-asserts(3-9) load 520340.html # bug 734777
+load 520340.html
 load 522170-1.html
 load 533379-1.html
 load 533379-2.html
@@ -376,7 +376,7 @@ load text-overflow-bug666751-2.html
 asserts(0-1) load text-overflow-bug670564.xhtml
 load text-overflow-bug671796.xhtml
 load 667025.html
-asserts(14) asserts-if(Android,8) load 673770.html # bug 569193 and bug 459597
+asserts-if(Android,8) load 673770.html # bug 569193 and bug 459597
 load 679933-1.html
 load 682649-1.html
 load 683702-1.xhtml
@@ -388,6 +388,7 @@ load 700031.xhtml
 load 718516.html
 load first-letter-638937.html
 load first-letter-638937-2.html
+load 734777.html
 test-pref(layout.css.flexbox.enabled,true) load 737313-1.html
 test-pref(layout.css.flexbox.enabled,true) load 737313-2.html
 test-pref(layout.css.flexbox.enabled,true) load 737313-3.html

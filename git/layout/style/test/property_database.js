@@ -522,6 +522,14 @@ var gCSSProperties = {
 		// negative and zero invalid per editor's draft
 		invalid_values: [ "-1", "0", "3px" ]
 	},
+        "-moz-column-fill": {
+                domProp: "MozColumnFill",
+                inherited: false,
+                type: CSS_TYPE_LONGHAND,
+                initial_values: [ "balance" ],
+                other_values: [ "auto" ],
+                invalid_values: [ "2px", "dotted", "5em" ]
+        },
 	"-moz-column-gap": {
 		domProp: "MozColumnGap",
 		inherited: false,
@@ -3568,6 +3576,14 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "url(#mymask)" ],
+		invalid_values: []
+	},
+	"mask-type": {
+		domProp: "maskType",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "luminance" ],
+		other_values: [ "alpha" ],
 		invalid_values: []
 	},
 	"shape-rendering": {

@@ -155,8 +155,7 @@ class MemoryMonitor extends BroadcastReceiver {
                 GeckoAppShell.onLowMemory();
             }
             GeckoAppShell.geckoEventSync();
-
-            GeckoApp.mAppContext.getFavicons().clearMemCache();
+            Favicons.getInstance().clearMemCache();
         }
     }
 

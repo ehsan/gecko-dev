@@ -812,6 +812,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_COLUMN_COUNT_AUTO              0
 #define NS_STYLE_COLUMN_COUNT_UNLIMITED         (-1)
 
+#define NS_STYLE_COLUMN_FILL_AUTO               0
+#define NS_STYLE_COLUMN_FILL_BALANCE            1
+
 // See nsStyleUIReset
 #define NS_STYLE_IME_MODE_AUTO                  0
 #define NS_STYLE_IME_MODE_NORMAL                1
@@ -855,6 +858,10 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED    1
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY  2
 #define NS_STYLE_IMAGE_RENDERING_CRISPEDGES       3
+
+// mask-type
+#define NS_STYLE_MASK_TYPE_LUMINANCE            0
+#define NS_STYLE_MASK_TYPE_ALPHA                1
 
 // shape-rendering
 #define NS_STYLE_SHAPE_RENDERING_AUTO               0
