@@ -4,12 +4,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
+MODULE = 'omxpluginjb-htc'
+NO_DIST_INSTALL = True
 
-JS_MODULES_PATH = 'modules/devtools/escodegen'
-
-EXTRA_JS_MODULES += [
-    'escodegen.js',
-    'estraverse.js',
-    'package.json.js',
+CPP_SOURCES += [
+    'OmxPluginJB-HTC.cpp',
 ]
+
+LIBRARY_NAME = 'omxpluginjb-htc'
+

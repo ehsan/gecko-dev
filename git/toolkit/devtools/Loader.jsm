@@ -18,9 +18,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils", "resource://gre/modules/Fil
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console", "resource://gre/modules/devtools/Console.jsm");
 
-let SourceMap = {};
-Cu.import("resource://gre/modules/devtools/SourceMap.jsm", SourceMap);
-
 let loader = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
 
@@ -46,8 +43,7 @@ var BuiltinProvider = {
   load: function() {
     this.loader = new loader.Loader({
       modules: {
-        "toolkit/loader": loader,
-        "source-map": SourceMap,
+        "toolkit/loader": loader
       },
       paths: {
         "": "resource://gre/modules/commonjs/",
@@ -57,10 +53,6 @@ var BuiltinProvider = {
         "devtools/toolkit/webconsole": "resource://gre/modules/devtools/toolkit/webconsole",
         "devtools/styleinspector/css-logic": "resource://gre/modules/devtools/styleinspector/css-logic",
         "devtools/client": "resource://gre/modules/devtools/client",
-
-        "escodegen/escodegen": "resource://gre/modules/devtools/escodegen/escodegen",
-        "escodegen/package.json": "resource://gre/modules/devtools/escodegen/package.json",
-        "estraverse": "resource://gre/modules/devtools/escodegen/estraverse",
 
         // Allow access to xpcshell test items from the loader.
         "xpcshell-test": "resource://test"
@@ -100,8 +92,7 @@ var SrcdirProvider = {
     let mainURI = this.fileURI(OS.Path.join(srcdir, "browser", "devtools", "main.js"));
     this.loader = new loader.Loader({
       modules: {
-        "toolkit/loader": loader,
-        "source-map": SourceMap,
+        "toolkit/loader": loader
       },
       paths: {
         "": "resource://gre/modules/commonjs/",

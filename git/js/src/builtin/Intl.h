@@ -7,7 +7,7 @@
 #ifndef builtin_Intl_h
 #define builtin_Intl_h
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 #include "js/RootingAPI.h"
 

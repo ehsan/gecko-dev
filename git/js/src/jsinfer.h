@@ -571,8 +571,22 @@ class StackTypeSet : public TypeSet
      */
     static StackTypeSet *make(JSContext *cx, const char *name);
 
-    /* Propagate any types from this set into target. */
-    void addSubset(JSContext *cx, StackTypeSet *target);
+    /* Constraints for type inference. */
+
+    void addSubset(JSContext *cx, TypeSet *target);
+    void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addSetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
+                       StackTypeSet *objectTypes, StackTypeSet *valueTypes);
+    void addCall(JSContext *cx, TypeCallsite *site);
+    void addArith(JSContext *cx, JSScript *script, jsbytecode *pc,
+                  TypeSet *target, TypeSet *other = NULL);
+    void addTransformThis(JSContext *cx, JSScript *script, TypeSet *target);
+    void addPropagateThis(JSContext *cx, JSScript *script, jsbytecode *pc,
+                          Type type, StackTypeSet *types = NULL);
+    void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
 
     /*
      * Constraints for JIT compilation.
@@ -665,8 +679,16 @@ class HeapTypeSet : public TypeSet
 {
   public:
 
-    /* Propagate any types from this set into target. */
-    void addSubset(JSContext *cx, HeapTypeSet *target);
+    /* Constraints for type inference. */
+
+    void addSubset(JSContext *cx, TypeSet *target);
+    void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addCallProperty(JSContext *cx, JSScript *script, jsbytecode *pc, jsid id);
+    void addFilterPrimitives(JSContext *cx, TypeSet *target);
+    void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
+
+    /* Constraints for JIT compilation. */
 
     /* Completely freeze the contents of this type set. */
     void addFreeze(JSContext *cx);
@@ -722,13 +744,6 @@ TypeSet::toHeapTypeSet()
     JS_ASSERT(!constraintsPurged());
     return (HeapTypeSet *) this;
 }
-
-bool
-AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, jsid id);
-
-void
-AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
-                                     JSScript *script, JSScript *calleeScript);
 
 /*
  * Handler which persists information about dynamic types pushed within a
@@ -917,14 +932,14 @@ struct TypeNewScript : public TypeObjectAddendum
      * scripted setter is added to one of the object's prototypes while it is
      * in the middle of being initialized, so we can walk the stack and fixup
      * any objects which look for in-progress objects which were prematurely
-     * set with their final shape. Property assignments in inner frames are
-     * preceded by a series of SETPROP_FRAME entries specifying the stack down
-     * to the frame containing the write.
+     * set with their final shape. Initialization can traverse stack frames,
+     * in which case FRAME_PUSH/FRAME_POP are used.
      */
     struct Initializer {
         enum Kind {
             SETPROP,
-            SETPROP_FRAME,
+            FRAME_PUSH,
+            FRAME_POP,
             DONE
         } kind;
         uint32_t offset;
@@ -1130,7 +1145,7 @@ struct TypeObject : gc::Cell
     void clearAddendum(ExclusiveContext *cx);
     void clearNewScriptAddendum(ExclusiveContext *cx);
     void clearBinaryDataAddendum(ExclusiveContext *cx);
-    void getFromPrototypes(JSContext *cx, jsid id, HeapTypeSet *types, bool force = false);
+    void getFromPrototypes(JSContext *cx, jsid id, TypeSet *types, bool force = false);
 
     void print();
 
@@ -1477,6 +1492,10 @@ struct TypeCompartment
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
     void addPendingRecompile(JSContext *cx, JSScript *script);
+
+    /* Monitor future effects on a bytecode. */
+    void monitorBytecode(JSContext *cx, JSScript *script, uint32_t offset,
+                         bool returnOnly = false);
 
     /* Mark any type set containing obj as having a generic object type. */
     void markSetsUnknown(JSContext *cx, TypeObject *obj);

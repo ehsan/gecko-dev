@@ -7,9 +7,7 @@
 #ifndef jit_AsmJS_h
 #define jit_AsmJS_h
 
-#include <stddef.h>
-
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
 namespace js {
 

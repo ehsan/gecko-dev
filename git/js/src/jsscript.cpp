@@ -2834,6 +2834,11 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
         }
     }
 
+    if (script->hasAnalysis() && script->analysis()->ranInference()) {
+        types::AutoEnterAnalysis enter(cx);
+        types::TypeScript::MonitorUnknown(cx, script, script->argumentsBytecode());
+    }
+
     return true;
 }
 

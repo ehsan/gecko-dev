@@ -2451,8 +2451,6 @@ jit::Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetU
         if (!scripts.append(script->parallelIonScript()->recompileInfo()))
             return false;
         break;
-      default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
     }
 
     Invalidate(cx, scripts, resetUses);
@@ -2544,9 +2542,6 @@ jit::ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode)
 
         script->setParallelIonScript(ION_DISABLED_SCRIPT);
         return;
-
-      default:
-        MOZ_ASSUME_UNREACHABLE("No such execution mode");
     }
 
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
