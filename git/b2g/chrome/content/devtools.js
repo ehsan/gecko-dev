@@ -35,8 +35,8 @@ XPCOMUtils.defineLazyGetter(this, 'MemoryFront', function() {
  */
 let developerHUD = {
 
-  _targets: new Map(),
-  _frames: new Map(),
+  _apps: new Map(),
+  _urls: new Map(),
   _client: null,
   _webappsActor: null,
   _watchers: [],
@@ -72,16 +72,19 @@ let developerHUD = {
           }
         }
 
-        Services.obs.addObserver(this, 'remote-browser-shown', false);
+        Services.obs.addObserver(this, 'remote-browser-pending', false);
         Services.obs.addObserver(this, 'inprocess-browser-shown', false);
         Services.obs.addObserver(this, 'message-manager-disconnect', false);
 
         let systemapp = document.querySelector('#systemapp');
-        this.trackFrame(systemapp);
+        let manifestURL = systemapp.getAttribute("mozapp");
+        this.trackApp(manifestURL);
 
-        let frames = systemapp.contentWindow.document.querySelectorAll('iframe[mozapp]');
+        let frames =
+          systemapp.contentWindow.document.querySelectorAll('iframe[mozapp]');
         for (let frame of frames) {
-          this.trackFrame(frame);
+          let manifestURL = frame.getAttribute("mozapp");
+          this.trackApp(manifestURL);
         }
       });
     });
@@ -91,11 +94,11 @@ let developerHUD = {
     if (!this._client)
       return;
 
-    for (let frame of this._targets.keys()) {
-      this.untrackFrame(frame);
+    for (let manifest of this._apps.keys()) {
+      this.untrackApp(manifest);
     }
 
-    Services.obs.removeObserver(this, 'remote-browser-shown');
+    Services.obs.removeObserver(this, 'remote-browser-pending');
     Services.obs.removeObserver(this, 'inprocess-browser-shown');
     Services.obs.removeObserver(this, 'message-manager-disconnect');
 
@@ -105,43 +108,43 @@ let developerHUD = {
 
   /**
    * This method will ask all registered watchers to track and update metrics
-   * on an app frame.
+   * on an app.
    */
-  trackFrame: function dwp_trackFrame(frame) {
-    if (this._targets.has(frame))
+  trackApp: function dwp_trackApp(manifestURL) {
+    if (this._apps.has(manifestURL))
       return;
 
     // FIXME(Bug 962577) Factor getAppActor out of webappsActor.
     this._client.request({
       to: this._webappsActor,
       type: 'getAppActor',
-      manifestURL: frame.appManifestURL
+      manifestURL: manifestURL
     }, (res) => {
       if (res.error) {
         return;
       }
 
-      let target = new Target(frame, res.actor);
-      this._targets.set(frame, target);
+      let app = new App(manifestURL, res.actor);
+      this._apps.set(manifestURL, app);
 
       for (let w of this._watchers) {
-        w.trackTarget(target);
+        w.trackApp(app);
       }
     });
   },
 
-  untrackFrame: function dwp_untrackFrame(frame) {
-    let target = this._targets.get(frame);
-    if (target) {
+  untrackApp: function dwp_untrackApp(manifestURL) {
+    let app = this._apps.get(manifestURL);
+    if (app) {
       for (let w of this._watchers) {
-        w.untrackTarget(target);
+        w.untrackApp(app);
       }
 
       // Delete the metrics and call display() to clean up the front-end.
-      delete target.metrics;
-      target.display();
+      delete app.metrics;
+      app.display();
 
-      this._target.delete(frame);
+      this._apps.delete(manifestURL);
     }
   },
 
@@ -149,12 +152,12 @@ let developerHUD = {
     if (!this._client)
       return;
 
-    let frame;
+    let manifestURL;
 
     switch(topic) {
 
       // listen for frame creation in OOP (device) as well as in parent process (b2g desktop)
-      case 'remote-browser-shown':
+      case 'remote-browser-pending':
       case 'inprocess-browser-shown':
         let frameLoader = subject;
         // get a ref to the app <iframe>
@@ -163,21 +166,21 @@ let developerHUD = {
         if (!frameLoader.ownerIsBrowserOrAppFrame) {
           return;
         }
-        frame = frameLoader.ownerElement;
-        if (!frame.appManifestURL) // Ignore all frames but app frames
+        manifestURL = frameLoader.ownerElement.appManifestURL;
+        if (!manifestURL) // Ignore all frames but apps
           return;
-        this.trackFrame(frame);
-        this._frames.set(frameLoader.messageManager, frame);
+        this.trackApp(manifestURL);
+        this._urls.set(frameLoader.messageManager, manifestURL);
         break;
 
       // Every time an iframe is destroyed, its message manager also is
       case 'message-manager-disconnect':
         let mm = subject;
-        frame = this._frames.get(mm);
-        if (!frame)
+        manifestURL = this._urls.get(mm);
+        if (!manifestURL)
           return;
-        this.untrackFrame(frame);
-        this._frames.delete(mm);
+        this.untrackApp(manifestURL);
+        this._urls.delete(mm);
         break;
     }
   },
@@ -194,27 +197,25 @@ let developerHUD = {
  * being tracked, e.g. its manifest information, current values of watched
  * metrics, and how to update these values on the front-end.
  */
-function Target(frame, actor) {
-  this.frame = frame;
+function App(manifest, actor) {
+  this.manifest = manifest;
   this.actor = actor;
   this.metrics = new Map();
 }
 
-Target.prototype = {
-  display: function target_display() {
-    let data = {
-      metrics: []
-    };
+App.prototype = {
 
+  display: function app_display() {
+    let data = {manifestURL: this.manifest, metrics: []};
     let metrics = this.metrics;
+
     if (metrics && metrics.size > 0) {
       for (let name of metrics.keys()) {
         data.metrics.push({name: name, value: metrics.get(name)});
       }
     }
 
-    shell.sendEvent(this.frame, 'developer-hud-update', Cu.cloneInto(data, this.frame));
-
+    shell.sendCustomEvent('developer-hud-update', data);
     // FIXME(after bug 963239 lands) return event.isDefaultPrevented();
     return false;
   }
@@ -228,7 +229,7 @@ Target.prototype = {
  */
 let consoleWatcher = {
 
-  _targets: new Map(),
+  _apps: new Map(),
   _watching: {
     reflows: false,
     warnings: false,
@@ -251,9 +252,9 @@ let consoleWatcher = {
         }
 
         // If unwatched, remove any existing widgets for that metric.
-        for (let target of this._targets.values()) {
-          target.metrics.set(metric, 0);
-          target.display();
+        for (let app of this._apps.values()) {
+          app.metrics.set(metric, 0);
+          app.display();
         }
       });
     }
@@ -264,42 +265,42 @@ let consoleWatcher = {
     client.addListener('reflowActivity', this.consoleListener);
   },
 
-  trackTarget: function cw_trackTarget(target) {
-    target.metrics.set('reflows', 0);
-    target.metrics.set('warnings', 0);
-    target.metrics.set('errors', 0);
+  trackApp: function cw_trackApp(app) {
+    app.metrics.set('reflows', 0);
+    app.metrics.set('warnings', 0);
+    app.metrics.set('errors', 0);
 
     this._client.request({
-      to: target.actor.consoleActor,
+      to: app.actor.consoleActor,
       type: 'startListeners',
       listeners: ['LogMessage', 'PageError', 'ConsoleAPI', 'ReflowActivity']
     }, (res) => {
-      this._targets.set(target.actor.consoleActor, target);
+      this._apps.set(app.actor.consoleActor, app);
     });
   },
 
-  untrackTarget: function cw_untrackTarget(target) {
+  untrackApp: function cw_untrackApp(app) {
     this._client.request({
-      to: target.actor.consoleActor,
+      to: app.actor.consoleActor,
       type: 'stopListeners',
       listeners: ['LogMessage', 'PageError', 'ConsoleAPI', 'ReflowActivity']
     }, (res) => { });
 
-    this._targets.delete(target.actor.consoleActor);
+    this._apps.delete(app.actor.consoleActor);
   },
 
-  bump: function cw_bump(target, metric) {
+  bump: function cw_bump(app, metric) {
     if (!this._watching[metric]) {
       return false;
     }
 
-    let metrics = target.metrics;
+    let metrics = app.metrics;
     metrics.set(metric, metrics.get(metric) + 1);
     return true;
   },
 
   consoleListener: function cw_consoleListener(type, packet) {
-    let target = this._targets.get(packet.from);
+    let app = this._apps.get(packet.from);
     let output = '';
 
     switch (packet.type) {
@@ -308,12 +309,12 @@ let consoleWatcher = {
         let pageError = packet.pageError;
 
         if (pageError.warning || pageError.strict) {
-          if (!this.bump(target, 'warnings')) {
+          if (!this.bump(app, 'warnings')) {
             return;
           }
           output = 'warning (';
         } else {
-          if (!this.bump(target, 'errors')) {
+          if (!this.bump(app, 'errors')) {
             return;
           }
           output += 'error (';
@@ -328,14 +329,14 @@ let consoleWatcher = {
         switch (packet.message.level) {
 
           case 'error':
-            if (!this.bump(target, 'errors')) {
+            if (!this.bump(app, 'errors')) {
               return;
             }
             output = 'error (console)';
             break;
 
           case 'warn':
-            if (!this.bump(target, 'warnings')) {
+            if (!this.bump(app, 'warnings')) {
               return;
             }
             output = 'warning (console)';
@@ -347,7 +348,7 @@ let consoleWatcher = {
         break;
 
       case 'reflowActivity':
-        if (!this.bump(target, 'reflows')) {
+        if (!this.bump(app, 'reflows')) {
           return;
         }
 
@@ -360,7 +361,7 @@ let consoleWatcher = {
         break;
     }
 
-    if (!target.display()) {
+    if (!app.display()) {
       // If the information was not displayed, log it.
       developerHUD.log(output);
     }
@@ -400,27 +401,27 @@ let eventLoopLagWatcher = {
 
     // Toggle the state of existing fronts.
     let fronts = this._fronts;
-    for (let target of fronts.keys()) {
+    for (let app of fronts.keys()) {
       if (value) {
-        fronts.get(target).start();
+        fronts.get(app).start();
       } else {
-        fronts.get(target).stop();
-        target.metrics.set('jank', 0);
-        target.display();
+        fronts.get(app).stop();
+        app.metrics.set('jank', 0);
+        app.display();
       }
     }
   },
 
-  trackTarget: function(target) {
-    target.metrics.set('jank', 0);
+  trackApp: function(app) {
+    app.metrics.set('jank', 0);
 
-    let front = new EventLoopLagFront(this._client, target.actor);
-    this._fronts.set(target, front);
+    let front = new EventLoopLagFront(this._client, app.actor);
+    this._fronts.set(app, front);
 
     front.on('event-loop-lag', time => {
-      target.metrics.set('jank', time);
+      app.metrics.set('jank', time);
 
-      if (!target.display()) {
+      if (!app.display()) {
         developerHUD.log('jank: ' + time + 'ms');
       }
     });
@@ -430,11 +431,11 @@ let eventLoopLagWatcher = {
     }
   },
 
-  untrackTarget: function(target) {
+  untrackApp: function(app) {
     let fronts = this._fronts;
-    if (fronts.has(target)) {
-      fronts.get(target).destroy();
-      fronts.delete(target);
+    if (fronts.has(app)) {
+      fronts.get(app).destroy();
+      fronts.delete(app);
     }
   }
 };
@@ -472,25 +473,23 @@ let memoryWatcher = {
 
     SettingsListener.observe('hud.appmemory', false, enabled => {
       if (this._active = enabled) {
-        for (let target of this._fronts.keys()) {
-          this.measure(target);
+        for (let app of this._fronts.keys()) {
+          this.measure(app);
         }
       } else {
-        for (let target of this._fronts.keys()) {
-          clearTimeout(this._timers.get(target));
-          target.metrics.set('memory', 0);
-          target.display();
+        for (let timer of this._timers.values()) {
+          clearTimeout(this._timers.get(app));
         }
       }
     });
   },
 
-  measure: function mw_measure(target) {
+  measure: function mw_measure(app) {
 
     // TODO Also track USS (bug #976024).
 
     let watch = this._watching;
-    let front = this._fronts.get(target);
+    let front = this._fronts.get(app);
 
     front.measure().then((data) => {
 
@@ -515,32 +514,32 @@ let memoryWatcher = {
       }
       // TODO Also count images size (bug #976007).
 
-      target.metrics.set('memory', total);
-      target.display();
+      app.metrics.set('memory', total);
+      app.display();
       let duration = parseInt(data.jsMilliseconds) + parseInt(data.nonJSMilliseconds);
-      let timer = setTimeout(() => this.measure(target), 100 * duration);
-      this._timers.set(target, timer);
+      let timer = setTimeout(() => this.measure(app), 100 * duration);
+      this._timers.set(app, timer);
     }, (err) => {
       console.error(err);
     });
   },
 
-  trackTarget: function mw_trackTarget(target) {
-    target.metrics.set('uss', 0);
-    target.metrics.set('memory', 0);
-    this._fronts.set(target, MemoryFront(this._client, target.actor));
+  trackApp: function mw_trackApp(app) {
+    app.metrics.set('uss', 0);
+    app.metrics.set('memory', 0);
+    this._fronts.set(app, MemoryFront(this._client, app.actor));
     if (this._active) {
-      this.measure(target);
+      this.measure(app);
     }
   },
 
-  untrackTarget: function mw_untrackTarget(target) {
-    let front = this._fronts.get(target);
+  untrackApp: function mw_untrackApp(app) {
+    let front = this._fronts.get(app);
     if (front) {
       front.destroy();
-      clearTimeout(this._timers.get(target));
-      this._fronts.delete(target);
-      this._timers.delete(target);
+      clearTimeout(this._timers.get(app));
+      this._fronts.delete(app);
+      this._timers.delete(app);
     }
   }
 };

@@ -60,9 +60,12 @@ function resetCustomization() {
 }
 
 function isInWin8() {
-  if (!Services.metro)
-    return false;
-  return Services.metro.supported;
+  let sysInfo = Services.sysinfo;
+  let osName = sysInfo.getProperty("name");
+  let version = sysInfo.getProperty("version");
+
+  // Windows 8 is version >= 6.2
+  return osName == "Windows_NT" && version >= 6.2;
 }
 
 function addSwitchToMetroButtonInWindows8(areaPanelPlacements) {
@@ -197,11 +200,6 @@ function openAndLoadWindow(aOptions, aWaitForDelayedStartup=false) {
     });
   }
   return deferred.promise;
-}
-
-function promiseWindowClosed(win) {
-  win.close();
-  return waitForCondition(() => win.closed);
 }
 
 function promisePanelShown(win) {

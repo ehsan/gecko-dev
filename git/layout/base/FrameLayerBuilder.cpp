@@ -1736,33 +1736,17 @@ ContainerState::AdjustLayerDataForFixedPositioning(const nsIFrame* aFixedPosFram
     return;
   }
 
-  nsRect fixedVisibleRect;
+  nsRect displayPort;
   nsPresContext* presContext = aFixedPosFrame->PresContext();
-  nsIPresShell* presShell = presContext->PresShell();
   DebugOnly<bool> hasDisplayPort =
-    nsLayoutUtils::ViewportHasDisplayPort(presContext, &fixedVisibleRect);
+    nsLayoutUtils::ViewportHasDisplayPort(presContext, &displayPort);
   NS_ASSERTION(hasDisplayPort, "No fixed-pos layer data if there's no displayport");
   // Display ports are relative to the viewport, convert it to be relative
   // to our reference frame.
-  nsIFrame* viewport = presShell->GetRootFrame();
-  if (aFixedPosFrame != viewport) {
-    // position: fixed items are reflowed into and only drawn inside the
-    // viewport, or the scroll position clamping scrollport size, if one is
-    // set. We differentiate background-attachment: fixed items from
-    // position: fixed items by the fact that background-attachment: fixed
-    // items use the viewport as their aFixedPosFrame.
-    NS_ASSERTION(aFixedPosFrame->StyleDisplay()->mPosition == NS_STYLE_POSITION_FIXED,
-      "should be position fixed items only");
-    fixedVisibleRect.MoveTo(0, 0);
-    if (presShell->IsScrollPositionClampingScrollPortSizeSet()) {
-      fixedVisibleRect.SizeTo(presShell->GetScrollPositionClampingScrollPortSize());
-    } else {
-      fixedVisibleRect.SizeTo(viewport->GetSize());
-    }
-  }
-  fixedVisibleRect += viewport->GetOffsetToCrossDoc(mContainerReferenceFrame);
+  nsIFrame* viewport = presContext->PresShell()->GetRootFrame();
+  displayPort += viewport->GetOffsetToCrossDoc(mContainerReferenceFrame);
   nsIntRegion newVisibleRegion;
-  newVisibleRegion.And(ScaleToOutsidePixels(fixedVisibleRect, false),
+  newVisibleRegion.And(ScaleToOutsidePixels(displayPort, false),
                        aDrawRegion);
   if (!aVisibleRegion->Contains(newVisibleRegion)) {
     if (aIsSolidColorInVisibleRegion) {

@@ -2092,8 +2092,12 @@ Breakpoints.prototype = {
  */
 Object.defineProperty(Breakpoints.prototype, "_addedOrDisabled", {
   get: function* () {
-    yield* this._added.values();
-    yield* this._disabled.values();
+    for (let [, value] of this._added) {
+      yield value;
+    }
+    for (let [, value] of this._disabled) {
+      yield value;
+    }
   }
 });
 

@@ -147,18 +147,15 @@ GonkCameraParameters::Initialize()
 
   rv = GetImpl(CAMERA_PARAM_SUPPORTED_MINEXPOSURECOMPENSATION, mExposureCompensationMin);
   if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize minimum exposure compensation");
-    mExposureCompensationMin = 0;
+    return rv;
   }
   rv = GetImpl(CAMERA_PARAM_SUPPORTED_EXPOSURECOMPENSATIONSTEP, mExposureCompensationStep);
   if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to initialize exposure compensation step size");
-    mExposureCompensationStep = 0;
+    return rv;
   }
   rv = GetListAsArray(CAMERA_PARAM_SUPPORTED_ZOOMRATIOS, mZoomRatios);
   if (NS_FAILED(rv)) {
-    // zoom is not supported
-    mZoomRatios.Clear();
+    return rv;
   }
 
   mInitialized = true;
@@ -413,11 +410,6 @@ GonkCameraParameters::SetTranslated(uint32_t aKey, const double& aValue)
 
   switch (aKey) {
     case CAMERA_PARAM_EXPOSURECOMPENSATION:
-      if (mExposureCompensationStep == 0) {
-        DOM_CAMERA_LOGE("Exposure compensation not supported, can't set %f\n", aValue);
-        return NS_ERROR_NOT_AVAILABLE;
-      }
-
       /**
        * Convert from real value to a Gonk index, round
        * to the nearest step; index is 1-based.
@@ -430,46 +422,34 @@ GonkCameraParameters::SetTranslated(uint32_t aKey, const double& aValue)
 
     case CAMERA_PARAM_ZOOM:
       {
-        if (mZoomRatios.Length() == 0) {
-          DOM_CAMERA_LOGE("Zoom not supported, can't set %fx\n", aValue);
-          return NS_ERROR_NOT_AVAILABLE;
-        }
-
         /**
          * Convert from a real zoom multipler (e.g. 2.5x) to
          * the index of the nearest supported value.
          */
         value = aValue * 100.0;
 
-        if (value < mZoomRatios[0]) {
-          index = 0;
-        } else if (value > mZoomRatios.LastElement()) {
-          index = mZoomRatios.Length() - 1;
-        } else {
-          // mZoomRatios is sorted, so we can binary search it
-          int bottom = 0;
-          int top = mZoomRatios.Length() - 1;
-          int middle;
+        // mZoomRatios is sorted, so we can binary search it
+        unsigned int bottom = 0;
+        unsigned int top = mZoomRatios.Length() - 1;
+        unsigned int middle;
 
-          while (top >= bottom) {
-            middle = (top + bottom) / 2;
-            if (value == mZoomRatios[middle]) {
-              // exact match
-              break;
-            }
-            if (value > mZoomRatios[middle] && value < mZoomRatios[middle + 1]) {
-              // the specified zoom value lies in this interval
-              break;
-            }
-            if (value > mZoomRatios[middle]) {
-              bottom = middle + 1;
-            } else {
-              top = middle - 1;
-            }
+        while (bottom != top) {
+          middle = (top + bottom) / 2;
+          if (value == mZoomRatios[middle]) {
+            // exact match
+            break;
           }
-          index = middle;
+          if (value > mZoomRatios[middle] && value < mZoomRatios[middle + 1]) {
+            // the specified zoom value lies in this interval
+            break;
+          }
+          if (value > mZoomRatios[middle]) {
+            bottom = middle + 1;
+          } else {
+            top = middle - 1;
+          }
         }
-        DOM_CAMERA_LOGI("Zoom = %fx --> index = %d\n", aValue, index);
+        index = middle;
       }
       return SetImpl(CAMERA_PARAM_ZOOM, index);
   }
@@ -636,19 +616,16 @@ GonkCameraParameters::GetListAsArray(uint32_t aKey, nsTArray<T>& aArray)
   if (NS_FAILED(rv)) {
     return rv;
   }
-
-  aArray.Clear();
-
-  // If there is no value available, just return the empty array.
   if (!p) {
-    DOM_CAMERA_LOGI("Camera parameter %d not available (value is null)\n", aKey);
-    return NS_OK;
+    DOM_CAMERA_LOGW("Camera parameter %d not available (value is null)\n", aKey);
+    return NS_ERROR_NOT_AVAILABLE;
   }
   if (*p == '\0') {
-    DOM_CAMERA_LOGI("Camera parameter %d not available (value is empty string)\n", aKey);
-    return NS_OK;
+    DOM_CAMERA_LOGW("Camera parameter %d not available (value is empty string)\n", aKey);
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
+  aArray.Clear();
   const char* comma;
 
   while (p) {
